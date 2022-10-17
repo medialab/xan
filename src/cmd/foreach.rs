@@ -1,5 +1,5 @@
 use csv;
-use regex::bytes::{Regex, NoExpand};
+use regex::bytes::{Regex};
 use std::process::{Command, Stdio};
 use std::io::{BufReader};
 use std::ffi::OsStr;
@@ -66,8 +66,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&None).writer()?;
 
     let template_pattern = Regex::new(r"\{\}")?;
-    let splitter_pattern = Regex::new(r#"(?:[\w-]+|"[^"]*"|'[^']*'|`[^`]*`)"#)?;
-    let cleaner_pattern = Regex::new(r#"(?:^["'`]|["'`]$)"#)?;
 
     let headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
@@ -80,22 +78,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let current_value = &record[column_index];
 
         let templated_command = template_pattern
-            .replace_all(&args.arg_command.as_bytes(), current_value)
-            .to_vec();
+            .replace_all(&args.arg_command.as_bytes(), current_value);
 
-        let mut command_pieces = splitter_pattern.find_iter(&templated_command);
-
-        let prog = OsStr::from_bytes(command_pieces.next().unwrap().as_bytes());
-
-        let cmd_args: Vec<String> = command_pieces.map(|piece| {
-            let clean_piece = cleaner_pattern.replace_all(&piece.as_bytes(), NoExpand(b""));
-
-            return String::from_utf8(clean_piece.into_owned()).expect("encoding error");
-        }).collect();
+        let command = OsStr::from_bytes(&templated_command);
 
         if !args.flag_unify {
-            let mut cmd = Command::new(prog)
-                .args(cmd_args)
+            let mut cmd = Command::new("sh")
+                .arg("-c")
+                .arg(command)
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .spawn()
@@ -104,8 +94,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             cmd.wait().unwrap();
         }
         else {
-            let mut cmd = Command::new(prog)
-                .args(cmd_args)
+            let mut cmd = Command::new("sh")
+                .arg("-c")
+                .arg(command)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit())
                 .spawn()
