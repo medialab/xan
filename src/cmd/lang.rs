@@ -6,12 +6,16 @@ use config::{Delimiter, Config};
 use select::SelectColumns;
 use util;
 
-static USAGE: &'static str = "
+static USAGE: &'static str = r#"
 Add a column with the language detected in a given CSV column
 
 Usage:
     xsv lang [options] <column> [<input>]
     xsv lang --help
+
+lang options:
+    -c, --new-column <name>  Name of the column to create.
+                             Will default to "lang".
 
 Common options:
     -h, --help               Display this message
@@ -20,12 +24,13 @@ Common options:
                              as headers.
     -d, --delimiter <arg>    The field delimiter for reading CSV data.
                              Must be a single character. (default: ,)
-";
+"#;
 
 #[derive(Deserialize)]
 struct Args {
     arg_column: SelectColumns,
     arg_input: Option<String>,
+    flag_new_column: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -46,7 +51,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let column_index = *sel.iter().next().unwrap();
 
     if !rconfig.no_headers {
-        headers.push_field(b"lang");
+        if let Some(column_name) = &args.flag_new_column {
+            headers.push_field(column_name.as_bytes());
+        }
+        else{
+            headers.push_field(b"lang");
+        }
 
         wtr.write_byte_record(&headers)?;
     }
