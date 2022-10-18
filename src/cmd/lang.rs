@@ -51,19 +51,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let column_index = *sel.iter().next().unwrap();
 
     if !rconfig.no_headers {
-        if let Some(column_name) = &args.flag_new_column {
-            headers.push_field(column_name.as_bytes());
-        }
-        else{
-            headers.push_field(b"lang");
-        }
-
+        headers.push_field(args.flag_new_column.map_or("lang".to_string(), |name| name).as_bytes());
         wtr.write_byte_record(&headers)?;
     }
 
     let mut record = csv::StringRecord::new();
 
-    let detector = LanguageDetectorBuilder::from_all_languages().build();
+    let detector = LanguageDetectorBuilder::from_all_spoken_languages().build();
 
     while rdr.read_record(&mut record)? {
         let cell = record[column_index].to_owned();
