@@ -1,5 +1,6 @@
 use csv;
 use regex::bytes::{Regex};
+use std::env;
 use std::process::{Command, Stdio};
 use std::io::{BufReader};
 use std::ffi::OsStr;
@@ -82,8 +83,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let command = OsStr::from_bytes(&templated_command);
 
+        let shell = match env::var("SHELL".to_string()) {
+            Ok(val) => val,
+            Err(_err) => return fail!("No shell found"),
+        };
+
         if !args.flag_unify {
-            let mut cmd = Command::new("sh")
+            let mut cmd = Command::new(shell)
                 .arg("-c")
                 .arg(command)
                 .stdout(Stdio::inherit())
@@ -94,7 +100,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             cmd.wait().unwrap();
         }
         else {
-            let mut cmd = Command::new("sh")
+            let mut cmd = Command::new(shell)
                 .arg("-c")
                 .arg(command)
                 .stdout(Stdio::piped())
