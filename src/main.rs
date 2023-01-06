@@ -1,14 +1,16 @@
 extern crate byteorder;
+extern crate chrono_tz;
 extern crate crossbeam_channel as channel;
 extern crate csv;
 extern crate csv_index;
 extern crate docopt;
-extern crate hlua;
 extern crate filetime;
+extern crate hlua;
 extern crate lingua;
 extern crate num_cpus;
 #[cfg(feature = "py")]
 extern crate pyo3;
+extern crate dateparser;
 extern crate rand;
 extern crate regex;
 extern crate serde;
@@ -54,6 +56,7 @@ macro_rules! command_list {
     behead      Drop header from CSV file
     cat         Concatenate by row or column
     count       Count records
+    datefmt     Formats a recognized date column to a specified format and timezone
     enum        Add a new column enumerating CSV lines
     explode     Explode rows based on some column separator
     foreach     Loop over a CSV file to execute bash commands
@@ -162,6 +165,7 @@ enum Command {
     Behead,
     Cat,
     Count,
+    Datefmt,
     Enum,
     Explode,
     ForEach,
@@ -208,6 +212,7 @@ impl Command {
             Command::Behead => cmd::behead::run(argv),
             Command::Cat => cmd::cat::run(argv),
             Command::Count => cmd::count::run(argv),
+            Command::Datefmt => cmd::datefmt::run(argv),
             Command::Enum => cmd::enumerate::run(argv),
             Command::Explode => cmd::explode::run(argv),
             Command::ForEach => cmd::foreach::run(argv),

@@ -6,13 +6,14 @@ use std::str;
 use std::thread;
 use std::time;
 
+use chrono_tz::Tz;
 use csv;
 use docopt::Docopt;
 use num_cpus;
-use serde::de::{Deserializer, Deserialize, DeserializeOwned, Error};
+use serde::de::{Deserialize, DeserializeOwned, Deserializer, Error};
 
-use CliResult;
 use config::{Config, Delimiter};
+use CliResult;
 
 pub fn num_cpus() -> usize {
     num_cpus::get()
@@ -33,7 +34,7 @@ pub fn version() -> String {
             else {
                 return format!("{}.{}.{}-{}", maj, min, pat, pre);
             }
-        },
+        }
         _ => "".to_owned(),
     }
 }
@@ -150,6 +151,16 @@ pub fn range(start: Idx, end: Idx, len: Idx, index: Idx)
             let s = start.unwrap_or(0);
             Ok((s, s + l))
         }
+    }
+}
+
+pub fn parse_timezone(tz: Option<String>) -> Result<Tz, String> {
+    match tz {
+        None => Ok(chrono_tz::UTC),
+        Some(time_string) => match time_string.parse::<Tz>() {
+            Ok(timezone) => Ok(timezone),
+            Err(_) => Err(format!("{} is not a valid timezone", time_string)),
+        },
     }
 }
 
