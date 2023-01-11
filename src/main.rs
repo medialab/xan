@@ -1,4 +1,5 @@
 extern crate byteorder;
+extern crate chrono;
 extern crate chrono_tz;
 extern crate crossbeam_channel as channel;
 extern crate csv;

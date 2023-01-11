@@ -1,11 +1,10 @@
-use csv;
-use dateparser::parse_with_timezone;
 use chrono_tz::Tz;
+use csv;
 
-use CliResult;
-use config::{Delimiter, Config};
+use config::{Config, Delimiter};
 use select::SelectColumns;
 use util;
+use CliResult;
 
 static USAGE: &'static str = r#"
 Add a column with the date from a CSV column in a specified format and timezone
@@ -17,7 +16,12 @@ Usage:
 datefmt options:
     -c, --new-column <name>   Name of the column to create.
                               Will default to "formatted_date".
-    -f, --formatstr <format>  Output date format. See 
+    --infmt <format>          Input date format. See 
+                              https://docs.rs/chrono/latest/chrono/format/strftime/ 
+                              for accepted date formats.
+                              If not provided, the format will
+                              be infered using dateparser.
+    --outfmt <format>         Output date format. See 
                               https://docs.rs/chrono/latest/chrono/format/strftime/ 
                               for accepted date formats.
                               Will default to ISO 8601/RFC 3339 format.
@@ -35,13 +39,13 @@ Common options:
                              Must be a single character. (default: ,)
 "#;
 
-#[derive(Deserialize)]
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 struct Args {
     arg_column: SelectColumns,
     arg_input: Option<String>,
     flag_new_column: Option<String>,
-    flag_formatstr: Option<String>,
+    flag_infmt: Option<String>,
+    flag_outfmt: Option<String>,
     flag_intz: Option<String>,
     flag_outtz: Option<String>,
     flag_output: Option<String>,
@@ -67,22 +71,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let column_index = *sel.iter().next().unwrap();
 
     if !rconfig.no_headers {
-        headers.push_field(args.flag_new_column.map_or("formatted_date".to_string(), |name| name).as_bytes());
+        headers.push_field(
+            args.flag_new_column
+                .map_or("formatted_date".to_string(), |name| name)
+                .as_bytes(),
+        );
         wtr.write_byte_record(&headers)?;
     }
 
     let mut record = csv::StringRecord::new();
 
     while rdr.read_record(&mut record)? {
-
         let cell = record[column_index].to_owned();
 
-        let parsed_date = parse_with_timezone(&cell, &input_tz);
+        let parsed_date = util::parse_date(&cell, input_tz, &args.flag_infmt);
 
         if let Ok(date) = parsed_date {
-            if let Some(ref date_format) = args.flag_formatstr {
-                let formatted_date =
-                    date.with_timezone(&output_tz).format(&date_format).to_string();
+            if let Some(ref date_format) = args.flag_outfmt {
+                let formatted_date = date
+                    .with_timezone(&output_tz)
+                    .format(&date_format)
+                    .to_string();
                 record.push_field(&formatted_date);
             } else {
                 record.push_field(&date.with_timezone(&output_tz).to_string())
@@ -90,7 +99,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             record.push_field(&"")
         }
-
 
         wtr.write_record(&record)?;
     }

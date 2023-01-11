@@ -35,6 +35,7 @@ opt-level = 3
 
 [dependencies]
 byteorder = "1"
+chrono = "0.4.23"
 chrono-tz = "0.6"
 crossbeam-channel = "0.2.4"
 csv = "1"

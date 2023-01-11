@@ -2279,6 +2279,7 @@ name = "xsv"
 version = "0.13.0-medialab1"
 dependencies = [
  "byteorder",
+ "chrono",
  "chrono-tz",
  "crossbeam-channel 0.2.6",
  "csv",

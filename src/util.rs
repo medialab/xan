@@ -6,7 +6,9 @@ use std::str;
 use std::thread;
 use std::time;
 
+use chrono::{DateTime, Utc, TimeZone};
 use chrono_tz::Tz;
+use dateparser::parse_with_timezone;
 use csv;
 use docopt::Docopt;
 use num_cpus;
@@ -160,6 +162,19 @@ pub fn parse_timezone(tz: Option<String>) -> Result<Tz, String> {
         Some(time_string) => match time_string.parse::<Tz>() {
             Ok(timezone) => Ok(timezone),
             Err(_) => Err(format!("{} is not a valid timezone", time_string)),
+        },
+    }
+}
+
+pub fn parse_date(date: &str, tz: Tz, input_fmt: &Option<String>) -> Result<DateTime<Utc>, String> {
+    match input_fmt {
+        Some(fmt) => match tz.datetime_from_str(date, &fmt) {
+            Ok(time) => Ok(time.with_timezone(&Utc)),
+            Err(_) => Err(format!("{} is not a valid format", fmt)),
+        },
+        None => match parse_with_timezone(&date, &tz) {
+            Ok(time) => Ok(time),
+            Err(_) => Err(format!("Time format could not be inferred for {}", date)),
         },
     }
 }
