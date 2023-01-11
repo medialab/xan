@@ -23,7 +23,7 @@ sort options:
     -N, --numeric          Compare according to string numerical value
     -R, --reverse          Reverse order
     -c, --count <name>     Number of times the line was consecutively duplicated.
-                           Needs a column name. Must be used with '--uniq'.
+                           Needs a column name. Can only be used with '--uniq'.
 
 Common options:
     -h, --help             Display this message
@@ -44,7 +44,7 @@ struct Args {
     flag_select: SelectColumns,
     flag_numeric: bool,
     flag_reverse: bool,
-    flag_count: String,
+    flag_count: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -59,9 +59,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
-
-    if !args.flag_count.is_empty() && !args.flag_uniq {
-        return fail!("--count must be used with --uniq")
+    
+    let count = &args.flag_count;
+    
+    if !count.is_none() && !args.flag_uniq {
+        return fail!("--count can only be used with --uniq")
     };
 
     let mut rdr = rconfig.reader()?;
@@ -100,8 +102,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     if !rconfig.no_headers {
-        if !args.flag_count.is_empty() {
-            headers.push_field(args.flag_count.as_bytes());
+        if let Some(count_name) = count {
+            headers.push_field(count_name.as_bytes());
         }
         if !headers.is_empty() {
             wtr.write_record(&headers)?;
@@ -116,11 +118,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             match prev {
                 Some(other_r) => {
                     match iter_cmp(sel.select(&r), sel.select(&other_r)) {
-                        cmp::Ordering::Equal => if !args.flag_count.is_empty() {
+                        cmp::Ordering::Equal => if !count.is_none() {
                             counter += 1;
                         },
                         _ => {
-                            if !args.flag_count.is_empty() {
+                            if !count.is_none() {
                                 line_buffer.push_field(&counter.to_string().as_bytes());
                                 wtr.write_byte_record(&line_buffer)?;
                                 line_buffer = r.clone();
@@ -133,7 +135,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 },
                 None => {
-                    if !args.flag_count.is_empty() {
+                    if !count.is_none() {
                         line_buffer = r.clone();
                     }
                     else {
@@ -148,7 +150,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&r)?;
         }
     }
-    if !args.flag_count.is_empty() {
+    if !count.is_none() && !line_buffer.is_empty() {
         line_buffer.push_field(&counter.to_string().as_bytes());
         wtr.write_byte_record(&line_buffer)?;
     }

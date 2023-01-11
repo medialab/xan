@@ -199,6 +199,63 @@ fn sort_count_not_uniq() {
     wrk.assert_err(&mut cmd);
 }
 
+#[test]
+fn sort_count_empty() {
+    let wrk = Workdir::new("sort_count");
+    wrk.create("in.csv", vec![
+        svec!["number", "letter"],
+    ]);
+
+    let mut cmd = wrk.command("sort");
+    cmd.arg("-u").args(&["-c", "duplicate_count"]).args(&["-s", "number"]).arg("-N").arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["number", "letter", "duplicate_count"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn sort_count_one_line() {
+    let wrk = Workdir::new("sort_count");
+    wrk.create("in.csv", vec![
+        svec!["number", "letter"],
+        svec!["2", "c"],
+    ]);
+
+    let mut cmd = wrk.command("sort");
+    cmd.arg("-u").args(&["-c", "duplicate_count"]).args(&["-s", "number"]).arg("-N").arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["number", "letter", "duplicate_count"],
+        svec!["2", "c", "1"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn sort_count_one_group() {
+    let wrk = Workdir::new("sort_count");
+    wrk.create("in.csv", vec![
+        svec!["number", "letter"],
+        svec!["2", "c"],
+        svec!["2", "b"],
+        svec!["2", "e"],
+    ]);
+
+    let mut cmd = wrk.command("sort");
+    cmd.arg("-u").args(&["-c", "duplicate_count"]).args(&["-s", "number"]).arg("-N").arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["number", "letter", "duplicate_count"],
+        svec!["2", "c", "3"],
+    ];
+    assert_eq!(got, expected);
+}
+
 /// Order `a` and `b` lexicographically using `Ord`
 pub fn iter_cmp<A, L, R>(mut a: L, mut b: R) -> cmp::Ordering
         where A: Ord, L: Iterator<Item=A>, R: Iterator<Item=A> {
