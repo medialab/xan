@@ -159,10 +159,7 @@ pub fn range(start: Idx, end: Idx, len: Idx, index: Idx)
 pub fn parse_timezone(tz: Option<String>) -> Result<Tz, String> {
     match tz {
         None => Ok(chrono_tz::UTC),
-        Some(time_string) => match time_string.parse::<Tz>() {
-            Ok(timezone) => Ok(timezone),
-            Err(_) => Err(format!("{} is not a valid timezone", time_string)),
-        },
+        Some(time_string) => time_string.parse::<Tz>().or(Err(format!("{} is not a valid timezone", time_string)))
     }
 }
 
@@ -170,11 +167,11 @@ pub fn parse_date(date: &str, tz: Tz, input_fmt: &Option<String>) -> Result<Date
     match input_fmt {
         Some(fmt) => match tz.datetime_from_str(date, &fmt) {
             Ok(time) => Ok(time.with_timezone(&Utc)),
-            Err(_) => Err(format!("{} is not a valid format", fmt)),
+            _ => Err(format!("{} is not a valid format", fmt)),
         },
         None => match parse_with_timezone(&date, &tz) {
             Ok(time) => Ok(time),
-            Err(_) => Err(format!("Time format could not be inferred for {}", date)),
+            _ => Err(format!("Time format could not be inferred for {}", date)),
         },
     }
 }
