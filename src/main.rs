@@ -1,4 +1,5 @@
 extern crate byteorder;
+extern crate colored;
 extern crate crossbeam_channel as channel;
 extern crate csv;
 extern crate csv_index;
@@ -17,6 +18,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate stats;
 extern crate tabwriter;
+extern crate termsize;
 extern crate textwrap;
 extern crate threadpool;
 extern crate uuid;
@@ -62,6 +64,7 @@ macro_rules! command_list {
     fmt         Format CSV output (change field delimiter)
     frequency   Show frequency tables
     headers     Show header names
+    histogram   Show histograms
     help        Show this usage message.
     index       Create CSV index for faster access
     input       Read CSV data with special quoting rules
@@ -171,6 +174,7 @@ enum Command {
     Frequency,
     Headers,
     Help,
+    Histogram,
     Index,
     Input,
     Join,
@@ -217,6 +221,7 @@ impl Command {
             Command::Frequency => cmd::frequency::run(argv),
             Command::Headers => cmd::headers::run(argv),
             Command::Help => { wout!("{}", USAGE); Ok(()) }
+            Command::Histogram => cmd::histogram::run(argv),
             Command::Index => cmd::index::run(argv),
             Command::Input => cmd::input::run(argv),
             Command::Join => cmd::join::run(argv),

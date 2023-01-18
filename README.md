@@ -30,6 +30,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod
 * `xsv enum`
 * `xsv explode`
 * `xsv foreach`
+* `xsv histogram`
 * `xsv jsonl`
 * `xsv lang`
 * `xsv lua`
@@ -60,6 +61,8 @@ given separator.
   parallelism to go faster if an index is present.)
 * **headers** - Show the headers of CSV data. Or show the intersection of all
   headers between many CSV files.
+* **histogram** - Build histograms of each column in CSV data. (Uses
+  parallelism to go faster if an index is present.)
 * **index** - Create an index for a CSV file. This is very quick and provides
   constant time indexing into the CSV file.
 * **input** - Read CSV data with exotic quoting/escaping rules.
