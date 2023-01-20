@@ -1,11 +1,14 @@
 use std::fs;
 use std::io;
+use std::cmp;
 
 use channel;
 use csv;
 use colored::Colorize;
 use stats::{Frequencies, merge_all};
 use threadpool::ThreadPool;
+use unicode_width::UnicodeWidthStr;
+use unicode_segmentation::UnicodeSegmentation;
 
 use CliResult;
 use config::{Config, Delimiter};
@@ -45,15 +48,15 @@ histogram options:
                            When set to '0', the number of jobs is set to the
                            number of CPUs detected.
                            [default: 0]
-    -m, --max-size <arg>   The maximum size for a bar in the histogram.
-                           Set to '0', will use the shell size to compute the
-                           bar size.
+    --screen-size <arg>    The size used to output the histogram. Set to '0',
+                           it will use the shell size.
                            [default: 0]
-    --scale <arg>          The scale to choose. If set to max, the maximum possible
-                           size for a bar will be the maximum cardinality of all bars.
-                           If set to sum, the maximum possible size for a bar
-                           will be the sum of the cardinalities of the bars.
-                           [default: sum]
+    --bar-max <arg>        The maximum value for a bar. If set to 'max', the maximum
+                           possible size for a bar will be the maximum cardinality
+                           of all bars in the histogram. If set to 'total', the maximum
+                           possible size for a bar will be the sum of the cardinalities
+                           of the bars.
+                           [default: total]
 
 Common options:
     -h, --help             Display this message
@@ -65,9 +68,9 @@ Common options:
                            Must be a single character. (default: ,)
 ";
 
-static SCALE: &'static [&'static str] = &[
+static BAR_MAX: &'static [&'static str] = &[
     "max",
-    "sum",
+    "total",
 ];
 
 #[derive(Clone, Deserialize)]
@@ -78,8 +81,8 @@ struct Args {
     flag_asc: bool,
     flag_no_nulls: bool,
     flag_jobs: usize,
-    flag_max_size: usize,
-    flag_scale: String,
+    flag_screen_size: usize,
+    flag_bar_max: String,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
@@ -89,93 +92,163 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
-    
-    let mut max_size = args.flag_max_size;
-    if max_size == 0 {
-        let termsize::Size {rows: _, cols} = termsize::get().unwrap();
-        max_size = cols as usize;
-    }
-    if max_size < 50 {
-        max_size = 0;
-    } else {
-        max_size -= 50;
-    }
 
-    let scale: &str = &args.flag_scale;
-    if !SCALE.contains(&scale) {
-        return fail!(format!("Unknown \"{}\" scale found", scale));
+    let bar_max: &str = &args.flag_bar_max;
+    if !BAR_MAX.contains(&bar_max) {
+        return fail!(format!("Unknown \"{}\" bar-max found", bar_max));
     }
-    let mut max_len = max_size;
 
     let square_chars = vec!["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
 
-    let (headers, tables, sum) = match args.rconfig().indexed()? {
+    let mut screen_size = args.flag_screen_size;
+    if screen_size == 0 {
+        if let Some(size) = termsize::get() {
+            screen_size = size.cols as usize;
+        }
+    }
+    if screen_size < 80 {
+        screen_size = 80;
+    }
+
+    let (headers, tables, lines_total) = match args.rconfig().indexed()? {
         Some(ref mut idx) if args.njobs() > 1 => args.parallel_ftables(idx),
         _ => args.sequential_ftables(),
     }?;
 
-    if scale == "sum" {
-        max_len = sum;
+    let mut legend = "nb_lines | %     ".to_string();
+    let lines_total_str = format_number(lines_total);
+    let lines_total_str_len = UnicodeWidthStr::width(&lines_total_str[..]);
+    if lines_total_str_len > 8 {
+        legend = " ".repeat(lines_total_str_len - 8) + &legend;
     }
+    let legend_str_len = UnicodeWidthStr::width(&legend[..]);
+
+    if screen_size <= (legend_str_len + 2) {
+        return fail!(format!("Too many lines in the input, we are not able to output the histogram."));
+    }
+    let size_bar_cols = (screen_size - (legend_str_len + 1)) / 3 * 2;
+    let size_labels = screen_size - (legend_str_len + 1) - (size_bar_cols + 1);
 
     let head_ftables = headers.into_iter().zip(tables.into_iter());
     for (i, (header, ftab)) in head_ftables.enumerate() {
-        let mut header = String::from_utf8(header.to_vec()).unwrap();
+        let mut lines_done = 0;
+
+        let mut header = String::from_utf8(header.to_vec()).unwrap().replace("\n", " ");
+        header = header.replace("\r", " ");
+        header = header.replace("\t", " ");
+        header = header.replace("\u{200F}", "");
+        header = header.replace("\u{200E}", "");
         if rconfig.no_headers {
             header = (i+1).to_string();
         }
-        if scale == "sum" {
-            header += &(" ".repeat((32 + max_size) - header.chars().count()));
-            header += &format_number(max_len);
+        let mut header_str_len = UnicodeWidthStr::width(&header[..]);
+        if header_str_len > size_labels {
+            let moved_header = header.clone();
+            let header_chars = UnicodeSegmentation::graphemes(&moved_header[..], true).collect::<Vec<&str>>();
+            let mut it = cmp::min(size_labels - 1, header_chars.len());
+            while header_str_len >= size_labels {
+                header = header_chars[0..it].join("");
+                header_str_len = UnicodeWidthStr::width(&header[..]);
+                it -= 1;
+            }
+            header += "…";
+            header_str_len += 1;
         }
-        println!("{}", header.yellow().bold());
+        header = " ".repeat(size_labels - header_str_len) + &header + &" ".repeat(size_bar_cols);
+        println!("{}\u{200E}  {}", header.yellow().bold(), legend.yellow().bold());
 
-        let mut count_str_max_size = 10;
-        for (j, (value, count)) in args.counts(&ftab).into_iter().enumerate() {
+        let mut longest_bar = lines_total;
 
-            let mut value = String::from_utf8(value).unwrap();
-            let value_len = value.chars().count();
-            if value_len > 30 {
-                let value_chars: Vec<char> = value.chars().collect();
-                value = value_chars[0].to_string();
-                for k in 1..29 {
-                    value += &value_chars[k].to_string();
+        let nb_categories_total = ftab.cardinality() as usize;
+        
+        let vec_ftables = args.counts(&ftab);
+        if bar_max == "max" {
+            longest_bar = 
+                if vec_ftables.len() == 0
+                    { 0 }
+                else
+                    {
+                        if args.flag_asc
+                            { vec_ftables[vec_ftables.len() - 1].1 as usize }
+                        else
+                            { vec_ftables[0].1 as usize }
+                    };
+        }
+
+        for (j, (value, count)) in vec_ftables.into_iter().enumerate() {
+            let count = count as f64;
+
+            let mut value = String::from_utf8(value).unwrap().replace("\n", " ");
+            value = value.replace("\r", " ");
+            value = value.replace("\t", " ");
+            value = value.replace("\u{200F}", "");
+            value = value.replace("\u{200E}", "");
+            let mut value_str_len = UnicodeWidthStr::width(&value[..]);
+            if value_str_len > size_labels {
+                let moved_value = value.clone();
+                let value_chars = UnicodeSegmentation::graphemes(&moved_value[..], true).collect::<Vec<&str>>();
+                let mut it = cmp::min(size_labels - 1, value_chars.len());
+                while value_str_len >= size_labels {
+                    value = value_chars[0..it].join("");
+                    value_str_len = UnicodeWidthStr::width(&value[..]);
+                    it -= 1;
                 }
                 value += "…";
+                value_str_len += 1;
             }
-            let nb_spaces = 31 - value.chars().count();
-            value += &" ".repeat(nb_spaces);
+            value = " ".repeat(size_labels - value_str_len) + &value.to_string();
 
             let mut count_int = count as usize;
-            let count_str = format_number(count_int);
-            if j == 0 {
-                if scale == "max" {
-                    max_len = count_int;
-                }
-                count_str_max_size = count_str.chars().count();
-            }
-            count_int = count_int * max_size / max_len;
-            let mut bar = square_chars[8].repeat(count_int);
+            lines_done += count_int;
+            let mut count_str = format_number(count_int);
+            count_str = (" ".repeat(cmp::max(lines_total_str_len, 8) - count_str.chars().count())) + &count_str;
 
-            let mut percentage_str = " ".repeat(count_str_max_size - count_str.chars().count()) + " | ";
-            let count_float = count as f64 * max_size as f64 / max_len as f64;
-            percentage_str += &format!("{:.2}", (count_float * 100.0 / max_size as f64));
-
+            count_int = count_int * size_bar_cols / longest_bar;
+            let mut bar_str = square_chars[8].repeat(count_int);
+            
+            let count_float = count * size_bar_cols as f64 / longest_bar as f64;
             let remainder = ((count_float - count_int as f64) * 8.0) as usize;
-            bar += square_chars[remainder % 8];
+            bar_str += square_chars[remainder % 8];
+
+            let colored_bar_str =
+                if j % 2 == 0
+                    { bar_str.dimmed().white() }
+                else
+                    { bar_str.white() };
 
             if remainder % 8 != 0 {
                 count_int += 1;
             }
-            let empty = ".".repeat(max_size - count_int) + " ";
+            let empty = ".".repeat(size_bar_cols - count_int);
 
-            let mut colored_bar = bar.white();
-            if j % 2 == 1 {
-                colored_bar = bar.dimmed().white();
-            }
-
-            println!("{}{}{}{}{}", value.to_owned(), &colored_bar, &empty, &count_str, &percentage_str);
+            println!(
+                "{}\u{200E} {}{} {} | {}",
+                value,
+                &colored_bar_str,
+                &empty,
+                &count_str,
+                &format!("{:.2}", (count * 100.0 / lines_total as f64))
+            );
         }
+
+        let nb_categories_done =
+            if args.flag_limit != 0
+                { cmp::min(args.flag_limit, nb_categories_total) }
+            else
+                { nb_categories_total };
+
+        let resume =
+            " ".repeat(size_labels + 1)
+            + &"Histogram for ".to_owned()
+            + &format_number(lines_done)
+            + "/"
+            + &lines_total_str
+            + " lines and "
+            + &format_number(nb_categories_done)
+            + "/"
+            + &format_number(nb_categories_total)
+            + " categories.";
+        println!("{}", resume.yellow().bold());
         println!("");
     }
     Ok(())

@@ -24,14 +24,16 @@ fn setup(name: &str) -> (Workdir, process::Command) {
 #[test]
 fn histogram_no_headers() {
     let (wrk, mut cmd) = setup("histogram_no_headers");
-    cmd.args(&["--limit", "0"]).args(&["--select", "1"]).arg("--no-headers").args(&["--max-size", "56"]);
+    cmd.args(&["--limit", "0"]).args(&["--select", "1"]).arg("--no-headers").args(&["--screen-size", "80"]);
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got = got.into_iter().skip(1).collect();
+    got = got.into_iter().collect();
     let expected = vec![
-        ["a                              ████████████████████████████████████████████████████████ 3 | 100.00"],
-        ["b                              █████████████████████████████████████▎.................. 2 | 66.67"],
-        ["h1                             ██████████████████▋..................................... 1 | 33.33"],
+        ["                    1                                        \u{200e}  nb_lines | %     "],
+        ["                    a\u{200e} ████████████████████....................        3 | 50.00"],
+        ["                    b\u{200e} █████████████▎..........................        2 | 33.33"],
+        ["                   h1\u{200e} ██████▋.................................        1 | 16.67"],
+        ["                      Histogram for 6/6 lines and 3/3 categories."]
     ];
     assert_eq!(got, expected);
 }
