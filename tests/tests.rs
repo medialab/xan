@@ -38,6 +38,7 @@ mod test_behead;
 mod test_cat;
 mod test_count;
 mod test_datefmt;
+mod test_dist;
 mod test_explode;
 mod test_enumerate;
 mod test_foreach;

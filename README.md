@@ -28,6 +28,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod
 * `xsv apply`
 * `xsv behead`
 * `xsv datefmt`
+* `xsv dist`
 * `xsv enum`
 * `xsv explode`
 * `xsv foreach`
@@ -48,6 +49,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod
 * **cat** - Concatenate CSV files by row or by column.
 * **count** - Count the rows in a CSV file. (Instantaneous with an index.)
 * **datefmt** - Add a column with the date from a CSV column in a specified format and timezone.
+* **dist** - Shows distribution of numeric data from a column.
 * **enum** - Add a new column enumerating rows by adding a column of incremental or uuid identifiers. Can also be used to copy a column or fill a new column with a constant value.
 * **explode** - Explode rows into multiple ones by splitting a column value based on the
 given separator.
