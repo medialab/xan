@@ -1,5 +1,4 @@
 use std::cmp;
-use std::collections::BinaryHeap;
 
 use csv;
 use colored::Colorize;
@@ -110,7 +109,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some(max) => max,
     };
 
-    let mut values: Vec<(f64, u64)> = Vec::new();   // prend trop d'espace mémoire, faire un Counter
+    let mut values: Vec<(f64, u64)> = Vec::new();
     let mut nans = 0;
     let mut lines_total = 0;
 
@@ -167,7 +166,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
     let bins_len = bins.clone().len();
 
-    for (value, count) in values {      // DOUBLE BOUCLE qui peut être évitée ? par exemple, value déjà trié, donc on avance en parallèle -> value est un tas ??
+    for (value, count) in values {
         for (i, (min, max, _)) in bins.clone().into_iter().enumerate() {
             if max > value && value >= min {
                 bins[i].2 += count;
@@ -227,7 +226,7 @@ impl Args {
     }
 
     fn bins_construction(&self, min: f64, max: f64, precision: u8) -> CliResult<Vec<(f64, f64, u64)>> {
-        let mut bins: Vec<(f64, f64, u64)> = Vec::new();    // existe une mailleure structure pour améliorer l'insertion des valeurs ??
+        let mut bins: Vec<(f64, f64, u64)> = Vec::new();
         let size_interval = ceil_float(((max - min) / self.flag_bins as f64).abs(), precision);
         let mut temp_min = min;
         let mut temp_max = ceil_float(temp_min + size_interval, precision);
@@ -399,7 +398,7 @@ impl Bar {
         let count_str = (" ".repeat(cmp::max(self.lines_total_str_len, 8) - count_str.chars().count())) + &count_str;
 
         println!(
-            "{}\u{200E} {}{} {} | {}",
+            "{} {}{} {} | {}",
             value,
             &colored_bar_str,
             &empty,
