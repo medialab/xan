@@ -5,7 +5,7 @@ use colored::Colorize;
 
 use CliResult;
 use config::{Config, Delimiter};
-use select::{SelectColumns};
+use select::SelectColumns;
 use util;
 
 static USAGE: &'static str = "
@@ -109,7 +109,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some(max) => max,
     };
 
-    let mut values: Vec<(f64, u64)> = Vec::new();
+    let mut values: Vec<f64> = Vec::new();
     let mut nans = 0;
     let mut lines_total = 0;
 
@@ -131,7 +131,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue
             }
         };
-        values.push((value, 1));
+        values.push(value);
         if args.flag_min.is_none() && value < min as f64 {
             min = value;
         }
@@ -147,6 +147,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         return fail!("No result because min is greater than max");
     }
+
     let max_nb_str_len = cmp::max(
         format_number_float(min, args.flag_precision).chars().count(),
         format_number_float(max, args.flag_precision).chars().count()
@@ -160,23 +161,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
     bar.print_title();
 
-    let mut bins: Vec<(f64, f64, u64)> = match args.bins_construction(min, max, args.flag_precision) {
-        Ok(bins) => { bins },
+    let (mut bins, size_interval) = match args.bins_construction(min, max, args.flag_precision) {
+        Ok((bins, size_interval)) => { (bins, size_interval) },
         Err(e) => return fail!(e),
     };
     let bins_len = bins.clone().len();
 
-    for (value, count) in values {
-        for (i, (min, max, _)) in bins.clone().into_iter().enumerate() {
-            if max > value && value >= min {
-                bins[i].2 += count;
-                break;
-            }
-            if value == max {
-                bins[i].2 += count;
-                break;
-            }
+    for value in values {
+        let temp = (value - min) / size_interval;
+        let mut pos = temp.floor() as usize;
+        if pos as f64 == temp && pos != 0 {
+            pos -= 1;
         }
+        bins[pos].2 += 1;
     }
     bins[bins_len - 1].2 += nans;
 
@@ -225,7 +222,7 @@ impl Args {
             .select(self.arg_column.clone())
     }
 
-    fn bins_construction(&self, min: f64, max: f64, precision: u8) -> CliResult<Vec<(f64, f64, u64)>> {
+    fn bins_construction(&self, min: f64, max: f64, precision: u8) -> CliResult<(Vec<(f64, f64, u64)>, f64)> {
         let mut bins: Vec<(f64, f64, u64)> = Vec::new();
         let size_interval = ceil_float(((max - min) / self.flag_bins as f64).abs(), precision);
         let mut temp_min = min;
@@ -247,7 +244,7 @@ impl Args {
         if !self.flag_no_nans {
             bins.push((0.0, 0.0, 0));
         }
-        Ok(bins)
+        Ok((bins, size_interval))
     }
 }
 
