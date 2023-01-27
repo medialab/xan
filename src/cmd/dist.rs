@@ -169,9 +169,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok((bins, size_interval)) => { (bins, size_interval) },
         Err(e) => return fail!(e),
     };
-    let bins_len = bins.clone().len();
 
     for value in values {
+        if value > max || value < min{
+            continue
+        }
         let temp = (value - min) / size_interval;
         let mut pos = temp.floor() as usize;
         if pos as f64 == temp && pos != 0 {
@@ -179,7 +181,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         bins[pos].2 += 1;
     }
-    bins[bins_len - 1].2 += nans;
 
     bar.longest_bar = 0;
     if bar_max == "max" {
@@ -188,22 +189,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 bar.longest_bar = count as usize;
             }
         }
+        if nans > bar.longest_bar {
+            bar.longest_bar = nans;
+        }
     } else {
         bar.longest_bar = lines_total as usize;
     }
 
     let mut lines_done = 0;
-    for (j, res) in bins.into_iter().enumerate() {
+    let mut j = 0;
+    for res in bins.into_iter() {
         lines_done += res.2;
-        if res.0 == 0.0 && res.1 == 0.0 {
-            let interval = "NaNs";
-            bar.print_bar(interval.to_string(), res.2 as u64, j);
-        } else {
-            let min_interval = format_number_float(res.0, args.flag_precision);
-            let max_interval = format_number_float(res.1, args.flag_precision);
-            let interval = min_interval + " - " + &" ".repeat(max_nb_str_len - max_interval.chars().count()) + &max_interval;
-            bar.print_bar(interval, res.2 as u64, j);
-        }
+        let min_interval = format_number_float(res.0, args.flag_precision);
+        let max_interval = format_number_float(res.1, args.flag_precision);
+        let interval = min_interval + " - " + &" ".repeat(max_nb_str_len - max_interval.chars().count()) + &max_interval;
+        bar.print_bar(interval, res.2 as u64, j);
+        j += 1;
+    }
+    if nans != 0 {
+        lines_done += nans as u64;
+        let interval = "NaNs";
+        bar.print_bar(interval.to_string(), nans as u64, j);
     }
 
     let resume =
@@ -228,7 +234,7 @@ impl Args {
 
     fn bins_construction(&self, min: f64, max: f64, precision: u8) -> CliResult<(Vec<(f64, f64, u64)>, f64)> {
         let mut bins: Vec<(f64, f64, u64)> = Vec::new();
-        let size_interval = ceil_float(((max - min) / self.flag_bins as f64).abs(), precision);
+        let size_interval = ((max - min) / self.flag_bins as f64).abs();
         let mut temp_min = min;
         let mut temp_max = ceil_float(temp_min + size_interval, precision);
         bins.push((temp_min, temp_max, 0));
@@ -239,9 +245,6 @@ impl Args {
             temp_min = temp_max;
             temp_max = ceil_float(temp_min + size_interval, precision);
             bins.push((temp_min, temp_max, 0));
-        }
-        if !self.flag_no_nans {
-            bins.push((0.0, 0.0, 0));
         }
         Ok((bins, size_interval))
     }
@@ -355,6 +358,9 @@ impl Bar {
             return fail!(format!("Too many lines in the input, we are not able to output the distribution."));
         }
         self.size_labels = max_str_len + 1;
+        if self.screen_size - (legend_str_len + 1) <= (self.size_labels + 1) {
+            return fail!("Too precise to print the result, try lowering the precision");
+        }
         self.size_bar_cols = self.screen_size - (legend_str_len + 1) - (self.size_labels + 1);
         Ok(())
     }
