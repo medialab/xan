@@ -11,7 +11,6 @@ pub mod flatten;
 pub mod fmt;
 pub mod frequency;
 pub mod headers;
-pub mod histogram;
 pub mod index;
 pub mod input;
 pub mod join;
