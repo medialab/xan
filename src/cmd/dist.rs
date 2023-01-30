@@ -122,7 +122,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_record(&mut record)? {
         lines_total += 1;
         let cell = record[column_index].to_owned();
-        let value = match cell.parse::<f64>() {
+        let value = match cell.trim().parse::<f64>() {
             Ok(nb) => nb,
             Err(_) => {
                 if !args.flag_no_nans {
@@ -131,6 +131,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue
             }
         };
+        if value.to_string() != cell.trim() {
+            return fail!("The values are too high and can't be parsed correctly.");
+        }
         values.push(value);
         if args.flag_min.is_none() && value < min as f64 {
             min = value;
