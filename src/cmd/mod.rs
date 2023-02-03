@@ -10,6 +10,8 @@ pub mod fixlengths;
 pub mod flatten;
 pub mod fmt;
 pub mod frequency;
+// #[cfg(feature = "fullsearch")]
+pub mod fullsearch;
 pub mod headers;
 pub mod index;
 pub mod input;

@@ -21,6 +21,9 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate stats;
 extern crate tabwriter;
+// #[cfg(feature = "fullsearch")]
+extern crate tantivy;
+extern crate tempfile;
 extern crate textwrap;
 extern crate threadpool;
 extern crate uuid;
@@ -66,6 +69,7 @@ macro_rules! command_list {
     flatten     Show one field per line
     fmt         Format CSV output (change field delimiter)
     frequency   Show frequency tables
+    fullsearch  Full-text search on CSV column
     headers     Show header names
     help        Show this usage message.
     index       Create CSV index for faster access
@@ -151,6 +155,16 @@ Please choose one of the following commands:",
                     werr!("{}", err);
                     process::exit(1);
                 }
+                // #[cfg(feature = "fullsearch")]
+                Err(CliError::Tantivy(err)) => {
+                    werr!("{}", err);
+                    process::exit(1);
+                }
+                // #[cfg(feature = "fullsearch")]
+                Err(CliError::TantivyQuery(err)) => {
+                    werr!("{}", err);
+                    process::exit(1);
+                }
                 Err(CliError::Other(msg)) => {
                     werr!("{}", msg);
                     process::exit(1);
@@ -175,6 +189,7 @@ enum Command {
     Flatten,
     Fmt,
     Frequency,
+    Fullsearch,
     Headers,
     Help,
     Index,
@@ -222,6 +237,10 @@ impl Command {
             Command::Flatten => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
             Command::Frequency => cmd::frequency::run(argv),
+            // #[cfg(feature = "fullsearch")]
+            Command::Fullsearch => cmd::fullsearch::run(argv),
+            // #[cfg(not(feature = "fullsearch"))]
+            // Command::Fullsearch => { Ok(println!("This version of XSV was not compiled with the \"fullsearch\" feature.")) }
             Command::Headers => cmd::headers::run(argv),
             Command::Help => { wout!("{}", USAGE); Ok(()) }
             Command::Index => cmd::index::run(argv),
@@ -254,6 +273,10 @@ pub enum CliError {
     Flag(docopt::Error),
     Csv(csv::Error),
     Io(io::Error),
+    // #[cfg(feature = "fullsearch")]
+    Tantivy(tantivy::error::TantivyError),
+    // #[cfg(feature = "fullsearch")]
+    TantivyQuery(tantivy::query::QueryParserError),
     Other(String),
 }
 
@@ -263,6 +286,10 @@ impl fmt::Display for CliError {
             CliError::Flag(ref e) => { e.fmt(f) }
             CliError::Csv(ref e) => { e.fmt(f) }
             CliError::Io(ref e) => { e.fmt(f) }
+            // #[cfg(feature = "fullsearch")]
+            CliError::Tantivy(ref e) => { e.fmt(f) }
+            // #[cfg(feature = "fullsearch")]
+            CliError::TantivyQuery(ref e) => { e.fmt(f) }
             CliError::Other(ref s) => { f.write_str(&**s) }
         }
     }
@@ -307,5 +334,19 @@ impl<'a> From<&'a str> for CliError {
 impl From<regex::Error> for CliError {
     fn from(err: regex::Error) -> CliError {
         CliError::Other(format!("{:?}", err))
+    }
+}
+
+// #[cfg(feature = "fullsearch")]
+impl From<tantivy::error::TantivyError> for CliError {
+    fn from(err: tantivy::error::TantivyError) -> CliError {
+        CliError::Tantivy(err)
+    }
+}
+
+// #[cfg(feature = "fullsearch")]
+impl From<tantivy::query::QueryParserError> for CliError {
+    fn from(err: tantivy::query::QueryParserError) -> CliError {
+        CliError::TantivyQuery(err)
     }
 }

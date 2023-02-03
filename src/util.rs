@@ -129,6 +129,12 @@ pub fn idx_path(csv_path: &Path) -> PathBuf {
     PathBuf::from(&p)
 }
 
+pub fn idx_fullsearch_path(csv_path: &Path) -> PathBuf {
+    let mut p = csv_path.to_path_buf().into_os_string().into_string().unwrap();
+    p.push_str("_idx");
+    PathBuf::from(&p)
+}
+
 pub type Idx = Option<usize>;
 
 pub fn range(start: Idx, end: Idx, len: Idx, index: Idx)
