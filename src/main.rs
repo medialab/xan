@@ -61,7 +61,6 @@ macro_rules! command_list {
     cat         Concatenate by row or column
     count       Count records
     datefmt     Formats a recognized date column to a specified format and timezone
-    dist        Shows distribution of numeric data from a column
     enum        Add a new column enumerating CSV lines
     explode     Explode rows based on some column separator
     foreach     Loop over a CSV file to execute bash commands
@@ -171,7 +170,6 @@ enum Command {
     Cat,
     Count,
     Datefmt,
-    Dist,
     Enum,
     Explode,
     ForEach,
@@ -219,7 +217,6 @@ impl Command {
             Command::Cat => cmd::cat::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Datefmt => cmd::datefmt::run(argv),
-            Command::Dist => cmd::dist::run(argv),
             Command::Enum => cmd::enumerate::run(argv),
             Command::Explode => cmd::explode::run(argv),
             Command::ForEach => cmd::foreach::run(argv),

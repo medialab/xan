@@ -1,4 +1,5 @@
 use std::borrow::ToOwned;
+use std::cmp;
 use std::default::Default;
 use std::fmt;
 use std::fs;
@@ -7,6 +8,7 @@ use std::iter::{FromIterator, repeat};
 use std::str::{self, FromStr};
 
 use channel;
+use colored::Colorize;
 use csv;
 use stats::{Commute, OnlineStats, MinMax, Unsorted, merge_all};
 use threadpool::ThreadPool;
@@ -56,6 +58,23 @@ stats options:
                            When set to '0', the number of jobs is set to the
                            number of CPUs detected.
                            [default: 0]
+    --histogram            Prints histograms.
+    --screen-size <arg>    The size used to output the histogram. Set to '0',
+                           it will use the shell size (also the default). The minimum
+                           size is 80.
+    --precision <arg>      The number of digit to keep after the comma. Has to be less
+                           than 20. Default is 2.
+    --bins <arg>           The number of bins in the distribution. Default is 10.
+    --no-nans              Don't include NULLs, Unknown and Unicode in the histogram.
+    --min <arg>            The minimum from which we start to display
+                           the histogram. When not set, will take the
+                           minimum from the csv file. If not set, will
+                           take the min in the file.
+    --max <arg>            The maximum from which we start to display
+                           the histogram. When not set, will take the
+                           maximum from the csv file. If not set, will
+                           take the max in the file.
+    
 
 Common options:
     -h, --help             Display this message
@@ -77,6 +96,13 @@ struct Args {
     flag_median: bool,
     flag_nulls: bool,
     flag_jobs: usize,
+    flag_histogram: bool,
+    flag_screen_size: Option<usize>,
+    flag_precision: Option<u8>,
+    flag_bins: Option<u64>,
+    flag_no_nans: Option<bool>,
+    flag_max: Option<f64>,
+    flag_min: Option<f64>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -84,6 +110,17 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if !args.flag_histogram && (
+        !args.flag_min.is_none() ||
+        !args.flag_max.is_none() ||
+        !args.flag_no_nans.is_none() ||
+        !args.flag_bins.is_none() ||
+        !args.flag_precision.is_none() ||
+        !args.flag_screen_size.is_none()
+    ) {
+        return fail!("`--screen-size` and `--precision` can only be used with `--histogram`");
+    }
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let (headers, stats) = match args.rconfig().indexed()? {
@@ -96,21 +133,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     }?;
-    let stats = args.stats_to_records(stats);
+    let stats = stats;
 
-    wtr.write_record(&args.stat_headers())?;
-    let fields = headers.iter().zip(stats.into_iter());
-    for (i, (header, stat)) in fields.enumerate() {
-        let header =
-            if args.flag_no_headers {
-                i.to_string().into_bytes()
-            } else {
-                header.to_vec()
-            };
-        let stat = stat.iter().map(|f| f.as_bytes());
-        wtr.write_record(vec![&*header].into_iter().chain(stat))?;
+    if args.flag_histogram {
+        if !args.flag_output.is_none() {
+            let stats_record = args.stats_to_records(stats.clone());
+
+            wtr.write_record(&args.stat_headers())?;
+            let fields = headers.iter().zip(stats_record.into_iter()).zip(stats.into_iter()).map(|((x, y), z)| (x, y, z));
+            for (i, (header, stat_record, stat)) in fields.enumerate() {
+                let header_record =
+                    if args.flag_no_headers {
+                        i.to_string().into_bytes()
+                    } else {
+                        header.to_vec()
+                    };
+                let stat_record = stat_record.iter().map(|f| f.as_bytes());
+                wtr.write_record(vec![&*header_record].into_iter().chain(stat_record))?;
+
+                let header = String::from_utf8(header_record).unwrap();
+                args.print_histogram(stat, header)?;
+            }
+            wtr.flush()?;
+        } else {
+            let fields = headers.iter().zip(stats.into_iter());
+            for (i, (header, stat)) in fields.enumerate() {
+                let header = if args.flag_nulls {
+                    i.to_string()
+                } else {
+                    String::from_utf8(header.to_vec()).unwrap()
+                };
+                args.print_histogram(stat, header)?;
+            }
+        }
+    } else {
+        let stats = args.stats_to_records(stats);
+
+        wtr.write_record(&args.stat_headers())?;
+        let fields = headers.iter().zip(stats.into_iter());
+        for (i, (header, stat)) in fields.enumerate() {
+            let header =
+                if args.flag_no_headers {
+                    i.to_string().into_bytes()
+                } else {
+                    header.to_vec()
+                };
+            let stat = stat.iter().map(|f| f.as_bytes());
+            wtr.write_record(vec![&*header].into_iter().chain(stat))?;
+        }
+        wtr.flush()?;
     }
-    wtr.flush()?;
     Ok(())
 }
 
@@ -210,6 +282,7 @@ impl Args {
             dist: true,
             cardinality: self.flag_cardinality || self.flag_everything,
             median: self.flag_median || self.flag_everything,
+            histogram: self.flag_histogram,
             mode: self.flag_mode || self.flag_everything,
         })).take(record_len).collect()
     }
@@ -225,6 +298,182 @@ impl Args {
         if self.flag_cardinality || all { fields.push("cardinality"); }
         csv::StringRecord::from(fields)
     }
+
+    fn bins_construction(&self, min: f64, max: f64, nb_bins: u64) -> CliResult<(Vec<(f64, f64, u64)>, f64)> {
+        let mut bins: Vec<(f64, f64, u64)> = Vec::new();
+        let size_interval = ((max - min) / nb_bins as f64).abs();
+        let mut temp_min = min;
+        let mut temp_max = temp_min + size_interval;
+        bins.push((temp_min, temp_max, 0));
+        for _ in 1..nb_bins {
+            if size_interval == 0.0 {
+                break;
+            }
+            temp_min = temp_max;
+            temp_max = temp_min + size_interval;
+            bins.push((temp_min, temp_max, 0));
+        }
+        Ok((bins, size_interval))
+    }
+
+    fn print_histogram(&self, stat: Stats, header: String) -> CliResult<()>{
+        if let Some(min) = self.flag_min {
+            if let Some(max) = self.flag_max {
+                if max < min {
+                    return fail!("min must be less than max");
+                }
+            }
+        }
+        let screen_size = match self.flag_screen_size {
+            None => 0,
+            Some(size) => size,
+        };
+        let precision = match self.flag_precision {
+            None => 2,
+            Some(precision) => precision,
+        };
+        if precision >= 20 {
+            return fail!("precision must be greater than 20")
+        }
+        let nb_bins = match self.flag_bins {
+            None => 10,
+            Some(nb) => nb,
+        };
+        let no_nans = match self.flag_no_nans {
+            None => false,
+            Some(no_nans) => no_nans,
+        };
+
+        let mut bar = Bar {
+            header: header.clone(),
+            screen_size: screen_size,
+            lines_total: 0,
+            lines_total_str: String::new(),
+            lines_total_str_len: 0,
+            size_bar_cols: 0,
+            size_labels: 0,
+            longest_bar: 0,
+        };
+
+        let (histo, int_float, nans);
+        match stat.histogram {
+            Some((h, i, n)) => { (histo, int_float, nans) = (h, i, n);},
+            None => {
+                let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column.", bar.header);
+                println!("{}\n", error_mess.yellow().bold());
+                return Ok(());
+            },
+        };
+        
+        let lines_total = int_float + nans;
+
+        let mut min = match self.flag_min {
+            None => f64::MAX,
+            Some(min) => min,
+        };
+        let mut max = match self.flag_max {
+            None => f64::MIN,
+            Some(max) => max,
+        };
+        match stat.minmax {
+            Some(minmax) => {
+                if min == f64::MAX {
+                    match minmax.floats.min() {
+                        Some(m) => { min = *m; },
+                        None => {
+                            let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column ({} lines).", bar.header, lines_total);
+                            println!("{}\n", error_mess.yellow().bold());
+                            return Ok(());
+                        },
+                    }
+                }
+
+                if max == f64::MIN {
+                    match minmax.floats.max() {
+                        Some(m) => { max = *m; },
+                        None => {
+                            let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column ({} lines).", bar.header, lines_total);
+                            println!("{}\n", error_mess.yellow().bold());
+                            return Ok(());
+                        },
+                    }
+                }
+            },
+            None => {
+                let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column ({} lines).", bar.header, lines_total);
+                println!("{}\n", error_mess.yellow().bold());
+                return Ok(());
+            },
+        }
+
+        if min > max {
+            return fail!("No result because min is greater than max");
+        }
+
+        let max_label_len = cmp::max(cmp::max(cmp::max(
+            format_number_float(min, precision, false).chars().count(),
+            format_number_float(max, precision, true).chars().count()
+        ), header.chars().count()), 4);
+
+        bar.lines_total = lines_total;
+        match bar.update_sizes(max_label_len) {
+            Ok(1) => { return Ok(()); }
+            Ok(_) => {}
+            Err(e) => return fail!(e),
+        };
+
+        let (mut bins, size_interval) = match self.bins_construction(min, max, nb_bins) {
+            Ok((bins, size_interval)) => { (bins, size_interval) },
+            Err(e) => return fail!(e),
+        };
+
+        let mut lines_done = 0;
+        for value in histo.into_iter() {
+            if value > max || value < min{
+                continue
+            }
+            let temp = (value - min) / size_interval;
+            let mut pos = temp.floor() as usize;
+            if pos as f64 == temp && pos != 0 {
+                pos -= 1;
+            }
+            bins[pos].2 += 1;
+            lines_done += 1;
+        }
+        if lines_done == 0 {
+            let error_mess = format!("There are {}/{} NULLs, Unknown or Unicode values in the \"{}\" column.", nans, lines_total, header);
+            println!("{}\n", error_mess.yellow().bold());
+            return Ok(());
+        }
+
+        bar.longest_bar = lines_total as usize;
+
+        bar.print_title();
+
+        let mut j = 0;
+        for res in bins.into_iter() {
+            let interval = format_number_float(res.0, precision, false);
+            bar.print_bar(interval, res.2 as u64, j);
+            j += 1;
+        }
+        let nans = lines_total - lines_done;
+        if nans != 0 && !no_nans {
+            lines_done += nans as u64;
+            let interval = "NaNs";
+            bar.print_bar(interval.to_string(), nans as u64, j);
+        }
+
+        let resume =
+        " ".repeat(bar.size_labels + 1)
+        + &"Distribution for ".to_owned()
+        + &format_number(lines_done)
+        + "/"
+        + &bar.lines_total_str
+        + " lines.";
+        println!("{}", resume.yellow().bold());
+        println!("");
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -235,6 +484,7 @@ struct WhichStats {
     dist: bool,
     cardinality: bool,
     median: bool,
+    histogram: bool,
     mode: bool,
 }
 
@@ -252,18 +502,20 @@ struct Stats {
     online: Option<OnlineStats>,
     mode: Option<Unsorted<Vec<u8>>>,
     median: Option<Unsorted<f64>>,
+    histogram: Option<(Vec<f64>, u64, u64)>,
     which: WhichStats,
 }
 
 impl Stats {
     fn new(which: WhichStats) -> Stats {
-        let (mut sum, mut minmax, mut online, mut mode, mut median) =
-            (None, None, None, None, None);
+        let (mut sum, mut minmax, mut online, mut mode, mut median, mut histogram) =
+            (None, None, None, None, None, None);
         if which.sum { sum = Some(Default::default()); }
         if which.range { minmax = Some(Default::default()); }
         if which.dist { online = Some(Default::default()); }
         if which.mode || which.cardinality { mode = Some(Default::default()); }
         if which.median { median = Some(Default::default()); }
+        if which.histogram { histogram = Some((Default::default(), 0, 0)); }
         Stats {
             typ: Default::default(),
             sum: sum,
@@ -271,6 +523,7 @@ impl Stats {
             online: online,
             mode: mode,
             median: median,
+            histogram: histogram,
             which: which,
         }
     }
@@ -279,26 +532,28 @@ impl Stats {
         let sample_type = FieldType::from_sample(sample);
         self.typ.merge(sample_type);
 
-        let t = self.typ;
-        self.sum.as_mut().map(|v| v.add(t, sample));
-        self.minmax.as_mut().map(|v| v.add(t, sample));
+        self.sum.as_mut().map(|v| v.add(sample_type, sample));
+        self.minmax.as_mut().map(|v| v.add(sample_type, sample));
         self.mode.as_mut().map(|v| v.add(sample.to_vec()));
-        match self.typ {
-            TUnknown => {}
+        match sample_type {
+            TUnknown => { self.histogram.as_mut().map(|(_, _, a)| { *a += 1}); }
             TNull => {
                 if self.which.include_nulls {
                     self.online.as_mut().map(|v| { v.add_null(); });
                 }
+                self.histogram.as_mut().map(|(_, _, a)| { *a += 1; });
             }
-            TUnicode => {}
+            TUnicode => { self.histogram.as_mut().map(|(_, _, a)| { *a += 1; }); }
             TFloat | TInteger => {
                 if sample_type.is_null() {
                     if self.which.include_nulls {
                         self.online.as_mut().map(|v| { v.add_null(); });
                     }
+                    self.histogram.as_mut().map(|(_, _, a)| { *a += 1; });
                 } else {
                     let n = from_bytes::<f64>(sample).unwrap();
                     self.median.as_mut().map(|v| { v.add(n); });
+                    self.histogram.as_mut().map(|(v, a, _)| { v.push(n); *a += 1; });
                     self.online.as_mut().map(|v| { v.add(n); });
                 }
             }
@@ -608,4 +863,176 @@ impl Commute for TypedMinMax {
 
 fn from_bytes<T: FromStr>(bytes: &[u8]) -> Option<T> {
     str::from_utf8(bytes).ok().and_then(|s| s.parse().ok())
+}
+
+fn format_number(count: u64) -> String {
+    let mut count_str = count.to_string();
+    let count_len = count_str.chars().count();
+
+    if count_len < 3 {
+        return count_str;
+    }
+
+    let count_chars: Vec<char> = count_str.chars().collect();
+
+    count_str = count_chars[0].to_string();
+    for k in 1..count_len {
+        if k % 3 == count_len % 3 {
+            count_str += ",";
+        }
+        count_str += &count_chars[k].to_string();
+    }
+    return count_str;
+}
+
+fn format_number_float(count: f64, precision: u8, ceil: bool) -> String {
+    let mut count = count;
+    if ceil {
+        count = ceil_float(count, precision);
+    } else {
+        count = floor_float(count, precision);
+    }
+    let neg = count < 0.0;
+    let mut count_str = count.abs().to_string();
+    let count_str_len = count_str.chars().count();
+    let mut count_str_whole_len = count_str_len;
+    if let Some(idx) = count_str.find(".") {
+        count_str_whole_len = idx;
+    }
+    let count_chars: Vec<char> = count_str.chars().collect();
+    count_str = count_chars[0].to_string();
+    for k in 1..count_str_whole_len {
+        if k % 3 == count_str_whole_len % 3 {
+            count_str += ",";
+        }
+        count_str += &count_chars[k].to_string();
+    }
+    if count_str_whole_len == count_str_len {
+        if precision != 0 {
+            count_str += ".";
+            count_str += &"0".repeat(precision as usize);
+        }
+    } else {
+        for k in count_str_whole_len..count_str_len {
+            count_str += &count_chars[k].to_string();
+        }
+        if (count_str_len -  count_str_whole_len) < (precision + 1) as usize {
+            count_str += &"0".repeat((precision + 1) as usize - (count_str_len -  count_str_whole_len));   
+        }
+    }
+    if neg {
+        count_str = "-".to_string() + &count_str;
+    }
+    return count_str;
+}
+
+fn ceil_float(value: f64, precision: u8) -> f64 {
+    let mul =
+        if precision == 1 {
+            1.0
+        } else {
+            u64::pow(10, precision as u32) as f64
+        };
+    return (value * mul).ceil() / mul;
+}
+
+fn floor_float(value: f64, precision: u8) -> f64 {
+    let mul =
+        if precision == 1 {
+            1.0
+        } else {
+            u64::pow(10, precision as u32) as f64
+        };
+    return (value * mul).floor() / mul;
+}
+
+struct Bar {
+    header: String,
+    screen_size: usize,
+    lines_total: u64,
+    lines_total_str: String,
+    lines_total_str_len: usize,
+    size_bar_cols: usize,
+    size_labels: usize,
+    longest_bar: usize,
+}
+
+impl Bar {
+
+    fn update_sizes(&mut self, max_str_len: usize) -> CliResult<u64> {
+        if self.screen_size == 0 {
+            if let Some(size) = termsize::get() {
+                self.screen_size = size.cols as usize;
+            }
+        }
+        if self.screen_size < 80 {
+            self.screen_size = 80;
+        }
+
+        self.lines_total_str = format_number(self.lines_total);
+        self.lines_total_str_len = self.lines_total_str.chars().count();
+        let mut legend_str_len = 17;
+        if self.lines_total_str_len > 8 {
+            legend_str_len = 17 + self.lines_total_str_len - 8;
+        }
+
+        if self.screen_size <= (legend_str_len + 2) {
+            return fail!(format!("Too many lines in the input, we are not able to output the histogram."));
+        }
+
+        self.size_bar_cols = (self.screen_size - (legend_str_len + 1)) / 3 * 2;
+        self.size_labels = self.screen_size - (legend_str_len + 1) - (self.size_bar_cols + 1);
+        if self.size_labels <= max_str_len {
+            let error_mess = format!("The labels can't be printed for the \"{}\" column (screen_size too small or precision too big), we are not able to output the histogram.", self.header);
+            println!("{}\n", error_mess.yellow().bold());
+            return Ok(1);
+        }
+        Ok(0)
+    }
+
+    fn print_title(&mut self) {
+        let mut legend = "nb_lines | %     ".to_string();
+        if self.lines_total_str_len > 8 {
+            legend = " ".repeat(self.lines_total_str_len - 8) + &legend;
+        }
+
+        self.header = " ".repeat(self.size_labels - self.header.chars().count()) + &self.header + &" ".repeat(self.size_bar_cols);
+        println!("{}\u{200E}  {}", self.header.yellow().bold(), legend.yellow().bold());
+    }
+
+    fn print_bar(&mut self, value: String, count: u64, j: usize) {
+        let square_chars = vec!["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
+
+        let value = " ".repeat(self.size_labels - value.chars().count()) + &value.to_string();
+        let count_str = format_number(count);
+        let mut nb_square = count as usize * self.size_bar_cols / self.longest_bar;
+        let mut bar_str = square_chars[8].repeat(nb_square);
+        
+        let count_float = count as f64 * self.size_bar_cols as f64 / self.longest_bar as f64;
+        let remainder = ((count_float - nb_square as f64) * 8.0) as usize;
+        bar_str += square_chars[remainder % 8];
+
+        let colored_bar_str =
+            if j % 2 == 0 {
+                bar_str.dimmed().white()
+            } else {
+                bar_str.white()
+            };
+
+        if remainder % 8 != 0 {
+            nb_square += 1;
+        }
+        let empty = ".".repeat(self.size_bar_cols - nb_square as usize);
+
+        let count_str = (" ".repeat(cmp::max(self.lines_total_str_len, 8) - count_str.chars().count())) + &count_str;
+
+        println!(
+            "{} {}{} {} | {}",
+            value,
+            &colored_bar_str,
+            &empty,
+            &count_str,
+            &format!("{:.2}", (count as f64 * 100.0 / self.lines_total as f64))
+        );
+    }
 }
