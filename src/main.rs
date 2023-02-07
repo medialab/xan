@@ -70,7 +70,6 @@ macro_rules! command_list {
     fmt         Format CSV output (change field delimiter)
     frequency   Show frequency tables
     headers     Show header names
-    histogram   Show histograms
     help        Show this usage message.
     index       Create CSV index for faster access
     input       Read CSV data with special quoting rules

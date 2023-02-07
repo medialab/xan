@@ -54,12 +54,13 @@ frequency options:
                            [default: 0]
     --histogram            Prints histograms.
     --screen-size <arg>    The size used to output the histogram. Set to '0',
-                           it will use the shell size.
-    --bar-max <arg>        The maximum value for a bar. If set to 'max', the maximum
-                           possible size for a bar will be the maximum cardinality
+                           it will use the shell size (default). The minimum
+                           size is 80.
+    --bar-max <arg>        The maximum value for a bar in the histogram. If set to 'max',
+                           the maximum possible size for a bar will be the maximum cardinality
                            of all bars in the histogram. If set to 'total', the maximum
                            possible size for a bar will be the sum of the cardinalities
-                           of the bars.
+                           of the bars (default).
 
 Common options:
     -h, --help             Display this message
@@ -98,7 +99,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = args.rconfig();
 
     if !args.flag_histogram && (!args.flag_bar_max.is_none() || !args.flag_screen_size.is_none()) {
-        return fail!("`--bar-max` and `--screen-size` can only be used with `--visual`");
+        return fail!("`--bar-max` and `--screen-size` can only be used with `--histogram`");
     }
 
     let args_clone = args.clone();
@@ -114,7 +115,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             None => 0,
             Some(size) => size,
         };
-
         let bar_max = match args.flag_bar_max {
             None => "total".to_string(),
             Some(max) => max,
@@ -125,16 +125,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut bar = Bar {
             header: String::new(),
-            screen_size: screen_size,
-            lines_total: 0,
+            screen_size,
+            lines_total,
             lines_total_str: String::new(),
-            lines_total_str_len: 0,
+            legend_str_len: 0,
             size_bar_cols: 0,
             size_labels: 0,
             longest_bar: 0,
         };
 
-        bar.lines_total = lines_total;
         match bar.update_sizes() {
             Ok(_) => {},
             Err(e) => return fail!(e),
@@ -143,63 +142,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !args.flag_output.is_none() {
             wtr.write_record(vec!["field", "value", "count"])?;
         }
-    
+
         let head_ftables = headers.into_iter().zip(tables.into_iter());
         for (i, (header, ftab)) in head_ftables.enumerate() {
-            let mut lines_done = 0;
-
-            let init_header = header;
-            let mut header_file = header.to_vec();
-            if rconfig.no_headers {
-                header_file = (i+1).to_string().into_bytes();
-            }
-
-            let mut header = (i+1).to_string();
-            if !rconfig.no_headers {
-                header = cut_properly(init_header.to_vec(), bar.size_labels);
-            }
-            bar.header = header;
-    
-            bar.print_title();
-    
-            let nb_categories_total = ftab.cardinality();
-    
-            bar.longest_bar = lines_total as usize;
             let vec_ftables = args_clone.counts(&ftab);
-            if bar_max == "max" {
-                bar.longest_bar = 
-                    if vec_ftables.len() == 0
-                        { 0 }
-                    else
-                        {
-                            if args.flag_asc
-                                { vec_ftables[vec_ftables.len() - 1].1 as usize }
-                            else
-                                { vec_ftables[0].1 as usize }
-                        };
+            if vec_ftables.len() == 0 {
+                let error_message = format!("The histogram for the column \"{}\" is empty.", String::from_utf8(header.to_vec()).unwrap());
+                println!("{}\n", error_message.yellow().bold());
+                continue;
             }
+
+            let header_file =
+                if rconfig.no_headers {
+                    (i+1).to_string().into_bytes()
+                } else {
+                    header.to_vec()
+                };
+            bar.header = cut_properly(String::from_utf8(header_file.clone()).unwrap(), bar.size_labels);
+            bar.print_title();
+
+            bar.longest_bar =
+                if bar_max == "max" {
+                    if args.flag_asc {
+                        vec_ftables[vec_ftables.len() - 1].1 as usize
+                    } else {
+                        vec_ftables[0].1 as usize
+                    }
+                } else  {
+                    lines_total as usize
+                };
+
+            let mut lines_done = 0;
     
             for (j, (value, count)) in vec_ftables.into_iter().enumerate() {
+                bar.print_bar(cut_properly(String::from_utf8(value.clone()).unwrap(), bar.size_labels), count, j);
+                lines_done += count;
+
                 if !args.flag_output.is_none() {
                     let count_file = count.to_string();
                     let row = vec![&*header_file, &*value, count_file.as_bytes()];
                     wtr.write_record(row)?;
                 }
-
-                let count = count;
-                lines_done += count;
-    
-                let value = cut_properly(value, bar.size_labels);
-    
-                bar.print_bar(value, count, j);
             }
-    
+
+            let nb_categories_total = ftab.cardinality();
             let nb_categories_done =
-                if args.flag_limit != 0
-                    { cmp::min(args.flag_limit as u64, nb_categories_total) }
-                else
-                    { nb_categories_total };
-    
+                if args.flag_limit != 0 {
+                    cmp::min(args.flag_limit as u64, nb_categories_total)
+                } else {
+                    nb_categories_total
+                };
             let resume =
                 " ".repeat(bar.size_labels + 1)
                 + &"Histogram for ".to_owned()
@@ -211,17 +203,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 + "/"
                 + &format_number(nb_categories_total)
                 + " categories.";
-            println!("{}", resume.yellow().bold());
-            println!("");
+            println!("{}\n", resume.yellow().bold());
         }
     } else {
         wtr.write_record(vec!["field", "value", "count"])?;
         let head_ftables = headers.into_iter().zip(tables.into_iter());
         for (i, (header, ftab)) in head_ftables.enumerate() {
-            let mut header = header.to_vec();
-            if rconfig.no_headers {
-                header = (i+1).to_string().into_bytes();
-            }
+            let header =
+                if rconfig.no_headers {
+                    (i+1).to_string().into_bytes()
+                } else {
+                    header.to_vec()
+                };
             for (value, count) in args_clone.counts(&ftab).into_iter() {
                 let count = count.to_string();
                 let row = vec![&*header, &*value, count.as_bytes()];
@@ -307,10 +300,8 @@ impl Args {
         let mut count = 0;
         for row in it {
             let row = row?;
+            count += 1;
             for (i, field) in nsel.select(row.into_iter()).enumerate() {
-                if i == 0 {
-                    count += 1;
-                }
                 let field = trim(field.to_vec());
                 if !field.is_empty() {
                     tabs[i].add(field);
@@ -352,7 +343,6 @@ fn format_number(count: u64) -> String {
     }
 
     let count_chars: Vec<char> = count_str.chars().collect();
-
     count_str = count_chars[0].to_string();
     for k in 1..count_len {
         if k % 3 == count_len % 3 {
@@ -363,14 +353,14 @@ fn format_number(count: u64) -> String {
     return count_str;
 }
 
-fn cut_properly(value: Vec<u8>, size_labels: usize) -> String {
-    let mut value = String::from_utf8(value).unwrap().replace("\n", " ");
+fn cut_properly(value: String, size_labels: usize) -> String {
+    let mut value = value.replace("\n", " ");
     value = value.replace("\r", " ");
     value = value.replace("\t", " ");
     value = value.replace("\u{200F}", "");
     value = value.replace("\u{200E}", "");
     let mut value_str_len = UnicodeWidthStr::width(&value[..]);
-    if value_str_len > size_labels {
+    if value_str_len >= size_labels {
         let moved_value = value.clone();
         let value_chars = UnicodeSegmentation::graphemes(&moved_value[..], true).collect::<Vec<&str>>();
         let mut it = cmp::min(size_labels - 1, value_chars.len());
@@ -389,7 +379,7 @@ struct Bar {
     screen_size: usize,
     lines_total: u64,
     lines_total_str: String,
-    lines_total_str_len: usize,
+    legend_str_len: usize,
     size_bar_cols: usize,
     size_labels: usize,
     longest_bar: usize,
@@ -408,27 +398,26 @@ impl Bar {
         }
 
         self.lines_total_str = format_number(self.lines_total);
-        self.lines_total_str_len = UnicodeWidthStr::width(&self.lines_total_str[..]);
-        let mut legend_str_len = 17;
-        if self.lines_total_str_len > 8 {
-            legend_str_len = 17 + self.lines_total_str_len - 8;
+        let line_total_str_len = self.lines_total_str.chars().count();
+        // legend is the right part. 17 corresponds to the minimal number of characters (`nb_lines | 100.00`)
+        self.legend_str_len = 17;
+        if line_total_str_len > 8 {
+            self.legend_str_len += line_total_str_len - 8;
         }
 
-        if self.screen_size <= (legend_str_len + 2) {
+        if self.screen_size <= (self.legend_str_len + 2) {
             return fail!(format!("Too many lines in the input, we are not able to output the histogram."));
         }
 
-        self.size_bar_cols = (self.screen_size - (legend_str_len + 1)) / 3 * 2;
-        self.size_labels = self.screen_size - (legend_str_len + 1) - (self.size_bar_cols + 1);
+        self.size_bar_cols = (self.screen_size - (self.legend_str_len + 1)) / 3 * 2;
+        self.size_labels = self.screen_size - (self.legend_str_len + 1) - (self.size_bar_cols + 1);
 
         Ok(())
     }
 
     fn print_title(&mut self) {
         let mut legend = "nb_lines | %     ".to_string();
-        if self.lines_total_str_len > 8 {
-            legend = " ".repeat(self.lines_total_str_len - 8) + &legend;
-        }
+        legend = " ".repeat(self.legend_str_len - 17) + &legend;
 
         self.header = " ".repeat(self.size_labels - UnicodeWidthStr::width(&self.header[..])) + &self.header + &" ".repeat(self.size_bar_cols);
         println!("{}\u{200E}  {}", self.header.yellow().bold(), legend.yellow().bold());
@@ -438,7 +427,8 @@ impl Bar {
         let square_chars = vec!["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
 
         let value = " ".repeat(self.size_labels - UnicodeWidthStr::width(&value[..])) + &value.to_string();
-        let count_str = format_number(count);
+        let mut count_str = format_number(count);
+        count_str = (" ".repeat(cmp::max(self.legend_str_len - 9, 8) - count_str.chars().count())) + &count_str;
 
         let mut nb_square = count as usize * self.size_bar_cols / self.longest_bar;
         let mut bar_str = square_chars[8].repeat(nb_square);
@@ -446,19 +436,17 @@ impl Bar {
         let count_float = count as f64 * self.size_bar_cols as f64 / self.longest_bar as f64;
         let remainder = ((count_float - nb_square as f64) * 8.0) as usize;
         bar_str += square_chars[remainder % 8];
-
-        let colored_bar_str =
-            if j % 2 == 0
-                { bar_str.dimmed().white() }
-            else
-                { bar_str.white() };
-
         if remainder % 8 != 0 {
             nb_square += 1;
         }
         let empty = ".".repeat(self.size_bar_cols - nb_square as usize);
 
-        let count_str = (" ".repeat(cmp::max(self.lines_total_str_len, 8) - count_str.chars().count())) + &count_str;
+        let colored_bar_str =
+            if j % 2 == 0 {
+                bar_str.dimmed().white()
+            } else {
+                bar_str.white()
+            };
 
         println!(
             "{}\u{200E} {}{} {} | {}",
