@@ -36,10 +36,15 @@ Currently supported languages for stemmer:
 
 
 Usage:
-    xsv fullsearch [options] <keywords> <column> [<input>]
+    xsv fullsearch [options] <keywords> [<input>]
     xsv fullsearch --help
 
 fullsearch options:
+    -s, --select <arg>     Select a subset of columns to search in.
+                           See 'xsv select --help' for the format
+                           details. This is provided here because piping 'xsv
+                           select' into 'xsv fullsearch' will disable the use
+                           of indexing.
     -l, --limit <arg>      Limit the fullsearch result to the N most relevant
                            items. Set to '0' to disable a limit.
                            [default: 0]
@@ -81,7 +86,7 @@ static LANGUAGES: &'static [&'static str] = &[
 struct Args {
     arg_input: Option<String>,
     arg_keywords: String,
-    arg_column: SelectColumns,
+    flag_select: SelectColumns,
     flag_limit: usize,
     flag_lang: String,
     flag_output: Option<String>,
@@ -95,14 +100,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column);
+        .select(args.flag_select);
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     let headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
-    let column_index = *sel.iter().next().unwrap();
+    let sel_len = sel.len();
+    let mut it = sel.iter();
+    let mut column_index = *it.next().unwrap();
 
     let lang: &str = &args.flag_lang;
     if !LANGUAGES.contains(&lang) {
@@ -140,14 +147,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .set_indexing_options(text_field_indexing)
         .set_stored();
     let mut fields: Vec::<Field> = Vec::new();
+    let mut searched_columns: Vec::<Field> = Vec::new();
+    let mut nb_col = 0;
     for (i, _) in headers.into_iter().enumerate() {
         if i == column_index {
-            fields.push(schema_builder.add_text_field(&i.to_string(), text_options.clone()));
+            let field = schema_builder.add_text_field(&i.to_string(), text_options.clone());
+            fields.push(field);
+            searched_columns.push(field);
+            nb_col += 1;
+            if nb_col < sel_len {
+                column_index = *it.next().unwrap();
+            }
         } else {
             fields.push(schema_builder.add_text_field(&i.to_string(), STORED));
         }
     }
-    let searched_column = fields[column_index];
     let schema = schema_builder.build();
     let index = Index::create_in_dir(&index_path, schema.clone())?;
     let mut index_writer = index.writer(50_000_000)?;
@@ -177,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(&headers)?;
     }
     let searcher = reader.searcher();
-    let query_parser = QueryParser::for_index(&index, vec![searched_column]);
+    let query_parser = QueryParser::for_index(&index, searched_columns);
     let query = query_parser.parse_query(&keywords.join(" "))?;
     let mut count = args.flag_limit;
     if count == 0 {

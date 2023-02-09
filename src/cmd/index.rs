@@ -83,11 +83,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             None => util::idx_fullsearch_path(&Path::new(&args.arg_input)),
             Some(p) => PathBuf::from(&p),
         };
-
         if pidx.exists() {
             fs::remove_dir_all(pidx.clone())?;
         }
         fs::create_dir_all(pidx.as_path())?;
+
         let lang = match args.flag_lang {
             None => "english".to_string(),
             Some(lang) => lang,
