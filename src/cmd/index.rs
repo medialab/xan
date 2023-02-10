@@ -78,6 +78,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                          .delimiter(args.flag_delimiter);
     let mut rdr = rconfig.reader_file()?;
 
+    if !args.flag_fullsearch && !args.flag_lang.is_none() {
+        return fail!("`--lang`can only be used with `--fullsearch`")
+    }
+
     if args.flag_fullsearch {
         let lang = match args.flag_lang {
             None => "english".to_string(),
@@ -132,7 +136,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         let schema = schema_builder.build();
         let index = Index::create_in_dir(&pidx, schema.clone())?;
-        let mut index_writer = index.writer(50_000_000)?;
+        let mut index_writer = index.writer(250_000_000)?;
         let custom_tokenizer = TextAnalyzer::from(SimpleTokenizer)
             .filter(LowerCaser)
             .filter(Stemmer::new(lang_stemmer));

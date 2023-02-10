@@ -206,9 +206,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .reload_policy(ReloadPolicy::OnCommit)
         .try_into()?;
 
-    if !rconfig.no_headers {
-        wtr.write_record(&headers)?;
-    }
+    wtr.write_record(&headers)?;
 
     // searching
     let searcher = reader.searcher();

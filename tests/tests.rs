@@ -40,6 +40,7 @@ mod test_count;
 mod test_datefmt;
 mod test_explode;
 mod test_enumerate;
+mod test_fullsearch;
 mod test_foreach;
 mod test_fixlengths;
 mod test_flatten;
