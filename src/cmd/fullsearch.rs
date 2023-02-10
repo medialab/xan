@@ -10,7 +10,7 @@ use select::SelectColumns;
 use util;
 
 static USAGE: &'static str = r#"
-Filters CSV data by whether the given key words matches a row.
+Filters CSV data by whether the given keywords matches a row.
 
 If the field matches, then the row is written to the output.
 

@@ -26,7 +26,7 @@ doctest = false
 name = "tests"
 
 [features]
-# fullsearch = ["dep:tantivy"]
+fullsearch = ["dep:tantivy"]
 lang = ["dep:lingua"]
 py = ["dep:pyo3"]
 
@@ -58,8 +58,7 @@ serde_derive = "1"
 serde_json = "1.0"
 streaming-stats = "0.2"
 tabwriter = "1"
-tantivy = "0.19.1"
-# tantivy = { version = "0.19.1", optional = true }
+tantivy = { version = "0.19.1", optional = true }
 tempfile = "3.3.0"
 textwrap = "0.14.0"
 threadpool = "1.3"

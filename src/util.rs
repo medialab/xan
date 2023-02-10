@@ -129,6 +129,7 @@ pub fn idx_path(csv_path: &Path) -> PathBuf {
     PathBuf::from(&p)
 }
 
+#[cfg(feature = "fullsearch")]
 pub fn idx_fullsearch_path(csv_path: &Path, lang: &str) -> PathBuf {
     let mut p = csv_path.to_path_buf().into_os_string().into_string().unwrap();
     p.push_str("_idx");
@@ -141,6 +142,7 @@ pub fn idx_fullsearch_path(csv_path: &Path, lang: &str) -> PathBuf {
     PathBuf::from(&p)
 }
 
+#[cfg(feature = "fullsearch")]
 pub fn searching_idx_fullsearch_path(csv_path: &Path, lang: &str) -> PathBuf {
     let mut p = csv_path.to_path_buf().into_os_string().into_string().unwrap();
     p.push_str("_idx");

@@ -23,7 +23,7 @@ This forked version of xsv can be installed using cargo:
 cargo install --git https://github.com/medialab/xsv.git --branch prod
 ```
 
-To install optional features (such as `lang` or `py`, for instance):
+To install optional features (such as `fullsearch`, `lang` or `py`, for instance):
 
 ```
 # Everything
@@ -41,6 +41,8 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 * `xsv enum`
 * `xsv explode`
 * `xsv foreach`
+* `xsv fullsearch`
+* `xsv index --fullsearch --lang lang`
 * `xsv jsonl`
 * `xsv lang`
 * `xsv lua`
@@ -61,32 +63,33 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 * **enum** - Add a new column enumerating rows by adding a column of incremental or uuid identifiers. Can also be used to copy a column or fill a new column with a constant value.
 * **explode** - Explode rows into multiple ones by splitting a column value based on the
 given separator.
-* **foreach** - Loop over a CSV file to execute bash commands.
 * **fixlengths** - Force a CSV file to have same-length records by either
   padding or truncating them.
 * **flatten** - A flattened view of CSV records. Useful for viewing one record
   at a time. e.g., `xsv slice -i 5 data.csv | xsv flatten`.
 * **fmt** - Reformat CSV data with different delimiters, record terminators
   or quoting rules. (Supports ASCII delimited data.)
+* **foreach** - Loop over a CSV file to execute bash commands.
 * **frequency** - Build frequency tables of each column in CSV data. (Uses
   parallelism to go faster if an index is present.)
+* **fullsearch**, *optional* - Filters CSV data by whether the given keywords matches a row.
 * **headers** - Show the headers of CSV data. Or show the intersection of all
   headers between many CSV files.
 * **index** - Create an index for a CSV file. This is very quick and provides
   constant time indexing into the CSV file.
 * **input** - Read CSV data with exotic quoting/escaping rules.
-* **jsonl** - Convert newline-delimited JSON to CSV.
 * **join** - Inner, outer and cross joins. Uses a simple hash index to make it
   fast.
+* **jsonl** - Convert newline-delimited JSON to CSV.
 * **lang**, *optional* - Add a column with the language detected in a given CSV column.
 * **lua** - Execute a Lua script over CSV lines to transform, aggregate or filter them.
 * **partition** - Partition CSV data based on a column value.
 * **pseudo** - Pseudonymise the value of the given column by replacing them by an incremental identifier.
 * **py**, *optional* - Evaluate a Python expression over CSV lines to transform, aggregate or filter them.
-* **sample** - Randomly draw rows from CSV data using reservoir sampling (i.e.,
-  use memory proportional to the size of the sample).
 * **replace** - Replace CSV data using a regex.
 * **reverse** - Reverse order of rows in CSV data.
+* **sample** - Randomly draw rows from CSV data using reservoir sampling (i.e.,
+  use memory proportional to the size of the sample).
 * **search** - Run a regex over CSV data. Applies the regex to each field
   individually and shows only matching rows.
 * **select** - Select or re-order columns from CSV data.

@@ -1,4 +1,4 @@
-// #[cfg(feature = "fullsearch")]
+#[cfg(feature = "fullsearch")]
 mod test {
     use std::process;
 

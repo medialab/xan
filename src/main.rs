@@ -21,7 +21,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate stats;
 extern crate tabwriter;
-// #[cfg(feature = "fullsearch")]
+#[cfg(feature = "fullsearch")]
 extern crate tantivy;
 extern crate tempfile;
 extern crate textwrap;
@@ -155,12 +155,12 @@ Please choose one of the following commands:",
                     werr!("{}", err);
                     process::exit(1);
                 }
-                // #[cfg(feature = "fullsearch")]
+                #[cfg(feature = "fullsearch")]
                 Err(CliError::Tantivy(err)) => {
                     werr!("{}", err);
                     process::exit(1);
                 }
-                // #[cfg(feature = "fullsearch")]
+                #[cfg(feature = "fullsearch")]
                 Err(CliError::TantivyQuery(err)) => {
                     werr!("{}", err);
                     process::exit(1);
@@ -237,10 +237,10 @@ impl Command {
             Command::Flatten => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
             Command::Frequency => cmd::frequency::run(argv),
-            // #[cfg(feature = "fullsearch")]
+            #[cfg(feature = "fullsearch")]
             Command::Fullsearch => cmd::fullsearch::run(argv),
-            // #[cfg(not(feature = "fullsearch"))]
-            // Command::Fullsearch => { Ok(println!("This version of XSV was not compiled with the \"fullsearch\" feature.")) }
+            #[cfg(not(feature = "fullsearch"))]
+            Command::Fullsearch => { Ok(println!("This version of XSV was not compiled with the \"fullsearch\" feature.")) }
             Command::Headers => cmd::headers::run(argv),
             Command::Help => { wout!("{}", USAGE); Ok(()) }
             Command::Index => cmd::index::run(argv),
@@ -279,9 +279,9 @@ pub enum CliError {
     Flag(docopt::Error),
     Csv(csv::Error),
     Io(io::Error),
-    // #[cfg(feature = "fullsearch")]
+    #[cfg(feature = "fullsearch")]
     Tantivy(tantivy::error::TantivyError),
-    // #[cfg(feature = "fullsearch")]
+    #[cfg(feature = "fullsearch")]
     TantivyQuery(tantivy::query::QueryParserError),
     Other(String),
 }
@@ -292,9 +292,9 @@ impl fmt::Display for CliError {
             CliError::Flag(ref e) => { e.fmt(f) }
             CliError::Csv(ref e) => { e.fmt(f) }
             CliError::Io(ref e) => { e.fmt(f) }
-            // #[cfg(feature = "fullsearch")]
+            #[cfg(feature = "fullsearch")]
             CliError::Tantivy(ref e) => { e.fmt(f) }
-            // #[cfg(feature = "fullsearch")]
+            #[cfg(feature = "fullsearch")]
             CliError::TantivyQuery(ref e) => { e.fmt(f) }
             CliError::Other(ref s) => { f.write_str(&**s) }
         }
@@ -343,14 +343,14 @@ impl From<regex::Error> for CliError {
     }
 }
 
-// #[cfg(feature = "fullsearch")]
+#[cfg(feature = "fullsearch")]
 impl From<tantivy::error::TantivyError> for CliError {
     fn from(err: tantivy::error::TantivyError) -> CliError {
         CliError::Tantivy(err)
     }
 }
 
-// #[cfg(feature = "fullsearch")]
+#[cfg(feature = "fullsearch")]
 impl From<tantivy::query::QueryParserError> for CliError {
     fn from(err: tantivy::query::QueryParserError) -> CliError {
         CliError::TantivyQuery(err)

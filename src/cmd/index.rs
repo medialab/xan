@@ -3,6 +3,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use csv_index::RandomAccessSimple;
+
+#[cfg(feature = "fullsearch")] 
 use tantivy::{Index, schema::*, tokenizer::*};
 
 use CliResult;
@@ -41,27 +43,6 @@ Common options:
                            Must be a single character. (default: ,)
 ";
 
-static LANGUAGES: &'static [&'static str] = &[
-    "arabic",
-    "danish",
-    "dutch",
-    "english",
-    "finnish",
-    "french",
-    "german",
-    "greek",
-    "hungarian",
-    "italian",
-    "norwegian",
-    "portuguese",
-    "romanian",
-    "russian",
-    "spanish",
-    "swedish",
-    "tamil",
-    "turkish"
-];
-
 #[derive(Deserialize)]
 struct Args {
     arg_input: String,
@@ -74,25 +55,70 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let rconfig = Config::new(&Some(args.arg_input.clone()))
-                         .delimiter(args.flag_delimiter);
-    let mut rdr = rconfig.reader_file()?;
-
     if !args.flag_fullsearch && !args.flag_lang.is_none() {
         return fail!("`--lang`can only be used with `--fullsearch`")
     }
 
     if args.flag_fullsearch {
-        let lang = match args.flag_lang {
-            None => "english".to_string(),
+
+        #[cfg(not(feature = "fullsearch"))]
+        return Ok(println!("This version of XSV was not compiled with the \"fullsearch\" feature."));
+
+        #[cfg(feature = "fullsearch")]
+        args.idx_fullsearch()?;
+
+    } else {
+        let rconfig = Config::new(&Some(args.arg_input.clone()))
+            .delimiter(args.flag_delimiter);
+        let mut rdr = rconfig.reader_file()?;
+        let pidx = match args.flag_output {
+            None => util::idx_path(&Path::new(&args.arg_input)),
+            Some(p) => PathBuf::from(&p),
+        };
+        let mut wtr = io::BufWriter::new(fs::File::create(&pidx)?);
+        RandomAccessSimple::create(&mut rdr, &mut wtr)?;
+    }
+    Ok(())
+}
+
+impl Args {
+    #[cfg(feature = "fullsearch")]
+    fn idx_fullsearch(&self) -> CliResult<()> {
+        let rconfig = Config::new(&Some(self.arg_input.clone()))
+            .delimiter(self.flag_delimiter);
+        let mut rdr = rconfig.reader_file()?;
+
+        static LANGUAGES: &'static [&'static str] = &[
+            "arabic",
+            "danish",
+            "dutch",
+            "english",
+            "finnish",
+            "french",
+            "german",
+            "greek",
+            "hungarian",
+            "italian",
+            "norwegian",
+            "portuguese",
+            "romanian",
+            "russian",
+            "spanish",
+            "swedish",
+            "tamil",
+            "turkish"
+        ];
+
+        let lang = match &self.flag_lang {
+            None => "english",
             Some(lang) => lang,
         };
         if !LANGUAGES.contains(&&lang[..]) {
             return fail!(format!("Unknown \"{}\" language found", lang));
         }
 
-        let pidx = match args.flag_output {
-            None => util::idx_fullsearch_path(&Path::new(&args.arg_input), &lang),
+        let pidx = match &self.flag_output {
+            None => util::idx_fullsearch_path(&Path::new(&self.arg_input), &lang),
             Some(p) => PathBuf::from(&p),
         };
         if pidx.exists() {
@@ -153,13 +179,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             index_writer.add_document(doc)?;
         }
         index_writer.commit()?;
-    } else {
-        let pidx = match args.flag_output {
-            None => util::idx_path(&Path::new(&args.arg_input)),
-            Some(p) => PathBuf::from(&p),
-        };
-        let mut wtr = io::BufWriter::new(fs::File::create(&pidx)?);
-        RandomAccessSimple::create(&mut rdr, &mut wtr)?;
+        Ok(())
     }
-    Ok(())
 }
