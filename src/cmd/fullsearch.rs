@@ -1,7 +1,8 @@
+use std::path::Path;
+
 use csv;
 use tantivy::collector::{TopDocs, Count};
 use tantivy::{Index, ReloadPolicy, schema::*, tokenizer::*, query::QueryParser};
-use tempfile::TempDir;
 
 use CliResult;
 use config::{Config, Delimiter};
@@ -101,16 +102,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
-
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
-
-    let headers = rdr.byte_headers()?.clone();
-    let sel = rconfig.selection(&headers)?;
-    let sel_len = sel.len();
-    let mut it = sel.iter();
-    let mut column_index = *it.next().unwrap();
-
     let lang: &str = &args.flag_lang;
     if !LANGUAGES.contains(&lang) {
         return fail!(format!("Unknown \"{}\" language found", lang));
@@ -136,52 +127,80 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "turkish" => Language::Turkish,
         &_ => Language::English,
     };
+    let input = match args.arg_input {
+        None => None,
+        Some(file) =>  Some(util::searching_idx_fullsearch_path(&Path::new(&file), &lang)),
+    };
 
-    let index_path = TempDir::new()?;
+    let mut rdr = rconfig.reader()?;
+    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let headers = rdr.byte_headers()?.clone();
+    let sel = rconfig.selection(&headers)?;
+    let mut it = sel.iter();
 
-    let mut schema_builder = Schema::builder();
-    let text_field_indexing = TextFieldIndexing::default()
-        .set_tokenizer("custom")
-        .set_index_option(IndexRecordOption::WithFreqsAndPositions);
-    let text_options = TextOptions::default()
-        .set_indexing_options(text_field_indexing)
-        .set_stored();
-    let mut fields: Vec::<Field> = Vec::new();
     let mut searched_columns: Vec::<Field> = Vec::new();
-    let mut nb_col = 0;
-    for (i, _) in headers.into_iter().enumerate() {
-        if i == column_index {
-            let field = schema_builder.add_text_field(&i.to_string(), text_options.clone());
-            fields.push(field);
-            searched_columns.push(field);
-            nb_col += 1;
-            if nb_col < sel_len {
-                column_index = *it.next().unwrap();
-            }
-        } else {
-            fields.push(schema_builder.add_text_field(&i.to_string(), STORED));
-        }
-    }
-    let schema = schema_builder.build();
-    let index = Index::create_in_dir(&index_path, schema.clone())?;
-    let mut index_writer = index.writer(50_000_000)?;
+    let (index, schema): (Index, Schema);
+
+    // defining indexing and tokenizer options
+    let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("custom")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
     let custom_tokenizer = TextAnalyzer::from(SimpleTokenizer)
-        .filter(LowerCaser)
-        .filter(Stemmer::new(lang_stemmer));
-    index
-        .tokenizers()
-        .register("custom", custom_tokenizer);
+            .filter(LowerCaser)
+            .filter(Stemmer::new(lang_stemmer));
 
-    let mut record = csv::ByteRecord::new();
-    while rdr.read_byte_record(&mut record)? {
-        let mut doc = Document::default();
-        for (i, header) in fields.clone().into_iter().enumerate() {
-            doc.add_text(header, String::from_utf8(record[i].to_vec()).unwrap());
+    if input.is_none() || !input.clone().unwrap().exists() {
+        // defining schema
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default()
+            .set_indexing_options(text_field_indexing)
+            .set_stored();
+        let mut column_index = *it.next().unwrap();
+        for (i, _) in headers.into_iter().enumerate() {
+            if i == column_index {
+                searched_columns.push(schema_builder.add_text_field(&i.to_string(), text_options.clone()));
+                column_index = match it.next() {
+                    None => 0,
+                    Some(v) => *v,
+                };
+            } else {
+                schema_builder.add_text_field(&i.to_string(), STORED);
+            }
         }
-        index_writer.add_document(doc)?;
-    }
-    index_writer.commit()?;
+        schema = schema_builder.build();
 
+        // creating index
+        index = Index::create_in_ram(schema.clone());
+        index
+            .tokenizers()
+            .register("custom", custom_tokenizer);
+        let mut index_writer = index.writer(50_000_000)?;
+
+        // adding documents to index
+        let mut record = csv::ByteRecord::new();
+        while rdr.read_byte_record(&mut record)? {
+            let mut doc = Document::default();
+            for (i, (header, _)) in schema.fields().into_iter().enumerate() {
+                doc.add_text(header, String::from_utf8(record[i].to_vec()).unwrap());
+            }
+            index_writer.add_document(doc)?;
+        }
+        index_writer.commit()?;
+    } else {
+        // opening index and getting fields of interest
+        index = Index::open_in_dir(input.unwrap())?;
+        schema = index.schema();
+        for i in it {
+            if let Some(field) = schema.get_field(&i.to_string()) {
+                searched_columns.push(field);
+            }
+        }
+        index
+            .tokenizers()
+            .register("custom", custom_tokenizer);
+    }
+
+    // reading index
     let reader = index
         .reader_builder()
         .reload_policy(ReloadPolicy::OnCommit)
@@ -190,6 +209,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !rconfig.no_headers {
         wtr.write_record(&headers)?;
     }
+
+    // searching
     let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, searched_columns);
     let query = query_parser.parse_query(&keywords.join(" "))?;
@@ -199,10 +220,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     if count != 0 {
         let top_docs = searcher.search(&query, &TopDocs::with_limit(count))?;
-        for (_score, doc_address) in top_docs {
+        for (_, doc_address) in top_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             let mut row = Vec::new();
-            for field in fields.clone().into_iter() {
+            for (field, _) in schema.fields().into_iter() {
                 if let Some(field_value) = retrieved_doc.get_first(field) {
                     if let Some(value) = field_value.as_text() {
                         row.push(value);

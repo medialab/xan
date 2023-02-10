@@ -79,15 +79,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconfig.reader_file()?;
 
     if args.flag_fullsearch {
-        let pidx = match args.flag_output {
-            None => util::idx_fullsearch_path(&Path::new(&args.arg_input)),
-            Some(p) => PathBuf::from(&p),
-        };
-        if pidx.exists() {
-            fs::remove_dir_all(pidx.clone())?;
-        }
-        fs::create_dir_all(pidx.as_path())?;
-
         let lang = match args.flag_lang {
             None => "english".to_string(),
             Some(lang) => lang,
@@ -95,6 +86,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !LANGUAGES.contains(&&lang[..]) {
             return fail!(format!("Unknown \"{}\" language found", lang));
         }
+
+        let pidx = match args.flag_output {
+            None => util::idx_fullsearch_path(&Path::new(&args.arg_input), &lang),
+            Some(p) => PathBuf::from(&p),
+        };
+        if pidx.exists() {
+            fs::remove_dir_all(pidx.clone()).unwrap();
+        }
+        fs::create_dir_all(pidx.as_path()).unwrap();
+
         let lang_stemmer = match &lang[..] {
             "arabic" => Language::Arabic,
             "danish" => Language::Danish,
