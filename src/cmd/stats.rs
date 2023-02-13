@@ -58,7 +58,7 @@ stats options:
                            When set to '0', the number of jobs is set to the
                            number of CPUs detected.
                            [default: 0]
-    --histogram            Prints histograms.
+    --pretty               Prints histograms.
     --screen-size <arg>    The size used to output the histogram. Set to '0',
                            it will use the shell size (default). The minimum
                            size is 80.
@@ -94,7 +94,7 @@ struct Args {
     flag_median: bool,
     flag_nulls: bool,
     flag_jobs: usize,
-    flag_histogram: bool,
+    flag_pretty: bool,
     flag_screen_size: Option<usize>,
     flag_precision: Option<u8>,
     flag_bins: Option<u64>,
@@ -109,7 +109,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if !args.flag_histogram && (
+    if !args.flag_pretty && (
         !args.flag_min.is_none() ||
         !args.flag_max.is_none() ||
         !args.flag_no_nans.is_none() ||
@@ -133,7 +133,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }?;
     let stats = stats;
 
-    if !args.flag_histogram {
+    if !args.flag_pretty {
         let stats = args.stats_to_records(stats);
         wtr.write_record(&args.stat_headers())?;
         let fields = headers.iter().zip(stats.into_iter());
@@ -154,7 +154,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_output.is_none() {
         let fields = headers.iter().zip(stats.into_iter());
         for (i, (header, stat)) in fields.enumerate() {
-            let header = if args.flag_nulls {
+            let header = if args.flag_no_headers {
                 i.to_string()
             } else {
                 String::from_utf8(header.to_vec()).unwrap()
@@ -280,7 +280,7 @@ impl Args {
             dist: true,
             cardinality: self.flag_cardinality || self.flag_everything,
             median: self.flag_median || self.flag_everything,
-            histogram: self.flag_histogram,
+            histogram: self.flag_pretty,
             mode: self.flag_mode || self.flag_everything,
         })).take(record_len).collect()
     }
