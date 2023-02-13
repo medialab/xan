@@ -52,11 +52,11 @@ frequency options:
                            When set to '0', the number of jobs is set to the
                            number of CPUs detected.
                            [default: 0]
-    --histogram            Prints histograms.
+    --pretty               Prints histograms.
     --screen-size <arg>    The size used to output the histogram. Set to '0',
                            it will use the shell size (default). The minimum
                            size is 80.
-    --bar-max <arg>        The maximum value for a bar in the histogram. If set to 'max',
+    --domain-max <arg>     The maximum value for a bar in the histogram. If set to 'max',
                            the maximum possible size for a bar will be the maximum cardinality
                            of all bars in the histogram. If set to 'total', the maximum
                            possible size for a bar will be the sum of the cardinalities
@@ -81,24 +81,22 @@ struct Args {
     flag_asc: bool,
     flag_no_nulls: bool,
     flag_jobs: usize,
-    flag_histogram: bool,
+    flag_pretty: bool,
     flag_screen_size: Option<usize>,
-    flag_bar_max: Option<String>,
+    flag_domain_max: Option<DomainMax>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
-static BAR_MAX: &'static [&'static str] = &[
-    "max",
-    "total",
-];
+#[derive(Clone, Deserialize, PartialEq)]
+enum DomainMax { Max, Total }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let rconfig = args.rconfig();
 
-    if !args.flag_histogram && (!args.flag_bar_max.is_none() || !args.flag_screen_size.is_none()) {
+    if !args.flag_pretty && (!args.flag_domain_max.is_none() || !args.flag_screen_size.is_none()) {
         return fail!("`--bar-max` and `--screen-size` can only be used with `--histogram`");
     }
 
@@ -110,18 +108,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => args.sequential_ftables(),
     }?;
 
-    if args.flag_histogram {
+    if args.flag_pretty {
         let screen_size = match args.flag_screen_size {
             None => 0,
             Some(size) => size,
         };
-        let bar_max = match args.flag_bar_max {
-            None => "total".to_string(),
+        let domain_max = match args.flag_domain_max {
+            None => DomainMax::Total,
             Some(max) => max,
         };
-        if !BAR_MAX.contains(&&bar_max[..]) {
-            return fail!(format!("Unknown \"{}\" bar-max found", bar_max));
-        }
 
         let mut bar = Bar {
             header: String::new(),
@@ -162,7 +157,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             bar.print_title();
 
             bar.longest_bar =
-                if bar_max == "max" {
+                if domain_max == DomainMax::Max {
                     if args.flag_asc {
                         vec_ftables[vec_ftables.len() - 1].1 as usize
                     } else {
