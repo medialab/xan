@@ -58,7 +58,7 @@ stats options:
                            When set to '0', the number of jobs is set to the
                            number of CPUs detected.
                            [default: 0]
-    --histogram            Prints histograms.
+    --pretty               Prints histograms.
     --screen-size <arg>    The size used to output the histogram. Set to '0',
                            it will use the shell size (default). The minimum
                            size is 80.
@@ -94,7 +94,7 @@ struct Args {
     flag_median: bool,
     flag_nulls: bool,
     flag_jobs: usize,
-    flag_histogram: bool,
+    flag_pretty: bool,
     flag_screen_size: Option<usize>,
     flag_precision: Option<u8>,
     flag_bins: Option<u64>,
@@ -109,7 +109,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if !args.flag_histogram && (
+    if !args.flag_pretty && (
         !args.flag_min.is_none() ||
         !args.flag_max.is_none() ||
         !args.flag_no_nans.is_none() ||
@@ -133,7 +133,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }?;
     let stats = stats;
 
-    if !args.flag_histogram {
+    if !args.flag_pretty {
         let stats = args.stats_to_records(stats);
         wtr.write_record(&args.stat_headers())?;
         let fields = headers.iter().zip(stats.into_iter());
@@ -154,7 +154,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_output.is_none() {
         let fields = headers.iter().zip(stats.into_iter());
         for (i, (header, stat)) in fields.enumerate() {
-            let header = if args.flag_nulls {
+            let header = if args.flag_no_headers {
                 i.to_string()
             } else {
                 String::from_utf8(header.to_vec()).unwrap()
@@ -280,7 +280,7 @@ impl Args {
             dist: true,
             cardinality: self.flag_cardinality || self.flag_everything,
             median: self.flag_median || self.flag_everything,
-            histogram: self.flag_histogram,
+            histogram: self.flag_pretty,
             mode: self.flag_mode || self.flag_everything,
         })).take(record_len).collect()
     }
@@ -354,7 +354,7 @@ impl Args {
         };
 
         let (histo, int_float, nans) = match stat.histogram {
-            Some((h, i, n)) => { (h, i, n) },
+            Some(h) => { (h.values, h.count, h.nans) },
             None => {
                 let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column.", bar.header);
                 println!("{}\n", error_mess.yellow().bold());
@@ -447,6 +447,23 @@ impl Args {
     }
 }
 
+#[derive(Clone)]
+struct Histogram {
+    values: Vec<f64>,
+    count: u64,
+    nans: u64,
+}
+
+impl Commute for Histogram {
+    fn merge(&mut self, other: Histogram) {
+        for v in other.values {
+            self.values.push(v);
+        }
+        self.count += other.count;
+        self.nans += other.nans;
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct WhichStats {
     include_nulls: bool,
@@ -473,7 +490,7 @@ struct Stats {
     online: Option<OnlineStats>,
     mode: Option<Unsorted<Vec<u8>>>,
     median: Option<Unsorted<f64>>,
-    histogram: Option<(Vec<f64>, u64, u64)>,
+    histogram: Option<Histogram>,
     which: WhichStats,
 }
 
@@ -486,16 +503,24 @@ impl Stats {
         if which.dist { online = Some(Default::default()); }
         if which.mode || which.cardinality { mode = Some(Default::default()); }
         if which.median { median = Some(Default::default()); }
-        if which.histogram { histogram = Some((Default::default(), 0, 0)); }
+        if which.histogram {
+            histogram = Some(
+                Histogram {
+                    values: Default::default(),
+                    count: Default::default(),
+                    nans: Default::default()
+                }
+            )
+        };
         Stats {
             typ: Default::default(),
-            sum: sum,
-            minmax: minmax,
-            online: online,
-            mode: mode,
-            median: median,
-            histogram: histogram,
-            which: which,
+            sum,
+            minmax,
+            online,
+            mode,
+            median,
+            histogram,
+            which,
         }
     }
 
@@ -507,18 +532,35 @@ impl Stats {
         self.minmax.as_mut().map(|v| v.add(sample_type, sample));
         self.mode.as_mut().map(|v| v.add(sample.to_vec()));
         match sample_type {
-            TUnknown => { self.histogram.as_mut().map(|(_, _, a)| { *a += 1}); }
+            TUnknown => { match self.histogram.as_mut() {
+                    None => {},
+                    Some(h) => { h.nans += 1 },
+                }
+            }
             TNull => {
                 if self.which.include_nulls {
                     self.online.as_mut().map(|v| { v.add_null(); });
                 }
-                self.histogram.as_mut().map(|(_, _, a)| { *a += 1; });
+                match self.histogram.as_mut() {
+                    None => {},
+                    Some(h) => { h.nans += 1 },
+                }
             }
-            TUnicode => { self.histogram.as_mut().map(|(_, _, a)| { *a += 1; }); }
+            TUnicode => { match self.histogram.as_mut() {
+                    None => {},
+                    Some(h) => { h.nans += 1 },
+                }
+            }
             TFloat | TInteger => {
                 let n = from_bytes::<f64>(sample).unwrap();
                 self.median.as_mut().map(|v| { v.add(n); });
-                self.histogram.as_mut().map(|(v, a, _)| { v.push(n); *a += 1; });
+                match self.histogram.as_mut() {
+                    None => {},
+                    Some(h) => {
+                        h.count += 1;
+                        h.values.push(n);
+                    },
+                }
                 self.online.as_mut().map(|v| { v.add(n); });
             }
         }
@@ -596,6 +638,7 @@ impl Commute for Stats {
         self.online.merge(other.online);
         self.mode.merge(other.mode);
         self.median.merge(other.median);
+        self.histogram.merge(other.histogram);
         self.which.merge(other.which);
     }
 }
