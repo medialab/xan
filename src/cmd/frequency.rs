@@ -109,14 +109,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }?;
 
     if args.flag_pretty {
-        let screen_size = match args.flag_screen_size {
-            None => 0,
-            Some(size) => size,
-        };
-        let domain_max = match args.flag_domain_max {
-            None => DomainMax::Total,
-            Some(max) => max,
-        };
+        let screen_size = args.flag_screen_size.unwrap_or(0);
+        let domain_max = args.flag_domain_max.unwrap_or(DomainMax::Total);
 
         let mut bar = Bar {
             header: String::new(),
