@@ -322,25 +322,13 @@ impl Args {
                 }
             }
         }
-        let screen_size = match self.flag_screen_size {
-            None => 0,
-            Some(size) => size,
-        };
-        let precision = match self.flag_precision {
-            None => 2,
-            Some(precision) => precision,
-        };
+        let screen_size = self.flag_screen_size.unwrap_or(0);
+        let precision = self.flag_precision.unwrap_or(2);
         if precision >= 20 {
             return fail!("precision must be greater than 20")
         }
-        let nb_bins = match self.flag_bins {
-            None => 10,
-            Some(nb) => nb,
-        };
-        let no_nans = match self.flag_no_nans {
-            None => false,
-            Some(no_nans) => no_nans,
-        };
+        let nb_bins = self.flag_bins.unwrap_or(10);
+        let no_nans = self.flag_no_nans.unwrap_or(false);
 
         let mut bar = Bar {
             header: header.clone(),
