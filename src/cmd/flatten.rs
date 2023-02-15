@@ -70,28 +70,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
     let mut rdr = rconfig.reader()?;
-    let headers_byte = rdr.byte_headers()?.clone();
+    let byte_headers = rdr.byte_headers()?.clone();
 
     let mut headers: Vec<String> = Vec::new();
-    let mut header_size = 0;
-    for (i, header) in headers_byte.iter().enumerate() {
+    let mut max_header_size = 0;
+    for (i, header) in byte_headers.iter().enumerate() {
         let header = match rconfig.no_headers {
             true => i.to_string(),
             false => String::from_utf8(header.to_vec()).unwrap(),
         };
         headers.push(header.clone());
-        if header.chars().count() > header_size {
-            header_size = header.chars().count();
+        if header.chars().count() > max_header_size {
+            max_header_size = header.chars().count();
         }
     }
-    header_size += 1;
+    max_header_size += 1;
     let mut align = "\n".to_string();
-    align += &" ".repeat(header_size);
+    align += &" ".repeat(max_header_size);
 
-    let separator =  match args.flag_separator {
-        None => " ".to_string(),
-        Some(s) => s, 
-    };
+    let separator =  args.flag_separator.unwrap_or(" ".to_string());
 
     let screen_size = match termsize::get() {
         Some(size) => size.cols as usize,
@@ -114,14 +111,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let remainder = i % 10;
             let size = header.chars().count();
             if args.flag_pretty {
-                write!(&mut wtr, "{}{}", header.truecolor(colors[remainder][0], colors[remainder][1], colors[remainder][2]).bold(), " ".repeat(header_size - size))?;
+                write!(&mut wtr, "{}{}", header.truecolor(colors[remainder][0], colors[remainder][1], colors[remainder][2]).bold(), " ".repeat(max_header_size - size))?;
             } else {
-                write!(&mut wtr, "{}{}", header, " ".repeat(header_size - size))?
+                write!(&mut wtr, "{}{}", header, " ".repeat(max_header_size - size))?
             }
 
             let field = String::from_utf8((&*util::condense(Cow::Borrowed(&*field), args.flag_condense)).to_vec()).unwrap();
             let mut final_field: String = field.clone();
-            if screen_size > header_size {
+            if screen_size > max_header_size {
                 final_field = String::new();
                 let field_chars = UnicodeSegmentation::graphemes(&field[..], true).collect::<Vec<&str>>();
                 let mut i = 0;
@@ -136,7 +133,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                     let mut temp_field = field_chars[i].to_string();
                     i += 1;
-                    while UnicodeWidthStr::width(&temp_field[..]) < (screen_size - header_size) {
+                    while UnicodeWidthStr::width(&temp_field[..]) < (screen_size - max_header_size) {
                         if i >= field_chars.len() {
                             break;
                         }
