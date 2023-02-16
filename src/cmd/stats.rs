@@ -50,7 +50,8 @@ stats options:
     --median               Show the median.
                            This requires storing all CSV data in memory.
     --nulls                Include NULLs in the population size for computing
-                           mean and standard deviation.
+                           mean and standard deviation. Also include them in
+                           the histogram outputed by '--pretty'.
     -j, --jobs <arg>       The number of jobs to run in parallel.
                            This works better when the given CSV data has
                            an index already created. Note that a file handle
@@ -65,7 +66,8 @@ stats options:
     --precision <arg>      The number of digit to keep after the comma. Has to be less
                            than 20. Default is 2.
     --bins <arg>           The number of bins in the distribution. Default is 10.
-    --no-nans              Don't include NULLs, Unknown and Unicode in the histogram.
+    --nans                 Include Unknown and Unicode in the histogram outputed
+                           with '--pretty'.
     --min <arg>            The minimum from which we start to display
                            the histogram. When not set, will take the
                            minimum from the csv file.
@@ -98,7 +100,7 @@ struct Args {
     flag_screen_size: Option<usize>,
     flag_precision: Option<u8>,
     flag_bins: Option<u64>,
-    flag_no_nans: Option<bool>,
+    flag_nans: Option<bool>,
     flag_max: Option<f64>,
     flag_min: Option<f64>,
     flag_output: Option<String>,
@@ -112,12 +114,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !args.flag_pretty && (
         !args.flag_min.is_none() ||
         !args.flag_max.is_none() ||
-        !args.flag_no_nans.is_none() ||
+        !args.flag_nans.is_none() ||
         !args.flag_bins.is_none() ||
         !args.flag_precision.is_none() ||
         !args.flag_screen_size.is_none()
     ) {
-        return fail!("`--screen-size`, `--precision`, `--bins`, `--no-nans`, `--max` and `--min` can only be used with `--histogram`");
+        return fail!("`--screen-size`, `--precision`, `--bins`, `--nans`, `--max` and `--min` can only be used with `--pretty`");
     }
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -328,7 +330,7 @@ impl Args {
             return fail!("precision must be greater than 20")
         }
         let nb_bins = self.flag_bins.unwrap_or(10);
-        let no_nans = self.flag_no_nans.unwrap_or(false);
+        let nans = self.flag_nans.unwrap_or(false);
 
         let mut bar = Bar {
             header: header.clone(),
@@ -341,20 +343,26 @@ impl Args {
             longest_bar: 0,
         };
 
-        let (histo, int_float, nans) = match stat.histogram {
-            Some(h) => { (h.values, h.count, h.nans) },
+        let (histo, nb_int_float, nb_nans, nb_nulls) = match stat.histogram {
+            Some(h) => { (h.values, h.nb_int_float, h.nb_nans, h.nb_nulls) },
             None => {
                 let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column.", bar.header);
                 println!("{}\n", error_mess.yellow().bold());
                 return Ok(());
             },
         };
-        bar.lines_total = int_float + nans;
+        bar.lines_total = nb_int_float;
+        if self.flag_nulls {
+            bar.lines_total += nb_nulls;
+        }
+        if nans {
+            bar.lines_total += nb_nans;
+        }
 
         let minmax = stat.minmax.unwrap();
         let min = match (self.flag_min, minmax.floats.min()) {
             (None, None) => {
-                let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column ({} lines).", bar.header, format_number(bar.lines_total));
+                let error_mess = format!("There are {} NULLs, and {} Unknown or Unicode values in the \"{}\" column ({} lines).", nb_nulls, nb_nans, bar.header, format_number(nb_int_float + nb_nans + nb_nulls));
                 println!("{}\n", error_mess.yellow().bold());
                 return Ok(());
             },
@@ -363,7 +371,7 @@ impl Args {
         };
         let max = match (self.flag_max, minmax.floats.max()) {
             (None, None) => {
-                let error_mess = format!("There are only NULLs, Unknown or Unicode values in the \"{}\" column ({} lines).", bar.header, format_number(bar.lines_total));
+                let error_mess = format!("There are {} NULLs, and {} Unknown or Unicode values in the \"{}\" column ({} lines).", nb_nulls, nb_nans, bar.header, format_number(nb_int_float + nb_nans + nb_nulls));
                 println!("{}\n", error_mess.yellow().bold());
                 return Ok(());
             },
@@ -377,7 +385,7 @@ impl Args {
         let max_label_len = cmp::max(cmp::max(cmp::max(
             format_number_float(min, precision, false).chars().count(),
             format_number_float(max, precision, true).chars().count()
-        ), header.chars().count()), 4);
+        ), header.chars().count()), 5);
 
         match bar.update_sizes(max_label_len) {
             Ok(1) => { return Ok(()); }
@@ -404,7 +412,7 @@ impl Args {
             lines_done += 1;
         }
         if lines_done == 0 {
-            let error_mess = format!("There are {} NULLs, Unknown or Unicode values in the \"{}\" column ({} lines).", nans, header, format_number(bar.lines_total));
+            let error_mess = format!("There are {} NULLs and {} Unknown or Unicode values in the \"{}\" column ({} lines).", nb_nulls, nb_nans, header, format_number(nb_int_float + nb_nans + nb_nulls));
             println!("{}\n", error_mess.yellow().bold());
             return Ok(());
         }
@@ -418,9 +426,14 @@ impl Args {
             bar.print_bar(interval, res.2, j);
             j += 1;
         }
-        if nans != 0 && !no_nans {
-            lines_done += nans as u64;
-            bar.print_bar("NaNs".to_string(), nans as u64, j);
+        if nb_nans != 0 && nans {
+            lines_done += nb_nans as u64;
+            bar.print_bar("NaNs".to_string(), nb_nans as u64, j);
+            j += 1;
+        }
+        if nb_nulls != 0 && self.flag_nulls {
+            lines_done += nb_nulls as u64;
+            bar.print_bar("NULLs".to_string(), nb_nulls as u64, j);
         }
 
         let resume =
@@ -438,8 +451,9 @@ impl Args {
 #[derive(Clone)]
 struct Histogram {
     values: Vec<f64>,
-    count: u64,
-    nans: u64,
+    nb_int_float: u64,
+    nb_nans: u64,
+    nb_nulls: u64,
 }
 
 impl Commute for Histogram {
@@ -447,8 +461,9 @@ impl Commute for Histogram {
         for v in other.values {
             self.values.push(v);
         }
-        self.count += other.count;
-        self.nans += other.nans;
+        self.nb_int_float += other.nb_int_float;
+        self.nb_nans += other.nb_nans;
+        self.nb_nulls += other.nb_nulls;
     }
 }
 
@@ -495,8 +510,9 @@ impl Stats {
             histogram = Some(
                 Histogram {
                     values: Default::default(),
-                    count: Default::default(),
-                    nans: Default::default()
+                    nb_int_float: Default::default(),
+                    nb_nans: Default::default(),
+                    nb_nulls: Default::default()
                 }
             )
         };
@@ -522,7 +538,7 @@ impl Stats {
         match sample_type {
             TUnknown => { match self.histogram.as_mut() {
                     None => {},
-                    Some(h) => { h.nans += 1 },
+                    Some(h) => { h.nb_nans += 1 },
                 }
             }
             TNull => {
@@ -531,12 +547,12 @@ impl Stats {
                 }
                 match self.histogram.as_mut() {
                     None => {},
-                    Some(h) => { h.nans += 1 },
+                    Some(h) => { h.nb_nulls += 1 },
                 }
             }
             TUnicode => { match self.histogram.as_mut() {
                     None => {},
-                    Some(h) => { h.nans += 1 },
+                    Some(h) => { h.nb_nans += 1 },
                 }
             }
             TFloat | TInteger => {
@@ -545,7 +561,7 @@ impl Stats {
                 match self.histogram.as_mut() {
                     None => {},
                     Some(h) => {
-                        h.count += 1;
+                        h.nb_int_float += 1;
                         h.values.push(n);
                     },
                 }
