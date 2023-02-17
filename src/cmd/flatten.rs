@@ -70,17 +70,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
     let mut rdr = rconfig.reader()?;
-    let byte_headers = rdr.byte_headers()?.clone();
+    let init_headers = rdr.headers()?.clone();
 
     let mut headers: Vec<String> = Vec::new();
     let mut max_header_size = 0;
-    for (i, header) in byte_headers.iter().enumerate() {
+    for (i, header) in init_headers.iter().enumerate() {
         let header = match rconfig.no_headers {
             true => i.to_string(),
-            false => String::from_utf8(header.to_vec()).unwrap(),
+            false => header.to_string(),
         };
         headers.push(header.clone());
-        if header.chars().count() > max_header_size {
+        if UnicodeWidthStr::width(&header[..]) > max_header_size {
             max_header_size = UnicodeWidthStr::width(&header[..]);
         }
     }
