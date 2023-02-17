@@ -81,7 +81,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
         headers.push(header.clone());
         if header.chars().count() > max_header_size {
-            max_header_size = header.chars().count();
+            max_header_size = UnicodeWidthStr::width(&header[..]);
         }
     }
     max_header_size += 1;
