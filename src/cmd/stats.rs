@@ -12,6 +12,7 @@ use colored::Colorize;
 use csv;
 use stats::{Commute, OnlineStats, MinMax, Unsorted, merge_all};
 use threadpool::ThreadPool;
+use unicode_width::UnicodeWidthStr;
 
 use CliResult;
 use config::{Config, Delimiter};
@@ -385,7 +386,7 @@ impl Args {
         let max_label_len = cmp::max(cmp::max(cmp::max(
             format_number_float(min, precision, false).chars().count(),
             format_number_float(max, precision, true).chars().count()
-        ), header.chars().count()), 5);
+        ), UnicodeWidthStr::width(&header[..])), 5);
 
         match bar.update_sizes(max_label_len) {
             Ok(1) => { return Ok(()); }
@@ -1002,7 +1003,7 @@ impl Bar {
         let mut legend = "nb_lines | %     ".to_string();
         legend = " ".repeat(self.legend_str_len - 17) + &legend;
 
-        self.header = " ".repeat(self.size_labels - self.header.chars().count()) + &self.header + &" ".repeat(self.size_bar_cols);
+        self.header = " ".repeat(self.size_labels - UnicodeWidthStr::width(&self.header[..])) + &self.header + &" ".repeat(self.size_bar_cols);
         println!("{}\u{200E}  {}", self.header.yellow().bold(), legend.yellow().bold());
     }
 

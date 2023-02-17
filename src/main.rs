@@ -25,6 +25,7 @@ extern crate tabwriter;
 extern crate termsize;
 extern crate textwrap;
 extern crate threadpool;
+extern crate unicode_width;
 extern crate uuid;
 
 use std::borrow::ToOwned;

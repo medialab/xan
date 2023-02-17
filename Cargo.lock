@@ -2388,6 +2388,7 @@ dependencies = [
  "termsize",
  "textwrap",
  "threadpool",
+ "unicode-width",
  "uuid",
 ]
 
