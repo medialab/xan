@@ -65,11 +65,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut language = String::new();
 
         let detected_language = detector.detect_language_of(&cell);
-        
+
         if detected_language != None {
             language = Language::to_string(&detected_language.unwrap());
         }
-        
+
         record.push_field(&language);
         wtr.write_record(&record)?;
     }
