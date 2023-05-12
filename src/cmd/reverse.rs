@@ -8,7 +8,8 @@ Reverses rows of CSV data.
 Useful for cases when there is no column that can be used for sorting in reverse order,
 or when keys are not unique and order of rows with the same key needs to be preserved.
 
-This function is memory efficient.
+This function is memory efficient by default but only for seekable inputs (ones with
+the possibility to randomly access data). Others must be read using --in-memory flag.
 
 Usage:
     xsv reverse [options] [<input>]
@@ -22,7 +23,8 @@ Common options:
                            appear as the header row in the output.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character. (default: ,)
-    -m, --in-memory        Load the csv content in memory before reversing it. 
+    -m, --in-memory        Load the csv content in memory before reversing it. Can
+                           be useful for streamed inputs such as stdin.
 ";
 
 #[derive(Deserialize)]
@@ -79,7 +81,7 @@ pub fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
             Err(_) => {}
         }
     }
-    
+
     Ok(wtr.flush()?)
 }
 
