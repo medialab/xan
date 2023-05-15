@@ -28,14 +28,13 @@ Common options:
 ";
 
 #[derive(Deserialize)]
-pub struct Args {
+struct Args {
     arg_input: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_in_memory: bool
+    flag_in_memory: bool,
 }
-
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
@@ -43,15 +42,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         run_without_memory_efficiency(args)
     } else {
         run_with_memory_efficiency(args)
-    }
+    };
 }
 
-pub fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
+fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(true);
 
-    let mut config_csv_reader= rconfig.reader()?;
+    let mut config_csv_reader = rconfig.reader()?;
     let headers = config_csv_reader.byte_headers()?.clone();
     let headers_size = if args.flag_no_headers {
         0
@@ -63,7 +62,9 @@ pub fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let mut reverse_csv_reader = rconfig.from_reader(reverse_reader);
 
-    if !args.flag_no_headers { wtr.write_byte_record(&headers)?; }
+    if !args.flag_no_headers {
+        wtr.write_byte_record(&headers)?;
+    }
 
     for r in reverse_csv_reader.byte_records() {
         match r {
@@ -72,12 +73,14 @@ pub fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
 
                 for b in record.iter().rev() {
                     let mut rec = Vec::<u8>::with_capacity(b.len());
-                    for c in b.iter().rev() { rec.push(*c); }
+                    for c in b.iter().rev() {
+                        rec.push(*c);
+                    }
                     new_record.push_field(rec.as_slice())
                 }
 
                 wtr.write_record(new_record.iter())?;
-            },
+            }
             Err(_) => {}
         }
     }
@@ -85,7 +88,7 @@ pub fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
     Ok(wtr.flush()?)
 }
 
-pub fn run_without_memory_efficiency(args: Args) -> CliResult<()> {
+fn run_without_memory_efficiency(args: Args) -> CliResult<()> {
     let dconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);

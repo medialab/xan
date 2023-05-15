@@ -66,15 +66,16 @@ impl<'de> Deserialize<'de> for Delimiter {
 struct ReverseRead {
     input: Box<File>,
     offset: u64,
-    ptr: u64
+    ptr: u64,
 }
 
 impl Read for ReverseRead {
-
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let buff_size = mem::size_of_val(buf) as u64;
 
-        if self.ptr == self.offset { return Ok(0 as usize) }
+        if self.ptr == self.offset {
+            return Ok(0 as usize);
+        }
 
         if self.offset + buff_size > self.ptr {
             self.input.seek(SeekFrom::Start(self.offset))?;
@@ -83,9 +84,8 @@ impl Read for ReverseRead {
             let e = (self.ptr - self.offset) as usize;
             buf[0..e].reverse();
 
-
             self.ptr = self.offset;
-            return Ok(e as usize)
+            return Ok(e as usize);
         } else {
             let new_position = self.ptr - buff_size;
 
@@ -94,22 +94,18 @@ impl Read for ReverseRead {
             buf.reverse();
 
             self.ptr -= buff_size as u64;
-            return Ok(buff_size as usize)
+            return Ok(buff_size as usize);
         }
-
     }
 }
 
 impl ReverseRead {
-    fn build(
-        input: Box<File>,
-        filesize: u64,
-        offset: u64) -> ReverseRead {
-            ReverseRead {
-                input: input,
-                offset: offset,
-                ptr: filesize
-            }
+    fn build(input: Box<File>, filesize: u64, offset: u64) -> ReverseRead {
+        ReverseRead {
+            input: input,
+            offset: offset,
+            ptr: filesize,
+        }
     }
 }
 
@@ -328,27 +324,30 @@ impl Config {
         })
     }
 
-    pub fn io_reader_for_reverse_reading(&self, offset: u64) -> io::Result<Box<dyn io::Read + 'static>> {
-        let msg = format!("can't use provided input : needs to be loaded in the RAM (using -m, --in-memory flag)");
+    pub fn io_reader_for_reverse_reading(
+        &self,
+        offset: u64,
+    ) -> io::Result<Box<dyn io::Read + 'static>> {
+        let msg = format!(
+            "can't use provided input : needs to be loaded in the RAM (using -m, --in-memory flag)"
+        );
         match self.path {
             None => {
                 return Err(io::Error::new(io::ErrorKind::Unsupported, msg));
-            },
+            }
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => match x.borrow().seek(SeekFrom::Current(0)) {
                     Ok(_) => {
                         let filesize = x.metadata()?.len();
-                        return Ok(Box::new(ReverseRead::build(Box::new(x), filesize, offset)))
-                    },
-                    Err(_) => {
-                        return Err(io::Error::new(io::ErrorKind::Unsupported, msg))
+                        return Ok(Box::new(ReverseRead::build(Box::new(x), filesize, offset)));
                     }
+                    Err(_) => return Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
                 },
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
                     return Err(io::Error::new(io::ErrorKind::NotFound, msg));
                 }
-            }
+            },
         }
     }
 
