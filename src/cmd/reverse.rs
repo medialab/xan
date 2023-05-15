@@ -105,15 +105,15 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
     }
 }
 
-fn run_without_memory_efficiency(dconfig: &mut Config, args: Args) -> CliResult<()> {
-    dconfig.no_headers = args.flag_no_headers;
+fn run_without_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()> {
+    rconfig.no_headers = args.flag_no_headers;
 
-    let mut reader = dconfig.reader()?;
+    let mut reader = rconfig.reader()?;
     let mut all = reader.byte_records().collect::<Result<Vec<_>, _>>()?;
     all.reverse();
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
-    dconfig.write_headers(&mut reader, &mut wtr)?;
+    rconfig.write_headers(&mut reader, &mut wtr)?;
 
     for r in all.into_iter() {
         wtr.write_byte_record(&r)?;
