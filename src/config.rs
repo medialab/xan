@@ -73,8 +73,8 @@ impl Read for ReverseRead {
 
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let buff_size = mem::size_of_val(buf) as u64;
-        
-        if self.ptr == self.offset { return Ok(0 as usize) }      
+
+        if self.ptr == self.offset { return Ok(0 as usize) }
 
         if self.offset + buff_size > self.ptr {
             self.input.seek(SeekFrom::Start(self.offset))?;
@@ -83,12 +83,12 @@ impl Read for ReverseRead {
             let e = (self.ptr - self.offset) as usize;
             buf[0..e].reverse();
 
-            
+
             self.ptr = self.offset;
             return Ok(e as usize)
         } else {
             let new_position = self.ptr - buff_size;
-            
+
             self.input.seek(SeekFrom::Start(new_position as u64))?;
             self.input.read(buf)?;
             buf.reverse();
@@ -102,10 +102,10 @@ impl Read for ReverseRead {
 
 impl ReverseRead {
     fn build(
-        input: Box<File>, 
-        filesize: u64, 
+        input: Box<File>,
+        filesize: u64,
         offset: u64) -> ReverseRead {
-            ReverseRead { 
+            ReverseRead {
                 input: input,
                 offset: offset,
                 ptr: filesize
