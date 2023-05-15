@@ -58,10 +58,10 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
     rconfig.no_headers = true;
 
     let mut config_csv_reader = rconfig.reader()?;
-    let headers = config_csv_reader.byte_headers()?.clone();
     let headers_size = if args.flag_no_headers {
         0
     } else {
+        let _ = config_csv_reader.byte_headers();
         let position = config_csv_reader.position();
         position.clone().byte()
     };
@@ -82,6 +82,7 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
             let mut reverse_csv_reader = rconfig.from_reader(rr);
 
             if !args.flag_no_headers && headers_size > 0 {
+                let headers = config_csv_reader.byte_headers()?;
                 wtr.write_byte_record(&headers)?;
             }
 
