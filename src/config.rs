@@ -7,7 +7,6 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, Read, SeekFrom};
-use std::mem;
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -71,7 +70,7 @@ struct ReverseRead {
 
 impl Read for ReverseRead {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let buff_size = mem::size_of_val(buf) as u64;
+        let buff_size = buf.len() as u64;
 
         if self.ptr == self.offset {
             return Ok(0 as usize);
@@ -328,9 +327,7 @@ impl Config {
         &self,
         offset: u64,
     ) -> io::Result<Box<dyn io::Read + 'static>> {
-        let msg = format!(
-            "can't use provided input : needs to be loaded in the RAM (using -m, --in-memory flag)"
-        );
+        let msg = format!("can't use provided input : needs to be loaded in the RAM");
         match self.path {
             None => {
                 return Err(io::Error::new(io::ErrorKind::Unsupported, msg));

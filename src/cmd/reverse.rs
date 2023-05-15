@@ -1,6 +1,10 @@
+use std::io;
+
 use config::{Config, Delimiter};
 use util;
 use CliResult;
+
+use crate::CliError;
 
 static USAGE: &'static str = "
 Reverses rows of CSV data.
@@ -38,17 +42,20 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    let ref mut rconfig = Config::new(&args.arg_input)
+        .delimiter(args.flag_delimiter)
+        .no_headers(true);
+
     return if args.flag_in_memory {
-        run_without_memory_efficiency(args)
+        run_without_memory_efficiency(rconfig, args)
     } else {
-        run_with_memory_efficiency(args)
+        run_with_memory_efficiency(rconfig, args)
     };
 }
 
-fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
-    let rconfig = Config::new(&args.arg_input)
-        .delimiter(args.flag_delimiter)
-        .no_headers(true);
+fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()> {
+    rconfig.no_headers = true;
 
     let mut config_csv_reader = rconfig.reader()?;
     let headers = config_csv_reader.byte_headers()?.clone();
@@ -58,40 +65,47 @@ fn run_with_memory_efficiency(args: Args) -> CliResult<()> {
         let position = config_csv_reader.position();
         position.clone().byte()
     };
-    let reverse_reader = rconfig.io_reader_for_reverse_reading(headers_size as u64)?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
-    let mut reverse_csv_reader = rconfig.from_reader(reverse_reader);
 
-    if !args.flag_no_headers {
-        wtr.write_byte_record(&headers)?;
-    }
+    let reverse_reader = rconfig.io_reader_for_reverse_reading(headers_size as u64);
+    match reverse_reader {
+        Err(_) => {
+            let msg = format!(
+                "can't use provided input : needs to be loaded in the RAM using -m, --in-memory flag"
+            );
+            Err(CliError::from(io::Error::new(
+                io::ErrorKind::Unsupported,
+                msg,
+            )))
+        }
+        Ok(rr) => {
+            let mut wtr = Config::new(&args.flag_output).writer()?;
+            let mut reverse_csv_reader = rconfig.from_reader(rr);
 
-    for r in reverse_csv_reader.byte_records() {
-        match r {
-            Ok(record) => {
-                let mut new_record = csv::ByteRecord::new();
-
-                for b in record.iter().rev() {
-                    let mut rec = Vec::<u8>::with_capacity(b.len());
-                    for c in b.iter().rev() {
-                        rec.push(*c);
-                    }
-                    new_record.push_field(rec.as_slice())
-                }
-
-                wtr.write_record(new_record.iter())?;
+            if !args.flag_no_headers && headers_size > 0 {
+                wtr.write_byte_record(&headers)?;
             }
-            Err(_) => {}
+
+            for r in reverse_csv_reader.byte_records() {
+                match r {
+                    Ok(record) => {
+                        let new_record: Vec<Vec<u8>> = record
+                            .iter()
+                            .rev()
+                            .map(|b| b.iter().rev().map(|c| *c).collect())
+                            .collect();
+                        wtr.write_record(new_record)?;
+                    }
+                    Err(_) => {}
+                }
+            }
+
+            Ok(wtr.flush()?)
         }
     }
-
-    Ok(wtr.flush()?)
 }
 
-fn run_without_memory_efficiency(args: Args) -> CliResult<()> {
-    let dconfig = Config::new(&args.arg_input)
-        .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers);
+fn run_without_memory_efficiency(dconfig: &mut Config, args: Args) -> CliResult<()> {
+    dconfig.no_headers = args.flag_no_headers;
 
     let mut reader = dconfig.reader()?;
     let mut all = reader.byte_records().collect::<Result<Vec<_>, _>>()?;
