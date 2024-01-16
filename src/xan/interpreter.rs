@@ -9,7 +9,7 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse, Argument, Pipeline};
+use super::parser::{parse_pipeline, Argument, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
 };
@@ -363,7 +363,7 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
 
 // TODO: we could validate function arity at prepare step
 pub fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcretePipeline, PrepareError> {
-    match parse(code) {
+    match parse_pipeline(code) {
         Err(_) => Err(PrepareError::ParseError(code.to_string())),
         Ok(pipeline) => {
             let pipeline = trim_pipeline(pipeline);
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn test_trim_pipeline() {
         // Should give: add(a, b) | len
-        let pipeline = parse("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
+        let pipeline = parse_pipeline("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
         let pipeline = trim_pipeline(pipeline);
 
         assert_eq!(
@@ -457,7 +457,7 @@ mod tests {
             ]
         );
 
-        let pipeline = parse("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
         let pipeline = trim_pipeline(pipeline);
 
         assert_eq!(
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn test_unfurl_pipeline() {
         // Should give: add(b, len(trim(a)))
-        let pipeline = parse("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
         let pipeline = unfurl_pipeline(pipeline);
 
         assert_eq!(

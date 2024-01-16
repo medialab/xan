@@ -4,7 +4,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1, anychar, char, digit1, none_of, space0},
     combinator::{all_consuming, consumed, map, map_res, not, opt, recognize, value},
-    multi::{fold_many0, many0, separated_list0},
+    multi::{fold_many0, many0, separated_list0, separated_list1},
     number::complete::double,
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
@@ -69,6 +69,7 @@ impl FunctionCall {
 }
 
 pub type Pipeline = Vec<FunctionCall>;
+pub type Aggregations = Vec<Aggregation>;
 
 #[derive(Debug, PartialEq)]
 pub struct Aggregation {
@@ -339,7 +340,7 @@ fn pipe(input: &str) -> IResult<&str, ()> {
 }
 
 fn pipeline(input: &str) -> IResult<&str, Pipeline> {
-    all_consuming(separated_list0(pipe, outer_function_call))(input)
+    all_consuming(separated_list1(pipe, outer_function_call))(input)
 }
 
 fn aggregation_name_suffix(input: &str) -> IResult<&str, &str> {
@@ -369,9 +370,19 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
     )(input)
 }
 
-// TODO: write this better
-pub fn parse(code: &str) -> Result<Pipeline, ()> {
+fn aggregations(input: &str) -> IResult<&str, Aggregations> {
+    all_consuming(separated_list1(comma_separator, aggregation))(input)
+}
+
+pub fn parse_pipeline(code: &str) -> Result<Pipeline, ()> {
     match pipeline(code) {
+        Ok(p) => Ok(p.1),
+        Err(_) => Err(()),
+    }
+}
+
+pub fn parse_aggregations(code: &str) -> Result<Aggregations, ()> {
+    match aggregations(code) {
         Ok(p) => Ok(p.1),
         Err(_) => Err(()),
     }
@@ -734,6 +745,34 @@ mod tests {
                         ]
                     })]
                 }
+            ))
+        );
+    }
+
+    #[test]
+    fn test_aggregations() {
+        assert_eq!(
+            aggregations("mean(add(A, B)), sum(C) as s"),
+            Ok((
+                "",
+                vec![
+                    Aggregation {
+                        name: "mean(add(A, B))".to_string(),
+                        method: "mean".to_string(),
+                        args: vec![Argument::Call(FunctionCall {
+                            name: "add".to_string(),
+                            args: vec![
+                                Argument::Identifier("A".to_string()),
+                                Argument::Identifier("B".to_string())
+                            ]
+                        })]
+                    },
+                    Aggregation {
+                        name: "s".to_string(),
+                        method: "sum".to_string(),
+                        args: vec![Argument::Identifier("C".to_string())]
+                    }
+                ]
             ))
         );
     }
