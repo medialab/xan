@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1, anychar, char, digit1, none_of, space0},
-    combinator::{all_consuming, map, map_res, not, opt, recognize, value},
+    combinator::{all_consuming, consumed, map, map_res, not, opt, recognize, value},
     multi::{fold_many0, many0, separated_list0},
     number::complete::double,
     sequence::{delimited, pair, preceded, terminated, tuple},
@@ -69,6 +69,13 @@ impl FunctionCall {
 }
 
 pub type Pipeline = Vec<FunctionCall>;
+
+#[derive(Debug, PartialEq)]
+pub struct Aggregation {
+    pub name: String,
+    pub args: Vec<Argument>,
+    pub method: String,
+}
 
 fn boolean_literal(input: &str) -> IResult<&str, bool> {
     alt((value(true, tag("true")), value(false, tag("false"))))(input)
@@ -333,6 +340,33 @@ fn pipe(input: &str) -> IResult<&str, ()> {
 
 fn pipeline(input: &str) -> IResult<&str, Pipeline> {
     all_consuming(separated_list0(pipe, outer_function_call))(input)
+}
+
+fn aggregation_name_suffix(input: &str) -> IResult<&str, &str> {
+    preceded(tuple((space0, tag("as"), space0)), outer_identifier)(input)
+}
+
+fn aggregation(input: &str) -> IResult<&str, Aggregation> {
+    map(
+        tuple((
+            outer_identifier,
+            consumed(delimited(
+                pair(space0, char('(')),
+                argument_list,
+                pair(char(')'), space0),
+            )),
+            opt(aggregation_name_suffix),
+        )),
+        |(method, (expr, args), name)| Aggregation {
+            name: name.map(|n| n.to_string()).unwrap_or_else(|| {
+                let mut prefix = String::from(method);
+                prefix.push_str(expr);
+                prefix
+            }),
+            args,
+            method: String::from(method),
+        },
+    )(input)
 }
 
 // TODO: write this better
@@ -645,6 +679,61 @@ mod tests {
                         args: vec![Argument::Null]
                     }
                 ]
+            ))
+        );
+    }
+
+    #[test]
+    fn test_aggregation_name_suffix() {
+        assert_eq!(
+            aggregation_name_suffix("as name, test"),
+            Ok((", test", "name"))
+        );
+        assert_eq!(
+            aggregation_name_suffix("  as    name, test"),
+            Ok((", test", "name"))
+        );
+    }
+
+    #[test]
+    fn test_aggregation() {
+        assert_eq!(
+            aggregation("mean(A)"),
+            Ok((
+                "",
+                Aggregation {
+                    name: "mean(A)".to_string(),
+                    method: "mean".to_string(),
+                    args: vec![Argument::Identifier("A".to_string())]
+                }
+            ))
+        );
+        assert_eq!(
+            aggregation("mean(A) as avg"),
+            Ok((
+                "",
+                Aggregation {
+                    name: "avg".to_string(),
+                    method: "mean".to_string(),
+                    args: vec![Argument::Identifier("A".to_string())]
+                }
+            ))
+        );
+        assert_eq!(
+            aggregation("mean(add(A, B))"),
+            Ok((
+                "",
+                Aggregation {
+                    name: "mean(add(A, B))".to_string(),
+                    method: "mean".to_string(),
+                    args: vec![Argument::Call(FunctionCall {
+                        name: "add".to_string(),
+                        args: vec![
+                            Argument::Identifier("A".to_string()),
+                            Argument::Identifier("B".to_string())
+                        ]
+                    })]
+                }
             ))
         );
     }
