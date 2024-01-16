@@ -1,3 +1,4 @@
+pub mod agg;
 pub mod behead;
 pub mod bins;
 pub mod cat;

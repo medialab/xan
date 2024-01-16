@@ -73,6 +73,7 @@ macro_rules! fail {
 macro_rules! command_list {
     () => {
         "
+    agg         Aggregate data from CSV file
     behead      Drop header from CSV file
     bins        Dispatch numeric columns into bins
     cat         Concatenate by row or column
@@ -194,6 +195,7 @@ Please choose one of the following commands:",
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Command {
+    Agg,
     Behead,
     Bins,
     Cat,
@@ -250,6 +252,7 @@ impl Command {
             )));
         }
         match self {
+            Command::Agg => cmd::agg::run(argv),
             Command::Behead => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
             Command::Cat => cmd::cat::run(argv),

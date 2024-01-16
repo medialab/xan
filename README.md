@@ -68,6 +68,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 
 ### Available commands
 
+* **agg** - Aggregate data from CSV file.
 * **behead** - Drop headers from CSV file.
 * **bins** - Dispatch numeric columns into bins.
 * **cat** - Concatenate CSV files by row or by column.

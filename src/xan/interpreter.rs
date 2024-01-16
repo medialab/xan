@@ -420,6 +420,20 @@ pub fn eval(
     Ok(last_value)
 }
 
+fn eval_expr(
+    expr: &ConcreteArgument,
+    record: &ByteRecord,
+    variables: &Variables,
+) -> Result<DynamicValue, EvaluationError> {
+    (match expr {
+        ConcreteArgument::Call(function_call) => {
+            function_call.run(record, &DynamicValue::None, variables)
+        }
+        arg => arg.evaluate(record, &DynamicValue::None, variables),
+    })
+    .map(|value| value.into_owned())
+}
+
 #[derive(Clone)]
 pub struct Program<'a> {
     pipeline: ConcretePipeline,
