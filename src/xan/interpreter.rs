@@ -14,6 +14,36 @@ use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
 };
 
+// const STATIC_VARIABLES_INDEX_SLOT: usize = 0;
+
+// #[derive(Debug, Clone)]
+// struct StaticVariables {
+//     data: [DynamicValue; 1],
+// }
+
+// impl StaticVariables {
+//     fn new() -> Self {
+//         StaticVariables {
+//             data: [DynamicValue::None],
+//         }
+//     }
+
+//     fn set_index(&mut self, index: usize) {
+//         self.data[STATIC_VARIABLES_INDEX_SLOT] = DynamicValue::from(index);
+//     }
+
+//     fn get_index(&self) -> &DynamicValue {
+//         &self.data[STATIC_VARIABLES_INDEX_SLOT]
+//     }
+
+//     fn get(&self, key: &str) -> &DynamicValue {
+//         match key {
+//             "index" => self.get_index(),
+//             _ => unreachable!(),
+//         }
+//     }
+// }
+
 #[derive(Debug, Clone)]
 enum ConcreteArgument {
     Variable(String),
