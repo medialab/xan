@@ -9,7 +9,7 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_pipeline, Argument, Pipeline};
+use super::parser::{parse_pipeline, Aggregations, Argument, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
 };
@@ -470,6 +470,31 @@ impl<'a> Program<'a> {
 
         self.variables.insert(key, value);
     }
+}
+
+struct ConcreteAggregation {
+    name: String,
+    method: String,
+    expr: Option<ConcreteArgument>,
+    args: Vec<ConcreteArgument>,
+}
+
+type ConcreteAggregations = Vec<ConcreteAggregation>;
+
+fn concretize_aggregations(
+    aggregations: Aggregations,
+    headers: &ByteRecord,
+) -> Result<ConcreteAggregations, PrepareError> {
+    let mut concrete_aggregations = ConcreteAggregations::new();
+
+    for aggregation in aggregations {
+        let expr = aggregation
+            .args
+            .get(0)
+            .map(|arg| concretize_argument(arg.clone(), headers));
+    }
+
+    Ok(concrete_aggregations)
 }
 
 #[cfg(test)]
