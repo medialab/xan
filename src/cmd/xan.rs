@@ -105,7 +105,7 @@ macro_rules! xan_function_list {
         Add two numbers.
 
     - dec(x) -> number
-        Substract 1 from x.
+        Subtract 1 from x.
 
     - div(x, y) -> number
         Divide two numbers.
