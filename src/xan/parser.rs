@@ -276,8 +276,8 @@ fn indexation(input: &str) -> IResult<&str, ColumIndexationBy> {
     )(input)
 }
 
-fn argument(input: &str) -> IResult<&str, Argument> {
-    alt((
+fn argument_with_expr(input: &str) -> IResult<&str, (&str, Argument)> {
+    consumed(alt((
         map(inner_function_call, Argument::Call),
         map(boolean_literal, Argument::BooleanLiteral),
         map(null_literal, |_| Argument::Null),
@@ -293,7 +293,15 @@ fn argument(input: &str) -> IResult<&str, Argument> {
         map(regex_literal, Argument::RegexLiteral),
         map(string_literal, Argument::StringLiteral),
         map(underscore_literal, |_| Argument::Underscore),
-    ))(input)
+    )))(input)
+}
+
+fn argument(input: &str) -> IResult<&str, Argument> {
+    map(argument_with_expr, |arg| arg.1)(input)
+}
+
+fn argument_with_expr_list(input: &str) -> IResult<&str, Vec<(&str, Argument)>> {
+    separated_list0(comma_separator, argument_with_expr)(input)
 }
 
 fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
@@ -352,20 +360,25 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
             restricted_identifier,
             consumed(delimited(
                 pair(space0, char('(')),
-                argument_list,
+                argument_with_expr_list,
                 pair(char(')'), space0),
             )),
             opt(aggregation_name_suffix),
         )),
-        |(method, (expr, args), name)| {
-            let key = {
-                let mut prefix = String::from(method);
-                prefix.push_str(expr.trim());
-                prefix
+        |(method, (expr, args_with_expr), name)| {
+            let key = match args_with_expr.get(0) {
+                None => "".to_string(),
+                Some((expr, _)) => expr.trim().to_string(),
             };
 
+            let args: Vec<Argument> = args_with_expr.into_iter().map(|t| t.1).collect();
+
             Aggregation {
-                name: name.map(|n| n.to_string()).unwrap_or_else(|| key.clone()),
+                name: name.map(|n| n.to_string()).unwrap_or_else(|| {
+                    let mut prefix = String::from(method);
+                    prefix.push_str(expr.trim());
+                    prefix
+                }),
                 args,
                 method: String::from(method),
                 key,
@@ -720,7 +733,7 @@ mod tests {
                     name: "mean(A)".to_string(),
                     method: "mean".to_string(),
                     args: vec![Argument::Identifier("A".to_string())],
-                    key: "mean(A)".to_string()
+                    key: "A".to_string()
                 }
             ))
         );
@@ -732,7 +745,7 @@ mod tests {
                     name: "avg".to_string(),
                     method: "mean".to_string(),
                     args: vec![Argument::Identifier("A".to_string())],
-                    key: "mean(A)".to_string()
+                    key: "A".to_string()
                 }
             ))
         );
@@ -750,7 +763,7 @@ mod tests {
                             Argument::Identifier("B".to_string())
                         ]
                     })],
-                    key: "mean(add(A, B))".to_string()
+                    key: "add(A, B)".to_string()
                 }
             ))
         );
@@ -773,13 +786,13 @@ mod tests {
                                 Argument::Identifier("B".to_string())
                             ]
                         })],
-                        key: "mean(add(A, B))".to_string()
+                        key: "add(A, B)".to_string()
                     },
                     Aggregation {
                         name: "s".to_string(),
                         method: "sum".to_string(),
                         args: vec![Argument::Identifier("C".to_string())],
-                        key: "sum(C)".to_string()
+                        key: "C".to_string()
                     }
                 ]
             ))
