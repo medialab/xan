@@ -10,10 +10,6 @@ use super::types::{DynamicNumber, DynamicValue, Variables};
 // TODO: test when there is no data to be aggregated at all
 // TODO: test with nulls and nans
 // TODO: parallelize multiple aggregations
-// TODO: ensure we only keep one aggregator per aggregation key, which also
-// means each unique expression must only be evaluated once
-// TODO: move to Aggregator enum with common interface? no because mean is a compound aggregator?
-// TODO: aggregations must be grouped by expression key and then have dependencies (mean, sum, count for instance)
 // TODO: validate agg arity
 // TODO: we need some clear method to enable sorted group by optimization
 
