@@ -229,6 +229,11 @@ impl AggregationMethod {
 // said enum, making it as light as possible. This is somewhat verbose however
 // and we could rely on macros to help with this if needed.
 
+// NOTE: this aggregator actively combines and matches different generic
+// aggregation schemes and never repeats itself. For instance, mean will be
+// inferred from aggregating sum and count. Also if the user asks for both
+// sum and mean, the sum will only be aggregated once.
+
 #[derive(Debug)]
 struct Aggregator {
     methods: Vec<AggregationMethod>,
@@ -362,34 +367,97 @@ impl Aggregator {
     }
 }
 
-// #[derive(Debug)]
-// struct KeyedAggregator {
-//     mapping: BTreeMap<String, Aggregator>,
-// }
+// NOTE: the rationale of the `KeyedAggregator` is to make sure to group
+// aggregations per expression. This means 'sum(A) as sum, mean(A)` will never
+// need to run the expression twice and can share an `Aggregator` allocation.
+// TODO: deal with count() having no expr.
+#[derive(Debug)]
+struct KeyedAggregatorEntry {
+    key: String,
+    expr: Option<ConcreteArgument>,
+    aggregator: Aggregator,
+}
 
-// impl KeyedAggregator {
-//     fn new() -> Self {
-//         Self {
-//             mapping: BTreeMap::new(),
-//         }
-//     }
+#[derive(Debug)]
+struct KeyedAggregator {
+    mapping: Vec<KeyedAggregatorEntry>,
+}
 
-//     fn add(&mut self, aggregation: &ConcreteAggregation) {
-//         self.mapping
-//             .entry(aggregation.key.clone())
-//             .and_modify(|aggregator| {
-//                 aggregator.add_method(&aggregation.method);
-//             })
-//             .or_insert_with(|| Aggregator::with_method(&aggregation.method));
-//     }
-// }
+impl KeyedAggregator {
+    fn new() -> Self {
+        Self {
+            mapping: Vec::new(),
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<&KeyedAggregatorEntry> {
+        self.mapping.iter().find(|entry| entry.key == key)
+    }
+
+    fn get_mut(&mut self, key: &str) -> Option<&mut KeyedAggregatorEntry> {
+        self.mapping.iter_mut().find(|entry| entry.key == key)
+    }
+
+    fn add(&mut self, aggregation: &ConcreteAggregation) {
+        match self.get_mut(&aggregation.key) {
+            None => {
+                self.mapping.push(KeyedAggregatorEntry {
+                    key: aggregation.key.clone(),
+                    expr: aggregation.expr.clone(),
+                    aggregator: Aggregator::with_method(&aggregation.method),
+                });
+            }
+            Some(entry) => entry.aggregator.add_method(&aggregation.method),
+        }
+    }
+
+    fn run_with_record(
+        &mut self,
+        record: &ByteRecord,
+        variables: &Variables,
+    ) -> Result<(), EvaluationError> {
+        for entry in self.mapping.iter_mut() {
+            // NOTE: count tolerates having no expression to evaluate, for instance.
+            let value = match &entry.expr {
+                None => DynamicValue::None,
+                Some(expr) => eval_expr(expr, record, variables)?,
+            };
+
+            entry.aggregator.process_value(value).map_err(|err| {
+                EvaluationError::Call(SpecifiedCallError {
+                    reason: err,
+                    function_name: "<agg-expr>".to_string(),
+                })
+            })?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(&self, key: &str, method: &str) -> Option<DynamicValue> {
+        self.get(key)
+            .map(|entry| entry.aggregator.finalize_method(method))
+    }
+}
+
+impl From<&ConcreteAggregations> for KeyedAggregator {
+    fn from(aggregations: &ConcreteAggregations) -> Self {
+        let mut aggregator = Self::new();
+
+        for agg in aggregations {
+            aggregator.add(agg);
+        }
+
+        aggregator
+    }
+}
 
 #[derive(Debug)]
 struct ConcreteAggregation {
     name: String,
     method: String,
     expr: Option<ConcreteArgument>,
-    // key: String,
+    key: String,
     // args: Vec<ConcreteArgument>,
 }
 
@@ -417,7 +485,7 @@ fn concretize_aggregations(
         let concrete_aggregation = ConcreteAggregation {
             name: aggregation.name,
             method: aggregation.method,
-            // key: aggregation.key,
+            key: aggregation.key,
             expr,
             // args,
         };
@@ -448,7 +516,7 @@ fn headers_from_concrete_aggregations(aggregations: &ConcreteAggregations) -> By
 #[derive(Debug)]
 pub struct AggregationProgram<'a> {
     aggregations: ConcreteAggregations,
-    aggregators: Vec<Aggregator>,
+    aggregator: KeyedAggregator,
     variables: Variables<'a>,
 }
 
@@ -456,35 +524,17 @@ impl<'a> AggregationProgram<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
         let concrete_aggregations = prepare(code, headers)?;
 
-        let aggregators = concrete_aggregations
-            .iter()
-            .map(|agg| Aggregator::with_method(&agg.method))
-            .collect();
+        let aggregator = KeyedAggregator::from(&concrete_aggregations);
 
         Ok(Self {
             aggregations: concrete_aggregations,
-            aggregators,
+            aggregator,
             variables: Variables::new(),
         })
     }
 
     pub fn run_with_record(&mut self, record: &ByteRecord) -> Result<(), EvaluationError> {
-        for (aggregation, aggregator) in self.aggregations.iter().zip(self.aggregators.iter_mut()) {
-            // NOTE: count tolerates having no expression to evaluate, for instance.
-            let value = match &aggregation.expr {
-                None => DynamicValue::None,
-                Some(expr) => eval_expr(expr, record, &self.variables)?,
-            };
-
-            aggregator.process_value(value).map_err(|err| {
-                EvaluationError::Call(SpecifiedCallError {
-                    reason: err,
-                    function_name: aggregation.method.to_string(),
-                })
-            })?;
-        }
-
-        Ok(())
+        self.aggregator.run_with_record(record, &self.variables)
     }
 
     pub fn headers(&self) -> ByteRecord {
@@ -494,14 +544,12 @@ impl<'a> AggregationProgram<'a> {
     pub fn finalize(self) -> ByteRecord {
         let mut record = ByteRecord::new();
 
-        for (aggregation, aggregator) in self
-            .aggregations
-            .into_iter()
-            .zip(self.aggregators.into_iter())
-        {
+        for aggregation in self.aggregations.into_iter() {
             record.push_field(
-                &aggregator
-                    .finalize_method(&aggregation.method)
+                &self
+                    .aggregator
+                    .finalize(&aggregation.key, &aggregation.method)
+                    .unwrap()
                     .serialize_as_bytes(b"|"),
             );
         }
