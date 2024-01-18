@@ -21,7 +21,7 @@ use rand::{thread_rng, Rng};
 macro_rules! svec[
     ($($x:expr),*) => (
         vec![$($x),*].into_iter()
-                     .map(|s: &'static str| s.to_string())
+                     .map(|s: &str| s.to_string())
                      .collect::<Vec<String>>()
     );
     ($($x:expr,)*) => (svec![$($x),*]);
@@ -36,6 +36,7 @@ macro_rules! rassert_eq {
 
 mod workdir;
 
+mod test_agg;
 mod test_behead;
 mod test_cat;
 mod test_count;
