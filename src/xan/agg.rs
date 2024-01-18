@@ -598,7 +598,10 @@ impl<'a> GroupAggregationProgram<'a> {
         record
     }
 
-    pub fn finalize<F: FnMut(&ByteRecord)>(self, mut callback: F) {
+    pub fn finalize<F, E>(self, mut callback: F) -> Result<(), E>
+    where
+        F: FnMut(&ByteRecord) -> Result<(), E>,
+    {
         let mut record = ByteRecord::new();
 
         for (group, aggregator) in self.groups.into_iter() {
@@ -612,8 +615,10 @@ impl<'a> GroupAggregationProgram<'a> {
 
                 record.push_field(&value.serialize_as_bytes(b"|"));
 
-                callback(&record);
+                callback(&record)?;
             }
         }
+
+        Ok(())
     }
 }

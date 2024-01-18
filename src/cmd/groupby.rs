@@ -56,11 +56,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         program.run_with_record(group, &record)?;
     }
 
-    // TODO: should use some kind of specialized into iter here...
-    program.finalize(|output_record| {
-        wtr.write_byte_record(output_record)
-            .expect("error while writing record");
-    });
+    program.finalize(|output_record| wtr.write_byte_record(output_record))?;
 
     Ok(wtr.flush()?)
 }
