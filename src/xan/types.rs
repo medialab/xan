@@ -66,40 +66,40 @@ pub enum DynamicNumber {
 }
 
 impl DynamicNumber {
-    pub fn abs(&self) -> DynamicNumber {
+    pub fn abs(&self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.abs()),
             Self::Integer(n) => Self::Integer(n.abs()),
         }
     }
 
-    pub fn inc(&self) -> DynamicNumber {
+    pub fn inc(&self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.add(1.0)),
             Self::Integer(n) => Self::Integer(n.add(1)),
         }
     }
 
-    pub fn dec(&self) -> DynamicNumber {
+    pub fn dec(&self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.add(-1.0)),
             Self::Integer(n) => Self::Integer(n.add(-1)),
         }
     }
 
-    pub fn idiv(self, rhs: DynamicNumber) -> DynamicNumber {
+    pub fn idiv(self, rhs: Self) -> Self {
         let div = match self {
-            DynamicNumber::Integer(a) => match rhs {
-                DynamicNumber::Integer(b) => a as f64 / b as f64,
-                DynamicNumber::Float(b) => a as f64 / b,
+            Self::Integer(a) => match rhs {
+                Self::Integer(b) => a as f64 / b as f64,
+                Self::Float(b) => a as f64 / b,
             },
-            DynamicNumber::Float(a) => match rhs {
-                DynamicNumber::Integer(b) => a / b as f64,
-                DynamicNumber::Float(b) => a / b,
+            Self::Float(a) => match rhs {
+                Self::Integer(b) => a / b as f64,
+                Self::Float(b) => a / b,
             },
         };
 
-        DynamicNumber::Integer(div.floor() as i64)
+        Self::Integer(div.floor() as i64)
     }
 }
 
