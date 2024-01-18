@@ -39,6 +39,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 
 <strong id="new-features">New Features</strong>
 
+* `xsv agg`
 * `xsv behead`
 * `xsv bins`
 * `xsv datefmt`
@@ -48,6 +49,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 * `xsv filter`
 * `xsv foreach`
 * `xsv glob`
+* `xsv groupby`
 * `xsv hist`
 * `xsv implode`
 * `xsv join --prefix-left/--prefix-right`
@@ -89,6 +91,7 @@ given separator.
 * **frequency** - Build frequency tables of each column in CSV data. (Uses
   parallelism to go faster if an index is present.)
 * **glob** - Create a CSV file with paths matching a glob pattern.
+* **groupby** - Aggregate data by groups of a CSV file.
 * **headers** - Show the headers of CSV data. Or show the intersection of all
   headers between many CSV files.
 * **implode** - Collapse consecutive identical rows based on a diverging column.

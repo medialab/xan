@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use csv::ByteRecord;
 
 use super::error::{CallError, EvaluationError, PrepareError, SpecifiedCallError};
@@ -8,6 +10,12 @@ use super::types::{DynamicNumber, DynamicValue, Variables};
 // TODO: test when there is no data to be aggregated at all
 // TODO: test with nulls and nans
 // TODO: parallelize multiple aggregations
+// TODO: ensure we only keep one aggregator per aggregation key, which also
+// means each unique expression must only be evaluated once
+// TODO: move to Aggregator enum with common interface? no because mean is a compound aggregator?
+// TODO: aggregations must be grouped by expression key and then have dependencies (mean, sum, count for instance)
+// TODO: validate agg arity
+// TODO: we need some clear method to enable sorted group by optimization
 
 #[derive(Debug)]
 struct Count {
@@ -23,11 +31,11 @@ impl Count {
         self.current += 1;
     }
 
-    fn into_value(self) -> DynamicValue {
+    fn to_value(&self) -> DynamicValue {
         DynamicValue::from(self.current)
     }
 
-    fn into_float(self) -> f64 {
+    fn to_float(&self) -> f64 {
         self.current as f64
     }
 }
@@ -58,11 +66,11 @@ impl Sum {
         }
     }
 
-    fn into_value(self) -> DynamicValue {
-        DynamicValue::from(self.current)
+    fn to_value(&self) -> DynamicValue {
+        DynamicValue::from(self.current.clone())
     }
 
-    fn into_float(self) -> f64 {
+    fn to_float(&self) -> f64 {
         match self.current {
             DynamicNumber::Float(v) => v,
             DynamicNumber::Integer(v) => v as f64,
@@ -151,98 +159,213 @@ impl Extent {
         };
     }
 
-    fn min_into_value(self) -> DynamicValue {
+    fn min_to_value(&self) -> DynamicValue {
         if self.as_string {
-            return DynamicValue::from(self.min_string);
+            return DynamicValue::from(self.min_string.clone());
         }
 
-        DynamicValue::from(self.min)
+        DynamicValue::from(self.min.clone())
     }
 
-    fn max_into_value(self) -> DynamicValue {
+    fn max_to_value(&self) -> DynamicValue {
         if self.as_string {
-            return DynamicValue::from(self.max_string);
+            return DynamicValue::from(self.max_string.clone());
         }
 
-        DynamicValue::from(self.max)
+        DynamicValue::from(self.max.clone())
     }
 }
 
-// TODO: ensure we only keep one aggregator per aggregation key, which also
-// means each unique expression must only be evaluated once
-// TODO: move to Aggregator enum with common interface? no because mean is a compound aggregator?
-// TODO: aggregations must be grouped by expression key and then have dependencies (mean, sum, count for instance)
+#[derive(Debug)]
+enum AggregationMethod {
+    Count(Count),
+    Extent(Extent),
+    Sum(Sum),
+}
+
+impl AggregationMethod {
+    fn is_count(&self) -> bool {
+        match self {
+            Self::Count(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_extent(&self) -> bool {
+        match self {
+            Self::Extent(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_sum(&self) -> bool {
+        match self {
+            Self::Sum(_) => true,
+            _ => false,
+        }
+    }
+}
+
+// NOTE: at the beginning I was using a struct that would look like this:
+// struct Aggregator {
+//     count: Option<Count>,
+//     sum: Option<Sum>,
+// }
+
+// But this has the downside of allocating a lot of memory for each Aggregator
+// instances, and since we need to instantiate one Aggregator per group when
+// aggregating per group, this would cost quite a lot of memory for no good
+// reason. We can of course store a list of CSV rows per group but this would
+// also cost O(n) memory (n being the size of target CSV file), whereas we
+// actually only need O(1) memory per group, i.e. O(g) for most aggregation
+// methods (e.g. sum, mean etc.).
+
+// Note that we can wrap the inner aggregators in a Box to reduce the memory
+// footprint. But this will still increase each time we add a new aggregation
+// function family, which is far from ideal.
+
+// The current solution relies on an enum of aggregation method `AggregationMethod`
+// and an `Aggregator` struct which is basically wrapping only a vector of
+// said enum, making it as light as possible. This is somewhat verbose however
+// and we could rely on macros to help with this if needed.
+
 #[derive(Debug)]
 struct Aggregator {
-    count: Option<Count>,
-    extent: Option<Extent>,
-    sum: Option<Sum>,
+    methods: Vec<AggregationMethod>,
 }
 
+// TODO: use with merging of aggregations
 impl Aggregator {
-    pub fn from_method(method: &str) -> Self {
-        let mut count = None;
-        let mut extent = None;
-        let mut sum = None;
-
-        if method == "count" || method == "mean" {
-            count = Some(Count::new());
+    fn new() -> Self {
+        Self {
+            methods: Vec::new(),
         }
-
-        if method == "min" || method == "max" {
-            extent = Some(Extent::new());
-        }
-
-        if method == "sum" || method == "mean" {
-            sum = Some(Sum::new());
-        }
-
-        Self { count, extent, sum }
     }
 
-    pub fn add(&mut self, value: DynamicValue) -> Result<(), CallError> {
-        if let Some(ref mut count) = self.count {
-            count.add();
+    fn has_count(&self) -> bool {
+        self.methods.iter().any(|method| method.is_count())
+    }
+
+    fn has_extent(&self) -> bool {
+        self.methods.iter().any(|method| method.is_extent())
+    }
+
+    fn has_sum(&self) -> bool {
+        self.methods.iter().any(|method| method.is_sum())
+    }
+
+    fn get_count(&self) -> Option<&Count> {
+        for method in self.methods.iter() {
+            match method {
+                AggregationMethod::Count(count) => return Some(count),
+                _ => continue,
+            }
         }
 
-        if let Some(ref mut extent) = self.extent {
-            extent.add(&value);
+        None
+    }
+
+    fn get_extent(&self) -> Option<&Extent> {
+        for method in self.methods.iter() {
+            match method {
+                AggregationMethod::Extent(extent) => return Some(extent),
+                _ => continue,
+            }
         }
 
-        if let Some(ref mut sum) = self.sum {
-            sum.add(&value.try_as_number()?);
+        None
+    }
+
+    fn get_sum(&self) -> Option<&Sum> {
+        for method in self.methods.iter() {
+            match method {
+                AggregationMethod::Sum(sum) => return Some(sum),
+                _ => continue,
+            }
+        }
+
+        None
+    }
+
+    fn add_method(&mut self, method: &str) {
+        match method {
+            "count" => {
+                if self.has_count() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::Count(Count::new()));
+            }
+            "min" | "max" => {
+                if self.has_extent() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::Extent(Extent::new()));
+            }
+            "mean" => {
+                if !self.has_count() {
+                    self.methods.push(AggregationMethod::Count(Count::new()));
+                }
+                if !self.has_sum() {
+                    self.methods.push(AggregationMethod::Sum(Sum::new()));
+                }
+            }
+            "sum" => {
+                if self.has_sum() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::Sum(Sum::new()));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn add(&mut self, value: DynamicValue) -> Result<(), CallError> {
+        for method in self.methods.iter_mut() {
+            match method {
+                AggregationMethod::Count(count) => {
+                    count.add();
+                }
+                AggregationMethod::Extent(extent) => {
+                    extent.add(&value);
+                }
+                AggregationMethod::Sum(sum) => {
+                    sum.add(&value.try_as_number()?);
+                }
+            }
         }
 
         Ok(())
     }
 
-    pub fn finalize(self, method: &str) -> DynamicValue {
+    fn finalize_method(&self, method: &str) -> DynamicValue {
         match method {
-            "count" => self.count.unwrap().into_value(),
-            "max" => self.extent.unwrap().max_into_value(),
+            "count" => self.get_count().unwrap().to_value(),
+            "min" => self.get_extent().unwrap().min_to_value(),
             "mean" => {
-                let count = self.count.unwrap().into_float();
-                let sum = self.sum.unwrap().into_float();
+                let count = self.get_count().unwrap().to_float();
+                let sum = self.get_sum().unwrap().to_float();
 
                 DynamicValue::from(sum / count)
             }
-            "min" => self.extent.unwrap().min_into_value(),
-            "sum" => self.sum.unwrap().into_value(),
+            "max" => self.get_extent().unwrap().max_to_value(),
+            "sum" => self.get_sum().unwrap().to_value(),
             _ => unreachable!(),
         }
     }
 }
 
-// TODO: validate agg arity
 #[derive(Debug)]
-pub struct ConcreteAggregation {
+struct ConcreteAggregation {
     name: String,
-    pub method: String,
+    method: String,
     expr: Option<ConcreteArgument>,
     // args: Vec<ConcreteArgument>,
 }
 
-pub type ConcreteAggregations = Vec<ConcreteAggregation>;
+type ConcreteAggregations = Vec<ConcreteAggregation>;
 
 fn concretize_aggregations(
     aggregations: Aggregations,
@@ -276,6 +399,23 @@ fn concretize_aggregations(
     Ok(concrete_aggregations)
 }
 
+fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, PrepareError> {
+    let parsed_aggregations =
+        parse_aggregations(code).map_err(|_| PrepareError::ParseError(code.to_string()))?;
+
+    concretize_aggregations(parsed_aggregations, headers)
+}
+
+fn headers_from_concrete_aggregations(aggregations: &ConcreteAggregations) -> ByteRecord {
+    let mut record = ByteRecord::new();
+
+    for aggregation in aggregations.iter() {
+        record.push_field(aggregation.name.as_bytes());
+    }
+
+    record
+}
+
 #[derive(Debug)]
 pub struct AggregationProgram<'a> {
     aggregations: ConcreteAggregations,
@@ -285,15 +425,18 @@ pub struct AggregationProgram<'a> {
 
 impl<'a> AggregationProgram<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
-        let parsed_aggregations =
-            parse_aggregations(code).map_err(|_| PrepareError::ParseError(code.to_string()))?;
-        let concrete_aggregations = concretize_aggregations(parsed_aggregations, headers)?;
+        let concrete_aggregations = prepare(code, headers)?;
+
         let aggregators = concrete_aggregations
             .iter()
-            .map(|agg| Aggregator::from_method(&agg.method))
+            .map(|agg| {
+                let mut aggregator = Aggregator::new();
+                aggregator.add_method(&agg.method);
+                aggregator
+            })
             .collect();
 
-        Ok(AggregationProgram {
+        Ok(Self {
             aggregations: concrete_aggregations,
             aggregators,
             variables: Variables::new(),
@@ -320,13 +463,7 @@ impl<'a> AggregationProgram<'a> {
     }
 
     pub fn headers(&self) -> ByteRecord {
-        let mut record = ByteRecord::new();
-
-        for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.name.as_bytes());
-        }
-
-        record
+        headers_from_concrete_aggregations(&self.aggregations)
     }
 
     pub fn finalize(self) -> ByteRecord {
@@ -339,11 +476,18 @@ impl<'a> AggregationProgram<'a> {
         {
             record.push_field(
                 &aggregator
-                    .finalize(&aggregation.method)
+                    .finalize_method(&aggregation.method)
                     .serialize_as_bytes(b"|"),
             );
         }
 
         record
     }
+}
+
+#[derive(Debug)]
+pub struct GroupAggregationProgram<'a> {
+    aggregations: ConcreteAggregations,
+    groups: HashMap<Vec<u8>, Vec<Aggregator>>,
+    variables: Variables<'a>,
 }

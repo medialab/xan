@@ -14,6 +14,7 @@ pub mod fmt;
 pub mod foreach;
 pub mod frequency;
 pub mod glob;
+pub mod groupby;
 pub mod headers;
 pub mod hist;
 pub mod implode;

@@ -89,6 +89,7 @@ macro_rules! command_list {
     foreach     Loop over a CSV file to execute bash commands
     frequency   Show frequency tables
     glob        Create a CSV file with paths matching a glob pattern
+    groupby     Aggregate data by groups of a CSV file
     headers     Show header names
     help        Show this usage message.
     hist        Print a histogram with rows of CSV file as bars
@@ -211,6 +212,7 @@ enum Command {
     Fmt,
     Frequency,
     Glob,
+    Groupby,
     Headers,
     Help,
     Hist,
@@ -268,6 +270,7 @@ impl Command {
             Command::Fmt => cmd::fmt::run(argv),
             Command::Frequency => cmd::frequency::run(argv),
             Command::Glob => cmd::glob::run(argv),
+            Command::Groupby => cmd::groupby::run(argv),
             Command::Headers => cmd::headers::run(argv),
             Command::Help => {
                 wout!("{}", USAGE);
