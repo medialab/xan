@@ -116,7 +116,7 @@ pub struct ConcreteAggregation {
     name: String,
     pub method: String,
     expr: Option<ConcreteArgument>,
-    args: Vec<ConcreteArgument>,
+    // args: Vec<ConcreteArgument>,
 }
 
 pub type ConcreteAggregations = Vec<ConcreteAggregation>;
@@ -144,7 +144,7 @@ fn concretize_aggregations(
             name: aggregation.name,
             method: aggregation.method,
             expr,
-            args,
+            // args,
         };
 
         concrete_aggregations.push(concrete_aggregation);

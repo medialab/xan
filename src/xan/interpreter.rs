@@ -9,7 +9,7 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_aggregations, parse_pipeline, Aggregations, Argument, Pipeline};
+use super::parser::{parse_pipeline, Argument, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
 };
@@ -439,7 +439,7 @@ pub struct Program<'a> {
     pipeline: ConcretePipeline,
     variables: Variables<'a>,
     should_bind_index: bool,
-    dummy_record: csv::ByteRecord,
+    // dummy_record: csv::ByteRecord,
 }
 
 impl<'a> Program<'a> {
@@ -451,7 +451,7 @@ impl<'a> Program<'a> {
             pipeline,
             variables: Variables::new(),
             should_bind_index,
-            dummy_record: csv::ByteRecord::new(),
+            // dummy_record: csv::ByteRecord::new(),
         })
     }
 
@@ -459,9 +459,9 @@ impl<'a> Program<'a> {
         eval_pipeline(&self.pipeline, record, &self.variables)
     }
 
-    pub fn run(&self) -> Result<DynamicValue, EvaluationError> {
-        eval_pipeline(&self.pipeline, &self.dummy_record, &self.variables)
-    }
+    // pub fn run(&self) -> Result<DynamicValue, EvaluationError> {
+    //     eval_pipeline(&self.pipeline, &self.dummy_record, &self.variables)
+    // }
 
     pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {
         if key == "index" && !self.should_bind_index {
