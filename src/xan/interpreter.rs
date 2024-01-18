@@ -9,7 +9,7 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_pipeline, Aggregations, Argument, Pipeline};
+use super::parser::{parse_aggregations, parse_pipeline, Aggregations, Argument, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
 };
@@ -472,6 +472,7 @@ impl<'a> Program<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 struct ConcreteAggregation {
     name: String,
     method: String,
@@ -491,10 +492,45 @@ fn concretize_aggregations(
         let expr = aggregation
             .args
             .get(0)
-            .map(|arg| concretize_argument(arg.clone(), headers));
+            .map(|arg| concretize_argument(arg.clone(), headers))
+            .transpose()?;
+
+        let mut args: Vec<ConcreteArgument> = Vec::new();
+
+        for arg in aggregation.args.into_iter().skip(1) {
+            args.push(concretize_argument(arg, headers)?);
+        }
+
+        let concrete_aggregation = ConcreteAggregation {
+            name: aggregation.name,
+            method: aggregation.method,
+            expr,
+            args,
+        };
+
+        concrete_aggregations.push(concrete_aggregation);
     }
 
     Ok(concrete_aggregations)
+}
+
+#[derive(Clone, Debug)]
+pub struct AggregationProgram<'a> {
+    aggregations: ConcreteAggregations,
+    variables: Variables<'a>,
+}
+
+impl<'a> AggregationProgram<'a> {
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
+        let parsed_aggregations =
+            parse_aggregations(code).map_err(|_| PrepareError::ParseError(code.to_string()))?;
+        let concrete_aggregations = concretize_aggregations(parsed_aggregations, headers)?;
+
+        Ok(AggregationProgram {
+            aggregations: concrete_aggregations,
+            variables: Variables::new(),
+        })
+    }
 }
 
 #[cfg(test)]

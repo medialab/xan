@@ -4,7 +4,7 @@ use config::{Config, Delimiter};
 use util;
 use CliResult;
 
-use xan::parse_aggregations;
+use xan::AggregationProgram;
 
 static USAGE: &str = "
 TODO...
@@ -32,20 +32,23 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    let conf = Config::new(&args.arg_input)
+    let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let aggregations = parse_aggregations(&args.arg_expression).unwrap();
+    let mut rdr = rconf.reader()?;
+    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let headers = rdr.byte_headers()?;
 
-    dbg!(&aggregations);
+    let program = AggregationProgram::parse(&args.arg_expression, &headers)?;
 
-    let mut rdr = conf.reader()?;
+    dbg!(&program);
+
     let mut record = csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         // println!("{:?}", &record);
     }
 
-    Ok(())
+    Ok(wtr.flush()?)
 }
