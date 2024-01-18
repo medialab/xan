@@ -20,6 +20,8 @@ fn agg() {
     test_single_agg_function(&wrk, "count() as count", "count", "4");
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
+    test_single_agg_function(&wrk, "min(n) as min", "min", "1");
+    test_single_agg_function(&wrk, "max(n) as max", "max", "4");
 }
 
 #[test]
@@ -57,5 +59,29 @@ fn agg_combinator() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["sum"], svec!["24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn agg_min_max_strings() {
+    let wrk = Workdir::new("agg");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["1"],
+            svec!["2"],
+            svec!["3"],
+            svec!["4"],
+            svec!["test"],
+            svec!["5"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("min(n) as min, max(n) as max").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["min", "max"], svec!["1", "test"]];
     assert_eq!(got, expected);
 }

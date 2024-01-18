@@ -59,7 +59,7 @@ impl ColumIndexationBy {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DynamicNumber {
     Float(f64),
     Integer(i64),
@@ -100,6 +100,15 @@ impl DynamicNumber {
         };
 
         Self::Integer(div.floor() as i64)
+    }
+}
+
+impl ToString for DynamicNumber {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Integer(n) => n.to_string(),
+            Self::Float(n) => n.to_string(),
+        }
     }
 }
 

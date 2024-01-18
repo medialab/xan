@@ -5,6 +5,10 @@ use super::interpreter::{concretize_argument, eval_expr, ConcreteArgument};
 use super::parser::{parse_aggregations, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, Variables};
 
+// TODO: test when there is no data to be aggregated at all
+// TODO: test with nulls and nans
+// TODO: parallelize multiple aggregations
+
 #[derive(Debug)]
 struct Count {
     current: usize,
@@ -41,8 +45,17 @@ impl Sum {
     }
 
     // TODO: implement kahan-babushka summation from https://github.com/simple-statistics/simple-statistics/blob/main/src/sum.js
-    fn add(&mut self, value: DynamicNumber) {
-        self.current += value
+    fn add(&mut self, value: &DynamicNumber) {
+        self.current = match self.current {
+            DynamicNumber::Float(a) => match value {
+                DynamicNumber::Float(b) => DynamicNumber::Float(a + b),
+                DynamicNumber::Integer(b) => DynamicNumber::Float(a + (*b as f64)),
+            },
+            DynamicNumber::Integer(a) => match value {
+                DynamicNumber::Float(b) => DynamicNumber::Float((a as f64) + b),
+                DynamicNumber::Integer(b) => DynamicNumber::Integer(a + b),
+            },
+        }
     }
 
     fn into_value(self) -> DynamicValue {
@@ -57,6 +70,104 @@ impl Sum {
     }
 }
 
+#[derive(Debug)]
+struct Extent {
+    min: Option<DynamicNumber>,
+    max: Option<DynamicNumber>,
+    min_string: Option<String>,
+    max_string: Option<String>,
+    as_string: bool,
+}
+
+impl Extent {
+    fn new() -> Self {
+        Self {
+            min: None,
+            max: None,
+            min_string: None,
+            max_string: None,
+            as_string: false,
+        }
+    }
+
+    fn update_string(&mut self, string: String) {
+        if let Some(current) = &self.min_string {
+            if &string < current {
+                self.min_string = Some(string.clone());
+            }
+        } else {
+            self.min_string = Some(string.clone());
+        }
+
+        if let Some(current) = &self.max_string {
+            if &string > current {
+                self.max_string = Some(string);
+            }
+        } else {
+            self.max_string = Some(string);
+        }
+    }
+
+    fn update_number(&mut self, number: DynamicNumber) {
+        if let Some(current) = &self.min {
+            if &number < current {
+                self.min = Some(number.clone());
+            }
+        } else {
+            self.min = Some(number.clone());
+        }
+
+        if let Some(current) = &self.max {
+            if &number > current {
+                self.max = Some(number);
+            }
+        } else {
+            self.max = Some(number);
+        }
+    }
+
+    fn add(&mut self, value: &DynamicValue) {
+        if self.as_string {
+            match value.try_as_str() {
+                Err(_) => return,
+                Ok(string) => self.update_string(string.into_owned()),
+            }
+            return;
+        }
+
+        match value.try_as_number() {
+            Err(_) => {
+                // Switching to tracking strings
+                self.as_string = true;
+
+                self.min_string = self.min.as_ref().map(|min| min.to_string());
+                self.max_string = self.max.as_ref().map(|max| max.to_string());
+
+                return self.add(value);
+            }
+            Ok(number) => {
+                self.update_number(number);
+            }
+        };
+    }
+
+    fn min_into_value(self) -> DynamicValue {
+        if self.as_string {
+            return DynamicValue::from(self.min_string);
+        }
+
+        DynamicValue::from(self.min)
+    }
+
+    fn max_into_value(self) -> DynamicValue {
+        if self.as_string {
+            return DynamicValue::from(self.max_string);
+        }
+
+        DynamicValue::from(self.max)
+    }
+}
+
 // TODO: ensure we only keep one aggregator per aggregation key, which also
 // means each unique expression must only be evaluated once
 // TODO: move to Aggregator enum with common interface? no because mean is a compound aggregator?
@@ -64,23 +175,29 @@ impl Sum {
 #[derive(Debug)]
 struct Aggregator {
     count: Option<Count>,
+    extent: Option<Extent>,
     sum: Option<Sum>,
 }
 
 impl Aggregator {
     pub fn from_method(method: &str) -> Self {
         let mut count = None;
+        let mut extent = None;
         let mut sum = None;
 
         if method == "count" || method == "mean" {
             count = Some(Count::new());
         }
 
+        if method == "min" || method == "max" {
+            extent = Some(Extent::new());
+        }
+
         if method == "sum" || method == "mean" {
             sum = Some(Sum::new());
         }
 
-        Self { count, sum }
+        Self { count, extent, sum }
     }
 
     pub fn add(&mut self, value: DynamicValue) -> Result<(), CallError> {
@@ -88,8 +205,12 @@ impl Aggregator {
             count.add();
         }
 
+        if let Some(ref mut extent) = self.extent {
+            extent.add(&value);
+        }
+
         if let Some(ref mut sum) = self.sum {
-            sum.add(value.try_as_number()?);
+            sum.add(&value.try_as_number()?);
         }
 
         Ok(())
@@ -98,12 +219,14 @@ impl Aggregator {
     pub fn finalize(self, method: &str) -> DynamicValue {
         match method {
             "count" => self.count.unwrap().into_value(),
+            "max" => self.extent.unwrap().max_into_value(),
             "mean" => {
                 let count = self.count.unwrap().into_float();
                 let sum = self.sum.unwrap().into_float();
 
                 DynamicValue::from(sum / count)
             }
+            "min" => self.extent.unwrap().min_into_value(),
             "sum" => self.sum.unwrap().into_value(),
             _ => unreachable!(),
         }
