@@ -19,8 +19,12 @@ impl Count {
         self.current += 1;
     }
 
-    fn finalize(self) -> DynamicValue {
+    fn into_value(self) -> DynamicValue {
         DynamicValue::from(self.current)
+    }
+
+    fn into_float(self) -> f64 {
+        self.current as f64
     }
 }
 
@@ -41,8 +45,15 @@ impl Sum {
         self.current += value
     }
 
-    fn finalize(self) -> DynamicValue {
+    fn into_value(self) -> DynamicValue {
         DynamicValue::from(self.current)
+    }
+
+    fn into_float(self) -> f64 {
+        match self.current {
+            DynamicNumber::Float(v) => v,
+            DynamicNumber::Integer(v) => v as f64,
+        }
     }
 }
 
@@ -86,13 +97,20 @@ impl Aggregator {
 
     pub fn finalize(self, method: &str) -> DynamicValue {
         match method {
-            "count" => self.count.unwrap().finalize(),
-            "sum" => self.sum.unwrap().finalize(),
+            "count" => self.count.unwrap().into_value(),
+            "mean" => {
+                let count = self.count.unwrap().into_float();
+                let sum = self.sum.unwrap().into_float();
+
+                DynamicValue::from(sum / count)
+            }
+            "sum" => self.sum.unwrap().into_value(),
             _ => unreachable!(),
         }
     }
 }
 
+// TODO: validate agg arity
 #[derive(Debug)]
 pub struct ConcreteAggregation {
     name: String,
