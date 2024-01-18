@@ -404,7 +404,7 @@ pub fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcretePipeline, Pre
     }
 }
 
-pub fn eval(
+pub fn eval_pipeline(
     pipeline: &ConcretePipeline,
     record: &ByteRecord,
     variables: &Variables,
@@ -456,11 +456,11 @@ impl<'a> Program<'a> {
     }
 
     pub fn run_with_record(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
-        eval(&self.pipeline, record, &self.variables)
+        eval_pipeline(&self.pipeline, record, &self.variables)
     }
 
     pub fn run(&self) -> Result<DynamicValue, EvaluationError> {
-        eval(&self.pipeline, &self.dummy_record, &self.variables)
+        eval_pipeline(&self.pipeline, &self.dummy_record, &self.variables)
     }
 
     pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {

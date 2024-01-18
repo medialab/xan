@@ -82,40 +82,12 @@ fn boolean_literal(input: &str) -> IResult<&str, bool> {
     alt((value(true, tag("true")), value(false, tag("false"))))(input)
 }
 
-fn float_literal(input: &str) -> IResult<&str, f64> {
-    double(input)
-}
-
-fn underscore(input: &str) -> IResult<&str, ()> {
+fn underscore_literal(input: &str) -> IResult<&str, ()> {
     value((), char('_'))(input)
 }
 
-fn null(input: &str) -> IResult<&str, ()> {
+fn null_literal(input: &str) -> IResult<&str, ()> {
     value((), tag("null"))(input)
-}
-
-fn inner_identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
-        alpha1,
-        many0(alt((alphanumeric1, tag("_"), tag("-"), tag(" ")))),
-    ))(input)
-}
-
-fn inner_special_identifier(input: &str) -> IResult<&str, &str> {
-    preceded(
-        char('%'),
-        recognize(pair(
-            alpha1,
-            many0(alt((alphanumeric1, tag("_"), tag("-"), tag(" ")))),
-        )),
-    )(input)
-}
-
-fn outer_identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
-        alpha1,
-        many0(alt((alphanumeric1, tag("_"), tag("-")))),
-    ))(input)
 }
 
 fn integer_literal<T>(input: &str) -> IResult<&str, T>
@@ -129,6 +101,10 @@ where
         )),
         |string: &str| string.replace('_', "").parse::<T>(),
     )(input)
+}
+
+fn float_literal(input: &str) -> IResult<&str, f64> {
+    double(input)
 }
 
 fn unescape(c: char, delimiter: char) -> Result<char, ()> {
@@ -248,6 +224,30 @@ fn regex_literal(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
+fn identifier(input: &str) -> IResult<&str, &str> {
+    recognize(pair(
+        alpha1,
+        many0(alt((alphanumeric1, tag("_"), tag("-"), tag(" ")))),
+    ))(input)
+}
+
+fn special_identifier(input: &str) -> IResult<&str, &str> {
+    preceded(
+        char('%'),
+        recognize(pair(
+            alpha1,
+            many0(alt((alphanumeric1, tag("_"), tag("-"), tag(" ")))),
+        )),
+    )(input)
+}
+
+fn restricted_identifier(input: &str) -> IResult<&str, &str> {
+    recognize(pair(
+        alpha1,
+        many0(alt((alphanumeric1, tag("_"), tag("-")))),
+    ))(input)
+}
+
 fn comma_separator(input: &str) -> IResult<&str, ()> {
     value((), tuple((space0, char(','), space0)))(input)
 }
@@ -279,21 +279,19 @@ fn argument(input: &str) -> IResult<&str, Argument> {
     alt((
         map(inner_function_call, Argument::Call),
         map(boolean_literal, Argument::BooleanLiteral),
-        map(null, |_| Argument::Null),
+        map(null_literal, |_| Argument::Null),
         map(indexation, Argument::Indexation),
-        map(inner_special_identifier, |name| {
+        map(special_identifier, |name| {
             Argument::SpecialIdentifier(String::from(name))
         }),
-        map(inner_identifier, |name| {
-            Argument::Identifier(String::from(name))
-        }),
+        map(identifier, |name| Argument::Identifier(String::from(name))),
         map(terminated(integer_literal, not(char('.'))), |value| {
             Argument::IntegerLiteral(value)
         }),
         map(float_literal, Argument::FloatLiteral),
         map(regex_literal, Argument::RegexLiteral),
         map(string_literal, Argument::StringLiteral),
-        map(underscore, |_| Argument::Underscore),
+        map(underscore_literal, |_| Argument::Underscore),
     ))(input)
 }
 
@@ -304,7 +302,7 @@ fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
 fn inner_function_call(input: &str) -> IResult<&str, FunctionCall> {
     map(
         pair(
-            outer_identifier,
+            restricted_identifier,
             delimited(
                 pair(space0, char('(')),
                 argument_list,
@@ -321,7 +319,7 @@ fn inner_function_call(input: &str) -> IResult<&str, FunctionCall> {
 fn outer_function_call(input: &str) -> IResult<&str, FunctionCall> {
     map(
         pair(
-            outer_identifier,
+            restricted_identifier,
             opt(delimited(
                 pair(space0, char('(')),
                 argument_list,
@@ -344,13 +342,13 @@ fn pipeline(input: &str) -> IResult<&str, Pipeline> {
 }
 
 fn aggregation_name_suffix(input: &str) -> IResult<&str, &str> {
-    preceded(tuple((space0, tag("as"), space0)), outer_identifier)(input)
+    preceded(tuple((space0, tag("as"), space0)), restricted_identifier)(input)
 }
 
 fn aggregation(input: &str) -> IResult<&str, Aggregation> {
     map(
         tuple((
-            outer_identifier,
+            restricted_identifier,
             consumed(delimited(
                 pair(space0, char('(')),
                 argument_list,
@@ -459,21 +457,21 @@ mod tests {
     }
 
     #[test]
-    fn test_underscore() {
-        assert_eq!(underscore("_, 45"), Ok((", 45", ())))
+    fn test_underscore_literal() {
+        assert_eq!(underscore_literal("_, 45"), Ok((", 45", ())))
     }
 
     #[test]
     fn test_identifier() {
-        assert_eq!(outer_identifier("input, test"), Ok((", test", "input")));
         assert_eq!(
-            inner_identifier("PREFIXES AS URL, test"),
+            restricted_identifier("input, test"),
+            Ok((", test", "input"))
+        );
+        assert_eq!(
+            identifier("PREFIXES AS URL, test"),
             Ok((", test", "PREFIXES AS URL"))
         );
-        assert_eq!(
-            inner_special_identifier("%index, ok"),
-            Ok((", ok", "index"))
-        );
+        assert_eq!(special_identifier("%index, ok"), Ok((", ok", "index")));
     }
 
     #[test]
