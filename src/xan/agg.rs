@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use csv::ByteRecord;
@@ -499,16 +500,6 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Pre
     concretize_aggregations(parsed_aggregations, headers)
 }
 
-fn headers_from_concrete_aggregations(aggregations: &ConcreteAggregations) -> ByteRecord {
-    let mut record = ByteRecord::new();
-
-    for aggregation in aggregations.iter() {
-        record.push_field(aggregation.name.as_bytes());
-    }
-
-    record
-}
-
 #[derive(Debug)]
 pub struct AggregationProgram<'a> {
     aggregations: ConcreteAggregations,
@@ -534,20 +525,25 @@ impl<'a> AggregationProgram<'a> {
     }
 
     pub fn headers(&self) -> ByteRecord {
-        headers_from_concrete_aggregations(&self.aggregations)
+        let mut record = ByteRecord::new();
+
+        for aggregation in self.aggregations.iter() {
+            record.push_field(aggregation.name.as_bytes());
+        }
+
+        record
     }
 
     pub fn finalize(self) -> ByteRecord {
         let mut record = ByteRecord::new();
 
         for aggregation in self.aggregations.into_iter() {
-            record.push_field(
-                &self
-                    .aggregator
-                    .finalize(&aggregation.key, &aggregation.method)
-                    .unwrap()
-                    .serialize_as_bytes(b"|"),
-            );
+            let value = self
+                .aggregator
+                .finalize(&aggregation.key, &aggregation.method)
+                .unwrap();
+
+            record.push_field(&value.serialize_as_bytes(b"|"));
         }
 
         record
@@ -557,6 +553,67 @@ impl<'a> AggregationProgram<'a> {
 #[derive(Debug)]
 pub struct GroupAggregationProgram<'a> {
     aggregations: ConcreteAggregations,
-    groups: HashMap<Vec<u8>, Vec<Aggregator>>,
+    groups: HashMap<Vec<u8>, KeyedAggregator>,
     variables: Variables<'a>,
+}
+
+impl<'a> GroupAggregationProgram<'a> {
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
+        let concrete_aggregations = prepare(code, headers)?;
+
+        Ok(Self {
+            aggregations: concrete_aggregations,
+            groups: HashMap::new(),
+            variables: Variables::new(),
+        })
+    }
+
+    pub fn run_with_record(
+        &mut self,
+        group: Vec<u8>,
+        record: &ByteRecord,
+    ) -> Result<(), EvaluationError> {
+        match self.groups.entry(group) {
+            Entry::Vacant(entry) => {
+                let mut aggregator = KeyedAggregator::from(&self.aggregations);
+                aggregator.run_with_record(record, &self.variables)?;
+                entry.insert(aggregator);
+            }
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().run_with_record(record, &self.variables)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn headers(&self) -> ByteRecord {
+        let mut record = ByteRecord::new();
+        record.push_field(b"group");
+
+        for aggregation in self.aggregations.iter() {
+            record.push_field(aggregation.name.as_bytes());
+        }
+
+        record
+    }
+
+    pub fn finalize<F: FnMut(&ByteRecord)>(self, mut callback: F) {
+        let mut record = ByteRecord::new();
+
+        for (group, aggregator) in self.groups.into_iter() {
+            for aggregation in self.aggregations.iter() {
+                record.clear();
+                record.push_field(&group);
+
+                let value = aggregator
+                    .finalize(&aggregation.key, &aggregation.method)
+                    .unwrap();
+
+                record.push_field(&value.serialize_as_bytes(b"|"));
+
+                callback(&record);
+            }
+        }
+    }
 }

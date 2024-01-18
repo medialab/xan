@@ -1,10 +1,11 @@
 use csv;
 
 use config::{Config, Delimiter};
+use select::SelectColumns;
 use util;
 use CliResult;
 
-use xan::AggregationProgram;
+use xan::GroupAggregationProgram;
 
 static USAGE: &str = "
 TODO...
@@ -23,7 +24,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: String,
+    arg_column: SelectColumns,
     arg_expression: String,
     arg_input: Option<String>,
     flag_no_headers: bool,
@@ -35,25 +36,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers);
+        .no_headers(args.flag_no_headers)
+        .select(args.arg_column);
 
     let mut rdr = rconf.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let headers = rdr.byte_headers()?;
 
-    // TODO: only keep in memory the subselection of what is strictly necessary
+    let column_index = rconf.single_selection(&headers)?;
 
-    let mut program = AggregationProgram::parse(&args.arg_expression, &headers)?;
+    let mut program = GroupAggregationProgram::parse(&args.arg_expression, &headers)?;
 
     let mut record = csv::ByteRecord::new();
 
     wtr.write_byte_record(&program.headers())?;
 
     while rdr.read_byte_record(&mut record)? {
-        program.run_with_record(&record)?;
+        let group = record[column_index].to_vec();
+        program.run_with_record(group, &record)?;
     }
 
-    wtr.write_byte_record(&program.finalize())?;
+    // TODO: should use some kind of specialized into iter here...
+    program.finalize(|output_record| {
+        wtr.write_byte_record(output_record)
+            .expect("error while writing record");
+    });
 
     Ok(wtr.flush()?)
 }
