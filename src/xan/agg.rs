@@ -234,7 +234,6 @@ struct Aggregator {
     methods: Vec<AggregationMethod>,
 }
 
-// TODO: use with merging of aggregations
 impl Aggregator {
     fn new() -> Self {
         Self {
