@@ -45,7 +45,7 @@ use super::types::{
 // }
 
 #[derive(Debug, Clone)]
-enum ConcreteArgument {
+pub enum ConcreteArgument {
     Variable(String),
     Column(usize),
     StringLiteral(DynamicValue),
@@ -264,7 +264,7 @@ impl ConcreteFunctionCall {
 
 type ConcretePipeline = Vec<ConcreteFunctionCall>;
 
-fn concretize_argument(
+pub fn concretize_argument(
     argument: Argument,
     headers: &ByteRecord,
 ) -> Result<ConcreteArgument, PrepareError> {
@@ -420,7 +420,7 @@ pub fn eval_pipeline(
     Ok(last_value)
 }
 
-fn eval_expr(
+pub fn eval_expr(
     expr: &ConcreteArgument,
     record: &ByteRecord,
     variables: &Variables,
@@ -469,67 +469,6 @@ impl<'a> Program<'a> {
         }
 
         self.variables.insert(key, value);
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ConcreteAggregation {
-    name: String,
-    pub method: String,
-    expr: Option<ConcreteArgument>,
-    args: Vec<ConcreteArgument>,
-}
-
-pub type ConcreteAggregations = Vec<ConcreteAggregation>;
-
-fn concretize_aggregations(
-    aggregations: Aggregations,
-    headers: &ByteRecord,
-) -> Result<ConcreteAggregations, PrepareError> {
-    let mut concrete_aggregations = ConcreteAggregations::new();
-
-    for aggregation in aggregations {
-        let expr = aggregation
-            .args
-            .get(0)
-            .map(|arg| concretize_argument(arg.clone(), headers))
-            .transpose()?;
-
-        let mut args: Vec<ConcreteArgument> = Vec::new();
-
-        for arg in aggregation.args.into_iter().skip(1) {
-            args.push(concretize_argument(arg, headers)?);
-        }
-
-        let concrete_aggregation = ConcreteAggregation {
-            name: aggregation.name,
-            method: aggregation.method,
-            expr,
-            args,
-        };
-
-        concrete_aggregations.push(concrete_aggregation);
-    }
-
-    Ok(concrete_aggregations)
-}
-
-#[derive(Clone, Debug)]
-pub struct AggregationProgram<'a> {
-    aggregations: ConcreteAggregations,
-    variables: Variables<'a>,
-}
-
-impl<'a> AggregationProgram<'a> {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
-        let parsed_aggregations =
-            parse_aggregations(code).map_err(|_| PrepareError::ParseError(code.to_string()))?;
-        let concrete_aggregations = concretize_aggregations(parsed_aggregations, headers)?;
-
-        Ok(AggregationProgram {
-            aggregations: concrete_aggregations,
-            variables: Variables::new(),
-        })
     }
 }
 

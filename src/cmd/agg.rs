@@ -40,15 +40,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let headers = rdr.byte_headers()?;
 
-    let program = AggregationProgram::parse(&args.arg_expression, &headers)?;
-
-    dbg!(&program);
+    let mut program = AggregationProgram::parse(&args.arg_expression, &headers)?;
 
     let mut record = csv::ByteRecord::new();
 
+    wtr.write_byte_record(&program.headers())?;
+
     while rdr.read_byte_record(&mut record)? {
-        // println!("{:?}", &record);
+        program.run_with_record(&record)?;
     }
+
+    wtr.write_byte_record(&program.finalize())?;
 
     Ok(wtr.flush()?)
 }
