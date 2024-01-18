@@ -241,6 +241,12 @@ impl Aggregator {
         }
     }
 
+    fn with_method(method: &str) -> Self {
+        let mut aggregator = Self::new();
+        aggregator.add_method(method);
+        aggregator
+    }
+
     fn has_count(&self) -> bool {
         self.methods.iter().any(|method| method.is_count())
     }
@@ -321,7 +327,7 @@ impl Aggregator {
         }
     }
 
-    fn add(&mut self, value: DynamicValue) -> Result<(), CallError> {
+    fn process_value(&mut self, value: DynamicValue) -> Result<(), CallError> {
         for method in self.methods.iter_mut() {
             match method {
                 AggregationMethod::Count(count) => {
@@ -356,11 +362,34 @@ impl Aggregator {
     }
 }
 
+// #[derive(Debug)]
+// struct KeyedAggregator {
+//     mapping: BTreeMap<String, Aggregator>,
+// }
+
+// impl KeyedAggregator {
+//     fn new() -> Self {
+//         Self {
+//             mapping: BTreeMap::new(),
+//         }
+//     }
+
+//     fn add(&mut self, aggregation: &ConcreteAggregation) {
+//         self.mapping
+//             .entry(aggregation.key.clone())
+//             .and_modify(|aggregator| {
+//                 aggregator.add_method(&aggregation.method);
+//             })
+//             .or_insert_with(|| Aggregator::with_method(&aggregation.method));
+//     }
+// }
+
 #[derive(Debug)]
 struct ConcreteAggregation {
     name: String,
     method: String,
     expr: Option<ConcreteArgument>,
+    // key: String,
     // args: Vec<ConcreteArgument>,
 }
 
@@ -388,6 +417,7 @@ fn concretize_aggregations(
         let concrete_aggregation = ConcreteAggregation {
             name: aggregation.name,
             method: aggregation.method,
+            // key: aggregation.key,
             expr,
             // args,
         };
@@ -428,11 +458,7 @@ impl<'a> AggregationProgram<'a> {
 
         let aggregators = concrete_aggregations
             .iter()
-            .map(|agg| {
-                let mut aggregator = Aggregator::new();
-                aggregator.add_method(&agg.method);
-                aggregator
-            })
+            .map(|agg| Aggregator::with_method(&agg.method))
             .collect();
 
         Ok(Self {
@@ -450,7 +476,7 @@ impl<'a> AggregationProgram<'a> {
                 Some(expr) => eval_expr(expr, record, &self.variables)?,
             };
 
-            aggregator.add(value).map_err(|err| {
+            aggregator.process_value(value).map_err(|err| {
                 EvaluationError::Call(SpecifiedCallError {
                     reason: err,
                     function_name: aggregation.method.to_string(),
