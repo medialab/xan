@@ -30,11 +30,32 @@ fn agg_multiple_columns() {
         vec![svec!["n"], svec!["1"], svec!["2"], svec!["3"], svec!["4"]],
     );
 
-    // Count
     let mut cmd = wrk.command("agg");
     cmd.arg("count() as count, sum(n) as sum").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["count", "sum"], svec!["4", "10"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn agg_combinator() {
+    let wrk = Workdir::new("agg");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b"],
+            svec!["1", "2"],
+            svec!["2", "0"],
+            svec!["3", "6"],
+            svec!["4", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("sum(add(a, inc(b))) as sum").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["sum"], svec!["24"]];
     assert_eq!(got, expected);
 }
