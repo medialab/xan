@@ -3,7 +3,7 @@ use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::convert::From;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
 
 use csv;
 use regex::Regex;
@@ -171,6 +171,21 @@ impl Add for DynamicNumber {
 
     fn add(self, rhs: Self) -> Self::Output {
         apply_op(self, rhs, Add::<i64>::add, Add::<f64>::add)
+    }
+}
+
+impl AddAssign for DynamicNumber {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = match self {
+            DynamicNumber::Float(a) => match rhs {
+                DynamicNumber::Float(b) => DynamicNumber::Float(*a + b),
+                DynamicNumber::Integer(b) => DynamicNumber::Float(*a + (b as f64)),
+            },
+            DynamicNumber::Integer(a) => match rhs {
+                DynamicNumber::Float(b) => DynamicNumber::Float((*a as f64) + b),
+                DynamicNumber::Integer(b) => DynamicNumber::Integer(*a + b),
+            },
+        }
     }
 }
 

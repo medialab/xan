@@ -1,3 +1,4 @@
+mod agg;
 mod error;
 mod functions;
 mod interpreter;

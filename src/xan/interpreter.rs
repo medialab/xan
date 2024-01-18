@@ -473,14 +473,14 @@ impl<'a> Program<'a> {
 }
 
 #[derive(Clone, Debug)]
-struct ConcreteAggregation {
+pub struct ConcreteAggregation {
     name: String,
-    method: String,
+    pub method: String,
     expr: Option<ConcreteArgument>,
     args: Vec<ConcreteArgument>,
 }
 
-type ConcreteAggregations = Vec<ConcreteAggregation>;
+pub type ConcreteAggregations = Vec<ConcreteAggregation>;
 
 fn concretize_aggregations(
     aggregations: Aggregations,

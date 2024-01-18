@@ -76,6 +76,7 @@ pub struct Aggregation {
     pub name: String,
     pub args: Vec<Argument>,
     pub method: String,
+    pub key: String,
 }
 
 fn boolean_literal(input: &str) -> IResult<&str, bool> {
@@ -356,14 +357,19 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
             )),
             opt(aggregation_name_suffix),
         )),
-        |(method, (expr, args), name)| Aggregation {
-            name: name.map(|n| n.to_string()).unwrap_or_else(|| {
+        |(method, (expr, args), name)| {
+            let key = {
                 let mut prefix = String::from(method);
-                prefix.push_str(expr);
+                prefix.push_str(expr.trim());
                 prefix
-            }),
-            args,
-            method: String::from(method),
+            };
+
+            Aggregation {
+                name: name.map(|n| n.to_string()).unwrap_or_else(|| key.clone()),
+                args,
+                method: String::from(method),
+                key,
+            }
         },
     )(input)
 }
@@ -713,7 +719,8 @@ mod tests {
                 Aggregation {
                     name: "mean(A)".to_string(),
                     method: "mean".to_string(),
-                    args: vec![Argument::Identifier("A".to_string())]
+                    args: vec![Argument::Identifier("A".to_string())],
+                    key: "mean(A)".to_string()
                 }
             ))
         );
@@ -724,7 +731,8 @@ mod tests {
                 Aggregation {
                     name: "avg".to_string(),
                     method: "mean".to_string(),
-                    args: vec![Argument::Identifier("A".to_string())]
+                    args: vec![Argument::Identifier("A".to_string())],
+                    key: "mean(A)".to_string()
                 }
             ))
         );
@@ -741,7 +749,8 @@ mod tests {
                             Argument::Identifier("A".to_string()),
                             Argument::Identifier("B".to_string())
                         ]
-                    })]
+                    })],
+                    key: "mean(add(A, B))".to_string()
                 }
             ))
         );
@@ -763,12 +772,14 @@ mod tests {
                                 Argument::Identifier("A".to_string()),
                                 Argument::Identifier("B".to_string())
                             ]
-                        })]
+                        })],
+                        key: "mean(add(A, B))".to_string()
                     },
                     Aggregation {
                         name: "s".to_string(),
                         method: "sum".to_string(),
-                        args: vec![Argument::Identifier("C".to_string())]
+                        args: vec![Argument::Identifier("C".to_string())],
+                        key: "sum(C)".to_string()
                     }
                 ]
             ))
