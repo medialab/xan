@@ -173,10 +173,87 @@ impl Extent {
     }
 }
 
+enum MedianType {
+    Interpolation,
+    Low,
+    High,
+}
+
+#[derive(Debug)]
+struct Numbers {
+    sorted: bool,
+    numbers: Vec<DynamicNumber>,
+}
+
+impl Numbers {
+    fn new() -> Self {
+        Self {
+            sorted: false,
+            numbers: Vec::new(),
+        }
+    }
+
+    fn add(&mut self, number: DynamicNumber) {
+        self.numbers.push(number);
+    }
+
+    fn sort_if_needed(&mut self) {
+        if self.sorted {
+            return;
+        }
+
+        // TODO: can be done in parallel in the future if required, using rayon
+        self.numbers.sort_by(|a, b| a.partial_cmp(&b).unwrap());
+        self.sorted = true;
+    }
+
+    fn median_to_value(&mut self, median_type: MedianType) -> DynamicValue {
+        self.sort_if_needed();
+
+        let count = self.numbers.len();
+
+        if count == 0 {
+            return DynamicValue::None;
+        }
+
+        let median = match median_type {
+            MedianType::Low => {
+                let mut midpoint = count / 2;
+
+                if count % 2 == 0 {
+                    midpoint -= 1;
+                }
+
+                self.numbers[midpoint].clone()
+            }
+            MedianType::High => {
+                let midpoint = count / 2;
+
+                self.numbers[midpoint].clone()
+            }
+            MedianType::Interpolation => {
+                let midpoint = count / 2;
+
+                if count % 2 == 1 {
+                    self.numbers[midpoint].clone()
+                } else {
+                    let down = &self.numbers[midpoint - 1];
+                    let up = &self.numbers[midpoint];
+
+                    (down.clone() + up.clone()) / DynamicNumber::Float(2.0)
+                }
+            }
+        };
+
+        DynamicValue::from(median)
+    }
+}
+
 #[derive(Debug)]
 enum AggregationMethod {
     Count(Count),
     Extent(Extent),
+    Numbers(Numbers),
     Sum(Sum),
 }
 
@@ -191,6 +268,13 @@ impl AggregationMethod {
     fn is_extent(&self) -> bool {
         match self {
             Self::Extent(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_numbers(&self) -> bool {
+        match self {
+            Self::Numbers(_) => true,
             _ => false,
         }
     }
@@ -257,6 +341,10 @@ impl Aggregator {
         self.methods.iter().any(|method| method.is_extent())
     }
 
+    fn has_numbers(&self) -> bool {
+        self.methods.iter().any(|method| method.is_numbers())
+    }
+
     fn has_sum(&self) -> bool {
         self.methods.iter().any(|method| method.is_sum())
     }
@@ -276,6 +364,17 @@ impl Aggregator {
         for method in self.methods.iter() {
             match method {
                 AggregationMethod::Extent(extent) => return Some(extent),
+                _ => continue,
+            }
+        }
+
+        None
+    }
+
+    fn get_numbers_mut(&mut self) -> Option<&mut Numbers> {
+        for method in self.methods.iter_mut() {
+            match method {
+                AggregationMethod::Numbers(numbers) => return Some(numbers),
                 _ => continue,
             }
         }
@@ -318,6 +417,12 @@ impl Aggregator {
                     self.methods.push(AggregationMethod::Sum(Sum::new()));
                 }
             }
+            "median" | "median_low" | "median_high" => {
+                if !self.has_numbers() {
+                    self.methods
+                        .push(AggregationMethod::Numbers(Numbers::new()));
+                }
+            }
             "sum" => {
                 if self.has_sum() {
                     return;
@@ -338,6 +443,9 @@ impl Aggregator {
                 AggregationMethod::Extent(extent) => {
                     extent.add(&value);
                 }
+                AggregationMethod::Numbers(numbers) => {
+                    numbers.add(value.try_as_number()?);
+                }
                 AggregationMethod::Sum(sum) => {
                     sum.add(&value.try_as_number()?);
                 }
@@ -347,7 +455,7 @@ impl Aggregator {
         Ok(())
     }
 
-    fn finalize_method(&self, method: &str) -> DynamicValue {
+    fn finalize_method(&mut self, method: &str) -> DynamicValue {
         match method {
             "count" => self.get_count().unwrap().to_value(),
             "min" => self.get_extent().unwrap().min_to_value(),
@@ -357,6 +465,18 @@ impl Aggregator {
 
                 DynamicValue::from(sum / count)
             }
+            "median" => self
+                .get_numbers_mut()
+                .unwrap()
+                .median_to_value(MedianType::Interpolation),
+            "median_high" => self
+                .get_numbers_mut()
+                .unwrap()
+                .median_to_value(MedianType::High),
+            "median_low" => self
+                .get_numbers_mut()
+                .unwrap()
+                .median_to_value(MedianType::Low),
             "max" => self.get_extent().unwrap().max_to_value(),
             "sum" => self.get_sum().unwrap().to_value(),
             _ => unreachable!(),
@@ -385,10 +505,6 @@ impl KeyedAggregator {
         Self {
             mapping: Vec::new(),
         }
-    }
-
-    fn get(&self, key: &str) -> Option<&KeyedAggregatorEntry> {
-        self.mapping.iter().find(|entry| entry.key == key)
     }
 
     fn get_mut(&mut self, key: &str) -> Option<&mut KeyedAggregatorEntry> {
@@ -431,8 +547,8 @@ impl KeyedAggregator {
         Ok(())
     }
 
-    fn finalize(&self, key: &str, method: &str) -> Option<DynamicValue> {
-        self.get(key)
+    fn finalize(&mut self, key: &str, method: &str) -> Option<DynamicValue> {
+        self.get_mut(key)
             .map(|entry| entry.aggregator.finalize_method(method))
     }
 }
@@ -534,7 +650,7 @@ impl<'a> AggregationProgram<'a> {
         record
     }
 
-    pub fn finalize(self) -> ByteRecord {
+    pub fn finalize(mut self) -> ByteRecord {
         let mut record = ByteRecord::new();
 
         for aggregation in self.aggregations.into_iter() {
@@ -598,17 +714,17 @@ impl<'a> GroupAggregationProgram<'a> {
         record
     }
 
-    pub fn finalize<F, E>(self, mut callback: F) -> Result<(), E>
+    pub fn finalize<F, E>(mut self, mut callback: F) -> Result<(), E>
     where
         F: FnMut(&ByteRecord) -> Result<(), E>,
     {
         let mut record = ByteRecord::new();
 
-        for (group, aggregator) in self.groups.into_iter() {
+        for (group, mut aggregator) in self.groups.into_iter() {
             record.clear();
             record.push_field(&group);
 
-            for aggregation in self.aggregations.iter() {
+            for aggregation in self.aggregations.iter_mut() {
                 let value = aggregator
                     .finalize(&aggregation.key, &aggregation.method)
                     .unwrap();
@@ -620,5 +736,96 @@ impl<'a> GroupAggregationProgram<'a> {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl From<Vec<usize>> for Numbers {
+        fn from(values: Vec<usize>) -> Self {
+            let mut numbers = Self::new();
+
+            for n in values {
+                numbers.add(DynamicNumber::Integer(n as i64));
+            }
+
+            numbers
+        }
+    }
+
+    #[test]
+    fn test_median_types() {
+        let odd = vec![1, 3, 5];
+        let even = vec![1, 2, 6, 7];
+
+        let mut no_numbers = Numbers::new();
+        let mut lone_numbers = Numbers::from(vec![8]);
+        let mut odd_numbers = Numbers::from(odd);
+        let mut even_numbers = Numbers::from(even);
+
+        // Low
+        assert_eq!(
+            no_numbers.median_to_value(MedianType::Low),
+            DynamicValue::None
+        );
+
+        assert_eq!(
+            lone_numbers.median_to_value(MedianType::Low),
+            DynamicValue::from(8)
+        );
+
+        assert_eq!(
+            odd_numbers.median_to_value(MedianType::Low),
+            DynamicValue::from(3)
+        );
+
+        assert_eq!(
+            even_numbers.median_to_value(MedianType::Low),
+            DynamicValue::from(2)
+        );
+
+        // High
+        assert_eq!(
+            no_numbers.median_to_value(MedianType::High),
+            DynamicValue::None
+        );
+
+        assert_eq!(
+            lone_numbers.median_to_value(MedianType::High),
+            DynamicValue::from(8)
+        );
+
+        assert_eq!(
+            odd_numbers.median_to_value(MedianType::High),
+            DynamicValue::from(3)
+        );
+
+        assert_eq!(
+            even_numbers.median_to_value(MedianType::High),
+            DynamicValue::from(6)
+        );
+
+        // High
+        assert_eq!(
+            no_numbers.median_to_value(MedianType::Interpolation),
+            DynamicValue::None
+        );
+
+        assert_eq!(
+            lone_numbers.median_to_value(MedianType::Interpolation),
+            DynamicValue::from(8)
+        );
+
+        assert_eq!(
+            odd_numbers.median_to_value(MedianType::Interpolation),
+            DynamicValue::from(3)
+        );
+
+        assert_eq!(
+            even_numbers.median_to_value(MedianType::Interpolation),
+            DynamicValue::from(4.0)
+        );
     }
 }

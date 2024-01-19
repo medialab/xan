@@ -22,6 +22,9 @@ fn agg() {
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
     test_single_agg_function(&wrk, "min(n) as min", "min", "1");
     test_single_agg_function(&wrk, "max(n) as max", "max", "4");
+    test_single_agg_function(&wrk, "median(n) as median", "median", "2.5");
+    test_single_agg_function(&wrk, "median_low(n) as median", "median", "2");
+    test_single_agg_function(&wrk, "median_high(n) as median", "median", "3");
 }
 
 #[test]
