@@ -13,6 +13,7 @@ use super::types::{DynamicNumber, DynamicValue, Variables};
 // TODO: parallelize multiple aggregations
 // TODO: validate agg arity
 // TODO: we need some clear method to enable sorted group by optimization
+// TODO: factor count/sum/variance/mean into OnlineStats, or we could optimize if variance if needed
 
 #[derive(Debug)]
 struct Count {
@@ -249,12 +250,76 @@ impl Numbers {
     }
 }
 
+// NOTE: this is an implementation of Welford's online algorithm
+#[derive(Debug)]
+struct Variance {
+    count: usize,
+    m: f64,
+    m2: f64,
+}
+
+impl Variance {
+    fn new() -> Self {
+        Self {
+            count: 0,
+            m: 0.0,
+            m2: 0.0,
+        }
+    }
+
+    fn add(&mut self, value: f64) {
+        let (mut count, mut m, mut m2) = (self.count, self.m, self.m2);
+        count += 1;
+        let delta = value - m;
+        m += delta / count as f64;
+        let delta2 = value - m;
+        m2 += delta * delta2;
+
+        self.count = count;
+        self.m = m;
+        self.m2 = m2;
+    }
+
+    // fn mean(&self) -> Option<f64> {
+    //     if self.count == 0 {
+    //         return None;
+    //     }
+
+    //     Some(self.m)
+    // }
+
+    fn variance(&self) -> Option<f64> {
+        if self.count < 1 {
+            return None;
+        }
+
+        Some(self.m2 / self.count as f64)
+    }
+
+    fn sample_variance(&self) -> Option<f64> {
+        if self.count < 2 {
+            return None;
+        }
+
+        Some(self.m2 / (self.count - 1) as f64)
+    }
+
+    fn stdev(&self) -> Option<f64> {
+        self.variance().map(|v| v.sqrt())
+    }
+
+    fn sample_stdev(&self) -> Option<f64> {
+        self.sample_variance().map(|v| v.sqrt())
+    }
+}
+
 #[derive(Debug)]
 enum AggregationMethod {
     Count(Count),
     Extent(Extent),
     Numbers(Numbers),
     Sum(Sum),
+    Variance(Variance),
 }
 
 impl AggregationMethod {
@@ -282,6 +347,13 @@ impl AggregationMethod {
     fn is_sum(&self) -> bool {
         match self {
             Self::Sum(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_variance(&self) -> bool {
+        match self {
+            Self::Variance(_) => true,
             _ => false,
         }
     }
@@ -349,6 +421,10 @@ impl Aggregator {
         self.methods.iter().any(|method| method.is_sum())
     }
 
+    fn has_variance(&self) -> bool {
+        self.methods.iter().any(|method| method.is_variance())
+    }
+
     fn get_count(&self) -> Option<&Count> {
         for method in self.methods.iter() {
             match method {
@@ -393,6 +469,17 @@ impl Aggregator {
         None
     }
 
+    fn get_variance(&self) -> Option<&Variance> {
+        for method in self.methods.iter() {
+            match method {
+                AggregationMethod::Variance(variance) => return Some(variance),
+                _ => continue,
+            }
+        }
+
+        None
+    }
+
     fn add_method(&mut self, method: &str) {
         match method {
             "count" => {
@@ -430,6 +517,14 @@ impl Aggregator {
 
                 self.methods.push(AggregationMethod::Sum(Sum::new()));
             }
+            "variance" | "sample_variance" | "stdev" | "sample_stdev" => {
+                if self.has_variance() {
+                    return;
+                }
+
+                self.methods
+                    .push(AggregationMethod::Variance(Variance::new()));
+            }
             _ => unreachable!(),
         }
     }
@@ -449,6 +544,9 @@ impl Aggregator {
                 AggregationMethod::Sum(sum) => {
                     sum.add(&value.try_as_number()?);
                 }
+                AggregationMethod::Variance(variance) => {
+                    variance.add(value.try_as_f64()?);
+                }
             }
         }
 
@@ -461,6 +559,11 @@ impl Aggregator {
             "min" => self.get_extent().unwrap().min_to_value(),
             "mean" => {
                 let count = self.get_count().unwrap().to_float();
+
+                if count == 0.0 {
+                    return DynamicValue::None;
+                }
+
                 let sum = self.get_sum().unwrap().to_float();
 
                 DynamicValue::from(sum / count)
@@ -479,6 +582,10 @@ impl Aggregator {
                 .median_to_value(MedianType::Low),
             "max" => self.get_extent().unwrap().max_to_value(),
             "sum" => self.get_sum().unwrap().to_value(),
+            "variance" => DynamicValue::from(self.get_variance().unwrap().variance()),
+            "sample_variance" => DynamicValue::from(self.get_variance().unwrap().sample_variance()),
+            "stdev" => DynamicValue::from(self.get_variance().unwrap().stdev()),
+            "sample_stdev" => DynamicValue::from(self.get_variance().unwrap().sample_stdev()),
             _ => unreachable!(),
         }
     }

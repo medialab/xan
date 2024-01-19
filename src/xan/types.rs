@@ -442,6 +442,24 @@ impl DynamicValue {
         })
     }
 
+    pub fn try_as_f64(&self) -> Result<f64, CallError> {
+        Ok(match self {
+            Self::String(string) => match string.parse::<f64>() {
+                Err(_) => return Err(CallError::Cast(("string".to_string(), "float".to_string()))),
+                Ok(value) => value,
+            },
+            Self::Float(value) => *value,
+            Self::Integer(value) => *value as f64,
+            Self::Boolean(value) => *value as usize as f64,
+            value => {
+                return Err(CallError::Cast((
+                    value.type_of().to_string(),
+                    "float".to_string(),
+                )))
+            }
+        })
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Self::List(value) => !value.is_empty(),
