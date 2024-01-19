@@ -605,18 +605,18 @@ impl<'a> GroupAggregationProgram<'a> {
         let mut record = ByteRecord::new();
 
         for (group, aggregator) in self.groups.into_iter() {
-            for aggregation in self.aggregations.iter() {
-                record.clear();
-                record.push_field(&group);
+            record.clear();
+            record.push_field(&group);
 
+            for aggregation in self.aggregations.iter() {
                 let value = aggregator
                     .finalize(&aggregation.key, &aggregation.method)
                     .unwrap();
 
                 record.push_field(&value.serialize_as_bytes(b"|"));
-
-                callback(&record)?;
             }
+
+            callback(&record)?;
         }
 
         Ok(())
