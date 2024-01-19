@@ -49,6 +49,7 @@ mod test_flatmap;
 mod test_fmt;
 mod test_foreach;
 mod test_frequency;
+mod test_groupby;
 mod test_headers;
 mod test_implode;
 mod test_index;
