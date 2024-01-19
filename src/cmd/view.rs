@@ -36,7 +36,7 @@ Usage:
 
 view options:
     -p, --pager            Automatically use the \"less\" command to page the results.
-                           This flag does not work on Windows!
+                           This flag does not work on windows!
     -l, --limit <number>   Maximum of lines of files to read into memory. Set
                            to <=0 to disable a limit. [default: 100].
     -R, --rainbow          Alqternating colors for columns, rather than color by value type.

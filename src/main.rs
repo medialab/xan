@@ -263,12 +263,17 @@ impl Command {
             Command::Datefmt => cmd::datefmt::run(argv),
             Command::Enum => cmd::enumerate::run(argv),
             Command::Explode => cmd::explode::run(argv),
-            Command::ForEach => cmd::foreach::run(argv),
             Command::Filter => cmd::filter::run(argv),
             Command::FixLengths => cmd::fixlengths::run(argv),
             Command::Flatmap => cmd::flatmap::run(argv),
             Command::Flatten => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
+            #[cfg(not(windows))]
+            Command::ForEach => cmd::foreach::run(argv),
+            #[cfg(windows)]
+            Command::ForEach => Err(CliError::Other(
+                "The foreach command does not work on windows, sorry :'(".to_string(),
+            )),
             Command::Frequency => cmd::frequency::run(argv),
             Command::Glob => cmd::glob::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
@@ -287,8 +292,8 @@ impl Command {
             #[cfg(feature = "lang")]
             Command::Lang => cmd::lang::run(argv),
             #[cfg(not(feature = "lang"))]
-            Command::Lang => Ok(println!(
-                "This version of XSV was not compiled with the \"lang\" feature."
+            Command::Lang => Err(CliError::Other(
+                "This version of XSV was not compiled with the \"lang\" feature.".to_string(),
             )),
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),

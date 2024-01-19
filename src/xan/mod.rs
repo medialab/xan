@@ -9,4 +9,4 @@ mod utils;
 pub use xan::agg::{AggregationProgram, GroupAggregationProgram};
 pub use xan::error::{EvaluationError, PrepareError};
 pub use xan::interpreter::Program;
-pub use xan::types::{ColumIndexationBy, DynamicValue};
+pub use xan::types::DynamicValue;
