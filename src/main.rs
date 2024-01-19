@@ -21,6 +21,7 @@ extern crate lingua;
 extern crate nom;
 extern crate num_cpus;
 extern crate numfmt;
+#[cfg(not(windows))]
 extern crate pager;
 extern crate pariter;
 extern crate rand;

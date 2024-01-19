@@ -6,6 +6,8 @@ use csv;
 use config::{Config, Delimiter};
 use unicode_width::UnicodeWidthStr;
 use util::{self, ImmutableRecordHelpers};
+#[cfg(windows)]
+use CliError;
 use CliResult;
 
 const TRAILING_COLS: usize = 8;
@@ -34,9 +36,10 @@ Usage:
 
 view options:
     -p, --pager            Automatically use the \"less\" command to page the results.
+                           This flag does not work on Windows!
     -l, --limit <number>   Maximum of lines of files to read into memory. Set
                            to <=0 to disable a limit. [default: 100].
-    -R, --rainbow          Alternating colors for columns, rather than color by value type.
+    -R, --rainbow          Alqternating colors for columns, rather than color by value type.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
@@ -85,7 +88,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_pager {
-        pager::Pager::with_pager("less -SR").setup();
+        #[cfg(not(windows))]
+        {
+            pager::Pager::with_pager("less -SR").setup();
+        }
+
+        #[cfg(windows)]
+        {
+            return Err(CliError::Other(
+                "The -p/--pager flag does not work on windows, sorry :'(".to_string(),
+            ));
+        }
     }
 
     if args.infer_force_colors() {
