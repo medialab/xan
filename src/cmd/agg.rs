@@ -11,6 +11,7 @@ TODO...
 
 Usage:
     xsv agg [options] <expression> [<input>]
+    xsv agg --help
 
 Common options:
     -h, --help               Display this message

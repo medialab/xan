@@ -12,6 +12,7 @@ TODO...
 
 Usage:
     xsv groupby [options] <column> <expression> [<input>]
+    xsv groupby --help
 
 Common options:
     -h, --help               Display this message
