@@ -9,6 +9,7 @@ use csv;
 use regex::Regex;
 
 use super::error::{CallError, EvaluationError};
+use super::parser::Argument;
 use super::utils::downgrade_float;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -19,6 +20,35 @@ pub enum ColumIndexationBy {
 }
 
 impl ColumIndexationBy {
+    pub fn from_arguments(arguments: &Vec<Argument>) -> Option<Self> {
+        if arguments.len() == 1 {
+            let first_arg = arguments.get(0).unwrap();
+            match first_arg {
+                Argument::StringLiteral(column_name) => Some(Self::Name(column_name.clone())),
+                Argument::FloatLiteral(_) | Argument::IntegerLiteral(_) => {
+                    first_arg.try_to_usize().map(Self::Pos)
+                }
+                _ => None,
+            }
+        } else if arguments.len() == 2 {
+            match arguments.get(0).unwrap() {
+                Argument::StringLiteral(column_name) => {
+                    let second_arg = arguments.get(1).unwrap();
+
+                    match second_arg.try_to_usize() {
+                        None => None,
+                        Some(column_index) => {
+                            Some(Self::NameAndNth((column_name.to_string(), column_index)))
+                        }
+                    }
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn find_column_index(&self, headers: &csv::ByteRecord) -> Option<usize> {
         match self {
             Self::Pos(i) => {

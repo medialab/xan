@@ -10,7 +10,8 @@ use nom::{
     IResult,
 };
 
-use xan::types::ColumIndexationBy;
+use super::types::ColumIndexationBy;
+use super::utils::downgrade_float;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Argument {
@@ -28,14 +29,37 @@ pub enum Argument {
 }
 
 impl Argument {
-    pub fn is_statically_analyzable(&self) -> bool {
+    // pub fn is_statically_analyzable(&self) -> bool {
+    //     match self {
+    //         Self::Null
+    //         | Self::StringLiteral(_)
+    //         | Self::FloatLiteral(_)
+    //         | Self::IntegerLiteral(_)
+    //         | Self::BooleanLiteral(_) => true,
+    //         _ => false,
+    //     }
+    // }
+
+    pub fn try_to_usize(&self) -> Option<usize> {
         match self {
-            Self::Null
-            | Self::StringLiteral(_)
-            | Self::FloatLiteral(_)
-            | Self::IntegerLiteral(_)
-            | Self::BooleanLiteral(_) => true,
-            _ => false,
+            Argument::IntegerLiteral(n) => {
+                if *n < 0 {
+                    None
+                } else {
+                    Some(*n as usize)
+                }
+            }
+            Argument::FloatLiteral(f) => match downgrade_float(*f) {
+                None => None,
+                Some(n) => {
+                    if n < 0 {
+                        None
+                    } else {
+                        Some(n as usize)
+                    }
+                }
+            },
+            _ => None,
         }
     }
 }

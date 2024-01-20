@@ -293,13 +293,25 @@ pub fn concretize_argument(
             Err(_) => return Err(PrepareError::InvalidRegex(pattern)),
         },
         Argument::Call(call) => {
+            let function_name = call.name.to_lowercase();
+
+            // Statically analyzable col() function call
+            if function_name == "col" {
+                if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
+                    match column_indexation.find_column_index(headers) {
+                        Some(index) => return Ok(ConcreteArgument::Column(index)),
+                        None => return Err(PrepareError::ColumnNotFound(column_indexation)),
+                    };
+                }
+            }
+
+            // TODO: deal with col when it cannot be statically analyze (either custom statement or pass column as implicit argument)
+
             let mut concrete_args = Vec::new();
 
             for arg in call.args {
                 concrete_args.push(concretize_argument(arg, headers)?);
             }
-
-            let function_name = call.name.to_lowercase();
 
             if let Some(kind) = StatementKind::parse(&function_name) {
                 ConcreteArgument::Call(ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
@@ -326,24 +338,22 @@ fn concretize_pipeline(
     for function_call in pipeline {
         let mut concrete_arguments: Vec<ConcreteArgument> = Vec::new();
 
-        for argument in function_call.args {
-            concrete_arguments.push(concretize_argument(argument, headers)?);
+        for argument in function_call.args.iter() {
+            concrete_arguments.push(concretize_argument(argument.clone(), headers)?);
         }
 
-        let function_name = function_call.name.to_lowercase();
-
-        concrete_pipeline.push(if let Some(kind) = StatementKind::parse(&function_name) {
-            ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
-                kind,
-                args: concrete_arguments,
-            })
-        } else {
-            ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
-                name: function_name.clone(),
-                function: get_function(&function_name)?,
-                args: concrete_arguments,
-            })
-        });
+        concrete_pipeline.push(
+            concretize_argument(Argument::Call(function_call), headers).map(|concrete_arg| {
+                match concrete_arg {
+                    ConcreteArgument::Call(concrete_call) => concrete_call,
+                    _ => ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
+                        name: "val".to_string(),
+                        function: get_function("val").unwrap(),
+                        args: vec![concrete_arg],
+                    }),
+                }
+            })?,
+        );
     }
 
     Ok(concrete_pipeline)
@@ -849,6 +859,23 @@ mod tests {
         assert_eq!(
             eval_code("compact(split('', '|'))"),
             Ok(DynamicValue::from(vec![]))
+        );
+    }
+
+    #[test]
+    fn test_col() {
+        assert_eq!(eval_code("col('name')"), Ok(DynamicValue::from("john")));
+        assert_eq!(eval_code("col(1)"), Ok(DynamicValue::from("SMITH")));
+        assert_eq!(eval_code("col(1.0)"), Ok(DynamicValue::from("SMITH")));
+        assert_eq!(
+            eval_code("col('surname', 0)"),
+            Ok(DynamicValue::from("SMITH"))
+        );
+        assert_eq!(
+            eval_code("col('surname', 1)"),
+            Err(RunError::Prepare(PrepareError::ColumnNotFound(
+                ColumIndexationBy::NameAndNth(("surname".to_string(), 1))
+            )))
         );
     }
 }
