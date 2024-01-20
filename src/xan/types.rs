@@ -50,6 +50,29 @@ impl ColumIndexationBy {
         }
     }
 
+    pub fn from_bound_arguments(
+        name_or_pos: BoundArgument,
+        pos: Option<BoundArgument>,
+    ) -> Option<Self> {
+        if let Some(pos_value) = pos {
+            match pos_value.try_as_usize() {
+                Err(_) => None,
+                Ok(i) => match name_or_pos.try_as_str() {
+                    Err(_) => None,
+                    Ok(name) => Some(Self::NameAndNth((name.into_owned(), i))),
+                },
+            }
+        } else {
+            match name_or_pos.try_as_usize() {
+                Err(_) => match name_or_pos.try_as_str() {
+                    Err(_) => None,
+                    Ok(name) => Some(Self::Name(name.into_owned())),
+                },
+                Ok(i) => Some(Self::Pos(i)),
+            }
+        }
+    }
+
     pub fn find_column_index(&self, headers: &ByteRecord) -> Option<usize> {
         match self {
             Self::Pos(i) => {

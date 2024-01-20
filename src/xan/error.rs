@@ -130,6 +130,7 @@ pub enum CallError {
     UnsupportedEncoding(String),
     UnsupportedDecoderTrap(String),
     DecodeError,
+    ColumnNotFound(ColumIndexationBy),
 }
 
 impl CallError {
@@ -182,6 +183,7 @@ impl Display for CallError {
                 )
             }
             Self::DecodeError => write!(f, "could not decode"),
+            Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
         }
     }
 }

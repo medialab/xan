@@ -140,6 +140,7 @@ impl fmt::Debug for ConcreteSubroutine {
 #[derive(Debug, Clone)]
 enum StatementKind {
     If(bool),
+    Col,
 }
 
 impl StatementKind {
@@ -147,6 +148,7 @@ impl StatementKind {
         match name {
             "if" => Some(Self::If(false)),
             "unless" => Some(Self::If(true)),
+            "col" => Some(Self::Col),
             _ => None,
         }
     }
@@ -160,6 +162,7 @@ impl StatementKind {
                     "if"
                 }
             }
+            Self::Col => "col",
         }
     }
 }
@@ -203,6 +206,43 @@ impl ConcreteStatement {
                 match branch {
                     None => Ok(Cow::Owned(DynamicValue::None)),
                     Some(arg) => arg.evaluate(context),
+                }
+            }
+            StatementKind::Col => {
+                let arity = self.args.len();
+
+                if !(1..=2).contains(&arity) {
+                    return Err(EvaluationError::Call(SpecifiedCallError {
+                        function_name: self.kind.name().to_string(),
+                        reason: CallError::from_range_arity(1..=2, arity),
+                    }));
+                }
+
+                let name_or_pos = self.args.get(0).unwrap().evaluate(context)?;
+                let pos = match self.args.get(1) {
+                    Some(p) => Some(p.evaluate(context)?),
+                    None => None,
+                };
+
+                match ColumIndexationBy::from_bound_arguments(name_or_pos, pos) {
+                    None => Err(EvaluationError::Call(SpecifiedCallError {
+                        function_name: self.kind.name().to_string(),
+                        reason: CallError::Custom("invalid arguments".to_string()),
+                    })),
+                    Some(indexation) => match context.headers_index.get(&indexation) {
+                        None => Err(EvaluationError::Call(SpecifiedCallError {
+                            function_name: self.kind.name().to_string(),
+                            reason: CallError::ColumnNotFound(indexation),
+                        })),
+                        Some(index) => match std::str::from_utf8(&context.record[index]) {
+                            Err(_) => Err(EvaluationError::Binding(SpecifiedBindingError {
+                                function_name: self.kind.name().to_string(),
+                                arg_index: None,
+                                reason: BindingError::UnicodeDecodeError,
+                            })),
+                            Ok(value) => Ok(Cow::Owned(DynamicValue::from(value))),
+                        },
+                    },
                 }
             }
         }
@@ -250,8 +290,6 @@ fn concretize_call(
             };
         }
     }
-
-    // TODO: deal with col when it cannot be statically analyze (either custom statement or pass column as implicit argument)
 
     let mut concrete_args = Vec::new();
 
@@ -847,6 +885,14 @@ mod tests {
             Err(RunError::Prepare(ConcretizationError::ColumnNotFound(
                 ColumIndexationBy::NameAndNth(("surname".to_string(), 1))
             )))
+        );
+        assert_eq!(
+            eval_code("col(concat('sur', 'name'))"),
+            Ok(DynamicValue::from("SMITH"))
+        );
+        assert_eq!(
+            eval_code("col(concat('sur', 'name'), inc(-1))"),
+            Ok(DynamicValue::from("SMITH"))
         );
     }
 }
