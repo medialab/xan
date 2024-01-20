@@ -378,8 +378,8 @@ impl From<regex::Error> for CliError {
     }
 }
 
-impl From<xan::PrepareError> for CliError {
-    fn from(err: xan::PrepareError) -> CliError {
+impl From<xan::ConcretizationError> for CliError {
+    fn from(err: xan::ConcretizationError) -> CliError {
         CliError::Other(err.to_string())
     }
 }

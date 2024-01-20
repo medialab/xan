@@ -17,14 +17,14 @@ fn format_column_indexation_error(
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PrepareError {
+pub enum ConcretizationError {
     ParseError(String),
     ColumnNotFound(ColumIndexationBy),
     InvalidRegex(String),
     UnknownFunction(String),
 }
 
-impl Display for PrepareError {
+impl Display for ConcretizationError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
@@ -204,6 +204,6 @@ impl Display for EvaluationError {
 #[cfg(test)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum RunError {
-    Prepare(PrepareError),
+    Prepare(ConcretizationError),
     Evaluation(EvaluationError),
 }

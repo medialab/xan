@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use csv::ByteRecord;
 
-use super::error::{CallError, EvaluationError, PrepareError, SpecifiedCallError};
+use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
 use super::interpreter::{concretize_argument, eval_expr, ConcreteArgument};
 use super::parser::{parse_aggregations, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, Variables};
@@ -686,7 +686,7 @@ type ConcreteAggregations = Vec<ConcreteAggregation>;
 fn concretize_aggregations(
     aggregations: Aggregations,
     headers: &ByteRecord,
-) -> Result<ConcreteAggregations, PrepareError> {
+) -> Result<ConcreteAggregations, ConcretizationError> {
     let mut concrete_aggregations = ConcreteAggregations::new();
 
     for aggregation in aggregations {
@@ -716,9 +716,9 @@ fn concretize_aggregations(
     Ok(concrete_aggregations)
 }
 
-fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, PrepareError> {
+fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, ConcretizationError> {
     let parsed_aggregations =
-        parse_aggregations(code).map_err(|_| PrepareError::ParseError(code.to_string()))?;
+        parse_aggregations(code).map_err(|_| ConcretizationError::ParseError(code.to_string()))?;
 
     concretize_aggregations(parsed_aggregations, headers)
 }
@@ -731,7 +731,7 @@ pub struct AggregationProgram<'a> {
 }
 
 impl<'a> AggregationProgram<'a> {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
 
         let aggregator = KeyedAggregator::from(&concrete_aggregations);
@@ -781,7 +781,7 @@ pub struct GroupAggregationProgram<'a> {
 }
 
 impl<'a> GroupAggregationProgram<'a> {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
 
         Ok(Self {

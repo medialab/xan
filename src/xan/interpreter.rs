@@ -5,7 +5,7 @@ use csv::ByteRecord;
 use regex::Regex;
 
 use super::error::{
-    BindingError, CallError, EvaluationError, PrepareError, SpecifiedBindingError,
+    BindingError, CallError, ConcretizationError, EvaluationError, SpecifiedBindingError,
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
@@ -237,7 +237,7 @@ type ConcretePipeline = Vec<ConcreteArgument>;
 fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
-) -> Result<ConcreteArgument, PrepareError> {
+) -> Result<ConcreteArgument, ConcretizationError> {
     let function_name = call.name.to_lowercase();
 
     // Statically analyzable col() function call
@@ -245,7 +245,7 @@ fn concretize_call(
         if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
             match column_indexation.find_column_index(headers) {
                 Some(index) => return Ok(ConcreteArgument::Column(index)),
-                None => return Err(PrepareError::ColumnNotFound(column_indexation)),
+                None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
             };
         }
     }
@@ -267,7 +267,7 @@ fn concretize_call(
         ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
             name: function_name.clone(),
             function: get_function(&function_name)
-                .ok_or_else(|| PrepareError::UnknownFunction(function_name.clone()))?,
+                .ok_or_else(|| ConcretizationError::UnknownFunction(function_name.clone()))?,
             args: concrete_args,
         }))
     })
@@ -276,7 +276,7 @@ fn concretize_call(
 pub fn concretize_argument(
     argument: Argument,
     headers: &ByteRecord,
-) -> Result<ConcreteArgument, PrepareError> {
+) -> Result<ConcreteArgument, ConcretizationError> {
     Ok(match argument {
         Argument::Underscore => ConcreteArgument::Underscore,
         Argument::Null => ConcreteArgument::Null,
@@ -289,17 +289,17 @@ pub fn concretize_argument(
 
             match indexation.find_column_index(headers) {
                 Some(index) => ConcreteArgument::Column(index),
-                None => return Err(PrepareError::ColumnNotFound(indexation)),
+                None => return Err(ConcretizationError::ColumnNotFound(indexation)),
             }
         }
         Argument::SpecialIdentifier(name) => ConcreteArgument::Variable(name),
         Argument::Indexation(indexation) => match indexation.find_column_index(headers) {
             Some(index) => ConcreteArgument::Column(index),
-            None => return Err(PrepareError::ColumnNotFound(indexation)),
+            None => return Err(ConcretizationError::ColumnNotFound(indexation)),
         },
         Argument::RegexLiteral(pattern) => match Regex::new(&pattern) {
             Ok(regex) => ConcreteArgument::RegexLiteral(DynamicValue::Regex(regex)),
-            Err(_) => return Err(PrepareError::InvalidRegex(pattern)),
+            Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Argument::Call(call) => concretize_call(call, headers)?,
     })
@@ -308,7 +308,7 @@ pub fn concretize_argument(
 fn concretize_pipeline(
     pipeline: Pipeline,
     headers: &ByteRecord,
-) -> Result<ConcretePipeline, PrepareError> {
+) -> Result<ConcretePipeline, ConcretizationError> {
     let mut concrete_pipeline: ConcretePipeline = Vec::new();
 
     for argument in pipeline {
@@ -401,9 +401,9 @@ pub struct Program<'a> {
 }
 
 impl<'a> Program<'a> {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let pipeline = match parse_pipeline(code) {
-            Err(_) => return Err(PrepareError::ParseError(code.to_string())),
+            Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
             Ok(pipeline) => {
                 let pipeline = trim_pipeline(pipeline);
                 let pipeline = unfurl_pipeline(pipeline);
@@ -831,7 +831,7 @@ mod tests {
         );
         assert_eq!(
             eval_code("col('surname', 1)"),
-            Err(RunError::Prepare(PrepareError::ColumnNotFound(
+            Err(RunError::Prepare(ConcretizationError::ColumnNotFound(
                 ColumIndexationBy::NameAndNth(("surname".to_string(), 1))
             )))
         );
