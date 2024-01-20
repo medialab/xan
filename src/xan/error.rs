@@ -2,6 +2,19 @@ use std::fmt::Display;
 
 use super::types::ColumIndexationBy;
 
+fn format_column_indexation_error(
+    f: &mut std::fmt::Formatter,
+    indexation: &ColumIndexationBy,
+) -> std::fmt::Result {
+    match indexation {
+        ColumIndexationBy::Name(name) => write!(f, "cannot find column \"{}\"", name),
+        ColumIndexationBy::Pos(pos) => write!(f, "column {} out of range", pos),
+        ColumIndexationBy::NameAndNth((name, nth)) => {
+            write!(f, "cannot find column (\"{}\", {})", name, nth)
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum PrepareError {
     ParseError(String),
@@ -13,13 +26,7 @@ pub enum PrepareError {
 impl Display for PrepareError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::ColumnNotFound(indexation) => match indexation {
-                ColumIndexationBy::Name(name) => write!(f, "cannot find column \"{}\"", name),
-                ColumIndexationBy::Pos(pos) => write!(f, "column {} out of range", pos),
-                ColumIndexationBy::NameAndNth((name, nth)) => {
-                    write!(f, "cannot find column (\"{}\", {})", name, nth)
-                }
-            },
+            Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
             Self::UnknownFunction(name) => write!(f, "unknown function \"{}\"", name),
             Self::ParseError(expr) => write!(f, "could not parse expression: {}", expr),
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
@@ -51,6 +58,28 @@ pub enum InvalidArity {
     Strict(StrictArityErrorContext),
     Min(MinArityErrorContext),
     Range(RangeArityErrorContext),
+}
+
+impl Display for InvalidArity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Min(context) => write!(
+                f,
+                "expected at least {} arguments but got {}",
+                context.min_expected, context.got
+            ),
+            Self::Strict(context) => write!(
+                f,
+                "expected {} arguments but got {}",
+                context.expected, context.got
+            ),
+            Self::Range(context) => write!(
+                f,
+                "expected between {} and {} arguments but got {}",
+                context.min_expected, context.max_expected, context.got
+            ),
+        }
+    }
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
@@ -152,23 +181,7 @@ impl Display for CallError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidPath => write!(f, "invalid posix path"),
-            Self::InvalidArity(arity) => match arity {
-                InvalidArity::Min(context) => write!(
-                    f,
-                    "expected at least {} arguments but got {}",
-                    context.min_expected, context.got
-                ),
-                InvalidArity::Strict(context) => write!(
-                    f,
-                    "expected {} arguments but got {}",
-                    context.expected, context.got
-                ),
-                InvalidArity::Range(context) => write!(
-                    f,
-                    "expected between {} and {} arguments but got {}",
-                    context.min_expected, context.max_expected, context.got
-                ),
-            },
+            Self::InvalidArity(arity) => arity.fmt(f),
             Self::CannotOpenFile(path) => {
                 write!(f, "cannot open file {}", path)
             }
