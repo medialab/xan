@@ -6,7 +6,7 @@ use csv::ByteRecord;
 use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
 use super::interpreter::{concretize_argument, eval_expr, ConcreteArgument};
 use super::parser::{parse_aggregations, Aggregations};
-use super::types::{DynamicNumber, DynamicValue, Variables};
+use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
 
 // TODO: test when there is no data to be aggregated at all
 // TODO: test with nulls and nans
@@ -634,13 +634,14 @@ impl KeyedAggregator {
     fn run_with_record(
         &mut self,
         record: &ByteRecord,
+        headers_index: &HeadersIndex,
         variables: &Variables,
     ) -> Result<(), EvaluationError> {
         for entry in self.mapping.iter_mut() {
             // NOTE: count tolerates having no expression to evaluate, for instance.
             let value = match &entry.expr {
                 None => DynamicValue::None,
-                Some(expr) => eval_expr(expr, record, variables)?,
+                Some(expr) => eval_expr(expr, record, headers_index, variables)?,
             };
 
             entry.aggregator.process_value(value).map_err(|err| {
@@ -727,6 +728,7 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 pub struct AggregationProgram<'a> {
     aggregations: ConcreteAggregations,
     aggregator: KeyedAggregator,
+    headers_index: HeadersIndex,
     variables: Variables<'a>,
 }
 
@@ -739,12 +741,14 @@ impl<'a> AggregationProgram<'a> {
         Ok(Self {
             aggregations: concrete_aggregations,
             aggregator,
+            headers_index: HeadersIndex::from_headers(headers),
             variables: Variables::new(),
         })
     }
 
     pub fn run_with_record(&mut self, record: &ByteRecord) -> Result<(), EvaluationError> {
-        self.aggregator.run_with_record(record, &self.variables)
+        self.aggregator
+            .run_with_record(record, &self.headers_index, &self.variables)
     }
 
     pub fn headers(&self) -> ByteRecord {
@@ -777,6 +781,7 @@ impl<'a> AggregationProgram<'a> {
 pub struct GroupAggregationProgram<'a> {
     aggregations: ConcreteAggregations,
     groups: HashMap<Vec<u8>, KeyedAggregator>,
+    headers_index: HeadersIndex,
     variables: Variables<'a>,
 }
 
@@ -787,6 +792,7 @@ impl<'a> GroupAggregationProgram<'a> {
         Ok(Self {
             aggregations: concrete_aggregations,
             groups: HashMap::new(),
+            headers_index: HeadersIndex::from_headers(headers),
             variables: Variables::new(),
         })
     }
@@ -799,11 +805,13 @@ impl<'a> GroupAggregationProgram<'a> {
         match self.groups.entry(group) {
             Entry::Vacant(entry) => {
                 let mut aggregator = KeyedAggregator::from(&self.aggregations);
-                aggregator.run_with_record(record, &self.variables)?;
+                aggregator.run_with_record(record, &self.headers_index, &self.variables)?;
                 entry.insert(aggregator);
             }
             Entry::Occupied(mut entry) => {
-                entry.get_mut().run_with_record(record, &self.variables)?;
+                entry
+                    .get_mut()
+                    .run_with_record(record, &self.headers_index, &self.variables)?;
             }
         }
 

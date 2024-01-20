@@ -11,11 +11,13 @@ use super::error::{
 use super::functions::{get_function, Function};
 use super::parser::{parse_pipeline, Argument, FunctionCall, Pipeline};
 use super::types::{
-    BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
+    BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
+    Variables,
 };
 
 #[derive(Debug, Clone)]
 pub struct EvaluationContext<'a> {
+    pub headers_index: &'a HeadersIndex,
     pub record: &'a ByteRecord,
     pub last_value: Option<&'a DynamicValue>,
     pub variables: &'a Variables<'a>,
@@ -367,6 +369,7 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
 pub fn eval_pipeline(
     pipeline: &ConcretePipeline,
     record: &ByteRecord,
+    headers_index: &HeadersIndex,
     variables: &Variables,
 ) -> Result<DynamicValue, EvaluationError> {
     let mut last_value = DynamicValue::None;
@@ -374,6 +377,7 @@ pub fn eval_pipeline(
     for arg in pipeline {
         last_value = arg
             .evaluate(&EvaluationContext {
+                headers_index,
                 record,
                 variables,
                 last_value: Some(&last_value),
@@ -387,11 +391,13 @@ pub fn eval_pipeline(
 pub fn eval_expr(
     expr: &ConcreteArgument,
     record: &ByteRecord,
+    headers_index: &HeadersIndex,
     variables: &Variables,
 ) -> Result<DynamicValue, EvaluationError> {
     let context = EvaluationContext {
         record,
         variables,
+        headers_index,
         last_value: None,
     };
 
@@ -401,6 +407,7 @@ pub fn eval_expr(
 #[derive(Clone)]
 pub struct Program<'a> {
     pipeline: ConcretePipeline,
+    headers_index: HeadersIndex,
     variables: Variables<'a>,
     should_bind_index: bool,
 }
@@ -428,12 +435,13 @@ impl<'a> Program<'a> {
         Ok(Program {
             pipeline,
             variables: Variables::new(),
+            headers_index: HeadersIndex::from_headers(headers),
             should_bind_index,
         })
     }
 
     pub fn run_with_record(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
-        eval_pipeline(&self.pipeline, record, &self.variables)
+        eval_pipeline(&self.pipeline, record, &self.headers_index, &self.variables)
     }
 
     pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {
