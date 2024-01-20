@@ -168,16 +168,9 @@ impl fmt::Debug for ConcreteSubroutine {
     }
 }
 
-// #[derive(Debug, Clone)]
-// enum Col {
-//     Static(ColumIndexationBy),
-//     Dynamic,
-// }
-
 #[derive(Debug, Clone)]
 enum StatementKind {
     If(bool),
-    // Col(Col),
 }
 
 impl StatementKind {
