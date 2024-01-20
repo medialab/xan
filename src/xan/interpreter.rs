@@ -173,7 +173,7 @@ impl ConcreteStatement {
                 if !(2..=3).contains(&arity) {
                     return Err(EvaluationError::Call(SpecifiedCallError {
                         function_name: "if".to_string(),
-                        reason: CallError::from_range_arity(2, 3, arity),
+                        reason: CallError::from_range_arity(2..=3, arity),
                     }));
                 }
 

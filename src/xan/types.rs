@@ -3,7 +3,7 @@ use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::convert::From;
-use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Sub};
 
 use csv;
 use regex::Regex;
@@ -87,6 +87,27 @@ impl ColumIndexationBy {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Arity {
+    Strict(usize),
+    Min(usize),
+    Range(RangeInclusive<usize>),
+}
+
+impl Arity {
+    // pub fn check(&self, got: usize) -> bool {
+    //     match self {
+    //         Self::Strict(expected) => *expected == got,
+    //         Self::Min(expected_min) => got >= *expected_min,
+    //         Self::Range(range) => range.contains(&got),
+    //     }
+    // }
+
+    // pub fn check_len<T>(&self, args: Vec<T>) -> bool {
+    //     self.check(args.len())
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -694,7 +715,7 @@ impl<'a> BoundArguments<'a> {
 
     pub fn validate_min_max_arity(&self, min: usize, max: usize) -> Result<(), CallError> {
         if self.len() < min || self.len() > max {
-            Err(CallError::from_range_arity(min, max, self.len()))
+            Err(CallError::from_range_arity(min..=max, self.len()))
         } else {
             Ok(())
         }

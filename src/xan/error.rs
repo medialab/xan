@@ -1,6 +1,7 @@
 use std::fmt::Display;
+use std::ops::RangeInclusive;
 
-use super::types::ColumIndexationBy;
+use super::types::{Arity, ColumIndexationBy};
 
 fn format_column_indexation_error(
     f: &mut std::fmt::Formatter,
@@ -35,48 +36,26 @@ impl Display for PrepareError {
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
-pub struct StrictArityErrorContext {
-    pub expected: usize,
-    pub got: usize,
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq))]
-pub struct MinArityErrorContext {
-    pub min_expected: usize,
-    pub got: usize,
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq))]
-pub struct RangeArityErrorContext {
-    pub min_expected: usize,
-    pub max_expected: usize,
-    pub got: usize,
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq))]
-pub enum InvalidArity {
-    Strict(StrictArityErrorContext),
-    Min(MinArityErrorContext),
-    Range(RangeArityErrorContext),
+pub struct InvalidArity {
+    expected: Arity,
+    got: usize,
 }
 
 impl Display for InvalidArity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Min(context) => write!(
+        match &self.expected {
+            Arity::Min(min) => write!(
                 f,
                 "expected at least {} arguments but got {}",
-                context.min_expected, context.got
+                min, self.got
             ),
-            Self::Strict(context) => write!(
-                f,
-                "expected {} arguments but got {}",
-                context.expected, context.got
-            ),
-            Self::Range(context) => write!(
+            Arity::Strict(arity) => write!(f, "expected {} arguments but got {}", arity, self.got),
+            Arity::Range(range) => write!(
                 f,
                 "expected between {} and {} arguments but got {}",
-                context.min_expected, context.max_expected, context.got
+                range.start(),
+                range.end(),
+                self.got
             ),
         }
     }
@@ -155,25 +134,24 @@ pub enum CallError {
 
 impl CallError {
     pub fn from_invalid_arity(expected: usize, got: usize) -> Self {
-        Self::InvalidArity(InvalidArity::Strict(StrictArityErrorContext {
-            expected,
+        Self::InvalidArity(InvalidArity {
+            expected: Arity::Strict(expected),
             got,
-        }))
+        })
     }
 
     pub fn from_invalid_min_arity(min_expected: usize, got: usize) -> Self {
-        Self::InvalidArity(InvalidArity::Min(MinArityErrorContext {
-            min_expected,
+        Self::InvalidArity(InvalidArity {
+            expected: Arity::Min(min_expected),
             got,
-        }))
+        })
     }
 
-    pub fn from_range_arity(min_expected: usize, max_expected: usize, got: usize) -> Self {
-        Self::InvalidArity(InvalidArity::Range(RangeArityErrorContext {
-            min_expected,
-            max_expected,
+    pub fn from_range_arity(range: RangeInclusive<usize>, got: usize) -> Self {
+        Self::InvalidArity(InvalidArity {
+            expected: Arity::Range(range),
             got,
-        }))
+        })
     }
 }
 
