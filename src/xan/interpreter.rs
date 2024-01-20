@@ -9,40 +9,10 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_pipeline, Argument, Pipeline};
+use super::parser::{parse_pipeline, Argument, FunctionCall, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, Variables,
 };
-
-// const STATIC_VARIABLES_INDEX_SLOT: usize = 0;
-
-// #[derive(Debug, Clone)]
-// struct StaticVariables {
-//     data: [DynamicValue; 1],
-// }
-
-// impl StaticVariables {
-//     fn new() -> Self {
-//         StaticVariables {
-//             data: [DynamicValue::None],
-//         }
-//     }
-
-//     fn set_index(&mut self, index: usize) {
-//         self.data[STATIC_VARIABLES_INDEX_SLOT] = DynamicValue::from(index);
-//     }
-
-//     fn get_index(&self) -> &DynamicValue {
-//         &self.data[STATIC_VARIABLES_INDEX_SLOT]
-//     }
-
-//     fn get(&self, key: &str) -> &DynamicValue {
-//         match key {
-//             "index" => self.get_index(),
-//             _ => unreachable!(),
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub enum ConcreteArgument {
@@ -262,7 +232,45 @@ impl ConcreteFunctionCall {
     }
 }
 
-type ConcretePipeline = Vec<ConcreteFunctionCall>;
+type ConcretePipeline = Vec<ConcreteArgument>;
+
+fn concretize_call(
+    call: FunctionCall,
+    headers: &ByteRecord,
+) -> Result<ConcreteArgument, PrepareError> {
+    let function_name = call.name.to_lowercase();
+
+    // Statically analyzable col() function call
+    if function_name == "col" {
+        if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
+            match column_indexation.find_column_index(headers) {
+                Some(index) => return Ok(ConcreteArgument::Column(index)),
+                None => return Err(PrepareError::ColumnNotFound(column_indexation)),
+            };
+        }
+    }
+
+    // TODO: deal with col when it cannot be statically analyze (either custom statement or pass column as implicit argument)
+
+    let mut concrete_args = Vec::new();
+
+    for arg in call.args {
+        concrete_args.push(concretize_argument(arg, headers)?);
+    }
+
+    Ok(if let Some(kind) = StatementKind::parse(&function_name) {
+        ConcreteArgument::Call(ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
+            kind,
+            args: concrete_args,
+        }))
+    } else {
+        ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
+            name: function_name.clone(),
+            function: get_function(&function_name)?,
+            args: concrete_args,
+        }))
+    })
+}
 
 pub fn concretize_argument(
     argument: Argument,
@@ -292,40 +300,7 @@ pub fn concretize_argument(
             Ok(regex) => ConcreteArgument::RegexLiteral(DynamicValue::Regex(regex)),
             Err(_) => return Err(PrepareError::InvalidRegex(pattern)),
         },
-        Argument::Call(call) => {
-            let function_name = call.name.to_lowercase();
-
-            // Statically analyzable col() function call
-            if function_name == "col" {
-                if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
-                    match column_indexation.find_column_index(headers) {
-                        Some(index) => return Ok(ConcreteArgument::Column(index)),
-                        None => return Err(PrepareError::ColumnNotFound(column_indexation)),
-                    };
-                }
-            }
-
-            // TODO: deal with col when it cannot be statically analyze (either custom statement or pass column as implicit argument)
-
-            let mut concrete_args = Vec::new();
-
-            for arg in call.args {
-                concrete_args.push(concretize_argument(arg, headers)?);
-            }
-
-            if let Some(kind) = StatementKind::parse(&function_name) {
-                ConcreteArgument::Call(ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
-                    kind,
-                    args: concrete_args,
-                }))
-            } else {
-                ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
-                    name: function_name.clone(),
-                    function: get_function(&function_name)?,
-                    args: concrete_args,
-                }))
-            }
-        }
+        Argument::Call(call) => concretize_call(call, headers)?,
     })
 }
 
@@ -335,25 +310,8 @@ fn concretize_pipeline(
 ) -> Result<ConcretePipeline, PrepareError> {
     let mut concrete_pipeline: ConcretePipeline = Vec::new();
 
-    for function_call in pipeline {
-        let mut concrete_arguments: Vec<ConcreteArgument> = Vec::new();
-
-        for argument in function_call.args.iter() {
-            concrete_arguments.push(concretize_argument(argument.clone(), headers)?);
-        }
-
-        concrete_pipeline.push(
-            concretize_argument(Argument::Call(function_call), headers).map(|concrete_arg| {
-                match concrete_arg {
-                    ConcreteArgument::Call(concrete_call) => concrete_call,
-                    _ => ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
-                        name: "val".to_string(),
-                        function: get_function("val").unwrap(),
-                        args: vec![concrete_arg],
-                    }),
-                }
-            })?,
-        );
+    for argument in pipeline {
+        concrete_pipeline.push(concretize_argument(argument, headers)?);
     }
 
     Ok(concrete_pipeline)
@@ -365,7 +323,7 @@ fn trim_pipeline(pipeline: Pipeline) -> Pipeline {
         .iter()
         .enumerate()
         .rev()
-        .find(|(i, function_call)| *i != 0 && !function_call.has_underscore())
+        .find(|(i, arg)| *i != 0 && !arg.has_underscore())
         .map(|r| r.0)
     {
         None => pipeline,
@@ -379,20 +337,25 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
     loop {
         match pipeline.pop() {
             None => break,
-            Some(mut function_call) => {
-                if function_call.count_underscores() != 1 {
-                    pipeline.push(function_call);
-                    break;
-                }
-                match pipeline.pop() {
-                    Some(previous_function_call) => {
-                        function_call.fill_underscore(&previous_function_call);
-                        pipeline.push(function_call);
-                    }
-                    None => {
-                        pipeline.push(function_call);
+            Some(arg) => {
+                if let Argument::Call(mut call) = arg {
+                    if call.count_underscores() != 1 {
+                        pipeline.push(Argument::Call(call));
                         break;
                     }
+                    match pipeline.pop() {
+                        Some(previous_arg) => {
+                            call.fill_underscore(&previous_arg);
+                            pipeline.push(Argument::Call(call));
+                        }
+                        None => {
+                            pipeline.push(Argument::Call(call));
+                            break;
+                        }
+                    }
+                } else {
+                    pipeline.push(arg);
+                    break;
                 }
             }
         }
@@ -421,10 +384,8 @@ pub fn eval_pipeline(
 ) -> Result<DynamicValue, EvaluationError> {
     let mut last_value = DynamicValue::None;
 
-    for function_call in pipeline {
-        last_value = function_call
-            .run(record, &last_value, variables)?
-            .into_owned();
+    for arg in pipeline {
+        last_value = arg.evaluate(record, &last_value, variables)?.into_owned();
     }
 
     Ok(last_value)
@@ -455,7 +416,13 @@ pub struct Program<'a> {
 impl<'a> Program<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
         let pipeline = prepare(code, headers)?;
-        let should_bind_index = pipeline.iter().any(|call| call.has_index_variable());
+        let should_bind_index = pipeline.iter().any(|arg| {
+            if let ConcreteArgument::Call(call) = arg {
+                call.has_index_variable()
+            } else {
+                false
+            }
+        });
 
         Ok(Program {
             pipeline,
@@ -497,17 +464,17 @@ mod tests {
         assert_eq!(
             pipeline,
             vec![
-                FunctionCall {
+                Argument::Call(FunctionCall {
                     name: "add".to_string(),
                     args: vec![
                         Argument::Identifier("a".to_string()),
                         Argument::Identifier("b".to_string())
                     ]
-                },
-                FunctionCall {
+                }),
+                Argument::Call(FunctionCall {
                     name: "len".to_string(),
                     args: vec![Argument::Underscore]
-                }
+                })
             ]
         );
 
@@ -517,18 +484,18 @@ mod tests {
         assert_eq!(
             pipeline,
             vec![
-                FunctionCall {
+                Argument::Call(FunctionCall {
                     name: "trim".to_string(),
                     args: vec![Argument::Identifier("a".to_string())]
-                },
-                FunctionCall {
+                }),
+                Argument::Call(FunctionCall {
                     name: "len".to_string(),
                     args: vec![Argument::Underscore]
-                },
-                FunctionCall {
+                }),
+                Argument::Call(FunctionCall {
                     name: "add".to_string(),
                     args: vec![Argument::Identifier("b".to_string()), Argument::Underscore]
-                }
+                })
             ]
         );
     }
@@ -541,7 +508,7 @@ mod tests {
 
         assert_eq!(
             pipeline,
-            vec![FunctionCall {
+            vec![Argument::Call(FunctionCall {
                 name: "add".to_string(),
                 args: vec![
                     Argument::Identifier("b".to_string()),
@@ -553,7 +520,7 @@ mod tests {
                         })]
                     })
                 ]
-            }]
+            })]
         );
     }
 
