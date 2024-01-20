@@ -332,10 +332,6 @@ pub fn concretize_argument(
             }
         }
         Argument::SpecialIdentifier(name) => ConcreteArgument::Variable(name),
-        Argument::Indexation(indexation) => match indexation.find_column_index(headers) {
-            Some(index) => ConcreteArgument::Column(index),
-            None => return Err(ConcretizationError::ColumnNotFound(indexation)),
-        },
         Argument::RegexLiteral(pattern) => match Regex::new(&pattern) {
             Ok(regex) => ConcreteArgument::RegexLiteral(DynamicValue::Regex(regex)),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),

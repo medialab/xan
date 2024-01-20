@@ -36,7 +36,7 @@ the --cheatsheet flag.
 If you want to list available functions, use the --functions flag.
 
 Usage:
-    xsv transform [options] <expression> <column> [<input>]
+    xsv transform [options] <column> <expression> [<input>]
     xsv transform --cheatsheet
     xsv transform --functions
     xsv transform --help

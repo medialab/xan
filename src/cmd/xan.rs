@@ -27,13 +27,13 @@ available functions):
         'trim(Name of film)'
 
   . Indexing column with characters forbidden in identifies (e.g. commas):
-        'trim(row[\"Name, of film\"])'
+        'trim(col(\"Name, of film\"))'
 
   . Indexing column by index (0-based):
-        'trim(row[2])'
+        'trim(col(2))'
 
   . Indexing a column by name and 0-based nth (for duplicate headers):
-        'trim(row[\"col\", 1])'
+        'trim(col(\"col\", 1))'
 
   . Integer literals:
         'add(1, count)'
@@ -62,6 +62,9 @@ available functions):
   . Nesting function calls:
         'add(sub(col1, col2), mul(col3, col4))'
 
+  . Basic branching (also consider using the \"coalesce\" function for simple cases):
+        'if(lt(count, 4), trim(name), trim(surname))'
+
   . Piping (underscore \"_\" becomes a reference to previous result):
         'trim(name) | lower(_) | add(count, len(_))'
 
@@ -75,9 +78,6 @@ available functions):
         is the same as:
 
         'trim(name) | lower(_)'
-
-  . Basic branching (also consider using the \"coalesce\" function for simple cases):
-        'if(lt(count, 4), trim(name), trim(surname))'
 
 Misc notes:
 
@@ -105,16 +105,16 @@ macro_rules! xan_function_list {
         Add two numbers.
 
     - dec(x) -> number
-        Subtract 1 from x.
+        Decrement x, subtracting 1.
 
     - div(x, y) -> number
         Divide two numbers.
 
     - idiv(x, y) -> number
         Integer division of two numbers.
-    
+
     - inc(x) -> number
-        Add 1 to x.
+        Increment x, adding 1.
 
     - mul(x, y) -> number
         Multiply x & y.
@@ -252,6 +252,10 @@ macro_rules! xan_function_list {
 
     - coalesce(*args) -> T
         Return first truthy value.
+
+    - col(name_or_pos, nth?) -> string
+        Return value of cell for given column, by name, by position or by
+        name & nth, in case of duplicate header names.
 
     - err(msg) -> error
         Make the expression return a custom error.
@@ -543,7 +547,7 @@ pub fn run_xan_cmd(args: XanCmdArgs) -> CliResult<()> {
                     column_to_replace = Some(idx);
 
                     // NOTE: binding implicit last value to target column value
-                    map_expr = format!("val(row[{}]) | {}", idx, map_expr);
+                    map_expr = format!("col({}) | {}", idx, map_expr);
                 }
             } else if args.mode.is_flatmap() {
                 if let Some(replaced) = &args.rename_column {

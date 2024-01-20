@@ -8,7 +8,7 @@ fn transform() {
         vec![svec!["a", "b"], svec!["1", "2"], svec!["2", "3"]],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("add(a, b)").arg("b").arg("data.csv");
+    cmd.arg("b").arg("add(a, b)").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["1", "3"], svec!["2", "5"]];
@@ -23,8 +23,8 @@ fn transform_rename() {
         vec![svec!["a", "b"], svec!["1", "2"], svec!["2", "3"]],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("add(a, b)")
-        .arg("b")
+    cmd.arg("b")
+        .arg("add(a, b)")
         .args(&["-r", "c"])
         .arg("data.csv");
 
@@ -45,8 +45,8 @@ fn transform_implicit() {
         ],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("upper")
-        .arg("surname")
+    cmd.arg("surname")
+        .arg("upper")
         .args(&["-r", "upper_surname"])
         .arg("data.csv");
 
@@ -67,7 +67,7 @@ fn transform_errors_panic() {
         vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("add(a, b)").arg("b").arg("data.csv");
+    cmd.arg("b").arg("add(a, b)").arg("data.csv");
 
     wrk.assert_err(&mut cmd);
 }
@@ -80,8 +80,8 @@ fn transform_errors_report() {
         vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("add(a, b)")
-        .arg("b")
+    cmd.arg("b")
+        .arg("add(a, b)")
         .args(&["-e", "report"])
         .args(&["-E", "error"])
         .arg("data.csv");
@@ -103,8 +103,8 @@ fn transform_errors_ignore() {
         vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("add(a, b)")
-        .arg("b")
+    cmd.arg("b")
+        .arg("add(a, b)")
         .args(&["-e", "ignore"])
         .arg("data.csv");
 
@@ -121,8 +121,8 @@ fn transform_errors_log() {
         vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
     );
     let mut cmd = wrk.command("transform");
-    cmd.arg("add(a, b)")
-        .arg("b")
+    cmd.arg("b")
+        .arg("add(a, b)")
         .args(&["-e", "log"])
         .arg("data.csv");
 

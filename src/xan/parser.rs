@@ -10,14 +10,12 @@ use nom::{
     IResult,
 };
 
-use super::types::ColumIndexationBy;
 use super::utils::downgrade_float;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Argument {
     Identifier(String),
     SpecialIdentifier(String),
-    Indexation(ColumIndexationBy),
     StringLiteral(String),
     FloatLiteral(f64),
     IntegerLiteral(i64),
@@ -291,35 +289,11 @@ fn comma_separator(input: &str) -> IResult<&str, ()> {
     value((), tuple((space0, char(','), space0)))(input)
 }
 
-fn indexation(input: &str) -> IResult<&str, ColumIndexationBy> {
-    preceded(
-        tag("row"),
-        delimited(
-            char('['),
-            alt((
-                map(
-                    pair(
-                        string_literal,
-                        opt(preceded(comma_separator, integer_literal::<usize>)),
-                    ),
-                    |(string, index)| match index {
-                        Some(pos) => ColumIndexationBy::NameAndNth((string, pos)),
-                        None => ColumIndexationBy::Name(string),
-                    },
-                ),
-                map(integer_literal::<usize>, ColumIndexationBy::Pos),
-            )),
-            char(']'),
-        ),
-    )(input)
-}
-
 fn argument_with_expr(input: &str) -> IResult<&str, (&str, Argument)> {
     consumed(alt((
         inner_function_call,
         map(boolean_literal, Argument::BooleanLiteral),
         map(null_literal, |_| Argument::Null),
-        map(indexation, Argument::Indexation),
         map(special_identifier, |name| {
             Argument::SpecialIdentifier(String::from(name))
         }),
@@ -536,23 +510,6 @@ mod tests {
     }
 
     #[test]
-    fn test_indexation() {
-        assert_eq!(
-            indexation("row['name']"),
-            Ok(("", ColumIndexationBy::Name("name".to_string())))
-        );
-        assert_eq!(
-            indexation("row[\"name\"]"),
-            Ok(("", ColumIndexationBy::Name("name".to_string())))
-        );
-        assert_eq!(
-            indexation("row['name', 3]"),
-            Ok(("", ColumIndexationBy::NameAndNth(("name".to_string(), 3))))
-        );
-        assert_eq!(indexation("row[34]"), Ok(("", ColumIndexationBy::Pos(34))));
-    }
-
-    #[test]
     fn test_argument() {
         assert_eq!(argument("true"), Ok(("", Argument::BooleanLiteral(true))));
         assert_eq!(
@@ -628,7 +585,7 @@ mod tests {
         assert!(pipeline("test |").is_err());
 
         assert_eq!(
-            pipeline("trim(name) | len  (_, row['name'])"),
+            pipeline("trim(name) | len  (_)"),
             Ok((
                 "",
                 vec![
@@ -638,17 +595,14 @@ mod tests {
                     }),
                     Argument::Call(FunctionCall {
                         name: String::from("len"),
-                        args: vec![
-                            Argument::Underscore,
-                            Argument::Indexation(ColumIndexationBy::Name("name".to_string()))
-                        ]
+                        args: vec![Argument::Underscore]
                     })
                 ]
             ))
         );
 
         assert_eq!(
-            pipeline("add(len(name), len(surname)) | len  (_, row['name'])"),
+            pipeline("add(len(name), len(surname)) | len  (_)"),
             Ok((
                 "",
                 vec![
@@ -667,10 +621,7 @@ mod tests {
                     }),
                     Argument::Call(FunctionCall {
                         name: String::from("len"),
-                        args: vec![
-                            Argument::Underscore,
-                            Argument::Indexation(ColumIndexationBy::Name("name".to_string()))
-                        ]
+                        args: vec![Argument::Underscore]
                     })
                 ]
             ))
