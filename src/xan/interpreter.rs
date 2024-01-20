@@ -15,6 +15,13 @@ use super::types::{
 };
 
 #[derive(Debug, Clone)]
+pub struct EvaluationContext<'a> {
+    pub record: &'a ByteRecord,
+    pub last_value: Option<&'a DynamicValue>,
+    pub variables: &'a Variables<'a>,
+}
+
+#[derive(Debug, Clone)]
 pub enum ConcreteArgument {
     Variable(String),
     Column(usize),
@@ -31,25 +38,25 @@ pub enum ConcreteArgument {
 impl ConcreteArgument {
     fn bind<'a>(
         &'a self,
-        record: &'a ByteRecord,
-        last_value: &'a DynamicValue,
-        variables: &'a Variables,
+        context: &'a EvaluationContext,
     ) -> Result<BoundArgument<'a>, BindingError> {
         Ok(match self {
             Self::StringLiteral(value) => Cow::Borrowed(value),
             Self::FloatLiteral(value) => Cow::Borrowed(value),
             Self::IntegerLiteral(value) => Cow::Borrowed(value),
             Self::BooleanLiteral(value) => Cow::Borrowed(value),
-            Self::Underscore => Cow::Borrowed(last_value),
+            Self::Underscore => {
+                Cow::Borrowed(context.last_value.unwrap_or_else(|| &DynamicValue::None))
+            }
             Self::Null => Cow::Owned(DynamicValue::None),
-            Self::Column(index) => match record.get(*index) {
+            Self::Column(index) => match context.record.get(*index) {
                 None => return Err(BindingError::ColumnOutOfRange(*index)),
                 Some(cell) => match std::str::from_utf8(cell) {
                     Err(_) => return Err(BindingError::UnicodeDecodeError),
                     Ok(value) => Cow::Owned(DynamicValue::from(value)),
                 },
             },
-            Self::Variable(name) => match variables.get::<str>(name) {
+            Self::Variable(name) => match context.variables.get::<str>(name) {
                 Some(value) => Cow::Borrowed(value),
                 None => return Err(BindingError::UnknownVariable(name.clone())),
             },
@@ -58,15 +65,10 @@ impl ConcreteArgument {
         })
     }
 
-    fn evaluate<'a>(
-        &'a self,
-        record: &'a csv::ByteRecord,
-        last_value: &'a DynamicValue,
-        variables: &'a Variables,
-    ) -> EvaluationResult<'a> {
+    fn evaluate<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         match self {
-            Self::Call(function_call) => function_call.run(record, last_value, variables),
-            _ => self.bind(record, last_value, variables).map_err(|err| {
+            Self::Call(function_call) => function_call.run(context),
+            _ => self.bind(context).map_err(|err| {
                 EvaluationError::Binding(SpecifiedBindingError {
                     function_name: "<expr>".to_string(),
                     arg_index: None,
@@ -92,20 +94,15 @@ pub struct ConcreteSubroutine {
 }
 
 impl ConcreteSubroutine {
-    fn run<'a>(
-        &'a self,
-        record: &'a csv::ByteRecord,
-        last_value: &'a DynamicValue,
-        variables: &'a Variables,
-    ) -> EvaluationResult<'a> {
+    fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         let mut bound_args = BoundArguments::with_capacity(self.args.len());
 
         for (i, arg) in self.args.iter().enumerate() {
             match arg {
                 ConcreteArgument::Call(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(record, last_value, variables)?);
+                    bound_args.push(sub_function_call.run(context)?);
                 }
-                _ => bound_args.push(arg.bind(record, last_value, variables).map_err(|err| {
+                _ => bound_args.push(arg.bind(context).map_err(|err| {
                     EvaluationError::Binding(SpecifiedBindingError {
                         function_name: self.name.to_string(),
                         arg_index: Some(i),
@@ -172,12 +169,7 @@ pub struct ConcreteStatement {
 }
 
 impl ConcreteStatement {
-    fn run<'a>(
-        &'a self,
-        record: &'a csv::ByteRecord,
-        last_value: &'a DynamicValue,
-        variables: &'a Variables,
-    ) -> EvaluationResult<'a> {
+    fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         match self.kind {
             StatementKind::If(reverse) => {
                 let arity = self.args.len();
@@ -190,7 +182,7 @@ impl ConcreteStatement {
                 }
 
                 let condition = &self.args[0];
-                let result = condition.evaluate(record, last_value, variables)?;
+                let result = condition.evaluate(context)?;
 
                 let mut branch: Option<&ConcreteArgument> = None;
 
@@ -208,7 +200,7 @@ impl ConcreteStatement {
 
                 match branch {
                     None => Ok(Cow::Owned(DynamicValue::None)),
-                    Some(arg) => arg.evaluate(record, last_value, variables),
+                    Some(arg) => arg.evaluate(context),
                 }
             }
         }
@@ -222,15 +214,10 @@ pub enum ConcreteFunctionCall {
 }
 
 impl ConcreteFunctionCall {
-    fn run<'a>(
-        &'a self,
-        record: &'a csv::ByteRecord,
-        last_value: &'a DynamicValue,
-        variables: &'a Variables,
-    ) -> EvaluationResult<'a> {
+    fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         match self {
-            Self::Subroutine(subroutine) => subroutine.run(record, last_value, variables),
-            Self::SpecialStatement(statement) => statement.run(record, last_value, variables),
+            Self::Subroutine(subroutine) => subroutine.run(context),
+            Self::SpecialStatement(statement) => statement.run(context),
         }
     }
 
@@ -385,7 +372,13 @@ pub fn eval_pipeline(
     let mut last_value = DynamicValue::None;
 
     for arg in pipeline {
-        last_value = arg.evaluate(record, &last_value, variables)?.into_owned();
+        last_value = arg
+            .evaluate(&EvaluationContext {
+                record,
+                variables,
+                last_value: Some(&last_value),
+            })?
+            .into_owned();
     }
 
     Ok(last_value)
@@ -396,13 +389,13 @@ pub fn eval_expr(
     record: &ByteRecord,
     variables: &Variables,
 ) -> Result<DynamicValue, EvaluationError> {
-    (match expr {
-        ConcreteArgument::Call(function_call) => {
-            function_call.run(record, &DynamicValue::None, variables)
-        }
-        arg => arg.evaluate(record, &DynamicValue::None, variables),
-    })
-    .map(|value| value.into_owned())
+    let context = EvaluationContext {
+        record,
+        variables,
+        last_value: None,
+    };
+
+    expr.evaluate(&context).map(|value| value.into_owned())
 }
 
 #[derive(Clone)]
