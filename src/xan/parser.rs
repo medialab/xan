@@ -289,9 +289,9 @@ fn comma_separator(input: &str) -> IResult<&str, ()> {
     value((), tuple((space0, char(','), space0)))(input)
 }
 
-fn argument_with_expr(input: &str) -> IResult<&str, (&str, Argument)> {
+fn argument_with_parsed(input: &str) -> IResult<&str, (&str, Argument)> {
     consumed(alt((
-        inner_function_call,
+        function_call,
         map(boolean_literal, Argument::BooleanLiteral),
         map(null_literal, |_| Argument::Null),
         map(special_identifier, |name| {
@@ -309,18 +309,18 @@ fn argument_with_expr(input: &str) -> IResult<&str, (&str, Argument)> {
 }
 
 fn argument(input: &str) -> IResult<&str, Argument> {
-    map(argument_with_expr, |arg| arg.1)(input)
+    map(argument_with_parsed, |arg| arg.1)(input)
 }
 
-fn argument_with_expr_list(input: &str) -> IResult<&str, Vec<(&str, Argument)>> {
-    separated_list0(comma_separator, argument_with_expr)(input)
+fn argument_list_with_parsed(input: &str) -> IResult<&str, Vec<(&str, Argument)>> {
+    separated_list0(comma_separator, argument_with_parsed)(input)
 }
 
 fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
     separated_list0(comma_separator, argument)(input)
 }
 
-fn inner_function_call(input: &str) -> IResult<&str, Argument> {
+fn function_call(input: &str) -> IResult<&str, Argument> {
     map(
         pair(
             restricted_identifier,
@@ -339,7 +339,7 @@ fn inner_function_call(input: &str) -> IResult<&str, Argument> {
     )(input)
 }
 
-fn outer_function_call(input: &str) -> IResult<&str, Argument> {
+fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
     map(
         pair(
             restricted_identifier,
@@ -363,7 +363,7 @@ fn pipe(input: &str) -> IResult<&str, ()> {
 }
 
 fn pipeline(input: &str) -> IResult<&str, Pipeline> {
-    all_consuming(separated_list1(pipe, outer_function_call))(input)
+    all_consuming(separated_list1(pipe, possibly_elided_function_call))(input)
 }
 
 fn as_suffix(input: &str) -> IResult<&str, String> {
@@ -382,7 +382,7 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
             restricted_identifier,
             consumed(delimited(
                 pair(space0, char('(')),
-                argument_with_expr_list,
+                argument_list_with_parsed,
                 pair(char(')'), space0),
             )),
             opt(as_suffix),
@@ -547,7 +547,7 @@ mod tests {
     #[test]
     fn test_function_call() {
         assert_eq!(
-            outer_function_call("trim()"),
+            possibly_elided_function_call("trim()"),
             Ok((
                 "",
                 Argument::Call(FunctionCall {
@@ -558,7 +558,7 @@ mod tests {
         );
 
         assert_eq!(
-            outer_function_call("trim(_)"),
+            possibly_elided_function_call("trim(_)"),
             Ok((
                 "",
                 Argument::Call(FunctionCall {
@@ -569,7 +569,7 @@ mod tests {
         );
 
         assert_eq!(
-            outer_function_call("trim(_, true, 4.5, 56, col)"),
+            possibly_elided_function_call("trim(_, true, 4.5, 56, col)"),
             Ok((
                 "",
                 Argument::Call(FunctionCall {
