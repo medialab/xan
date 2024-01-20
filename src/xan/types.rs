@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::convert::From;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Sub};
 
-use csv;
+use csv::ByteRecord;
 use regex::Regex;
 
 use super::error::{CallError, EvaluationError};
@@ -49,7 +50,7 @@ impl ColumIndexationBy {
         }
     }
 
-    pub fn find_column_index(&self, headers: &csv::ByteRecord) -> Option<usize> {
+    pub fn find_column_index(&self, headers: &ByteRecord) -> Option<usize> {
         match self {
             Self::Pos(i) => {
                 if i >= &headers.len() {
@@ -85,6 +86,54 @@ impl ColumIndexationBy {
 
                 None
             }
+        }
+    }
+}
+
+pub struct HeadersIndex {
+    mapping: BTreeMap<String, Vec<usize>>,
+}
+
+impl HeadersIndex {
+    pub fn new() -> Self {
+        HeadersIndex {
+            mapping: BTreeMap::new(),
+        }
+    }
+
+    pub fn from_headers(headers: &ByteRecord) -> Self {
+        let mut index = Self::new();
+
+        for (i, header) in headers.iter().enumerate() {
+            let key = std::str::from_utf8(header).unwrap().to_string();
+
+            match index.mapping.entry(key) {
+                Entry::Vacant(entry) => {
+                    let positions: Vec<usize> = vec![i];
+                    entry.insert(positions);
+                }
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(i);
+                }
+            }
+        }
+
+        index
+    }
+
+    pub fn get(&self, indexation: &ColumIndexationBy) -> Option<usize> {
+        match indexation {
+            ColumIndexationBy::Name(name) => self
+                .mapping
+                .get(name)
+                .and_then(|positions| positions.get(0))
+                .copied(),
+            ColumIndexationBy::Pos(pos) => Some(*pos),
+            ColumIndexationBy::NameAndNth((name, pos)) => self
+                .mapping
+                .get(name)
+                .and_then(|positions| positions.get(*pos))
+                .copied(),
         }
     }
 }
