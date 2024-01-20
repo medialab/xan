@@ -12,7 +12,7 @@ use flate2::read::GzDecoder;
 use unidecode::unidecode;
 use uuid::Uuid;
 
-use super::error::{CallError, PrepareError};
+use super::error::CallError;
 use super::types::{BoundArguments, DynamicNumber, DynamicValue};
 
 type FunctionResult = Result<DynamicValue, CallError>;
@@ -22,8 +22,8 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 // TODO: in list, empty, not empty
 // TODO: we could also have ranges of columns and vec map etc.
 // TODO: random, stats etc.
-pub fn get_function(name: &str) -> Result<Function, PrepareError> {
-    Ok(match name {
+pub fn get_function(name: &str) -> Option<Function> {
+    Some(match name {
         "abs" => abs,
         "abspath" => abspath,
         "add" => |args| arithmetic_op(args, Add::add),
@@ -79,7 +79,7 @@ pub fn get_function(name: &str) -> Result<Function, PrepareError> {
         "upper" => upper,
         "uuid" => uuid,
         "val" => val,
-        _ => return Err(PrepareError::UnknownFunction(name.to_string())),
+        _ => return None,
     })
 }
 
