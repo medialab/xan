@@ -27,6 +27,19 @@ pub enum Argument {
     Null,
 }
 
+impl Argument {
+    pub fn is_statically_analyzable(&self) -> bool {
+        match self {
+            Self::Null
+            | Self::StringLiteral(_)
+            | Self::FloatLiteral(_)
+            | Self::IntegerLiteral(_)
+            | Self::BooleanLiteral(_) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCall {
     pub name: String,
