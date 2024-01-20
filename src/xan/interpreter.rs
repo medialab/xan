@@ -365,19 +365,6 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
     pipeline
 }
 
-// TODO: we could validate function arity at prepare step
-pub fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcretePipeline, PrepareError> {
-    match parse_pipeline(code) {
-        Err(_) => Err(PrepareError::ParseError(code.to_string())),
-        Ok(pipeline) => {
-            let pipeline = trim_pipeline(pipeline);
-            let pipeline = unfurl_pipeline(pipeline);
-
-            concretize_pipeline(pipeline, headers)
-        }
-    }
-}
-
 pub fn eval_pipeline(
     pipeline: &ConcretePipeline,
     record: &ByteRecord,
@@ -411,12 +398,20 @@ pub struct Program<'a> {
     pipeline: ConcretePipeline,
     variables: Variables<'a>,
     should_bind_index: bool,
-    // dummy_record: csv::ByteRecord,
 }
 
 impl<'a> Program<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, PrepareError> {
-        let pipeline = prepare(code, headers)?;
+        let pipeline = match parse_pipeline(code) {
+            Err(_) => return Err(PrepareError::ParseError(code.to_string())),
+            Ok(pipeline) => {
+                let pipeline = trim_pipeline(pipeline);
+                let pipeline = unfurl_pipeline(pipeline);
+
+                concretize_pipeline(pipeline, headers)?
+            }
+        };
+
         let should_bind_index = pipeline.iter().any(|arg| {
             if let ConcreteArgument::Call(call) = arg {
                 call.has_index_variable()
@@ -429,17 +424,12 @@ impl<'a> Program<'a> {
             pipeline,
             variables: Variables::new(),
             should_bind_index,
-            // dummy_record: csv::ByteRecord::new(),
         })
     }
 
     pub fn run_with_record(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
         eval_pipeline(&self.pipeline, record, &self.variables)
     }
-
-    // pub fn run(&self) -> Result<DynamicValue, EvaluationError> {
-    //     eval_pipeline(&self.pipeline, &self.dummy_record, &self.variables)
-    // }
 
     pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {
         if key == "index" && !self.should_bind_index {
