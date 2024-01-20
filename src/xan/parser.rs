@@ -366,8 +366,14 @@ fn pipeline(input: &str) -> IResult<&str, Pipeline> {
     all_consuming(separated_list1(pipe, outer_function_call))(input)
 }
 
-fn aggregation_name_suffix(input: &str) -> IResult<&str, &str> {
-    preceded(tuple((space0, tag("as"), space0)), restricted_identifier)(input)
+fn as_suffix(input: &str) -> IResult<&str, String> {
+    preceded(
+        tuple((space0, tag("as"), space0)),
+        alt((
+            string_literal,
+            map(restricted_identifier, |id| id.to_string()),
+        )),
+    )(input)
 }
 
 fn aggregation(input: &str) -> IResult<&str, Aggregation> {
@@ -379,7 +385,7 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
                 argument_with_expr_list,
                 pair(char(')'), space0),
             )),
-            opt(aggregation_name_suffix),
+            opt(as_suffix),
         )),
         |(method, (expr, args_with_expr), name)| {
             let key = match args_with_expr.get(0) {
@@ -705,14 +711,18 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregation_name_suffix() {
+    fn test_as_suffix() {
         assert_eq!(
-            aggregation_name_suffix("as name, test"),
-            Ok((", test", "name"))
+            as_suffix("as name, test"),
+            Ok((", test", "name".to_string()))
         );
         assert_eq!(
-            aggregation_name_suffix("  as    name, test"),
-            Ok((", test", "name"))
+            as_suffix("  as    name, test"),
+            Ok((", test", "name".to_string()))
+        );
+        assert_eq!(
+            as_suffix("as \"name2\", test"),
+            Ok((", test", "name2".to_string()))
         );
     }
 
