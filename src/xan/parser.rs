@@ -10,7 +10,8 @@ use nom::{
     IResult,
 };
 
-use xan::types::ColumIndexationBy;
+use super::types::ColumIndexationBy;
+use super::utils::downgrade_float;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Argument {
@@ -25,6 +26,38 @@ pub enum Argument {
     Call(FunctionCall),
     Underscore,
     Null,
+}
+
+impl Argument {
+    pub fn has_underscore(&self) -> bool {
+        match self {
+            Self::Call(call) => call.has_underscore(),
+            _ => false,
+        }
+    }
+
+    pub fn try_to_usize(&self) -> Option<usize> {
+        match self {
+            Self::IntegerLiteral(n) => {
+                if *n < 0 {
+                    None
+                } else {
+                    Some(*n as usize)
+                }
+            }
+            Self::FloatLiteral(f) => match downgrade_float(*f) {
+                None => None,
+                Some(n) => {
+                    if n < 0 {
+                        None
+                    } else {
+                        Some(n as usize)
+                    }
+                }
+            },
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -53,22 +86,27 @@ impl FunctionCall {
             .sum()
     }
 
-    pub fn fill_underscore(&mut self, with: &FunctionCall) {
-        for arg in self.args.iter_mut() {
-            match arg {
-                Argument::Call(sub) => {
-                    sub.fill_underscore(with);
+    pub fn fill_underscore(&mut self, with: &Argument) {
+        match with {
+            Argument::Call(_) => {
+                for arg in self.args.iter_mut() {
+                    match arg {
+                        Argument::Call(sub) => {
+                            sub.fill_underscore(with);
+                        }
+                        Argument::Underscore => {
+                            *arg = with.clone();
+                        }
+                        _ => (),
+                    }
                 }
-                Argument::Underscore => {
-                    *arg = Argument::Call(with.clone());
-                }
-                _ => (),
             }
+            _ => (),
         }
     }
 }
 
-pub type Pipeline = Vec<FunctionCall>;
+pub type Pipeline = Vec<Argument>;
 pub type Aggregations = Vec<Aggregation>;
 
 #[derive(Debug, PartialEq)]
@@ -278,7 +316,7 @@ fn indexation(input: &str) -> IResult<&str, ColumIndexationBy> {
 
 fn argument_with_expr(input: &str) -> IResult<&str, (&str, Argument)> {
     consumed(alt((
-        map(inner_function_call, Argument::Call),
+        inner_function_call,
         map(boolean_literal, Argument::BooleanLiteral),
         map(null_literal, |_| Argument::Null),
         map(indexation, Argument::Indexation),
@@ -308,7 +346,7 @@ fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
     separated_list0(comma_separator, argument)(input)
 }
 
-fn inner_function_call(input: &str) -> IResult<&str, FunctionCall> {
+fn inner_function_call(input: &str) -> IResult<&str, Argument> {
     map(
         pair(
             restricted_identifier,
@@ -318,14 +356,16 @@ fn inner_function_call(input: &str) -> IResult<&str, FunctionCall> {
                 pair(char(')'), space0),
             ),
         ),
-        |(name, args)| FunctionCall {
-            name: String::from(name),
-            args,
+        |(name, args)| {
+            Argument::Call(FunctionCall {
+                name: String::from(name),
+                args,
+            })
         },
     )(input)
 }
 
-fn outer_function_call(input: &str) -> IResult<&str, FunctionCall> {
+fn outer_function_call(input: &str) -> IResult<&str, Argument> {
     map(
         pair(
             restricted_identifier,
@@ -335,9 +375,11 @@ fn outer_function_call(input: &str) -> IResult<&str, FunctionCall> {
                 pair(char(')'), space0),
             )),
         ),
-        |(name, args)| FunctionCall {
-            name: String::from(name),
-            args: args.unwrap_or_else(|| vec![Argument::Underscore]),
+        |(name, args)| {
+            Argument::Call(FunctionCall {
+                name: String::from(name),
+                args: args.unwrap_or_else(|| vec![Argument::Underscore]),
+            })
         },
     )(input)
 }
@@ -545,10 +587,10 @@ mod tests {
             outer_function_call("trim()"),
             Ok((
                 "",
-                FunctionCall {
+                Argument::Call(FunctionCall {
                     name: String::from("trim"),
                     args: vec![]
-                }
+                })
             ))
         );
 
@@ -556,10 +598,10 @@ mod tests {
             outer_function_call("trim(_)"),
             Ok((
                 "",
-                FunctionCall {
+                Argument::Call(FunctionCall {
                     name: String::from("trim"),
                     args: vec![Argument::Underscore]
-                }
+                })
             ))
         );
 
@@ -567,7 +609,7 @@ mod tests {
             outer_function_call("trim(_, true, 4.5, 56, col)"),
             Ok((
                 "",
-                FunctionCall {
+                Argument::Call(FunctionCall {
                     name: String::from("trim"),
                     args: vec![
                         Argument::Underscore,
@@ -576,7 +618,7 @@ mod tests {
                         Argument::IntegerLiteral(56),
                         Argument::Identifier(String::from("col"))
                     ]
-                }
+                })
             ))
         );
     }
@@ -590,17 +632,17 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    FunctionCall {
+                    Argument::Call(FunctionCall {
                         name: String::from("trim"),
                         args: vec![Argument::Identifier(String::from("name"))]
-                    },
-                    FunctionCall {
+                    }),
+                    Argument::Call(FunctionCall {
                         name: String::from("len"),
                         args: vec![
                             Argument::Underscore,
                             Argument::Indexation(ColumIndexationBy::Name("name".to_string()))
                         ]
-                    }
+                    })
                 ]
             ))
         );
@@ -610,7 +652,7 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    FunctionCall {
+                    Argument::Call(FunctionCall {
                         name: String::from("add"),
                         args: vec![
                             Argument::Call(FunctionCall {
@@ -622,14 +664,14 @@ mod tests {
                                 args: vec![Argument::Identifier("surname".to_string())]
                             })
                         ]
-                    },
-                    FunctionCall {
+                    }),
+                    Argument::Call(FunctionCall {
                         name: String::from("len"),
                         args: vec![
                             Argument::Underscore,
                             Argument::Indexation(ColumIndexationBy::Name("name".to_string()))
                         ]
-                    }
+                    })
                 ]
             ))
         );
@@ -638,7 +680,7 @@ mod tests {
             pipeline("if(true, len(name), len(surname))"),
             Ok((
                 "",
-                vec![FunctionCall {
+                vec![Argument::Call(FunctionCall {
                     name: String::from("if"),
                     args: vec![
                         Argument::BooleanLiteral(true),
@@ -651,7 +693,7 @@ mod tests {
                             args: vec![Argument::Identifier("surname".to_string())]
                         })
                     ]
-                }]
+                })]
             ))
         );
 
@@ -660,14 +702,14 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    FunctionCall {
+                    Argument::Call(FunctionCall {
                         name: String::from("trim"),
                         args: vec![Argument::Identifier(String::from("name"))]
-                    },
-                    FunctionCall {
+                    }),
+                    Argument::Call(FunctionCall {
                         name: String::from("len"),
                         args: vec![Argument::Underscore]
-                    }
+                    })
                 ]
             ))
         );
@@ -677,14 +719,14 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    FunctionCall {
+                    Argument::Call(FunctionCall {
                         name: String::from("trim"),
                         args: vec![Argument::Identifier(String::from("name"))]
-                    },
-                    FunctionCall {
+                    }),
+                    Argument::Call(FunctionCall {
                         name: String::from("len"),
                         args: vec![Argument::Underscore]
-                    }
+                    })
                 ]
             ))
         );
@@ -694,18 +736,18 @@ mod tests {
             Ok((
                 "",
                 vec![
-                    FunctionCall {
+                    Argument::Call(FunctionCall {
                         name: String::from("trim"),
                         args: vec![Argument::Underscore]
-                    },
-                    FunctionCall {
+                    }),
+                    Argument::Call(FunctionCall {
                         name: String::from("len"),
                         args: vec![Argument::Underscore]
-                    },
-                    FunctionCall {
+                    }),
+                    Argument::Call(FunctionCall {
                         name: String::from("coalesce"),
                         args: vec![Argument::Null]
-                    }
+                    })
                 ]
             ))
         );
