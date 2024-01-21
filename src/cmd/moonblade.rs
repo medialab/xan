@@ -8,13 +8,13 @@ use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
+use moonblade::{DynamicValue, EvaluationError, PipelineProgram};
 use select::SelectColumns;
 use util::ImmutableRecordHelpers;
-use xan::{DynamicValue, EvaluationError, PipelineProgram};
 use CliError;
 use CliResult;
 
-macro_rules! xan_cheatsheet {
+macro_rules! moonblade_cheatsheet {
     () => {
         "
 xsv script language cheatsheet (use --functions for comprehensive list of
@@ -89,7 +89,7 @@ Misc notes:
     };
 }
 
-macro_rules! xan_function_list {
+macro_rules! moonblade_function_list {
     () => {
         "
 # Available functions
@@ -294,14 +294,14 @@ macro_rules! xan_function_list {
     };
 }
 
-pub enum XanMode {
+pub enum MoonbladeMode {
     Map,
     Filter,
     Transform,
     Flatmap,
 }
 
-impl XanMode {
+impl MoonbladeMode {
     fn is_map(&self) -> bool {
         match self {
             Self::Map => true,
@@ -331,14 +331,14 @@ impl XanMode {
     }
 }
 
-pub enum XanErrorPolicy {
+pub enum MoonbladeErrorPolicy {
     Panic,
     Report,
     Ignore,
     Log,
 }
 
-impl XanErrorPolicy {
+impl MoonbladeErrorPolicy {
     fn will_report(&self) -> bool {
         match self {
             Self::Report => true,
@@ -361,7 +361,7 @@ impl XanErrorPolicy {
     }
 }
 
-impl TryFrom<String> for XanErrorPolicy {
+impl TryFrom<String> for MoonbladeErrorPolicy {
     type Error = CliError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -380,7 +380,7 @@ impl TryFrom<String> for XanErrorPolicy {
     }
 }
 
-pub struct XanCmdArgs {
+pub struct MoonbladeCmdArgs {
     pub print_cheatsheet: bool,
     pub print_functions: bool,
     pub target_column: Option<String>,
@@ -391,13 +391,13 @@ pub struct XanCmdArgs {
     pub no_headers: bool,
     pub delimiter: Option<Delimiter>,
     pub threads: Option<usize>,
-    pub error_policy: XanErrorPolicy,
+    pub error_policy: MoonbladeErrorPolicy,
     pub error_column_name: Option<String>,
-    pub mode: XanMode,
+    pub mode: MoonbladeMode,
 }
 
 pub fn handle_eval_result<'a, 'b>(
-    args: &'a XanCmdArgs,
+    args: &'a MoonbladeCmdArgs,
     index: usize,
     record: &'b mut csv::ByteRecord,
     eval_result: Result<DynamicValue, EvaluationError>,
@@ -407,12 +407,12 @@ pub fn handle_eval_result<'a, 'b>(
 
     match eval_result {
         Ok(value) => match args.mode {
-            XanMode::Filter => {
+            MoonbladeMode::Filter => {
                 if value.is_truthy() {
                     records_to_emit.push(Cow::Borrowed(record));
                 }
             }
-            XanMode::Map => {
+            MoonbladeMode::Map => {
                 record.push_field(&value.serialize_as_bytes(b"|"));
 
                 if args.error_policy.will_report() {
@@ -421,7 +421,7 @@ pub fn handle_eval_result<'a, 'b>(
 
                 records_to_emit.push(Cow::Borrowed(record));
             }
-            XanMode::Transform => {
+            MoonbladeMode::Transform => {
                 let mut record =
                     record.replace_at(replace.unwrap(), &value.serialize_as_bytes(b"|"));
 
@@ -431,7 +431,7 @@ pub fn handle_eval_result<'a, 'b>(
 
                 records_to_emit.push(Cow::Owned(record));
             }
-            XanMode::Flatmap => 'm: {
+            MoonbladeMode::Flatmap => 'm: {
                 if value.is_falsey() {
                     break 'm;
                 }
@@ -450,7 +450,7 @@ pub fn handle_eval_result<'a, 'b>(
             }
         },
         Err(err) => match args.error_policy {
-            XanErrorPolicy::Ignore => {
+            MoonbladeErrorPolicy::Ignore => {
                 let value = DynamicValue::None.serialize_as_bytes(b"|");
 
                 if args.mode.is_map() {
@@ -461,7 +461,7 @@ pub fn handle_eval_result<'a, 'b>(
                     records_to_emit.push(Cow::Owned(record));
                 }
             }
-            XanErrorPolicy::Report => {
+            MoonbladeErrorPolicy::Report => {
                 if args.mode.cannot_report() {
                     unreachable!();
                 }
@@ -478,7 +478,7 @@ pub fn handle_eval_result<'a, 'b>(
                     records_to_emit.push(Cow::Owned(record));
                 }
             }
-            XanErrorPolicy::Log => {
+            MoonbladeErrorPolicy::Log => {
                 eprintln!("Row n°{}: {}", index + 1, err);
 
                 let value = DynamicValue::None.serialize_as_bytes(b"|");
@@ -491,7 +491,7 @@ pub fn handle_eval_result<'a, 'b>(
                     records_to_emit.push(Cow::Owned(record));
                 }
             }
-            XanErrorPolicy::Panic => {
+            MoonbladeErrorPolicy::Panic => {
                 return Err(format!("Row n°{}: {}", index + 1, err));
             }
         },
@@ -500,14 +500,14 @@ pub fn handle_eval_result<'a, 'b>(
     Ok(records_to_emit)
 }
 
-pub fn run_xan_cmd(args: XanCmdArgs) -> CliResult<()> {
+pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     if args.print_cheatsheet {
-        println!(xan_cheatsheet!());
+        println!(moonblade_cheatsheet!());
         return Ok(());
     }
 
     if args.print_functions {
-        println!(xan_function_list!());
+        println!(moonblade_function_list!());
         return Ok(());
     }
 

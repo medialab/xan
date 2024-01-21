@@ -27,6 +27,7 @@ pub mod kway;
 #[cfg(feature = "lang")]
 pub mod lang;
 pub mod map;
+mod moonblade;
 pub mod partition;
 pub mod pseudo;
 pub mod replace;
@@ -41,5 +42,4 @@ pub mod split;
 pub mod stats;
 pub mod transform;
 pub mod view;
-mod xan;
 pub mod xls;

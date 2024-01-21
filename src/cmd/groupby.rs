@@ -5,7 +5,7 @@ use select::SelectColumns;
 use util;
 use CliResult;
 
-use xan::GroupAggregationProgram;
+use moonblade::GroupAggregationProgram;
 
 static USAGE: &str = "
 TODO...

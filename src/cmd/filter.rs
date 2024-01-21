@@ -1,4 +1,4 @@
-use cmd::xan::{run_xan_cmd, XanCmdArgs, XanErrorPolicy, XanMode};
+use cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode};
 use config::Delimiter;
 use util;
 use CliResult;
@@ -70,7 +70,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let xan_args = XanCmdArgs {
+    let moonblade_args = MoonbladeCmdArgs {
         print_cheatsheet: args.flag_cheatsheet,
         print_functions: args.flag_functions,
         target_column: None,
@@ -81,10 +81,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         no_headers: args.flag_no_headers,
         delimiter: args.flag_delimiter,
         threads: args.flag_threads,
-        error_policy: XanErrorPolicy::from_restricted(&args.flag_errors)?,
+        error_policy: MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?,
         error_column_name: None,
-        mode: XanMode::Filter,
+        mode: MoonbladeMode::Filter,
     };
 
-    run_xan_cmd(xan_args)
+    run_moonblade_cmd(moonblade_args)
 }

@@ -124,9 +124,9 @@ macro_rules! command_list {
 mod cmd;
 mod config;
 mod index;
+mod moonblade;
 mod select;
 mod util;
-mod xan;
 
 static USAGE: &str = concat!(
     "
@@ -378,14 +378,14 @@ impl From<regex::Error> for CliError {
     }
 }
 
-impl From<xan::ConcretizationError> for CliError {
-    fn from(err: xan::ConcretizationError) -> CliError {
+impl From<moonblade::ConcretizationError> for CliError {
+    fn from(err: moonblade::ConcretizationError) -> CliError {
         CliError::Other(err.to_string())
     }
 }
 
-impl From<xan::EvaluationError> for CliError {
-    fn from(err: xan::EvaluationError) -> CliError {
+impl From<moonblade::EvaluationError> for CliError {
+    fn from(err: moonblade::EvaluationError) -> CliError {
         CliError::Other(err.to_string())
     }
 }

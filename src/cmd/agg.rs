@@ -4,7 +4,7 @@ use config::{Config, Delimiter};
 use util;
 use CliResult;
 
-use xan::AggregationProgram;
+use moonblade::AggregationProgram;
 
 static USAGE: &str = "
 TODO...
