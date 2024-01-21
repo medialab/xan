@@ -460,12 +460,25 @@ fn aggregations(input: &str) -> IResult<&str, Aggregations> {
     all_consuming(separated_list1(comma_separator, aggregation))(input)
 }
 
-// fn optimize_aggregations(aggregations: Aggregations) -> Aggregations {
-//     // let count_aggs = aggregations.iter().filter(|agg| agg.name == "count");
+// fn optimize_aggregations(mut aggregations: Aggregations) -> Aggregations {
+//     let (empty_aggs, non_empty_aggs): (Vec<_>, Vec<_>) =
+//         aggregations.iter_mut().partition(|agg| agg.args.is_empty());
+
+//     if empty_aggs.is_empty() {
+//         return aggregations;
+//     }
+
+//     if let Some(any_non_empty_agg) = non_empty_aggs.get(0) {
+//         for empty_agg in empty_aggs {
+//             empty_agg.key = any_non_empty_agg.key.clone();
+//         }
+//     }
 
 //     aggregations
 // }
 
+// NOTE: the parse functions return a now useless Result (compared to an Option)
+// because they might return something more useful in the future.
 pub fn parse_pipeline(code: &str) -> Result<Pipeline, ()> {
     match pipeline(code) {
         Ok(p) => Ok(p.1),
@@ -483,6 +496,10 @@ pub fn parse_aggregations(code: &str) -> Result<Aggregations, ()> {
         Err(_) => Err(()),
     }
 }
+
+// pub fn parse_and_optimize_aggregations(code: &str) -> Result<Aggregations, ()> {
+//     parse_aggregations(code).map(|aggregations| optimize_aggregations(aggregations))
+// }
 
 #[cfg(test)]
 mod tests {
@@ -927,4 +944,49 @@ mod tests {
             ))
         );
     }
+
+    // #[test]
+    // fn test_optimize_aggregations() {
+    //     let aggregations = parse_aggregations("mean(A), sum(A)").unwrap();
+    //     let aggregations = optimize_aggregations(aggregations);
+
+    //     assert_eq!(
+    //         aggregations,
+    //         vec![
+    //             Aggregation {
+    //                 name: "mean(A)".to_string(),
+    //                 method: "mean".to_string(),
+    //                 args: vec![Argument::Identifier("A".to_string())],
+    //                 key: "A".to_string()
+    //             },
+    //             Aggregation {
+    //                 name: "sum(A)".to_string(),
+    //                 method: "sum".to_string(),
+    //                 args: vec![Argument::Identifier("A".to_string())],
+    //                 key: "A".to_string()
+    //             },
+    //         ]
+    //     );
+
+    //     let aggregations = parse_aggregations("count(), sum(A)").unwrap();
+    //     let aggregations = optimize_aggregations(aggregations);
+
+    //     assert_eq!(
+    //         aggregations,
+    //         vec![
+    //             Aggregation {
+    //                 name: "count()".to_string(),
+    //                 method: "count".to_string(),
+    //                 args: vec![],
+    //                 key: "A".to_string()
+    //             },
+    //             Aggregation {
+    //                 name: "sum(A)".to_string(),
+    //                 method: "sum".to_string(),
+    //                 args: vec![Argument::Identifier("A".to_string())],
+    //                 key: "A".to_string()
+    //             },
+    //         ]
+    //     );
+    // }
 }
