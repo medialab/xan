@@ -9,7 +9,7 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_pipeline, Argument, FunctionCall, Pipeline};
+use super::parser::{parse_and_optimize_pipeline, Argument, FunctionCall, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
     Variables,
@@ -353,53 +353,6 @@ fn concretize_pipeline(
     Ok(concrete_pipeline)
 }
 
-// Example: trim(a) | add(a, b) | trim | add(a, b) | len -> add(a, b) | len
-fn trim_pipeline(pipeline: Pipeline) -> Pipeline {
-    match pipeline
-        .iter()
-        .enumerate()
-        .rev()
-        .find(|(i, arg)| *i != 0 && !arg.has_underscore())
-        .map(|r| r.0)
-    {
-        None => pipeline,
-        Some(index) => pipeline[index..].to_vec(),
-    }
-}
-
-// Example: trim(a) | len | add(b, _) -> add(b, len(trim(a)))
-// NOTE: we apply this as an optimization to avoid too much cloning
-fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
-    loop {
-        match pipeline.pop() {
-            None => break,
-            Some(arg) => {
-                if let Argument::Call(mut call) = arg {
-                    if call.count_underscores() != 1 {
-                        pipeline.push(Argument::Call(call));
-                        break;
-                    }
-                    match pipeline.pop() {
-                        Some(previous_arg) => {
-                            call.fill_underscore(&previous_arg);
-                            pipeline.push(Argument::Call(call));
-                        }
-                        None => {
-                            pipeline.push(Argument::Call(call));
-                            break;
-                        }
-                    }
-                } else {
-                    pipeline.push(arg);
-                    break;
-                }
-            }
-        }
-    }
-
-    pipeline
-}
-
 pub fn eval_pipeline(
     pipeline: &ConcretePipeline,
     record: &ByteRecord,
@@ -448,14 +401,9 @@ pub struct PipelineProgram<'a> {
 
 impl<'a> PipelineProgram<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let pipeline = match parse_pipeline(code) {
+        let pipeline = match parse_and_optimize_pipeline(code) {
             Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
-            Ok(pipeline) => {
-                let pipeline = trim_pipeline(pipeline);
-                let pipeline = unfurl_pipeline(pipeline);
-
-                concretize_pipeline(pipeline, headers)?
-            }
+            Ok(pipeline) => concretize_pipeline(pipeline, headers)?,
         };
 
         let should_bind_index = pipeline.iter().any(|arg| {
@@ -490,77 +438,7 @@ impl<'a> PipelineProgram<'a> {
 #[cfg(test)]
 mod tests {
     use super::super::error::RunError;
-    use super::super::parser::FunctionCall;
     use super::*;
-
-    #[test]
-    fn test_trim_pipeline() {
-        // Should give: add(a, b) | len
-        let pipeline = parse_pipeline("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
-        let pipeline = trim_pipeline(pipeline);
-
-        assert_eq!(
-            pipeline,
-            vec![
-                Argument::Call(FunctionCall {
-                    name: "add".to_string(),
-                    args: vec![
-                        Argument::Identifier("a".to_string()),
-                        Argument::Identifier("b".to_string())
-                    ]
-                }),
-                Argument::Call(FunctionCall {
-                    name: "len".to_string(),
-                    args: vec![Argument::Underscore]
-                })
-            ]
-        );
-
-        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
-        let pipeline = trim_pipeline(pipeline);
-
-        assert_eq!(
-            pipeline,
-            vec![
-                Argument::Call(FunctionCall {
-                    name: "trim".to_string(),
-                    args: vec![Argument::Identifier("a".to_string())]
-                }),
-                Argument::Call(FunctionCall {
-                    name: "len".to_string(),
-                    args: vec![Argument::Underscore]
-                }),
-                Argument::Call(FunctionCall {
-                    name: "add".to_string(),
-                    args: vec![Argument::Identifier("b".to_string()), Argument::Underscore]
-                })
-            ]
-        );
-    }
-
-    #[test]
-    fn test_unfurl_pipeline() {
-        // Should give: add(b, len(trim(a)))
-        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
-        let pipeline = unfurl_pipeline(pipeline);
-
-        assert_eq!(
-            pipeline,
-            vec![Argument::Call(FunctionCall {
-                name: "add".to_string(),
-                args: vec![
-                    Argument::Identifier("b".to_string()),
-                    Argument::Call(FunctionCall {
-                        name: "len".to_string(),
-                        args: vec![Argument::Call(FunctionCall {
-                            name: "trim".to_string(),
-                            args: vec![Argument::Identifier("a".to_string())]
-                        })]
-                    })
-                ]
-            })]
-        );
-    }
 
     type TestResult = Result<DynamicValue, RunError>;
 

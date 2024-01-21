@@ -366,6 +366,53 @@ fn pipeline(input: &str) -> IResult<&str, Pipeline> {
     all_consuming(separated_list1(pipe, possibly_elided_function_call))(input)
 }
 
+// Example: trim(a) | add(a, b) | trim | add(a, b) | len -> add(a, b) | len
+fn trim_pipeline(pipeline: Pipeline) -> Pipeline {
+    match pipeline
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(i, arg)| *i != 0 && !arg.has_underscore())
+        .map(|r| r.0)
+    {
+        None => pipeline,
+        Some(index) => pipeline[index..].to_vec(),
+    }
+}
+
+// Example: trim(a) | len | add(b, _) -> add(b, len(trim(a)))
+// NOTE: we apply this as an optimization to avoid too much cloning
+fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
+    loop {
+        match pipeline.pop() {
+            None => break,
+            Some(arg) => {
+                if let Argument::Call(mut call) = arg {
+                    if call.count_underscores() != 1 {
+                        pipeline.push(Argument::Call(call));
+                        break;
+                    }
+                    match pipeline.pop() {
+                        Some(previous_arg) => {
+                            call.fill_underscore(&previous_arg);
+                            pipeline.push(Argument::Call(call));
+                        }
+                        None => {
+                            pipeline.push(Argument::Call(call));
+                            break;
+                        }
+                    }
+                } else {
+                    pipeline.push(arg);
+                    break;
+                }
+            }
+        }
+    }
+
+    pipeline
+}
+
 fn as_suffix(input: &str) -> IResult<&str, String> {
     preceded(
         tuple((space0, tag("as"), space0)),
@@ -418,6 +465,10 @@ pub fn parse_pipeline(code: &str) -> Result<Pipeline, ()> {
         Ok(p) => Ok(p.1),
         Err(_) => Err(()),
     }
+}
+
+pub fn parse_and_optimize_pipeline(code: &str) -> Result<Pipeline, ()> {
+    parse_pipeline(code).map(|pipeline| unfurl_pipeline(trim_pipeline(pipeline)))
 }
 
 pub fn parse_aggregations(code: &str) -> Result<Aggregations, ()> {
@@ -707,6 +758,75 @@ mod tests {
                     })
                 ]
             ))
+        );
+    }
+
+    #[test]
+    fn test_trim_pipeline() {
+        // Should give: add(a, b) | len
+        let pipeline = parse_pipeline("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
+        let pipeline = trim_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![
+                Argument::Call(FunctionCall {
+                    name: "add".to_string(),
+                    args: vec![
+                        Argument::Identifier("a".to_string()),
+                        Argument::Identifier("b".to_string())
+                    ]
+                }),
+                Argument::Call(FunctionCall {
+                    name: "len".to_string(),
+                    args: vec![Argument::Underscore]
+                })
+            ]
+        );
+
+        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = trim_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![
+                Argument::Call(FunctionCall {
+                    name: "trim".to_string(),
+                    args: vec![Argument::Identifier("a".to_string())]
+                }),
+                Argument::Call(FunctionCall {
+                    name: "len".to_string(),
+                    args: vec![Argument::Underscore]
+                }),
+                Argument::Call(FunctionCall {
+                    name: "add".to_string(),
+                    args: vec![Argument::Identifier("b".to_string()), Argument::Underscore]
+                })
+            ]
+        );
+    }
+
+    #[test]
+    fn test_unfurl_pipeline() {
+        // Should give: add(b, len(trim(a)))
+        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = unfurl_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![Argument::Call(FunctionCall {
+                name: "add".to_string(),
+                args: vec![
+                    Argument::Identifier("b".to_string()),
+                    Argument::Call(FunctionCall {
+                        name: "len".to_string(),
+                        args: vec![Argument::Call(FunctionCall {
+                            name: "trim".to_string(),
+                            args: vec![Argument::Identifier("a".to_string())]
+                        })]
+                    })
+                ]
+            })]
         );
     }
 
