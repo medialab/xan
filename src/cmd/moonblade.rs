@@ -14,9 +14,8 @@ use util::ImmutableRecordHelpers;
 use CliError;
 use CliResult;
 
-macro_rules! moonblade_cheatsheet {
-    () => {
-        "
+pub fn get_moonblade_cheatsheet() -> &'static str {
+    "
 xsv script language cheatsheet (use --functions for comprehensive list of
 available functions):
 
@@ -86,12 +85,10 @@ Misc notes:
     make them fit expectations. Use the `typeof` function if
     you feel lost.
 "
-    };
 }
 
-macro_rules! moonblade_function_list {
-    () => {
-        "
+pub fn get_moonblade_functions_help() -> &'static str {
+    "
 # Available functions
 
 (use --cheatsheet for a reminder of how the scripting language works)
@@ -291,7 +288,23 @@ macro_rules! moonblade_function_list {
         Return a uuid v4.
 
 "
-    };
+}
+
+pub fn get_moonblade_aggregations_function_help() -> &'static str {
+    "
+# Available aggregation functions
+
+(use --cheatsheet for a reminder of how the scripting language works)
+
+    - avg(<expr>) -> number
+        Average of numerical values. Same as `mean`.
+
+    - mean(<expr>) -> number
+        Mean of numerical values. Same as `avg`.
+
+    - sum(<expr>) -> number
+        Sum of numerical values.
+"
 }
 
 pub enum MoonbladeMode {
@@ -502,12 +515,12 @@ pub fn handle_eval_result<'a, 'b>(
 
 pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     if args.print_cheatsheet {
-        println!(moonblade_cheatsheet!());
+        println!("{}", get_moonblade_cheatsheet());
         return Ok(());
     }
 
     if args.print_functions {
-        println!(moonblade_function_list!());
+        println!("{}", get_moonblade_functions_help());
         return Ok(());
     }
 
