@@ -50,6 +50,26 @@ fn agg() {
 }
 
 #[test]
+fn agg_sqlish_count() {
+    let wrk = Workdir::new("agg");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n"], svec!["1"], svec!["2"], svec![""], svec!["4"]],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("count() as count_with_nulls, count(n) as count_without_nulls")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["count_with_nulls", "count_without_nulls"],
+        svec!["4", "3"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn agg_multiple_columns() {
     let wrk = Workdir::new("agg");
     wrk.create(

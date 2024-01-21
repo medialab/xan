@@ -600,6 +600,14 @@ impl DynamicValue {
         !self.is_truthy()
     }
 
+    pub fn is_nullish(&self) -> bool {
+        match self {
+            Self::String(value) => value.is_empty(),
+            Self::None => true,
+            _ => false,
+        }
+    }
+
     pub fn flat_iter(&self) -> DynamicValueFlatIter {
         DynamicValueFlatIter::new(self)
     }
