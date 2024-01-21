@@ -8,5 +8,5 @@ mod utils;
 
 pub use xan::agg::{AggregationProgram, GroupAggregationProgram};
 pub use xan::error::{ConcretizationError, EvaluationError};
-pub use xan::interpreter::Program;
+pub use xan::interpreter::PipelineProgram;
 pub use xan::types::DynamicValue;

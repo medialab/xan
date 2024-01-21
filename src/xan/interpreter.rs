@@ -439,14 +439,14 @@ pub fn eval_expr(
 }
 
 #[derive(Clone)]
-pub struct Program<'a> {
+pub struct PipelineProgram<'a> {
     pipeline: ConcretePipeline,
     headers_index: HeadersIndex,
     variables: Variables<'a>,
     should_bind_index: bool,
 }
 
-impl<'a> Program<'a> {
+impl<'a> PipelineProgram<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let pipeline = match parse_pipeline(code) {
             Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
@@ -466,7 +466,7 @@ impl<'a> Program<'a> {
             }
         });
 
-        Ok(Program {
+        Ok(Self {
             pipeline,
             variables: Variables::new(),
             headers_index: HeadersIndex::from_headers(headers),
@@ -571,7 +571,7 @@ mod tests {
         headers.push_field(b"a");
         headers.push_field(b"b");
 
-        let mut program = Program::parse(code, &headers).map_err(RunError::Prepare)?;
+        let mut program = PipelineProgram::parse(code, &headers).map_err(RunError::Prepare)?;
 
         let mut record = ByteRecord::new();
         record.push_field(b"john");

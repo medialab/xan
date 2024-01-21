@@ -10,7 +10,7 @@ use thread_local::ThreadLocal;
 use config::{Config, Delimiter};
 use select::SelectColumns;
 use util::ImmutableRecordHelpers;
-use xan::{DynamicValue, EvaluationError, Program};
+use xan::{DynamicValue, EvaluationError, PipelineProgram};
 use CliError;
 use CliResult;
 
@@ -572,7 +572,7 @@ pub fn run_xan_cmd(args: XanCmdArgs) -> CliResult<()> {
         }
     }
 
-    let mut program = Program::parse(&map_expr, &headers)?;
+    let mut program = PipelineProgram::parse(&map_expr, &headers)?;
 
     if must_write_headers {
         wtr.write_byte_record(&modified_headers)?;
@@ -580,7 +580,7 @@ pub fn run_xan_cmd(args: XanCmdArgs) -> CliResult<()> {
 
     if let Some(threads) = args.threads {
         // NOTE: this could be a OnceCell but it is very new in rust
-        let local: Arc<ThreadLocal<RefCell<Program>>> =
+        let local: Arc<ThreadLocal<RefCell<PipelineProgram>>> =
             Arc::new(ThreadLocal::with_capacity(threads));
 
         rdr.into_byte_records()
