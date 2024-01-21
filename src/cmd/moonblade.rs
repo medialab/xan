@@ -299,11 +299,49 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
 
+    - count(<expr>?) -> number
+        Count the numbers of row. Works like in SQL in that `count(<expr>)`
+        will count all non-null values returned by given expression, while
+        `count()` without any expression will count every matching row.
+
+    - max(<expr>) -> number | string
+        Maximum value.
+
     - mean(<expr>) -> number
         Mean of numerical values. Same as `avg`.
 
+    - median(<expr>) -> number
+        Median of numerical values, interpolating on even counts.
+
+    - median_high(<expr>) -> number
+        Median of numerical values, returning higher value on even counts.
+
+    - median_low(<expr>) -> number
+        Median of numerical values, returning lower value on even counts.
+
+    - min(<expr>) -> number | string
+        Minimum value.
+
+    - stddev(<expr>) -> number
+        Population standard deviation. Same as `stddev_pop`.
+
+    - stddev_pop(<expr>) -> number
+        Population standard deviation. Same as `stddev`.
+
+    - stddev_sample(<expr>) -> number
+        Sample standard deviation (i.e. using Bessel's correction).
+
     - sum(<expr>) -> number
         Sum of numerical values.
+
+    - var(<expr>) -> number
+        Population variance. Same as `var_pop`.
+
+    - var_pop(<expr>) -> number
+        Population variance. Same as `var`.
+
+    - var_sample(<expr>) -> number
+        Sample variance (i.e. using Bessel's correction).
 "
 }
 
