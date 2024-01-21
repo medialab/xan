@@ -20,11 +20,33 @@ fn agg() {
     test_single_agg_function(&wrk, "count() as count", "count", "4");
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
+    test_single_agg_function(&wrk, "avg(n) as mean", "mean", "2.5");
     test_single_agg_function(&wrk, "min(n) as min", "min", "1");
     test_single_agg_function(&wrk, "max(n) as max", "max", "4");
     test_single_agg_function(&wrk, "median(n) as median", "median", "2.5");
     test_single_agg_function(&wrk, "median_low(n) as median", "median", "2");
     test_single_agg_function(&wrk, "median_high(n) as median", "median", "3");
+    test_single_agg_function(&wrk, "var(n) as variance", "variance", "1.25");
+    test_single_agg_function(&wrk, "var_pop(n) as variance", "variance", "1.25");
+    test_single_agg_function(
+        &wrk,
+        "var_sample(n) as variance",
+        "variance",
+        "1.6666666666666667",
+    );
+    test_single_agg_function(&wrk, "stddev(n) as stddev", "stddev", "1.118033988749895");
+    test_single_agg_function(
+        &wrk,
+        "stddev_pop(n) as stddev",
+        "stddev",
+        "1.118033988749895",
+    );
+    test_single_agg_function(
+        &wrk,
+        "stddev_sample(n) as stddev",
+        "stddev",
+        "1.2909944487358056",
+    );
 }
 
 #[test]

@@ -13,6 +13,7 @@ use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
 // TODO: parallelize multiple aggregations
 // TODO: validate agg arity
 // TODO: we need some clear method to enable sorted group by optimization
+// TODO: we need some merge method to enable parallelism
 // TODO: factor count/sum/variance/mean into OnlineStats, or we could optimize if variance if needed
 
 #[derive(Debug)]
@@ -496,7 +497,7 @@ impl Aggregator {
 
                 self.methods.push(AggregationMethod::Extent(Extent::new()));
             }
-            "mean" => {
+            "avg" | "mean" => {
                 if !self.has_count() {
                     self.methods.push(AggregationMethod::Count(Count::new()));
                 }
@@ -517,7 +518,7 @@ impl Aggregator {
 
                 self.methods.push(AggregationMethod::Sum(Sum::new()));
             }
-            "variance" | "sample_variance" | "stdev" | "sample_stdev" => {
+            "var" | "var_sample" | "var_pop" | "stddev" | "stddev_sample" | "stddev_pop" => {
                 if self.has_variance() {
                     return;
                 }
@@ -557,7 +558,7 @@ impl Aggregator {
         match method {
             "count" => self.get_count().unwrap().to_value(),
             "min" => self.get_extent().unwrap().min_to_value(),
-            "mean" => {
+            "avg" | "mean" => {
                 let count = self.get_count().unwrap().to_float();
 
                 if count == 0.0 {
@@ -582,10 +583,10 @@ impl Aggregator {
                 .median_to_value(MedianType::Low),
             "max" => self.get_extent().unwrap().max_to_value(),
             "sum" => self.get_sum().unwrap().to_value(),
-            "variance" => DynamicValue::from(self.get_variance().unwrap().variance()),
-            "sample_variance" => DynamicValue::from(self.get_variance().unwrap().sample_variance()),
-            "stdev" => DynamicValue::from(self.get_variance().unwrap().stdev()),
-            "sample_stdev" => DynamicValue::from(self.get_variance().unwrap().sample_stdev()),
+            "var" | "var_pop" => DynamicValue::from(self.get_variance().unwrap().variance()),
+            "var_sample" => DynamicValue::from(self.get_variance().unwrap().sample_variance()),
+            "stddev" | "stddev_pop" => DynamicValue::from(self.get_variance().unwrap().stdev()),
+            "stddev_sample" => DynamicValue::from(self.get_variance().unwrap().sample_stdev()),
             _ => unreachable!(),
         }
     }
