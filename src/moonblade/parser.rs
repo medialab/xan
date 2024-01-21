@@ -107,6 +107,10 @@ impl FunctionCall {
 pub type Pipeline = Vec<Argument>;
 pub type Aggregations = Vec<Aggregation>;
 
+// NOTE: I keep multiple args for aggregation because it might be useful in
+// the future, for e.g. join etc. if we need special parameters.
+// TODO: we might want to enforce that subsequent arguments are statically
+// analyzable.
 #[derive(Debug, PartialEq)]
 pub struct Aggregation {
     pub name: String,
@@ -449,7 +453,7 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
                     prefix
                 }),
                 args,
-                method: String::from(method),
+                method: String::from(method.to_lowercase()),
                 key,
             }
         },

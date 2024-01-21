@@ -5,7 +5,7 @@ use csv::ByteRecord;
 
 use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
 use super::interpreter::{concretize_argument, eval_expr, ConcreteArgument};
-use super::parser::{parse_aggregations, Aggregations};
+use super::parser::{parse_aggregations, Aggregation, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
 
 // TODO: test when there is no data to be aggregated at all
@@ -674,6 +674,37 @@ impl From<&ConcreteAggregations> for KeyedAggregator {
     }
 }
 
+fn validate_aggregation_function_arity(
+    aggregation: &Aggregation,
+) -> Result<(), ConcretizationError> {
+    let arity = aggregation.args.len();
+
+    match aggregation.name.as_str() {
+        "count" => {
+            if !(0..=1).contains(&arity) {
+                Err(ConcretizationError::from_range_arity(
+                    aggregation.method.clone(),
+                    0..=1,
+                    arity,
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        _ => {
+            if arity != 1 {
+                Err(ConcretizationError::from_invalid_arity(
+                    aggregation.method.clone(),
+                    1,
+                    arity,
+                ))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct ConcreteAggregation {
     name: String,
@@ -692,6 +723,8 @@ fn concretize_aggregations(
     let mut concrete_aggregations = ConcreteAggregations::new();
 
     for aggregation in aggregations {
+        validate_aggregation_function_arity(&aggregation)?;
+
         let expr = aggregation
             .args
             .get(0)

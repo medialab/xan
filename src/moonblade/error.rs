@@ -16,12 +16,45 @@ fn format_column_indexation_error(
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum ConcretizationError {
     ParseError(String),
     ColumnNotFound(ColumIndexationBy),
     InvalidRegex(String),
     UnknownFunction(String),
+    InvalidArity((String, InvalidArity)),
+}
+
+impl ConcretizationError {
+    pub fn from_invalid_arity(name: String, expected: usize, got: usize) -> Self {
+        Self::InvalidArity((
+            name,
+            InvalidArity {
+                expected: Arity::Strict(expected),
+                got,
+            },
+        ))
+    }
+
+    pub fn from_invalid_min_arity(name: String, min_expected: usize, got: usize) -> Self {
+        Self::InvalidArity((
+            name,
+            InvalidArity {
+                expected: Arity::Min(min_expected),
+                got,
+            },
+        ))
+    }
+
+    pub fn from_range_arity(name: String, range: RangeInclusive<usize>, got: usize) -> Self {
+        Self::InvalidArity((
+            name,
+            InvalidArity {
+                expected: Arity::Range(range),
+                got,
+            },
+        ))
+    }
 }
 
 impl Display for ConcretizationError {
@@ -31,6 +64,7 @@ impl Display for ConcretizationError {
             Self::UnknownFunction(name) => write!(f, "unknown function \"{}\"", name),
             Self::ParseError(expr) => write!(f, "could not parse expression: {}", expr),
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
+            Self::InvalidArity((name, arity)) => write!(f, "{}: {}", name, arity),
         }
     }
 }
@@ -46,10 +80,18 @@ impl Display for InvalidArity {
         match &self.expected {
             Arity::Min(min) => write!(
                 f,
-                "expected at least {} arguments but got {}",
-                min, self.got
+                "expected at least {} argument{} but got {}",
+                min,
+                if min > &1 { "s" } else { "" },
+                self.got
             ),
-            Arity::Strict(arity) => write!(f, "expected {} arguments but got {}", arity, self.got),
+            Arity::Strict(arity) => write!(
+                f,
+                "expected {} argument{} but got {}",
+                arity,
+                if arity > &1 { "s" } else { "" },
+                self.got
+            ),
             Arity::Range(range) => write!(
                 f,
                 "expected between {} and {} arguments but got {}",
