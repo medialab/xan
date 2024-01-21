@@ -332,7 +332,7 @@ fn function_call(input: &str) -> IResult<&str, Argument> {
         ),
         |(name, args)| {
             Argument::Call(FunctionCall {
-                name: String::from(name),
+                name: name.to_lowercase(),
                 args,
             })
         },
@@ -351,7 +351,7 @@ fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
         ),
         |(name, args)| {
             Argument::Call(FunctionCall {
-                name: String::from(name),
+                name: name.to_lowercase(),
                 args: args.unwrap_or_else(|| vec![Argument::Underscore]),
             })
         },
@@ -459,6 +459,12 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
 fn aggregations(input: &str) -> IResult<&str, Aggregations> {
     all_consuming(separated_list1(comma_separator, aggregation))(input)
 }
+
+// fn optimize_aggregations(aggregations: Aggregations) -> Aggregations {
+//     // let count_aggs = aggregations.iter().filter(|agg| agg.name == "count");
+
+//     aggregations
+// }
 
 pub fn parse_pipeline(code: &str) -> Result<Pipeline, ()> {
     match pipeline(code) {

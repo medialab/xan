@@ -279,7 +279,7 @@ fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
 ) -> Result<ConcreteArgument, ConcretizationError> {
-    let function_name = call.name.to_lowercase();
+    let function_name = call.name;
 
     // Statically analyzable col() function call
     if function_name == "col" {
