@@ -306,7 +306,8 @@ fn concretize_call(
         ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
             name: function_name.clone(),
             function: get_function(&function_name)
-                .ok_or_else(|| ConcretizationError::UnknownFunction(function_name.clone()))?,
+                .ok_or_else(|| ConcretizationError::UnknownFunction(function_name.clone()))?
+                .0,
             args: concrete_args,
         }))
     })
