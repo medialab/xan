@@ -293,6 +293,19 @@ fn comma_separator(input: &str) -> IResult<&str, ()> {
     value((), tuple((space0, char(','), space0)))(input)
 }
 
+fn literal(input: &str) -> IResult<&str, Argument> {
+    alt((
+        map(boolean_literal, Argument::BooleanLiteral),
+        map(null_literal, |_| Argument::Null),
+        map(terminated(integer_literal, not(char('.'))), |value| {
+            Argument::IntegerLiteral(value)
+        }),
+        map(float_literal, Argument::FloatLiteral),
+        map(regex_literal, Argument::RegexLiteral),
+        map(string_literal, Argument::StringLiteral),
+    ))(input)
+}
+
 fn argument_with_parsed(input: &str) -> IResult<&str, (&str, Argument)> {
     consumed(alt((
         function_call,
@@ -344,22 +357,25 @@ fn function_call(input: &str) -> IResult<&str, Argument> {
 }
 
 fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
-    map(
-        pair(
-            restricted_identifier,
-            opt(delimited(
-                pair(space0, char('(')),
-                argument_list,
-                pair(char(')'), space0),
-            )),
+    alt((
+        literal,
+        map(
+            pair(
+                restricted_identifier,
+                opt(delimited(
+                    pair(space0, char('(')),
+                    argument_list,
+                    pair(char(')'), space0),
+                )),
+            ),
+            |(name, args)| {
+                Argument::Call(FunctionCall {
+                    name: name.to_lowercase(),
+                    args: args.unwrap_or_else(|| vec![Argument::Underscore]),
+                })
+            },
         ),
-        |(name, args)| {
-            Argument::Call(FunctionCall {
-                name: name.to_lowercase(),
-                args: args.unwrap_or_else(|| vec![Argument::Underscore]),
-            })
-        },
-    )(input)
+    ))(input)
 }
 
 fn pipe(input: &str) -> IResult<&str, ()> {
@@ -786,6 +802,22 @@ mod tests {
                 ]
             ))
         );
+
+        assert_eq!(
+            pipeline("4.5 | 'test' | true | len"),
+            Ok((
+                "",
+                vec![
+                    Argument::FloatLiteral(4.5),
+                    Argument::StringLiteral("test".to_string()),
+                    Argument::BooleanLiteral(true),
+                    Argument::Call(FunctionCall {
+                        name: "len".to_string(),
+                        args: vec![Argument::Underscore]
+                    })
+                ]
+            ))
+        )
     }
 
     #[test]
@@ -806,6 +838,21 @@ mod tests {
                 }),
                 Argument::Call(FunctionCall {
                     name: "len".to_string(),
+                    args: vec![Argument::Underscore]
+                })
+            ]
+        );
+
+        // Should give: 45 | inc
+        let pipeline = parse_pipeline("trim(a) | 45 | inc").unwrap();
+        let pipeline = trim_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![
+                Argument::IntegerLiteral(45),
+                Argument::Call(FunctionCall {
+                    name: "inc".to_string(),
                     args: vec![Argument::Underscore]
                 })
             ]
