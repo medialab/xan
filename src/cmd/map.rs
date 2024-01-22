@@ -18,7 +18,7 @@ a,b
 
 The following command:
 
-    $ xsv map 'add(a, b)' c
+    $ xsv map 'add(a, b)' c > result.csv
 
 Will produce the following result:
 
@@ -30,6 +30,16 @@ For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
 
 If you want to list available functions, use the --functions flag.
+
+Miscellaneous tricks:
+
+1. Copying a column:
+
+    $ xsv map 'column_name' copy_name > result.csv
+
+2. Create a column containing a constant value:
+
+    $ xsv map '"john"' from > result.csv
 
 Usage:
     xsv map [options] <expression> <column> [<input>]
