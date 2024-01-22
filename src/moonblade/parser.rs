@@ -357,6 +357,16 @@ fn function_call(input: &str) -> IResult<&str, Argument> {
     )(input)
 }
 
+fn function_call_or_literal_or_identifier(input: &str) -> IResult<&str, Argument> {
+    alt((
+        function_call,
+        literal,
+        map(restricted_identifier, |name| {
+            Argument::Identifier(name.to_string())
+        }),
+    ))(input)
+}
+
 fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
     alt((
         literal,
@@ -391,7 +401,25 @@ fn pipe(input: &str) -> IResult<&str, ()> {
 }
 
 fn pipeline(input: &str) -> IResult<&str, Pipeline> {
-    all_consuming(separated_list1(pipe, possibly_elided_function_call))(input)
+    all_consuming(map(
+        tuple((
+            function_call_or_literal_or_identifier,
+            opt(preceded(
+                pipe,
+                separated_list1(pipe, possibly_elided_function_call),
+            )),
+        )),
+        |(first, rest)| {
+            let mut pipeline = Pipeline::new();
+            pipeline.push(first);
+
+            if let Some(args) = rest {
+                pipeline.extend(args);
+            }
+
+            pipeline
+        },
+    ))(input)
 }
 
 // Example: trim(a) | add(a, b) | trim | add(a, b) | len -> add(a, b) | len
@@ -796,13 +824,13 @@ mod tests {
         );
 
         assert_eq!(
-            pipeline("trim | len | coalesce(null)"),
+            pipeline("trim(A) | len | coalesce(null)"),
             Ok((
                 "",
                 vec![
                     Argument::Call(FunctionCall {
                         name: String::from("trim"),
-                        args: vec![Argument::Underscore]
+                        args: vec![Argument::Identifier("A".to_string())]
                     }),
                     Argument::Call(FunctionCall {
                         name: String::from("len"),
@@ -830,7 +858,21 @@ mod tests {
                     })
                 ]
             ))
-        )
+        );
+
+        assert_eq!(
+            pipeline("len | trim"),
+            Ok((
+                "",
+                vec![
+                    Argument::Identifier("len".to_string()),
+                    Argument::Call(FunctionCall {
+                        name: "trim".to_string(),
+                        args: vec![Argument::Underscore]
+                    })
+                ]
+            ))
+        );
     }
 
     #[test]
