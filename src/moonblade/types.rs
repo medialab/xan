@@ -189,7 +189,7 @@ impl Arity {
     // }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum DynamicNumber {
     Float(f64),
     Integer(i64),
