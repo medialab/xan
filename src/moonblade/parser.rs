@@ -10,6 +10,7 @@ use nom::{
     IResult,
 };
 
+use super::functions::get_function;
 use super::utils::downgrade_float;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -368,11 +369,18 @@ fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
                     pair(char(')'), space0),
                 )),
             ),
-            |(name, args)| {
-                Argument::Call(FunctionCall {
+            |(name, args_opt)| match args_opt {
+                Some(args) => Argument::Call(FunctionCall {
                     name: name.to_lowercase(),
-                    args: args.unwrap_or_else(|| vec![Argument::Underscore]),
-                })
+                    args,
+                }),
+                None => match get_function(name) {
+                    Some(_) => Argument::Call(FunctionCall {
+                        name: name.to_lowercase(),
+                        args: vec![Argument::Underscore],
+                    }),
+                    None => Argument::Identifier(name.to_string()),
+                },
             },
         ),
     ))(input)
@@ -677,6 +685,11 @@ mod tests {
                     ]
                 })
             ))
+        );
+
+        assert_eq!(
+            possibly_elided_function_call("column_name"),
+            Ok(("", Argument::Identifier("column_name".to_string())))
         );
     }
 
