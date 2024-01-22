@@ -71,7 +71,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "ltrim" => (ltrim, Arity::Strict(1)),
         "lower" => (lower, Arity::Strict(1)),
-        "match" => (is_match, Arity::Strict(2)),
         "mul" => (|args| arithmetic_op(args, Mul::mul), Arity::Strict(2)),
         "neg" => (neg, Arity::Strict(1)),
         "neq" => (
@@ -230,14 +229,6 @@ fn endswith(args: BoundArguments) -> FunctionResult {
     let (string, pattern) = args.get2_str()?;
 
     Ok(DynamicValue::from(string.ends_with(&*pattern)))
-}
-
-fn is_match(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2()?;
-    let string = arg1.try_as_str()?;
-    let regex = arg2.try_as_regex()?;
-
-    Ok(DynamicValue::from(regex.is_match(&string)))
 }
 
 fn concat(args: BoundArguments) -> FunctionResult {
@@ -456,11 +447,13 @@ fn contains(args: BoundArguments) -> FunctionResult {
     let (arg1, arg2) = args.get2()?;
 
     match arg1.as_ref() {
-        DynamicValue::String(text) => {
-            let pattern = arg2.try_as_str()?;
-
-            Ok(DynamicValue::from(text.contains(&*pattern)))
-        }
+        DynamicValue::String(text) => match arg2.as_ref() {
+            DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(&text))),
+            _ => {
+                let pattern = arg2.try_as_str()?;
+                Ok(DynamicValue::from(text.contains(&*pattern)))
+            }
+        },
         DynamicValue::List(_) => Err(CallError::NotImplemented("list".to_string())),
         value => {
             return Err(CallError::Cast((

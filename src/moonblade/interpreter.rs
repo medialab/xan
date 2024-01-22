@@ -668,17 +668,21 @@ mod tests {
     }
 
     #[test]
-    fn test_match() {
+    fn test_contains() {
         assert_eq!(
-            eval_code("match('hello', /l{2}/)"),
+            eval_code("contains('hello', 'ell')"),
             Ok(DynamicValue::from(true))
         );
         assert_eq!(
-            eval_code("match('hello', /l{3}/)"),
+            eval_code("contains('hello', /l{2}/)"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code("contains('hello', /l{3}/)"),
             Ok(DynamicValue::from(false))
         );
         assert_eq!(
-            eval_code("match('hello', /L{2}/i)"),
+            eval_code("contains('hello', /L{2}/i)"),
             Ok(DynamicValue::from(true))
         );
     }

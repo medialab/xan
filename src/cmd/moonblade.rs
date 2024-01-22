@@ -186,10 +186,12 @@ pub fn get_moonblade_functions_help() -> &'static str {
         Concatenate given strings into a single one.
 
     - contains(seq, subseq) -> bool
-        Find if subseq can be found in seq.
+        Find if subseq can be found in seq. Subseq can
+        be a regular expression.
 
     - count(seq, pattern) -> int
-        Count number of times pattern appear in seq.
+        Count number of times pattern appear in seq. Pattern
+        can be a regular expression.
 
     - endswith(string, pattern) -> bool
         Test if string ends with pattern.
@@ -215,9 +217,6 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
     - lower(string) -> string
         Lowercase string.
-
-    - match(string, regex) -> bool
-        Return whether regex pattern matches string.
 
     - replace(string, pattern, replacement) -> string
         Replace pattern in string. Can use a regex.
