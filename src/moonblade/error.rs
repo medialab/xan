@@ -46,7 +46,11 @@ impl ConcretizationError {
         ))
     }
 
-    pub fn from_range_arity(name: String, range: RangeInclusive<usize>, got: usize) -> Self {
+    pub fn from_invalid_range_arity(
+        name: String,
+        range: RangeInclusive<usize>,
+        got: usize,
+    ) -> Self {
         Self::InvalidArity((
             name,
             InvalidArity {
@@ -190,7 +194,7 @@ impl CallError {
         })
     }
 
-    pub fn from_range_arity(range: RangeInclusive<usize>, got: usize) -> Self {
+    pub fn from_invalid_range_arity(range: RangeInclusive<usize>, got: usize) -> Self {
         Self::InvalidArity(InvalidArity {
             expected: Arity::Range(range),
             got,

@@ -661,7 +661,7 @@ fn validate_aggregation_function_arity(
     match aggregation.method.as_str() {
         "count" => {
             if !(0..=1).contains(&arity) {
-                Err(ConcretizationError::from_range_arity(
+                Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.method.clone(),
                     0..=1,
                     arity,

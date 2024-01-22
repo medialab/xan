@@ -796,7 +796,7 @@ impl<'a> BoundArguments<'a> {
 
     pub fn validate_min_max_arity(&self, min: usize, max: usize) -> Result<(), CallError> {
         if self.len() < min || self.len() > max {
-            Err(CallError::from_range_arity(min..=max, self.len()))
+            Err(CallError::from_invalid_range_arity(min..=max, self.len()))
         } else {
             Ok(())
         }

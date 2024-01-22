@@ -182,7 +182,7 @@ impl ConcreteStatement {
                 if !(2..=3).contains(&arity) {
                     return Err(EvaluationError::Call(SpecifiedCallError {
                         function_name: self.kind.name().to_string(),
-                        reason: CallError::from_range_arity(2..=3, arity),
+                        reason: CallError::from_invalid_range_arity(2..=3, arity),
                     }));
                 }
 
@@ -214,7 +214,7 @@ impl ConcreteStatement {
                 if !(1..=2).contains(&arity) {
                     return Err(EvaluationError::Call(SpecifiedCallError {
                         function_name: self.kind.name().to_string(),
-                        reason: CallError::from_range_arity(1..=2, arity),
+                        reason: CallError::from_invalid_range_arity(1..=2, arity),
                     }));
                 }
 
@@ -283,6 +283,14 @@ fn concretize_call(
 
     // Statically analyzable col() function call
     if function_name == "col" {
+        if !(1..=2).contains(&call.args.len()) {
+            return Err(ConcretizationError::from_invalid_range_arity(
+                "col".to_string(),
+                1..=2,
+                call.args.len(),
+            ));
+        }
+
         if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
             match column_indexation.find_column_index(headers) {
                 Some(index) => return Ok(ConcreteArgument::Column(index)),
