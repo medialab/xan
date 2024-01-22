@@ -64,6 +64,16 @@ available functions):
   . Basic branching (also consider using the \"coalesce\" function for simple cases):
         'if(lt(count, 4), trim(name), trim(surname))'
 
+  . Literals can also be returned as-is (e.g. to have a constant value across a column):
+        '4.5'
+        'true'
+        '4'
+        '\"john\"'
+
+  . Simple column names (without restricted characters such as spaces)
+    can be also used as-is to return a copy of a column for instance:
+        'column_name'
+
   . Piping (underscore \"_\" becomes a reference to previous result):
         'trim(name) | lower(_) | add(count, len(_))'
 
