@@ -152,7 +152,13 @@ impl HeadersIndex {
                 .get(name)
                 .and_then(|positions| positions.get(0))
                 .copied(),
-            ColumIndexationBy::Pos(pos) => Some(*pos),
+            ColumIndexationBy::Pos(pos) => {
+                if *pos >= self.mapping.len() {
+                    None
+                } else {
+                    Some(*pos)
+                }
+            }
             ColumIndexationBy::NameAndNth((name, pos)) => self
                 .mapping
                 .get(name)
