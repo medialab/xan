@@ -120,3 +120,18 @@ fn cat_cols_pad() {
     let got: Vec<Vec<String>> = run_cat("cat_cols_headers", "columns", rows1, rows2, pad);
     assert_eq!(got, expected);
 }
+
+#[test]
+fn cat_input() {
+    let wrk = Workdir::new("cat");
+    wrk.create("a.csv", vec![svec!["name"], svec!["John"]]);
+    wrk.create("b.csv", vec![svec!["name"], svec!["Suzy"]]);
+    wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("path").args(["-i", "p.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
+    assert_eq!(got, expected);
+}

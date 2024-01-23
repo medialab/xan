@@ -1,6 +1,9 @@
+use std::path::PathBuf;
+
 use csv;
 
 use config::{Config, Delimiter};
+use select::SelectColumns;
 use util;
 use CliResult;
 
@@ -19,14 +22,19 @@ data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
 Usage:
-    xsv cat rows    [options] [<input>...]
-    xsv cat columns [options] [<input>...]
+    xsv cat rows <column> -i <input> [options]
+    xsv cat rows    [options] [<inputs>...]
+    xsv cat columns [options] [<inputs>...]
     xsv cat --help
 
 cat options:
     -p, --pad              When concatenating columns, this flag will cause
                            all records to appear. It will pad each row if
                            other CSV data isn't long enough.
+    -i, --input <input>    When concatenating rows, path to a CSV file containing
+                           a column of paths to other CSV files to concatenate.
+    -I, --input-dir <dir>  When concatenating rows, root directory to resolve
+                           relative paths contained in the -i/--input file column.
 
 Common options:
     -h, --help             Display this message
@@ -42,7 +50,10 @@ Common options:
 struct Args {
     cmd_rows: bool,
     cmd_columns: bool,
-    arg_input: Vec<String>,
+    arg_inputs: Vec<String>,
+    arg_column: Option<SelectColumns>,
+    flag_input: Option<String>,
+    flag_input_dir: Option<PathBuf>,
     flag_pad: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -51,8 +62,13 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
     if args.cmd_rows {
-        args.cat_rows()
+        if args.arg_column.is_some() {
+            args.cat_rows_with_input()
+        } else {
+            args.cat_rows()
+        }
     } else if args.cmd_columns {
         args.cat_columns()
     } else {
@@ -63,7 +79,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 impl Args {
     fn configs(&self) -> CliResult<Vec<Config>> {
         util::many_configs(
-            &self.arg_input,
+            &self.arg_inputs,
             self.flag_delimiter,
             self.flag_no_headers,
             None,
@@ -84,6 +100,52 @@ impl Args {
             }
         }
         wtr.flush().map_err(From::from)
+    }
+
+    fn cat_rows_with_input(&self) -> CliResult<()> {
+        let rconf = Config::new(&self.flag_input)
+            .delimiter(self.flag_delimiter)
+            .select(self.arg_column.clone().unwrap());
+
+        let mut rdr = rconf.reader()?;
+        let headers = rdr.byte_headers()?;
+
+        let column_index = rconf.single_selection(&headers)?;
+
+        let mut record = csv::StringRecord::new();
+        let mut sub_record = csv::ByteRecord::new();
+
+        let mut wtr = Config::new(&self.flag_output).writer()?;
+
+        let mut headers_written = self.flag_no_headers;
+
+        while rdr.read_record(&mut record)? {
+            let mut path = record[column_index].to_string();
+
+            if let Some(root_dir) = &self.flag_input_dir {
+                let mut buf = root_dir.clone();
+                buf.push(path);
+                path = buf.to_string_lossy().into_owned();
+            }
+
+            let sub_rconf = Config::new(&Some(path))
+                .delimiter(self.flag_delimiter)
+                .no_headers(self.flag_no_headers);
+
+            let mut sub_rdr = sub_rconf.reader()?;
+
+            if !headers_written {
+                let headers = sub_rdr.byte_headers()?;
+                headers_written = true;
+                wtr.write_byte_record(&headers)?;
+            }
+
+            while sub_rdr.read_byte_record(&mut sub_record)? {
+                wtr.write_byte_record(&sub_record)?;
+            }
+        }
+
+        Ok(wtr.flush()?)
     }
 
     fn cat_columns(&self) -> CliResult<()> {
