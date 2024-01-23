@@ -14,8 +14,11 @@ then the row is written to the output. The columns to search can be limited
 with the '--select' flag (but the full row is still written to the output if
 there is a match).
 
+When giving a regex, be sure to mind bash escape rules (prefer single quotes
+around your expression and don't forget to use backslash when needed).
+
 Usage:
-    xsv search [options] <regex> [<input>]
+    xsv search [options] <pattern> [<input>]
     xsv search --help
 
 search options:
@@ -43,7 +46,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_regex: String,
+    arg_pattern: String,
     flag_select: SelectColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -56,10 +59,10 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    let pattern = RegexBuilder::new(&args.arg_regex)
+    let pattern = RegexBuilder::new(&args.arg_pattern)
         .case_insensitive(args.flag_ignore_case)
         .build()?;
-    let exact_pattern: &[u8] = args.arg_regex.as_bytes();
+    let exact_pattern: &[u8] = args.arg_pattern.as_bytes();
     let exact_pattern_decoded = std::str::from_utf8(exact_pattern).unwrap().to_lowercase();
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
