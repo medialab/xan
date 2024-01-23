@@ -363,31 +363,19 @@ pub enum MoonbladeMode {
 
 impl MoonbladeMode {
     fn is_map(&self) -> bool {
-        match self {
-            Self::Map => true,
-            _ => false,
-        }
+        matches!(self, Self::Map)
     }
 
     fn is_flatmap(&self) -> bool {
-        match self {
-            Self::Flatmap => true,
-            _ => false,
-        }
+        matches!(self, Self::Flatmap)
     }
 
     fn is_transform(&self) -> bool {
-        match self {
-            Self::Transform => true,
-            _ => false,
-        }
+        matches!(self, Self::Transform)
     }
 
     fn cannot_report(&self) -> bool {
-        match self {
-            Self::Filter | Self::Flatmap => true,
-            _ => false,
-        }
+        matches!(self, Self::Filter | Self::Flatmap)
     }
 }
 
@@ -400,10 +388,7 @@ pub enum MoonbladeErrorPolicy {
 
 impl MoonbladeErrorPolicy {
     fn will_report(&self) -> bool {
-        match self {
-            Self::Report => true,
-            _ => false,
-        }
+        matches!(self, Self::Report)
     }
 
     pub fn from_restricted(value: &str) -> Result<Self, CliError> {
@@ -456,8 +441,8 @@ pub struct MoonbladeCmdArgs {
     pub mode: MoonbladeMode,
 }
 
-pub fn handle_eval_result<'a, 'b>(
-    args: &'a MoonbladeCmdArgs,
+pub fn handle_eval_result<'b>(
+    args: &MoonbladeCmdArgs,
     index: usize,
     record: &'b mut csv::ByteRecord,
     eval_result: Result<DynamicValue, EvaluationError>,

@@ -222,12 +222,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 sort_by!(all, sort_unstable_by, sel, numeric, reverse);
             }
+        } else if args.flag_parallel {
+            sort_by!(all, par_sort_by, sel, numeric, reverse);
         } else {
-            if args.flag_parallel {
-                sort_by!(all, par_sort_by, sel, numeric, reverse);
-            } else {
-                sort_by!(all, sort_by, sel, numeric, reverse);
-            }
+            sort_by!(all, sort_by, sel, numeric, reverse);
         }
 
         Box::new(all.into_iter())

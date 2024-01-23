@@ -99,7 +99,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let upper_bound = util::pretty_print_float(&mut formatter, upper_bound);
 
                     let label_format = if bin.is_constant() {
-                        format!("{}", lower_bound)
+                        lower_bound.to_string()
                     } else {
                         match bins_iter.peek() {
                             None => format!(">= {} <= {}", lower_bound, upper_bound),
@@ -181,17 +181,11 @@ struct SeriesStats {
 
 impl SeriesStats {
     pub fn min(&self) -> Option<f64> {
-        match self.extent {
-            None => None,
-            Some(extent) => Some(extent.0),
-        }
+        self.extent.map(|extent| extent.0)
     }
 
     pub fn max(&self) -> Option<f64> {
-        match self.extent {
-            None => None,
-            Some(extent) => Some(extent.1),
-        }
+        self.extent.map(|extent| extent.1)
     }
 }
 
@@ -204,7 +198,7 @@ struct Bin {
 
 impl Bin {
     fn is_constant(&self) -> bool {
-        return self.lower_bound == self.upper_bound;
+        self.lower_bound == self.upper_bound
     }
 }
 

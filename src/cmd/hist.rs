@@ -311,7 +311,7 @@ impl Histograms {
                 })
             })
             .or_insert_with(|| Histogram {
-                field: field,
+                field,
                 bars: vec![Bar { label, value }],
             });
     }

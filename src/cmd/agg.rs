@@ -93,7 +93,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let headers = rdr.byte_headers()?;
 
-    let mut program = AggregationProgram::parse(&args.arg_expression, &headers)?;
+    let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
 
     let mut record = csv::ByteRecord::new();
 

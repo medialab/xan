@@ -130,7 +130,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             return fail!("all given files should have identical headers!");
         }
 
-        wtr.write_byte_record(&headers[0])?;
+        wtr.write_byte_record(headers[0])?;
     }
 
     let selections = confs
