@@ -5,7 +5,7 @@ use CliResult;
 
 static USAGE: &str = r#"
 The filter command evaluates an expression for each row of the given CSV file and
-only output the row with if the result of beforementioned expression is truthy.
+only output the row if the result of beforementioned expression is truthy.
 
 For instance, given the following CSV file:
 
@@ -16,7 +16,7 @@ a
 
 The following command:
 
-    $ xsv filter 'lt(a, 1)'
+    $ xsv filter 'gt(a, 1)'
 
 Will produce the following result:
 
