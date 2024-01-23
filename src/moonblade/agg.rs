@@ -312,38 +312,23 @@ enum AggregationMethod {
 
 impl AggregationMethod {
     fn is_count(&self) -> bool {
-        match self {
-            Self::Count(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Count(_))
     }
 
     fn is_extent(&self) -> bool {
-        match self {
-            Self::Extent(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Extent(_))
     }
 
     fn is_numbers(&self) -> bool {
-        match self {
-            Self::Numbers(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Numbers(_))
     }
 
     fn is_sum(&self) -> bool {
-        match self {
-            Self::Sum(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Sum(_))
     }
 
     fn is_variance(&self) -> bool {
-        match self {
-            Self::Variance(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Variance(_))
     }
 }
 
