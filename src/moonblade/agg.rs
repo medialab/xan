@@ -60,7 +60,7 @@ impl Sum {
     }
 
     fn get(&self) -> DynamicNumber {
-        self.current.clone()
+        self.current
     }
 }
 
@@ -105,10 +105,10 @@ impl Extent {
     fn update_number(&mut self, number: DynamicNumber) {
         if let Some(current) = &self.min {
             if &number < current {
-                self.min = Some(number.clone());
+                self.min = Some(number);
             }
         } else {
-            self.min = Some(number.clone());
+            self.min = Some(number);
         }
 
         if let Some(current) = &self.max {
@@ -137,7 +137,7 @@ impl Extent {
                 self.min_string = self.min.as_ref().map(|min| min.to_string());
                 self.max_string = self.max.as_ref().map(|max| max.to_string());
 
-                return self.add(value);
+                self.add(value);
             }
             Ok(number) => {
                 self.update_number(number);
@@ -150,7 +150,7 @@ impl Extent {
             return DynamicValue::from(self.min_string.clone());
         }
 
-        DynamicValue::from(self.min.clone())
+        DynamicValue::from(self.min)
     }
 
     fn max(&self) -> DynamicValue {
@@ -158,7 +158,7 @@ impl Extent {
             return DynamicValue::from(self.max_string.clone());
         }
 
-        DynamicValue::from(self.max.clone())
+        DynamicValue::from(self.max)
     }
 }
 
@@ -192,7 +192,7 @@ impl Numbers {
         }
 
         // TODO: can be done in parallel in the future if required, using rayon
-        self.numbers.sort_by(|a, b| a.partial_cmp(&b).unwrap());
+        self.numbers.sort_by(|a, b| a.partial_cmp(b).unwrap());
         self.sorted = true;
     }
 
@@ -213,23 +213,23 @@ impl Numbers {
                     midpoint -= 1;
                 }
 
-                self.numbers[midpoint].clone()
+                self.numbers[midpoint]
             }
             MedianType::High => {
                 let midpoint = count / 2;
 
-                self.numbers[midpoint].clone()
+                self.numbers[midpoint]
             }
             MedianType::Interpolation => {
                 let midpoint = count / 2;
 
                 if count % 2 == 1 {
-                    self.numbers[midpoint].clone()
+                    self.numbers[midpoint]
                 } else {
                     let down = &self.numbers[midpoint - 1];
                     let up = &self.numbers[midpoint];
 
-                    (down.clone() + up.clone()) / DynamicNumber::Float(2.0)
+                    (*down + *up) / DynamicNumber::Float(2.0)
                 }
             }
         };
@@ -505,7 +505,7 @@ impl Aggregator {
                         }
                     }
                     AggregationMethod::Extent(extent) => {
-                        extent.add(&value);
+                        extent.add(value);
                     }
                     AggregationMethod::Numbers(numbers) => {
                         numbers.add(value.try_as_number()?);

@@ -448,7 +448,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
 
     match arg1.as_ref() {
         DynamicValue::String(text) => match arg2.as_ref() {
-            DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(&text))),
+            DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(text))),
             _ => {
                 let pattern = arg2.try_as_str()?;
                 Ok(DynamicValue::from(text.contains(&*pattern)))

@@ -285,7 +285,7 @@ pub fn acquire_stty_size() -> Option<termsize::Size> {
         .output()
     {
         let text = String::from_utf8_lossy(&output.stdout);
-        let parts = text.trim().split_whitespace().take(2).collect::<Vec<_>>();
+        let parts = text.split_whitespace().take(2).collect::<Vec<_>>();
 
         if parts.len() < 2 {
             return None;
@@ -323,13 +323,7 @@ pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
 }
 
 pub fn acquire_term_rows() -> Option<usize> {
-    match termsize::get() {
-        None => match acquire_stty_size() {
-            None => None,
-            Some(size) => Some(size.rows as usize),
-        },
-        Some(size) => Some(size.rows as usize),
-    }
+    termsize::get().map(|size| size.rows as usize)
 }
 
 pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {

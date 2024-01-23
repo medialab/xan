@@ -96,7 +96,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     }?;
-    let stats = stats;
 
     let stats = args.stats_to_records(stats);
     wtr.write_record(&args.stat_headers())?;
@@ -329,9 +328,18 @@ impl Stats {
         let sample_type = FieldType::from_sample(sample);
         self.typ.merge(sample_type);
 
-        self.sum.as_mut().map(|v| v.add(sample_type, sample));
-        self.minmax.as_mut().map(|v| v.add(sample_type, sample));
-        self.mode.as_mut().map(|v| v.add(sample.to_vec()));
+        if let Some(v) = self.sum.as_mut() {
+            v.add(sample_type, sample);
+        }
+
+        if let Some(v) = self.minmax.as_mut() {
+            v.add(sample_type, sample);
+        }
+
+        if let Some(v) = self.mode.as_mut() {
+            v.add(sample.to_vec());
+        }
+
         match sample_type {
             Null => {
                 if self.which.include_nulls {
@@ -345,9 +353,9 @@ impl Stats {
                 if let Some(v) = self.median.as_mut() {
                     v.add(n);
                 }
-                self.online.as_mut().map(|v| {
+                if let Some(v) = self.online.as_mut() {
                     v.add(n);
-                });
+                }
             }
             _ => (),
         }

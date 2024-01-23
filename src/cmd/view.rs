@@ -307,7 +307,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         write!(&output, "{}", " │".dimmed())?;
-        write!(&output, "\n")?;
+        writeln!(&output)?;
 
         Ok(())
     };
@@ -406,7 +406,7 @@ fn sanitize_emojis(
     record.iter().map(|cell| sanitizer.sanitize(cell)).collect()
 }
 
-fn adjust_column_widths(widths: &Vec<usize>, max_width: usize) -> Vec<usize> {
+fn adjust_column_widths(widths: &[usize], max_width: usize) -> Vec<usize> {
     widths.iter().map(|m| usize::min(*m, max_width)).collect()
 }
 
@@ -602,10 +602,8 @@ fn infer_best_column_display(
 
     // NOTE: we sort by number of columns fitting perfectly, then number of
     // columns we can display, then the maximum cols one cell can have
-    let best_attempt = attempts
+    attempts
         .into_iter()
         .max_by_key(|a| (a.fitting_count(), a.len(), a.max_allowed_cols))
-        .unwrap();
-
-    best_attempt
+        .unwrap()
 }

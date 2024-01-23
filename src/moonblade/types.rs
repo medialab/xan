@@ -36,12 +36,9 @@ impl ColumIndexationBy {
                 Argument::StringLiteral(column_name) => {
                     let second_arg = arguments.get(1).unwrap();
 
-                    match second_arg.try_to_usize() {
-                        None => None,
-                        Some(column_index) => {
-                            Some(Self::NameAndNth((column_name.to_string(), column_index)))
-                        }
-                    }
+                    second_arg.try_to_usize().map(|column_index| {
+                        Self::NameAndNth((column_name.to_string(), column_index))
+                    })
                 }
                 _ => None,
             }
@@ -150,7 +147,7 @@ impl HeadersIndex {
             ColumIndexationBy::Name(name) => self
                 .mapping
                 .get(name)
-                .and_then(|positions| positions.get(0))
+                .and_then(|positions| positions.first())
                 .copied(),
             ColumIndexationBy::Pos(pos) => {
                 if *pos >= self.mapping.len() {

@@ -89,28 +89,20 @@ fn run_random_access(args: Args) -> CliResult<()> {
 
     if let Some(l) = header_len {
         reading_buffer.try_reserve(l).expect("not enough memory");
+        reading_buffer.extend((reading_buffer.len()..l).map(|_| 0));
 
-        unsafe {
-            reading_buffer.set_len(l);
-        }
-
-        input_rdr.read_exact(&mut reading_buffer)?;
-        output_wtr.write_all(&reading_buffer)?;
+        input_rdr.read_exact(&mut reading_buffer[0..l])?;
+        output_wtr.write_all(&reading_buffer[0..l])?;
     }
 
-    for (byte_offset, length) in positions {
+    for (byte_offset, l) in positions {
         input_rdr.seek(SeekFrom::Start(byte_offset))?;
 
-        reading_buffer
-            .try_reserve(length)
-            .expect("not enough memory");
+        reading_buffer.try_reserve(l).expect("not enough memory");
+        reading_buffer.extend((reading_buffer.len()..l).map(|_| 0));
 
-        unsafe {
-            reading_buffer.set_len(length);
-        }
-
-        input_rdr.read_exact(&mut reading_buffer)?;
-        output_wtr.write_all(&reading_buffer)?;
+        input_rdr.read_exact(&mut reading_buffer[0..l])?;
+        output_wtr.write_all(&reading_buffer[0..l])?;
     }
 
     Ok(output_wtr.flush()?)

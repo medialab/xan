@@ -86,21 +86,18 @@ impl FunctionCall {
     }
 
     pub fn fill_underscore(&mut self, with: &Argument) {
-        match with {
-            Argument::Call(_) => {
-                for arg in self.args.iter_mut() {
-                    match arg {
-                        Argument::Call(sub) => {
-                            sub.fill_underscore(with);
-                        }
-                        Argument::Underscore => {
-                            *arg = with.clone();
-                        }
-                        _ => (),
+        if let Argument::Call(_) = with {
+            for arg in self.args.iter_mut() {
+                match arg {
+                    Argument::Call(sub) => {
+                        sub.fill_underscore(with);
                     }
+                    Argument::Underscore => {
+                        *arg = with.clone();
+                    }
+                    _ => (),
                 }
             }
-            _ => (),
         }
     }
 }
@@ -505,7 +502,7 @@ fn aggregation(input: &str) -> IResult<&str, Aggregation> {
                     prefix
                 }),
                 args,
-                method: String::from(method.to_lowercase()),
+                method: method.to_lowercase(),
                 key,
             }
         },
