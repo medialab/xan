@@ -22,7 +22,7 @@ data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
 Usage:
-    xsv cat rows <column> -i <input> [options]
+    xsv cat rows <column> --input <input> [options]
     xsv cat rows    [options] [<inputs>...]
     xsv cat columns [options] [<inputs>...]
     xsv cat --help
@@ -31,7 +31,7 @@ cat options:
     -p, --pad              When concatenating columns, this flag will cause
                            all records to appear. It will pad each row if
                            other CSV data isn't long enough.
-    -i, --input <input>    When concatenating rows, path to a CSV file containing
+    --input <input>        When concatenating rows, path to a CSV file containing
                            a column of paths to other CSV files to concatenate.
     -I, --input-dir <dir>  When concatenating rows, root directory to resolve
                            relative paths contained in the -i/--input file column.

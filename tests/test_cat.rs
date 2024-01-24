@@ -129,7 +129,7 @@ fn cat_input() {
     wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);
 
     let mut cmd = wrk.command("cat");
-    cmd.arg("rows").arg("path").args(["-i", "p.csv"]);
+    cmd.arg("rows").arg("path").args(["--input", "p.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
