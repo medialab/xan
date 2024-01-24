@@ -203,7 +203,7 @@ fn search_flag_exact_case_insensitive() {
         ],
     );
     let mut cmd = wrk.command("search");
-    cmd.arg("john").arg("data.csv").arg("--exact").arg("-i");
+    cmd.arg("joHn").arg("data.csv").arg("--exact").arg("-i");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -241,5 +241,36 @@ fn search_input_exact() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["name"], svec!["john"], svec!["suzy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_input_exact_lowercase() {
+    let wrk = Workdir::new("search_input_exact_lowercase");
+
+    wrk.create(
+        "index.csv",
+        vec![svec!["name"], svec!["sUzy"], svec!["jOhn"]],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["John"],
+            svec!["Abigail"],
+            svec!["suZy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("name")
+        .args(["--input", "index.csv"])
+        .arg("data.csv")
+        .arg("--exact")
+        .arg("-i");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["John"], svec!["suZy"]];
     assert_eq!(got, expected);
 }

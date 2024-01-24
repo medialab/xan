@@ -9,11 +9,16 @@ use util;
 use CliError;
 use CliResult;
 
+fn lowercase(cell: &[u8]) -> String {
+    std::str::from_utf8(cell).unwrap().to_lowercase()
+}
+
 enum Matcher {
     Regex(regex::bytes::Regex),
     Exact(Vec<u8>),
     ExactCaseInsensitive(String),
     ManyExact(HashSet<Vec<u8>>),
+    ManyExactCaseInsensitive(HashSet<String>),
 }
 
 impl Matcher {
@@ -21,10 +26,9 @@ impl Matcher {
         match self {
             Self::Regex(pattern) => pattern.is_match(cell),
             Self::Exact(pattern) => pattern == cell,
-            Self::ExactCaseInsensitive(pattern) => {
-                &std::str::from_utf8(cell).unwrap().to_lowercase() == pattern
-            }
+            Self::ExactCaseInsensitive(pattern) => &lowercase(cell) == pattern,
             Self::ManyExact(patterns) => patterns.contains(cell),
+            Self::ManyExactCaseInsensitive(patterns) => patterns.contains(&lowercase(cell)),
         }
     }
 }
@@ -88,11 +92,11 @@ impl Args {
     fn get_matcher(&self) -> Result<Matcher, CliError> {
         match self.arg_column.as_ref() {
             None => {
-                let pattern = self.arg_pattern.clone().unwrap();
+                let pattern = self.arg_pattern.as_ref().unwrap();
 
                 Ok(if self.flag_exact {
                     if self.flag_ignore_case {
-                        Matcher::ExactCaseInsensitive(pattern)
+                        Matcher::ExactCaseInsensitive(pattern.to_lowercase())
                     } else {
                         Matcher::Exact(pattern.as_bytes().to_vec())
                     }
@@ -116,13 +120,14 @@ impl Args {
 
                 let mut record = csv::ByteRecord::new();
                 let mut set: HashSet<Vec<u8>> = HashSet::new();
+                let mut lower_set: HashSet<String> = HashSet::new();
 
                 while rdr.read_byte_record(&mut record)? {
                     let pattern = &record[column_index];
 
                     if self.flag_exact {
                         if self.flag_ignore_case {
-                            unimplemented!()
+                            lower_set.insert(lowercase(pattern));
                         } else {
                             set.insert(pattern.to_vec());
                         }
@@ -131,7 +136,7 @@ impl Args {
 
                 Ok(if self.flag_exact {
                     if self.flag_ignore_case {
-                        unimplemented!()
+                        Matcher::ManyExactCaseInsensitive(lower_set)
                     } else {
                         Matcher::ManyExact(set)
                     }
