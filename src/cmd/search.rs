@@ -1,15 +1,19 @@
+use std::collections::HashSet;
+
 use csv;
 use regex::bytes::RegexBuilder;
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
 use util;
+use CliError;
 use CliResult;
 
 enum Matcher {
     Regex(regex::bytes::Regex),
     Exact(Vec<u8>),
     ExactCaseInsensitive(String),
+    ManyExact(HashSet<Vec<u8>>),
 }
 
 impl Matcher {
@@ -20,6 +24,7 @@ impl Matcher {
             Self::ExactCaseInsensitive(pattern) => {
                 &std::str::from_utf8(cell).unwrap().to_lowercase() == pattern
             }
+            Self::ManyExact(patterns) => patterns.contains(cell),
         }
     }
 }
@@ -36,12 +41,14 @@ When giving a regex, be sure to mind bash escape rules (prefer single quotes
 around your expression and don't forget to use backslash when needed).
 
 Usage:
+    xsv search [options] <column> --input <index> [<input>]
     xsv search [options] <pattern> [<input>]
     xsv search --help
 
 search options:
     -e, --exact            Perform an exact match rather than using a
                            regular expression.
+    --input <index>        CSV file containing a column of value to index & search.
     -i, --ignore-case      Case insensitive search. This is equivalent to
                            prefixing the regex with '(?i)'.
     -s, --select <arg>     Select the columns to search. See 'xsv select -h'
@@ -64,7 +71,8 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_pattern: String,
+    arg_pattern: Option<String>,
+    arg_column: Option<SelectColumns>,
     flag_select: SelectColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -73,23 +81,65 @@ struct Args {
     flag_ignore_case: bool,
     flag_exact: bool,
     flag_flag: Option<String>,
+    flag_input: Option<String>,
 }
 
 impl Args {
-    fn get_matcher(&self) -> Result<Matcher, regex::Error> {
-        Ok(if self.flag_exact {
-            if self.flag_ignore_case {
-                Matcher::ExactCaseInsensitive(self.arg_pattern.clone())
-            } else {
-                Matcher::Exact(self.arg_pattern.as_bytes().to_vec())
+    fn get_matcher(&self) -> Result<Matcher, CliError> {
+        match self.arg_column.as_ref() {
+            None => {
+                let pattern = self.arg_pattern.clone().unwrap();
+
+                Ok(if self.flag_exact {
+                    if self.flag_ignore_case {
+                        Matcher::ExactCaseInsensitive(pattern)
+                    } else {
+                        Matcher::Exact(pattern.as_bytes().to_vec())
+                    }
+                } else {
+                    Matcher::Regex(
+                        RegexBuilder::new(&pattern)
+                            .case_insensitive(self.flag_ignore_case)
+                            .build()?,
+                    )
+                })
             }
-        } else {
-            Matcher::Regex(
-                RegexBuilder::new(&self.arg_pattern)
-                    .case_insensitive(self.flag_ignore_case)
-                    .build()?,
-            )
-        })
+            Some(column) => {
+                let rconf = Config::new(&self.flag_input)
+                    .delimiter(self.flag_delimiter)
+                    .select(column.clone());
+
+                let mut rdr = rconf.reader()?;
+
+                let headers = rdr.byte_headers()?;
+                let column_index = rconf.single_selection(headers)?;
+
+                let mut record = csv::ByteRecord::new();
+                let mut set: HashSet<Vec<u8>> = HashSet::new();
+
+                while rdr.read_byte_record(&mut record)? {
+                    let pattern = &record[column_index];
+
+                    if self.flag_exact {
+                        if self.flag_ignore_case {
+                            unimplemented!()
+                        } else {
+                            set.insert(pattern.to_vec());
+                        }
+                    }
+                }
+
+                Ok(if self.flag_exact {
+                    if self.flag_ignore_case {
+                        unimplemented!()
+                    } else {
+                        Matcher::ManyExact(set)
+                    }
+                } else {
+                    unimplemented!()
+                })
+            }
+        }
     }
 }
 

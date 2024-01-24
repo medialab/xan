@@ -213,3 +213,33 @@ fn search_flag_exact_case_insensitive() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_input_exact() {
+    let wrk = Workdir::new("search_input_exact");
+
+    wrk.create(
+        "index.csv",
+        vec![svec!["name"], svec!["suzy"], svec!["john"]],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["abigail"],
+            svec!["suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("name")
+        .args(["--input", "index.csv"])
+        .arg("data.csv")
+        .arg("--exact");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["john"], svec!["suzy"]];
+    assert_eq!(got, expected);
+}
