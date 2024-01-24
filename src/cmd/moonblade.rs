@@ -331,6 +331,10 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
     - min(<expr>) -> number | string
         Minimum value.
 
+    - mode(<expr>) - string
+        Value appearing the most, breaking ties arbitrarily in favor of the
+        first value in lexicographical order.
+
     - stddev(<expr>) -> number
         Population standard deviation. Same as `stddev_pop`.
 

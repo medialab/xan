@@ -263,8 +263,8 @@ impl Frequencies {
         for (key, count) in self.counter.iter() {
             max = match max {
                 None => Some((*count, key)),
-                Some((max_count, _)) => {
-                    if *count > max_count {
+                Some(entry) => {
+                    if (*count, key) > entry {
                         Some((*count, key))
                     } else {
                         max
