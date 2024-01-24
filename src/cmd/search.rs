@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use csv;
-use regex::bytes::RegexBuilder;
+use regex::bytes::{RegexBuilder, RegexSetBuilder};
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
@@ -17,6 +17,7 @@ enum Matcher {
     Regex(regex::bytes::Regex),
     Exact(Vec<u8>),
     ExactCaseInsensitive(String),
+    ManyRegex(regex::bytes::RegexSet),
     ManyExact(HashSet<Vec<u8>>),
     ManyExactCaseInsensitive(HashSet<String>),
 }
@@ -27,6 +28,7 @@ impl Matcher {
             Self::Regex(pattern) => pattern.is_match(cell),
             Self::Exact(pattern) => pattern == cell,
             Self::ExactCaseInsensitive(pattern) => &lowercase(cell) == pattern,
+            Self::ManyRegex(set) => set.is_match(cell),
             Self::ManyExact(patterns) => patterns.contains(cell),
             Self::ManyExactCaseInsensitive(patterns) => patterns.contains(&lowercase(cell)),
         }
@@ -34,12 +36,18 @@ impl Matcher {
 }
 
 static USAGE: &str = "
-Filters CSV data by whether the given regex matches a row.
+Filters CSV data by whether the given pattern matches a row.
 
-The regex is applied to each field in each row, and if any field matches,
-then the row is written to the output. The columns to search can be limited
-with the '--select' flag (but the full row is still written to the output if
-there is a match).
+By default, the pattern is a regex and is applied to each field in each row,
+and if any field matches, then the row is written to the output. The columns to search
+can be limited with the '-s, --select' flag (but the full row is still written to the
+output if there is a match).
+
+The pattern can also be an exact match, case sensitive or not.
+
+The command is also able to take a CSV file column containing multiple
+patterns as an input. This can be thought of as a specialized kind
+of left join over the data.
 
 When giving a regex, be sure to mind bash escape rules (prefer single quotes
 around your expression and don't forget to use backslash when needed).
@@ -119,8 +127,10 @@ impl Args {
                 let column_index = rconf.single_selection(headers)?;
 
                 let mut record = csv::ByteRecord::new();
+
                 let mut set: HashSet<Vec<u8>> = HashSet::new();
                 let mut lower_set: HashSet<String> = HashSet::new();
+                let mut patterns: Vec<String> = Vec::new();
 
                 while rdr.read_byte_record(&mut record)? {
                     let pattern = &record[column_index];
@@ -131,6 +141,8 @@ impl Args {
                         } else {
                             set.insert(pattern.to_vec());
                         }
+                    } else {
+                        patterns.push(std::str::from_utf8(pattern).unwrap().to_string());
                     }
                 }
 
@@ -141,7 +153,11 @@ impl Args {
                         Matcher::ManyExact(set)
                     }
                 } else {
-                    unimplemented!()
+                    Matcher::ManyRegex(
+                        RegexSetBuilder::new(&patterns)
+                            .case_insensitive(self.flag_ignore_case)
+                            .build()?,
+                    )
                 })
             }
         }

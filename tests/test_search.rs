@@ -274,3 +274,33 @@ fn search_input_exact_lowercase() {
     let expected = vec![svec!["name"], svec!["John"], svec!["suZy"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_input_regex() {
+    let wrk = Workdir::new("search_input_regex");
+
+    wrk.create(
+        "index.csv",
+        vec![svec!["name"], svec!["^su"], svec!["hn$"], svec![r"^a\."]],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["John"],
+            svec!["Abigail"],
+            svec!["Suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("name")
+        .args(["--input", "index.csv"])
+        .arg("data.csv")
+        .arg("-i");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
+    assert_eq!(got, expected);
+}
