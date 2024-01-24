@@ -45,6 +45,9 @@ hist options:
     -m, --domain-max <type>  If \"max\" max bar length will be scaled to the
                              max bar value. If \"sum\", max bar length will be scaled to
                              the sum of bar values (i.e. sum of bar lengths will be 100%).
+                             Can also be an absolute numerical value, to clamp the bars
+                             or make sure different histograms are represented using the
+                             same scale.
                              [default: max]
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
@@ -134,7 +137,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let domain_max = match args.flag_domain_max.as_str() {
             "max" => histogram.max().unwrap(),
             "sum" => sum,
-            _ => return fail!("unknown --domain-max. Should be one of \"sum\", \"max\"."),
+            d => match d.parse::<f64>() {
+                Ok(f) => f,
+                _ => return fail!("unknown --domain-max. Should be one of \"sum\", \"max\"."),
+            },
         };
 
         println!(
