@@ -50,6 +50,28 @@ fn agg() {
 }
 
 #[test]
+fn agg_mode() {
+    let wrk = Workdir::new("agg");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color"],
+            svec!["red"],
+            svec!["blue"],
+            svec!["yellow"],
+            svec!["red"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("mode(color) as mode").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["mode"], svec!["red"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn agg_sqlish_count() {
     let wrk = Workdir::new("agg");
     wrk.create(

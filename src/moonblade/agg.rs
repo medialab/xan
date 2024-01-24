@@ -238,6 +238,45 @@ impl Numbers {
     }
 }
 
+#[derive(Debug)]
+struct Frequencies {
+    counter: HashMap<String, usize>,
+}
+
+impl Frequencies {
+    fn new() -> Self {
+        Self {
+            counter: HashMap::new(),
+        }
+    }
+
+    fn add(&mut self, value: String) {
+        self.counter
+            .entry(value)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+    }
+
+    fn mode(&self) -> Option<String> {
+        let mut max: Option<(usize, &String)> = None;
+
+        for (key, count) in self.counter.iter() {
+            max = match max {
+                None => Some((*count, key)),
+                Some((max_count, _)) => {
+                    if *count > max_count {
+                        Some((*count, key))
+                    } else {
+                        max
+                    }
+                }
+            }
+        }
+
+        max.map(|(_, key)| key.to_string())
+    }
+}
+
 // NOTE: this is an implementation of Welford's online algorithm
 #[derive(Debug)]
 struct Variance {
@@ -305,6 +344,7 @@ impl Variance {
 enum AggregationMethod {
     Count(Count),
     Extent(Extent),
+    Frequencies(Frequencies),
     Numbers(Numbers),
     Sum(Sum),
     Variance(Variance),
@@ -317,6 +357,10 @@ impl AggregationMethod {
 
     fn is_extent(&self) -> bool {
         matches!(self, Self::Extent(_))
+    }
+
+    fn is_frequencies(&self) -> bool {
+        matches!(self, Self::Frequencies(_))
     }
 
     fn is_numbers(&self) -> bool {
@@ -386,6 +430,10 @@ impl Aggregator {
         self.methods.iter().any(|method| method.is_extent())
     }
 
+    fn has_frequencies(&self) -> bool {
+        self.methods.iter().any(|method| method.is_frequencies())
+    }
+
     fn has_numbers(&self) -> bool {
         self.methods.iter().any(|method| method.is_numbers())
     }
@@ -413,6 +461,17 @@ impl Aggregator {
         for method in self.methods.iter() {
             match method {
                 AggregationMethod::Extent(extent) => return Some(extent),
+                _ => continue,
+            }
+        }
+
+        None
+    }
+
+    fn get_frequencies(&self) -> Option<&Frequencies> {
+        for method in self.methods.iter() {
+            match method {
+                AggregationMethod::Frequencies(frequencies) => return Some(frequencies),
                 _ => continue,
             }
         }
@@ -475,6 +534,12 @@ impl Aggregator {
                         .push(AggregationMethod::Numbers(Numbers::new()));
                 }
             }
+            "mode" => {
+                if !self.has_frequencies() {
+                    self.methods
+                        .push(AggregationMethod::Frequencies(Frequencies::new()));
+                }
+            }
             "sum" => {
                 if self.has_sum() {
                     return;
@@ -506,6 +571,9 @@ impl Aggregator {
                     }
                     AggregationMethod::Extent(extent) => {
                         extent.add(value);
+                    }
+                    AggregationMethod::Frequencies(frequencies) => {
+                        frequencies.add(value.try_as_str()?.into_owned());
                     }
                     AggregationMethod::Numbers(numbers) => {
                         numbers.add(value.try_as_number()?);
@@ -546,6 +614,7 @@ impl Aggregator {
                 DynamicValue::from(self.get_numbers_mut().unwrap().median(MedianType::Low))
             }
             "max" => self.get_extent().unwrap().max(),
+            "mode" => DynamicValue::from(self.get_frequencies().unwrap().mode()),
             "sum" => DynamicValue::from(self.get_sum().unwrap().get()),
             "var" | "var_pop" => DynamicValue::from(self.get_variance().unwrap().variance()),
             "var_sample" => DynamicValue::from(self.get_variance().unwrap().sample_variance()),
