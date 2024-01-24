@@ -35,7 +35,7 @@ Usage:
     xsv join --help
 
 join options:
-    --no-case                   When set, joins are done case insensitively.
+    -i, --ignore-case           When set, joins are done case insensitively.
     --left                      Do a 'left outer' join. This returns all rows in
                                 first CSV data set, including rows with no
                                 corresponding row in the second data set. When no
@@ -89,7 +89,7 @@ struct Args {
     flag_cross: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
-    flag_no_case: bool,
+    flag_ignore_case: bool,
     flag_nulls: bool,
     flag_delimiter: Option<Delimiter>,
     flag_prefix_left: Option<String>,
@@ -317,7 +317,7 @@ impl Args {
             rdr2,
             sel2,
             no_headers: rconf1.no_headers,
-            casei: self.flag_no_case,
+            casei: self.flag_ignore_case,
             nulls: self.flag_nulls,
             pfx_left: self.flag_prefix_left.clone(),
             pfx_right: self.flag_prefix_right.clone(),
