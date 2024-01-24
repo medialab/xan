@@ -110,7 +110,7 @@ impl Args {
         let mut rdr = rconf.reader()?;
         let headers = rdr.byte_headers()?;
 
-        let column_index = rconf.single_selection(&headers)?;
+        let column_index = rconf.single_selection(headers)?;
 
         let mut record = csv::StringRecord::new();
         let mut sub_record = csv::ByteRecord::new();
@@ -137,7 +137,7 @@ impl Args {
             if !headers_written {
                 let headers = sub_rdr.byte_headers()?;
                 headers_written = true;
-                wtr.write_byte_record(&headers)?;
+                wtr.write_byte_record(headers)?;
             }
 
             while sub_rdr.read_byte_record(&mut sub_record)? {
