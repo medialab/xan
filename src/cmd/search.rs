@@ -110,7 +110,7 @@ impl Args {
                     }
                 } else {
                     Matcher::Regex(
-                        RegexBuilder::new(&pattern)
+                        RegexBuilder::new(pattern)
                             .case_insensitive(self.flag_ignore_case)
                             .build()?,
                     )
