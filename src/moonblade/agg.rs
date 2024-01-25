@@ -279,13 +279,13 @@ impl Frequencies {
 
 // NOTE: this is an implementation of Welford's online algorithm
 #[derive(Debug)]
-struct Variance {
+struct Welford {
     count: usize,
     mean: f64,
     m2: f64,
 }
 
-impl Variance {
+impl Welford {
     fn new() -> Self {
         Self {
             count: 0,
@@ -347,7 +347,7 @@ enum AggregationMethod {
     Frequencies(Frequencies),
     Numbers(Numbers),
     Sum(Sum),
-    Variance(Variance),
+    Welford(Welford),
 }
 
 impl AggregationMethod {
@@ -371,8 +371,8 @@ impl AggregationMethod {
         matches!(self, Self::Sum(_))
     }
 
-    fn is_variance(&self) -> bool {
-        matches!(self, Self::Variance(_))
+    fn is_welford(&self) -> bool {
+        matches!(self, Self::Welford(_))
     }
 }
 
@@ -442,8 +442,8 @@ impl Aggregator {
         self.methods.iter().any(|method| method.is_sum())
     }
 
-    fn has_variance(&self) -> bool {
-        self.methods.iter().any(|method| method.is_variance())
+    fn has_welford(&self) -> bool {
+        self.methods.iter().any(|method| method.is_welford())
     }
 
     fn get_count(&self) -> Option<&Count> {
@@ -501,10 +501,10 @@ impl Aggregator {
         None
     }
 
-    fn get_variance(&self) -> Option<&Variance> {
+    fn get_welford(&self) -> Option<&Welford> {
         for method in self.methods.iter() {
             match method {
-                AggregationMethod::Variance(variance) => return Some(variance),
+                AggregationMethod::Welford(variance) => return Some(variance),
                 _ => continue,
             }
         }
@@ -549,12 +549,12 @@ impl Aggregator {
             }
             "mean" | "avg" | "var" | "var_sample" | "var_pop" | "stddev" | "stddev_sample"
             | "stddev_pop" => {
-                if self.has_variance() {
+                if self.has_welford() {
                     return;
                 }
 
                 self.methods
-                    .push(AggregationMethod::Variance(Variance::new()));
+                    .push(AggregationMethod::Welford(Welford::new()));
             }
             _ => unreachable!(),
         }
@@ -581,7 +581,7 @@ impl Aggregator {
                     AggregationMethod::Sum(sum) => {
                         sum.add(&value.try_as_number()?);
                     }
-                    AggregationMethod::Variance(variance) => {
+                    AggregationMethod::Welford(variance) => {
                         variance.add(value.try_as_f64()?);
                     }
                 },
@@ -601,7 +601,7 @@ impl Aggregator {
         match method {
             "count" => DynamicValue::from(self.get_count().unwrap().get()),
             "min" => self.get_extent().unwrap().min(),
-            "avg" | "mean" => DynamicValue::from(self.get_variance().unwrap().mean()),
+            "avg" | "mean" => DynamicValue::from(self.get_welford().unwrap().mean()),
             "median" => DynamicValue::from(
                 self.get_numbers_mut()
                     .unwrap()
@@ -616,10 +616,10 @@ impl Aggregator {
             "max" => self.get_extent().unwrap().max(),
             "mode" => DynamicValue::from(self.get_frequencies().unwrap().mode()),
             "sum" => DynamicValue::from(self.get_sum().unwrap().get()),
-            "var" | "var_pop" => DynamicValue::from(self.get_variance().unwrap().variance()),
-            "var_sample" => DynamicValue::from(self.get_variance().unwrap().sample_variance()),
-            "stddev" | "stddev_pop" => DynamicValue::from(self.get_variance().unwrap().stdev()),
-            "stddev_sample" => DynamicValue::from(self.get_variance().unwrap().sample_stdev()),
+            "var" | "var_pop" => DynamicValue::from(self.get_welford().unwrap().variance()),
+            "var_sample" => DynamicValue::from(self.get_welford().unwrap().sample_variance()),
+            "stddev" | "stddev_pop" => DynamicValue::from(self.get_welford().unwrap().stdev()),
+            "stddev_sample" => DynamicValue::from(self.get_welford().unwrap().sample_stdev()),
             _ => unreachable!(),
         }
     }
