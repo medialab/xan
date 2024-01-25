@@ -393,7 +393,7 @@ fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
     ))(input)
 }
 
-fn pipe(input: &str) -> IResult<&str, ()> {
+fn pipe_separator(input: &str) -> IResult<&str, ()> {
     value((), tuple((space0, char('|'), space0)))(input)
 }
 
@@ -402,8 +402,8 @@ fn pipeline(input: &str) -> IResult<&str, Pipeline> {
         tuple((
             function_call_or_literal_or_identifier,
             opt(preceded(
-                pipe,
-                separated_list1(pipe, possibly_elided_function_call),
+                pipe_separator,
+                separated_list1(pipe_separator, possibly_elided_function_call),
             )),
         )),
         |(first, rest)| {
