@@ -374,7 +374,12 @@ impl<'a> From<&'a str> for CliError {
 
 impl From<regex::Error> for CliError {
     fn from(err: regex::Error) -> CliError {
-        CliError::Other(format!("{:?}", err))
+        match err {
+            regex::Error::CompiledTooBig(size) => {
+                CliError::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(. did you forget to use the -e, --exact flag?", size))
+            }
+            _ => CliError::Other(format!("{:?}", err)),
+        }
     }
 }
 
