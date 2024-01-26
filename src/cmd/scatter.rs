@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 
 use ratatui::backend::CrosstermBackend;
@@ -20,9 +21,11 @@ Usage:
     xsv scatter --help
 
 scatter options:
-    --cols <num>  Width of the graph in terminal columns, i.e. characters.
-                  Defaults to using all your terminal's width or 80 if
-                  terminal's size cannot be found (i.e. when piping to file).
+    --color <column>  Name of the categorical column that will be used to
+                      color the different points.
+    --cols <num>      Width of the graph in terminal columns, i.e. characters.
+                      Defaults to using all your terminal's width or 80 if
+                      terminal's size cannot be found (i.e. when piping to file).
 
 Common options:
     -h, --help             Display this message
@@ -40,6 +43,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_cols: Option<usize>,
+    flag_color: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -70,22 +74,45 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )
         })?;
 
+    let color_column_index = args
+        .flag_color
+        .as_ref()
+        .map(|name| {
+            headers
+                .find_column_index(name.as_bytes())
+                .ok_or_else(|| format!("cannot find column containing color values \"{}\"", name))
+        })
+        .transpose()?;
+
     let mut record = csv::ByteRecord::new();
 
     let mut x_series = Series::new();
     let mut y_series = Series::new();
 
+    let mut grouped_series: HashMap<Vec<u8>, (Series, Series)> = HashMap::new();
+
     while rdr.read_byte_record(&mut record)? {
-        x_series.add(
-            String::from_utf8_lossy(&record[x_column_index])
-                .parse()
-                .expect("could not parse number"),
-        );
-        y_series.add(
-            String::from_utf8_lossy(&record[y_column_index])
-                .parse()
-                .expect("could not parse number"),
-        );
+        let x = String::from_utf8_lossy(&record[x_column_index])
+            .parse()
+            .expect("could not parse number");
+        let y = String::from_utf8_lossy(&record[y_column_index])
+            .parse()
+            .expect("could not parse number");
+
+        if let Some(i) = color_column_index {
+            let color_value = record[i].to_vec();
+
+            grouped_series
+                .entry(color_value)
+                .and_modify(|(xs, ys)| {
+                    xs.add(x);
+                    ys.add(x);
+                })
+                .or_insert_with(|| (Series::of(x), Series::of(y)));
+        } else {
+            x_series.add(x);
+            y_series.add(y);
+        }
     }
 
     // Drawing
@@ -149,6 +176,13 @@ impl Series {
         Self {
             values: Vec::new(),
             extent: None,
+        }
+    }
+
+    fn of(value: f64) -> Self {
+        Self {
+            values: vec![value],
+            extent: Some((value, value)),
         }
     }
 
