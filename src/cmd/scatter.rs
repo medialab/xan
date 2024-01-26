@@ -4,23 +4,25 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
+use ratatui::text::Span;
 use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
 use config::{Config, Delimiter};
-use util;
+use util::{self, ImmutableRecordHelpers};
 use CliResult;
 
 static USAGE: &str = "
 TODO...
 
 Usage:
-    xsv scatter [options] [<input>]
+    xsv scatter [options] <x-column> <y-column> [<input>]
     xsv scatter --help
 
-scatte options:
-    -x <column>  TODO...
-
+scatter options:
+    --cols <num>  Width of the graph in terminal columns, i.e. characters.
+                  Defaults to using all your terminal's width or 80 if
+                  terminal's size cannot be found (i.e. when piping to file).
 
 Common options:
     -h, --help             Display this message
@@ -33,9 +35,11 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    arg_x_column: String,
+    arg_y_column: String,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_x: Option<String>,
+    flag_cols: Option<usize>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -44,63 +48,134 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let size = util::acquire_term_rows().unwrap() as u16;
+    // Collecting data
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?;
+
+    let x_column_index = headers
+        .find_column_index(args.arg_x_column.as_bytes())
+        .ok_or_else(|| {
+            format!(
+                "cannot find column containing x values \"{}\"",
+                args.arg_x_column
+            )
+        })?;
+
+    let y_column_index = headers
+        .find_column_index(args.arg_y_column.as_bytes())
+        .ok_or_else(|| {
+            format!(
+                "cannot find column containing y values \"{}\"",
+                args.arg_y_column
+            )
+        })?;
+
+    let mut record = csv::ByteRecord::new();
+
+    let mut x_series = Series::new();
+    let mut y_series = Series::new();
+
+    while rdr.read_byte_record(&mut record)? {
+        x_series.add(
+            String::from_utf8_lossy(&record[x_column_index])
+                .parse()
+                .expect("could not parse number"),
+        );
+        y_series.add(
+            String::from_utf8_lossy(&record[y_column_index])
+                .parse()
+                .expect("could not parse number"),
+        );
+    }
+
+    // Drawing
+    let rows = util::acquire_term_rows().unwrap_or(20) as u16;
+    let cols = util::acquire_term_cols(&args.flag_cols) as u16;
 
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     terminal.clear()?;
 
     terminal.draw(|frame| {
-        let area = frame.size();
-        let area = Rect::new(0, 0, area.width, size.saturating_sub(1));
+        let area = Rect::new(0, 0, cols, rows.saturating_sub(1));
         // Create the datasets to fill the chart with
-        let datasets = vec![
-            // Scatter chart
-            Dataset::default()
-                .name("data1")
-                .marker(symbols::Marker::Dot)
-                .graph_type(GraphType::Scatter)
-                .style(Style::default().cyan())
-                .data(&[(0.0, 5.0), (1.0, 6.0), (1.5, 6.434)]),
-            // Line chart
-            Dataset::default()
-                .name("data2")
-                .marker(symbols::Marker::Braille)
-                .graph_type(GraphType::Line)
-                .style(Style::default().magenta())
-                .data(&[(4.0, 5.0), (5.0, 8.0), (7.66, 13.5)]),
-        ];
+
+        let points = x_series
+            .values
+            .iter()
+            .copied()
+            .zip(y_series.values.iter().copied())
+            .collect::<Vec<_>>();
+
+        let datasets = vec![Dataset::default()
+            .name("csv")
+            .marker(symbols::Marker::Braille)
+            .graph_type(GraphType::Scatter)
+            .style(Style::default().cyan())
+            .data(&points)];
 
         // Create the X axis and define its properties
         let x_axis = Axis::default()
-            .title("X Axis".red())
+            .title(args.arg_x_column.red())
             .style(Style::default().white())
-            .bounds([0.0, 10.0])
-            .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+            .bounds(x_series.domain().unwrap())
+            .labels(x_series.graduations().unwrap());
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
-            .title("Y Axis".red())
+            .title(args.arg_y_column.red())
             .style(Style::default().white())
-            .bounds([0.0, 10.0])
-            .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+            .bounds(y_series.domain().unwrap())
+            .labels(y_series.graduations().unwrap());
 
         // Create the chart and link all the parts together
         let chart = Chart::new(datasets)
-            .block(Block::default().title("Chart"))
+            .block(Block::default())
             .x_axis(x_axis)
             .y_axis(y_axis);
 
         frame.render_widget(chart, area);
     })?;
 
-    // let mut rdr = rconf.reader()?;
-    // let headers = rdr.byte_headers()?;
-
-    // let mut record = csv::ByteRecord::new();
-
-    // while rdr.read_byte_record(&mut record)? {
-    //     dbg!(&record);
-    // }
-
     Ok(())
+}
+
+struct Series {
+    values: Vec<f64>,
+    extent: Option<(f64, f64)>,
+}
+
+impl Series {
+    fn new() -> Self {
+        Self {
+            values: Vec::new(),
+            extent: None,
+        }
+    }
+
+    fn add(&mut self, value: f64) {
+        self.values.push(value);
+
+        self.extent = match self.extent {
+            None => Some((value, value)),
+            Some((mut min, mut max)) => {
+                if value < min {
+                    min = value;
+                }
+                if value > max {
+                    max = value;
+                }
+
+                Some((min, max))
+            }
+        }
+    }
+
+    fn domain(&self) -> Option<[f64; 2]> {
+        self.extent.map(|(min, max)| [min, max])
+    }
+
+    fn graduations(&self) -> Option<Vec<Span>> {
+        self.extent
+            .map(|(min, max)| vec![Span::from(min.to_string()), Span::from(max.to_string())])
+    }
 }
