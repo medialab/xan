@@ -26,7 +26,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
     Some(match name {
         "abs" => (abs, Arity::Strict(1)),
         "abspath" => (abspath, Arity::Strict(1)),
-        "add" => (|args| arithmetic_op(args, Add::add), Arity::Strict(2)),
+        "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
         "and" => (and, Arity::Strict(2)),
         "coalesce" => (coalesce, Arity::Min(1)),
         "compact" => (compact, Arity::Strict(1)),
@@ -34,7 +34,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "contains" => (contains, Arity::Strict(2)),
         "count" => (count, Arity::Strict(2)),
         "dec" => (dec, Arity::Strict(1)),
-        "div" => (|args| arithmetic_op(args, Div::div), Arity::Strict(2)),
+        "div" => (|args| variadic_arithmetic_op(args, Div::div), Arity::Min(2)),
         "eq" => (
             |args| number_compare(args, Ordering::is_eq),
             Arity::Strict(2),
@@ -71,7 +71,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "ltrim" => (ltrim, Arity::Strict(1)),
         "lower" => (lower, Arity::Strict(1)),
-        "mul" => (|args| arithmetic_op(args, Mul::mul), Arity::Strict(2)),
+        "mul" => (|args| variadic_arithmetic_op(args, Mul::mul), Arity::Min(2)),
         "neg" => (neg, Arity::Strict(1)),
         "neq" => (
             |args| number_compare(args, Ordering::is_ne),
@@ -86,7 +86,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "slice" => (slice, Arity::Range(2..=3)),
         "split" => (split, Arity::Strict(2)),
         "startswith" => (startswith, Arity::Strict(2)),
-        "sub" => (|args| arithmetic_op(args, Sub::sub), Arity::Strict(2)),
+        "sub" => (|args| variadic_arithmetic_op(args, Sub::sub), Arity::Min(2)),
         "s_eq" => (
             |args| sequence_compare(args, Ordering::is_eq),
             Arity::Strict(2),
@@ -505,6 +505,22 @@ where
 {
     let (a, b) = args.get2_number()?;
     Ok(DynamicValue::from(op(a, b)))
+}
+
+fn variadic_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let mut args_iter = args.into_iter();
+
+    let mut acc = args_iter.next().unwrap().try_as_number()?;
+
+    for arg in args_iter {
+        let cur = arg.try_as_number()?;
+        acc = op(acc, cur);
+    }
+
+    Ok(DynamicValue::from(acc))
 }
 
 fn abs(mut args: BoundArguments) -> FunctionResult {

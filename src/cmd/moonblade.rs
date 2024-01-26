@@ -108,14 +108,14 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - abs(x) -> number
         Return absolute value of number.
 
-    - add(x, y) -> number
-        Add two numbers.
+    - add(x, y, *n) -> number
+        Add two or more numbers.
 
     - dec(x) -> number
         Decrement x, subtracting 1.
 
-    - div(x, y) -> number
-        Divide two numbers.
+    - div(x, y, *n) -> number
+        Divide two or more numbers.
 
     - idiv(x, y) -> number
         Integer division of two numbers.
@@ -123,14 +123,14 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - inc(x) -> number
         Increment x, adding 1.
 
-    - mul(x, y) -> number
-        Multiply x & y.
+    - mul(x, y, *n) -> number
+        Multiply two or more numbers.
 
     - neg(x) -> Number
         Return -x.
 
-    - sub(x, y) -> number
-        Subtract x & y.
+    - sub(x, y, *n) -> number
+        Subtract two or more numbers.
 
 ## Boolean operations & branching
 
