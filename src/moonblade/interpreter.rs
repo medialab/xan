@@ -567,7 +567,15 @@ mod tests {
     fn test_bool() {
         assert_eq!(eval_code("not(true)"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("and(true, false)"), Ok(DynamicValue::from(false)));
+        assert_eq!(
+            eval_code("and(true, true, false)"),
+            Ok(DynamicValue::from(false))
+        );
         assert_eq!(eval_code("or(true, false)"), Ok(DynamicValue::from(true)));
+        assert_eq!(
+            eval_code("or(false, false, true)"),
+            Ok(DynamicValue::from(true))
+        );
     }
 
     #[test]

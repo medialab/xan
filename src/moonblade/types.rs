@@ -909,11 +909,6 @@ impl<'a> BoundArguments<'a> {
         let (a, b) = self.get2()?;
         Ok((a.try_as_number()?, b.try_as_number()?))
     }
-
-    pub fn get2_bool(&self) -> Result<(bool, bool), CallError> {
-        let (a, b) = self.get2()?;
-        Ok((a.is_truthy(), b.is_truthy()))
-    }
 }
 
 pub struct BoundArgumentsIntoIterator<'a>(std::vec::IntoIter<BoundArgument<'a>>);

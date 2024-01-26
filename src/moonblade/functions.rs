@@ -27,7 +27,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "abs" => (abs, Arity::Strict(1)),
         "abspath" => (abspath, Arity::Strict(1)),
         "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
-        "and" => (and, Arity::Strict(2)),
+        "and" => (and, Arity::Min(2)),
         "coalesce" => (coalesce, Arity::Min(1)),
         "compact" => (compact, Arity::Strict(1)),
         "concat" => (concat, Arity::Min(1)),
@@ -78,7 +78,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             Arity::Strict(2),
         ),
         "not" => (not, Arity::Strict(1)),
-        "or" => (or, Arity::Strict(2)),
+        "or" => (or, Arity::Min(2)),
         "pathjoin" => (pathjoin, Arity::Min(1)),
         "read" => (read, Arity::Range(1..=3)),
         "replace" => (replace, Arity::Strict(3)),
@@ -556,13 +556,11 @@ fn not(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn and(args: BoundArguments) -> FunctionResult {
-    let (a, b) = args.get2_bool()?;
-    Ok(DynamicValue::from(a && b))
+    Ok(DynamicValue::from(args.into_iter().all(|v| v.is_truthy())))
 }
 
 fn or(args: BoundArguments) -> FunctionResult {
-    let (a, b) = args.get2_bool()?;
-    Ok(DynamicValue::from(a || b))
+    Ok(DynamicValue::from(args.into_iter().any(|v| v.is_truthy())))
 }
 
 // Comparison

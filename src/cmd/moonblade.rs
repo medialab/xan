@@ -134,8 +134,8 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
 ## Boolean operations & branching
 
-    - and(a, b) -> bool
-        Perform boolean AND operation.
+    - and(a, b, *x) -> bool
+        Perform boolean AND operation on two or more values.
 
     - if(cond, then, else?) -> T
         Evaluate condition and switch to correct branch.
@@ -146,8 +146,8 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - not(a) -> bool
         Perform boolean NOT operation.
 
-    - or(a, b) -> bool
-        Perform boolean OR operation.
+    - or(a, b, *x) -> bool
+        Perform boolean OR operation on two or more values.
 
 ## Comparison
 
