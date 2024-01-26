@@ -206,6 +206,9 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - endswith(string, pattern) -> bool
         Test if string ends with pattern.
 
+    - escape(string) -> string 
+        The string returned may be safely used as a literal in a regular expression.
+
     - first(seq) -> T
         Get first element of sequence.
 
