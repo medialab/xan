@@ -215,18 +215,16 @@ impl DynamicNumber {
     }
 
     pub fn idiv(self, rhs: Self) -> Self {
-        let div = match self {
+        Self::Integer(match self {
             Self::Integer(a) => match rhs {
-                Self::Integer(b) => a as f64 / b as f64,
-                Self::Float(b) => a as f64 / b,
+                Self::Integer(b) => return Self::Integer(a / b),
+                Self::Float(b) => (a as f64).div_euclid(b) as i64,
             },
             Self::Float(a) => match rhs {
-                Self::Integer(b) => a / b as f64,
-                Self::Float(b) => a / b,
+                Self::Integer(b) => a.div_euclid(b as f64) as i64,
+                Self::Float(b) => a.div_euclid(b) as i64,
             },
-        };
-
-        Self::Integer(div.floor() as i64)
+        })
     }
 }
 
@@ -312,16 +310,16 @@ impl Add for DynamicNumber {
 
 impl AddAssign for DynamicNumber {
     fn add_assign(&mut self, rhs: Self) {
-        *self = match self {
+        match self {
             DynamicNumber::Float(a) => match rhs {
-                DynamicNumber::Float(b) => DynamicNumber::Float(*a + b),
-                DynamicNumber::Integer(b) => DynamicNumber::Float(*a + (b as f64)),
+                DynamicNumber::Float(b) => *a += b,
+                DynamicNumber::Integer(b) => *self = DynamicNumber::Float(*a + (b as f64)),
             },
             DynamicNumber::Integer(a) => match rhs {
-                DynamicNumber::Float(b) => DynamicNumber::Float((*a as f64) + b),
-                DynamicNumber::Integer(b) => DynamicNumber::Integer(*a + b),
+                DynamicNumber::Float(b) => *self = DynamicNumber::Float((*a as f64) + b),
+                DynamicNumber::Integer(b) => *a += b,
             },
-        }
+        };
     }
 }
 
