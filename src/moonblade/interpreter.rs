@@ -721,6 +721,18 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_regex() {
+        assert_eq!(
+            eval_code("escape_regex('(hello)')"),
+            Ok(DynamicValue::from(r"\(hello\)"))
+        );
+        assert_eq!(
+            eval_code("escape_regex('Hey. How are doing ?')"),
+            Ok(DynamicValue::from(r"Hey\. How are doing \?"))
+        );
+    }
+
+    #[test]
     fn test_if() {
         assert_eq!(eval_code("if(true, 3, 2)"), Ok(DynamicValue::from(3)));
         assert_eq!(

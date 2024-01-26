@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
+use regex;
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -37,6 +38,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "endswith" => (endswith, Arity::Strict(2)),
         "err" => (err, Arity::Strict(1)),
+        "escape_regex" => (escape_regex, Arity::Strict(1)),
         "filesize" => (filesize, Arity::Strict(1)),
         "first" => (first, Arity::Strict(1)),
         "get" => (get, Arity::Strict(2)),
@@ -161,6 +163,10 @@ fn rtrim(args: BoundArguments) -> FunctionResult {
             DynamicValue::from(string.trim_end_matches(|c| pattern.contains(&c)))
         }
     })
+}
+
+fn escape_regex(args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(regex::escape(args.get1_str()?.as_ref())))
 }
 
 fn split(args: BoundArguments) -> FunctionResult {
