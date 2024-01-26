@@ -404,6 +404,44 @@ impl AggregationMethod {
 // inferred from aggregating sum and count. Also if the user asks for both
 // sum and mean, the sum will only be aggregated once.
 
+macro_rules! build_variant_methods {
+    ($variant: ident, $is_name: ident, $has_name: ident, $gettr_name: ident) => {
+        fn $has_name(&self) -> bool {
+            self.methods.iter().any(|m| m.$is_name())
+        }
+
+        fn $gettr_name(&self) -> Option<&$variant> {
+            for method in self.methods.iter() {
+                match method {
+                    AggregationMethod::$variant(m) => return Some(m),
+                    _ => continue,
+                }
+            }
+
+            None
+        }
+    };
+}
+
+macro_rules! build_variant_methods_mut {
+    ($variant: ident, $is_name: ident, $has_name: ident, $gettr_name: ident) => {
+        fn $has_name(&self) -> bool {
+            self.methods.iter().any(|m| m.$is_name())
+        }
+
+        fn $gettr_name(&mut self) -> Option<&mut $variant> {
+            for method in self.methods.iter_mut() {
+                match method {
+                    AggregationMethod::$variant(m) => return Some(m),
+                    _ => continue,
+                }
+            }
+
+            None
+        }
+    };
+}
+
 #[derive(Debug)]
 struct Aggregator {
     methods: Vec<AggregationMethod>,
@@ -422,95 +460,17 @@ impl Aggregator {
         aggregator
     }
 
-    fn has_count(&self) -> bool {
-        self.methods.iter().any(|method| method.is_count())
-    }
-
-    fn has_extent(&self) -> bool {
-        self.methods.iter().any(|method| method.is_extent())
-    }
-
-    fn has_frequencies(&self) -> bool {
-        self.methods.iter().any(|method| method.is_frequencies())
-    }
-
-    fn has_numbers(&self) -> bool {
-        self.methods.iter().any(|method| method.is_numbers())
-    }
-
-    fn has_sum(&self) -> bool {
-        self.methods.iter().any(|method| method.is_sum())
-    }
-
-    fn has_welford(&self) -> bool {
-        self.methods.iter().any(|method| method.is_welford())
-    }
-
-    fn get_count(&self) -> Option<&Count> {
-        for method in self.methods.iter() {
-            match method {
-                AggregationMethod::Count(count) => return Some(count),
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    fn get_extent(&self) -> Option<&Extent> {
-        for method in self.methods.iter() {
-            match method {
-                AggregationMethod::Extent(extent) => return Some(extent),
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    fn get_frequencies(&self) -> Option<&Frequencies> {
-        for method in self.methods.iter() {
-            match method {
-                AggregationMethod::Frequencies(frequencies) => return Some(frequencies),
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    fn get_numbers_mut(&mut self) -> Option<&mut Numbers> {
-        for method in self.methods.iter_mut() {
-            match method {
-                AggregationMethod::Numbers(numbers) => return Some(numbers),
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    fn get_sum(&self) -> Option<&Sum> {
-        for method in self.methods.iter() {
-            match method {
-                AggregationMethod::Sum(sum) => return Some(sum),
-                _ => continue,
-            }
-        }
-
-        None
-    }
-
-    fn get_welford(&self) -> Option<&Welford> {
-        for method in self.methods.iter() {
-            match method {
-                AggregationMethod::Welford(variance) => return Some(variance),
-                _ => continue,
-            }
-        }
-
-        None
-    }
+    build_variant_methods!(Count, is_count, has_count, get_count);
+    build_variant_methods!(Extent, is_extent, has_extent, get_extent);
+    build_variant_methods!(
+        Frequencies,
+        is_frequencies,
+        has_frequencies,
+        get_frequencies
+    );
+    build_variant_methods_mut!(Numbers, is_numbers, has_numbers, get_numbers_mut);
+    build_variant_methods!(Sum, is_sum, has_sum, get_sum);
+    build_variant_methods!(Welford, is_welford, has_welford, get_welford);
 
     fn add_method(&mut self, method: &str) {
         match method {
