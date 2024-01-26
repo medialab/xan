@@ -1,6 +1,3 @@
-use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
-use flate2::read::GzDecoder;
-use regex;
 use std::borrow::Cow;
 use std::cmp::max;
 use std::cmp::{Ordering, PartialOrd};
@@ -9,6 +6,10 @@ use std::io::Read;
 use std::ops::{Add, Div, Mul, Sub};
 use std::path::Path;
 use std::path::PathBuf;
+
+use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
+use flate2::read::GzDecoder;
+use regex;
 use unidecode::unidecode;
 use uuid::Uuid;
 
