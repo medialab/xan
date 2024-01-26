@@ -77,6 +77,7 @@ uuid = { version = "0.8.1", features = ["v4"] }
 unicode-bidi = "0.3.13"
 emojis = "0.6.1"
 thread_local = "1.1.7"
+ratatui = { version = "0.25.0" }
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]

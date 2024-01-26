@@ -33,6 +33,7 @@ pub mod pseudo;
 pub mod replace;
 pub mod reverse;
 pub mod sample;
+pub mod scatter;
 pub mod search;
 pub mod select;
 pub mod shuffle;

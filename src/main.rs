@@ -25,6 +25,7 @@ extern crate numfmt;
 extern crate pager;
 extern crate pariter;
 extern crate rand;
+extern crate ratatui;
 extern crate rayon;
 extern crate regex;
 extern crate serde;
@@ -108,6 +109,7 @@ macro_rules! command_list {
     transform   Transform a column by evaluating an expression on each CSV row
     replace     Replace patterns in CSV data
     reverse     Reverse rows of CSV data
+    scatter     Draw a scatter plot from CSV data
     search      Search CSV data with regexes
     select      Select columns from CSV
     shuffle     Shuffle CSV data
@@ -230,6 +232,7 @@ enum Command {
     Replace,
     Reverse,
     Sample,
+    Scatter,
     Search,
     Select,
     Shuffle,
@@ -301,6 +304,7 @@ impl Command {
             Command::Replace => cmd::replace::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),
+            Command::Scatter => cmd::scatter::run(argv),
             Command::Search => cmd::search::run(argv),
             Command::Select => cmd::select::run(argv),
             Command::Shuffle => cmd::shuffle::run(argv),
