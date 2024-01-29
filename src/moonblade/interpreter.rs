@@ -833,7 +833,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dynamic_number_ln_sqrt() {
+    fn test_log_sqrt() {
         assert_eq!(eval_code("log(1)"), Ok(DynamicValue::from(0.0)));
         assert_eq!(eval_code("log(3.5)"), Ok(DynamicValue::from(1.252762968495368)));
         assert_eq!(eval_code("sqrt(4)"), Ok(DynamicValue::from(2.0)));
