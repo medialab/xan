@@ -24,6 +24,10 @@ impl Count {
         Self { current: 0 }
     }
 
+    fn clear(&mut self) {
+        self.current = 0;
+    }
+
     fn add(&mut self) {
         self.current += 1;
     }
@@ -43,6 +47,10 @@ impl Sum {
         Self {
             current: DynamicNumber::Integer(0),
         }
+    }
+
+    fn clear(&mut self) {
+        self.current = DynamicNumber::Integer(0);
     }
 
     // TODO: implement kahan-babushka summation from https://github.com/simple-statistics/simple-statistics/blob/main/src/sum.js
@@ -72,6 +80,10 @@ struct Extent {
 impl Extent {
     fn new() -> Self {
         Self { extent: None }
+    }
+
+    fn clear(&mut self) {
+        self.extent = None;
     }
 
     fn add(&mut self, value: DynamicNumber) {
@@ -106,6 +118,10 @@ struct LexicographicExtent {
 impl LexicographicExtent {
     fn new() -> Self {
         Self { extent: None }
+    }
+
+    fn clear(&mut self) {
+        self.extent = None;
     }
 
     fn add(&mut self, value: &str) {
@@ -150,6 +166,11 @@ impl Numbers {
             sorted: false,
             numbers: Vec::new(),
         }
+    }
+
+    fn clear(&mut self) {
+        self.sorted = false;
+        self.numbers.clear();
     }
 
     fn add(&mut self, number: DynamicNumber) {
@@ -220,6 +241,10 @@ impl Frequencies {
         }
     }
 
+    fn clear(&mut self) {
+        self.counter.clear();
+    }
+
     fn add(&mut self, value: String) {
         self.counter
             .entry(value)
@@ -262,6 +287,12 @@ impl Welford {
             mean: 0.0,
             m2: 0.0,
         }
+    }
+
+    fn clear(&mut self) {
+        self.count = 0;
+        self.mean = 0.0;
+        self.m2 = 0.0;
     }
 
     fn add(&mut self, value: f64) {
@@ -349,6 +380,18 @@ impl AggregationMethod {
     fn is_welford(&self) -> bool {
         matches!(self, Self::Welford(_))
     }
+
+    fn clear(&mut self) {
+        match self {
+            Self::Count(inner) => inner.clear(),
+            Self::Extent(inner) => inner.clear(),
+            Self::LexicographicExtent(inner) => inner.clear(),
+            Self::Frequencies(inner) => inner.clear(),
+            Self::Numbers(inner) => inner.clear(),
+            Self::Sum(inner) => inner.clear(),
+            Self::Welford(inner) => inner.clear(),
+        }
+    }
 }
 
 // NOTE: at the beginning I was using a struct that would look like this:
@@ -426,6 +469,12 @@ impl Aggregator {
     fn new() -> Self {
         Self {
             methods: Vec::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        for method in self.methods.iter_mut() {
+            method.clear();
         }
     }
 
@@ -603,6 +652,12 @@ impl KeyedAggregator {
         }
     }
 
+    fn clear_inner_aggregators(&mut self) {
+        for entry in self.mapping.iter_mut() {
+            entry.aggregator.clear();
+        }
+    }
+
     fn get_mut(&mut self, key: &str) -> Option<&mut KeyedAggregatorEntry> {
         self.mapping.iter_mut().find(|entry| entry.key == key)
     }
@@ -766,6 +821,10 @@ impl<'a> AggregationProgram<'a> {
             headers_index: HeadersIndex::from_headers(headers),
             variables: Variables::new(),
         })
+    }
+
+    pub fn clear_group(&mut self) {
+        self.aggregator.clear_inner_aggregators();
     }
 
     pub fn run_with_record(&mut self, record: &ByteRecord) -> Result<(), EvaluationError> {
