@@ -99,33 +99,33 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let mut state = args.new_io_state()?;
-    match (
+
+    if [
         args.flag_left,
         args.flag_right,
         args.flag_full,
         args.flag_cross,
-    ) {
-        (true, false, false, false) => {
-            state.write_headers()?;
-            state.outer_join(false)
-        }
-        (false, true, false, false) => {
-            state.write_headers()?;
-            state.outer_join(true)
-        }
-        (false, false, true, false) => {
-            state.write_headers()?;
-            state.full_outer_join()
-        }
-        (false, false, false, true) => {
-            state.write_headers()?;
-            state.cross_join()
-        }
-        (false, false, false, false) => {
-            state.write_headers()?;
-            state.inner_join()
-        }
-        _ => fail!("Please pick exactly one join operation."),
+    ]
+    .iter()
+    .filter(|flag| **flag)
+    .count()
+        > 1
+    {
+        return fail!("Please pick exactly one join operation.");
+    }
+
+    state.write_headers()?;
+
+    if args.flag_left {
+        state.outer_join(false)
+    } else if args.flag_right {
+        state.outer_join(true)
+    } else if args.flag_full {
+        state.full_outer_join()
+    } else if args.flag_cross {
+        state.cross_join()
+    } else {
+        state.inner_join()
     }
 }
 
@@ -146,7 +146,7 @@ struct IoState<R, W: io::Write> {
     rdr2: csv::Reader<R>,
     sel2: Selection,
     no_headers: bool,
-    casei: bool,
+    case_insensitive: bool,
     nulls: bool,
     pfx_left: Option<String>,
     pfx_right: Option<String>,
@@ -172,10 +172,10 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
 
     fn inner_join(mut self) -> CliResult<()> {
         let mut scratch = csv::ByteRecord::new();
-        let mut validx = ValueIndex::new(self.rdr2, &self.sel2, self.casei, self.nulls)?;
+        let mut validx = ValueIndex::new(self.rdr2, &self.sel2, self.case_insensitive, self.nulls)?;
         for row in self.rdr1.byte_records() {
             let row = row?;
-            let key = get_row_key(&self.sel1, &row, self.casei);
+            let key = get_row_key(&self.sel1, &row, self.case_insensitive);
             match validx.values.get(&key) {
                 None => continue,
                 Some(rows) => {
@@ -200,10 +200,10 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
 
         let mut scratch = csv::ByteRecord::new();
         let (_, pad2) = self.get_padding()?;
-        let mut validx = ValueIndex::new(self.rdr2, &self.sel2, self.casei, self.nulls)?;
+        let mut validx = ValueIndex::new(self.rdr2, &self.sel2, self.case_insensitive, self.nulls)?;
         for row in self.rdr1.byte_records() {
             let row = row?;
-            let key = get_row_key(&self.sel1, &row, self.casei);
+            let key = get_row_key(&self.sel1, &row, self.case_insensitive);
             match validx.values.get(&key) {
                 None => {
                     if right {
@@ -232,13 +232,13 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
     fn full_outer_join(mut self) -> CliResult<()> {
         let mut scratch = csv::ByteRecord::new();
         let (pad1, pad2) = self.get_padding()?;
-        let mut validx = ValueIndex::new(self.rdr2, &self.sel2, self.casei, self.nulls)?;
+        let mut validx = ValueIndex::new(self.rdr2, &self.sel2, self.case_insensitive, self.nulls)?;
 
         // Keep track of which rows we've written from rdr2.
         let mut rdr2_written: Vec<_> = repeat(false).take(validx.num_rows).collect();
         for row1 in self.rdr1.byte_records() {
             let row1 = row1?;
-            let key = get_row_key(&self.sel1, &row1, self.casei);
+            let key = get_row_key(&self.sel1, &row1, self.case_insensitive);
             match validx.values.get(&key) {
                 None => {
                     self.wtr.write_record(row1.iter().chain(&pad2))?;
@@ -317,7 +317,7 @@ impl Args {
             rdr2,
             sel2,
             no_headers: rconf1.no_headers,
-            casei: self.flag_ignore_case,
+            case_insensitive: self.flag_ignore_case,
             nulls: self.flag_nulls,
             pfx_left: self.flag_prefix_left.clone(),
             pfx_right: self.flag_prefix_right.clone(),
@@ -358,7 +358,7 @@ impl<R: io::Read + io::Seek> ValueIndex<R> {
     fn new(
         mut rdr: csv::Reader<R>,
         sel: &Selection,
-        casei: bool,
+        case_insensitive: bool,
         nulls: bool,
     ) -> CliResult<ValueIndex<R>> {
         let mut val_idx = HashMap::with_capacity(10000);
@@ -389,7 +389,10 @@ impl<R: io::Read + io::Seek> ValueIndex<R> {
             // indexes in one pass.
             row_idx.write_u64::<BigEndian>(row.position().unwrap().byte())?;
 
-            let fields: Vec<_> = sel.select(&row).map(|v| transform(v, casei)).collect();
+            let fields: Vec<_> = sel
+                .select(&row)
+                .map(|v| transform(v, case_insensitive))
+                .collect();
             if nulls || !fields.iter().any(|f| f.is_empty()) {
                 match val_idx.entry(fields) {
                     Entry::Vacant(v) => {
@@ -433,15 +436,17 @@ impl<R> fmt::Debug for ValueIndex<R> {
     }
 }
 
-fn get_row_key(sel: &Selection, row: &csv::ByteRecord, casei: bool) -> Vec<ByteString> {
-    sel.select(row).map(|v| transform(v, casei)).collect()
+fn get_row_key(sel: &Selection, row: &csv::ByteRecord, case_insensitive: bool) -> Vec<ByteString> {
+    sel.select(row)
+        .map(|v| transform(v, case_insensitive))
+        .collect()
 }
 
-fn transform(bs: &[u8], casei: bool) -> ByteString {
+fn transform(bs: &[u8], case_insensitive: bool) -> ByteString {
     match str::from_utf8(bs) {
         Err(_) => bs.to_vec(),
         Ok(s) => {
-            if !casei {
+            if !case_insensitive {
                 s.trim().as_bytes().to_vec()
             } else {
                 let norm: String = s
