@@ -70,6 +70,7 @@ struct Args {
     flag_aggs: bool,
     flag_cheatsheet: bool,
     flag_functions: bool,
+    flag_group_column : String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -105,7 +106,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
 
-    wtr.write_byte_record(&program.headers())?;
+    wtr.write_byte_record(&program.headers(args.flag_group_column))?;
 
     while rdr.read_byte_record(&mut record)? {
         let group = record[column_index].to_vec();

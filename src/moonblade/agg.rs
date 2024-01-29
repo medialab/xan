@@ -840,9 +840,13 @@ impl<'a> GroupAggregationProgram<'a> {
         Ok(())
     }
 
-    pub fn headers(&self) -> ByteRecord {
+    pub fn headers(&self,column_name: String) -> ByteRecord {
         let mut record = ByteRecord::new();
-        record.push_field(b"group");
+        if column_name.is_empty() {
+            record.push_field(b"group");
+        }else{
+            record.push_field(column_name.as_bytes());
+        }
 
         for aggregation in self.aggregations.iter() {
             record.push_field(aggregation.name.as_bytes());
