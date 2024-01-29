@@ -41,6 +41,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "escape_regex" => (escape_regex, Arity::Strict(1)),
         "filesize" => (filesize, Arity::Strict(1)),
         "first" => (first, Arity::Strict(1)),
+        "fmt" => (fmt, Arity::Min(1)),
         "get" => (get, Arity::Strict(2)),
         "gt" => (
             |args| number_compare(args, Ordering::is_gt),
@@ -266,6 +267,35 @@ fn apply_unidecode(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
     Ok(DynamicValue::from(unidecode(&arg)))
+}
+
+lazy_static! {
+    static ref FMT_PATTERN: regex::Regex = regex::Regex::new(r"\{\}").unwrap();
+}
+
+fn fmt(args: BoundArguments) -> FunctionResult {
+    args.validate_min_arity(1)?;
+
+    let mut args_iter = args.into_iter();
+    let pattern = args_iter.next().unwrap().try_as_str()?.into_owned();
+    let replacements = args_iter
+        .map(|arg| arg.try_as_str().map(|s| s.into_owned()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut i = 0;
+
+    let formatted = FMT_PATTERN.replace_all(&pattern, |captures: &regex::Captures| {
+        let replacement = match replacements.get(i) {
+            Some(r) => format!("{}", r),
+            None => captures[0].to_string(),
+        };
+
+        i += 1;
+
+        replacement
+    });
+
+    Ok(DynamicValue::from(formatted))
 }
 
 // Lists & Sequences

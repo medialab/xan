@@ -16,6 +16,8 @@ extern crate ext_sort;
 extern crate filetime;
 extern crate flate2;
 extern crate glob;
+#[macro_use]
+extern crate lazy_static;
 #[cfg(feature = "lang")]
 extern crate lingua;
 extern crate nom;

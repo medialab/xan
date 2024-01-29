@@ -803,4 +803,21 @@ mod tests {
             Ok(DynamicValue::from("SMITH"))
         );
     }
+
+    #[test]
+    fn test_fmt() {
+        assert_eq!(eval_code("fmt('test')"), Ok(DynamicValue::from("test")));
+        assert_eq!(
+            eval_code("fmt('Hello {}')"),
+            Ok(DynamicValue::from("Hello {}"))
+        );
+        assert_eq!(
+            eval_code("fmt('Hello {}', 'John')"),
+            Ok(DynamicValue::from("Hello John"))
+        );
+        assert_eq!(
+            eval_code("fmt('Hello {} {}', 'John', 45)"),
+            Ok(DynamicValue::from("Hello John 45"))
+        );
+    }
 }

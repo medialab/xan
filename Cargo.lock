@@ -2571,6 +2571,7 @@ dependencies = [
  "filetime",
  "flate2",
  "glob",
+ "lazy_static",
  "lingua",
  "log",
  "nom",

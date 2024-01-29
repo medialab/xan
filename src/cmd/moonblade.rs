@@ -212,6 +212,14 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - first(seq) -> T
         Get first element of sequence.
 
+    - fmt(string, *replacements):
+        Format a string by replacing \"{}\" occurrences by subsequent
+        arguments.
+
+        Example: `fmt(\"Hello {} {}\", name, surname)` will replace
+        the first \"{}\" by the value of the name column, then the
+        second one by the value of the surname column.
+
     - get(seq, index) -> T
         Get nth element of sequence (can use negative indexing).
 
