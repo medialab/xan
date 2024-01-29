@@ -61,7 +61,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
     for (i, header) in headers.into_iter().enumerate() {
         if num_inputs == 1 && !args.flag_just_names {
-            write!(&mut wtr, "{}\t", i + 1)?;
+            write!(&mut wtr, "{}\t", i)?;
         }
         wtr.write_all(&header)?;
         wtr.write_all(b"\n")?;
