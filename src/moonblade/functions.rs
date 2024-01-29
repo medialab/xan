@@ -25,6 +25,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "abspath" => (abspath, Arity::Strict(1)),
         "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
         "and" => (and, Arity::Min(2)),
+        "ceil" => (ceil, Arity::Strict(1)),
         "coalesce" => (coalesce, Arity::Min(1)),
         "compact" => (compact, Arity::Strict(1)),
         "concat" => (concat, Arity::Min(1)),
@@ -41,6 +42,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "escape_regex" => (escape_regex, Arity::Strict(1)),
         "filesize" => (filesize, Arity::Strict(1)),
         "first" => (first, Arity::Strict(1)),
+        "floor" => (floor, Arity::Strict(1)),
         "fmt" => (fmt, Arity::Min(1)),
         "get" => (get, Arity::Strict(2)),
         "gt" => (
@@ -60,6 +62,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "join" => (join, Arity::Strict(2)),
         "last" => (last, Arity::Strict(1)),
         "len" => (len, Arity::Strict(1)),
+        "ln" => (ln, Arity::Strict(1)),
         "lt" => (
             |args| number_compare(args, Ordering::is_lt),
             Arity::Strict(2),
@@ -81,9 +84,11 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "pathjoin" => (pathjoin, Arity::Min(1)),
         "read" => (read, Arity::Range(1..=3)),
         "replace" => (replace, Arity::Strict(3)),
+        "round" => (round, Arity::Strict(1)),
         "rtrim" => (rtrim, Arity::Strict(1)),
         "slice" => (slice, Arity::Range(2..=3)),
         "split" => (split, Arity::Strict(2)),
+        "sqrt" => (sqrt, Arity::Strict(1)),
         "startswith" => (startswith, Arity::Strict(2)),
         "sub" => (|args| variadic_arithmetic_op(args, Sub::sub), Arity::Min(2)),
         "s_eq" => (
@@ -575,6 +580,27 @@ fn inc(mut args: BoundArguments) -> FunctionResult {
 fn dec(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(args.pop1_number()?.dec()))
 }
+
+fn floor(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(args.pop1_number()?.floor()))
+}
+
+fn ceil(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(args.pop1_number()?.ceil()))
+}
+
+fn round(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(args.pop1_number()?.round()))
+}
+
+fn ln(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(args.pop1_number()?.ln()))
+}
+
+fn sqrt(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(args.pop1_number()?.sqrt()))
+}
+
 
 // Utilities
 fn coalesce(args: BoundArguments) -> FunctionResult {

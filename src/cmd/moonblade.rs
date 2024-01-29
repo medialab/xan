@@ -132,6 +132,23 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - sub(x, y, *n) -> number
         Subtract two or more numbers.
 
+    - ceil(x) -> number 
+        Return the smallest integer greater than or equal to x.
+
+    - floor(x) -> number 
+        Return the smallest integer lower than or equal to x.
+    
+    - round(x) -> number 
+        Return x rounded numbers to the nearest integer.
+
+    - ln(x) -> number 
+        Return the natural logarithm of x.
+    
+    - sqrt(x) -> number 
+        Return the square root of x.
+    
+
+
 ## Boolean operations & branching
 
     - and(a, b, *x) -> bool
