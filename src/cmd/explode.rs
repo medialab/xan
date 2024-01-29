@@ -78,9 +78,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let sep = args.arg_separator;
-    let sep_is_single_byte = sep.len() == 1;
 
-    if sep_is_single_byte {
+    // NOTE: if separator is a single byte, we don't have to decode
+    if sep.as_bytes().len() == 1 {
         let sep = &sep.as_bytes()[0];
 
         let mut record = csv::ByteRecord::new();
