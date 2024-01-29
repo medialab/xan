@@ -601,7 +601,6 @@ fn sqrt(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(args.pop1_number()?.sqrt()))
 }
 
-
 // Utilities
 fn coalesce(args: BoundArguments) -> FunctionResult {
     for arg in args {

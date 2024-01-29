@@ -1020,19 +1020,26 @@ mod tests {
         assert_eq!(DynamicNumber::Float(4.8).ceil(), DynamicNumber::Integer(5));
         assert_eq!(DynamicNumber::Integer(3).floor(), DynamicNumber::Integer(3));
         assert_eq!(DynamicNumber::Float(3.6).floor(), DynamicNumber::Integer(3));
-        assert_eq!(DynamicNumber::Float(-3.6).floor(), DynamicNumber::Integer(-4));
+        assert_eq!(
+            DynamicNumber::Float(-3.6).floor(),
+            DynamicNumber::Integer(-4)
+        );
         assert_eq!(DynamicNumber::Integer(3).round(), DynamicNumber::Integer(3));
         assert_eq!(DynamicNumber::Float(3.6).round(), DynamicNumber::Integer(4));
         assert_eq!(DynamicNumber::Float(3.1).round(), DynamicNumber::Integer(3));
-
-
     }
 
     #[test]
     fn test_dynamic_number_ln_sqrt() {
         assert_eq!(DynamicNumber::Integer(1).ln(), DynamicNumber::Integer(0));
-        assert_eq!(DynamicNumber::Float(3.5).ln(), DynamicNumber::Float(1.252762968495368));
+        assert_eq!(
+            DynamicNumber::Float(3.5).ln(),
+            DynamicNumber::Float(1.252762968495368)
+        );
         assert_eq!(DynamicNumber::Integer(4).sqrt(), DynamicNumber::Integer(2));
-        assert_eq!(DynamicNumber::Integer(100).sqrt(), DynamicNumber::Integer(10));
+        assert_eq!(
+            DynamicNumber::Integer(100).sqrt(),
+            DynamicNumber::Integer(10)
+        );
     }
 }
