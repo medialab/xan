@@ -277,23 +277,28 @@ fn fmt(args: BoundArguments) -> FunctionResult {
     args.validate_min_arity(1)?;
 
     let mut args_iter = args.into_iter();
-    let pattern = args_iter.next().unwrap().try_as_str()?.into_owned();
-    let replacements = args_iter
-        .map(|arg| arg.try_as_str().map(|s| s.into_owned()))
-        .collect::<Result<Vec<_>, _>>()?;
+    let first_arg = args_iter.next().unwrap();
+    let pattern = first_arg.try_as_str()?;
 
-    let mut i = 0;
+    let mut formatted = String::with_capacity(pattern.len());
+    let mut last_match = 0;
 
-    let formatted = FMT_PATTERN.replace_all(&pattern, |captures: &regex::Captures| {
-        let replacement = match replacements.get(i) {
-            Some(r) => format!("{}", r),
-            None => captures[0].to_string(),
-        };
+    for capture in FMT_PATTERN.captures_iter(&pattern) {
+        let m = capture.get(0).unwrap();
 
-        i += 1;
+        formatted.push_str(&pattern[last_match..m.start()]);
 
-        replacement
-    });
+        match args_iter.next() {
+            None => formatted.push_str(&capture[0]),
+            Some(arg) => {
+                formatted.push_str(&arg.try_as_str()?);
+            }
+        }
+
+        last_match = m.end();
+    }
+
+    formatted.push_str(&pattern[last_match..]);
 
     Ok(DynamicValue::from(formatted))
 }
