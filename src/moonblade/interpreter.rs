@@ -820,4 +820,24 @@ mod tests {
             Ok(DynamicValue::from("Hello John 45"))
         );
     }
+
+    #[test]
+    fn test_ceil_floor_round() {
+        assert_eq!(eval_code("ceil(2.3)"), Ok(DynamicValue::from(3)));
+        assert_eq!(eval_code("ceil(4.8)"), Ok(DynamicValue::from(5)));
+        assert_eq!(eval_code("floor(2.3)"), Ok(DynamicValue::from(2)));
+        assert_eq!(eval_code("floor(-3.6)"), Ok(DynamicValue::from(-4)));
+        assert_eq!(eval_code("round(2.3)"), Ok(DynamicValue::from(2)));
+        assert_eq!(eval_code("round(3)"), Ok(DynamicValue::from(3)));
+
+    }
+
+    #[test]
+    fn test_log_sqrt() {
+        assert_eq!(eval_code("log(1)"), Ok(DynamicValue::from(0.0)));
+        assert_eq!(eval_code("log(3.5)"), Ok(DynamicValue::from(1.252762968495368)));
+        assert_eq!(eval_code("sqrt(4)"), Ok(DynamicValue::from(2.0)));
+        assert_eq!(eval_code("sqrt(100)"), Ok(DynamicValue::from(10.0)));
+
+    }
 }
