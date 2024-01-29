@@ -66,99 +66,69 @@ impl Sum {
 
 #[derive(Debug)]
 struct Extent {
-    min: Option<DynamicNumber>,
-    max: Option<DynamicNumber>,
-    min_string: Option<String>,
-    max_string: Option<String>,
-    as_string: bool,
+    extent: Option<(DynamicNumber, DynamicNumber)>,
 }
 
 impl Extent {
     fn new() -> Self {
-        Self {
-            min: None,
-            max: None,
-            min_string: None,
-            max_string: None,
-            as_string: false,
+        Self { extent: None }
+    }
+
+    fn add(&mut self, value: DynamicNumber) {
+        match &mut self.extent {
+            None => self.extent = Some((value, value)),
+            Some((min, max)) => {
+                if value < *min {
+                    *min = value;
+                }
+
+                if value > *max {
+                    *max = value;
+                }
+            }
         }
     }
 
-    fn update_string(&mut self, string: String) {
-        if let Some(current) = &self.min_string {
-            if &string < current {
-                self.min_string = Some(string.clone());
-            }
-        } else {
-            self.min_string = Some(string.clone());
-        }
+    fn min(&self) -> Option<DynamicNumber> {
+        self.extent.map(|e| e.0)
+    }
 
-        if let Some(current) = &self.max_string {
-            if &string > current {
-                self.max_string = Some(string);
+    fn max(&self) -> Option<DynamicNumber> {
+        self.extent.map(|e| e.1)
+    }
+}
+
+#[derive(Debug)]
+struct LexicographicExtent {
+    extent: Option<(String, String)>,
+}
+
+impl LexicographicExtent {
+    fn new() -> Self {
+        Self { extent: None }
+    }
+
+    fn add(&mut self, value: &str) {
+        match &mut self.extent {
+            None => self.extent = Some((value.to_string(), value.to_string())),
+            Some((min, max)) => {
+                if value < min.as_str() {
+                    *min = value.to_string();
+                }
+
+                if value > max.as_str() {
+                    *max = value.to_string();
+                }
             }
-        } else {
-            self.max_string = Some(string);
         }
     }
 
-    fn update_number(&mut self, number: DynamicNumber) {
-        if let Some(current) = &self.min {
-            if &number < current {
-                self.min = Some(number);
-            }
-        } else {
-            self.min = Some(number);
-        }
-
-        if let Some(current) = &self.max {
-            if &number > current {
-                self.max = Some(number);
-            }
-        } else {
-            self.max = Some(number);
-        }
+    fn first(&self) -> Option<String> {
+        self.extent.as_ref().map(|e| e.0.clone())
     }
 
-    fn add(&mut self, value: &DynamicValue) {
-        if self.as_string {
-            match value.try_as_str() {
-                Err(_) => return,
-                Ok(string) => self.update_string(string.into_owned()),
-            }
-            return;
-        }
-
-        match value.try_as_number() {
-            Err(_) => {
-                // Switching to tracking strings
-                self.as_string = true;
-
-                self.min_string = self.min.as_ref().map(|min| min.to_string());
-                self.max_string = self.max.as_ref().map(|max| max.to_string());
-
-                self.add(value);
-            }
-            Ok(number) => {
-                self.update_number(number);
-            }
-        };
-    }
-
-    fn min(&self) -> DynamicValue {
-        if self.as_string {
-            return DynamicValue::from(self.min_string.clone());
-        }
-
-        DynamicValue::from(self.min)
-    }
-
-    fn max(&self) -> DynamicValue {
-        if self.as_string {
-            return DynamicValue::from(self.max_string.clone());
-        }
-
-        DynamicValue::from(self.max)
+    fn last(&self) -> Option<String> {
+        self.extent.as_ref().map(|e| e.1.clone())
     }
 }
 
@@ -344,6 +314,7 @@ impl Welford {
 enum AggregationMethod {
     Count(Count),
     Extent(Extent),
+    LexicographicExtent(LexicographicExtent),
     Frequencies(Frequencies),
     Numbers(Numbers),
     Sum(Sum),
@@ -357,6 +328,10 @@ impl AggregationMethod {
 
     fn is_extent(&self) -> bool {
         matches!(self, Self::Extent(_))
+    }
+
+    fn is_lexicographic_extent(&self) -> bool {
+        matches!(self, Self::LexicographicExtent(_))
     }
 
     fn is_frequencies(&self) -> bool {
@@ -463,6 +438,12 @@ impl Aggregator {
     build_variant_methods!(Count, is_count, has_count, get_count);
     build_variant_methods!(Extent, is_extent, has_extent, get_extent);
     build_variant_methods!(
+        LexicographicExtent,
+        is_lexicographic_extent,
+        has_lexicographic_extent,
+        get_lexicographic_extent
+    );
+    build_variant_methods!(
         Frequencies,
         is_frequencies,
         has_frequencies,
@@ -487,6 +468,15 @@ impl Aggregator {
                 }
 
                 self.methods.push(AggregationMethod::Extent(Extent::new()));
+            }
+            "lex_first" | "lex_last" => {
+                if self.has_lexicographic_extent() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::LexicographicExtent(
+                    LexicographicExtent::new(),
+                ));
             }
             "median" | "median_low" | "median_high" => {
                 if !self.has_numbers() {
@@ -530,7 +520,10 @@ impl Aggregator {
                         }
                     }
                     AggregationMethod::Extent(extent) => {
-                        extent.add(value);
+                        extent.add(value.try_as_number()?);
+                    }
+                    AggregationMethod::LexicographicExtent(extent) => {
+                        extent.add(&value.try_as_str()?);
                     }
                     AggregationMethod::Frequencies(frequencies) => {
                         frequencies.add(value.try_as_str()?.into_owned());
@@ -560,7 +553,9 @@ impl Aggregator {
     fn finalize_method(&mut self, method: &str) -> DynamicValue {
         match method {
             "count" => DynamicValue::from(self.get_count().unwrap().get()),
-            "min" => self.get_extent().unwrap().min(),
+            "lex_first" => DynamicValue::from(self.get_lexicographic_extent().unwrap().first()),
+            "lex_last" => DynamicValue::from(self.get_lexicographic_extent().unwrap().last()),
+            "min" => DynamicValue::from(self.get_extent().unwrap().min()),
             "avg" | "mean" => DynamicValue::from(self.get_welford().unwrap().mean()),
             "median" => DynamicValue::from(
                 self.get_numbers_mut()
@@ -573,7 +568,7 @@ impl Aggregator {
             "median_low" => {
                 DynamicValue::from(self.get_numbers_mut().unwrap().median(MedianType::Low))
             }
-            "max" => self.get_extent().unwrap().max(),
+            "max" => DynamicValue::from(self.get_extent().unwrap().max()),
             "mode" => DynamicValue::from(self.get_frequencies().unwrap().mode()),
             "sum" => DynamicValue::from(self.get_sum().unwrap().get()),
             "var" | "var_pop" => DynamicValue::from(self.get_welford().unwrap().variance()),

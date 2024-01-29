@@ -146,7 +146,8 @@ fn agg_min_max_strings() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("min(n) as min, max(n) as max").arg("data.csv");
+    cmd.arg("lex_first(n) as min, lex_last(n) as max")
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["min", "max"], svec!["1", "test"]];
