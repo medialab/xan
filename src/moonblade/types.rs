@@ -226,6 +226,46 @@ impl DynamicNumber {
             },
         })
     }
+
+    pub fn map_float<F>(self, callback: F) -> Self
+    where
+        F: Fn(f64) -> f64,
+    {
+        match self {
+            Self::Integer(a) => Self::Float(callback(a as f64)),
+            Self::Float(a) => Self::Float(callback(a as f64)),
+        }
+    }
+
+    pub fn map_only_if_float<F>(self, callback: F) -> Self
+    where
+        F: Fn(f64) -> f64,
+    {
+        match self {
+            Self::Integer(_) => self,
+            Self::Float(n) => Self::Integer(callback(n) as i64),
+        }
+    }
+
+    pub fn floor(self) -> Self {
+        self.map_only_if_float(|n| n.floor())
+    }
+
+    pub fn ceil(self) -> Self {
+        self.map_only_if_float(|n| n.ceil())
+    }
+
+    pub fn round(self) -> Self {
+        self.map_only_if_float(|n| n.round())
+    }
+
+    pub fn ln(self) -> Self {
+        self.map_float(|n| n.ln())
+    }
+
+    pub fn sqrt(self) -> Self {
+        self.map_float(|n| n.sqrt())
+    }
 }
 
 impl ToString for DynamicNumber {
