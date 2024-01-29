@@ -44,7 +44,7 @@ fn replace_no_headers() {
         .arg("")
         .arg("--no-headers")
         .arg("--select")
-        .arg("1")
+        .arg("0")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

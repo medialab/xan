@@ -74,17 +74,17 @@ fn data(headers: bool) -> Vec<Vec<String>> {
     rows
 }
 
-select_test!(select_simple, "h1", "1", ["h1"], ["a"]);
-select_test!(select_simple_idx, "h1[0]", "1", ["h1"], ["a"]);
-select_test!(select_simple_idx_2, "h1[1]", "5", ["h1"], ["e"]);
+select_test!(select_simple, "h1", "0", ["h1"], ["a"]);
+select_test!(select_simple_idx, "h1[0]", "0", ["h1"], ["a"]);
+select_test!(select_simple_idx_2, "h1[1]", "4", ["h1"], ["e"]);
 
-select_test!(select_quoted, r#""h[]3""#, "3", ["h[]3"], ["c"]);
-select_test!(select_quoted_idx, r#""h[]3"[0]"#, "3", ["h[]3"], ["c"]);
+select_test!(select_quoted, r#""h[]3""#, "2", ["h[]3"], ["c"]);
+select_test!(select_quoted_idx, r#""h[]3"[0]"#, "2", ["h[]3"], ["c"]);
 
 select_test!(
     select_range,
     "h1-h4",
-    "1-4",
+    "0-3",
     ["h1", "h2", "h[]3", "h4"],
     ["a", "b", "c", "d"]
 );
@@ -92,14 +92,14 @@ select_test!(
 select_test!(
     select_range_multi,
     r#"h1-h2,"h[]3"-h4"#,
-    "1-2,3-4",
+    "0-1,2-3",
     ["h1", "h2", "h[]3", "h4"],
     ["a", "b", "c", "d"]
 );
 select_test!(
     select_range_multi_idx,
     r#"h1-h2,"h[]3"[0]-h4"#,
-    "1-2,3-4",
+    "0-1,2-3",
     ["h1", "h2", "h[]3", "h4"],
     ["a", "b", "c", "d"]
 );
@@ -107,7 +107,7 @@ select_test!(
 select_test!(
     select_reverse,
     "h1[1]-h1[0]",
-    "5-1",
+    "4-0",
     ["h1", "h4", "h[]3", "h2", "h1"],
     ["e", "d", "c", "b", "a"]
 );
@@ -115,48 +115,47 @@ select_test!(
 select_test!(
     select_not,
     r#"!"h[]3"[0]"#,
-    "!3",
+    "!2",
     ["h1", "h2", "h4", "h1"],
     ["a", "b", "d", "e"]
 );
-select_test!(select_not_range, "!h1[1]-h2", "!5-2", ["h1"], ["a"]);
+select_test!(select_not_range, "!h1[1]-h2", "!4-1", ["h1"], ["a"]);
 
-select_test!(select_duplicate, "h1,h1", "1,1", ["h1", "h1"], ["a", "a"]);
+select_test!(select_duplicate, "h1,h1", "0,0", ["h1", "h1"], ["a", "a"]);
 select_test!(
     select_duplicate_range,
     "h1-h2,h1-h2",
-    "1-2,1-2",
+    "0-1,0-1",
     ["h1", "h2", "h1", "h2"],
     ["a", "b", "a", "b"]
 );
 select_test!(
     select_duplicate_range_reverse,
     "h1-h2,h2-h1",
-    "1-2,2-1",
+    "0-1,1-0",
     ["h1", "h2", "h2", "h1"],
     ["a", "b", "b", "a"]
 );
 
-select_test!(select_range_no_end, "h4-", "4-", ["h4", "h1"], ["d", "e"]);
-select_test!(select_range_no_start, "-h2", "-2", ["h1", "h2"], ["a", "b"]);
+select_test!(select_range_no_end, "h4-", "3-", ["h4", "h1"], ["d", "e"]);
+select_test!(select_range_no_start, "-h2", "-1", ["h1", "h2"], ["a", "b"]);
 select_test!(
     select_range_no_end_cat,
     "h4-,h1",
-    "4-,1",
+    "3-,0",
     ["h4", "h1", "h1"],
     ["d", "e", "a"]
 );
 select_test!(
     select_range_no_start_cat,
     "-h2,h1[1]",
-    "-2,5",
+    "-1,4",
     ["h1", "h2", "h1"],
     ["a", "b", "e"]
 );
 
 select_test_err!(select_err_unknown_header, "dne");
-select_test_err!(select_err_oob_low, "0");
-select_test_err!(select_err_oob_high, "6");
+select_test_err!(select_err_oob_high, "5");
 select_test_err!(select_err_idx_as_name, "1[0]");
 select_test_err!(select_err_idx_oob_high, "h1[2]");
 select_test_err!(select_err_idx_not_int, "h1[2.0]");

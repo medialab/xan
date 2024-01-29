@@ -51,7 +51,7 @@ fn sort_select() {
 
     let mut cmd = wrk.command("sort");
     cmd.arg("--no-headers")
-        .args(["--select", "2"])
+        .args(["--select", "1"])
         .arg("in.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

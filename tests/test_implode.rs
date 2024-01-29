@@ -68,7 +68,7 @@ fn implode_no_headers() {
         ],
     );
     let mut cmd = wrk.command("implode");
-    cmd.arg("2").arg("|").arg("--no-headers").arg("data.csv");
+    cmd.arg("1").arg("|").arg("--no-headers").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![

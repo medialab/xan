@@ -46,7 +46,7 @@ fn pseudo_no_headers() {
         ],
     );
     let mut cmd = wrk.command("pseudo");
-    cmd.arg("1").arg("--no-headers").arg("data.csv");
+    cmd.arg("0").arg("--no-headers").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![

@@ -285,17 +285,16 @@ impl OneSelector {
                 first_record.len() - 1
             }),
             OneSelector::Index(i) => {
-                if i < 1 || i > first_record.len() {
+                if i >= first_record.len() {
                     Err(format!(
                         "Selector index {} is out of \
-                                 bounds. Index must be >= 1 \
+                                 bounds. Index must be >= 0 \
                                  and <= {}.",
                         i,
                         first_record.len()
                     ))
                 } else {
-                    // Indices given by user are 1-offset. Convert them here!
-                    Ok(i - 1)
+                    Ok(i)
                 }
             }
             OneSelector::IndexedName(ref s, sidx) => {

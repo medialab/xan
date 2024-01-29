@@ -109,7 +109,7 @@ fn partition_without_headers() {
 
     let mut cmd = wrk.command("partition");
     cmd.arg("--no-headers")
-        .arg("1")
+        .arg("0")
         .arg(&wrk.path("."))
         .arg("in.csv");
     wrk.run(&mut cmd);
@@ -147,7 +147,7 @@ fn partition_drop_without_headers() {
     let mut cmd = wrk.command("partition");
     cmd.arg("--drop")
         .arg("--no-headers")
-        .arg("1")
+        .arg("0")
         .arg(&wrk.path("."))
         .arg("in.csv");
     wrk.run(&mut cmd);

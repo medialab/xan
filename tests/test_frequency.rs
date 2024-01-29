@@ -32,7 +32,7 @@ fn setup(name: &str) -> (Workdir, process::Command) {
 fn frequency_no_headers() {
     let (wrk, mut cmd) = setup("frequency_no_headers");
     cmd.args(["--limit", "0"])
-        .args(["--select", "1"])
+        .args(["--select", "0"])
         .arg("--no-headers");
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

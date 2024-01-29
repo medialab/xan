@@ -24,7 +24,7 @@ macro_rules! join_test {
                 let wrk = setup(n, false);
                 let mut cmd = wrk.command("join");
                 cmd.arg("--no-headers");
-                cmd.args(&["1", "cities.csv", "1", "places.csv"]);
+                cmd.args(&["0", "cities.csv", "0", "places.csv"]);
                 $fun(wrk, cmd, false);
             }
         }
@@ -148,7 +148,7 @@ fn join_inner_issue11() {
     wrk.create("b.csv", b);
 
     let mut cmd = wrk.command("join");
-    cmd.args(["1,2", "a.csv", "2,1", "b.csv"]);
+    cmd.args(["0,1", "a.csv", "1,0", "b.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![

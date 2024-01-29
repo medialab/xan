@@ -102,7 +102,7 @@ fn search_select_no_headers() {
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
     cmd.arg("^foo").arg("data.csv");
-    cmd.arg("--select").arg("2");
+    cmd.arg("--select").arg("1");
     cmd.arg("--no-headers");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

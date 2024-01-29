@@ -14,15 +14,15 @@ name if there is a header row (duplicate column names can be disambiguated with
 more indexing). Finally, column ranges can be specified.
 
   Select the first and fourth columns:
-  $ xsv select 1,4
+  $ xsv select 0,3
 
   Select the first 4 columns (by index and by name):
-  $ xsv select 1-4
+  $ xsv select 0-3
   $ xsv select Header1-Header4
 
   Ignore the first 2 columns (by range and by omission):
-  $ xsv select 3-
-  $ xsv select '!1-2'
+  $ xsv select 2-
+  $ xsv select '!0-1'
 
   Select the third column named 'Foo':
   $ xsv select 'Foo[2]'
