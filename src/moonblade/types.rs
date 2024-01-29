@@ -233,11 +233,11 @@ impl DynamicNumber {
     {
         match self {
             Self::Integer(a) => Self::Float(callback(a as f64)),
-            Self::Float(a) => Self::Float(callback(a as f64)),
+            Self::Float(a) => Self::Float(callback(a)),
         }
     }
 
-    pub fn map_only_if_float<F>(self, callback: F) -> Self
+    pub fn map_float_to_int<F>(self, callback: F) -> Self
     where
         F: Fn(f64) -> f64,
     {
@@ -248,15 +248,15 @@ impl DynamicNumber {
     }
 
     pub fn floor(self) -> Self {
-        self.map_only_if_float(|n| n.floor())
+        self.map_float_to_int(|n| n.floor())
     }
 
     pub fn ceil(self) -> Self {
-        self.map_only_if_float(|n| n.ceil())
+        self.map_float_to_int(|n| n.ceil())
     }
 
     pub fn round(self) -> Self {
-        self.map_only_if_float(|n| n.round())
+        self.map_float_to_int(|n| n.round())
     }
 
     pub fn ln(self) -> Self {
@@ -353,7 +353,7 @@ impl AddAssign for DynamicNumber {
         match self {
             DynamicNumber::Float(a) => match rhs {
                 DynamicNumber::Float(b) => *a += b,
-                DynamicNumber::Integer(b) => *self = DynamicNumber::Float(*a + (b as f64)),
+                DynamicNumber::Integer(b) => *a += b as f64,
             },
             DynamicNumber::Integer(a) => match rhs {
                 DynamicNumber::Float(b) => *self = DynamicNumber::Float((*a as f64) + b),
@@ -1020,19 +1020,26 @@ mod tests {
         assert_eq!(DynamicNumber::Float(4.8).ceil(), DynamicNumber::Integer(5));
         assert_eq!(DynamicNumber::Integer(3).floor(), DynamicNumber::Integer(3));
         assert_eq!(DynamicNumber::Float(3.6).floor(), DynamicNumber::Integer(3));
-        assert_eq!(DynamicNumber::Float(-3.6).floor(), DynamicNumber::Integer(-4));
+        assert_eq!(
+            DynamicNumber::Float(-3.6).floor(),
+            DynamicNumber::Integer(-4)
+        );
         assert_eq!(DynamicNumber::Integer(3).round(), DynamicNumber::Integer(3));
         assert_eq!(DynamicNumber::Float(3.6).round(), DynamicNumber::Integer(4));
         assert_eq!(DynamicNumber::Float(3.1).round(), DynamicNumber::Integer(3));
-
-
     }
 
     #[test]
     fn test_dynamic_number_ln_sqrt() {
         assert_eq!(DynamicNumber::Integer(1).ln(), DynamicNumber::Integer(0));
-        assert_eq!(DynamicNumber::Float(3.5).ln(), DynamicNumber::Float(1.252762968495368));
+        assert_eq!(
+            DynamicNumber::Float(3.5).ln(),
+            DynamicNumber::Float(1.252762968495368)
+        );
         assert_eq!(DynamicNumber::Integer(4).sqrt(), DynamicNumber::Integer(2));
-        assert_eq!(DynamicNumber::Integer(100).sqrt(), DynamicNumber::Integer(10));
+        assert_eq!(
+            DynamicNumber::Integer(100).sqrt(),
+            DynamicNumber::Integer(10)
+        );
     }
 }

@@ -47,16 +47,16 @@ impl Sum {
 
     // TODO: implement kahan-babushka summation from https://github.com/simple-statistics/simple-statistics/blob/main/src/sum.js
     fn add(&mut self, value: &DynamicNumber) {
-        self.current = match self.current {
+        match &mut self.current {
             DynamicNumber::Float(a) => match value {
-                DynamicNumber::Float(b) => DynamicNumber::Float(a + b),
-                DynamicNumber::Integer(b) => DynamicNumber::Float(a + (*b as f64)),
+                DynamicNumber::Float(b) => *a += b,
+                DynamicNumber::Integer(b) => *a += *b as f64,
             },
             DynamicNumber::Integer(a) => match value {
-                DynamicNumber::Float(b) => DynamicNumber::Float((a as f64) + b),
-                DynamicNumber::Integer(b) => DynamicNumber::Integer(a + b),
+                DynamicNumber::Float(b) => self.current = DynamicNumber::Float((*a as f64) + b),
+                DynamicNumber::Integer(b) => *a += b,
             },
-        }
+        };
     }
 
     fn get(&self) -> DynamicNumber {
