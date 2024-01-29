@@ -58,7 +58,6 @@ mod test_kway;
 mod test_lang;
 mod test_map;
 mod test_partition;
-mod test_pseudo;
 mod test_replace;
 mod test_reverse;
 mod test_search;

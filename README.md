@@ -57,7 +57,6 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 * `xsv kway`
 * `xsv lang`
 * `xsv map`
-* `xsv pseudo`
 * `xsv replace`
 * `xsv reverse --in-memory`
 * `xsv search --exact`

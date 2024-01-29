@@ -29,7 +29,6 @@ pub mod lang;
 pub mod map;
 mod moonblade;
 pub mod partition;
-pub mod pseudo;
 pub mod replace;
 pub mod reverse;
 pub mod sample;

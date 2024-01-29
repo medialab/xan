@@ -105,7 +105,6 @@ macro_rules! command_list {
     lang        Add a column with the language detected in a given CSV column
     map         Create a new column by evaluating an expression on each CSV row
     partition   Partition CSV data based on a column value
-    pseudo      Pseudonymise the values of a column
     sample      Randomly sample CSV data
     transform   Transform a column by evaluating an expression on each CSV row
     replace     Replace patterns in CSV data
@@ -228,7 +227,6 @@ enum Command {
     Lang,
     Map,
     Partition,
-    Pseudo,
     Replace,
     Reverse,
     Sample,
@@ -299,7 +297,6 @@ impl Command {
             )),
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),
-            Command::Pseudo => cmd::pseudo::run(argv),
             Command::Replace => cmd::replace::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),
