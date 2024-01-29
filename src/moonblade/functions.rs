@@ -62,7 +62,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "join" => (join, Arity::Strict(2)),
         "last" => (last, Arity::Strict(1)),
         "len" => (len, Arity::Strict(1)),
-        "ln" => (ln, Arity::Strict(1)),
+        "log" => (log, Arity::Strict(1)),
         "lt" => (
             |args| number_compare(args, Ordering::is_lt),
             Arity::Strict(2),
@@ -593,7 +593,7 @@ fn round(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(args.pop1_number()?.round()))
 }
 
-fn ln(mut args: BoundArguments) -> FunctionResult {
+fn log(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(args.pop1_number()?.ln()))
 }
 

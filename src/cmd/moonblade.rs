@@ -110,6 +110,9 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
     - add(x, y, *n) -> number
         Add two or more numbers.
+    
+    - ceil(x) -> number 
+        Return the smallest integer greater than or equal to x.
 
     - dec(x) -> number
         Decrement x, subtracting 1.
@@ -117,11 +120,17 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - div(x, y, *n) -> number
         Divide two or more numbers.
 
+    - floor(x) -> number 
+        Return the smallest integer lower than or equal to x.
+
     - idiv(x, y) -> number
         Integer division of two numbers.
 
     - inc(x) -> number
         Increment x, adding 1.
+
+    - log(x) -> number 
+        Return the natural logarithm of x.
 
     - mul(x, y, *n) -> number
         Multiply two or more numbers.
@@ -129,25 +138,14 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - neg(x) -> Number
         Return -x.
 
-    - sub(x, y, *n) -> number
-        Subtract two or more numbers.
-
-    - ceil(x) -> number 
-        Return the smallest integer greater than or equal to x.
-
-    - floor(x) -> number 
-        Return the smallest integer lower than or equal to x.
-    
     - round(x) -> number 
-        Return x rounded numbers to the nearest integer.
+        Return x rounded to the nearest integer.
 
-    - ln(x) -> number 
-        Return the natural logarithm of x.
-    
     - sqrt(x) -> number 
         Return the square root of x.
-    
 
+    - sub(x, y, *n) -> number
+        Subtract two or more numbers.
 
 ## Boolean operations & branching
 
