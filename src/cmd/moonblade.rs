@@ -319,6 +319,9 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
 ## Random
 
+    -md5(string) -> string 
+        Convert an arbitrary sequence of bytes to a 128-bit hash value.
+    
     - uuid() -> string
         Return a uuid v4.
 

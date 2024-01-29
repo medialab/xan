@@ -73,6 +73,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "ltrim" => (ltrim, Arity::Strict(1)),
         "lower" => (lower, Arity::Strict(1)),
+        "md5" => (md5, Arity::Strict(1)),
         "mul" => (|args| variadic_arithmetic_op(args, Mul::mul), Arity::Min(2)),
         "neg" => (neg, Arity::Strict(1)),
         "neq" => (
@@ -173,6 +174,10 @@ fn rtrim(args: BoundArguments) -> FunctionResult {
 
 fn escape_regex(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(regex::escape(args.get1_str()?.as_ref())))
+}
+
+fn md5(args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(format!("{:x}", md5::compute(args.get1_str()?.as_bytes()))))
 }
 
 fn split(args: BoundArguments) -> FunctionResult {

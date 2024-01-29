@@ -78,6 +78,7 @@ unicode-bidi = "0.3.13"
 emojis = "0.6.1"
 thread_local = "1.1.7"
 lazy_static = "1.4.0"
+md5 = "0.7.0"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
