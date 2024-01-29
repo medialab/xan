@@ -319,6 +319,9 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
 ## Random
 
+    - md5(string) -> string
+        Return the md5 hash of string in hexadecimal representation.
+
     - uuid() -> string
         Return a uuid v4.
 
