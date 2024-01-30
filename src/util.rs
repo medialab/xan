@@ -658,6 +658,9 @@ mod tests {
     }
 
     macro_rules! brec {
+        () => {
+            csv::ByteRecord::new()
+        };
         ( $( $x:expr ),* ) => {
             {
                 let mut record = csv::ByteRecord::new();
