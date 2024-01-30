@@ -54,9 +54,9 @@ Usage:
 groupby options:
     --group-column <name>   Name of the column containing group values.
                             [default: group].
-    -S --sorted             Use this flag to indicate that the file is already sorted on the 
-                            group column, in which case the command will be able to considerably 
-                            optimize memory usage. 
+    -S, --sorted            Use this flag to indicate that the file is already sorted on the
+                            group column, in which case the command will be able to considerably
+                            optimize memory usage.
 
 Common options:
     -h, --help               Display this message
