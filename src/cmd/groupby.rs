@@ -50,6 +50,10 @@ Usage:
     xsv groupby --aggs
     xsv groupby --functions
 
+groupby options:
+    --group-column <name>   Name of the column containing group values.
+                            [default: group].
+
 Common options:
     -h, --help               Display this message
     -o, --output <file>      Write output to <file> instead of stdout.
@@ -70,7 +74,7 @@ struct Args {
     flag_aggs: bool,
     flag_cheatsheet: bool,
     flag_functions: bool,
-    flag_group_column : String,
+    flag_group_column: String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
