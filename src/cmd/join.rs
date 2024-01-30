@@ -60,6 +60,17 @@ join options:
                                 data sets given. The number of rows return is
                                 equal to N * M, where N and M correspond to the
                                 number of rows in the given data sets, respectively.
+    --regex                     Perform an optimized regex join where the second file
+                                contains a column of regex patterns that will be used
+                                to match the values of a column of the first file.
+                                This is a variant of 'inner join' in that only matching
+                                rows will be written to the output.
+    --regex-left                Perform an optimized regex join where the second file
+                                contains a column of regex patterns that will be used
+                                to match the values of a column of the first file.
+                                This is a variant of 'left join' in that all rows from
+                                the first files will be written at least one, even if
+                                no pattern from the second file matched.
     --nulls                     When set, joins will work on empty fields.
                                 Otherwise, empty fields are completely ignored.
                                 (In fact, any row that has an empty field in the
@@ -91,6 +102,8 @@ struct Args {
     flag_right: bool,
     flag_full: bool,
     flag_cross: bool,
+    flag_regex: bool,
+    flag_regex_left: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_ignore_case: bool,
@@ -109,6 +122,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_right,
         args.flag_full,
         args.flag_cross,
+        args.flag_regex,
+        args.flag_regex_left,
     ]
     .iter()
     .filter(|flag| **flag)
@@ -128,6 +143,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         state.full_outer_join()
     } else if args.flag_cross {
         state.cross_join()
+    } else if args.flag_regex {
+        state.regex_join(true)
+    } else if args.flag_regex_left {
+        state.regex_join(false)
     } else {
         state.inner_join()
     }
@@ -193,6 +212,61 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn regex_join(mut self, inner: bool) -> CliResult<()> {
+        if self.sel1.len() > 1 {
+            return Err(crate::CliError::Other(
+                "Cannot select multiple columns for first CSV file when using the --regex flag."
+                    .to_string(),
+            ));
+        }
+        if self.sel2.len() > 1 {
+            return Err(crate::CliError::Other("Cannot select multiple columns for second CSV file containing regex patterns when using the --regex flag.".to_string()));
+        }
+
+        let (pad1, _) = self.get_padding()?;
+
+        // Indexing the patterns
+        let mut patterns: Vec<String> = Vec::new();
+        let mut regex_rows: Vec<csv::ByteRecord> = Vec::new();
+
+        for row in self.rdr2.into_byte_records() {
+            let row = row?;
+
+            let pattern = std::str::from_utf8(self.sel2.select(&row).next().unwrap())
+                .unwrap()
+                .to_string();
+
+            patterns.push(pattern);
+            regex_rows.push(row);
+        }
+
+        let regex_set = regex::bytes::RegexSetBuilder::new(&patterns)
+            .case_insensitive(self.case_insensitive)
+            .build()?;
+
+        // Peforming join
+        let mut row = csv::ByteRecord::new();
+
+        while self.rdr1.read_byte_record(&mut row)? {
+            let mut any_match = false;
+
+            for m in regex_set.matches(self.sel1.select(&row).next().unwrap()) {
+                any_match = true;
+
+                let mut row_to_write = row.clone();
+                row_to_write.extend(&regex_rows[m]);
+                self.wtr.write_byte_record(&row_to_write)?;
+            }
+
+            if !inner && !any_match {
+                row.extend(&pad1);
+                self.wtr.write_byte_record(&row)?;
+            }
+        }
+
         Ok(())
     }
 
