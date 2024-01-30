@@ -823,7 +823,7 @@ impl<'a> AggregationProgram<'a> {
         })
     }
 
-    pub fn clear_group(&mut self) {
+    pub fn clear(&mut self) {
         self.aggregator.clear_inner_aggregators();
     }
 
@@ -842,10 +842,22 @@ impl<'a> AggregationProgram<'a> {
         record
     }
 
-    pub fn finalize(mut self) -> ByteRecord {
+    pub fn headers_with_prepended_group_column(&self, group_column_name: &str) -> ByteRecord {
         let mut record = ByteRecord::new();
 
-        for aggregation in self.aggregations.into_iter() {
+        record.push_field(group_column_name.as_bytes());
+
+        for aggregation in self.aggregations.iter() {
+            record.push_field(aggregation.name.as_bytes());
+        }
+
+        record
+    }
+
+    pub fn finalize(&mut self) -> ByteRecord {
+        let mut record = ByteRecord::new();
+
+        for aggregation in self.aggregations.iter() {
             let value = self
                 .aggregator
                 .finalize(&aggregation.key, &aggregation.method)
@@ -899,10 +911,10 @@ impl<'a> GroupAggregationProgram<'a> {
         Ok(())
     }
 
-    pub fn headers(&self, column_name: String) -> ByteRecord {
+    pub fn headers_with_prepended_group_column(&self, group_column_name: &str) -> ByteRecord {
         let mut record = ByteRecord::new();
 
-        record.push_field(column_name.as_bytes());
+        record.push_field(group_column_name.as_bytes());
 
         for aggregation in self.aggregations.iter() {
             record.push_field(aggregation.name.as_bytes());

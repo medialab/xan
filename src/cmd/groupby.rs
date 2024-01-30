@@ -110,7 +110,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
 
-    wtr.write_byte_record(&program.headers(args.flag_group_column))?;
+    wtr.write_byte_record(&program.headers_with_prepended_group_column(&args.flag_group_column))?;
 
     while rdr.read_byte_record(&mut record)? {
         let group = record[column_index].to_vec();
