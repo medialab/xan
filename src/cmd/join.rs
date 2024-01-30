@@ -21,7 +21,7 @@ The default join operation is an 'inner' join. This corresponds to the
 intersection of rows on the keys specified.
 
 Joins are always done by ignoring leading and trailing whitespace. By default,
-joins are done case sensitively, but this can be disabled with the --no-case
+joins are done case sensitively, but this can be disabled with the --ignore-case
 flag.
 
 The columns arguments specify the columns to join for each input. Columns can
@@ -29,6 +29,10 @@ be referenced by name or index, starting at 1. Specify multiple columns by
 separating them with a comma. Specify a range of columns with `-`. Both
 columns1 and columns2 must specify exactly the same number of columns.
 (See 'xsv select --help' for the full syntax.)
+
+Note that when performing an 'inner' join (the default), it's the second file that
+will be indexed into memory. And when performing an 'outer' join, it will naturally
+be the file that is on the other side of --left/--right.
 
 Usage:
     xsv join [options] <columns1> <input1> <columns2> <input2>
