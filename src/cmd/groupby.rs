@@ -5,6 +5,7 @@ use select::SelectColumns;
 use util;
 use CliResult;
 
+use moonblade::AggregationProgram;
 use moonblade::GroupAggregationProgram;
 
 use cmd::moonblade::{
@@ -53,6 +54,9 @@ Usage:
 groupby options:
     --group-column <name>   Name of the column containing group values.
                             [default: group].
+    -S --sorted             Use this flag to indicate that the file is already sorted on the 
+                            group column, in which case the command will be able to considerably 
+                            optimize memory usage. 
 
 Common options:
     -h, --help               Display this message
@@ -75,6 +79,7 @@ struct Args {
     flag_cheatsheet: bool,
     flag_functions: bool,
     flag_group_column: String,
+    flag_sorted: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -106,18 +111,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let column_index = rconf.single_selection(headers)?;
 
-    let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
-
     let mut record = csv::ByteRecord::new();
 
-    wtr.write_byte_record(&program.headers_with_prepended_group_column(&args.flag_group_column))?;
+    if args.flag_sorted {
+        let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
+        let mut current_group: Option<Vec<u8>> = None;
 
-    while rdr.read_byte_record(&mut record)? {
-        let group = record[column_index].to_vec();
-        program.run_with_record(group, &record)?;
+        wtr.write_byte_record(
+            &program.headers_with_prepended_group_column(&args.flag_group_column),
+        )?;
+
+        while rdr.read_byte_record(&mut record)? {
+            let group = record[column_index].to_vec();
+            match current_group.as_ref() {
+                None => {
+                    current_group = Some(group);
+                    program.run_with_record(&record)?;
+                }
+                Some(group_name) => {
+                    if group_name == &group {
+                        program.run_with_record(&record)?;
+                    } else {
+                        wtr.write_byte_record(&program.finalize_with_group(&group_name))?;
+                        program.clear();
+                        current_group = Some(group);
+                        program.run_with_record(&record)?;
+                    }
+                }
+            }
+        }
+        if let Some(group_name) = current_group {
+            wtr.write_byte_record(&program.finalize_with_group(&group_name))?;
+        }
+    } else {
+        let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
+        wtr.write_byte_record(
+            &&program.headers_with_prepended_group_column(&args.flag_group_column),
+        )?;
+
+        while rdr.read_byte_record(&mut record)? {
+            let group = record[column_index].to_vec();
+            program.run_with_record(group, &record)?;
+        }
+
+        program.finalize(|output_record| wtr.write_byte_record(output_record))?;
     }
-
-    program.finalize(|output_record| wtr.write_byte_record(output_record))?;
 
     Ok(wtr.flush()?)
 }
