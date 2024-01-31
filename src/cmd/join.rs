@@ -30,6 +30,11 @@ separating them with a comma. Specify a range of columns with `-`. Both
 columns1 and columns2 must specify exactly the same number of columns.
 (See 'xsv select --help' for the full syntax.)
 
+The command can also perform a 'regex' join, matching efficiently a CSV file containing
+a column of regex patterns with another file. But if you only need to filter out a file
+based on a set of regex patterns and don't need the auxilliary columns to be concatenated
+to the joined result, please be sure to check out the search command --input flag before.
+
 Note that when performing an 'inner' join (the default), it's the second file that
 will be indexed into memory. And when performing an 'outer' join, it will naturally
 be the file that is on the other side of --left/--right.
