@@ -7,6 +7,7 @@ use std::str;
 
 use byteorder::{BigEndian, WriteBytesExt};
 use csv;
+use pariter::IteratorExt;
 
 use config::{Config, Delimiter};
 use index::Indexed;
@@ -76,6 +77,7 @@ join options:
                                 This is a variant of 'left join' in that all rows from
                                 the first files will be written at least one, even if
                                 no pattern from the second file matched.
+    -p, --parallel              When using --regex or --regex-left, parallelize matches.
     --nulls                     When set, joins will work on empty fields.
                                 Otherwise, empty fields are completely ignored.
                                 (In fact, any row that has an empty field in the
@@ -116,6 +118,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
+    flag_parallel: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -149,9 +152,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.flag_cross {
         state.cross_join()
     } else if args.flag_regex {
-        state.regex_join(true)
+        state.regex_join(true, args.flag_parallel)
     } else if args.flag_regex_left {
-        state.regex_join(false)
+        state.regex_join(false, args.flag_parallel)
     } else {
         state.inner_join()
     }
@@ -167,7 +170,7 @@ fn prefix_header(headers: &csv::ByteRecord, prefix: &String) -> csv::ByteRecord 
     prefixed_headers
 }
 
-struct IoState<R, W: io::Write> {
+struct IoState<R: 'static, W: io::Write> {
     wtr: csv::Writer<W>,
     rdr1: csv::Reader<R>,
     sel1: Selection,
@@ -220,7 +223,7 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
         Ok(())
     }
 
-    fn regex_join(mut self, inner: bool) -> CliResult<()> {
+    fn regex_join(mut self, inner: bool, parallel: bool) -> CliResult<()> {
         if self.sel1.len() > 1 {
             return Err(crate::CliError::Other(
                 "Cannot select multiple columns for first CSV file when using the --regex flag."
@@ -253,23 +256,66 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
             .build()?;
 
         // Peforming join
-        let mut row = csv::ByteRecord::new();
+        if !parallel {
+            let mut row = csv::ByteRecord::new();
 
-        while self.rdr1.read_byte_record(&mut row)? {
-            let mut any_match = false;
+            while self.rdr1.read_byte_record(&mut row)? {
+                let mut any_match = false;
 
-            for m in regex_set.matches(self.sel1.select(&row).next().unwrap()) {
-                any_match = true;
+                for m in regex_set.matches(self.sel1.select(&row).next().unwrap()) {
+                    any_match = true;
 
-                let mut row_to_write = row.clone();
-                row_to_write.extend(&regex_rows[m]);
-                self.wtr.write_byte_record(&row_to_write)?;
+                    let mut row_to_write = row.clone();
+                    row_to_write.extend(&regex_rows[m]);
+                    self.wtr.write_byte_record(&row_to_write)?;
+                }
+
+                if !inner && !any_match {
+                    row.extend(&pad_right);
+                    self.wtr.write_byte_record(&row)?;
+                }
             }
 
-            if !inner && !any_match {
-                row.extend(&pad_right);
-                self.wtr.write_byte_record(&row)?;
-            }
+            self.wtr.flush()?;
+        } else {
+            let sel1 = self.sel1;
+            let mut wtr = self.wtr;
+
+            self.rdr1
+                .into_byte_records()
+                .parallel_map(move |record| -> CliResult<Vec<csv::ByteRecord>> {
+                    let mut row = record?;
+
+                    let mut rows_to_emit: Vec<csv::ByteRecord> = Vec::new();
+
+                    let mut any_match = false;
+
+                    for m in regex_set.matches(sel1.select(&row).next().unwrap()) {
+                        any_match = true;
+
+                        let mut row_to_write = row.clone();
+                        row_to_write.extend(&regex_rows[m]);
+                        rows_to_emit.push(row_to_write);
+                    }
+
+                    if !inner && !any_match {
+                        row.extend(&pad_right);
+                        rows_to_emit.push(row);
+                    }
+
+                    Ok(rows_to_emit)
+                })
+                .try_for_each(|result| -> CliResult<()> {
+                    let rows_to_emit = result?;
+
+                    for row in rows_to_emit {
+                        wtr.write_byte_record(&row)?;
+                    }
+
+                    Ok(())
+                })?;
+
+            wtr.flush()?;
         }
 
         Ok(())
