@@ -55,7 +55,6 @@ mod test_implode;
 mod test_index;
 mod test_join;
 mod test_kway;
-mod test_lang;
 mod test_map;
 mod test_partition;
 mod test_replace;
