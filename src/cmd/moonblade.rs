@@ -343,6 +343,9 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
 
+    - cardinality(<expr>) -> number
+        Number of distinct values returned by given expression.
+
     - count(<expr>?) -> number
         Count the numbers of row. Works like in SQL in that `count(<expr>)`
         will count all non-null values returned by given expression, while

@@ -303,6 +303,10 @@ impl Frequencies {
 
         max.map(|(_, key)| key.to_string())
     }
+
+    fn cardinality(&self) -> usize {
+        self.counter.len()
+    }
 }
 
 // NOTE: this is an implementation of Welford's online algorithm
@@ -580,7 +584,7 @@ impl Aggregator {
                         .push(AggregationMethod::Numbers(Numbers::new()));
                 }
             }
-            "mode" => {
+            "cardinality" | "mode" => {
                 if !self.has_frequencies() {
                     self.methods
                         .push(AggregationMethod::Frequencies(Frequencies::new()));
@@ -653,6 +657,7 @@ impl Aggregator {
         match method {
             "all" => DynamicValue::from(self.get_allany().unwrap().all()),
             "any" => DynamicValue::from(self.get_allany().unwrap().any()),
+            "cardinality" => DynamicValue::from(self.get_frequencies().unwrap().cardinality()),
             "count" => DynamicValue::from(self.get_count().unwrap().get()),
             "lex_first" => DynamicValue::from(self.get_lexicographic_extent().unwrap().first()),
             "lex_last" => DynamicValue::from(self.get_lexicographic_extent().unwrap().last()),
