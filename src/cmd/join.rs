@@ -231,7 +231,7 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
             return Err(crate::CliError::Other("Cannot select multiple columns for second CSV file containing regex patterns when using the --regex flag.".to_string()));
         }
 
-        let (pad1, _) = self.get_padding()?;
+        let (_, pad_right) = self.get_padding()?;
 
         // Indexing the patterns
         let mut patterns: Vec<String> = Vec::new();
@@ -267,7 +267,7 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
             }
 
             if !inner && !any_match {
-                row.extend(&pad1);
+                row.extend(&pad_right);
                 self.wtr.write_byte_record(&row)?;
             }
         }

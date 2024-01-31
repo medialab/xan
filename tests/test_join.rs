@@ -282,9 +282,9 @@ fn join_regex_left() {
     wrk.create(
         "people.csv",
         vec![
-            svec!["pattern", "name"],
-            svec!["john", "John"],
-            svec!["lisa", "Lisa"],
+            svec!["pattern", "name", "age"],
+            svec!["john", "John", "4"],
+            svec!["lisa", "Lisa", "5"],
         ],
     );
     wrk.create(
@@ -304,12 +304,12 @@ fn join_regex_left() {
         .args(["person", "colors.csv", "pattern", "people.csv"]);
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["person", "color", "pattern", "name"],
-        svec!["jack laurel", "brown", "", ""],
-        svec!["john cannon", "blue", "john", "John"],
-        svec!["lisa eckart", "purple", "lisa", "Lisa"],
-        svec!["lil john", "red", "john", "John"],
-        svec!["mina harker", "yellow", "", ""],
+        svec!["person", "color", "pattern", "name", "age"],
+        svec!["jack laurel", "brown", "", "", ""],
+        svec!["john cannon", "blue", "john", "John", "4"],
+        svec!["lisa eckart", "purple", "lisa", "Lisa", "5"],
+        svec!["lil john", "red", "john", "John", "4"],
+        svec!["mina harker", "yellow", "", "", ""],
     ];
     assert_eq!(got, expected);
 }
