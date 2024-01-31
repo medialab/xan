@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::cmp::{Ordering, PartialOrd};
 use std::fs::{self, File};
 use std::io::Read;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -21,17 +21,26 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, Arity)> {
     Some(match name {
-        "abs" => (abs, Arity::Strict(1)),
+        "abs" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::abs),
+            Arity::Strict(1),
+        ),
         "abspath" => (abspath, Arity::Strict(1)),
         "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
         "and" => (and, Arity::Min(2)),
-        "ceil" => (ceil, Arity::Strict(1)),
+        "ceil" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::ceil),
+            Arity::Strict(1),
+        ),
         "coalesce" => (coalesce, Arity::Min(1)),
         "compact" => (compact, Arity::Strict(1)),
         "concat" => (concat, Arity::Min(1)),
         "contains" => (contains, Arity::Strict(2)),
         "count" => (count, Arity::Strict(2)),
-        "dec" => (dec, Arity::Strict(1)),
+        "dec" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::dec),
+            Arity::Strict(1),
+        ),
         "div" => (|args| variadic_arithmetic_op(args, Div::div), Arity::Min(2)),
         "eq" => (
             |args| number_compare(args, Ordering::is_eq),
@@ -42,7 +51,10 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "escape_regex" => (escape_regex, Arity::Strict(1)),
         "filesize" => (filesize, Arity::Strict(1)),
         "first" => (first, Arity::Strict(1)),
-        "floor" => (floor, Arity::Strict(1)),
+        "floor" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::floor),
+            Arity::Strict(1),
+        ),
         "fmt" => (fmt, Arity::Min(1)),
         "get" => (get, Arity::Strict(2)),
         "gt" => (
@@ -57,12 +69,18 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             |args| arithmetic_op(args, DynamicNumber::idiv),
             Arity::Strict(2),
         ),
-        "inc" => (inc, Arity::Strict(1)),
+        "inc" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::inc),
+            Arity::Strict(1),
+        ),
         "isfile" => (isfile, Arity::Strict(1)),
         "join" => (join, Arity::Strict(2)),
         "last" => (last, Arity::Strict(1)),
         "len" => (len, Arity::Strict(1)),
-        "log" => (log, Arity::Strict(1)),
+        "log" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::ln),
+            Arity::Strict(1),
+        ),
         "lt" => (
             |args| number_compare(args, Ordering::is_lt),
             Arity::Strict(2),
@@ -75,7 +93,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "lower" => (lower, Arity::Strict(1)),
         "md5" => (md5, Arity::Strict(1)),
         "mul" => (|args| variadic_arithmetic_op(args, Mul::mul), Arity::Min(2)),
-        "neg" => (neg, Arity::Strict(1)),
+        "neg" => (|args| unary_arithmetic_op(args, Neg::neg), Arity::Strict(1)),
         "neq" => (
             |args| number_compare(args, Ordering::is_ne),
             Arity::Strict(2),
@@ -85,11 +103,17 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "pathjoin" => (pathjoin, Arity::Min(1)),
         "read" => (read, Arity::Range(1..=3)),
         "replace" => (replace, Arity::Strict(3)),
-        "round" => (round, Arity::Strict(1)),
+        "round" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::round),
+            Arity::Strict(1),
+        ),
         "rtrim" => (rtrim, Arity::Strict(1)),
         "slice" => (slice, Arity::Range(2..=3)),
         "split" => (split, Arity::Strict(2)),
-        "sqrt" => (sqrt, Arity::Strict(1)),
+        "sqrt" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::sqrt),
+            Arity::Strict(1),
+        ),
         "startswith" => (startswith, Arity::Strict(2)),
         "sub" => (|args| variadic_arithmetic_op(args, Sub::sub), Arity::Min(2)),
         "s_eq" => (
@@ -177,7 +201,10 @@ fn escape_regex(args: BoundArguments) -> FunctionResult {
 }
 
 fn md5(args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(format!("{:x}", md5::compute(args.get1_str()?.as_bytes()))))
+    Ok(DynamicValue::from(format!(
+        "{:x}",
+        md5::compute(args.get1_str()?.as_bytes())
+    )))
 }
 
 fn split(args: BoundArguments) -> FunctionResult {
@@ -570,42 +597,12 @@ where
     Ok(DynamicValue::from(acc))
 }
 
-fn abs(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.abs()))
+fn unary_arithmetic_op<F>(mut args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber) -> DynamicNumber,
+{
+    Ok(DynamicValue::from(op(args.pop1_number()?)))
 }
-
-fn neg(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(-args.pop1_number()?))
-}
-
-fn inc(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.inc()))
-}
-
-fn dec(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.dec()))
-}
-
-fn floor(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.floor()))
-}
-
-fn ceil(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.ceil()))
-}
-
-fn round(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.round()))
-}
-
-fn log(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.ln()))
-}
-
-fn sqrt(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1_number()?.sqrt()))
-}
-
 
 // Utilities
 fn coalesce(args: BoundArguments) -> FunctionResult {

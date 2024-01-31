@@ -193,21 +193,21 @@ pub enum DynamicNumber {
 }
 
 impl DynamicNumber {
-    pub fn abs(&self) -> Self {
+    pub fn abs(self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.abs()),
             Self::Integer(n) => Self::Integer(n.abs()),
         }
     }
 
-    pub fn inc(&self) -> Self {
+    pub fn inc(self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.add(1.0)),
             Self::Integer(n) => Self::Integer(n.add(1)),
         }
     }
 
-    pub fn dec(&self) -> Self {
+    pub fn dec(self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.add(-1.0)),
             Self::Integer(n) => Self::Integer(n.add(-1)),
