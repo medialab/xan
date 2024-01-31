@@ -38,6 +38,39 @@ impl Count {
 }
 
 #[derive(Debug)]
+struct AllAny {
+    all: bool,
+    any: bool,
+}
+
+impl AllAny {
+    fn new() -> Self {
+        Self {
+            all: true,
+            any: false,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.all = true;
+        self.any = false;
+    }
+
+    fn add(&mut self, new_bool: bool) {
+        self.all = self.all && new_bool;
+        self.any = self.any || new_bool;
+    }
+
+    fn all(&self) -> bool {
+        self.all
+    }
+
+    fn any(&self) -> bool {
+        self.any
+    }
+}
+
+#[derive(Debug)]
 struct Sum {
     current: DynamicNumber,
 }
@@ -343,6 +376,7 @@ impl Welford {
 
 #[derive(Debug)]
 enum AggregationMethod {
+    AllAny(AllAny),
     Count(Count),
     Extent(Extent),
     LexicographicExtent(LexicographicExtent),
@@ -353,6 +387,10 @@ enum AggregationMethod {
 }
 
 impl AggregationMethod {
+    fn is_allany(&self) -> bool {
+        matches!(self, Self::AllAny(_))
+    }
+
     fn is_count(&self) -> bool {
         matches!(self, Self::Count(_))
     }
@@ -383,6 +421,7 @@ impl AggregationMethod {
 
     fn clear(&mut self) {
         match self {
+            Self::AllAny(inner) => inner.clear(),
             Self::Count(inner) => inner.clear(),
             Self::Extent(inner) => inner.clear(),
             Self::LexicographicExtent(inner) => inner.clear(),
@@ -484,6 +523,7 @@ impl Aggregator {
         aggregator
     }
 
+    build_variant_methods!(AllAny, is_allany, has_allany, get_allany);
     build_variant_methods!(Count, is_count, has_count, get_count);
     build_variant_methods!(Extent, is_extent, has_extent, get_extent);
     build_variant_methods!(
@@ -504,6 +544,13 @@ impl Aggregator {
 
     fn add_method(&mut self, method: &str) {
         match method {
+            "all" | "any" => {
+                if self.has_allany() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::AllAny(AllAny::new()));
+            }
             "count" => {
                 if self.has_count() {
                     return;
@@ -563,6 +610,9 @@ impl Aggregator {
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
                 Some(value) => match method {
+                    AggregationMethod::AllAny(allany) => {
+                        allany.add(value.is_truthy());
+                    }
                     AggregationMethod::Count(count) => {
                         if !value.is_nullish() {
                             count.add();
@@ -601,6 +651,8 @@ impl Aggregator {
 
     fn finalize_method(&mut self, method: &str) -> DynamicValue {
         match method {
+            "all" => DynamicValue::from(self.get_allany().unwrap().all()),
+            "any" => DynamicValue::from(self.get_allany().unwrap().any()),
             "count" => DynamicValue::from(self.get_count().unwrap().get()),
             "lex_first" => DynamicValue::from(self.get_lexicographic_extent().unwrap().first()),
             "lex_last" => DynamicValue::from(self.get_lexicographic_extent().unwrap().last()),

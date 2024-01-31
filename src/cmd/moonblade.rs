@@ -334,6 +334,12 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
 
 (use --cheatsheet for a reminder of how the scripting language works)
 
+    - all(<expr>) -> bool
+        Returns true if all elements returned by given expression are truthy.
+
+    - any(<expr>) -> bool
+        Returns true if one of the elements returned by given expression is truthy.
+
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
 
