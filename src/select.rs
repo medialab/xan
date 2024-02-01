@@ -369,6 +369,18 @@ impl Selection {
         self.iter().map(move |i| &row[*i])
     }
 
+    pub fn indexed_mask(&self, alignment: usize) -> Vec<Option<usize>> {
+        let mut m = repeat(None).take(alignment).collect::<Vec<Option<usize>>>();
+
+        for (j, i) in self.iter().enumerate() {
+            if *i < alignment {
+                m[*i] = Some(j)
+            }
+        }
+
+        m
+    }
+
     pub fn normal(&self) -> NormalSelection {
         let Selection(inds) = self;
         if inds.is_empty() {

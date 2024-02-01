@@ -6,7 +6,24 @@ use util;
 use CliResult;
 
 static USAGE: &str = "
-TODO...
+Rename columns of a CSV file. Can also be used to add headers to a headless
+CSV file.
+
+Renaming all columns:
+
+    $ xsv rename NAME,SURNAME file.csv
+
+Renaming a selection of columns:
+
+    $ xsv rename NAME -s name file.csv
+
+Adding a header to a headless file:
+
+    $ xsv rename -n name,surname file.csv
+
+Prefixing column names:
+
+    $ xsv rename --prefix university_ file.csv
 
 Usage:
     xsv rename [options] <columns> [<input>]
@@ -44,25 +61,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
 
     let mut rdr = rconfig.reader()?;
+    let headers = rdr.byte_headers()?;
 
-    let mut selection: Option<Selection> = None;
+    let selection = match args.flag_select {
+        Some(selection) => {
+            rconfig = rconfig.select(selection);
+            rconfig.selection(headers)?
+        }
+        None => Selection::full(headers.len()),
+    };
 
-    if let Some(selection) = args.flag_select {
-        rconfig = rconfig.select(selection);
+    let rename_as = util::str_to_csv_byte_record(&args.arg_columns);
+
+    if selection.len() != rename_as.len() {
+        return fail!(format!(
+            "Renamed columns alignement error. Expected {} names and got {}.",
+            selection.len(),
+            rename_as.len(),
+        ));
     }
 
+    let renamed_headers = headers
+        .iter()
+        .zip(selection.indexed_mask(headers.len()).into_iter())
+        .map(|(h, o)| if let Some(i) = o { &rename_as[i] } else { h })
+        .collect::<csv::ByteRecord>();
+
     let mut wtr = Config::new(&args.flag_output).writer()?;
+    wtr.write_byte_record(&renamed_headers)?;
 
-    // let headers = rdr.byte_headers()?.clone();
-    // let sel = rconfig.selection(&headers)?;
+    let mut record = csv::ByteRecord::new();
 
-    // if !rconfig.no_headers {
-    //     wtr.write_record(sel.iter().map(|&i| &headers[i]))?;
-    // }
-    // let mut record = csv::ByteRecord::new();
-    // while rdr.read_byte_record(&mut record)? {
-    //     wtr.write_record(sel.iter().map(|&i| &record[i]))?;
-    // }
+    while rdr.read_byte_record(&mut record)? {
+        wtr.write_byte_record(&record)?;
+    }
 
     Ok(wtr.flush()?)
 }
+
+// TODO: test all, selection, inverted selection, test misalignment, prefix, no headers
