@@ -8,12 +8,6 @@ use super::interpreter::{concretize_argument, eval_expr, ConcreteArgument};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
 
-// TODO: test when there is no data to be aggregated at all
-// TODO: test with nulls and nans
-// TODO: parallelize multiple aggregations
-// TODO: we need some clear method to enable sorted group by optimization
-// TODO: we need some merge method to enable parallelism
-
 #[derive(Debug)]
 struct Count {
     current: usize,
@@ -378,64 +372,37 @@ impl Welford {
     }
 }
 
-#[derive(Debug)]
-enum AggregationMethod {
-    AllAny(AllAny),
-    Count(Count),
-    Extent(Extent),
-    LexicographicExtent(LexicographicExtent),
-    Frequencies(Frequencies),
-    Numbers(Numbers),
-    Sum(Sum),
-    Welford(Welford),
-}
-
-impl AggregationMethod {
-    fn is_allany(&self) -> bool {
-        matches!(self, Self::AllAny(_))
-    }
-
-    fn is_count(&self) -> bool {
-        matches!(self, Self::Count(_))
-    }
-
-    fn is_extent(&self) -> bool {
-        matches!(self, Self::Extent(_))
-    }
-
-    fn is_lexicographic_extent(&self) -> bool {
-        matches!(self, Self::LexicographicExtent(_))
-    }
-
-    fn is_frequencies(&self) -> bool {
-        matches!(self, Self::Frequencies(_))
-    }
-
-    fn is_numbers(&self) -> bool {
-        matches!(self, Self::Numbers(_))
-    }
-
-    fn is_sum(&self) -> bool {
-        matches!(self, Self::Sum(_))
-    }
-
-    fn is_welford(&self) -> bool {
-        matches!(self, Self::Welford(_))
-    }
-
-    fn clear(&mut self) {
-        match self {
-            Self::AllAny(inner) => inner.clear(),
-            Self::Count(inner) => inner.clear(),
-            Self::Extent(inner) => inner.clear(),
-            Self::LexicographicExtent(inner) => inner.clear(),
-            Self::Frequencies(inner) => inner.clear(),
-            Self::Numbers(inner) => inner.clear(),
-            Self::Sum(inner) => inner.clear(),
-            Self::Welford(inner) => inner.clear(),
+macro_rules! build_aggregation_method_enum {
+    ($($variant: ident,)+) => {
+        #[derive(Debug)]
+        enum AggregationMethod {
+            $(
+                $variant($variant),
+            )+
         }
-    }
+
+        impl AggregationMethod {
+            fn clear(&mut self) {
+                match self {
+                    $(
+                        Self::$variant(inner) => inner.clear(),
+                    )+
+                };
+            }
+        }
+    };
 }
+
+build_aggregation_method_enum!(
+    AllAny,
+    Count,
+    Extent,
+    LexicographicExtent,
+    Frequencies,
+    Numbers,
+    Sum,
+    Welford,
+);
 
 // NOTE: at the beginning I was using a struct that would look like this:
 // struct Aggregator {
@@ -466,9 +433,12 @@ impl AggregationMethod {
 // sum and mean, the sum will only be aggregated once.
 
 macro_rules! build_variant_methods {
-    ($variant: ident, $is_name: ident, $has_name: ident, $gettr_name: ident) => {
+    ($variant: ident, $has_name: ident, $gettr_name: ident) => {
         fn $has_name(&self) -> bool {
-            self.methods.iter().any(|m| m.$is_name())
+            self.methods.iter().any(|m| match m {
+                AggregationMethod::$variant(_) => true,
+                _ => false,
+            })
         }
 
         fn $gettr_name(&self) -> Option<&$variant> {
@@ -485,9 +455,12 @@ macro_rules! build_variant_methods {
 }
 
 macro_rules! build_variant_methods_mut {
-    ($variant: ident, $is_name: ident, $has_name: ident, $gettr_name: ident) => {
+    ($variant: ident, $has_name: ident, $gettr_name: ident) => {
         fn $has_name(&self) -> bool {
-            self.methods.iter().any(|m| m.$is_name())
+            self.methods.iter().any(|m| match m {
+                AggregationMethod::$variant(_) => true,
+                _ => false,
+            })
         }
 
         fn $gettr_name(&mut self) -> Option<&mut $variant> {
@@ -527,24 +500,18 @@ impl Aggregator {
         aggregator
     }
 
-    build_variant_methods!(AllAny, is_allany, has_allany, get_allany);
-    build_variant_methods!(Count, is_count, has_count, get_count);
-    build_variant_methods!(Extent, is_extent, has_extent, get_extent);
+    build_variant_methods!(AllAny, has_allany, get_allany);
+    build_variant_methods!(Count, has_count, get_count);
+    build_variant_methods!(Extent, has_extent, get_extent);
     build_variant_methods!(
         LexicographicExtent,
-        is_lexicographic_extent,
         has_lexicographic_extent,
         get_lexicographic_extent
     );
-    build_variant_methods!(
-        Frequencies,
-        is_frequencies,
-        has_frequencies,
-        get_frequencies
-    );
-    build_variant_methods_mut!(Numbers, is_numbers, has_numbers, get_numbers_mut);
-    build_variant_methods!(Sum, is_sum, has_sum, get_sum);
-    build_variant_methods!(Welford, is_welford, has_welford, get_welford);
+    build_variant_methods!(Frequencies, has_frequencies, get_frequencies);
+    build_variant_methods_mut!(Numbers, has_numbers, get_numbers_mut);
+    build_variant_methods!(Sum, has_sum, get_sum);
+    build_variant_methods!(Welford, has_welford, get_welford);
 
     fn add_method(&mut self, method: &str) {
         match method {
