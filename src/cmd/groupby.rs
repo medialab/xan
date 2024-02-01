@@ -132,7 +132,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     if group_name == &group {
                         program.run_with_record(&record)?;
                     } else {
-                        wtr.write_byte_record(&program.finalize_with_group(&group_name))?;
+                        wtr.write_byte_record(&program.finalize_with_group(group_name))?;
                         program.clear();
                         current_group = Some(group);
                         program.run_with_record(&record)?;
@@ -146,7 +146,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
         wtr.write_byte_record(
-            &&program.headers_with_prepended_group_column(&args.flag_group_column),
+            &program.headers_with_prepended_group_column(&args.flag_group_column),
         )?;
 
         while rdr.read_byte_record(&mut record)? {

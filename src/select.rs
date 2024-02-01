@@ -1,9 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt;
-use std::iter::{self, repeat};
+use std::iter::repeat;
 use std::ops;
-use std::slice;
 use std::str::FromStr;
 
 use csv;
@@ -358,19 +357,16 @@ impl fmt::Debug for OneSelector {
 #[derive(Clone, Debug)]
 pub struct Selection(Vec<usize>);
 
-pub type _GetField = for<'c> fn(&mut &'c csv::ByteRecord, &usize) -> Option<&'c [u8]>;
-
 impl Selection {
-    pub fn select<'a, 'b>(
-        &'a self,
-        row: &'b csv::ByteRecord,
-    ) -> iter::Scan<slice::Iter<'a, usize>, &'b csv::ByteRecord, _GetField> {
-        // This is horrifying.
-        fn get_field<'c>(row: &mut &'c csv::ByteRecord, idx: &usize) -> Option<&'c [u8]> {
-            Some(&row[*idx])
-        }
-        let get_field: _GetField = get_field;
-        self.iter().scan(row, get_field)
+    pub fn full(len: usize) -> Self {
+        Self((0..len).collect())
+    }
+
+    pub fn select<'a, 'b>(&'a self, row: &'b csv::ByteRecord) -> impl Iterator<Item = &'b [u8]>
+    where
+        'a: 'b,
+    {
+        self.iter().map(move |i| &row[*i])
     }
 
     pub fn normal(&self) -> NormalSelection {
@@ -405,32 +401,22 @@ impl ops::Deref for Selection {
 #[derive(Clone, Debug)]
 pub struct NormalSelection(Vec<bool>);
 
-pub type _NormalScan<'a, T, I> = iter::Scan<iter::Enumerate<I>, &'a [bool], _NormalGetField<T>>;
-
-pub type _NormalFilterMap<'a, T, I> =
-    iter::FilterMap<_NormalScan<'a, T, I>, fn(Option<T>) -> Option<T>>;
-
-pub type _NormalGetField<T> = fn(&mut &[bool], (usize, T)) -> Option<Option<T>>;
-
 impl NormalSelection {
-    pub fn select<T, I>(&self, row: I) -> _NormalFilterMap<T, I>
+    pub fn select<'a, 'b, T, I>(&'a self, row: I) -> impl Iterator<Item = &'b T>
     where
-        I: Iterator<Item = T>,
+        I: Iterator<Item = &'b T>,
+        T: 'b + ?Sized,
+        'a: 'b,
     {
-        fn filmap<T>(v: Option<T>) -> Option<T> {
-            v
-        }
-        fn get_field<T>(set: &mut &[bool], t: (usize, T)) -> Option<Option<T>> {
-            let (i, v) = t;
+        let set = &self.0;
+
+        row.enumerate().filter_map(move |(i, v)| {
             if i < set.len() && set[i] {
-                Some(Some(v))
+                Some(v)
             } else {
-                Some(None)
+                None
             }
-        }
-        let get_field: _NormalGetField<T> = get_field;
-        let filmap: fn(Option<T>) -> Option<T> = filmap;
-        row.enumerate().scan(&**self, get_field).filter_map(filmap)
+        })
     }
 
     pub fn len(&self) -> usize {

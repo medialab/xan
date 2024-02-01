@@ -928,7 +928,7 @@ impl<'a> AggregationProgram<'a> {
 
     pub fn finalize_with_group(&mut self, group: &Vec<u8>) -> ByteRecord {
         let mut record = ByteRecord::new();
-        record.push_field(&group);
+        record.push_field(group);
 
         for aggregation in self.aggregations.iter() {
             let value = self
