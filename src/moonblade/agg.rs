@@ -175,6 +175,7 @@ impl LexicographicExtent {
     }
 }
 
+#[derive(Debug)]
 enum MedianType {
     Interpolation,
     Low,
@@ -214,7 +215,7 @@ impl Numbers {
         self.sorted = true;
     }
 
-    fn median(&mut self, median_type: MedianType) -> Option<DynamicNumber> {
+    fn median(&mut self, median_type: &MedianType) -> Option<DynamicNumber> {
         self.sort_if_needed();
 
         let count = self.numbers.len();
@@ -375,13 +376,13 @@ impl Welford {
 macro_rules! build_aggregation_method_enum {
     ($($variant: ident,)+) => {
         #[derive(Debug)]
-        enum AggregationMethod {
+        enum Aggregator {
             $(
                 $variant($variant),
             )+
         }
 
-        impl AggregationMethod {
+        impl Aggregator {
             fn clear(&mut self) {
                 match self {
                     $(
@@ -436,20 +437,20 @@ macro_rules! build_variant_methods {
     ($variant: ident, $has_name: ident, $gettr_name: ident) => {
         fn $has_name(&self) -> bool {
             self.methods.iter().any(|m| match m {
-                AggregationMethod::$variant(_) => true,
+                Aggregator::$variant(_) => true,
                 _ => false,
             })
         }
 
-        fn $gettr_name(&self) -> Option<&$variant> {
+        fn $gettr_name(&self) -> &$variant {
             for method in self.methods.iter() {
                 match method {
-                    AggregationMethod::$variant(m) => return Some(m),
+                    Aggregator::$variant(m) => return m,
                     _ => continue,
                 }
             }
 
-            None
+            unreachable!()
         }
     };
 }
@@ -458,30 +459,30 @@ macro_rules! build_variant_methods_mut {
     ($variant: ident, $has_name: ident, $gettr_name: ident) => {
         fn $has_name(&self) -> bool {
             self.methods.iter().any(|m| match m {
-                AggregationMethod::$variant(_) => true,
+                Aggregator::$variant(_) => true,
                 _ => false,
             })
         }
 
-        fn $gettr_name(&mut self) -> Option<&mut $variant> {
+        fn $gettr_name(&mut self) -> &mut $variant {
             for method in self.methods.iter_mut() {
                 match method {
-                    AggregationMethod::$variant(m) => return Some(m),
+                    Aggregator::$variant(m) => return m,
                     _ => continue,
                 }
             }
 
-            None
+            unreachable!()
         }
     };
 }
 
 #[derive(Debug)]
-struct Aggregator {
-    methods: Vec<AggregationMethod>,
+struct CompositeAggregator {
+    methods: Vec<Aggregator>,
 }
 
-impl Aggregator {
+impl CompositeAggregator {
     fn new() -> Self {
         Self {
             methods: Vec::new(),
@@ -494,7 +495,7 @@ impl Aggregator {
         }
     }
 
-    fn with_method(method: &str) -> Self {
+    fn with_method(method: &ConcreteAggregationMethod) -> Self {
         let mut aggregator = Self::new();
         aggregator.add_method(method);
         aggregator
@@ -513,67 +514,66 @@ impl Aggregator {
     build_variant_methods!(Sum, has_sum, get_sum);
     build_variant_methods!(Welford, has_welford, get_welford);
 
-    fn add_method(&mut self, method: &str) {
+    fn add_method(&mut self, method: &ConcreteAggregationMethod) {
         match method {
-            "all" | "any" => {
+            ConcreteAggregationMethod::All | ConcreteAggregationMethod::Any => {
                 if self.has_allany() {
                     return;
                 }
 
-                self.methods.push(AggregationMethod::AllAny(AllAny::new()));
+                self.methods.push(Aggregator::AllAny(AllAny::new()));
             }
-            "count" => {
+            ConcreteAggregationMethod::Count => {
                 if self.has_count() {
                     return;
                 }
 
-                self.methods.push(AggregationMethod::Count(Count::new()));
+                self.methods.push(Aggregator::Count(Count::new()));
             }
-            "min" | "max" => {
+            ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
                 if self.has_extent() {
                     return;
                 }
 
-                self.methods.push(AggregationMethod::Extent(Extent::new()));
+                self.methods.push(Aggregator::Extent(Extent::new()));
             }
-            "lex_first" | "lex_last" => {
+            ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
                 if self.has_lexicographic_extent() {
                     return;
                 }
 
-                self.methods.push(AggregationMethod::LexicographicExtent(
-                    LexicographicExtent::new(),
-                ));
+                self.methods
+                    .push(Aggregator::LexicographicExtent(LexicographicExtent::new()));
             }
-            "median" | "median_low" | "median_high" => {
+            ConcreteAggregationMethod::Median(_) => {
                 if !self.has_numbers() {
-                    self.methods
-                        .push(AggregationMethod::Numbers(Numbers::new()));
+                    self.methods.push(Aggregator::Numbers(Numbers::new()));
                 }
             }
-            "cardinality" | "mode" => {
+            ConcreteAggregationMethod::Mode | ConcreteAggregationMethod::Cardinality => {
                 if !self.has_frequencies() {
                     self.methods
-                        .push(AggregationMethod::Frequencies(Frequencies::new()));
+                        .push(Aggregator::Frequencies(Frequencies::new()));
                 }
             }
-            "sum" => {
+            ConcreteAggregationMethod::Sum => {
                 if self.has_sum() {
                     return;
                 }
 
-                self.methods.push(AggregationMethod::Sum(Sum::new()));
+                self.methods.push(Aggregator::Sum(Sum::new()));
             }
-            "mean" | "avg" | "var" | "var_sample" | "var_pop" | "stddev" | "stddev_sample"
-            | "stddev_pop" => {
+            ConcreteAggregationMethod::Mean
+            | ConcreteAggregationMethod::VarPop
+            | ConcreteAggregationMethod::VarSample
+            | ConcreteAggregationMethod::StddevPop
+            | ConcreteAggregationMethod::StddevSample => {
                 if self.has_welford() {
                     return;
                 }
 
-                self.methods
-                    .push(AggregationMethod::Welford(Welford::new()));
+                self.methods.push(Aggregator::Welford(Welford::new()));
             }
-            _ => unreachable!(),
         }
     }
 
@@ -581,35 +581,35 @@ impl Aggregator {
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
                 Some(value) => match method {
-                    AggregationMethod::AllAny(allany) => {
+                    Aggregator::AllAny(allany) => {
                         allany.add(value.is_truthy());
                     }
-                    AggregationMethod::Count(count) => {
+                    Aggregator::Count(count) => {
                         if !value.is_nullish() {
                             count.add();
                         }
                     }
-                    AggregationMethod::Extent(extent) => {
+                    Aggregator::Extent(extent) => {
                         extent.add(value.try_as_number()?);
                     }
-                    AggregationMethod::LexicographicExtent(extent) => {
+                    Aggregator::LexicographicExtent(extent) => {
                         extent.add(&value.try_as_str()?);
                     }
-                    AggregationMethod::Frequencies(frequencies) => {
+                    Aggregator::Frequencies(frequencies) => {
                         frequencies.add(value.try_as_str()?.into_owned());
                     }
-                    AggregationMethod::Numbers(numbers) => {
+                    Aggregator::Numbers(numbers) => {
                         numbers.add(value.try_as_number()?);
                     }
-                    AggregationMethod::Sum(sum) => {
+                    Aggregator::Sum(sum) => {
                         sum.add(&value.try_as_number()?);
                     }
-                    AggregationMethod::Welford(variance) => {
+                    Aggregator::Welford(variance) => {
                         variance.add(value.try_as_f64()?);
                     }
                 },
                 None => match method {
-                    AggregationMethod::Count(count) => {
+                    Aggregator::Count(count) => {
                         count.add();
                     }
                     _ => unreachable!(),
@@ -620,48 +620,49 @@ impl Aggregator {
         Ok(())
     }
 
-    fn finalize_method(&mut self, method: &str) -> DynamicValue {
+    fn finalize_method(&mut self, method: &ConcreteAggregationMethod) -> DynamicValue {
         match method {
-            "all" => DynamicValue::from(self.get_allany().unwrap().all()),
-            "any" => DynamicValue::from(self.get_allany().unwrap().any()),
-            "cardinality" => DynamicValue::from(self.get_frequencies().unwrap().cardinality()),
-            "count" => DynamicValue::from(self.get_count().unwrap().get()),
-            "lex_first" => DynamicValue::from(self.get_lexicographic_extent().unwrap().first()),
-            "lex_last" => DynamicValue::from(self.get_lexicographic_extent().unwrap().last()),
-            "min" => DynamicValue::from(self.get_extent().unwrap().min()),
-            "avg" | "mean" => DynamicValue::from(self.get_welford().unwrap().mean()),
-            "median" => DynamicValue::from(
-                self.get_numbers_mut()
-                    .unwrap()
-                    .median(MedianType::Interpolation),
-            ),
-            "median_high" => {
-                DynamicValue::from(self.get_numbers_mut().unwrap().median(MedianType::High))
+            ConcreteAggregationMethod::All => DynamicValue::from(self.get_allany().all()),
+            ConcreteAggregationMethod::Any => DynamicValue::from(self.get_allany().any()),
+            ConcreteAggregationMethod::Cardinality => {
+                DynamicValue::from(self.get_frequencies().cardinality())
             }
-            "median_low" => {
-                DynamicValue::from(self.get_numbers_mut().unwrap().median(MedianType::Low))
+            ConcreteAggregationMethod::Count => DynamicValue::from(self.get_count().get()),
+            ConcreteAggregationMethod::LexFirst => {
+                DynamicValue::from(self.get_lexicographic_extent().first())
             }
-            "max" => DynamicValue::from(self.get_extent().unwrap().max()),
-            "mode" => DynamicValue::from(self.get_frequencies().unwrap().mode()),
-            "sum" => DynamicValue::from(self.get_sum().unwrap().get()),
-            "var" | "var_pop" => DynamicValue::from(self.get_welford().unwrap().variance()),
-            "var_sample" => DynamicValue::from(self.get_welford().unwrap().sample_variance()),
-            "stddev" | "stddev_pop" => DynamicValue::from(self.get_welford().unwrap().stdev()),
-            "stddev_sample" => DynamicValue::from(self.get_welford().unwrap().sample_stdev()),
-            _ => unreachable!(),
+            ConcreteAggregationMethod::LexLast => {
+                DynamicValue::from(self.get_lexicographic_extent().last())
+            }
+            ConcreteAggregationMethod::Min => DynamicValue::from(self.get_extent().min()),
+            ConcreteAggregationMethod::Mean => DynamicValue::from(self.get_welford().mean()),
+            ConcreteAggregationMethod::Median(median_type) => {
+                DynamicValue::from(self.get_numbers_mut().median(median_type))
+            }
+            ConcreteAggregationMethod::Max => DynamicValue::from(self.get_extent().max()),
+            ConcreteAggregationMethod::Mode => DynamicValue::from(self.get_frequencies().mode()),
+            ConcreteAggregationMethod::Sum => DynamicValue::from(self.get_sum().get()),
+            ConcreteAggregationMethod::VarPop => DynamicValue::from(self.get_welford().variance()),
+            ConcreteAggregationMethod::VarSample => {
+                DynamicValue::from(self.get_welford().sample_variance())
+            }
+            ConcreteAggregationMethod::StddevPop => DynamicValue::from(self.get_welford().stdev()),
+            ConcreteAggregationMethod::StddevSample => {
+                DynamicValue::from(self.get_welford().sample_stdev())
+            }
         }
     }
 }
 
 // NOTE: the rationale of the `KeyedAggregator` is to make sure to group
 // aggregations per expression. This means 'sum(A) as sum, mean(A)` will never
-// need to run the expression twice and can share an `Aggregator` allocation.
+// need to run the expression twice and can share an `CompositeAggregator` allocation.
 // TODO: deal with count() having no expr.
 #[derive(Debug)]
 struct KeyedAggregatorEntry {
     key: String,
     expr: Option<ConcreteArgument>,
-    aggregator: Aggregator,
+    aggregator: CompositeAggregator,
 }
 
 #[derive(Debug)]
@@ -692,7 +693,7 @@ impl KeyedAggregator {
                 self.mapping.push(KeyedAggregatorEntry {
                     key: aggregation.key.clone(),
                     expr: aggregation.expr.clone(),
-                    aggregator: Aggregator::with_method(&aggregation.method),
+                    aggregator: CompositeAggregator::with_method(&aggregation.method),
                 });
             }
             Some(entry) => entry.aggregator.add_method(&aggregation.method),
@@ -723,7 +724,7 @@ impl KeyedAggregator {
         Ok(())
     }
 
-    fn finalize(&mut self, key: &str, method: &str) -> Option<DynamicValue> {
+    fn finalize(&mut self, key: &str, method: &ConcreteAggregationMethod) -> Option<DynamicValue> {
         self.get_mut(key)
             .map(|entry| entry.aggregator.finalize_method(method))
     }
@@ -773,9 +774,55 @@ fn validate_aggregation_function_arity(
 }
 
 #[derive(Debug)]
+enum ConcreteAggregationMethod {
+    All,
+    Any,
+    Cardinality,
+    Count,
+    LexFirst,
+    LexLast,
+    Min,
+    Max,
+    Mean,
+    Median(MedianType),
+    Mode,
+    Sum,
+    VarPop,
+    VarSample,
+    StddevPop,
+    StddevSample,
+}
+
+impl ConcreteAggregationMethod {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "all" => Self::All,
+            "any" => Self::Any,
+            "cardinality" => Self::Cardinality,
+            "count" => Self::Count,
+            "lex_first" => Self::LexFirst,
+            "lex_last" => Self::LexLast,
+            "min" => Self::Min,
+            "max" => Self::Max,
+            "avg" | "mean" => Self::Mean,
+            "median" => Self::Median(MedianType::Interpolation),
+            "median_high" => Self::Median(MedianType::High),
+            "median_low" => Self::Median(MedianType::Low),
+            "mode" => Self::Mode,
+            "var" | "var_pop" => Self::VarPop,
+            "var_sample" => Self::VarSample,
+            "stddev" | "stddev_pop" => Self::StddevPop,
+            "stddev_sample" => Self::StddevSample,
+            "sum" => Self::Sum,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug)]
 struct ConcreteAggregation {
     name: String,
-    method: String,
+    method: ConcreteAggregationMethod,
     expr: Option<ConcreteArgument>,
     key: String,
     // args: Vec<ConcreteArgument>,
@@ -804,15 +851,19 @@ fn concretize_aggregations(
             args.push(concretize_argument(arg, headers)?);
         }
 
-        let concrete_aggregation = ConcreteAggregation {
-            name: aggregation.name,
-            method: aggregation.method,
-            key: aggregation.key,
-            expr,
-            // args,
-        };
+        if let Some(method) = ConcreteAggregationMethod::parse(&aggregation.method) {
+            let concrete_aggregation = ConcreteAggregation {
+                name: aggregation.name,
+                method,
+                key: aggregation.key,
+                expr,
+                // args,
+            };
 
-        concrete_aggregations.push(concrete_aggregation);
+            concrete_aggregations.push(concrete_aggregation);
+        } else {
+            return Err(ConcretizationError::UnknownFunction(aggregation.method));
+        }
     }
 
     Ok(concrete_aggregations)
@@ -1014,56 +1065,56 @@ mod tests {
         let mut even_numbers = Numbers::from(even);
 
         // Low
-        assert_eq!(no_numbers.median(MedianType::Low), None);
+        assert_eq!(no_numbers.median(&MedianType::Low), None);
 
         assert_eq!(
-            lone_numbers.median(MedianType::Low),
+            lone_numbers.median(&MedianType::Low),
             Some(DynamicNumber::Integer(8))
         );
 
         assert_eq!(
-            odd_numbers.median(MedianType::Low),
+            odd_numbers.median(&MedianType::Low),
             Some(DynamicNumber::Integer(3))
         );
 
         assert_eq!(
-            even_numbers.median(MedianType::Low),
+            even_numbers.median(&MedianType::Low),
             Some(DynamicNumber::Integer(2))
         );
 
         // High
-        assert_eq!(no_numbers.median(MedianType::High), None);
+        assert_eq!(no_numbers.median(&MedianType::High), None);
 
         assert_eq!(
-            lone_numbers.median(MedianType::High),
+            lone_numbers.median(&MedianType::High),
             Some(DynamicNumber::Integer(8))
         );
 
         assert_eq!(
-            odd_numbers.median(MedianType::High),
+            odd_numbers.median(&MedianType::High),
             Some(DynamicNumber::Integer(3))
         );
 
         assert_eq!(
-            even_numbers.median(MedianType::High),
+            even_numbers.median(&MedianType::High),
             Some(DynamicNumber::Integer(6))
         );
 
         // High
-        assert_eq!(no_numbers.median(MedianType::Interpolation), None);
+        assert_eq!(no_numbers.median(&MedianType::Interpolation), None);
 
         assert_eq!(
-            lone_numbers.median(MedianType::Interpolation),
+            lone_numbers.median(&MedianType::Interpolation),
             Some(DynamicNumber::Integer(8))
         );
 
         assert_eq!(
-            odd_numbers.median(MedianType::Interpolation),
+            odd_numbers.median(&MedianType::Interpolation),
             Some(DynamicNumber::Integer(3))
         );
 
         assert_eq!(
-            even_numbers.median(MedianType::Interpolation),
+            even_numbers.median(&MedianType::Interpolation),
             Some(DynamicNumber::Float(4.0))
         );
     }
