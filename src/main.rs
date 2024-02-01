@@ -102,10 +102,10 @@ macro_rules! command_list {
     kway        Merge multiple similar already sorted CSV files
     map         Create a new column by evaluating an expression on each CSV row
     partition   Partition CSV data based on a column value
-    sample      Randomly sample CSV data
-    transform   Transform a column by evaluating an expression on each CSV row
+    rename      Rename columns of a CSV file
     replace     Replace patterns in CSV data
     reverse     Reverse rows of CSV data
+    sample      Randomly sample CSV data
     search      Search CSV data with regexes
     select      Select columns from CSV
     shuffle     Shuffle CSV data
@@ -113,6 +113,7 @@ macro_rules! command_list {
     sort        Sort CSV data
     split       Split CSV data into many files
     stats       Compute basic statistics
+    transform   Transform a column by evaluating an expression on each CSV row
     view        Preview a CSV file in a human-friendly way
     xls         Convert Excel/OpenOffice spreadsheets to CSV
 "
@@ -223,6 +224,7 @@ enum Command {
     Kway,
     Map,
     Partition,
+    Rename,
     Replace,
     Reverse,
     Sample,
@@ -287,6 +289,7 @@ impl Command {
             Command::Kway => cmd::kway::run(argv),
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),
+            Command::Rename => cmd::rename::run(argv),
             Command::Replace => cmd::replace::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),

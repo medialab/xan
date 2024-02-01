@@ -1,7 +1,7 @@
 use csv;
 
 use config::{Config, Delimiter};
-use select::SelectColumns;
+use select::{SelectColumns, Selection};
 use util;
 use CliResult;
 
@@ -11,6 +11,10 @@ TODO...
 Usage:
     xsv rename [options] <columns> [<input>]
     xsv rename --help
+
+rename options:
+    -s, --select <arg>     Select the columns to search. See 'xsv select -h'
+                           for the full syntax.
 
 Common options:
     -h, --help             Display this message
@@ -26,7 +30,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_columns: String,
-    arg_selection: SelectColumns,
+    flag_select: Option<SelectColumns>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -35,14 +39,18 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    dbg!(&args.arg_columns);
+    let mut rconfig = Config::new(&args.arg_input)
+        .delimiter(args.flag_delimiter)
+        .no_headers(args.flag_no_headers);
 
-    // let rconfig = Config::new(&args.arg_input)
-    //     .delimiter(args.flag_delimiter)
-    //     .no_headers(args.flag_no_headers)
-    //     .select(args.arg_selection);
+    let mut rdr = rconfig.reader()?;
 
-    // let mut rdr = rconfig.reader()?;
+    let mut selection: Option<Selection> = None;
+
+    if let Some(selection) = args.flag_select {
+        rconfig = rconfig.select(selection);
+    }
+
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     // let headers = rdr.byte_headers()?.clone();

@@ -56,6 +56,7 @@ cargo install --git https://github.com/medialab/xsv.git --branch prod --features
 * `xsv jsonl`
 * `xsv kway`
 * `xsv map`
+* `xsv rename`
 * `xsv replace`
 * `xsv reverse --in-memory`
 * `xsv search --exact`
@@ -106,6 +107,7 @@ given separator.
 * **pseudo** - Pseudonymise the value of the given column by replacing them by an incremental identifier.
 * **sample** - Randomly draw rows from CSV data using reservoir sampling (i.e.,
   use memory proportional to the size of the sample).
+* **rename** - Rename columns of a CSV file.
 * **replace** - Replace CSV data using a regex.
 * **reverse** - Reverse order of rows in CSV data.
 * **search** - Run a regex over CSV data. Applies the regex to each field
