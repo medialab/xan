@@ -369,6 +369,14 @@ impl Selection {
         self.iter().map(move |i| &row[*i])
     }
 
+    pub fn has_duplicates(&self) -> bool {
+        let mut indices = self.0.clone();
+        indices.sort();
+        indices.dedup();
+
+        indices.len() != self.len()
+    }
+
     pub fn indexed_mask(&self, alignment: usize) -> Vec<Option<usize>> {
         let mut m = repeat(None).take(alignment).collect::<Vec<Option<usize>>>();
 

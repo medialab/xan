@@ -13,11 +13,12 @@ quotes.
 
 Renaming all columns:
 
-    $ xsv rename NAME,SURNAME file.csv
+    $ xsv rename NAME,SURNAME,AGE file.csv
 
 Renaming a selection of columns:
 
-    $ xsv rename NAME -s name file.csv
+    $ xsv rename NAME,SURNAME -s name,surname file.csv
+    $ xsv rename NAME,SURNAME -s '0-1' file.csv
 
 Adding a header to a headless file:
 
@@ -37,8 +38,9 @@ Usage:
     xsv rename --help
 
 rename options:
-    -s, --select <arg>     Select the columns to search. See 'xsv select -h'
-                           for the full syntax.
+    -s, --select <arg>     Select the columns to rename. See 'xsv select -h'
+                           for the full syntax. Note that given selection must
+                           not include a same column more than once.
     -p, --prefix <prefix>  Prefix to add to all the column names.
 
 Common options:
@@ -119,6 +121,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         None => Selection::full(headers.len()),
     };
+
+    if selection.has_duplicates() {
+        return fail!("Cannot rename a column selection where some columns appear multiple times!");
+    }
 
     let renamed_headers: csv::ByteRecord = if let Some(prefix) = args.flag_prefix {
         headers

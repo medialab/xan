@@ -35,6 +35,10 @@ fn rename_select() {
     wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
 
     let mut cmd = wrk.command("rename");
+    cmd.arg("A,B,C").args(["-s", "name,0,name"]).arg("data.csv");
+    wrk.assert_err(&mut cmd);
+
+    let mut cmd = wrk.command("rename");
     cmd.arg("NAME").args(["-s", "name"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
