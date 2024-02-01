@@ -82,3 +82,45 @@ fn rename_prefix_select() {
     let expected = vec![svec!["name", "test_age"], svec!["John", "24"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn rename_escapable_name() {
+    let wrk = Workdir::new("rename_escapable_name");
+    wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.arg("NAME OF PERSON,\"AGE, \"\"OF\"\" PERSON\"")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["NAME OF PERSON", "AGE, \"OF\" PERSON"],
+        svec!["John", "24"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn rename_no_headers() {
+    let wrk = Workdir::new("rename_no_headers");
+    wrk.create("data.csv", vec![svec!["John", "24"], svec!["Lisa", "28"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.arg("-n").args(["--prefix", "test_"]).arg("data.csv");
+    wrk.assert_err(&mut cmd);
+
+    let mut cmd = wrk.command("rename");
+    cmd.arg("-n").arg("NAME").arg("data.csv");
+    wrk.assert_err(&mut cmd);
+
+    let mut cmd = wrk.command("rename");
+    cmd.arg("-n").arg("name,age").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "age"],
+        svec!["John", "24"],
+        svec!["Lisa", "28"],
+    ];
+    assert_eq!(got, expected);
+}

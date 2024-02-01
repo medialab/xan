@@ -7,7 +7,9 @@ use CliResult;
 
 static USAGE: &str = "
 Rename columns of a CSV file. Can also be used to add headers to a headless
-CSV file.
+CSV file. The new names must be passed in CSV format to the column as argument,
+which can be useful if the desired column names contains actual commas and/or double
+quotes.
 
 Renaming all columns:
 
@@ -25,9 +27,9 @@ Prefixing column names:
 
     $ xsv rename --prefix university_ file.csv
 
-The renamed column must be passed in CSV format:
+Column names with characters that need escaping:
 
-    $ xsv rename '\"NAME OF PERSON\",AGE' file.csv
+    $ xsv rename 'NAME OF PERSON,\"AGE, \"\"OF\"\" PERSON\"' file.csv
 
 Usage:
     xsv rename [options] --prefix <prefix> [<input>]
@@ -70,6 +72,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
 
     let mut rdr = rconfig.reader()?;
+
+    let mut wtr = Config::new(&args.flag_output).writer()?;
+
+    let mut record = csv::ByteRecord::new();
+
+    if args.flag_no_headers {
+        if args.flag_prefix.is_some() {
+            return fail!("Cannot use --prefix with --no-headers!");
+        }
+
+        let rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
+
+        let expected_len = if rdr.read_byte_record(&mut record)? {
+            record.len()
+        } else {
+            0
+        };
+
+        if expected_len != rename_as.len() {
+            return fail!(format!(
+                "Renamed columns alignement error. Expected {} names and got {}.",
+                expected_len,
+                rename_as.len(),
+            ));
+        }
+
+        if expected_len > 0 {
+            wtr.write_byte_record(&rename_as)?;
+            wtr.write_byte_record(&record)?;
+
+            while rdr.read_byte_record(&mut record)? {
+                wtr.write_byte_record(&record)?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
     let headers = rdr.byte_headers()?;
 
     let selection = match args.flag_select {
@@ -110,10 +150,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect()
     };
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
     wtr.write_byte_record(&renamed_headers)?;
-
-    let mut record = csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         wtr.write_byte_record(&record)?;
