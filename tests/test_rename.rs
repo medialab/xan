@@ -54,3 +54,31 @@ fn rename_select_invert() {
     let expected = vec![svec!["AGE", "NAME"], svec!["John", "24"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn rename_prefix() {
+    let wrk = Workdir::new("rename_prefix");
+    wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["--prefix", "test_"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["test_name", "test_age"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn rename_prefix_select() {
+    let wrk = Workdir::new("rename_prefix_select");
+    wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["--prefix", "test_"])
+        .args(["-s", "age"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "test_age"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
