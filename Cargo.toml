@@ -6,7 +6,8 @@ authors = [
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
   "Béatrice Mazoyer <beatrice.mazoyer@sciencespo.fr>",
   "Laura Miguel <laura.miguel@sciencespo.fr>",
-  "César Pichon <cesar.pichon@sciencespo.fr>"
+  "César Pichon <cesar.pichon@sciencespo.fr>",
+  "Anna Charles <anna.charles@sciencespo.fr>",
 ]
 description = "A high performance CSV command line toolkit."
 documentation = "https://github.com/medialab/xsv#readme"
