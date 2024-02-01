@@ -841,4 +841,10 @@ mod tests {
         assert_eq!(eval_code("sqrt(4)"), Ok(DynamicValue::from(2.0)));
         assert_eq!(eval_code("sqrt(100)"), Ok(DynamicValue::from(10.0)));
     }
+
+    #[test]
+    fn test_md5() {
+        assert_eq!(eval_code("md5('test')"), Ok(DynamicValue::from("098f6bcd4621d373cade4e832627b4f6")));
+        
+    }
 }

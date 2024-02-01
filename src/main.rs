@@ -18,8 +18,6 @@ extern crate flate2;
 extern crate glob;
 #[macro_use]
 extern crate lazy_static;
-#[cfg(feature = "lang")]
-extern crate lingua;
 extern crate nom;
 extern crate num_cpus;
 extern crate numfmt;
@@ -102,7 +100,6 @@ macro_rules! command_list {
     join        Join CSV files
     jsonl       Convert newline-delimited JSON files to CSV
     kway        Merge multiple similar already sorted CSV files
-    lang        Add a column with the language detected in a given CSV column
     map         Create a new column by evaluating an expression on each CSV row
     partition   Partition CSV data based on a column value
     sample      Randomly sample CSV data
@@ -224,7 +221,6 @@ enum Command {
     Join,
     Jsonl,
     Kway,
-    Lang,
     Map,
     Partition,
     Replace,
@@ -289,12 +285,6 @@ impl Command {
             Command::Join => cmd::join::run(argv),
             Command::Jsonl => cmd::jsonl::run(argv),
             Command::Kway => cmd::kway::run(argv),
-            #[cfg(feature = "lang")]
-            Command::Lang => cmd::lang::run(argv),
-            #[cfg(not(feature = "lang"))]
-            Command::Lang => Err(CliError::Other(
-                "This version of XSV was not compiled with the \"lang\" feature.".to_string(),
-            )),
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),
             Command::Replace => cmd::replace::run(argv),

@@ -623,6 +623,18 @@ impl<'a> ImmutableRecordHelpers<'a> for csv::StringRecord {
     }
 }
 
+pub fn str_to_csv_byte_record(target: &str) -> csv::ByteRecord {
+    let cursor = io::Cursor::new(target);
+    let reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(cursor);
+
+    match reader.into_byte_records().next() {
+        Some(record) => record.unwrap(),
+        None => csv::ByteRecord::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -642,6 +654,32 @@ mod tests {
         assert_eq!(
             sanitizer.sanitize("👩 hello 👩‍👩‍👧‍👦"),
             ":woman: hello :family_woman_woman_girl_boy:"
+        );
+    }
+
+    macro_rules! brec {
+        () => {
+            csv::ByteRecord::new()
+        };
+        ( $( $x:expr ),* ) => {
+            {
+                let mut record = csv::ByteRecord::new();
+                $(
+                    record.push_field($x);
+                )*
+                record
+            }
+        };
+    }
+
+    #[test]
+    fn test_str_to_csv_byte_record() {
+        assert_eq!(str_to_csv_byte_record(""), brec![]);
+        assert_eq!(str_to_csv_byte_record("test"), brec![b"test"]);
+        assert_eq!(str_to_csv_byte_record("test,ok"), brec![b"test", b"ok"]);
+        assert_eq!(
+            str_to_csv_byte_record("\"test, ok\",\"\"\"John"),
+            brec![b"test, ok", b"\"John"]
         );
     }
 }

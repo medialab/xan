@@ -110,8 +110,8 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
     - add(x, y, *n) -> number
         Add two or more numbers.
-    
-    - ceil(x) -> number 
+
+    - ceil(x) -> number
         Return the smallest integer greater than or equal to x.
 
     - dec(x) -> number
@@ -120,7 +120,7 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - div(x, y, *n) -> number
         Divide two or more numbers.
 
-    - floor(x) -> number 
+    - floor(x) -> number
         Return the smallest integer lower than or equal to x.
 
     - idiv(x, y) -> number
@@ -129,7 +129,7 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - inc(x) -> number
         Increment x, adding 1.
 
-    - log(x) -> number 
+    - log(x) -> number
         Return the natural logarithm of x.
 
     - mul(x, y, *n) -> number
@@ -138,10 +138,10 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - neg(x) -> Number
         Return -x.
 
-    - round(x) -> number 
+    - round(x) -> number
         Return x rounded to the nearest integer.
 
-    - sqrt(x) -> number 
+    - sqrt(x) -> number
         Return the square root of x.
 
     - sub(x, y, *n) -> number
@@ -319,6 +319,9 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
 ## Random
 
+    - md5(string) -> string
+        Return the md5 hash of string in hexadecimal representation.
+
     - uuid() -> string
         Return a uuid v4.
 
@@ -331,16 +334,31 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
 
 (use --cheatsheet for a reminder of how the scripting language works)
 
+    - all(<expr>) -> bool
+        Returns true if all elements returned by given expression are truthy.
+
+    - any(<expr>) -> bool
+        Returns true if one of the elements returned by given expression is truthy.
+
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
+
+    - cardinality(<expr>) -> number
+        Number of distinct values returned by given expression.
 
     - count(<expr>?) -> number
         Count the numbers of row. Works like in SQL in that `count(<expr>)`
         will count all non-null values returned by given expression, while
         `count()` without any expression will count every matching row.
 
+    - lex_first(<expr>) -> string
+        Return first string in lexicographical order.
+
+    - lex_last(<expr>) -> string
+        Return last string in lexicographical order.
+
     - max(<expr>) -> number | string
-        Maximum value.
+        Maximum numerical value.
 
     - mean(<expr>) -> number
         Mean of numerical values. Same as `avg`.
@@ -355,7 +373,7 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
         Median of numerical values, returning lower value on even counts.
 
     - min(<expr>) -> number | string
-        Minimum value.
+        Minimum numerical value.
 
     - mode(<expr>) - string
         Value appearing the most, breaking ties arbitrarily in favor of the

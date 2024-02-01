@@ -24,12 +24,49 @@ impl Count {
         Self { current: 0 }
     }
 
+    fn clear(&mut self) {
+        self.current = 0;
+    }
+
     fn add(&mut self) {
         self.current += 1;
     }
 
     fn get(&self) -> usize {
         self.current
+    }
+}
+
+#[derive(Debug)]
+struct AllAny {
+    all: bool,
+    any: bool,
+}
+
+impl AllAny {
+    fn new() -> Self {
+        Self {
+            all: true,
+            any: false,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.all = true;
+        self.any = false;
+    }
+
+    fn add(&mut self, new_bool: bool) {
+        self.all = self.all && new_bool;
+        self.any = self.any || new_bool;
+    }
+
+    fn all(&self) -> bool {
+        self.all
+    }
+
+    fn any(&self) -> bool {
+        self.any
     }
 }
 
@@ -45,18 +82,22 @@ impl Sum {
         }
     }
 
+    fn clear(&mut self) {
+        self.current = DynamicNumber::Integer(0);
+    }
+
     // TODO: implement kahan-babushka summation from https://github.com/simple-statistics/simple-statistics/blob/main/src/sum.js
     fn add(&mut self, value: &DynamicNumber) {
-        self.current = match self.current {
+        match &mut self.current {
             DynamicNumber::Float(a) => match value {
-                DynamicNumber::Float(b) => DynamicNumber::Float(a + b),
-                DynamicNumber::Integer(b) => DynamicNumber::Float(a + (*b as f64)),
+                DynamicNumber::Float(b) => *a += b,
+                DynamicNumber::Integer(b) => *a += *b as f64,
             },
             DynamicNumber::Integer(a) => match value {
-                DynamicNumber::Float(b) => DynamicNumber::Float((a as f64) + b),
-                DynamicNumber::Integer(b) => DynamicNumber::Integer(a + b),
+                DynamicNumber::Float(b) => self.current = DynamicNumber::Float((*a as f64) + b),
+                DynamicNumber::Integer(b) => *a += b,
             },
-        }
+        };
     }
 
     fn get(&self) -> DynamicNumber {
@@ -66,99 +107,77 @@ impl Sum {
 
 #[derive(Debug)]
 struct Extent {
-    min: Option<DynamicNumber>,
-    max: Option<DynamicNumber>,
-    min_string: Option<String>,
-    max_string: Option<String>,
-    as_string: bool,
+    extent: Option<(DynamicNumber, DynamicNumber)>,
 }
 
 impl Extent {
     fn new() -> Self {
-        Self {
-            min: None,
-            max: None,
-            min_string: None,
-            max_string: None,
-            as_string: false,
+        Self { extent: None }
+    }
+
+    fn clear(&mut self) {
+        self.extent = None;
+    }
+
+    fn add(&mut self, value: DynamicNumber) {
+        match &mut self.extent {
+            None => self.extent = Some((value, value)),
+            Some((min, max)) => {
+                if value < *min {
+                    *min = value;
+                }
+
+                if value > *max {
+                    *max = value;
+                }
+            }
         }
     }
 
-    fn update_string(&mut self, string: String) {
-        if let Some(current) = &self.min_string {
-            if &string < current {
-                self.min_string = Some(string.clone());
-            }
-        } else {
-            self.min_string = Some(string.clone());
-        }
+    fn min(&self) -> Option<DynamicNumber> {
+        self.extent.map(|e| e.0)
+    }
 
-        if let Some(current) = &self.max_string {
-            if &string > current {
-                self.max_string = Some(string);
+    fn max(&self) -> Option<DynamicNumber> {
+        self.extent.map(|e| e.1)
+    }
+}
+
+#[derive(Debug)]
+struct LexicographicExtent {
+    extent: Option<(String, String)>,
+}
+
+impl LexicographicExtent {
+    fn new() -> Self {
+        Self { extent: None }
+    }
+
+    fn clear(&mut self) {
+        self.extent = None;
+    }
+
+    fn add(&mut self, value: &str) {
+        match &mut self.extent {
+            None => self.extent = Some((value.to_string(), value.to_string())),
+            Some((min, max)) => {
+                if value < min.as_str() {
+                    *min = value.to_string();
+                }
+
+                if value > max.as_str() {
+                    *max = value.to_string();
+                }
             }
-        } else {
-            self.max_string = Some(string);
         }
     }
 
-    fn update_number(&mut self, number: DynamicNumber) {
-        if let Some(current) = &self.min {
-            if &number < current {
-                self.min = Some(number);
-            }
-        } else {
-            self.min = Some(number);
-        }
-
-        if let Some(current) = &self.max {
-            if &number > current {
-                self.max = Some(number);
-            }
-        } else {
-            self.max = Some(number);
-        }
+    fn first(&self) -> Option<String> {
+        self.extent.as_ref().map(|e| e.0.clone())
     }
 
-    fn add(&mut self, value: &DynamicValue) {
-        if self.as_string {
-            match value.try_as_str() {
-                Err(_) => return,
-                Ok(string) => self.update_string(string.into_owned()),
-            }
-            return;
-        }
-
-        match value.try_as_number() {
-            Err(_) => {
-                // Switching to tracking strings
-                self.as_string = true;
-
-                self.min_string = self.min.as_ref().map(|min| min.to_string());
-                self.max_string = self.max.as_ref().map(|max| max.to_string());
-
-                self.add(value);
-            }
-            Ok(number) => {
-                self.update_number(number);
-            }
-        };
-    }
-
-    fn min(&self) -> DynamicValue {
-        if self.as_string {
-            return DynamicValue::from(self.min_string.clone());
-        }
-
-        DynamicValue::from(self.min)
-    }
-
-    fn max(&self) -> DynamicValue {
-        if self.as_string {
-            return DynamicValue::from(self.max_string.clone());
-        }
-
-        DynamicValue::from(self.max)
+    fn last(&self) -> Option<String> {
+        self.extent.as_ref().map(|e| e.1.clone())
     }
 }
 
@@ -180,6 +199,11 @@ impl Numbers {
             sorted: false,
             numbers: Vec::new(),
         }
+    }
+
+    fn clear(&mut self) {
+        self.sorted = false;
+        self.numbers.clear();
     }
 
     fn add(&mut self, number: DynamicNumber) {
@@ -250,6 +274,10 @@ impl Frequencies {
         }
     }
 
+    fn clear(&mut self) {
+        self.counter.clear();
+    }
+
     fn add(&mut self, value: String) {
         self.counter
             .entry(value)
@@ -275,6 +303,10 @@ impl Frequencies {
 
         max.map(|(_, key)| key.to_string())
     }
+
+    fn cardinality(&self) -> usize {
+        self.counter.len()
+    }
 }
 
 // NOTE: this is an implementation of Welford's online algorithm
@@ -292,6 +324,12 @@ impl Welford {
             mean: 0.0,
             m2: 0.0,
         }
+    }
+
+    fn clear(&mut self) {
+        self.count = 0;
+        self.mean = 0.0;
+        self.m2 = 0.0;
     }
 
     fn add(&mut self, value: f64) {
@@ -342,8 +380,10 @@ impl Welford {
 
 #[derive(Debug)]
 enum AggregationMethod {
+    AllAny(AllAny),
     Count(Count),
     Extent(Extent),
+    LexicographicExtent(LexicographicExtent),
     Frequencies(Frequencies),
     Numbers(Numbers),
     Sum(Sum),
@@ -351,12 +391,20 @@ enum AggregationMethod {
 }
 
 impl AggregationMethod {
+    fn is_allany(&self) -> bool {
+        matches!(self, Self::AllAny(_))
+    }
+
     fn is_count(&self) -> bool {
         matches!(self, Self::Count(_))
     }
 
     fn is_extent(&self) -> bool {
         matches!(self, Self::Extent(_))
+    }
+
+    fn is_lexicographic_extent(&self) -> bool {
+        matches!(self, Self::LexicographicExtent(_))
     }
 
     fn is_frequencies(&self) -> bool {
@@ -373,6 +421,19 @@ impl AggregationMethod {
 
     fn is_welford(&self) -> bool {
         matches!(self, Self::Welford(_))
+    }
+
+    fn clear(&mut self) {
+        match self {
+            Self::AllAny(inner) => inner.clear(),
+            Self::Count(inner) => inner.clear(),
+            Self::Extent(inner) => inner.clear(),
+            Self::LexicographicExtent(inner) => inner.clear(),
+            Self::Frequencies(inner) => inner.clear(),
+            Self::Numbers(inner) => inner.clear(),
+            Self::Sum(inner) => inner.clear(),
+            Self::Welford(inner) => inner.clear(),
+        }
     }
 }
 
@@ -454,14 +515,27 @@ impl Aggregator {
         }
     }
 
+    fn clear(&mut self) {
+        for method in self.methods.iter_mut() {
+            method.clear();
+        }
+    }
+
     fn with_method(method: &str) -> Self {
         let mut aggregator = Self::new();
         aggregator.add_method(method);
         aggregator
     }
 
+    build_variant_methods!(AllAny, is_allany, has_allany, get_allany);
     build_variant_methods!(Count, is_count, has_count, get_count);
     build_variant_methods!(Extent, is_extent, has_extent, get_extent);
+    build_variant_methods!(
+        LexicographicExtent,
+        is_lexicographic_extent,
+        has_lexicographic_extent,
+        get_lexicographic_extent
+    );
     build_variant_methods!(
         Frequencies,
         is_frequencies,
@@ -474,6 +548,13 @@ impl Aggregator {
 
     fn add_method(&mut self, method: &str) {
         match method {
+            "all" | "any" => {
+                if self.has_allany() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::AllAny(AllAny::new()));
+            }
             "count" => {
                 if self.has_count() {
                     return;
@@ -488,13 +569,22 @@ impl Aggregator {
 
                 self.methods.push(AggregationMethod::Extent(Extent::new()));
             }
+            "lex_first" | "lex_last" => {
+                if self.has_lexicographic_extent() {
+                    return;
+                }
+
+                self.methods.push(AggregationMethod::LexicographicExtent(
+                    LexicographicExtent::new(),
+                ));
+            }
             "median" | "median_low" | "median_high" => {
                 if !self.has_numbers() {
                     self.methods
                         .push(AggregationMethod::Numbers(Numbers::new()));
                 }
             }
-            "mode" => {
+            "cardinality" | "mode" => {
                 if !self.has_frequencies() {
                     self.methods
                         .push(AggregationMethod::Frequencies(Frequencies::new()));
@@ -524,13 +614,19 @@ impl Aggregator {
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
                 Some(value) => match method {
+                    AggregationMethod::AllAny(allany) => {
+                        allany.add(value.is_truthy());
+                    }
                     AggregationMethod::Count(count) => {
                         if !value.is_nullish() {
                             count.add();
                         }
                     }
                     AggregationMethod::Extent(extent) => {
-                        extent.add(value);
+                        extent.add(value.try_as_number()?);
+                    }
+                    AggregationMethod::LexicographicExtent(extent) => {
+                        extent.add(&value.try_as_str()?);
                     }
                     AggregationMethod::Frequencies(frequencies) => {
                         frequencies.add(value.try_as_str()?.into_owned());
@@ -559,8 +655,13 @@ impl Aggregator {
 
     fn finalize_method(&mut self, method: &str) -> DynamicValue {
         match method {
+            "all" => DynamicValue::from(self.get_allany().unwrap().all()),
+            "any" => DynamicValue::from(self.get_allany().unwrap().any()),
+            "cardinality" => DynamicValue::from(self.get_frequencies().unwrap().cardinality()),
             "count" => DynamicValue::from(self.get_count().unwrap().get()),
-            "min" => self.get_extent().unwrap().min(),
+            "lex_first" => DynamicValue::from(self.get_lexicographic_extent().unwrap().first()),
+            "lex_last" => DynamicValue::from(self.get_lexicographic_extent().unwrap().last()),
+            "min" => DynamicValue::from(self.get_extent().unwrap().min()),
             "avg" | "mean" => DynamicValue::from(self.get_welford().unwrap().mean()),
             "median" => DynamicValue::from(
                 self.get_numbers_mut()
@@ -573,7 +674,7 @@ impl Aggregator {
             "median_low" => {
                 DynamicValue::from(self.get_numbers_mut().unwrap().median(MedianType::Low))
             }
-            "max" => self.get_extent().unwrap().max(),
+            "max" => DynamicValue::from(self.get_extent().unwrap().max()),
             "mode" => DynamicValue::from(self.get_frequencies().unwrap().mode()),
             "sum" => DynamicValue::from(self.get_sum().unwrap().get()),
             "var" | "var_pop" => DynamicValue::from(self.get_welford().unwrap().variance()),
@@ -605,6 +706,12 @@ impl KeyedAggregator {
     fn new() -> Self {
         Self {
             mapping: Vec::new(),
+        }
+    }
+
+    fn clear_inner_aggregators(&mut self) {
+        for entry in self.mapping.iter_mut() {
+            entry.aggregator.clear();
         }
     }
 
@@ -773,6 +880,10 @@ impl<'a> AggregationProgram<'a> {
         })
     }
 
+    pub fn clear(&mut self) {
+        self.aggregator.clear_inner_aggregators();
+    }
+
     pub fn run_with_record(&mut self, record: &ByteRecord) -> Result<(), EvaluationError> {
         self.aggregator
             .run_with_record(record, &self.headers_index, &self.variables)
@@ -788,10 +899,22 @@ impl<'a> AggregationProgram<'a> {
         record
     }
 
-    pub fn finalize(mut self) -> ByteRecord {
+    pub fn headers_with_prepended_group_column(&self, group_column_name: &str) -> ByteRecord {
         let mut record = ByteRecord::new();
 
-        for aggregation in self.aggregations.into_iter() {
+        record.push_field(group_column_name.as_bytes());
+
+        for aggregation in self.aggregations.iter() {
+            record.push_field(aggregation.name.as_bytes());
+        }
+
+        record
+    }
+
+    pub fn finalize(&mut self) -> ByteRecord {
+        let mut record = ByteRecord::new();
+
+        for aggregation in self.aggregations.iter() {
             let value = self
                 .aggregator
                 .finalize(&aggregation.key, &aggregation.method)
@@ -800,6 +923,21 @@ impl<'a> AggregationProgram<'a> {
             record.push_field(&value.serialize_as_bytes(b"|"));
         }
 
+        record
+    }
+
+    pub fn finalize_with_group(&mut self, group: &Vec<u8>) -> ByteRecord {
+        let mut record = ByteRecord::new();
+        record.push_field(&group);
+
+        for aggregation in self.aggregations.iter() {
+            let value = self
+                .aggregator
+                .finalize(&aggregation.key, &aggregation.method)
+                .unwrap();
+
+            record.push_field(&value.serialize_as_bytes(b"|"));
+        }
         record
     }
 }
@@ -845,9 +983,10 @@ impl<'a> GroupAggregationProgram<'a> {
         Ok(())
     }
 
-    pub fn headers(&self) -> ByteRecord {
+    pub fn headers_with_prepended_group_column(&self, group_column_name: &str) -> ByteRecord {
         let mut record = ByteRecord::new();
-        record.push_field(b"group");
+
+        record.push_field(group_column_name.as_bytes());
 
         for aggregation in self.aggregations.iter() {
             record.push_field(aggregation.name.as_bytes());

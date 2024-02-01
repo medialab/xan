@@ -193,21 +193,21 @@ pub enum DynamicNumber {
 }
 
 impl DynamicNumber {
-    pub fn abs(&self) -> Self {
+    pub fn abs(self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.abs()),
             Self::Integer(n) => Self::Integer(n.abs()),
         }
     }
 
-    pub fn inc(&self) -> Self {
+    pub fn inc(self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.add(1.0)),
             Self::Integer(n) => Self::Integer(n.add(1)),
         }
     }
 
-    pub fn dec(&self) -> Self {
+    pub fn dec(self) -> Self {
         match self {
             Self::Float(n) => Self::Float(n.add(-1.0)),
             Self::Integer(n) => Self::Integer(n.add(-1)),
@@ -233,11 +233,11 @@ impl DynamicNumber {
     {
         match self {
             Self::Integer(a) => Self::Float(callback(a as f64)),
-            Self::Float(a) => Self::Float(callback(a as f64)),
+            Self::Float(a) => Self::Float(callback(a)),
         }
     }
 
-    pub fn map_only_if_float<F>(self, callback: F) -> Self
+    pub fn map_float_to_int<F>(self, callback: F) -> Self
     where
         F: Fn(f64) -> f64,
     {
@@ -248,15 +248,15 @@ impl DynamicNumber {
     }
 
     pub fn floor(self) -> Self {
-        self.map_only_if_float(|n| n.floor())
+        self.map_float_to_int(|n| n.floor())
     }
 
     pub fn ceil(self) -> Self {
-        self.map_only_if_float(|n| n.ceil())
+        self.map_float_to_int(|n| n.ceil())
     }
 
     pub fn round(self) -> Self {
-        self.map_only_if_float(|n| n.round())
+        self.map_float_to_int(|n| n.round())
     }
 
     pub fn ln(self) -> Self {
@@ -353,7 +353,7 @@ impl AddAssign for DynamicNumber {
         match self {
             DynamicNumber::Float(a) => match rhs {
                 DynamicNumber::Float(b) => *a += b,
-                DynamicNumber::Integer(b) => *self = DynamicNumber::Float(*a + (b as f64)),
+                DynamicNumber::Integer(b) => *a += b as f64,
             },
             DynamicNumber::Integer(a) => match rhs {
                 DynamicNumber::Float(b) => *self = DynamicNumber::Float((*a as f64) + b),

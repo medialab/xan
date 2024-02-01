@@ -47,11 +47,15 @@ fn agg() {
         "stddev",
         "1.2909944487358056",
     );
+    test_single_agg_function(&wrk, "all(gte(n,2)) as all", "all", "false");
+    test_single_agg_function(&wrk, "all(gte(n,1)) as all", "all", "true");
+    test_single_agg_function(&wrk, "any(gte(n,1)) as any", "any", "true");
+    test_single_agg_function(&wrk, "any(gte(n,5)) as any", "any", "false");
 }
 
 #[test]
-fn agg_mode() {
-    let wrk = Workdir::new("agg");
+fn agg_mode_cardinality() {
+    let wrk = Workdir::new("agg_mode_cardinality");
     wrk.create(
         "data.csv",
         vec![
@@ -64,16 +68,17 @@ fn agg_mode() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("mode(color) as mode").arg("data.csv");
+    cmd.arg("mode(color) as mode, cardinality(color) as cardinality")
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["mode"], svec!["red"]];
+    let expected = vec![svec!["mode", "cardinality"], svec!["red", "3"]];
     assert_eq!(got, expected);
 }
 
 #[test]
 fn agg_sqlish_count() {
-    let wrk = Workdir::new("agg");
+    let wrk = Workdir::new("agg_sqlish_count");
     wrk.create(
         "data.csv",
         vec![svec!["n"], svec!["1"], svec!["2"], svec![""], svec!["4"]],
@@ -93,7 +98,7 @@ fn agg_sqlish_count() {
 
 #[test]
 fn agg_multiple_columns() {
-    let wrk = Workdir::new("agg");
+    let wrk = Workdir::new("agg_multiple_columns");
     wrk.create(
         "data.csv",
         vec![svec!["n"], svec!["1"], svec!["2"], svec!["3"], svec!["4"]],
@@ -109,7 +114,7 @@ fn agg_multiple_columns() {
 
 #[test]
 fn agg_combinator() {
-    let wrk = Workdir::new("agg");
+    let wrk = Workdir::new("agg_combinator");
     wrk.create(
         "data.csv",
         vec![
@@ -131,7 +136,7 @@ fn agg_combinator() {
 
 #[test]
 fn agg_min_max_strings() {
-    let wrk = Workdir::new("agg");
+    let wrk = Workdir::new("agg_min_max_strings");
     wrk.create(
         "data.csv",
         vec![
@@ -146,7 +151,8 @@ fn agg_min_max_strings() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("min(n) as min, max(n) as max").arg("data.csv");
+    cmd.arg("lex_first(n) as min, lex_last(n) as max")
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["min", "max"], svec!["1", "test"]];
