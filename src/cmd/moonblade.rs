@@ -351,6 +351,12 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
         will count all non-null values returned by given expression, while
         `count()` without any expression will count every matching row.
 
+    - first(<expr>) -> string
+        Return first seen non nullish element of the values returned by the given expression.
+
+    - last(<expr>) -> string
+        Return last seen non nullish element of the values returned by the given expression.
+
     - lex_first(<expr>) -> string
         Return first string in lexicographical order.
 
