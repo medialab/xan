@@ -65,6 +65,42 @@ impl AllAny {
 }
 
 #[derive(Debug)]
+struct FirstLast {
+    first: Option<DynamicValue>,
+    last: Option<DynamicValue>,
+}
+
+impl FirstLast {
+    fn new() -> Self {
+        Self {
+            first: None,
+            last: None,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.first = None;
+        self.last = None;
+    }
+
+    fn add(&mut self, next_value: &DynamicValue) {
+        if self.first.is_none() {
+            self.first = Some(next_value.clone())
+        }
+
+        self.last = Some(next_value.clone());
+    }
+
+    fn first(&self) -> Option<DynamicValue> {
+        self.first.clone()
+    }
+
+    fn last(&self) -> Option<DynamicValue> {
+        self.last.clone()
+    }
+}
+
+#[derive(Debug)]
 struct Sum {
     current: DynamicNumber,
 }
@@ -398,6 +434,7 @@ build_aggregation_method_enum!(
     AllAny,
     Count,
     Extent,
+    FirstLast,
     LexicographicExtent,
     Frequencies,
     Numbers,
@@ -504,6 +541,7 @@ impl CompositeAggregator {
     build_variant_methods!(AllAny, has_allany, get_allany);
     build_variant_methods!(Count, has_count, get_count);
     build_variant_methods!(Extent, has_extent, get_extent);
+    build_variant_methods!(FirstLast, has_firstlast, get_firstlast);
     build_variant_methods!(
         LexicographicExtent,
         has_lexicographic_extent,
@@ -536,6 +574,13 @@ impl CompositeAggregator {
                 }
 
                 self.methods.push(Aggregator::Extent(Extent::new()));
+            }
+            ConcreteAggregationMethod::First | ConcreteAggregationMethod::Last => {
+                if self.has_firstlast() {
+                    return;
+                }
+
+                self.methods.push(Aggregator::FirstLast(FirstLast::new()));
             }
             ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
                 if self.has_lexicographic_extent() {
@@ -592,6 +637,11 @@ impl CompositeAggregator {
                     Aggregator::Extent(extent) => {
                         extent.add(value.try_as_number()?);
                     }
+                    Aggregator::FirstLast(firstlast) => {
+                        if !value.is_nullish() {
+                            firstlast.add(value);
+                        }
+                    }
                     Aggregator::LexicographicExtent(extent) => {
                         extent.add(&value.try_as_str()?);
                     }
@@ -628,6 +678,8 @@ impl CompositeAggregator {
                 DynamicValue::from(self.get_frequencies().cardinality())
             }
             ConcreteAggregationMethod::Count => DynamicValue::from(self.get_count().get()),
+            ConcreteAggregationMethod::First => DynamicValue::from(self.get_firstlast().first()),
+            ConcreteAggregationMethod::Last => DynamicValue::from(self.get_firstlast().last()),
             ConcreteAggregationMethod::LexFirst => {
                 DynamicValue::from(self.get_lexicographic_extent().first())
             }
@@ -779,6 +831,8 @@ enum ConcreteAggregationMethod {
     Any,
     Cardinality,
     Count,
+    First,
+    Last,
     LexFirst,
     LexLast,
     Min,
@@ -800,6 +854,8 @@ impl ConcreteAggregationMethod {
             "any" => Self::Any,
             "cardinality" => Self::Cardinality,
             "count" => Self::Count,
+            "first" => Self::First,
+            "last" => Self::Last,
             "lex_first" => Self::LexFirst,
             "lex_last" => Self::LexLast,
             "min" => Self::Min,

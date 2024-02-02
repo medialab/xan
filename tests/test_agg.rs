@@ -51,6 +51,31 @@ fn agg() {
     test_single_agg_function(&wrk, "all(gte(n,1)) as all", "all", "true");
     test_single_agg_function(&wrk, "any(gte(n,1)) as any", "any", "true");
     test_single_agg_function(&wrk, "any(gte(n,5)) as any", "any", "false");
+    test_single_agg_function(&wrk, "first(n) as first", "first", "1");
+    test_single_agg_function(&wrk, "last(n) as last", "last", "4");
+}
+
+#[test]
+fn agg_first_last() {
+    let wrk = Workdir::new("agg");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec![""],
+            svec!["1"],
+            svec![""],
+            svec!["2"],
+            svec!["3"],
+            svec!["4"],
+            svec![""],
+            svec!["6"],
+            svec![""],
+        ],
+    );
+
+    test_single_agg_function(&wrk, "first(n) as first", "first", "1");
+    test_single_agg_function(&wrk, "last(n) as last", "last", "6");
 }
 
 #[test]
