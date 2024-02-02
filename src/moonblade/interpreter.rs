@@ -311,13 +311,16 @@ fn concretize_call(
             args: concrete_args,
         }))
     } else {
-        ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
-            name: function_name.clone(),
-            function: get_function(&function_name)
-                .ok_or_else(|| ConcretizationError::UnknownFunction(function_name.clone()))?
-                .0,
-            args: concrete_args,
-        }))
+        match get_function(&function_name) {
+            None => return Err(ConcretizationError::UnknownFunction(function_name.clone())),
+            Some(function_info) => {
+                ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
+                    name: function_name.clone(),
+                    function: function_info.0,
+                    args: concrete_args,
+                }))
+            }
+        }
     })
 }
 
@@ -844,7 +847,9 @@ mod tests {
 
     #[test]
     fn test_md5() {
-        assert_eq!(eval_code("md5('test')"), Ok(DynamicValue::from("098f6bcd4621d373cade4e832627b4f6")));
-        
+        assert_eq!(
+            eval_code("md5('test')"),
+            Ok(DynamicValue::from("098f6bcd4621d373cade4e832627b4f6"))
+        );
     }
 }
