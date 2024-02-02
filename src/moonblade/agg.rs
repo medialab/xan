@@ -85,7 +85,7 @@ impl FirstLast {
 
     fn add(&mut self, next_value: &DynamicValue) {
         if self.first.is_none() {
-            self.first = Some(next_value.clone())
+            self.first = Some(next_value.clone());
         }
 
         self.last = Some(next_value.clone());

@@ -57,7 +57,7 @@ fn agg() {
 
 #[test]
 fn agg_first_last() {
-    let wrk = Workdir::new("agg");
+    let wrk = Workdir::new("agg_first_last");
     wrk.create(
         "data.csv",
         vec![

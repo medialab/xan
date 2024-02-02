@@ -8,7 +8,7 @@ use moonblade::AggregationProgram;
 
 use cmd::moonblade::{
     get_moonblade_aggregations_function_help, get_moonblade_cheatsheet,
-    get_moonblade_functions_help,
+    get_moonblade_functions_help, MoonbladeErrorPolicy,
 };
 
 static USAGE: &str = "
@@ -46,6 +46,13 @@ Usage:
     xsv agg --aggs
     xsv agg --functions
 
+agg options:
+    -e, --errors <policy>   What to do with evaluation errors. One of:
+                              - \"panic\": exit on first error
+                              - \"ignore\": ignore row altogether
+                              - \"log\": print error to stderr
+                            [default: panic].
+
 Common options:
     -h, --help               Display this message
     -o, --output <file>      Write output to <file> instead of stdout.
@@ -63,6 +70,7 @@ struct Args {
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_aggs: bool,
+    flag_errors: String,
     flag_cheatsheet: bool,
     flag_functions: bool,
 }
@@ -85,6 +93,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
+    let error_policy = MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?;
+
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
@@ -99,8 +109,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&program.headers())?;
 
+    let mut index: usize = 0;
+
     while rdr.read_byte_record(&mut record)? {
-        program.run_with_record(&record)?;
+        index += 1;
+
+        match program.run_with_record(&record) {
+            Ok(_) => (),
+            Err(error) => match error_policy {
+                MoonbladeErrorPolicy::Panic => Err(error)?,
+                MoonbladeErrorPolicy::Ignore => continue,
+                MoonbladeErrorPolicy::Log => {
+                    eprintln!("Row n°{}: {}", index, error);
+                    continue;
+                }
+                _ => unreachable!(),
+            },
+        };
     }
 
     wtr.write_byte_record(&program.finalize())?;

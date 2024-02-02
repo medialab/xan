@@ -10,7 +10,7 @@ use moonblade::GroupAggregationProgram;
 
 use cmd::moonblade::{
     get_moonblade_aggregations_function_help, get_moonblade_cheatsheet,
-    get_moonblade_functions_help,
+    get_moonblade_functions_help, MoonbladeErrorPolicy,
 };
 
 static USAGE: &str = "
@@ -57,6 +57,11 @@ groupby options:
     -S, --sorted            Use this flag to indicate that the file is already sorted on the
                             group column, in which case the command will be able to considerably
                             optimize memory usage.
+    -e, --errors <policy>   What to do with evaluation errors. One of:
+                              - \"panic\": exit on first error
+                              - \"ignore\": ignore row altogether
+                              - \"log\": print error to stderr
+                            [default: panic].
 
 Common options:
     -h, --help               Display this message
@@ -80,6 +85,7 @@ struct Args {
     flag_functions: bool,
     flag_group_column: String,
     flag_sorted: bool,
+    flag_errors: String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -99,6 +105,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         println!("{}", get_moonblade_functions_help());
         return Ok(());
     }
+
+    let error_policy = MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?;
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -121,24 +129,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             &program.headers_with_prepended_group_column(&args.flag_group_column),
         )?;
 
+        let mut index: usize = 0;
+
         while rdr.read_byte_record(&mut record)? {
+            index += 1;
+
             let group = record[column_index].to_vec();
             match current_group.as_ref() {
                 None => {
                     current_group = Some(group);
-                    program.run_with_record(&record)?;
                 }
                 Some(group_name) => {
-                    if group_name == &group {
-                        program.run_with_record(&record)?;
-                    } else {
+                    if group_name != &group {
                         wtr.write_byte_record(&program.finalize_with_group(group_name))?;
                         program.clear();
                         current_group = Some(group);
-                        program.run_with_record(&record)?;
                     }
                 }
-            }
+            };
+
+            match program.run_with_record(&record) {
+                Ok(_) => (),
+                Err(error) => match error_policy {
+                    MoonbladeErrorPolicy::Panic => Err(error)?,
+                    MoonbladeErrorPolicy::Ignore => continue,
+                    MoonbladeErrorPolicy::Log => {
+                        eprintln!("Row n°{}: {}", index, error);
+                        continue;
+                    }
+                    _ => unreachable!(),
+                },
+            };
         }
         if let Some(group_name) = current_group {
             wtr.write_byte_record(&program.finalize_with_group(&group_name))?;
@@ -149,9 +170,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             &program.headers_with_prepended_group_column(&args.flag_group_column),
         )?;
 
+        let mut index: usize = 0;
+
         while rdr.read_byte_record(&mut record)? {
+            index += 1;
+
             let group = record[column_index].to_vec();
-            program.run_with_record(group, &record)?;
+
+            match program.run_with_record(group, &record) {
+                Ok(_) => (),
+                Err(error) => match error_policy {
+                    MoonbladeErrorPolicy::Panic => Err(error)?,
+                    MoonbladeErrorPolicy::Ignore => continue,
+                    MoonbladeErrorPolicy::Log => {
+                        eprintln!("Row n°{}: {}", index, error);
+                        continue;
+                    }
+                    _ => unreachable!(),
+                },
+            };
         }
 
         program.finalize(|output_record| wtr.write_byte_record(output_record))?;
