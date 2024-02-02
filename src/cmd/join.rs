@@ -21,9 +21,8 @@ Joins two sets of CSV data on the specified columns.
 The default join operation is an 'inner' join. This corresponds to the
 intersection of rows on the keys specified.
 
-Joins are always done by ignoring leading and trailing whitespace. By default,
-joins are done case sensitively, but this can be disabled with the --ignore-case
-flag.
+By default, joins are done case sensitively, but this can be disabled using
+the --ignore-case flag.
 
 The columns arguments specify the columns to join for each input. Columns can
 be referenced by name or index, starting at 1. Specify multiple columns by
@@ -572,19 +571,12 @@ fn get_row_key(sel: &Selection, row: &csv::ByteRecord, case_insensitive: bool) -
 }
 
 fn transform(bs: &[u8], case_insensitive: bool) -> ByteString {
-    match str::from_utf8(bs) {
-        Err(_) => bs.to_vec(),
-        Ok(s) => {
-            if !case_insensitive {
-                s.trim().as_bytes().to_vec()
-            } else {
-                let norm: String = s
-                    .trim()
-                    .chars()
-                    .map(|c| c.to_lowercase().next().unwrap())
-                    .collect();
-                norm.into_bytes()
-            }
+    if !case_insensitive {
+        bs.to_vec()
+    } else {
+        match str::from_utf8(bs) {
+            Err(_) => bs.to_vec(),
+            Ok(s) => s.to_lowercase().into_bytes(),
         }
     }
 }
