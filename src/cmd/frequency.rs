@@ -204,7 +204,7 @@ impl Args {
             let row = row?;
             count += 1;
             for (i, field) in nsel.select(row.into_iter()).enumerate() {
-                let field = trim(field.to_vec());
+                let field = field.to_vec();
                 if !field.is_empty() {
                     tabs[i].add(field);
                 } else if !self.flag_no_extra {
@@ -230,12 +230,5 @@ impl Args {
         } else {
             self.flag_jobs
         }
-    }
-}
-
-fn trim(bs: ByteString) -> ByteString {
-    match String::from_utf8(bs) {
-        Ok(s) => s.trim().as_bytes().to_vec(),
-        Err(bs) => bs.into_bytes(),
     }
 }
