@@ -9,7 +9,7 @@ use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Sub};
 use csv::ByteRecord;
 use regex::Regex;
 
-use super::error::{CallError, EvaluationError};
+use super::error::{CallError, ConcretizationError, EvaluationError};
 use super::parser::Argument;
 use super::utils::downgrade_float;
 
@@ -173,17 +173,43 @@ pub enum Arity {
 }
 
 impl Arity {
-    // pub fn check(&self, got: usize) -> bool {
-    //     match self {
-    //         Self::Strict(expected) => *expected == got,
-    //         Self::Min(expected_min) => got >= *expected_min,
-    //         Self::Range(range) => range.contains(&got),
-    //     }
-    // }
-
-    // pub fn check_len<T>(&self, args: Vec<T>) -> bool {
-    //     self.check(args.len())
-    // }
+    pub fn validate(&self, name: &str, got: usize) -> Result<(), ConcretizationError> {
+        match self {
+            Self::Strict(expected) => {
+                if *expected != got {
+                    Err(ConcretizationError::from_invalid_arity(
+                        name.to_string(),
+                        *expected,
+                        got,
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            Self::Min(expected_min) => {
+                if got < *expected_min {
+                    Err(ConcretizationError::from_invalid_min_arity(
+                        name.to_string(),
+                        *expected_min,
+                        got,
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            Self::Range(range) => {
+                if !range.contains(&got) {
+                    Err(ConcretizationError::from_invalid_range_arity(
+                        name.to_string(),
+                        range.clone(),
+                        got,
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

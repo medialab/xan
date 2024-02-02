@@ -314,6 +314,10 @@ fn concretize_call(
         match get_function(&function_name) {
             None => return Err(ConcretizationError::UnknownFunction(function_name.clone())),
             Some(function_info) => {
+                function_info
+                    .1
+                    .validate(&function_name, concrete_args.len())?;
+
                 ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
                     name: function_name.clone(),
                     function: function_info.0,
