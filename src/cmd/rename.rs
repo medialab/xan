@@ -129,7 +129,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let renamed_headers: csv::ByteRecord = if let Some(prefix) = args.flag_prefix {
         headers
             .iter()
-            .zip(selection.indexed_mask(headers.len()).into_iter())
+            .zip(selection.indexed_mask(headers.len()))
             .map(|(h, o)| {
                 if o.is_some() {
                     [prefix.as_bytes(), h].concat()
@@ -151,7 +151,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         headers
             .iter()
-            .zip(selection.indexed_mask(headers.len()).into_iter())
+            .zip(selection.indexed_mask(headers.len()))
             .map(|(h, o)| if let Some(i) = o { &rename_as[i] } else { h })
             .collect()
     };

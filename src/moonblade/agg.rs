@@ -1000,7 +1000,7 @@ impl<'a> AggregationProgram<'a> {
         record
     }
 
-    pub fn finalize_with_group(&mut self, group: &Vec<u8>) -> ByteRecord {
+    pub fn finalize_with_group(&mut self, group: &[u8]) -> ByteRecord {
         let mut record = ByteRecord::new();
         record.push_field(group);
 
