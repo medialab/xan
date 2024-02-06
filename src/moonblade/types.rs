@@ -837,36 +837,8 @@ impl<'a> BoundArguments<'a> {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.stack.len()
-    }
-
     pub fn push(&mut self, arg: BoundArgument<'a>) {
         self.stack.push(arg);
-    }
-
-    pub fn validate_arity(&self, expected: usize) -> Result<(), CallError> {
-        if self.len() != expected {
-            Err(CallError::from_invalid_arity(expected, self.len()))
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn validate_min_arity(&self, min: usize) -> Result<(), CallError> {
-        if self.len() < min {
-            Err(CallError::from_invalid_min_arity(min, self.len()))
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn validate_min_max_arity(&self, min: usize, max: usize) -> Result<(), CallError> {
-        if self.len() < min || self.len() > max {
-            Err(CallError::from_invalid_range_arity(min..=max, self.len()))
-        } else {
-            Ok(())
-        }
     }
 
     pub fn get(&'a self, i: usize) -> Option<&'a BoundArgument> {
@@ -883,94 +855,50 @@ impl<'a> BoundArguments<'a> {
         selection
     }
 
-    pub fn get1(&'a self) -> Result<&'a BoundArgument, CallError> {
-        match self.stack.get(0) {
-            None => Err(CallError::from_invalid_arity(1, 0)),
-            Some(value) => {
-                if self.len() > 1 {
-                    return Err(CallError::from_invalid_arity(1, self.len()));
-                }
-
-                Ok(value)
-            }
-        }
+    pub fn get1(&'a self) -> &'a BoundArgument {
+        &self.stack[0]
     }
 
-    pub fn pop1(&mut self) -> Result<BoundArgument, CallError> {
-        match self.stack.pop() {
-            None => Err(CallError::from_invalid_arity(1, 0)),
-            Some(value) => {
-                if self.len() > 1 {
-                    return Err(CallError::from_invalid_arity(1, self.len()));
-                }
-
-                Ok(value)
-            }
-        }
+    pub fn pop1(&mut self) -> BoundArgument {
+        self.stack.pop().unwrap()
     }
 
-    pub fn get2(&self) -> Result<(&BoundArgument, &BoundArgument), CallError> {
-        match self.stack.get(0) {
-            None => Err(CallError::from_invalid_arity(2, 0)),
-            Some(a) => match self.stack.get(1) {
-                None => Err(CallError::from_invalid_arity(2, 1)),
-                Some(b) => {
-                    if self.len() > 2 {
-                        return Err(CallError::from_invalid_arity(2, self.len()));
-                    }
-
-                    Ok((a, b))
-                }
-            },
-        }
+    pub fn get2(&self) -> (&BoundArgument, &BoundArgument) {
+        (&self.stack[0], &self.stack[1])
     }
 
-    pub fn get3(&self) -> Result<(&BoundArgument, &BoundArgument, &BoundArgument), CallError> {
-        match self.stack.get(0) {
-            None => Err(CallError::from_invalid_arity(3, 0)),
-            Some(a) => match self.stack.get(1) {
-                None => Err(CallError::from_invalid_arity(3, 1)),
-                Some(b) => match self.stack.get(2) {
-                    None => Err(CallError::from_invalid_arity(3, 2)),
-                    Some(c) => {
-                        if self.len() > 3 {
-                            return Err(CallError::from_invalid_arity(3, self.len()));
-                        }
-
-                        Ok((a, b, c))
-                    }
-                },
-            },
-        }
+    pub fn get3(&self) -> (&BoundArgument, &BoundArgument, &BoundArgument) {
+        (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 
     pub fn get1_str(&'a self) -> Result<Cow<'a, str>, CallError> {
-        self.get1().and_then(|value| value.try_as_str())
+        self.get1().try_as_str()
     }
 
     pub fn pop1_list(&mut self) -> Result<Cow<Vec<DynamicValue>>, CallError> {
-        Ok(match self.pop1()? {
+        Ok(match self.pop1() {
             Cow::Owned(v) => Cow::Owned(v.try_into_list()?),
             Cow::Borrowed(v) => Cow::Borrowed(v.try_as_list()?),
         })
     }
 
-    pub fn pop1_bool(&mut self) -> Result<bool, CallError> {
-        self.pop1().map(|value| value.is_truthy())
+    pub fn pop1_bool(&mut self) -> bool {
+        self.pop1().is_truthy()
     }
 
     pub fn pop1_number(&mut self) -> Result<DynamicNumber, CallError> {
-        self.pop1().and_then(|value| value.try_as_number())
+        self.pop1().try_as_number()
     }
 
     pub fn get2_str(&self) -> Result<(Cow<str>, Cow<str>), CallError> {
-        let (a, b) = self.get2()?;
+        let (a, b) = self.get2();
 
         Ok((a.try_as_str()?, b.try_as_str()?))
     }
 
     pub fn get2_number(&self) -> Result<(DynamicNumber, DynamicNumber), CallError> {
-        let (a, b) = self.get2()?;
+        let (a, b) = self.get2();
+
         Ok((a.try_as_number()?, b.try_as_number()?))
     }
 }

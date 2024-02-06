@@ -152,8 +152,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
 
 // Strings
 fn trim(args: BoundArguments) -> FunctionResult {
-    args.validate_min_max_arity(1, 2)?;
-
     let string = args.get(0).unwrap().try_as_str()?;
     let arg2 = args.get(1);
 
@@ -167,8 +165,6 @@ fn trim(args: BoundArguments) -> FunctionResult {
 }
 
 fn ltrim(args: BoundArguments) -> FunctionResult {
-    args.validate_min_max_arity(1, 2)?;
-
     let string = args.get(0).unwrap().try_as_str()?;
     let arg2 = args.get(1);
 
@@ -182,8 +178,6 @@ fn ltrim(args: BoundArguments) -> FunctionResult {
 }
 
 fn rtrim(args: BoundArguments) -> FunctionResult {
-    args.validate_min_max_arity(1, 2)?;
-
     let string = args.get(0).unwrap().try_as_str()?;
     let arg2 = args.get(1);
 
@@ -208,7 +202,6 @@ fn md5(args: BoundArguments) -> FunctionResult {
 }
 
 fn split(args: BoundArguments) -> FunctionResult {
-    args.validate_min_max_arity(2, 3)?;
     let args = args.getn_opt(3);
 
     let to_split = args[0].unwrap().try_as_str()?;
@@ -236,7 +229,7 @@ fn upper(args: BoundArguments) -> FunctionResult {
 }
 
 fn len(mut args: BoundArguments) -> FunctionResult {
-    let arg = args.pop1()?;
+    let arg = args.pop1();
 
     Ok(DynamicValue::from(match arg.as_ref() {
         DynamicValue::List(list) => list.len(),
@@ -245,7 +238,7 @@ fn len(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn count(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2()?;
+    let (arg1, arg2) = args.get2();
 
     let string = arg1.try_as_str()?;
 
@@ -272,8 +265,6 @@ fn endswith(args: BoundArguments) -> FunctionResult {
 }
 
 fn concat(args: BoundArguments) -> FunctionResult {
-    args.validate_min_arity(1)?;
-
     let mut args_iter = args.into_iter();
     let first = args_iter.next().unwrap();
 
@@ -311,8 +302,6 @@ lazy_static! {
 }
 
 fn fmt(args: BoundArguments) -> FunctionResult {
-    args.validate_min_arity(1)?;
-
     let mut args_iter = args.into_iter();
     let first_arg = args_iter.next().unwrap();
     let pattern = first_arg.try_as_str()?;
@@ -342,7 +331,7 @@ fn fmt(args: BoundArguments) -> FunctionResult {
 
 // Lists & Sequences
 fn first(mut args: BoundArguments) -> FunctionResult {
-    let arg = args.pop1()?;
+    let arg = args.pop1();
 
     Ok(match arg {
         Cow::Borrowed(value) => match value {
@@ -378,7 +367,7 @@ fn first(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn last(mut args: BoundArguments) -> FunctionResult {
-    let arg = args.pop1()?;
+    let arg = args.pop1();
 
     Ok(match arg {
         Cow::Borrowed(value) => match value {
@@ -411,7 +400,7 @@ fn last(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn get(args: BoundArguments) -> FunctionResult {
-    let (target, index) = args.get2()?;
+    let (target, index) = args.get2();
     let mut index = index.try_as_i64()?;
 
     Ok(match target.as_ref() {
@@ -450,8 +439,6 @@ fn get(args: BoundArguments) -> FunctionResult {
 }
 
 fn slice(args: BoundArguments) -> FunctionResult {
-    args.validate_min_max_arity(2, 3)?;
-
     let args = args.getn_opt(3);
 
     let target = args[0].unwrap();
@@ -503,7 +490,7 @@ fn slice(args: BoundArguments) -> FunctionResult {
 }
 
 fn join(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2()?;
+    let (arg1, arg2) = args.get2();
 
     let list = arg1.try_as_list()?;
     let joiner = arg2.try_as_str()?;
@@ -518,7 +505,7 @@ fn join(args: BoundArguments) -> FunctionResult {
 }
 
 fn contains(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2()?;
+    let (arg1, arg2) = args.get2();
 
     match arg1.as_ref() {
         DynamicValue::String(text) => match arg2.as_ref() {
@@ -539,7 +526,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
 }
 
 fn replace(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2, arg3) = args.get3()?;
+    let (arg1, arg2, arg3) = args.get3();
 
     let string = arg1.try_as_str()?;
     let replacement = arg3.try_as_str()?;
@@ -617,7 +604,7 @@ fn coalesce(args: BoundArguments) -> FunctionResult {
 
 // Boolean
 fn not(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(!args.pop1_bool()?))
+    Ok(DynamicValue::from(!args.pop1_bool()))
 }
 
 fn and(args: BoundArguments) -> FunctionResult {
@@ -666,8 +653,6 @@ fn abspath(args: BoundArguments) -> FunctionResult {
 }
 
 fn pathjoin(args: BoundArguments) -> FunctionResult {
-    args.validate_min_arity(2)?;
-
     let mut path = PathBuf::new();
 
     for arg in args {
@@ -696,8 +681,6 @@ fn isfile(args: BoundArguments) -> FunctionResult {
 }
 
 fn read(args: BoundArguments) -> FunctionResult {
-    args.validate_min_max_arity(1, 3)?;
-
     let path = args.get(0).unwrap().try_as_str()?;
 
     // TODO: handle encoding
@@ -763,13 +746,11 @@ fn filesize(args: BoundArguments) -> FunctionResult {
 
 // Introspection
 fn type_of(mut args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.pop1()?.type_of()))
+    Ok(DynamicValue::from(args.pop1().type_of()))
 }
 
 // Random
-fn uuid(args: BoundArguments) -> FunctionResult {
-    args.validate_arity(0)?;
-
+fn uuid(_args: BoundArguments) -> FunctionResult {
     let id = Uuid::new_v4()
         .to_hyphenated()
         .encode_lower(&mut Uuid::encode_buffer())
@@ -786,6 +767,6 @@ fn err(args: BoundArguments) -> FunctionResult {
 }
 
 fn val(mut args: BoundArguments) -> FunctionResult {
-    let arg = args.pop1()?;
+    let arg = args.pop1();
     Ok(arg.into_owned())
 }
