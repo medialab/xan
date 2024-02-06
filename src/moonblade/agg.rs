@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use csv::ByteRecord;
 
@@ -66,8 +67,8 @@ impl AllAny {
 
 #[derive(Debug)]
 struct FirstLast {
-    first: Option<DynamicValue>,
-    last: Option<DynamicValue>,
+    first: Option<Rc<DynamicValue>>,
+    last: Option<Rc<DynamicValue>>,
 }
 
 impl FirstLast {
@@ -83,7 +84,7 @@ impl FirstLast {
         self.last = None;
     }
 
-    fn add(&mut self, next_value: &DynamicValue) {
+    fn add(&mut self, next_value: &Rc<DynamicValue>) {
         if self.first.is_none() {
             self.first = Some(next_value.clone());
         }
@@ -92,11 +93,11 @@ impl FirstLast {
     }
 
     fn first(&self) -> Option<DynamicValue> {
-        self.first.clone()
+        self.first.as_ref().map(|p| p.as_ref().clone())
     }
 
     fn last(&self) -> Option<DynamicValue> {
-        self.last.clone()
+        self.last.as_ref().map(|p| p.as_ref().clone())
     }
 }
 
@@ -623,6 +624,8 @@ impl CompositeAggregator {
     }
 
     fn process_value(&mut self, value_opt: Option<DynamicValue>) -> Result<(), CallError> {
+        let value_opt = value_opt.map(|v| Rc::new(v));
+
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
                 Some(value) => match method {
