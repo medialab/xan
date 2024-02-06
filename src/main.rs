@@ -33,7 +33,6 @@ extern crate thread_local;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate stats;
-extern crate tabwriter;
 extern crate termsize;
 extern crate textwrap;
 extern crate threadpool;
