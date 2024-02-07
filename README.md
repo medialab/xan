@@ -24,17 +24,7 @@ Dual-licensed under MIT or the [UNLICENSE](https://unlicense.org).
 This forked version of xan can be installed using cargo:
 
 ```
-cargo install --git https://github.com/medialab/xan.git --branch prod
-```
-
-To install optional features (such as `lang`, for instance):
-
-```
-# Everything
-cargo install --git https://github.com/medialab/xan.git --branch prod --all-features
-
-# Selected features
-cargo install --git https://github.com/medialab/xan.git --branch prod --features lang
+cargo install --git https://github.com/medialab/xan.git
 ```
 
 <strong id="new-features">New Features</strong>
