@@ -148,18 +148,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             };
 
-            match program.run_with_record(&record) {
-                Ok(_) => (),
-                Err(error) => match error_policy {
-                    MoonbladeErrorPolicy::Panic => Err(error)?,
-                    MoonbladeErrorPolicy::Ignore => continue,
-                    MoonbladeErrorPolicy::Log => {
-                        eprintln!("Row n°{}: {}", index, error);
-                        continue;
-                    }
-                    _ => unreachable!(),
-                },
-            };
+            program
+                .run_with_record(&record)
+                .or_else(|error| error_policy.handle_error(index, error))?;
         }
         if let Some(group_name) = current_group {
             wtr.write_byte_record(&program.finalize_with_group(&group_name))?;
@@ -177,18 +168,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let group = record[column_index].to_vec();
 
-            match program.run_with_record(group, &record) {
-                Ok(_) => (),
-                Err(error) => match error_policy {
-                    MoonbladeErrorPolicy::Panic => Err(error)?,
-                    MoonbladeErrorPolicy::Ignore => continue,
-                    MoonbladeErrorPolicy::Log => {
-                        eprintln!("Row n°{}: {}", index, error);
-                        continue;
-                    }
-                    _ => unreachable!(),
-                },
-            };
+            program
+                .run_with_record(group, &record)
+                .or_else(|error| error_policy.handle_error(index, error))?;
         }
 
         program.finalize(|output_record| wtr.write_byte_record(output_record))?;

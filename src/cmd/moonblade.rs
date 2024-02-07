@@ -441,10 +441,6 @@ pub enum MoonbladeErrorPolicy {
 }
 
 impl MoonbladeErrorPolicy {
-    fn will_report(&self) -> bool {
-        matches!(self, Self::Report)
-    }
-
     pub fn from_restricted(value: &str) -> Result<Self, CliError> {
         Ok(match value {
             "panic" => Self::Panic,
@@ -457,6 +453,26 @@ impl MoonbladeErrorPolicy {
                 )))
             }
         })
+    }
+
+    fn will_report(&self) -> bool {
+        matches!(self, Self::Report)
+    }
+
+    pub fn handle_error(
+        &self,
+        index: usize,
+        error: EvaluationError,
+    ) -> Result<(), EvaluationError> {
+        match self {
+            MoonbladeErrorPolicy::Panic => Err(error)?,
+            MoonbladeErrorPolicy::Ignore => Ok(()),
+            MoonbladeErrorPolicy::Log => {
+                eprintln!("Row n°{}: {}", index, error);
+                Ok(())
+            }
+            _ => unreachable!(),
+        }
     }
 }
 

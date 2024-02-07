@@ -114,18 +114,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_byte_record(&mut record)? {
         index += 1;
 
-        match program.run_with_record(&record) {
-            Ok(_) => (),
-            Err(error) => match error_policy {
-                MoonbladeErrorPolicy::Panic => Err(error)?,
-                MoonbladeErrorPolicy::Ignore => continue,
-                MoonbladeErrorPolicy::Log => {
-                    eprintln!("Row n°{}: {}", index, error);
-                    continue;
-                }
-                _ => unreachable!(),
-            },
-        };
+        program
+            .run_with_record(&record)
+            .or_else(|error| error_policy.handle_error(index, error))?;
     }
 
     wtr.write_byte_record(&program.finalize())?;
