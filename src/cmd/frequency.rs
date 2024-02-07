@@ -27,13 +27,13 @@ Since this computes an exact frequency table, memory proportional to the
 cardinality of each column is required.
 
 Usage:
-    xsv frequency [options] [<input>]
+    xan frequency [options] [<input>]
 
 frequency options:
     -s, --select <arg>     Select a subset of columns to compute frequencies
-                           for. See 'xsv select --help' for the format
-                           details. This is provided here because piping 'xsv
-                           select' into 'xsv frequency' will disable the use
+                           for. See 'xan select --help' for the format
+                           details. This is provided here because piping 'xan
+                           select' into 'xan frequency' will disable the use
                            of indexing.
     -l, --limit <arg>      Limit the frequency table to the N most common
                            items. Set to <=0 to disable a limit. It is combined

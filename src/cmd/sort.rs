@@ -51,12 +51,12 @@ you use the \"-e/--external\" flag, which will be slower and fallback
 to using disk space.
 
 Usage:
-    xsv sort [options] [<input>]
+    xan sort [options] [<input>]
 
 sort options:
     --check                   Verify whether the file is already sorted.
     -s, --select <arg>        Select a subset of columns to sort.
-                              See 'xsv select --help' for the format details.
+                              See 'xan select --help' for the format details.
     -N, --numeric             Compare according to string numerical value
     -R, --reverse             Reverse order
     -c, --count <name>        Number of times the line was consecutively duplicated.

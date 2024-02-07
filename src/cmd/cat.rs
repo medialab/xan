@@ -22,10 +22,10 @@ data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
 Usage:
-    xsv cat rows <column> --input <input> [options]
-    xsv cat rows    [options] [<inputs>...]
-    xsv cat columns [options] [<inputs>...]
-    xsv cat --help
+    xan cat rows <column> --input <input> [options]
+    xan cat rows    [options] [<inputs>...]
+    xan cat columns [options] [<inputs>...]
+    xan cat --help
 
 cat options:
     -p, --pad              When concatenating columns, this flag will cause

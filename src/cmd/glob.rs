@@ -10,8 +10,8 @@ Create a CSV file from the matches of a glob pattern. Matches will
 be stored in a \"path\" column.
 
 Usage:
-    xsv glob [options] <pattern>
-    xsv glob --help
+    xan glob [options] <pattern>
+    xan glob --help
 
 glob options:
     -a, --absolute         Yield absolute paths.

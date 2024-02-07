@@ -23,8 +23,8 @@ This command is very useful when used in conjunction with the `frequency` or `bi
 command.
 
 Usage:
-    xsv hist [options] [<input>]
-    xsv hist --help
+    xan hist [options] [<input>]
+    xan hist --help
 
 hist options:
     --name <name>            Name of the represented field when no field column is

@@ -16,7 +16,7 @@ a
 
 The following command:
 
-    $ xsv filter 'gt(a, 1)'
+    $ xan filter 'gt(a, 1)'
 
 Will produce the following result:
 
@@ -30,10 +30,10 @@ the --cheatsheet flag.
 If you want to list available functions, use the --functions flag.
 
 Usage:
-    xsv filter [options] <expression> [<input>]
-    xsv filter --cheatsheet
-    xsv filter --functions
-    xsv filter --help
+    xan filter [options] <expression> [<input>]
+    xan filter --cheatsheet
+    xan filter --functions
+    xan filter --help
 
 filter options:
     -p, --parallel             Whether to use parallelization to speed up computations.

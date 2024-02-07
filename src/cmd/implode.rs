@@ -25,8 +25,8 @@ John,blue|yellow
 Mary,red
 
 Usage:
-    xsv implode [options] <column> <separator> [<input>]
-    xsv implode --help
+    xan implode [options] <column> <separator> [<input>]
+    xan implode --help
 
 implode options:
     -r, --rename <name>    New name for the diverging column.

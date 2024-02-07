@@ -91,7 +91,7 @@ impl Workdir {
     }
 
     pub fn command(&self, sub_command: &str) -> process::Command {
-        let mut cmd = process::Command::new(self.xsv_bin());
+        let mut cmd = process::Command::new(self.xan_bin());
         cmd.current_dir(&self.dir).arg(sub_command);
         cmd
     }
@@ -183,8 +183,8 @@ impl Workdir {
         self.dir.join(name)
     }
 
-    pub fn xsv_bin(&self) -> PathBuf {
-        self.root.join("xsv")
+    pub fn xan_bin(&self) -> PathBuf {
+        self.root.join("xan")
     }
 }
 

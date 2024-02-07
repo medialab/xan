@@ -13,32 +13,32 @@ quotes.
 
 Renaming all columns:
 
-    $ xsv rename NAME,SURNAME,AGE file.csv
+    $ xan rename NAME,SURNAME,AGE file.csv
 
 Renaming a selection of columns:
 
-    $ xsv rename NAME,SURNAME -s name,surname file.csv
-    $ xsv rename NAME,SURNAME -s '0-1' file.csv
+    $ xan rename NAME,SURNAME -s name,surname file.csv
+    $ xan rename NAME,SURNAME -s '0-1' file.csv
 
 Adding a header to a headless file:
 
-    $ xsv rename -n name,surname file.csv
+    $ xan rename -n name,surname file.csv
 
 Prefixing column names:
 
-    $ xsv rename --prefix university_ file.csv
+    $ xan rename --prefix university_ file.csv
 
 Column names with characters that need escaping:
 
-    $ xsv rename 'NAME OF PERSON,\"AGE, \"\"OF\"\" PERSON\"' file.csv
+    $ xan rename 'NAME OF PERSON,\"AGE, \"\"OF\"\" PERSON\"' file.csv
 
 Usage:
-    xsv rename [options] --prefix <prefix> [<input>]
-    xsv rename [options] <columns> [<input>]
-    xsv rename --help
+    xan rename [options] --prefix <prefix> [<input>]
+    xan rename [options] <columns> [<input>]
+    xan rename --help
 
 rename options:
-    -s, --select <arg>     Select the columns to rename. See 'xsv select -h'
+    -s, --select <arg>     Select the columns to rename. See 'xan select -h'
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
     -p, --prefix <prefix>  Prefix to add to all the column names.

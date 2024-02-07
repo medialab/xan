@@ -23,19 +23,19 @@ each computed aggregation.
 
 You can, for instance, compute the sum of a column per group:
 
-    $ xsv groupby user_name 'sum(retweet_count)' > groups.csv
+    $ xan groupby user_name 'sum(retweet_count)' > groups.csv
 
 You can use dynamic expressions to mangle the data before aggregating it:
 
-    $ xsv groupby user_name 'sum(add(retweet_count, replies_count))' > groups.csv
+    $ xan groupby user_name 'sum(add(retweet_count, replies_count))' > groups.csv
 
 You can perform multiple aggregations at once:
 
-    $ xsv groupby user_name 'sum(retweet_count), mean(retweet_count), max(replies_count)' > groups.csv
+    $ xan groupby user_name 'sum(retweet_count), mean(retweet_count), max(replies_count)' > groups.csv
 
 You can rename the output columns using the 'as' syntax:
 
-    $ xsv groupby user_name 'sum(n) as sum, max(replies_count) as \"Max Replies\"' > groups.csv
+    $ xan groupby user_name 'sum(n) as sum, max(replies_count) as \"Max Replies\"' > groups.csv
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
@@ -45,11 +45,11 @@ For a list of available aggregation functions, use the --aggs flag.
 If you want to list available functions, use the --functions flag.
 
 Usage:
-    xsv groupby [options] <column> <expression> [<input>]
-    xsv groupby --help
-    xsv groupby --cheatsheet
-    xsv groupby --aggs
-    xsv groupby --functions
+    xan groupby [options] <column> <expression> [<input>]
+    xan groupby --help
+    xan groupby --cheatsheet
+    xan groupby --aggs
+    xan groupby --functions
 
 groupby options:
     --group-column <name>   Name of the column containing group values.

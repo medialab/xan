@@ -53,9 +53,9 @@ When giving a regex, be sure to mind bash escape rules (prefer single quotes
 around your expression and don't forget to use backslash when needed).
 
 Usage:
-    xsv search [options] <column> --input <index> [<input>]
-    xsv search [options] <pattern> [<input>]
-    xsv search --help
+    xan search [options] <column> --input <index> [<input>]
+    xan search [options] <pattern> [<input>]
+    xan search --help
 
 search options:
     -e, --exact            Perform an exact match rather than using a
@@ -63,7 +63,7 @@ search options:
     --input <index>        CSV file containing a column of value to index & search.
     -i, --ignore-case      Case insensitive search. This is equivalent to
                            prefixing the regex with '(?i)'.
-    -s, --select <arg>     Select the columns to search. See 'xsv select -h'
+    -s, --select <arg>     Select the columns to search. See 'xan select -h'
                            for the full syntax.
     -v, --invert-match     Select only rows that did not match
 

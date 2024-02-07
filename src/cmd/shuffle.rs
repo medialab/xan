@@ -18,8 +18,8 @@ Also, since this command needs random access in the input file, it
 does not work with stdin or piping (unless --in-memory) is set.
 
 Usage:
-    xsv shuffle [options] [<input>]
-    xsv shuffle --help
+    xan shuffle [options] [<input>]
+    xan shuffle --help
 
 shuffle options:
     --seed <number>        RNG seed.

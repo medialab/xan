@@ -28,11 +28,11 @@ command.
 If you still want to use a pager manually, don't forget to use
 the -e/--expand and -C/--force-colors flags before piping like so:
 
-    $ xsv view -eC file.csv | less -SR
+    $ xan view -eC file.csv | less -SR
 
 Usage:
-    xsv view [options] [<input>]
-    xsv view --help
+    xan view [options] [<input>]
+    xan view --help
 
 view options:
     -p, --pager            Automatically use the \"less\" command to page the results.

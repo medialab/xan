@@ -10,8 +10,8 @@ static USAGE: &str = r#"
 Add a column with the date from a CSV column in a specified format and timezone
 
 Usage:
-    xsv datefmt [options] <column> [<input>]
-    xsv datefmt --help
+    xan datefmt [options] <column> [<input>]
+    xan datefmt --help
 
 datefmt options:
     -c, --new-column <name>   Name of the column to create.

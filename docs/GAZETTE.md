@@ -1,4 +1,4 @@
-# The `xsv` Gazette
+# The `xan` Gazette
 
 ## Editions
 

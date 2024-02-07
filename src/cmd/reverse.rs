@@ -19,7 +19,7 @@ Others sources need to be read using --in-memory flag and will need to load the 
 file into memory unfortunately.
 
 Usage:
-    xsv reverse [options] [<input>]
+    xan reverse [options] [<input>]
 
 reverse options:
     -m, --in-memory        Load all CSV data in memory before shuffling it. Can

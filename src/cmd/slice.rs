@@ -15,13 +15,13 @@ record in the CSV data.
 If the end of the range isn't specified, then the slice continues to the last
 record in the CSV data.
 
-This operation can be made much faster by creating an index with 'xsv index'
+This operation can be made much faster by creating an index with 'xan index'
 first. Namely, a slice on an index requires parsing just the rows that are
 sliced. Without an index, all rows up to the first row in the slice must be
 parsed.
 
 Usage:
-    xsv slice [options] [<input>]
+    xan slice [options] [<input>]
 
 slice options:
     -s, --start <arg>      The index of the record to slice from.

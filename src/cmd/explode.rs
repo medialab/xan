@@ -28,8 +28,8 @@ Note that given file needs to be UTF-8 encoded if given separator is more than
 one byte long.
 
 Usage:
-    xsv explode [options] <column> <separator> [<input>]
-    xsv explode --help
+    xan explode [options] <column> <separator> [<input>]
+    xan explode --help
 
 explode options:
     -r, --rename <name>    New name for the exploded column.

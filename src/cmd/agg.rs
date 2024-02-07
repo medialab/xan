@@ -18,19 +18,19 @@ the whole file.
 
 You can, for instance, compute the sum of a column:
 
-    $ xsv agg 'sum(retweet_count)' > result.csv
+    $ xan agg 'sum(retweet_count)' > result.csv
 
 You can use dynamic expressions to mangle the data before aggregating it:
 
-    $ xsv agg 'sum(add(retweet_count, replies_count))' > result.csv
+    $ xan agg 'sum(add(retweet_count, replies_count))' > result.csv
 
 You can perform multiple aggregations at once:
 
-    $ xsv agg 'sum(retweet_count), mean(retweet_count), max(replies_count)' > result.csv
+    $ xan agg 'sum(retweet_count), mean(retweet_count), max(replies_count)' > result.csv
 
 You can rename the output columns using the 'as' syntax:
 
-    $ xsv agg 'sum(n) as sum, max(replies_count) as \"Max Replies\"' > result.csv
+    $ xan agg 'sum(n) as sum, max(replies_count) as \"Max Replies\"' > result.csv
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
@@ -40,11 +40,11 @@ For a list of available aggregation functions, use the --aggs flag.
 If you want to list available functions, use the --functions flag.
 
 Usage:
-    xsv agg [options] <expression> [<input>]
-    xsv agg --help
-    xsv agg --cheatsheet
-    xsv agg --aggs
-    xsv agg --functions
+    xan agg [options] <expression> [<input>]
+    xan agg --help
+    xan agg --cheatsheet
+    xan agg --aggs
+    xan agg --functions
 
 agg options:
     -e, --errors <policy>   What to do with evaluation errors. One of:

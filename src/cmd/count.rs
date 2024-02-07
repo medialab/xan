@@ -11,7 +11,7 @@ Note that the count will not include the header row (unless --no-headers is
 given).
 
 Usage:
-    xsv count [options] [<input>]
+    xan count [options] [<input>]
 
 Common options:
     -h, --help             Display this message

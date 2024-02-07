@@ -18,12 +18,12 @@ If those conditions are not met, the result will be in some arbitrary order.
 This command consumes memory proportional to one CSV row per file.
 
 Usage:
-    xsv kway [options] [<input>...]
-    xsv kway --help
+    xan kway [options] [<input>...]
+    xan kway --help
 
 kway options:
     -s, --select <arg>     Select a subset of columns to sort.
-                           See 'xsv select --help' for the format details.
+                           See 'xan select --help' for the format details.
     -N, --numeric          Compare according to string numerical value
     -R, --reverse          Reverse order
     -u, --uniq             When set, identical consecutive lines will be dropped

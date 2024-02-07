@@ -28,7 +28,7 @@ The columns arguments specify the columns to join for each input. Columns can
 be referenced by name or index, starting at 1. Specify multiple columns by
 separating them with a comma. Specify a range of columns with `-`. Both
 columns1 and columns2 must specify exactly the same number of columns.
-(See 'xsv select --help' for the full syntax.)
+(See 'xan select --help' for the full syntax.)
 
 The command can also perform a 'regex' join, matching efficiently a CSV file containing
 a column of regex patterns with another file. But if you only need to filter out a file
@@ -40,8 +40,8 @@ will be indexed into memory. And when performing an 'outer' join, it will natura
 be the file that is on the other side of --left/--right.
 
 Usage:
-    xsv join [options] <columns1> <input1> <columns2> <input2>
-    xsv join --help
+    xan join [options] <columns1> <input1> <columns2> <input2>
+    xan join --help
 
 join options:
     -i, --ignore-case           When set, joins are done case insensitively.

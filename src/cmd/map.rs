@@ -18,7 +18,7 @@ a,b
 
 The following command:
 
-    $ xsv map 'add(a, b)' c > result.csv
+    $ xan map 'add(a, b)' c > result.csv
 
 Will produce the following result:
 
@@ -35,17 +35,17 @@ Miscellaneous tricks:
 
 1. Copying a column:
 
-    $ xsv map 'column_name' copy_name > result.csv
+    $ xan map 'column_name' copy_name > result.csv
 
 2. Create a column containing a constant value:
 
-    $ xsv map '"john"' from > result.csv
+    $ xan map '"john"' from > result.csv
 
 Usage:
-    xsv map [options] <expression> <column> [<input>]
-    xsv map --cheatsheet
-    xsv map --functions
-    xsv map --help
+    xan map [options] <expression> <column> [<input>]
+    xan map --cheatsheet
+    xan map --functions
+    xan map --help
 
 map options:
     -p, --parallel             Whether to use parallelization to speed up computations.
@@ -62,7 +62,7 @@ map options:
                                [default: panic].
     -E, --error-column <name>  Name of the column containing errors if
                                "-e/--errors" is set to "report".
-                               [default: xsv_error].
+                               [default: xan_error].
 
 Common options:
     -h, --help               Display this message

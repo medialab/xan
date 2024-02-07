@@ -25,7 +25,7 @@ Mary,yellow|red
 
 The following command:
 
-    $ xsv flatmap 'split(colors, "|")' color -r colors
+    $ xan flatmap 'split(colors, "|")' color -r colors
 
 Will produce the following result:
 
@@ -46,7 +46,7 @@ Mary Sue,45
 
 The following command:
 
-    $ xsv flatmap 'if(gte(age, 40), last(split(name, " ")))' surname
+    $ xan flatmap 'if(gte(age, 40), last(split(name, " ")))' surname
 
 Will produce the following result:
 
@@ -59,10 +59,10 @@ the --cheatsheet flag.
 If you want to list available functions, use the --functions flag.
 
 Usage:
-    xsv flatmap [options] <expression> <column> [<input>]
-    xsv flatmap --cheatsheet
-    xsv flatmap --functions
-    xsv flatmap --help
+    xan flatmap [options] <expression> <column> [<input>]
+    xan flatmap --cheatsheet
+    xan flatmap --functions
+    xan flatmap --help
 
 flatmap options:
     -r, --replace <column>     Name of a column to replaced with the mapped value.

@@ -18,8 +18,8 @@ The files are written to the directory given with the name '{start}.csv',
 where {start} is the index of the first record of the chunk (starting at 0).
 
 Usage:
-    xsv split [options] <outdir> [<input>]
-    xsv split --help
+    xan split [options] <outdir> [<input>]
+    xan split --help
 
 split options:
     -s, --size <arg>       The number of records to write into each chunk.

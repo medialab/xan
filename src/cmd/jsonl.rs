@@ -20,8 +20,8 @@ Also, it will fail if the JSON documents are not consistent with one another,
 as the first JSON line will be use to infer the headers of the CSV output.
 
 Usage:
-    xsv jsonl [options] [<input>]
-    xsv jsonl --help
+    xan jsonl [options] [<input>]
+    xan jsonl --help
 
 Common options:
     -h, --help             Display this message

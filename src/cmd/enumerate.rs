@@ -8,8 +8,8 @@ static USAGE: &str = "
 Enumerate a CSV file by preprending an index column to each row.
 
 Usage:
-    xsv enum [options] [<input>]
-    xsv enum --help
+    xan enum [options] [<input>]
+    xan enum --help
 
 enum options:
     -c, --column-name <arg>  Name of the column to prepend. [default: index].

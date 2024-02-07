@@ -1,6 +1,6 @@
 [package]
-name = "xsv"
-version = "0.13.0-medialab32"  #:version
+name = "xan"
+version = "0.1.0"  #:version
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
@@ -9,17 +9,17 @@ authors = [
   "César Pichon <cesar.pichon@sciencespo.fr>",
   "Anna Charles <anna.charles@sciencespo.fr>",
 ]
-description = "A high performance CSV command line toolkit."
-documentation = "https://github.com/medialab/xsv#readme"
-homepage = "https://github.com/medialab/xsv"
-repository = "https://github.com/medialab/xsv"
+description = "The CSV command line magician."
+documentation = "https://github.com/medialab/xan#readme"
+homepage = "https://github.com/medialab/xan"
+repository = "https://github.com/medialab/xan"
 readme = "README.md"
-keywords = ["csv", "tsv", "slice", "command"]
+keywords = ["csv", "tsv", "cli"]
 license = "Unlicense/MIT"
 autotests = false
 
 [[bin]]
-name = "xsv"
+name = "xan"
 test = true
 bench = false
 doctest = false

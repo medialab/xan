@@ -19,8 +19,8 @@ The files are written to the output directory with filenames based on the
 values in the partition column and the `--filename` flag.
 
 Usage:
-    xsv partition [options] <column> <outdir> [<input>]
-    xsv partition --help
+    xan partition [options] <column> <outdir> [<input>]
+    xan partition --help
 
 partition options:
     --filename <filename>  A filename template to use when constructing

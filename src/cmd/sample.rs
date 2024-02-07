@@ -17,15 +17,15 @@ size is less than 10% of the total number of records. This allows for efficient
 sampling such that the entire CSV file is not parsed.
 
 This command is intended to provide a means to sample from a CSV data set that
-is too big to fit into memory (for example, for use with commands like 'xsv
-frequency' or 'xsv stats'). It will however visit every CSV record exactly
+is too big to fit into memory (for example, for use with commands like 'xan
+frequency' or 'xan stats'). It will however visit every CSV record exactly
 once, which is necessary to provide a uniform random sample. If you wish to
-limit the number of records visited, use the 'xsv slice' command to pipe into
-'xsv sample'.
+limit the number of records visited, use the 'xan slice' command to pipe into
+'xan sample'.
 
 Usage:
-    xsv sample [options] <sample-size> [<input>]
-    xsv sample --help
+    xan sample [options] <sample-size> [<input>]
+    xan sample --help
 
 sample options:
     --seed <number>        RNG seed.

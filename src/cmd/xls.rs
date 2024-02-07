@@ -12,8 +12,8 @@ static USAGE: &str = "
 Convert an Excel/OpenOffice spreadsheet (.xls, .xlsx, .ods etc.) to CSV.
 
 Usage:
-    xsv xls [options] <input>
-    xsv xls --help
+    xan xls [options] <input>
+    xan xls --help
 
 xls options:
     -s, --sheet <name>     Name of the sheet to convert. [default: Sheet1]

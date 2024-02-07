@@ -14,12 +14,12 @@ The bins table is formatted as CSV data:
     field,value,lower_bound,upper_bound,count
 
 Usage:
-    xsv bins [options] [<input>]
-    xsv bins --help
+    xan bins [options] [<input>]
+    xan bins --help
 
 bins options:
     -s, --select <arg>     Select a subset of columns to compute bins
-                           for. See 'xsv select --help' for the format
+                           for. See 'xan select --help' for the format
                            details.
     --bins <number>        Number of bins. Will default to using Freedman-Diaconis.
                            rule.

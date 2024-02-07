@@ -7,14 +7,14 @@ use CliResult;
 static USAGE: &str = "
 Formats CSV data with a custom delimiter or CRLF line endings.
 
-Generally, all commands in xsv output CSV data in a default format, which is
+Generally, all commands in xan output CSV data in a default format, which is
 the same as the default format for reading CSV data. This makes it easy to
-pipe multiple xsv commands together. However, you may want the final result to
-have a specific delimiter or record separator, and this is where 'xsv fmt' is
+pipe multiple xan commands together. However, you may want the final result to
+have a specific delimiter or record separator, and this is where 'xan fmt' is
 useful.
 
 Usage:
-    xsv fmt [options] [<input>]
+    xan fmt [options] [<input>]
 
 fmt options:
     -t, --out-delimiter <arg>  The field delimiter for writing CSV data.

@@ -17,7 +17,7 @@ mary,sue
 
 The following command:
 
-    $ xsv transform surname 'upper(surname)'
+    $ xan transform surname 'upper(surname)'
 
 Will produce the following result:
 
@@ -28,7 +28,7 @@ mary,SUE
 Note that the given expression will be given the target column as its implicit
 value, which means that the latter command can also be written as:
 
-    $ xsv transform surname 'upper'
+    $ xan transform surname 'upper'
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
@@ -36,10 +36,10 @@ the --cheatsheet flag.
 If you want to list available functions, use the --functions flag.
 
 Usage:
-    xsv transform [options] <column> <expression> [<input>]
-    xsv transform --cheatsheet
-    xsv transform --functions
-    xsv transform --help
+    xan transform [options] <column> <expression> [<input>]
+    xan transform --cheatsheet
+    xan transform --functions
+    xan transform --help
 
 transform options:
     -r, --rename <name>        New name for the transformed column.
@@ -57,7 +57,7 @@ transform options:
                                [default: panic].
     -E, --error-column <name>  Name of the column containing errors if
                                "-e/--errors" is set to "report".
-                               [default: xsv_error].
+                               [default: xan_error].
 
 Common options:
     -h, --help               Display this message

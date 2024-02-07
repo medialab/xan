@@ -17,10 +17,10 @@ contents of each field to provide a summary view.
 Pipe into \"less -r\" if you need to page the result, and use \"-C, --force-colors\"
 not to lose the colors:
 
-    $ xsv flatten -C file.csv | less -r
+    $ xan flatten -C file.csv | less -r
 
 Usage:
-    xsv flatten [options] [<input>]
+    xan flatten [options] [<input>]
 
 flatten options:
     -c, --condense         Don't wrap cell values on new lines but truncate them

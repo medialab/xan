@@ -16,7 +16,7 @@ use CliResult;
 
 pub fn get_moonblade_cheatsheet() -> &'static str {
     "
-xsv script language cheatsheet (use --functions for comprehensive list of
+xan script language cheatsheet (use --functions for comprehensive list of
 available functions):
 
   . Indexing a column by name:

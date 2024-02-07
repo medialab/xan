@@ -7,13 +7,13 @@ use CliResult;
 static USAGE: &str = "
 Read CSV data with special quoting rules.
 
-Generally, all xsv commands support basic options like specifying the delimiter
+Generally, all xan commands support basic options like specifying the delimiter
 used in CSV data. This does not cover all possible types of CSV data. For
 example, some CSV files don't use '\"' for quotes or use different escaping
 styles.
 
 Usage:
-    xsv input [options] [<input>]
+    xan input [options] [<input>]
 
 input options:
     --quote <arg>          The quote character to use. [default: \"]
