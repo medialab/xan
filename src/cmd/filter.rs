@@ -36,11 +36,14 @@ Usage:
     xsv filter --help
 
 filter options:
-    -t, --threads <threads>    Number of threads to use in order to run the
-                               computations in parallel. Only useful if you
-                               perform heavy stuff such as reading files etc.
+    -p, --parallel             Whether to use parallelization to speed up computations.
+                               Will automatically select a suitable number of threads to use
+                               based on your number of cores. Use -t, --threads if you want to
+                               indicate the number of threads yourself.
+    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
+                               if you want the number of threads to be automatically chosen instead.
     -v, --invert-match         If set, will invert the evaluated value.
-    -e, --errors <policy>      What to do with evaluation errors. One of:
+    -e, --errors <policy>      What to do w'ith evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "ignore": coerce result for row to null
                                  - "log": print error to stderr
@@ -64,6 +67,7 @@ struct Args {
     flag_functions: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_errors: String,
     flag_invert_match: bool,
@@ -71,6 +75,12 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    let parallelization = match (args.flag_parallel, args.flag_threads) {
+        (true, None) => Some(None),
+        (_, Some(count)) => Some(Some(count)),
+        _ => None,
+    };
 
     let moonblade_args = MoonbladeCmdArgs {
         print_cheatsheet: args.flag_cheatsheet,
@@ -82,7 +92,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output: args.flag_output,
         no_headers: args.flag_no_headers,
         delimiter: args.flag_delimiter,
-        threads: args.flag_threads,
+        parallelization,
         error_policy: MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?,
         error_column_name: None,
         mode: MoonbladeMode::Filter(args.flag_invert_match),

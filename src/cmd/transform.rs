@@ -43,9 +43,12 @@ Usage:
 
 transform options:
     -r, --rename <name>        New name for the transformed column.
-    -t, --threads <threads>    Number of threads to use in order to run the
-                               computations in parallel. Only useful if you
-                               perform heavy stuff such as reading files etc.
+    -p, --parallel             Whether to use parallelization to speed up computations.
+                               Will automatically select a suitable number of threads to use
+                               based on your number of cores. Use -t, --threads if you want to
+                               indicate the number of threads yourself.
+    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
+                               if you want the number of threads to be automatically chosen instead.
     -e, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "report": add a column containing error
@@ -76,6 +79,7 @@ struct Args {
     flag_cheatsheet: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_errors: String,
     flag_error_column: String,
@@ -83,6 +87,12 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    let parallelization = match (args.flag_parallel, args.flag_threads) {
+        (true, None) => Some(None),
+        (_, Some(count)) => Some(Some(count)),
+        _ => None,
+    };
 
     let moonblade_args = MoonbladeCmdArgs {
         print_cheatsheet: args.flag_cheatsheet,
@@ -94,7 +104,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output: args.flag_output,
         no_headers: args.flag_no_headers,
         delimiter: args.flag_delimiter,
-        threads: args.flag_threads,
+        parallelization,
         error_policy: MoonbladeErrorPolicy::try_from(args.flag_errors)?,
         error_column_name: Some(args.flag_error_column),
         mode: MoonbladeMode::Transform,

@@ -505,7 +505,7 @@ pub struct MoonbladeCmdArgs {
     pub output: Option<String>,
     pub no_headers: bool,
     pub delimiter: Option<Delimiter>,
-    pub threads: Option<usize>,
+    pub parallelization: Option<Option<usize>>,
     pub error_policy: MoonbladeErrorPolicy,
     pub error_column_name: Option<String>,
     pub mode: MoonbladeMode,
@@ -699,15 +699,23 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         wtr.write_byte_record(&modified_headers)?;
     }
 
-    if let Some(threads) = args.threads {
+    if let Some(threads) = args.parallelization {
         // NOTE: this could be a OnceCell but it is very new in rust
-        let local: Arc<ThreadLocal<RefCell<PipelineProgram>>> =
-            Arc::new(ThreadLocal::with_capacity(threads));
+        let local: Arc<ThreadLocal<RefCell<PipelineProgram>>> = Arc::new(match threads {
+            None => ThreadLocal::new(),
+            Some(count) => ThreadLocal::with_capacity(count),
+        });
 
         rdr.into_byte_records()
             .enumerate()
             .parallel_map_custom(
-                |o| o.threads(threads),
+                |o| {
+                    if let Some(count) = threads {
+                        o.threads(count)
+                    } else {
+                        o
+                    }
+                },
                 move |(i, record)| -> CliResult<(
                     usize,
                     csv::ByteRecord,
