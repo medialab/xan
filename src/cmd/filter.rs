@@ -39,6 +39,7 @@ filter options:
     -t, --threads <threads>    Number of threads to use in order to run the
                                computations in parallel. Only useful if you
                                perform heavy stuff such as reading files etc.
+    -v, --invert-match         If set, will invert the evaluated value.
     -e, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "ignore": coerce result for row to null
@@ -65,6 +66,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_threads: Option<usize>,
     flag_errors: String,
+    flag_invert_match: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -83,7 +85,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         threads: args.flag_threads,
         error_policy: MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?,
         error_column_name: None,
-        mode: MoonbladeMode::Filter,
+        mode: MoonbladeMode::Filter(args.flag_invert_match),
     };
 
     run_moonblade_cmd(moonblade_args)

@@ -410,7 +410,7 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
 
 pub enum MoonbladeMode {
     Map,
-    Filter,
+    Filter(bool),
     Transform,
     Flatmap,
 }
@@ -429,7 +429,7 @@ impl MoonbladeMode {
     }
 
     fn cannot_report(&self) -> bool {
-        matches!(self, Self::Filter | Self::Flatmap)
+        matches!(self, Self::Filter(_) | Self::Flatmap)
     }
 }
 
@@ -506,8 +506,14 @@ pub fn handle_eval_result<'b>(
 
     match eval_result {
         Ok(value) => match args.mode {
-            MoonbladeMode::Filter => {
-                if value.is_truthy() {
+            MoonbladeMode::Filter(invert) => {
+                let mut should_emit = value.is_truthy();
+
+                if invert {
+                    should_emit = !should_emit;
+                }
+
+                if should_emit {
                     records_to_emit.push(Cow::Borrowed(record));
                 }
             }
