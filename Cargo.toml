@@ -27,13 +27,6 @@ doctest = false
 [[test]]
 name = "tests"
 
-[profile.release]
-opt-level = 3
-debug = true
-
-[profile.test]
-opt-level = 3
-
 [dependencies]
 atty = "0.2.14"
 byteorder = "1"
