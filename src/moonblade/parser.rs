@@ -1,7 +1,7 @@
 // En tant que chef, je m'engage à ce que nous ne nous fassions pas *tous* tuer.
 use nom::{
     branch::alt,
-    bytes::complete::tag,
+    bytes::complete::{tag, take},
     character::complete::{alpha1, alphanumeric1, anychar, char, digit1, none_of, space0},
     combinator::{all_consuming, consumed, map, map_res, not, opt, recognize, value},
     multi::{fold_many0, many0, separated_list0, separated_list1},
@@ -102,6 +102,21 @@ impl FunctionCall {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum InfixOperator {
+    Add,
+    Mul,
+    Lte,
+}
+
+#[derive(Debug, PartialEq)]
+enum InfixExpressionMember {
+    Operand(Argument),
+    Operator(InfixOperator),
+    OpenBracket,
+    CloseBracket,
+}
+
 pub type Pipeline = Vec<Argument>;
 pub type Aggregations = Vec<Aggregation>;
 
@@ -127,6 +142,36 @@ fn underscore_literal(input: &str) -> IResult<&str, ()> {
 
 fn null_literal(input: &str) -> IResult<&str, ()> {
     value((), tag("null"))(input)
+}
+
+fn left_bracket(input: &str) -> IResult<&str, InfixExpressionMember> {
+    map(tag("("), |_| InfixExpressionMember::OpenBracket)(input)
+}
+
+fn right_bracket(input: &str) -> IResult<&str, InfixExpressionMember> {
+    map(tag(")"), |_| InfixExpressionMember::CloseBracket)(input)
+}
+
+fn one_char_operator(input: &str) -> IResult<&str, InfixExpressionMember> {
+    let (rest, c) = anychar(input)?;
+
+    match c {
+        '+' => Ok((rest, InfixExpressionMember::Operator(InfixOperator::Add))),
+        '*' => Ok((rest, InfixExpressionMember::Operator(InfixOperator::Mul))),
+        _ => Err(nom::Err::Error(nom::error::ParseError::from_char(input, c))),
+    }
+}
+
+fn two_char_operator(input: &str) -> IResult<&str, InfixExpressionMember> {
+    let (rest, op) = take(2u8)(input)?;
+
+    match op {
+        "<=" => Ok((rest, InfixExpressionMember::Operator(InfixOperator::Lte))),
+        _ => Err(nom::Err::Error(nom::error::ParseError::from_error_kind(
+            input,
+            nom::error::ErrorKind::Tag,
+        ))),
+    }
 }
 
 fn integer_literal<T>(input: &str) -> IResult<&str, T>
@@ -325,6 +370,20 @@ fn argument_with_parsed(input: &str) -> IResult<&str, (&str, Argument)> {
 
 fn argument(input: &str) -> IResult<&str, Argument> {
     map(argument_with_parsed, |arg| arg.1)(input)
+}
+
+fn infix_expression(input: &str) -> IResult<&str, Vec<InfixExpressionMember>> {
+    many0(delimited(
+        space0,
+        alt((
+            two_char_operator,
+            one_char_operator,
+            map(argument, |arg| InfixExpressionMember::Operand(arg)),
+            left_bracket,
+            right_bracket,
+        )),
+        space0,
+    ))(input)
 }
 
 fn argument_list_with_parsed(input: &str) -> IResult<&str, Vec<(&str, Argument)>> {
@@ -627,6 +686,41 @@ mod tests {
     #[test]
     fn test_underscore_literal() {
         assert_eq!(underscore_literal("_, 45"), Ok((", 45", ())))
+    }
+
+    #[test]
+    fn test_infix_members() {
+        assert_eq!(
+            left_bracket("(test)"),
+            Ok(("test)", InfixExpressionMember::OpenBracket))
+        );
+        assert_eq!(
+            right_bracket(")test)"),
+            Ok(("test)", InfixExpressionMember::CloseBracket))
+        );
+        assert_eq!(
+            one_char_operator("*, test"),
+            Ok((
+                ", test",
+                InfixExpressionMember::Operator(InfixOperator::Mul)
+            ))
+        );
+        assert_eq!(
+            one_char_operator("+, test"),
+            Ok((
+                ", test",
+                InfixExpressionMember::Operator(InfixOperator::Add)
+            ))
+        );
+        assert_eq!(
+            two_char_operator("<= test"),
+            Ok((" test", InfixExpressionMember::Operator(InfixOperator::Lte)))
+        );
+    }
+
+    #[test]
+    fn test_infix_expression() {
+        dbg!(infix_expression("a + b * (add(A, (e + 1) * 4))").unwrap());
     }
 
     #[test]
