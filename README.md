@@ -21,10 +21,10 @@ Dual-licensed under MIT or the [UNLICENSE](https://unlicense.org).
 
 ### How to install
 
-This forked version of xan can be installed using cargo:
+`xan` can be installed using cargo:
 
 ```
-cargo install --git https://github.com/medialab/xan.git
+cargo install xan
 ```
 
 <strong id="new-features">New Features</strong>
