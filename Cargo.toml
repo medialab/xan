@@ -17,6 +17,13 @@ readme = "README.md"
 keywords = ["csv", "tsv", "cli"]
 license = "Unlicense/MIT"
 autotests = false
+include = [
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-MIT",
+  "UNLICENSE",
+  "src/**/*.rs"
+]
 
 [[bin]]
 name = "xan"
