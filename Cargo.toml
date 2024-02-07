@@ -22,7 +22,8 @@ include = [
   "README.md",
   "LICENSE-MIT",
   "UNLICENSE",
-  "src/**/*.rs"
+  "src/**/*.rs",
+  "tests/**/*.rs"
 ]
 
 [[bin]]
