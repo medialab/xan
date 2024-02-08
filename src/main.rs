@@ -31,6 +31,9 @@ extern crate serde;
 extern crate thread_local;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate pest;
+extern crate pest_derive;
 extern crate serde_json;
 extern crate stats;
 extern crate termsize;

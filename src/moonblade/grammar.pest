@@ -1,0 +1,63 @@
+// Config
+WHITESPACE = _{ " " }
+
+// Literals
+true_lit  = { "true" }
+false_lit = { "false" }
+bool      = { true_lit | false_lit }
+null      = { "null" }
+
+// Numbers
+digit        = _{ '0'..'9' }
+positive_int = _{ digit ~ (digit | "_")* }
+int          =  { "-"? ~ positive_int }
+plus         =  { "+" }
+minus        =  { "-" }
+exp          = _{ ^"e" ~ (plus | minus)? ~ int }
+float        = @{ int ~ "." ~ positive_int? ~ exp? | int ~ exp }
+
+// Strings
+raw_single_quoted_string = { (!("\\" | "'") ~ ANY)+ }
+raw_double_quoted_string = { (!("\\" | "\"") ~ ANY)+ }
+// hex                      = { '0'..'9' | 'a'..'f' | 'A'..'F' }
+// unicode_hex              = { hex{1, 6} }
+predefined = { "n" | "r" | "t" | "\\" | "\"" | "'" }
+// byte                     = { "x" ~ hex{2} }
+// unicode                  = { "u" ~ "{" ~ unicode_hex ~ "}" }
+escape               = { "\\" ~ predefined }
+single_quoted_string = { "'" ~ (raw_single_quoted_string | escape)* ~ "'" }
+double_quoted_string = { "\"" ~ (raw_double_quoted_string | escape)* ~ "\"" }
+string               = { single_quoted_string | double_quoted_string }
+
+// Regexes
+raw_regex_string       =  { (!("\\" | "/") ~ ANY)+ }
+escape_regex           =  { "\\" ~ ANY }
+case_insensitive_regex =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/i" }
+case_sensitive_regex   =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
+regex                  = _{ case_insensitive_regex | case_sensitive_regex }
+
+// Identifiers
+ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
+ident      = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
+
+// Operators
+operator = _{ lte | add | sub | mul | div }
+lte      =  { "<=" }
+add      =  { "+" }
+sub      =  { "-" }
+mul      =  { "*" }
+div      =  { "/" }
+
+// Functions
+func = { ident ~ "(" ~ (term ~ ","?)* ~ ")" }
+
+// Expressions
+expr =  { term ~ (operator ~ term)* }
+term = _{ func | bool | null | regex | string | float | int | ident | "(" ~ expr ~ ")" }
+
+// End-chain parsers
+full_expr      = _{ SOI ~ expr ~ EOI }
+expr_name      = @{ ident }
+named_expr     =  { expr ~ "as" ~ expr_name }
+opt_named_expr =  { named_expr | expr }
+named_exprs    =  { opt_named_expr ~ ("," ~ opt_named_expr)* }
