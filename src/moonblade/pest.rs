@@ -3,6 +3,8 @@ use pest::Parser;
 use pest_derive::Parser;
 use pratt::{Affix, Associativity, PrattParser, Precedence};
 
+use super::functions::get_function;
+
 #[derive(Parser)]
 #[grammar = "moonblade/grammar.pest"]
 pub struct MoonbladePestParser;
@@ -49,7 +51,7 @@ enum TokenTree<'a> {
 impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     fn from(pair: Pair<'a, Rule>) -> Self {
         match pair.as_rule() {
-            Rule::int | Rule::ident => TokenTree::Primary(pair),
+            Rule::int | Rule::float | Rule::ident | Rule::underscore => TokenTree::Primary(pair),
             Rule::add => TokenTree::Infix(Operator::Add),
             Rule::mul => TokenTree::Infix(Operator::Mul),
             Rule::not => TokenTree::Infix(Operator::Not),
@@ -80,7 +82,9 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
 pub enum Expr {
     Func(String, Vec<Expr>),
     Int(i64),
+    Float(f64),
     Identifier(String),
+    Underscore,
 }
 
 struct MoonbladePrattParser;
@@ -116,6 +120,16 @@ where
 
                     Expr::Int(n)
                 }
+                Rule::float => {
+                    let n = token
+                        .as_str()
+                        .replace("_", "")
+                        .parse::<f64>()
+                        .or(Err("could not parse float"))?;
+
+                    Expr::Float(n)
+                }
+                Rule::underscore => Expr::Underscore,
                 Rule::ident => Expr::Identifier(token.as_str().to_string()),
                 _ => unreachable!(),
             },
@@ -174,6 +188,53 @@ fn parse_expression(input: &str) -> Result<Expr, ParseError> {
         .map_err(|err| ParseError::PrattError(err.to_string()))
 }
 
+pub type Pipeline = Vec<Expr>;
+
+// TODO: trim, unfurl, resolve identifiers as functions
+
+fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
+    let mut pairs = MoonbladePestParser::parse(Rule::pipeline, input)
+        .map_err(|err| ParseError::PestError(err))?;
+
+    let first_pair = pairs.next().unwrap();
+
+    first_pair
+        .into_inner()
+        .into_iter()
+        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
+        .map(|p| {
+            let token_tree = TokenTree::from(p);
+
+            MoonbladePrattParser
+                .parse(&mut vec![token_tree].into_iter())
+                .map_err(|err| ParseError::PrattError(err.to_string()))
+        })
+        .collect()
+}
+
+fn handle_pipeline_elision(pipeline: Pipeline) -> Pipeline {
+    pipeline
+        .into_iter()
+        .enumerate()
+        .map(|(i, expr)| {
+            if i == 0 {
+                expr
+            } else if let Expr::Identifier(ref name) = expr {
+                match get_function(&name) {
+                    None => expr,
+                    Some(_) => Expr::Func(name.to_string(), vec![Expr::Underscore]),
+                }
+            } else {
+                expr
+            }
+        })
+        .collect()
+}
+
+fn optimize_pipeline(pipeline: Pipeline) -> Pipeline {
+    handle_pipeline_elision(pipeline)
+}
+
 #[cfg(test)]
 mod tests {
     use super::Expr::*;
@@ -192,6 +253,13 @@ mod tests {
         assert_eq!(parse_expression("1"), Ok(Int(1)));
         assert_eq!(parse_expression("-45"), Ok(Int(-45)));
         assert_eq!(parse_expression("1_000"), Ok(Int(1000)));
+    }
+
+    #[test]
+    fn test_floats() {
+        assert_eq!(parse_expression("1.0"), Ok(Float(1.0)));
+        assert_eq!(parse_expression("-45.5"), Ok(Float(-45.5)));
+        assert_eq!(parse_expression("67.36"), Ok(Float(67.36)));
     }
 
     #[test]
@@ -253,6 +321,30 @@ mod tests {
                 "not",
                 vec![func("add", vec![func("add", vec![Int(1), Int(2)]), Int(4)])]
             ))
+        );
+    }
+
+    #[test]
+    fn test_pipeline() {
+        assert_eq!(
+            parse_pipeline("inc(count) | len(_)"),
+            Ok(vec![
+                func("inc", vec![id("count")]),
+                func("len", vec![Expr::Underscore])
+            ])
+        );
+    }
+
+    #[test]
+    fn test_pipeline_elision() {
+        let pipeline = parse_pipeline("inc(count) | len").map(|p| handle_pipeline_elision(p));
+
+        assert_eq!(
+            pipeline,
+            Ok(vec![
+                func("inc", vec![id("count")]),
+                func("len", vec![Expr::Underscore])
+            ])
         );
     }
 }

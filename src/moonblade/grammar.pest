@@ -2,10 +2,11 @@
 WHITESPACE = _{ " " }
 
 // Literals
-true_lit  = { "true" }
-false_lit = { "false" }
-bool      = { true_lit | false_lit }
-null      = { "null" }
+true_lit   = { "true" }
+false_lit  = { "false" }
+bool       = { true_lit | false_lit }
+null       = { "null" }
+underscore = { "_" }
 
 // Numbers
 digit        = _{ '0'..'9' }
@@ -56,12 +57,29 @@ func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Expressions
 expr =  { unary_operator? ~ term ~ (binary_operator ~ term)* }
-term = _{ func | bool | null | regex | string | float | int | ident | "(" ~ expr ~ ")" }
+term = _{
+    func
+  | bool
+  | null
+  | regex
+  | string
+  | float
+  | int
+  | ident
+  | underscore
+  | "(" ~ expr ~ ")"
+}
 
 // End-chain parsers
 full_expr = _{ SOI ~ expr ~ EOI }
 
-expr_name      = @{ ident }
-named_expr     =  { expr ~ "as" ~ expr_name }
-opt_named_expr =  { named_expr | expr }
-named_exprs    =  { opt_named_expr ~ ("," ~ opt_named_expr)* }
+expr_name      = { ident | string }
+named_expr     = { expr ~ "as" ~ expr_name }
+opt_named_expr = { named_expr | expr }
+named_exprs    = { SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
+
+named_func     = { func ~ "as" ~ expr_name }
+opt_named_func = { named_func | func }
+named_aggs     = { SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ EOI }
+
+pipeline = { SOI ~ expr ~ ("|" ~ expr)* ~ EOI }
