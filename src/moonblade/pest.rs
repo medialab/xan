@@ -1,18 +1,10 @@
-use std::convert::TryFrom;
-
 use pest::iterators::Pair;
 use pest_derive::Parser;
-use pratt::{Affix, Associativity, PrattParser, Precedence, Result as PResult};
+use pratt::{Affix, Associativity, PrattParser, Precedence};
 
 #[derive(Parser)]
 #[grammar = "moonblade/grammar.pest"]
 pub struct MoonbladePestParser;
-
-#[derive(Debug)]
-enum Token {
-    Identifier(String),
-    Int(i64),
-}
 
 #[derive(Debug)]
 enum Operator {
@@ -20,53 +12,38 @@ enum Operator {
 }
 
 #[derive(Debug)]
-enum TokenTree {
+enum TokenTree<'a> {
     Infix(Operator),
-    Primary(Token),
-    Expr(Vec<TokenTree>),
-    Func(String, Vec<TokenTree>),
+    Primary(Pair<'a, Rule>),
+    Expr(Vec<TokenTree<'a>>),
+    Func(String, Vec<TokenTree<'a>>),
 }
 
-impl<'a> TryFrom<Pair<'a, Rule>> for TokenTree {
-    type Error = ();
-
-    fn try_from(pair: Pair<Rule>) -> Result<Self, Self::Error> {
-        Ok(match pair.as_rule() {
-            Rule::int => {
-                let n = pair.as_str().parse::<i64>();
-
-                TokenTree::Primary(Token::Int(n.expect(&format!("{:?}", pair))))
-            }
+impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
+    fn from(pair: Pair<'a, Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::int | Rule::ident => TokenTree::Primary(pair),
             Rule::add => TokenTree::Infix(Operator::Add),
             Rule::expr => {
                 let mut pairs = pair.into_inner();
 
                 if pairs.len() == 1 {
-                    Self::try_from(pairs.next().unwrap())?
+                    Self::from(pairs.next().unwrap())
                 } else {
-                    TokenTree::Expr(
-                        pairs
-                            .map(|p| Self::try_from(p))
-                            .collect::<Result<Vec<_>, ()>>()?,
-                    )
+                    TokenTree::Expr(pairs.map(|p| Self::from(p)).collect())
                 }
             }
             Rule::func => {
                 let mut pairs = pair.into_inner();
                 let func_name = pairs.next().unwrap().as_str().to_string();
 
-                TokenTree::Func(
-                    func_name,
-                    pairs
-                        .map(|p| Self::try_from(p))
-                        .collect::<Result<Vec<_>, ()>>()?,
-                )
+                TokenTree::Func(func_name, pairs.map(|p| Self::from(p)).collect())
             }
             _ => {
                 dbg!(&pair);
                 unreachable!();
             }
-        })
+        }
     }
 }
 
@@ -79,15 +56,15 @@ pub enum Expr {
 
 struct MoonbladePrattParser;
 
-impl<I> PrattParser<I> for MoonbladePrattParser
+impl<'a, I> PrattParser<I> for MoonbladePrattParser
 where
-    I: Iterator<Item = TokenTree>,
+    I: Iterator<Item = TokenTree<'a>>,
 {
-    type Error = pratt::NoError;
-    type Input = TokenTree;
+    type Error = String;
+    type Input = TokenTree<'a>;
     type Output = Expr;
 
-    fn query(&mut self, tree: &TokenTree) -> PResult<Affix> {
+    fn query(&mut self, tree: &TokenTree) -> Result<Affix, Self::Error> {
         let affix = match tree {
             TokenTree::Infix(Operator::Add) => Affix::Infix(Precedence(2), Associativity::Left),
             TokenTree::Expr(_) => Affix::Nilfix,
@@ -98,11 +75,19 @@ where
         Ok(affix)
     }
 
-    fn primary(&mut self, tree: TokenTree) -> PResult<Expr> {
+    fn primary(&mut self, tree: TokenTree) -> Result<Expr, Self::Error> {
         let expr = match tree {
-            TokenTree::Primary(token) => match token {
-                Token::Identifier(name) => Expr::Identifier(name),
-                Token::Int(n) => Expr::Int(n),
+            TokenTree::Primary(token) => match token.as_rule() {
+                Rule::int => {
+                    let n = token
+                        .as_str()
+                        .parse::<i64>()
+                        .or(Err("could not parse int"))?;
+
+                    Expr::Int(n)
+                }
+                Rule::ident => Expr::Identifier(token.to_string()),
+                _ => unreachable!(),
             },
             TokenTree::Expr(group) => self.parse(&mut group.into_iter()).unwrap(),
             TokenTree::Func(name, group) => Expr::Func(
@@ -117,7 +102,7 @@ where
         Ok(expr)
     }
 
-    fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> PResult<Expr> {
+    fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
         Ok(match tree {
             TokenTree::Infix(op) => match op {
                 Operator::Add => Expr::Func("add".to_string(), vec![lhs, rhs]),
@@ -126,11 +111,11 @@ where
         })
     }
 
-    fn prefix(&mut self, _tree: TokenTree, _rhs: Expr) -> PResult<Expr> {
+    fn prefix(&mut self, _tree: TokenTree, _rhs: Expr) -> Result<Expr, Self::Error> {
         unreachable!()
     }
 
-    fn postfix(&mut self, _lhs: Expr, _tree: TokenTree) -> PResult<Expr> {
+    fn postfix(&mut self, _lhs: Expr, _tree: TokenTree) -> Result<Expr, Self::Error> {
         unreachable!()
     }
 }
@@ -141,13 +126,12 @@ mod tests {
 
     #[test]
     fn test_basics() {
-        let token_tree = TokenTree::try_from(
-            MoonbladePestParser::parse(Rule::full_expr, "1 + add(1, 2 + 3)")
+        let token_tree = TokenTree::from(
+            MoonbladePestParser::parse(Rule::full_expr, "1 + add(1, name + 3)")
                 .unwrap()
                 .next()
                 .unwrap(),
-        )
-        .unwrap();
+        );
 
         dbg!(&token_tree);
 
