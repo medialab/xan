@@ -1,7 +1,7 @@
 // En tant que chef, je m'engage à ce que nous ne nous fassions pas *tous* tuer.
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take},
+    bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1, anychar, char, digit1, none_of, space0},
     combinator::{all_consuming, consumed, map, map_res, not, opt, recognize, value},
     multi::{fold_many0, many0, separated_list0, separated_list1},
@@ -137,36 +137,6 @@ fn underscore_literal(input: &str) -> IResult<&str, ()> {
 
 fn null_literal(input: &str) -> IResult<&str, ()> {
     value((), tag("null"))(input)
-}
-
-fn left_bracket(input: &str) -> IResult<&str, Argument> {
-    map(tag("("), |_| Argument::OpenBracket)(input)
-}
-
-fn right_bracket(input: &str) -> IResult<&str, Argument> {
-    map(tag(")"), |_| Argument::CloseBracket)(input)
-}
-
-fn one_char_operator(input: &str) -> IResult<&str, Argument> {
-    let (rest, c) = anychar(input)?;
-
-    match c {
-        '+' => Ok((rest, Argument::Operator(Operator::Add))),
-        '*' => Ok((rest, Argument::Operator(Operator::Mul))),
-        _ => Err(nom::Err::Error(nom::error::ParseError::from_char(input, c))),
-    }
-}
-
-fn two_char_operator(input: &str) -> IResult<&str, Argument> {
-    let (rest, op) = take(2u8)(input)?;
-
-    match op {
-        "<=" => Ok((rest, Argument::Operator(Operator::Lte))),
-        _ => Err(nom::Err::Error(nom::error::ParseError::from_error_kind(
-            input,
-            nom::error::ErrorKind::Tag,
-        ))),
-    }
 }
 
 fn integer_literal<T>(input: &str) -> IResult<&str, T>
@@ -665,32 +635,6 @@ mod tests {
     #[test]
     fn test_underscore_literal() {
         assert_eq!(underscore_literal("_, 45"), Ok((", 45", ())))
-    }
-
-    #[test]
-    fn test_infix_members() {
-        assert_eq!(left_bracket("(test)"), Ok(("test)", Argument::OpenBracket)));
-        assert_eq!(
-            right_bracket(")test)"),
-            Ok(("test)", Argument::CloseBracket))
-        );
-        assert_eq!(
-            one_char_operator("*, test"),
-            Ok((", test", Argument::Operator(Operator::Mul)))
-        );
-        assert_eq!(
-            one_char_operator("+, test"),
-            Ok((", test", Argument::Operator(Operator::Add)))
-        );
-        assert_eq!(
-            two_char_operator("<= test"),
-            Ok((" test", Argument::Operator(Operator::Lte)))
-        );
-    }
-
-    #[test]
-    fn test_raw_infix_expression() {
-        dbg!(function_call("1 + 4 * (add(1 + 4, test))"));
     }
 
     #[test]

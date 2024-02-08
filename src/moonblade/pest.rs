@@ -1,4 +1,5 @@
 use pest::iterators::Pair;
+use pest::Parser;
 use pest_derive::Parser;
 use pratt::{Affix, Associativity, PrattParser, Precedence};
 
@@ -6,12 +7,35 @@ use pratt::{Affix, Associativity, PrattParser, Precedence};
 #[grammar = "moonblade/grammar.pest"]
 pub struct MoonbladePestParser;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Operator {
     Add,
+    Mul,
 }
 
-#[derive(Debug)]
+impl Operator {
+    fn as_fn_str(&self) -> &'static str {
+        match self {
+            Self::Add => "add",
+            Self::Mul => "mul",
+        }
+    }
+
+    fn to_fn_string(&self) -> String {
+        self.as_fn_str().to_string()
+    }
+
+    // NOTE: precdence taken from JavaScript
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence#table
+    fn precedence(&self) -> Affix {
+        match self {
+            Self::Mul => Affix::Infix(Precedence(12), Associativity::Left),
+            Self::Add => Affix::Infix(Precedence(11), Associativity::Left),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 enum TokenTree<'a> {
     Infix(Operator),
     Primary(Pair<'a, Rule>),
@@ -24,6 +48,7 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
         match pair.as_rule() {
             Rule::int | Rule::ident => TokenTree::Primary(pair),
             Rule::add => TokenTree::Infix(Operator::Add),
+            Rule::mul => TokenTree::Infix(Operator::Mul),
             Rule::expr => {
                 let mut pairs = pair.into_inner();
 
@@ -47,7 +72,7 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Func(String, Vec<Expr>),
     Int(i64),
@@ -66,7 +91,7 @@ where
 
     fn query(&mut self, tree: &TokenTree) -> Result<Affix, Self::Error> {
         let affix = match tree {
-            TokenTree::Infix(Operator::Add) => Affix::Infix(Precedence(2), Associativity::Left),
+            TokenTree::Infix(op) => op.precedence(),
             TokenTree::Expr(_) => Affix::Nilfix,
             TokenTree::Func(_, _) => Affix::Nilfix,
             TokenTree::Primary(_) => Affix::Nilfix,
@@ -81,12 +106,13 @@ where
                 Rule::int => {
                     let n = token
                         .as_str()
+                        .replace("_", "")
                         .parse::<i64>()
                         .or(Err("could not parse int"))?;
 
                     Expr::Int(n)
                 }
-                Rule::ident => Expr::Identifier(token.to_string()),
+                Rule::ident => Expr::Identifier(token.as_str().to_string()),
                 _ => unreachable!(),
             },
             TokenTree::Expr(group) => self.parse(&mut group.into_iter()).unwrap(),
@@ -103,10 +129,10 @@ where
     }
 
     fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
+        let args = vec![lhs, rhs];
+
         Ok(match tree {
-            TokenTree::Infix(op) => match op {
-                Operator::Add => Expr::Func("add".to_string(), vec![lhs, rhs]),
-            },
+            TokenTree::Infix(op) => Expr::Func(op.to_fn_string(), args),
             _ => unreachable!(),
         })
     }
@@ -120,23 +146,85 @@ where
     }
 }
 
+#[derive(PartialEq, Debug)]
+enum ParseError {
+    PestError(pest::error::Error<Rule>),
+    PrattError(String),
+}
+
+fn parse_expression(input: &str) -> Result<Expr, ParseError> {
+    let mut pairs = MoonbladePestParser::parse(Rule::full_expr, input)
+        .map_err(|err| ParseError::PestError(err))?;
+
+    let first_pair = pairs.next().unwrap();
+
+    let token_tree = TokenTree::from(first_pair);
+
+    MoonbladePrattParser
+        .parse(&mut vec![token_tree].into_iter())
+        .map_err(|err| ParseError::PrattError(err.to_string()))
+}
+
+#[cfg(test)]
 mod tests {
+    use super::Expr::*;
     use super::*;
-    use pest::Parser;
+
+    fn id(name: &str) -> Expr {
+        Identifier(name.to_string())
+    }
+
+    fn func(name: &str, args: Vec<Expr>) -> Expr {
+        Func(name.to_string(), args)
+    }
 
     #[test]
-    fn test_basics() {
-        let token_tree = TokenTree::from(
-            MoonbladePestParser::parse(Rule::full_expr, "1 + add(1, name + 3)")
-                .unwrap()
-                .next()
-                .unwrap(),
+    fn test_integers() {
+        assert_eq!(parse_expression("1"), Ok(Int(1)));
+        assert_eq!(parse_expression("-45"), Ok(Int(-45)));
+        assert_eq!(parse_expression("1_000"), Ok(Int(1000)));
+    }
+
+    #[test]
+    fn test_identifiers() {
+        assert_eq!(parse_expression("name"), Ok(id("name")));
+    }
+
+    #[test]
+    fn test_functions() {
+        assert_eq!(
+            parse_expression("add(count, 1)"),
+            Ok(func("add", vec![id("count"), Int(1)]))
         );
+    }
 
-        dbg!(&token_tree);
+    #[test]
+    fn test_infix() {
+        assert_eq!(
+            parse_expression("1 + 2"),
+            Ok(func("add", vec![Int(1), Int(2)]))
+        );
+    }
 
-        let expr = MoonbladePrattParser.parse(&mut vec![token_tree].into_iter());
+    #[test]
+    fn test_infix_associativity() {
+        assert_eq!(
+            parse_expression("1 + 2 * 4"),
+            Ok(func("add", vec![Int(1), func("mul", vec![Int(2), Int(4)])]))
+        );
+    }
 
-        dbg!(expr);
+    #[test]
+    fn test_expr_recursivity() {
+        assert_eq!(
+            parse_expression("1 + add(name, 3 * 4)"),
+            Ok(func(
+                "add",
+                vec![
+                    Int(1),
+                    func("add", vec![id("name"), func("mul", vec![Int(3), Int(4)])])
+                ]
+            ))
+        );
     }
 }

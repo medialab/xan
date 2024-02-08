@@ -57,6 +57,7 @@ term = _{ func | bool | null | regex | string | float | int | ident | "(" ~ expr
 
 // End-chain parsers
 full_expr      = _{ SOI ~ expr ~ EOI }
+
 expr_name      = @{ ident }
 named_expr     =  { expr ~ "as" ~ expr_name }
 opt_named_expr =  { named_expr | expr }
