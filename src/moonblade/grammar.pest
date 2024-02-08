@@ -41,22 +41,25 @@ ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
 ident      = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
 
 // Operators
-operator = _{ lte | add | sub | mul | div }
-lte      =  { "<=" }
-add      =  { "+" }
-sub      =  { "-" }
-mul      =  { "*" }
-div      =  { "/" }
+binary_operator = _{ lte | add | sub | mul | div }
+lte             =  { "<=" }
+add             =  { "+" }
+sub             =  { "-" }
+mul             =  { "*" }
+div             =  { "/" }
+
+unary_operator = _{ not }
+not            =  { "!" }
 
 // Functions
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Expressions
-expr =  { term ~ (operator ~ term)* }
+expr =  { unary_operator? ~ term ~ (binary_operator ~ term)* }
 term = _{ func | bool | null | regex | string | float | int | ident | "(" ~ expr ~ ")" }
 
 // End-chain parsers
-full_expr      = _{ SOI ~ expr ~ EOI }
+full_expr = _{ SOI ~ expr ~ EOI }
 
 expr_name      = @{ ident }
 named_expr     =  { expr ~ "as" ~ expr_name }

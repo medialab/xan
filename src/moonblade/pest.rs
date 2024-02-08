@@ -11,6 +11,7 @@ pub struct MoonbladePestParser;
 enum Operator {
     Add,
     Mul,
+    Not,
 }
 
 impl Operator {
@@ -18,6 +19,7 @@ impl Operator {
         match self {
             Self::Add => "add",
             Self::Mul => "mul",
+            Self::Not => "not",
         }
     }
 
@@ -29,6 +31,7 @@ impl Operator {
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence#table
     fn precedence(&self) -> Affix {
         match self {
+            Self::Not => Affix::Prefix(Precedence(14)),
             Self::Mul => Affix::Infix(Precedence(12), Associativity::Left),
             Self::Add => Affix::Infix(Precedence(11), Associativity::Left),
         }
@@ -49,6 +52,7 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             Rule::int | Rule::ident => TokenTree::Primary(pair),
             Rule::add => TokenTree::Infix(Operator::Add),
             Rule::mul => TokenTree::Infix(Operator::Mul),
+            Rule::not => TokenTree::Infix(Operator::Not),
             Rule::expr => {
                 let mut pairs = pair.into_inner();
 
@@ -137,8 +141,13 @@ where
         })
     }
 
-    fn prefix(&mut self, _tree: TokenTree, _rhs: Expr) -> Result<Expr, Self::Error> {
-        unreachable!()
+    fn prefix(&mut self, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
+        let args = vec![rhs];
+
+        Ok(match tree {
+            TokenTree::Infix(op) => Expr::Func(op.to_fn_string(), args),
+            _ => unreachable!(),
+        })
     }
 
     fn postfix(&mut self, _lhs: Expr, _tree: TokenTree) -> Result<Expr, Self::Error> {
@@ -224,6 +233,25 @@ mod tests {
                     Int(1),
                     func("add", vec![id("name"), func("mul", vec![Int(3), Int(4)])])
                 ]
+            ))
+        );
+    }
+
+    #[test]
+    fn test_prefix_operators() {
+        assert_eq!(parse_expression("!45"), Ok(func("not", vec![Int(45)])));
+        assert_eq!(
+            parse_expression("!add(1, 2) + 4"),
+            Ok(func(
+                "add",
+                vec![func("not", vec![func("add", vec![Int(1), Int(2)])]), Int(4)]
+            ))
+        );
+        assert_eq!(
+            parse_expression("!(add(1, 2) + 4)"),
+            Ok(func(
+                "not",
+                vec![func("add", vec![func("add", vec![Int(1), Int(2)]), Int(4)])]
             ))
         );
     }
