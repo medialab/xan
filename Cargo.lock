@@ -966,6 +966,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pratt"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17e0a4425d076f0718b820673a38fbf3747080c61017eeb0dd79bc7e472b8bb8"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1728,6 +1734,7 @@ dependencies = [
  "pariter",
  "pest",
  "pest_derive",
+ "pratt",
  "quickcheck",
  "rand 0.5.6",
  "rayon",

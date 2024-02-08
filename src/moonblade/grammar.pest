@@ -10,7 +10,7 @@ null      = { "null" }
 // Numbers
 digit        = _{ '0'..'9' }
 positive_int = _{ digit ~ (digit | "_")* }
-int          =  { "-"? ~ positive_int }
+int          = @{ "-"? ~ positive_int }
 plus         =  { "+" }
 minus        =  { "-" }
 exp          = _{ ^"e" ~ (plus | minus)? ~ int }
@@ -49,7 +49,7 @@ mul      =  { "*" }
 div      =  { "/" }
 
 // Functions
-func = { ident ~ "(" ~ (term ~ ","?)* ~ ")" }
+func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Expressions
 expr =  { term ~ (operator ~ term)* }
