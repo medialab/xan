@@ -25,17 +25,17 @@ raw_double_quoted_string = { (!("\\" | "\"") ~ ANY)+ }
 predefined = { "n" | "r" | "t" | "\\" | "\"" | "'" }
 // byte                     = { "x" ~ hex{2} }
 // unicode                  = { "u" ~ "{" ~ unicode_hex ~ "}" }
-escape               = { "\\" ~ predefined }
-single_quoted_string = { "'" ~ (raw_single_quoted_string | escape)* ~ "'" }
-double_quoted_string = { "\"" ~ (raw_double_quoted_string | escape)* ~ "\"" }
-string               = { single_quoted_string | double_quoted_string }
+escape               =  { "\\" ~ predefined }
+single_quoted_string = _{ "'" ~ (raw_single_quoted_string | escape)* ~ "'" }
+double_quoted_string = _{ "\"" ~ (raw_double_quoted_string | escape)* ~ "\"" }
+string               =  { single_quoted_string | double_quoted_string }
 
 // Regexes
 raw_regex_string       =  { (!("\\" | "/") ~ ANY)+ }
 escape_regex           =  { "\\" ~ ANY }
-case_insensitive_regex =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/i" }
-case_sensitive_regex   =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
-regex                  = _{ case_insensitive_regex | case_sensitive_regex }
+case_insensitive_regex = _{ "/" ~ (raw_regex_string | escape_regex)* ~ "/i" }
+case_sensitive_regex   = _{ "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
+regex                  =  { case_insensitive_regex | case_sensitive_regex }
 
 // Identifiers
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
@@ -73,13 +73,13 @@ term = _{
 // End-chain parsers
 full_expr = _{ SOI ~ expr ~ EOI }
 
-expr_name      = { ident | string }
-named_expr     = { expr ~ "as" ~ expr_name }
-opt_named_expr = { named_expr | expr }
-named_exprs    = { SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
+expr_name      =  { ident | string }
+named_expr     =  { expr ~ "as" ~ expr_name }
+opt_named_expr = _{ named_expr | expr }
+named_exprs    =  { SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
 
-named_func     = { func ~ "as" ~ expr_name }
-opt_named_func = { named_func | func }
-named_aggs     = { SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ EOI }
+named_func     =  { func ~ "as" ~ expr_name }
+opt_named_func = _{ named_func | func }
+named_aggs     =  { SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ EOI }
 
 pipeline = { SOI ~ expr ~ ("|" ~ expr)* ~ EOI }

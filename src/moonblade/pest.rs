@@ -51,7 +51,9 @@ enum TokenTree<'a> {
 impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     fn from(pair: Pair<'a, Rule>) -> Self {
         match pair.as_rule() {
-            Rule::int | Rule::float | Rule::ident | Rule::underscore => TokenTree::Primary(pair),
+            Rule::string | Rule::int | Rule::float | Rule::ident | Rule::underscore => {
+                TokenTree::Primary(pair)
+            }
             Rule::add => TokenTree::Infix(Operator::Add),
             Rule::mul => TokenTree::Infix(Operator::Mul),
             Rule::not => TokenTree::Infix(Operator::Not),
@@ -78,12 +80,49 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     }
 }
 
+fn build_string(pair: Pair<Rule>) -> String {
+    let mut string = String::new();
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::raw_double_quoted_string | Rule::raw_single_quoted_string => {
+                string.push_str(inner.as_str());
+            }
+            Rule::escape => {
+                let inner = inner.into_inner().next().unwrap();
+
+                match inner.as_rule() {
+                    Rule::predefined => {
+                        string.push(match inner.as_str() {
+                            "n" => '\n',
+                            "r" => '\r',
+                            "t" => '\t',
+                            "\\" => '\\',
+                            "\"" => '"',
+                            "'" => '\'',
+                            _ => unreachable!(),
+                        });
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => {
+                dbg!(inner);
+                unreachable!()
+            }
+        }
+    }
+
+    string
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Func(String, Vec<Expr>),
     Int(i64),
     Float(f64),
     Identifier(String),
+    Str(String),
     Underscore,
 }
 
@@ -129,6 +168,7 @@ where
 
                     Expr::Float(n)
                 }
+                Rule::string => Expr::Str(build_string(token)),
                 Rule::underscore => Expr::Underscore,
                 Rule::ident => Expr::Identifier(token.as_str().to_string()),
                 _ => unreachable!(),
@@ -143,6 +183,7 @@ where
             ),
             _ => unreachable!(),
         };
+
         Ok(expr)
     }
 
@@ -190,13 +231,15 @@ fn parse_expression(input: &str) -> Result<Expr, ParseError> {
 
 pub type Pipeline = Vec<Expr>;
 
-// TODO: trim, unfurl, resolve identifiers as functions
+// TODO: trim, unfurl
 
 fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
     let mut pairs = MoonbladePestParser::parse(Rule::pipeline, input)
         .map_err(|err| ParseError::PestError(err))?;
 
     let first_pair = pairs.next().unwrap();
+
+    debug_assert!(matches!(first_pair.as_rule(), Rule::pipeline));
 
     first_pair
         .into_inner()
@@ -235,6 +278,75 @@ fn optimize_pipeline(pipeline: Pipeline) -> Pipeline {
     handle_pipeline_elision(pipeline)
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Aggregation {
+    pub agg_name: String,
+    pub args: Vec<Expr>,
+    pub func_name: String,
+    pub expr_key: String,
+}
+
+pub type Aggregations = Vec<Aggregation>;
+
+fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
+    let mut pairs = MoonbladePestParser::parse(Rule::named_aggs, input)
+        .map_err(|err| ParseError::PestError(err))?;
+
+    let first_pair = pairs.next().unwrap();
+
+    debug_assert!(matches!(first_pair.as_rule(), Rule::named_aggs));
+
+    first_pair
+        .into_inner()
+        .into_iter()
+        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
+        .map(|p| {
+            let (agg_name, expr_key, p) = match p.as_rule() {
+                Rule::func => (
+                    p.as_span().as_str(),
+                    p.clone()
+                        .into_inner()
+                        .skip(1)
+                        .map(|s| s.as_span().as_str())
+                        .collect::<String>(),
+                    p,
+                ),
+                Rule::named_func => {
+                    let mut inner = p.into_inner();
+
+                    debug_assert!(inner.len() == 2);
+
+                    let func = inner.next().unwrap();
+
+                    // TODO: can be ident or string
+                    let func_name = inner.next().unwrap().into_inner();
+
+                    debug_assert!(matches!(func.as_rule(), Rule::func));
+
+                    (func.as_span().as_str(), "".to_string(), func)
+                }
+                _ => unreachable!(),
+            };
+
+            let token_tree = TokenTree::from(p);
+
+            let expr = MoonbladePrattParser
+                .parse(&mut vec![token_tree].into_iter())
+                .map_err(|err| ParseError::PrattError(err.to_string()))?;
+
+            match expr {
+                Expr::Func(name, args) => Ok(Aggregation {
+                    agg_name: agg_name.to_string(),
+                    args,
+                    func_name: name.to_string(),
+                    expr_key: expr_key.to_string(),
+                }),
+                _ => unreachable!(),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::Expr::*;
@@ -246,6 +358,10 @@ mod tests {
 
     fn func(name: &str, args: Vec<Expr>) -> Expr {
         Func(name.to_string(), args)
+    }
+
+    fn s(string: &str) -> Expr {
+        Str(string.to_string())
     }
 
     #[test]
@@ -265,6 +381,14 @@ mod tests {
     #[test]
     fn test_identifiers() {
         assert_eq!(parse_expression("name"), Ok(id("name")));
+    }
+
+    #[test]
+    fn test_strings() {
+        assert_eq!(parse_expression("\"test\""), Ok(s("test")));
+        assert_eq!(parse_expression("'test'"), Ok(s("test")));
+        assert_eq!(parse_expression(r"'\n\r\t\\\''"), Ok(s("\n\r\t\\'")));
+        assert_eq!(parse_expression(r#""\n\r\t\\\"""#), Ok(s("\n\r\t\\\"")));
     }
 
     #[test]
@@ -345,6 +469,22 @@ mod tests {
                 func("inc", vec![id("count")]),
                 func("len", vec![Expr::Underscore])
             ])
+        );
+    }
+
+    #[test]
+    fn test_aggregations() {
+        assert_eq!(
+            parse_aggregations("count(add(A, B) + 1)"),
+            Ok(vec![Aggregation {
+                agg_name: "count(add(A, B) + 1)".to_string(),
+                func_name: "count".to_string(),
+                expr_key: "add(A, B) + 1".to_string(),
+                args: vec![func(
+                    "add",
+                    vec![func("add", vec![id("A"), id("B")]), Int(1)]
+                ),]
+            }])
         );
     }
 }
