@@ -353,6 +353,7 @@ pub fn concretize_argument(
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Argument::Call(call) => concretize_call(call, headers)?,
+        Argument::Operator(_) | Argument::OpenBracket | Argument::CloseBracket => unreachable!(),
     })
 }
 

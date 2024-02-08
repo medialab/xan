@@ -14,6 +14,13 @@ use super::functions::get_function;
 use super::utils::downgrade_float;
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Operator {
+    Add,
+    Mul,
+    Lte,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Argument {
     Identifier(String),
     SpecialIdentifier(String),
@@ -23,6 +30,9 @@ pub enum Argument {
     BooleanLiteral(bool),
     RegexLiteral(String),
     Call(FunctionCall),
+    Operator(Operator),
+    OpenBracket,
+    CloseBracket,
     Underscore,
     Null,
 }
@@ -102,21 +112,6 @@ impl FunctionCall {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum InfixOperator {
-    Add,
-    Mul,
-    Lte,
-}
-
-#[derive(Debug, PartialEq)]
-enum InfixExpressionMember {
-    Operand(Argument),
-    Operator(InfixOperator),
-    OpenBracket,
-    CloseBracket,
-}
-
 pub type Pipeline = Vec<Argument>;
 pub type Aggregations = Vec<Aggregation>;
 
@@ -144,29 +139,29 @@ fn null_literal(input: &str) -> IResult<&str, ()> {
     value((), tag("null"))(input)
 }
 
-fn left_bracket(input: &str) -> IResult<&str, InfixExpressionMember> {
-    map(tag("("), |_| InfixExpressionMember::OpenBracket)(input)
+fn left_bracket(input: &str) -> IResult<&str, Argument> {
+    map(tag("("), |_| Argument::OpenBracket)(input)
 }
 
-fn right_bracket(input: &str) -> IResult<&str, InfixExpressionMember> {
-    map(tag(")"), |_| InfixExpressionMember::CloseBracket)(input)
+fn right_bracket(input: &str) -> IResult<&str, Argument> {
+    map(tag(")"), |_| Argument::CloseBracket)(input)
 }
 
-fn one_char_operator(input: &str) -> IResult<&str, InfixExpressionMember> {
+fn one_char_operator(input: &str) -> IResult<&str, Argument> {
     let (rest, c) = anychar(input)?;
 
     match c {
-        '+' => Ok((rest, InfixExpressionMember::Operator(InfixOperator::Add))),
-        '*' => Ok((rest, InfixExpressionMember::Operator(InfixOperator::Mul))),
+        '+' => Ok((rest, Argument::Operator(Operator::Add))),
+        '*' => Ok((rest, Argument::Operator(Operator::Mul))),
         _ => Err(nom::Err::Error(nom::error::ParseError::from_char(input, c))),
     }
 }
 
-fn two_char_operator(input: &str) -> IResult<&str, InfixExpressionMember> {
+fn two_char_operator(input: &str) -> IResult<&str, Argument> {
     let (rest, op) = take(2u8)(input)?;
 
     match op {
-        "<=" => Ok((rest, InfixExpressionMember::Operator(InfixOperator::Lte))),
+        "<=" => Ok((rest, Argument::Operator(Operator::Lte))),
         _ => Err(nom::Err::Error(nom::error::ParseError::from_error_kind(
             input,
             nom::error::ErrorKind::Tag,
@@ -359,20 +354,6 @@ fn argument(input: &str) -> IResult<&str, Argument> {
     map(argument_with_parsed, |arg| arg.1)(input)
 }
 
-fn infix_expression(input: &str) -> IResult<&str, Vec<InfixExpressionMember>> {
-    many0(delimited(
-        space0,
-        alt((
-            two_char_operator,
-            one_char_operator,
-            map(argument, |arg| InfixExpressionMember::Operand(arg)),
-            left_bracket,
-            right_bracket,
-        )),
-        space0,
-    ))(input)
-}
-
 fn argument_list_with_parsed(input: &str) -> IResult<&str, Vec<(&str, Argument)>> {
     separated_list0(comma_separator, argument_with_parsed)(input)
 }
@@ -381,23 +362,38 @@ fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
     separated_list0(comma_separator, argument)(input)
 }
 
-fn function_call(input: &str) -> IResult<&str, Argument> {
+fn empty_function_call(input: &str) -> IResult<&str, Argument> {
     map(
-        pair(
-            identifier,
-            delimited(
-                pair(space0, char('(')),
-                argument_list,
-                pair(char(')'), space0),
-            ),
-        ),
-        |(name, args)| {
+        pair(identifier, delimited(char('('), space0, char(')'))),
+        |(name, _)| {
             Argument::Call(FunctionCall {
                 name: name.to_lowercase(),
-                args,
+                args: Vec::new(),
             })
         },
     )(input)
+}
+
+fn function_call(input: &str) -> IResult<&str, Argument> {
+    alt((
+        empty_function_call,
+        map(
+            pair(
+                identifier,
+                delimited(
+                    pair(space0, char('(')),
+                    argument_list,
+                    pair(char(')'), space0),
+                ),
+            ),
+            |(name, args)| {
+                Argument::Call(FunctionCall {
+                    name: name.to_lowercase(),
+                    args,
+                })
+            },
+        ),
+    ))(input)
 }
 
 fn function_call_or_literal_or_identifier(input: &str) -> IResult<&str, Argument> {
@@ -411,6 +407,7 @@ fn function_call_or_literal_or_identifier(input: &str) -> IResult<&str, Argument
 fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
     alt((
         literal,
+        empty_function_call,
         map(
             pair(
                 identifier,
@@ -672,37 +669,28 @@ mod tests {
 
     #[test]
     fn test_infix_members() {
-        assert_eq!(
-            left_bracket("(test)"),
-            Ok(("test)", InfixExpressionMember::OpenBracket))
-        );
+        assert_eq!(left_bracket("(test)"), Ok(("test)", Argument::OpenBracket)));
         assert_eq!(
             right_bracket(")test)"),
-            Ok(("test)", InfixExpressionMember::CloseBracket))
+            Ok(("test)", Argument::CloseBracket))
         );
         assert_eq!(
             one_char_operator("*, test"),
-            Ok((
-                ", test",
-                InfixExpressionMember::Operator(InfixOperator::Mul)
-            ))
+            Ok((", test", Argument::Operator(Operator::Mul)))
         );
         assert_eq!(
             one_char_operator("+, test"),
-            Ok((
-                ", test",
-                InfixExpressionMember::Operator(InfixOperator::Add)
-            ))
+            Ok((", test", Argument::Operator(Operator::Add)))
         );
         assert_eq!(
             two_char_operator("<= test"),
-            Ok((" test", InfixExpressionMember::Operator(InfixOperator::Lte)))
+            Ok((" test", Argument::Operator(Operator::Lte)))
         );
     }
 
     #[test]
-    fn test_infix_expression() {
-        dbg!(infix_expression("a + b * (add(A, (e + 1) * 4))").unwrap());
+    fn test_raw_infix_expression() {
+        dbg!(function_call("1 + 4 * (add(1 + 4, test))"));
     }
 
     #[test]
@@ -748,6 +736,17 @@ mod tests {
     fn test_function_call() {
         assert_eq!(
             possibly_elided_function_call("trim()"),
+            Ok((
+                "",
+                Argument::Call(FunctionCall {
+                    name: String::from("trim"),
+                    args: vec![]
+                })
+            ))
+        );
+
+        assert_eq!(
+            possibly_elided_function_call("trim(    )"),
             Ok((
                 "",
                 Argument::Call(FunctionCall {
