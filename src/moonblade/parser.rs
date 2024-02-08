@@ -311,25 +311,12 @@ fn regex_literal(input: &str) -> IResult<&str, String> {
 fn identifier(input: &str) -> IResult<&str, &str> {
     recognize(pair(
         alpha1,
-        many0(alt((alphanumeric1, tag("_"), tag("-"), tag(" ")))),
+        many0(alt((alphanumeric1, tag("_"), tag("-")))),
     ))(input)
 }
 
 fn special_identifier(input: &str) -> IResult<&str, &str> {
-    preceded(
-        char('%'),
-        recognize(pair(
-            alpha1,
-            many0(alt((alphanumeric1, tag("_"), tag("-"), tag(" ")))),
-        )),
-    )(input)
-}
-
-fn restricted_identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
-        alpha1,
-        many0(alt((alphanumeric1, tag("_"), tag("-")))),
-    ))(input)
+    preceded(char('%'), identifier)(input)
 }
 
 fn comma_separator(input: &str) -> IResult<&str, ()> {
@@ -397,7 +384,7 @@ fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
 fn function_call(input: &str) -> IResult<&str, Argument> {
     map(
         pair(
-            restricted_identifier,
+            identifier,
             delimited(
                 pair(space0, char('(')),
                 argument_list,
@@ -417,9 +404,7 @@ fn function_call_or_literal_or_identifier(input: &str) -> IResult<&str, Argument
     alt((
         function_call,
         literal,
-        map(restricted_identifier, |name| {
-            Argument::Identifier(name.to_string())
-        }),
+        map(identifier, |name| Argument::Identifier(name.to_string())),
     ))(input)
 }
 
@@ -428,7 +413,7 @@ fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
         literal,
         map(
             pair(
-                restricted_identifier,
+                identifier,
                 opt(delimited(
                     pair(space0, char('(')),
                     argument_list,
@@ -528,17 +513,14 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
 fn as_suffix(input: &str) -> IResult<&str, String> {
     preceded(
         tuple((space0, tag("as"), space0)),
-        alt((
-            string_literal,
-            map(restricted_identifier, |id| id.to_string()),
-        )),
+        alt((string_literal, map(identifier, |id| id.to_string()))),
     )(input)
 }
 
 fn aggregation(input: &str) -> IResult<&str, Aggregation> {
     map(
         tuple((
-            restricted_identifier,
+            identifier,
             consumed(delimited(
                 pair(space0, char('(')),
                 argument_list_with_parsed,
@@ -725,13 +707,10 @@ mod tests {
 
     #[test]
     fn test_identifier() {
+        assert_eq!(identifier("input, test"), Ok((", test", "input")));
         assert_eq!(
-            restricted_identifier("input, test"),
-            Ok((", test", "input"))
-        );
-        assert_eq!(
-            identifier("PREFIXES AS URL, test"),
-            Ok((", test", "PREFIXES AS URL"))
+            identifier("PREFIXES_AS_URL, test"),
+            Ok((", test", "PREFIXES_AS_URL"))
         );
         assert_eq!(special_identifier("%index, ok"), Ok((", ok", "index")));
     }

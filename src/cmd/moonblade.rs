@@ -22,11 +22,8 @@ available functions):
   . Indexing a column by name:
         'trim(col)'
 
-  . Indexing a column by name even with spaces:
-        'trim(Name of film)'
-
-  . Indexing column with characters forbidden in identifies (e.g. commas):
-        'trim(col(\"Name, of film\"))'
+  . Indexing column with forbidden characters (e.g. spaces, commas etc.):
+        'trim(col(\"Name of film\"))'
 
   . Indexing column by index (0-based):
         'trim(col(2))'
