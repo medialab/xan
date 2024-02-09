@@ -63,14 +63,14 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
                 if pairs.len() == 1 {
                     Self::from(pairs.next().unwrap())
                 } else {
-                    TokenTree::Expr(pairs.map(|p| Self::from(p)).collect())
+                    TokenTree::Expr(pairs.map(Self::from).collect())
                 }
             }
             Rule::func => {
                 let mut pairs = pair.into_inner();
                 let func_name = pairs.next().unwrap().as_str().to_string();
 
-                TokenTree::Func(func_name, pairs.map(|p| Self::from(p)).collect())
+                TokenTree::Func(func_name, pairs.map(Self::from).collect())
             }
             _ => {
                 dbg!(&pair);
@@ -153,7 +153,7 @@ where
                 Rule::int => {
                     let n = token
                         .as_str()
-                        .replace("_", "")
+                        .replace('_', "")
                         .parse::<i64>()
                         .or(Err("could not parse int"))?;
 
@@ -162,7 +162,7 @@ where
                 Rule::float => {
                     let n = token
                         .as_str()
-                        .replace("_", "")
+                        .replace('_', "")
                         .parse::<f64>()
                         .or(Err("could not parse float"))?;
 
@@ -212,13 +212,19 @@ where
 
 #[derive(PartialEq, Debug)]
 enum ParseError {
-    PestError(pest::error::Error<Rule>),
+    PestError(Box<pest::error::Error<Rule>>),
     PrattError(String),
 }
 
+impl ParseError {
+    fn from_pest_error(error: pest::error::Error<Rule>) -> Self {
+        Self::PestError(Box::new(error))
+    }
+}
+
 fn parse_expression(input: &str) -> Result<Expr, ParseError> {
-    let mut pairs = MoonbladePestParser::parse(Rule::full_expr, input)
-        .map_err(|err| ParseError::PestError(err))?;
+    let mut pairs =
+        MoonbladePestParser::parse(Rule::full_expr, input).map_err(ParseError::from_pest_error)?;
 
     let first_pair = pairs.next().unwrap();
 
@@ -234,8 +240,8 @@ pub type Pipeline = Vec<Expr>;
 // TODO: trim, unfurl
 
 fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
-    let mut pairs = MoonbladePestParser::parse(Rule::pipeline, input)
-        .map_err(|err| ParseError::PestError(err))?;
+    let mut pairs =
+        MoonbladePestParser::parse(Rule::pipeline, input).map_err(ParseError::from_pest_error)?;
 
     let first_pair = pairs.next().unwrap();
 
@@ -243,7 +249,6 @@ fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
 
     first_pair
         .into_inner()
-        .into_iter()
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
         .map(|p| {
             let token_tree = TokenTree::from(p);
@@ -263,7 +268,7 @@ fn handle_pipeline_elision(pipeline: Pipeline) -> Pipeline {
             if i == 0 {
                 expr
             } else if let Expr::Identifier(ref name) = expr {
-                match get_function(&name) {
+                match get_function(name) {
                     None => expr,
                     Some(_) => Expr::Func(name.to_string(), vec![Expr::Underscore]),
                 }
@@ -289,8 +294,8 @@ pub struct Aggregation {
 pub type Aggregations = Vec<Aggregation>;
 
 fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
-    let mut pairs = MoonbladePestParser::parse(Rule::named_aggs, input)
-        .map_err(|err| ParseError::PestError(err))?;
+    let mut pairs =
+        MoonbladePestParser::parse(Rule::named_aggs, input).map_err(ParseError::from_pest_error)?;
 
     let first_pair = pairs.next().unwrap();
 
@@ -298,12 +303,11 @@ fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 
     first_pair
         .into_inner()
-        .into_iter()
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
         .map(|p| {
             let (agg_name, expr_key, p) = match p.as_rule() {
                 Rule::func => (
-                    p.as_span().as_str(),
+                    p.as_span().as_str().to_string(),
                     p.clone()
                         .into_inner()
                         .skip(1)
@@ -318,12 +322,28 @@ fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 
                     let func = inner.next().unwrap();
 
-                    // TODO: can be ident or string
-                    let func_name = inner.next().unwrap().into_inner();
+                    let expr_name = inner.next().unwrap();
+                    debug_assert!(matches!(expr_name.as_rule(), Rule::expr_name));
+
+                    let expr_name_inner = expr_name.into_inner().next().unwrap();
+
+                    let name = match expr_name_inner.as_rule() {
+                        Rule::ident => expr_name_inner.as_str().to_string(),
+                        Rule::string => build_string(expr_name_inner),
+                        _ => unreachable!(),
+                    };
 
                     debug_assert!(matches!(func.as_rule(), Rule::func));
 
-                    (func.as_span().as_str(), "".to_string(), func)
+                    (
+                        name,
+                        func.clone()
+                            .into_inner()
+                            .skip(1)
+                            .map(|s| s.as_span().as_str())
+                            .collect::<String>(),
+                        func,
+                    )
                 }
                 _ => unreachable!(),
             };
@@ -336,10 +356,10 @@ fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 
             match expr {
                 Expr::Func(name, args) => Ok(Aggregation {
-                    agg_name: agg_name.to_string(),
+                    agg_name,
                     args,
-                    func_name: name.to_string(),
-                    expr_key: expr_key.to_string(),
+                    func_name: name,
+                    expr_key,
                 }),
                 _ => unreachable!(),
             }
@@ -485,6 +505,24 @@ mod tests {
                     vec![func("add", vec![id("A"), id("B")]), Int(1)]
                 ),]
             }])
+        );
+
+        assert_eq!(
+            parse_aggregations("count(a) as c, sum(b) as \"Sum\""),
+            Ok(vec![
+                Aggregation {
+                    agg_name: "c".to_string(),
+                    func_name: "count".to_string(),
+                    expr_key: "a".to_string(),
+                    args: vec![id("a")]
+                },
+                Aggregation {
+                    agg_name: "Sum".to_string(),
+                    func_name: "sum".to_string(),
+                    expr_key: "b".to_string(),
+                    args: vec![id("b")]
+                }
+            ])
         );
     }
 }

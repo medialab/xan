@@ -624,7 +624,7 @@ impl CompositeAggregator {
     }
 
     fn process_value(&mut self, value_opt: Option<DynamicValue>) -> Result<(), CallError> {
-        let value_opt = value_opt.map(|v| Rc::new(v));
+        let value_opt = value_opt.map(Rc::new);
 
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
