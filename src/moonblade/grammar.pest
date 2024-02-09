@@ -11,7 +11,7 @@ underscore =  { "_" }
 // Numbers
 digit        = _{ '0'..'9' }
 positive_int = _{ digit ~ (digit | "_")* }
-int          = @{ "-"? ~ positive_int }
+int          = @{ positive_int }
 plus         =  { "+" }
 minus        =  { "-" }
 exp          = _{ ^"e" ~ (plus | minus)? ~ int }
@@ -101,8 +101,9 @@ or  = { "||" | "or" }
 in_op  = { "in" }
 not_in = { "not in" }
 
-unary_operator = _{ not }
+unary_operator = _{ not | neg }
 not            =  { "!" }
+neg            =  { "-" }
 
 // Functions
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }

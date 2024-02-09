@@ -39,6 +39,7 @@ enum Operator {
     In,
     NotIn,
     Not,
+    Neg,
 }
 
 impl Operator {
@@ -67,6 +68,7 @@ impl Operator {
             Self::And => "and",
             Self::Or => "or",
             Self::Not => "not",
+            Self::Neg => "neg",
 
             // NOTE: In & NotIn are not covered by this match
             // because lhs and rhs are reversed.
@@ -83,7 +85,7 @@ impl Operator {
     // https://docs.python.org/3/reference/expressions.html
     fn precedence(&self) -> Affix {
         match self {
-            Self::Not => Affix::Prefix(Precedence(14)),
+            Self::Not | Self::Neg => Affix::Prefix(Precedence(14)),
             Self::Pow => Affix::Infix(Precedence(13), Associativity::Right),
             Self::Mul | Self::Div | Self::IDiv | Self::Mod => {
                 Affix::Infix(Precedence(12), Associativity::Left)
@@ -157,7 +159,9 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             Rule::or => TokenTree::Infix(Operator::Or),
             Rule::in_op => TokenTree::Infix(Operator::In),
             Rule::not_in => TokenTree::Infix(Operator::NotIn),
+
             Rule::not => TokenTree::Infix(Operator::Not),
+            Rule::neg => TokenTree::Infix(Operator::Neg),
 
             Rule::expr => {
                 let mut pairs = pair.into_inner();
@@ -290,6 +294,22 @@ pub enum Expr {
 }
 
 impl Expr {
+    pub fn simplify(&mut self) {
+        if let Self::Func(call) = self {
+            if call.name == "neg" && call.args.len() == 1 {
+                match call.args[0] {
+                    Self::Int(n) => *self = Self::Int(-n),
+                    Self::Float(n) => *self = Self::Float(-n),
+                    _ => (),
+                }
+            } else {
+                for arg in call.args.iter_mut() {
+                    arg.simplify();
+                }
+            }
+        }
+    }
+
     pub fn has_underscore(&self) -> bool {
         match self {
             Self::Func(call) => call.has_underscore(),
@@ -440,6 +460,16 @@ impl ParseError {
     }
 }
 
+fn apply_pratt_parser(token_tree: TokenTree) -> Result<Expr, ParseError> {
+    match MoonbladePrattParser.parse(&mut vec![token_tree].into_iter()) {
+        Err(err) => Err(ParseError::PrattError(err.to_string())),
+        Ok(mut expr) => {
+            expr.simplify();
+            Ok(expr)
+        }
+    }
+}
+
 #[cfg(test)]
 fn parse_expression(input: &str) -> Result<Expr, ParseError> {
     let mut pairs =
@@ -449,9 +479,7 @@ fn parse_expression(input: &str) -> Result<Expr, ParseError> {
 
     let token_tree = TokenTree::from(first_pair);
 
-    MoonbladePrattParser
-        .parse(&mut vec![token_tree].into_iter())
-        .map_err(|err| ParseError::PrattError(err.to_string()))
+    apply_pratt_parser(token_tree)
 }
 
 pub type Pipeline = Vec<Expr>;
@@ -472,9 +500,7 @@ fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
         .map(|p| {
             let token_tree = TokenTree::from(p);
 
-            MoonbladePrattParser
-                .parse(&mut vec![token_tree].into_iter())
-                .map_err(|err| ParseError::PrattError(err.to_string()))
+            apply_pratt_parser(token_tree)
         })
         .collect()
 }
@@ -627,9 +653,7 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 
             let token_tree = TokenTree::from(p);
 
-            let expr = MoonbladePrattParser
-                .parse(&mut vec![token_tree].into_iter())
-                .map_err(|err| ParseError::PrattError(err.to_string()))?;
+            let expr = apply_pratt_parser(token_tree)?;
 
             match expr {
                 Expr::Func(call) => Ok(Aggregation {
@@ -773,6 +797,7 @@ mod tests {
 
     #[test]
     fn test_prefix_operators() {
+        assert_eq!(parse_expression("-name"), Ok(func("neg", vec![id("name")])));
         assert_eq!(parse_expression("!45"), Ok(func("not", vec![Int(45)])));
         assert_eq!(
             parse_expression("!add(1, 2) + 4"),

@@ -60,7 +60,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
 
         for h in headers.iter() {
-            counts.entry(&h).and_modify(|c| *c += 1).or_insert(1);
+            counts.entry(h).and_modify(|c| *c += 1).or_insert(1);
         }
 
         counts
