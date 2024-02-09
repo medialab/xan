@@ -1,3 +1,7 @@
+use std::collections::BTreeMap;
+
+use colored::Colorize;
+
 use config::Delimiter;
 use util;
 use CliResult;
@@ -52,6 +56,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    let duplicate_headers: Vec<String> = {
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+
+        for h in headers.iter() {
+            counts.entry(&h).and_modify(|c| *c += 1).or_insert(1);
+        }
+
+        counts
+            .into_iter()
+            .filter_map(|(h, c)| if c > 1 { Some(h.to_string()) } else { None })
+            .collect()
+    };
+
     let left_column_size = headers.len().saturating_sub(1).to_string().len().max(4);
 
     for (i, header) in headers.into_iter().enumerate() {
@@ -61,7 +78,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 util::unicode_aware_rpad(&i.to_string(), left_column_size, " ")
             );
         }
-        println!("{}", &header);
+
+        println!(
+            "{}",
+            if duplicate_headers.contains(&header) {
+                header.red().bold()
+            } else {
+                header.normal()
+            }
+        );
     }
 
     Ok(())
