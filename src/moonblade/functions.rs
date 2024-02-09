@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::cmp::{Ordering, PartialOrd};
 use std::fs::{self, File};
 use std::io::Read;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -92,6 +92,10 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "ltrim" => (ltrim, Arity::Range(1..=2)),
         "lower" => (lower, Arity::Strict(1)),
         "md5" => (md5, Arity::Strict(1)),
+        "mod" => (
+            |args| binary_arithmetic_op(args, Rem::rem),
+            Arity::Strict(2),
+        ),
         "mul" => (|args| variadic_arithmetic_op(args, Mul::mul), Arity::Min(2)),
         "neg" => (|args| unary_arithmetic_op(args, Neg::neg), Arity::Strict(1)),
         "neq" => (
@@ -101,6 +105,10 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "not" => (not, Arity::Strict(1)),
         "or" => (or, Arity::Min(2)),
         "pathjoin" => (pathjoin, Arity::Min(1)),
+        "pow" => (
+            |args| binary_arithmetic_op(args, DynamicNumber::pow),
+            Arity::Strict(2),
+        ),
         "read" => (read, Arity::Range(1..=3)),
         "replace" => (replace, Arity::Strict(3)),
         "round" => (
@@ -589,6 +597,15 @@ where
     F: Fn(DynamicNumber) -> DynamicNumber,
 {
     Ok(DynamicValue::from(op(args.pop1_number()?)))
+}
+
+fn binary_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let (n1, n2) = args.get2_number()?;
+
+    Ok(DynamicValue::from(op(n1, n2)))
 }
 
 // Utilities

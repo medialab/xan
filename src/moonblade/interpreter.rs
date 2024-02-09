@@ -859,4 +859,14 @@ mod tests {
             Ok(DynamicValue::from("098f6bcd4621d373cade4e832627b4f6"))
         );
     }
+
+    #[test]
+    fn test_pow() {
+        assert_eq!(eval_code("pow(2, 4)"), Ok(DynamicValue::from(16)));
+    }
+
+    #[test]
+    fn test_mod() {
+        assert_eq!(eval_code("mod(8, 2)"), Ok(DynamicValue::from(0)));
+    }
 }

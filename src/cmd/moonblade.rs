@@ -129,11 +129,17 @@ pub fn get_moonblade_functions_help() -> &'static str {
     - log(x) -> number
         Return the natural logarithm of x.
 
+    - mod(x, y) -> number
+        Return the remainder of x divided by y.
+
     - mul(x, y, *n) -> number
         Multiply two or more numbers.
 
-    - neg(x) -> Number
+    - neg(x) -> number
         Return -x.
+
+    - pow(x, y) -> number
+        Raise x to the power of y.
 
     - round(x) -> number
         Return x rounded to the nearest integer.

@@ -4,7 +4,7 @@ use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::convert::From;
-use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 
 use csv::ByteRecord;
 use regex::Regex;
@@ -251,6 +251,31 @@ impl DynamicNumber {
         })
     }
 
+    pub fn pow(self, rhs: Self) -> Self {
+        match rhs {
+            Self::Integer(e) => match self {
+                Self::Integer(n) => {
+                    if e >= 0 && e <= u32::MAX as i64 {
+                        DynamicNumber::Integer(n.pow(e as u32))
+                    } else {
+                        DynamicNumber::Float((n as f64).powf(e as f64))
+                    }
+                }
+                Self::Float(n) => {
+                    if e >= i32::MIN as i64 && e <= i32::MAX as i64 {
+                        DynamicNumber::Float(n.powi(e as i32))
+                    } else {
+                        DynamicNumber::Float(n.powf(e as f64))
+                    }
+                }
+            },
+            Self::Float(e) => match self {
+                DynamicNumber::Integer(n) => DynamicNumber::Float((n as f64).powf(e)),
+                DynamicNumber::Float(n) => DynamicNumber::Float(n.powf(e)),
+            },
+        }
+    }
+
     pub fn map_float<F>(self, callback: F) -> Self
     where
         F: Fn(f64) -> f64,
@@ -361,6 +386,14 @@ impl Neg for DynamicNumber {
             Self::Float(v) => DynamicNumber::Float(-v),
             Self::Integer(v) => DynamicNumber::Integer(-v),
         }
+    }
+}
+
+impl Rem for DynamicNumber {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        apply_op(self, rhs, Rem::<i64>::rem, Rem::<f64>::rem)
     }
 }
 
@@ -992,6 +1025,14 @@ mod tests {
         assert_eq!(
             DynamicNumber::Integer(100).sqrt(),
             DynamicNumber::Integer(10)
+        );
+    }
+
+    #[test]
+    fn test_dynamic_number_pow() {
+        assert_eq!(
+            DynamicNumber::Integer(2).pow(DynamicNumber::Integer(2)),
+            DynamicNumber::Integer(4)
         );
     }
 }
