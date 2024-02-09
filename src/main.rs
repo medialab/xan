@@ -16,6 +16,8 @@ extern crate ext_sort;
 extern crate filetime;
 extern crate flate2;
 extern crate glob;
+extern crate rand_chacha;
+extern crate rand_seeder;
 #[macro_use]
 extern crate lazy_static;
 extern crate num_cpus;

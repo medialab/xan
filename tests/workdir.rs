@@ -97,7 +97,7 @@ impl Workdir {
     }
 
     pub fn output(&self, cmd: &mut process::Command) -> process::Output {
-        debug!("[{}]: {:?}", self.dir.display(), cmd);
+        dbg!("[{}]: {:?}", self.dir.display(), &cmd);
         println!("[{}]: {:?}", self.dir.display(), cmd);
         let o = cmd.output().unwrap();
         if !o.status.success() {

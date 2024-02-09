@@ -1,5 +1,5 @@
 use csv;
-use rand::Rng;
+use rand::seq::SliceRandom;
 use std::io::SeekFrom;
 
 use config::{Config, Delimiter};
@@ -81,7 +81,7 @@ fn run_random_access(args: Args) -> CliResult<()> {
             last_pos = pos;
         }
 
-        rng.shuffle(&mut positions);
+        positions.shuffle(&mut rng);
     }
 
     let mut input_rdr = rconf.io_reader_for_random_access()?;
@@ -127,7 +127,7 @@ fn run_in_memory(args: Args) -> CliResult<()> {
         rows.push(record.unwrap());
     }
 
-    rng.shuffle(&mut rows);
+    rows.shuffle(&mut rng);
 
     for record in rows {
         wtr.write_byte_record(&record)?;

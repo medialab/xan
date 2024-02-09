@@ -1,6 +1,7 @@
 use std::io;
 
 use csv;
+use rand::seq::SliceRandom;
 use rand::Rng;
 
 use config::{Config, Delimiter};
@@ -91,8 +92,8 @@ where
     I: io::Read + io::Seek,
 {
     let mut all_indices = (0..idx.count()).collect::<Vec<_>>();
-    let mut rng = ::rand::thread_rng();
-    rng.shuffle(&mut all_indices);
+    let mut rng = rand::thread_rng();
+    all_indices.shuffle(&mut rng);
 
     let mut sampled = Vec::with_capacity(sample_size as usize);
     for i in all_indices.into_iter().take(sample_size as usize) {
@@ -120,7 +121,7 @@ fn sample_reservoir<R: io::Read>(
 
     // Now do the sampling.
     for (i, row) in records {
-        let random = rng.gen_range(0, i + 1);
+        let random = rng.gen_range(0..i + 1);
         if random < sample_size as usize {
             reservoir[random] = row?;
         }

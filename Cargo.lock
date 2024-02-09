@@ -950,6 +950,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ppv-lite86"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
+
+[[package]]
 name = "pratt"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -976,12 +982,11 @@ dependencies = [
 
 [[package]]
 name = "quickcheck"
-version = "0.7.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4537d3e4edf73a15dd059b75bed1c292d17d3ea7517f583cebe716794fcf816"
+checksum = "588f6378e4dd99458b60ec275b4477add41ce4fa9f64dcba6f15adccb19b50d6"
 dependencies = [
- "rand 0.5.6",
- "rand_core 0.2.2",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -1012,16 +1017,19 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
+ "libc",
+ "rand_chacha",
  "rand_core 0.6.4",
 ]
 
 [[package]]
-name = "rand_core"
-version = "0.2.2"
+name = "rand_chacha"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1961a422c4d189dfb50ffa9320bf1f2a9bd54ecb92792fb9477f99a1045f3372"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
- "rand_core 0.3.1",
+ "ppv-lite86",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -1044,6 +1052,18 @@ name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+dependencies = [
+ "getrandom",
+]
+
+[[package]]
+name = "rand_seeder"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf2890aaef0aa82719a50e808de264f9484b74b442e1a3a0e5ee38243ac40bdb"
+dependencies = [
+ "rand_core 0.6.4",
+]
 
 [[package]]
 name = "rayon"
@@ -1709,7 +1729,6 @@ dependencies = [
  "flate2",
  "glob",
  "lazy_static",
- "log",
  "md5",
  "num_cpus",
  "numfmt",
@@ -1719,7 +1738,9 @@ dependencies = [
  "pest_derive",
  "pratt",
  "quickcheck",
- "rand 0.5.6",
+ "rand 0.8.5",
+ "rand_chacha",
+ "rand_seeder",
  "rayon",
  "regex",
  "serde",

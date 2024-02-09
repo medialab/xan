@@ -7,7 +7,6 @@ use std::str;
 use std::thread;
 use std::time;
 
-use byteorder::{ByteOrder, LittleEndian};
 use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use colored::{Color, ColoredString, Colorize, Styles};
@@ -16,7 +15,9 @@ use dateparser::parse_with_timezone;
 use docopt::Docopt;
 use num_cpus;
 use numfmt::{Formatter, Numeric, Precision};
-use rand::{SeedableRng, StdRng};
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+use rand_seeder::Seeder;
 use serde::de::{Deserialize, DeserializeOwned, Deserializer, Error};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -260,14 +261,10 @@ impl<'de> Deserialize<'de> for FilenameTemplate {
     }
 }
 
-pub fn acquire_rng(seed: Option<usize>) -> StdRng {
+pub fn acquire_rng(seed: Option<usize>) -> impl Rng {
     match seed {
-        None => StdRng::from_rng(rand::thread_rng()).unwrap(),
-        Some(seed) => {
-            let mut buf = [0u8; 32];
-            LittleEndian::write_u64(&mut buf, seed as u64);
-            SeedableRng::from_seed(buf)
-        }
+        None => Seeder::from(rand::thread_rng().gen::<usize>()).make_rng::<ChaCha8Rng>(),
+        Some(seed) => Seeder::from(seed).make_rng::<ChaCha8Rng>(),
     }
 }
 
