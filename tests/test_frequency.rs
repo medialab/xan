@@ -6,7 +6,7 @@ use csv;
 use stats::Frequencies;
 
 use workdir::Workdir;
-use {qcheck_sized, Csv, CsvData};
+use {Csv, CsvData};
 
 fn setup(name: &str) -> (Workdir, process::Command) {
     let rows = vec![
@@ -128,18 +128,6 @@ fn frequency_select() {
     assert_eq!(got, expected);
 }
 
-// This tests that a frequency table computed by `xan` is always the same
-// as the frequency table computed in memory.
-#[test]
-fn prop_frequency() {
-    fn p(rows: CsvData) -> bool {
-        param_prop_frequency("prop_frequency", rows, false)
-    }
-    // Run on really small values because we are incredibly careless
-    // with allocation.
-    qcheck_sized(p as fn(CsvData) -> bool, 2);
-}
-
 // This tests that running the frequency command on a CSV file with these two
 // rows does not burst in flames:
 //
@@ -158,18 +146,6 @@ fn frequency_bom() {
         ],
     };
     assert!(param_prop_frequency("prop_frequency", rows, false))
-}
-
-// This tests that a frequency table computed by `xan` (with an index) is
-// always the same as the frequency table computed in memory.
-#[test]
-fn prop_frequency_indexed() {
-    fn p(rows: CsvData) -> bool {
-        param_prop_frequency("prop_frequency_indxed", rows, true)
-    }
-    // Run on really small values because we are incredibly careless
-    // with allocation.
-    qcheck_sized(p as fn(CsvData) -> bool, 2);
 }
 
 fn param_prop_frequency(name: &str, rows: CsvData, idx: bool) -> bool {

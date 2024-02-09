@@ -981,15 +981,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quickcheck"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "588f6378e4dd99458b60ec275b4477add41ce4fa9f64dcba6f15adccb19b50d6"
-dependencies = [
- "rand 0.8.5",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1737,7 +1728,6 @@ dependencies = [
  "pest",
  "pest_derive",
  "pratt",
- "quickcheck",
  "rand 0.8.5",
  "rand_chacha",
  "rand_seeder",

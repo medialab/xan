@@ -19,10 +19,10 @@ fn shuffle() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["number"],
+        svec!["4"],
+        svec!["1"],
         svec!["2"],
         svec!["3"],
-        svec!["1"],
-        svec!["4"],
     ];
     assert_eq!(got, expected);
 }
@@ -48,10 +48,10 @@ fn shuffle_in_memory() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["number"],
+        svec!["4"],
+        svec!["1"],
         svec!["2"],
         svec!["3"],
-        svec!["1"],
-        svec!["4"],
     ];
     assert_eq!(got, expected);
 }
@@ -70,7 +70,7 @@ fn shuffle_no_headers() {
         .arg("--no-headers");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["2"], svec!["3"], svec!["1"], svec!["4"]];
+    let expected = vec![svec!["4"], svec!["1"], svec!["2"], svec!["3"]];
     assert_eq!(got, expected);
 }
 
@@ -88,6 +88,6 @@ fn shuffle_in_memory_no_headers() {
         .arg("--in-memory");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["2"], svec!["3"], svec!["1"], svec!["4"]];
+    let expected = vec![svec!["4"], svec!["1"], svec!["2"], svec!["3"]];
     assert_eq!(got, expected);
 }

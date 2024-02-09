@@ -5,16 +5,12 @@ extern crate serde_derive;
 
 extern crate csv;
 extern crate filetime;
-extern crate quickcheck;
 extern crate rand;
 extern crate stats;
 
 use std::fmt;
 use std::mem::transmute;
 use std::ops;
-
-use quickcheck::{Arbitrary, Gen, QuickCheck, Testable};
-use rand::Rng;
 
 macro_rules! svec[
     ($($x:expr),*) => (
@@ -24,13 +20,6 @@ macro_rules! svec[
     );
     ($($x:expr,)*) => (svec![$($x),*]);
 ];
-
-macro_rules! rassert_eq {
-    ($given:expr, $expected:expr) => {{
-        assert_eq!($given, $expected);
-        true
-    }};
-}
 
 mod workdir;
 
@@ -66,14 +55,6 @@ mod test_sort;
 mod test_split;
 mod test_stats;
 mod test_transform;
-
-fn qcheck<T: Testable>(p: T) {
-    QuickCheck::new().gen(Gen::new(5)).quickcheck(p);
-}
-
-fn qcheck_sized<T: Testable>(p: T, size: usize) {
-    QuickCheck::new().gen(Gen::new(size)).quickcheck(p);
-}
 
 pub type CsvVecs = Vec<Vec<String>>;
 
@@ -115,26 +96,6 @@ impl fmt::Debug for CsvRecord {
     }
 }
 
-impl Arbitrary for CsvRecord {
-    fn arbitrary(g: &mut Gen) -> CsvRecord {
-        let size = {
-            let s = g.size();
-            rand::thread_rng().gen_range(1..s)
-        };
-        CsvRecord((0..size).map(|_| Arbitrary::arbitrary(g)).collect())
-    }
-
-    fn shrink(&self) -> Box<dyn Iterator<Item = CsvRecord> + 'static> {
-        Box::new(
-            self.clone()
-                .unwrap()
-                .shrink()
-                .filter(|r| !r.is_empty())
-                .map(CsvRecord),
-        )
-    }
-}
-
 impl Csv for Vec<CsvRecord> {
     fn to_vecs(self) -> CsvVecs {
         unsafe { transmute(self) }
@@ -167,44 +128,6 @@ impl ops::Deref for CsvData {
     type Target = [CsvRecord];
     fn deref<'a>(&'a self) -> &'a [CsvRecord] {
         &self.data
-    }
-}
-
-impl Arbitrary for CsvData {
-    fn arbitrary(g: &mut Gen) -> CsvData {
-        let record_len = {
-            let s = g.size();
-
-            rand::thread_rng().gen_range(1..s)
-        };
-        let num_records: usize = rand::thread_rng().gen_range(0..100);
-        CsvData {
-            data: (0..num_records)
-                .map(|_| CsvRecord((0..record_len).map(|_| Arbitrary::arbitrary(g)).collect()))
-                .collect(),
-        }
-    }
-
-    fn shrink(&self) -> Box<dyn Iterator<Item = CsvData> + 'static> {
-        let len = if self.is_empty() { 0 } else { self[0].len() };
-        let mut rows: Vec<CsvData> = self
-            .clone()
-            .unwrap()
-            .shrink()
-            .filter(|rows| rows.iter().all(|r| r.len() == len))
-            .map(|rows| CsvData { data: rows })
-            .collect();
-        // We should also introduce CSV data with fewer columns...
-        if len > 1 {
-            rows.extend(
-                self.clone()
-                    .unwrap()
-                    .shrink()
-                    .filter(|rows| rows.iter().all(|r| r.len() == len - 1))
-                    .map(|rows| CsvData { data: rows }),
-            );
-        }
-        Box::new(rows.into_iter())
     }
 }
 

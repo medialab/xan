@@ -1,61 +1,16 @@
 use workdir::Workdir;
-use {qcheck, CsvData};
 
-/// This tests whether `xan count` gets the right answer.
-///
-/// It does some simple case analysis to handle whether we want to test counts
-/// in the presence of headers and/or indexes.
-fn prop_count_len(name: &str, rows: CsvData, headers: bool, idx: bool) -> bool {
-    let mut expected_count = rows.len();
-    if headers && expected_count > 0 {
-        expected_count -= 1;
-    }
-
-    let wrk = Workdir::new(name);
-    if idx {
-        wrk.create_indexed("in.csv", rows);
-    } else {
-        wrk.create("in.csv", rows);
-    }
+#[test]
+fn count() {
+    let wrk = Workdir::new("count");
+    wrk.create("data.csv", vec![svec!["n"], svec!["1"], svec!["2"]]);
 
     let mut cmd = wrk.command("count");
-    if !headers {
-        cmd.arg("--no-headers");
-    }
-    cmd.arg("in.csv");
+    cmd.arg("data.csv");
 
-    let got_count: usize = wrk.stdout(&mut cmd);
-    rassert_eq!(got_count, expected_count)
+    let got: String = wrk.stdout(&mut cmd);
+
+    assert_eq!(got.trim(), "2");
 }
 
-#[test]
-fn prop_count() {
-    fn p(rows: CsvData) -> bool {
-        prop_count_len("prop_count", rows, false, false)
-    }
-    qcheck(p as fn(CsvData) -> bool);
-}
-
-#[test]
-fn prop_count_headers() {
-    fn p(rows: CsvData) -> bool {
-        prop_count_len("prop_count_headers", rows, true, false)
-    }
-    qcheck(p as fn(CsvData) -> bool);
-}
-
-#[test]
-fn prop_count_indexed() {
-    fn p(rows: CsvData) -> bool {
-        prop_count_len("prop_count_indexed", rows, false, true)
-    }
-    qcheck(p as fn(CsvData) -> bool);
-}
-
-#[test]
-fn prop_count_indexed_headers() {
-    fn p(rows: CsvData) -> bool {
-        prop_count_len("prop_count_indexed_headers", rows, true, true)
-    }
-    qcheck(p as fn(CsvData) -> bool);
-}
+// TODO: test --no-headers

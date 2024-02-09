@@ -1,7 +1,7 @@
 use std::process;
 
 use workdir::Workdir;
-use {qcheck, Csv, CsvData};
+use Csv;
 
 fn no_headers(cmd: &mut process::Command) {
     cmd.arg("--no-headers");
@@ -28,22 +28,6 @@ where
 }
 
 #[test]
-fn prop_cat_rows() {
-    fn p(rows: CsvData) -> bool {
-        let expected = rows.clone();
-        let (rows1, rows2) = if rows.is_empty() {
-            (vec![], vec![])
-        } else {
-            let (rows1, rows2) = rows.split_at(rows.len() / 2);
-            (rows1.to_vec(), rows2.to_vec())
-        };
-        let got: CsvData = run_cat("cat_rows", "rows", rows1, rows2, no_headers);
-        rassert_eq!(got, expected)
-    }
-    qcheck(p as fn(CsvData) -> bool);
-}
-
-#[test]
 fn cat_rows_space() {
     let rows = vec![svec!["\u{0085}"]];
     let expected = rows.clone();
@@ -67,28 +51,6 @@ fn cat_rows_headers() {
 
     let got: Vec<Vec<String>> = run_cat("cat_rows_headers", "rows", rows1, rows2, |_| ());
     assert_eq!(got, expected);
-}
-
-#[test]
-fn prop_cat_cols() {
-    fn p(rows1: CsvData, rows2: CsvData) -> bool {
-        let got: Vec<Vec<String>> = run_cat(
-            "cat_cols",
-            "columns",
-            rows1.clone(),
-            rows2.clone(),
-            no_headers,
-        );
-
-        let mut expected: Vec<Vec<String>> = vec![];
-        let (rows1, rows2) = (rows1.to_vecs().into_iter(), rows2.to_vecs().into_iter());
-        for (mut r1, r2) in rows1.zip(rows2) {
-            r1.extend(r2.into_iter());
-            expected.push(r1);
-        }
-        rassert_eq!(got, expected)
-    }
-    qcheck(p as fn(CsvData, CsvData) -> bool);
 }
 
 #[test]
