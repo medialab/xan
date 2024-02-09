@@ -3,7 +3,6 @@ mod error;
 mod functions;
 mod interpreter;
 mod parser;
-mod pest;
 mod types;
 mod utils;
 

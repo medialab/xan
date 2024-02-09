@@ -4,7 +4,6 @@ use std::path::Path;
 
 use bytesize::MB;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
-use nom::AsBytes;
 use rayon::slice::ParallelSliceMut;
 
 use config::{Config, Delimiter};
@@ -142,12 +141,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         (false, false) => iter_cmp(current_sel.iter(), last_sel.iter()),
                         (true, false) => iter_cmp(last_sel.iter(), current_sel.iter()),
                         (false, true) => iter_cmp_num(
-                            current_sel.iter().map(|r| r.as_bytes()),
-                            last_sel.iter().map(|r| r.as_bytes()),
+                            current_sel.iter().map(|r| r.as_slice()),
+                            last_sel.iter().map(|r| r.as_slice()),
                         ),
                         (true, true) => iter_cmp_num(
-                            last_sel.iter().map(|r| r.as_bytes()),
-                            current_sel.iter().map(|r| r.as_bytes()),
+                            last_sel.iter().map(|r| r.as_slice()),
+                            current_sel.iter().map(|r| r.as_slice()),
                         ),
                     };
 

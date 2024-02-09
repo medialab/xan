@@ -27,8 +27,8 @@ predefined = { "n" | "r" | "t" | "\\" | "\"" | "'" }
 // unicode                  = { "u" ~ "{" ~ unicode_hex ~ "}" }
 escape               =  { "\\" ~ predefined }
 single_quoted_string = _{ "'" ~ (raw_single_quoted_string | escape)* ~ "'" }
-double_quoted_string = _{ "\"" ~ (raw_double_quoted_string | escape)* ~ "\"" }
-string               =  { single_quoted_string | double_quoted_string }
+double_quoted_string = _{ "\"" ~ (raw_double_quoted_string | escape | " ")* ~ "\"" }
+string               = ${ single_quoted_string | double_quoted_string }
 
 // Regexes
 raw_regex_string       =  { (!("\\" | "/") ~ ANY)+ }
@@ -38,8 +38,9 @@ case_sensitive_regex   =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
 regex                  = _{ case_insensitive_regex | case_sensitive_regex }
 
 // Identifiers
-ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
-ident      = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
+ident_char    = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
+ident         = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
+special_ident = @{ "%" ~ ident }
 
 // Operators
 binary_operator = _{ lte | add | sub | mul | div }
@@ -66,6 +67,7 @@ term = _{
   | float
   | int
   | ident
+  | special_ident
   | underscore
   | "(" ~ expr ~ ")"
 }

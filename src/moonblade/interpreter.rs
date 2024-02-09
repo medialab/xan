@@ -2,14 +2,14 @@ use fmt;
 use std::borrow::Cow;
 
 use csv::ByteRecord;
-use regex::Regex;
+use regex::RegexBuilder;
 
 use super::error::{
     BindingError, CallError, ConcretizationError, EvaluationError, SpecifiedBindingError,
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_and_optimize_pipeline, Argument, FunctionCall, Pipeline};
+use super::parser::{parse_and_optimize_pipeline, Expr, FunctionCall, Pipeline};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
     Variables,
@@ -27,11 +27,11 @@ pub struct EvaluationContext<'a> {
 pub enum ConcreteArgument {
     Variable(String),
     Column(usize),
-    StringLiteral(DynamicValue),
-    FloatLiteral(DynamicValue),
-    IntegerLiteral(DynamicValue),
-    BooleanLiteral(DynamicValue),
-    RegexLiteral(DynamicValue),
+    Str(DynamicValue),
+    Float(DynamicValue),
+    Int(DynamicValue),
+    Bool(DynamicValue),
+    Regex(DynamicValue),
     Call(ConcreteFunctionCall),
     Null,
     Underscore,
@@ -43,10 +43,10 @@ impl ConcreteArgument {
         context: &'a EvaluationContext,
     ) -> Result<BoundArgument<'a>, BindingError> {
         Ok(match self {
-            Self::StringLiteral(value) => Cow::Borrowed(value),
-            Self::FloatLiteral(value) => Cow::Borrowed(value),
-            Self::IntegerLiteral(value) => Cow::Borrowed(value),
-            Self::BooleanLiteral(value) => Cow::Borrowed(value),
+            Self::Str(value) => Cow::Borrowed(value),
+            Self::Float(value) => Cow::Borrowed(value),
+            Self::Int(value) => Cow::Borrowed(value),
+            Self::Bool(value) => Cow::Borrowed(value),
             Self::Underscore => {
                 Cow::Borrowed(context.last_value.unwrap_or_else(|| &DynamicValue::None))
             }
@@ -62,7 +62,7 @@ impl ConcreteArgument {
                 Some(value) => Cow::Borrowed(value),
                 None => return Err(BindingError::UnknownVariable(name.clone())),
             },
-            Self::RegexLiteral(value) => Cow::Borrowed(value),
+            Self::Regex(value) => Cow::Borrowed(value),
             Self::Call(_) => return Err(BindingError::IllegalBinding),
         })
     }
@@ -302,7 +302,7 @@ fn concretize_call(
     let mut concrete_args = Vec::new();
 
     for arg in call.args {
-        concrete_args.push(concretize_argument(arg, headers)?);
+        concrete_args.push(concretize_expression(arg, headers)?);
     }
 
     Ok(if let Some(kind) = StatementKind::parse(&function_name) {
@@ -328,18 +328,18 @@ fn concretize_call(
     })
 }
 
-pub fn concretize_argument(
-    argument: Argument,
+pub fn concretize_expression(
+    expr: Expr,
     headers: &ByteRecord,
 ) -> Result<ConcreteArgument, ConcretizationError> {
-    Ok(match argument {
-        Argument::Underscore => ConcreteArgument::Underscore,
-        Argument::Null => ConcreteArgument::Null,
-        Argument::BooleanLiteral(v) => ConcreteArgument::BooleanLiteral(DynamicValue::Boolean(v)),
-        Argument::FloatLiteral(v) => ConcreteArgument::FloatLiteral(DynamicValue::Float(v)),
-        Argument::IntegerLiteral(v) => ConcreteArgument::IntegerLiteral(DynamicValue::Integer(v)),
-        Argument::StringLiteral(v) => ConcreteArgument::StringLiteral(DynamicValue::String(v)),
-        Argument::Identifier(name) => {
+    Ok(match expr {
+        Expr::Underscore => ConcreteArgument::Underscore,
+        Expr::Null => ConcreteArgument::Null,
+        Expr::Bool(v) => ConcreteArgument::Bool(DynamicValue::Boolean(v)),
+        Expr::Float(v) => ConcreteArgument::Float(DynamicValue::Float(v)),
+        Expr::Int(v) => ConcreteArgument::Int(DynamicValue::Integer(v)),
+        Expr::Str(v) => ConcreteArgument::Str(DynamicValue::String(v)),
+        Expr::Identifier(name) => {
             let indexation = ColumIndexationBy::Name(name);
 
             match indexation.find_column_index(headers) {
@@ -347,13 +347,15 @@ pub fn concretize_argument(
                 None => return Err(ConcretizationError::ColumnNotFound(indexation)),
             }
         }
-        Argument::SpecialIdentifier(name) => ConcreteArgument::Variable(name),
-        Argument::RegexLiteral(pattern) => match Regex::new(&pattern) {
-            Ok(regex) => ConcreteArgument::RegexLiteral(DynamicValue::Regex(regex)),
+        Expr::SpecialIdentifier(name) => ConcreteArgument::Variable(name),
+        Expr::Regex(pattern, case_insensitive) => match RegexBuilder::new(&pattern)
+            .case_insensitive(case_insensitive)
+            .build()
+        {
+            Ok(regex) => ConcreteArgument::Regex(DynamicValue::Regex(regex)),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
-        Argument::Call(call) => concretize_call(call, headers)?,
-        Argument::Operator(_) | Argument::OpenBracket | Argument::CloseBracket => unreachable!(),
+        Expr::Func(call) => concretize_call(call, headers)?,
     })
 }
 
@@ -364,7 +366,7 @@ fn concretize_pipeline(
     let mut concrete_pipeline: ConcretePipeline = Vec::new();
 
     for argument in pipeline {
-        concrete_pipeline.push(concretize_argument(argument, headers)?);
+        concrete_pipeline.push(concretize_expression(argument, headers)?);
     }
 
     Ok(concrete_pipeline)

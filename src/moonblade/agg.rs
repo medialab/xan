@@ -5,7 +5,7 @@ use std::rc::Rc;
 use csv::ByteRecord;
 
 use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
-use super::interpreter::{concretize_argument, eval_expr, ConcreteArgument};
+use super::interpreter::{concretize_expression, eval_expr, ConcreteArgument};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
 
@@ -743,10 +743,10 @@ impl KeyedAggregator {
     }
 
     fn add(&mut self, aggregation: &ConcreteAggregation) {
-        match self.get_mut(&aggregation.key) {
+        match self.get_mut(&aggregation.expr_key) {
             None => {
                 self.mapping.push(KeyedAggregatorEntry {
-                    key: aggregation.key.clone(),
+                    key: aggregation.expr_key.clone(),
                     expr: aggregation.expr.clone(),
                     aggregator: CompositeAggregator::with_method(&aggregation.method),
                 });
@@ -802,11 +802,11 @@ fn validate_aggregation_function_arity(
 ) -> Result<(), ConcretizationError> {
     let arity = aggregation.args.len();
 
-    match aggregation.method.as_str() {
+    match aggregation.func_name.as_str() {
         "count" => {
             if !(0..=1).contains(&arity) {
                 Err(ConcretizationError::from_invalid_range_arity(
-                    aggregation.method.clone(),
+                    aggregation.func_name.clone(),
                     0..=1,
                     arity,
                 ))
@@ -817,7 +817,7 @@ fn validate_aggregation_function_arity(
         _ => {
             if arity != 1 {
                 Err(ConcretizationError::from_invalid_arity(
-                    aggregation.method.clone(),
+                    aggregation.func_name.clone(),
                     1,
                     arity,
                 ))
@@ -880,10 +880,10 @@ impl ConcreteAggregationMethod {
 
 #[derive(Debug)]
 struct ConcreteAggregation {
-    name: String,
+    agg_name: String,
     method: ConcreteAggregationMethod,
     expr: Option<ConcreteArgument>,
-    key: String,
+    expr_key: String,
     // args: Vec<ConcreteArgument>,
 }
 
@@ -901,27 +901,27 @@ fn concretize_aggregations(
         let expr = aggregation
             .args
             .get(0)
-            .map(|arg| concretize_argument(arg.clone(), headers))
+            .map(|arg| concretize_expression(arg.clone(), headers))
             .transpose()?;
 
         let mut args: Vec<ConcreteArgument> = Vec::new();
 
         for arg in aggregation.args.into_iter().skip(1) {
-            args.push(concretize_argument(arg, headers)?);
+            args.push(concretize_expression(arg, headers)?);
         }
 
-        if let Some(method) = ConcreteAggregationMethod::parse(&aggregation.method) {
+        if let Some(method) = ConcreteAggregationMethod::parse(&aggregation.func_name) {
             let concrete_aggregation = ConcreteAggregation {
-                name: aggregation.name,
+                agg_name: aggregation.agg_name,
                 method,
-                key: aggregation.key,
+                expr_key: aggregation.expr_key,
                 expr,
                 // args,
             };
 
             concrete_aggregations.push(concrete_aggregation);
         } else {
-            return Err(ConcretizationError::UnknownFunction(aggregation.method));
+            return Err(ConcretizationError::UnknownFunction(aggregation.func_name));
         }
     }
 
@@ -970,7 +970,7 @@ impl<'a> AggregationProgram<'a> {
         let mut record = ByteRecord::new();
 
         for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.name.as_bytes());
+            record.push_field(aggregation.agg_name.as_bytes());
         }
 
         record
@@ -982,7 +982,7 @@ impl<'a> AggregationProgram<'a> {
         record.push_field(group_column_name.as_bytes());
 
         for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.name.as_bytes());
+            record.push_field(aggregation.agg_name.as_bytes());
         }
 
         record
@@ -994,7 +994,7 @@ impl<'a> AggregationProgram<'a> {
         for aggregation in self.aggregations.iter() {
             let value = self
                 .aggregator
-                .finalize(&aggregation.key, &aggregation.method)
+                .finalize(&aggregation.expr_key, &aggregation.method)
                 .unwrap();
 
             record.push_field(&value.serialize_as_bytes(b"|"));
@@ -1010,7 +1010,7 @@ impl<'a> AggregationProgram<'a> {
         for aggregation in self.aggregations.iter() {
             let value = self
                 .aggregator
-                .finalize(&aggregation.key, &aggregation.method)
+                .finalize(&aggregation.expr_key, &aggregation.method)
                 .unwrap();
 
             record.push_field(&value.serialize_as_bytes(b"|"));
@@ -1066,7 +1066,7 @@ impl<'a> GroupAggregationProgram<'a> {
         record.push_field(group_column_name.as_bytes());
 
         for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.name.as_bytes());
+            record.push_field(aggregation.agg_name.as_bytes());
         }
 
         record
@@ -1084,7 +1084,7 @@ impl<'a> GroupAggregationProgram<'a> {
 
             for aggregation in self.aggregations.iter_mut() {
                 let value = aggregator
-                    .finalize(&aggregation.key, &aggregation.method)
+                    .finalize(&aggregation.expr_key, &aggregation.method)
                     .unwrap();
 
                 record.push_field(&value.serialize_as_bytes(b"|"));

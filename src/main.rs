@@ -18,7 +18,6 @@ extern crate flate2;
 extern crate glob;
 #[macro_use]
 extern crate lazy_static;
-extern crate nom;
 extern crate num_cpus;
 extern crate numfmt;
 #[cfg(not(windows))]

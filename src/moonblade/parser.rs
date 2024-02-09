@@ -1,60 +1,219 @@
-// En tant que chef, je m'engage à ce que nous ne nous fassions pas *tous* tuer.
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, anychar, char, digit1, none_of, space0},
-    combinator::{all_consuming, consumed, map, map_res, not, opt, recognize, value},
-    multi::{fold_many0, many0, separated_list0, separated_list1},
-    number::complete::double,
-    sequence::{delimited, pair, preceded, terminated, tuple},
-    IResult,
-};
+// En tant que chef, je m'engage à ce que nous ne nous
+// fassions pas *tous* tuer.
+use pest::iterators::Pair;
+use pest::Parser;
+use pest_derive::Parser;
+use pratt::{Affix, Associativity, PrattParser, Precedence};
 
 use super::functions::get_function;
 use super::utils::downgrade_float;
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Operator {
+#[derive(Parser)]
+#[grammar = "moonblade/grammar.pest"]
+pub struct MoonbladePestParser;
+
+#[derive(Debug, PartialEq)]
+enum Operator {
     Add,
     Mul,
-    Lte,
+    Not,
+}
+
+impl Operator {
+    fn as_fn_str(&self) -> &'static str {
+        match self {
+            Self::Add => "add",
+            Self::Mul => "mul",
+            Self::Not => "not",
+        }
+    }
+
+    fn to_fn_string(&self) -> String {
+        self.as_fn_str().to_string()
+    }
+
+    // NOTE: precdence taken from JavaScript
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence#table
+    fn precedence(&self) -> Affix {
+        match self {
+            Self::Not => Affix::Prefix(Precedence(14)),
+            Self::Mul => Affix::Infix(Precedence(12), Associativity::Left),
+            Self::Add => Affix::Infix(Precedence(11), Associativity::Left),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum TokenTree<'a> {
+    Infix(Operator),
+    Primary(Pair<'a, Rule>),
+    Expr(Vec<TokenTree<'a>>),
+    Func(String, Vec<TokenTree<'a>>),
+}
+
+impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
+    fn from(pair: Pair<'a, Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::string
+            | Rule::case_insensitive_regex
+            | Rule::case_sensitive_regex
+            | Rule::int
+            | Rule::float
+            | Rule::ident
+            | Rule::special_ident
+            | Rule::underscore
+            | Rule::true_lit
+            | Rule::false_lit
+            | Rule::null => TokenTree::Primary(pair),
+            Rule::add => TokenTree::Infix(Operator::Add),
+            Rule::mul => TokenTree::Infix(Operator::Mul),
+            Rule::not => TokenTree::Infix(Operator::Not),
+            Rule::expr => {
+                let mut pairs = pair.into_inner();
+
+                if pairs.len() == 1 {
+                    Self::from(pairs.next().unwrap())
+                } else {
+                    TokenTree::Expr(pairs.map(Self::from).collect())
+                }
+            }
+            Rule::func => {
+                let mut pairs = pair.into_inner();
+                let func_name = pairs.next().unwrap().as_str().to_lowercase();
+
+                TokenTree::Func(func_name, pairs.map(Self::from).collect())
+            }
+            _ => {
+                dbg!(&pair);
+                unreachable!();
+            }
+        }
+    }
+}
+
+fn build_string(pair: Pair<Rule>) -> String {
+    let mut string = String::new();
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::raw_double_quoted_string
+            | Rule::raw_single_quoted_string
+            | Rule::raw_regex_string => {
+                string.push_str(inner.as_str());
+            }
+            Rule::escape => {
+                let inner = inner.into_inner().next().unwrap();
+
+                match inner.as_rule() {
+                    Rule::predefined => {
+                        string.push(match inner.as_str() {
+                            "n" => '\n',
+                            "r" => '\r',
+                            "t" => '\t',
+                            "\\" => '\\',
+                            "\"" => '"',
+                            "'" => '\'',
+                            _ => unreachable!(),
+                        });
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Rule::escape_regex => {
+                string.push_str(match inner.as_str() {
+                    r"\n" => "\n",
+                    r"\r" => "\r",
+                    r"\t" => "\t",
+                    r"\\" => "\\",
+                    r"\/" => "/",
+                    rest => rest,
+                });
+            }
+            _ => {
+                dbg!(inner);
+                unreachable!()
+            }
+        }
+    }
+
+    string
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Argument {
+pub struct FunctionCall {
+    pub name: String,
+    pub args: Vec<Expr>,
+}
+
+impl FunctionCall {
+    fn has_underscore(&self) -> bool {
+        self.args.iter().any(|arg| match arg {
+            Expr::Func(sub_function_call) => sub_function_call.has_underscore(),
+            Expr::Underscore => true,
+            _ => false,
+        })
+    }
+
+    fn count_underscores(&self) -> usize {
+        self.args
+            .iter()
+            .map(|arg| match arg {
+                Expr::Func(sub_function_call) => sub_function_call.count_underscores(),
+                Expr::Underscore => 1,
+                _ => 0,
+            })
+            .sum()
+    }
+
+    fn fill_underscore(&mut self, with: &Expr) {
+        if let Expr::Func(_) = with {
+            for arg in self.args.iter_mut() {
+                match arg {
+                    Expr::Func(sub) => {
+                        sub.fill_underscore(with);
+                    }
+                    Expr::Underscore => {
+                        *arg = with.clone();
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Expr {
+    Func(FunctionCall),
+    Int(i64),
+    Float(f64),
     Identifier(String),
     SpecialIdentifier(String),
-    StringLiteral(String),
-    FloatLiteral(f64),
-    IntegerLiteral(i64),
-    BooleanLiteral(bool),
-    RegexLiteral(String),
-    Call(FunctionCall),
-    Operator(Operator),
-    OpenBracket,
-    CloseBracket,
+    Str(String),
+    Regex(String, bool),
+    Bool(bool),
     Underscore,
     Null,
 }
 
-impl Argument {
+impl Expr {
     pub fn has_underscore(&self) -> bool {
         match self {
-            Self::Call(call) => call.has_underscore(),
+            Self::Func(call) => call.has_underscore(),
             _ => false,
         }
     }
 
     pub fn try_to_usize(&self) -> Option<usize> {
         match self {
-            Self::IntegerLiteral(n) => {
+            Self::Int(n) => {
                 if *n < 0 {
                     None
                 } else {
                     Some(*n as usize)
                 }
             }
-            Self::FloatLiteral(f) => match downgrade_float(*f) {
+            Self::Float(f) => match downgrade_float(*f) {
                 None => None,
                 Some(n) => {
                     if n < 0 {
@@ -69,365 +228,173 @@ impl Argument {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct FunctionCall {
-    pub name: String,
-    pub args: Vec<Argument>,
-}
+struct MoonbladePrattParser;
 
-impl FunctionCall {
-    pub fn has_underscore(&self) -> bool {
-        self.args.iter().any(|arg| match arg {
-            Argument::Call(sub_function_call) => sub_function_call.has_underscore(),
-            Argument::Underscore => true,
-            _ => false,
+impl<'a, I> PrattParser<I> for MoonbladePrattParser
+where
+    I: Iterator<Item = TokenTree<'a>>,
+{
+    type Error = String;
+    type Input = TokenTree<'a>;
+    type Output = Expr;
+
+    fn query(&mut self, tree: &TokenTree) -> Result<Affix, Self::Error> {
+        let affix = match tree {
+            TokenTree::Infix(op) => op.precedence(),
+            TokenTree::Expr(_) => Affix::Nilfix,
+            TokenTree::Func(_, _) => Affix::Nilfix,
+            TokenTree::Primary(_) => Affix::Nilfix,
+        };
+
+        Ok(affix)
+    }
+
+    fn primary(&mut self, tree: TokenTree) -> Result<Expr, Self::Error> {
+        let expr = match tree {
+            TokenTree::Primary(token) => match token.as_rule() {
+                Rule::int => {
+                    let n = token
+                        .as_str()
+                        .replace('_', "")
+                        .parse::<i64>()
+                        .or(Err("could not parse int"))?;
+
+                    Expr::Int(n)
+                }
+                Rule::float => {
+                    let n = token
+                        .as_str()
+                        .replace('_', "")
+                        .parse::<f64>()
+                        .or(Err("could not parse float"))?;
+
+                    Expr::Float(n)
+                }
+                Rule::string => Expr::Str(build_string(token)),
+                Rule::case_insensitive_regex => Expr::Regex(build_string(token), true),
+                Rule::case_sensitive_regex => Expr::Regex(build_string(token), false),
+                Rule::underscore => Expr::Underscore,
+                Rule::ident => Expr::Identifier(token.as_str().to_string()),
+                Rule::special_ident => Expr::SpecialIdentifier(token.as_str()[1..].to_string()),
+                Rule::true_lit => Expr::Bool(true),
+                Rule::false_lit => Expr::Bool(false),
+                Rule::null => Expr::Null,
+                _ => unreachable!(),
+            },
+            TokenTree::Expr(group) => self.parse(&mut group.into_iter()).unwrap(),
+            TokenTree::Func(name, group) => Expr::Func(FunctionCall {
+                name,
+                args: group
+                    .into_iter()
+                    .map(|g| self.parse(&mut vec![g].into_iter()).unwrap())
+                    .collect(),
+            }),
+            _ => unreachable!(),
+        };
+
+        Ok(expr)
+    }
+
+    fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
+        let args = vec![lhs, rhs];
+
+        Ok(match tree {
+            TokenTree::Infix(op) => Expr::Func(FunctionCall {
+                name: op.to_fn_string(),
+                args,
+            }),
+            _ => unreachable!(),
         })
     }
 
-    pub fn count_underscores(&self) -> usize {
-        self.args
-            .iter()
-            .map(|arg| match arg {
-                Argument::Call(sub_function_call) => sub_function_call.count_underscores(),
-                Argument::Underscore => 1,
-                _ => 0,
-            })
-            .sum()
+    fn prefix(&mut self, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
+        let args = vec![rhs];
+
+        Ok(match tree {
+            TokenTree::Infix(op) => Expr::Func(FunctionCall {
+                name: op.to_fn_string(),
+                args,
+            }),
+            _ => unreachable!(),
+        })
     }
 
-    pub fn fill_underscore(&mut self, with: &Argument) {
-        if let Argument::Call(_) = with {
-            for arg in self.args.iter_mut() {
-                match arg {
-                    Argument::Call(sub) => {
-                        sub.fill_underscore(with);
-                    }
-                    Argument::Underscore => {
-                        *arg = with.clone();
-                    }
-                    _ => (),
-                }
-            }
-        }
+    fn postfix(&mut self, _lhs: Expr, _tree: TokenTree) -> Result<Expr, Self::Error> {
+        unreachable!()
     }
 }
 
-pub type Pipeline = Vec<Argument>;
-pub type Aggregations = Vec<Aggregation>;
-
-// NOTE: I keep multiple args for aggregation because it might be useful in
-// the future, for e.g. join etc. if we need special parameters.
-// TODO: we might want to enforce that subsequent arguments are statically
-// analyzable.
-#[derive(Debug, PartialEq)]
-pub struct Aggregation {
-    pub name: String,
-    pub args: Vec<Argument>,
-    pub method: String,
-    pub key: String,
+#[derive(PartialEq, Debug)]
+pub enum ParseError {
+    PestError(Box<pest::error::Error<Rule>>),
+    PrattError(String),
 }
 
-fn boolean_literal(input: &str) -> IResult<&str, bool> {
-    alt((value(true, tag("true")), value(false, tag("false"))))(input)
-}
-
-fn underscore_literal(input: &str) -> IResult<&str, ()> {
-    value((), char('_'))(input)
-}
-
-fn null_literal(input: &str) -> IResult<&str, ()> {
-    value((), tag("null"))(input)
-}
-
-fn integer_literal<T>(input: &str) -> IResult<&str, T>
-where
-    T: std::str::FromStr,
-{
-    map_res(
-        recognize(pair(
-            alt((digit1, tag("-"))),
-            many0(alt((digit1, tag("_")))),
-        )),
-        |string: &str| string.replace('_', "").parse::<T>(),
-    )(input)
-}
-
-fn float_literal(input: &str) -> IResult<&str, f64> {
-    double(input)
-}
-
-fn unescape(c: char, delimiter: char) -> Result<char, ()> {
-    if c == delimiter {
-        return Ok(c);
-    }
-
-    Ok(match c {
-        '\\' | '/' => c,
-        'n' => '\n',
-        'r' => '\r',
-        't' => '\t',
-        _ => return Err(()),
-    })
-}
-
-fn double_quote_string_character_literal(input: &str) -> IResult<&str, char> {
-    let (input, c) = none_of("\"")(input)?;
-
-    if c == '\\' {
-        let (input, c) = anychar(input)?;
-
-        match unescape(c, '"') {
-            Ok(c) => Ok((input, c)),
-            Err(_) => Err(nom::Err::Failure(nom::error::ParseError::from_char(
-                input, c,
-            ))),
-        }
-    } else {
-        Ok((input, c))
+impl ParseError {
+    fn from_pest_error(error: pest::error::Error<Rule>) -> Self {
+        Self::PestError(Box::new(error))
     }
 }
 
-fn single_quote_string_character_literal(input: &str) -> IResult<&str, char> {
-    let (input, c) = none_of("'")(input)?;
+#[cfg(test)]
+fn parse_expression(input: &str) -> Result<Expr, ParseError> {
+    let mut pairs =
+        MoonbladePestParser::parse(Rule::full_expr, input).map_err(ParseError::from_pest_error)?;
 
-    if c == '\\' {
-        let (input, c) = anychar(input)?;
+    let first_pair = pairs.next().unwrap();
 
-        match unescape(c, '\'') {
-            Ok(c) => Ok((input, c)),
-            Err(_) => Err(nom::Err::Failure(nom::error::ParseError::from_char(
-                input, c,
-            ))),
-        }
-    } else {
-        Ok((input, c))
-    }
+    let token_tree = TokenTree::from(first_pair);
+
+    MoonbladePrattParser
+        .parse(&mut vec![token_tree].into_iter())
+        .map_err(|err| ParseError::PrattError(err.to_string()))
 }
 
-fn regex_character_literal(input: &str) -> IResult<&str, char> {
-    let (input, c) = none_of("/")(input)?;
+pub type Pipeline = Vec<Expr>;
 
-    if c == '\\' {
-        let (input2, c2) = anychar(input)?;
+// TODO: trim, unfurl
 
-        if c2 == '/' {
-            Ok((input2, c2))
-        } else {
-            Ok((input, c))
-        }
-    } else {
-        Ok((input, c))
-    }
+fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
+    let mut pairs =
+        MoonbladePestParser::parse(Rule::pipeline, input).map_err(ParseError::from_pest_error)?;
+
+    let first_pair = pairs.next().unwrap();
+
+    debug_assert!(matches!(first_pair.as_rule(), Rule::pipeline));
+
+    first_pair
+        .into_inner()
+        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
+        .map(|p| {
+            let token_tree = TokenTree::from(p);
+
+            MoonbladePrattParser
+                .parse(&mut vec![token_tree].into_iter())
+                .map_err(|err| ParseError::PrattError(err.to_string()))
+        })
+        .collect()
 }
 
-fn string_literal(input: &str) -> IResult<&str, String> {
-    alt((
-        delimited(
-            char('"'),
-            fold_many0(
-                double_quote_string_character_literal,
-                String::new,
-                |mut string, c| {
-                    string.push(c);
-                    string
-                },
-            ),
-            char('"'),
-        ),
-        delimited(
-            char('\''),
-            fold_many0(
-                single_quote_string_character_literal,
-                String::new,
-                |mut string, c| {
-                    string.push(c);
-                    string
-                },
-            ),
-            char('\''),
-        ),
-    ))(input)
-}
-
-fn regex_literal(input: &str) -> IResult<&str, String> {
-    map(
-        pair(
-            delimited(
-                char('/'),
-                fold_many0(regex_character_literal, String::new, |mut string, c| {
-                    string.push(c);
-                    string
-                }),
-                char('/'),
-            ),
-            opt(tag("i")),
-        ),
-        |(pattern, i)| match i {
-            None => pattern,
-            Some(_) => {
-                let mut case_insensitive_pattern = String::from("(?i)");
-                case_insensitive_pattern.push_str(&pattern);
-                case_insensitive_pattern
-            }
-        },
-    )(input)
-}
-
-fn identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
-        alpha1,
-        many0(alt((alphanumeric1, tag("_"), tag("-")))),
-    ))(input)
-}
-
-fn special_identifier(input: &str) -> IResult<&str, &str> {
-    preceded(char('%'), identifier)(input)
-}
-
-fn comma_separator(input: &str) -> IResult<&str, ()> {
-    value((), tuple((space0, char(','), space0)))(input)
-}
-
-fn literal(input: &str) -> IResult<&str, Argument> {
-    alt((
-        map(boolean_literal, Argument::BooleanLiteral),
-        map(null_literal, |_| Argument::Null),
-        map(terminated(integer_literal, not(char('.'))), |value| {
-            Argument::IntegerLiteral(value)
-        }),
-        map(float_literal, Argument::FloatLiteral),
-        map(regex_literal, Argument::RegexLiteral),
-        map(string_literal, Argument::StringLiteral),
-    ))(input)
-}
-
-fn argument_with_parsed(input: &str) -> IResult<&str, (&str, Argument)> {
-    consumed(alt((
-        function_call,
-        map(boolean_literal, Argument::BooleanLiteral),
-        map(null_literal, |_| Argument::Null),
-        map(special_identifier, |name| {
-            Argument::SpecialIdentifier(String::from(name))
-        }),
-        map(identifier, |name| Argument::Identifier(String::from(name))),
-        map(terminated(integer_literal, not(char('.'))), |value| {
-            Argument::IntegerLiteral(value)
-        }),
-        map(float_literal, Argument::FloatLiteral),
-        map(regex_literal, Argument::RegexLiteral),
-        map(string_literal, Argument::StringLiteral),
-        map(underscore_literal, |_| Argument::Underscore),
-    )))(input)
-}
-
-fn argument(input: &str) -> IResult<&str, Argument> {
-    map(argument_with_parsed, |arg| arg.1)(input)
-}
-
-fn argument_list_with_parsed(input: &str) -> IResult<&str, Vec<(&str, Argument)>> {
-    separated_list0(comma_separator, argument_with_parsed)(input)
-}
-
-fn argument_list(input: &str) -> IResult<&str, Vec<Argument>> {
-    separated_list0(comma_separator, argument)(input)
-}
-
-fn empty_function_call(input: &str) -> IResult<&str, Argument> {
-    map(
-        pair(identifier, delimited(char('('), space0, char(')'))),
-        |(name, _)| {
-            Argument::Call(FunctionCall {
-                name: name.to_lowercase(),
-                args: Vec::new(),
-            })
-        },
-    )(input)
-}
-
-fn function_call(input: &str) -> IResult<&str, Argument> {
-    alt((
-        empty_function_call,
-        map(
-            pair(
-                identifier,
-                delimited(
-                    pair(space0, char('(')),
-                    argument_list,
-                    pair(char(')'), space0),
-                ),
-            ),
-            |(name, args)| {
-                Argument::Call(FunctionCall {
-                    name: name.to_lowercase(),
-                    args,
-                })
-            },
-        ),
-    ))(input)
-}
-
-fn function_call_or_literal_or_identifier(input: &str) -> IResult<&str, Argument> {
-    alt((
-        function_call,
-        literal,
-        map(identifier, |name| Argument::Identifier(name.to_string())),
-    ))(input)
-}
-
-fn possibly_elided_function_call(input: &str) -> IResult<&str, Argument> {
-    alt((
-        literal,
-        empty_function_call,
-        map(
-            pair(
-                identifier,
-                opt(delimited(
-                    pair(space0, char('(')),
-                    argument_list,
-                    pair(char(')'), space0),
-                )),
-            ),
-            |(name, args_opt)| match args_opt {
-                Some(args) => Argument::Call(FunctionCall {
-                    name: name.to_lowercase(),
-                    args,
-                }),
-                None => match get_function(name) {
-                    Some(_) => Argument::Call(FunctionCall {
-                        name: name.to_lowercase(),
-                        args: vec![Argument::Underscore],
+fn handle_pipeline_elision(pipeline: Pipeline) -> Pipeline {
+    pipeline
+        .into_iter()
+        .enumerate()
+        .map(|(i, expr)| {
+            if i == 0 {
+                expr
+            } else if let Expr::Identifier(ref name) = expr {
+                match get_function(name) {
+                    None => expr,
+                    Some(_) => Expr::Func(FunctionCall {
+                        name: name.to_string(),
+                        args: vec![Expr::Underscore],
                     }),
-                    None => Argument::Identifier(name.to_string()),
-                },
-            },
-        ),
-    ))(input)
-}
-
-fn pipe_separator(input: &str) -> IResult<&str, ()> {
-    value((), tuple((space0, char('|'), space0)))(input)
-}
-
-fn pipeline(input: &str) -> IResult<&str, Pipeline> {
-    all_consuming(map(
-        tuple((
-            function_call_or_literal_or_identifier,
-            opt(preceded(
-                pipe_separator,
-                separated_list1(pipe_separator, possibly_elided_function_call),
-            )),
-        )),
-        |(first, rest)| {
-            let mut pipeline = Pipeline::new();
-            pipeline.push(first);
-
-            if let Some(args) = rest {
-                pipeline.extend(args);
+                }
+            } else {
+                expr
             }
-
-            pipeline
-        },
-    ))(input)
+        })
+        .collect()
 }
 
 // Example: trim(a) | add(a, b) | trim | add(a, b) | len -> add(a, b) | len
@@ -451,18 +418,18 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
         match pipeline.pop() {
             None => break,
             Some(arg) => {
-                if let Argument::Call(mut call) = arg {
+                if let Expr::Func(mut call) = arg {
                     if call.count_underscores() != 1 {
-                        pipeline.push(Argument::Call(call));
+                        pipeline.push(Expr::Func(call));
                         break;
                     }
                     match pipeline.pop() {
                         Some(previous_arg) => {
                             call.fill_underscore(&previous_arg);
-                            pipeline.push(Argument::Call(call));
+                            pipeline.push(Expr::Func(call));
                         }
                         None => {
-                            pipeline.push(Argument::Call(call));
+                            pipeline.push(Expr::Func(call));
                             break;
                         }
                     }
@@ -477,414 +444,272 @@ fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
     pipeline
 }
 
-fn as_suffix(input: &str) -> IResult<&str, String> {
-    preceded(
-        tuple((space0, tag("as"), space0)),
-        alt((string_literal, map(identifier, |id| id.to_string()))),
-    )(input)
+fn optimize_pipeline(mut pipeline: Pipeline) -> Pipeline {
+    pipeline = handle_pipeline_elision(pipeline);
+    pipeline = trim_pipeline(pipeline);
+    pipeline = unfurl_pipeline(pipeline);
+
+    pipeline
 }
 
-fn aggregation(input: &str) -> IResult<&str, Aggregation> {
-    map(
-        tuple((
-            identifier,
-            consumed(delimited(
-                pair(space0, char('(')),
-                argument_list_with_parsed,
-                pair(char(')'), space0),
-            )),
-            opt(as_suffix),
-        )),
-        |(method, (expr, args_with_expr), name)| {
-            let key = match args_with_expr.get(0) {
-                None => "".to_string(),
-                Some((expr, _)) => expr.trim().to_string(),
+pub fn parse_and_optimize_pipeline(input: &str) -> Result<Pipeline, ParseError> {
+    parse_pipeline(input).map(optimize_pipeline)
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Aggregation {
+    pub agg_name: String,
+    pub args: Vec<Expr>,
+    pub func_name: String,
+    pub expr_key: String,
+}
+
+pub type Aggregations = Vec<Aggregation>;
+
+pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
+    let mut pairs =
+        MoonbladePestParser::parse(Rule::named_aggs, input).map_err(ParseError::from_pest_error)?;
+
+    let first_pair = pairs.next().unwrap();
+
+    debug_assert!(matches!(first_pair.as_rule(), Rule::named_aggs));
+
+    first_pair
+        .into_inner()
+        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
+        .map(|p| {
+            let (agg_name, expr_key, p) = match p.as_rule() {
+                Rule::func => (
+                    p.as_span().as_str().to_string(),
+                    p.clone()
+                        .into_inner()
+                        .skip(1)
+                        .map(|s| s.as_span().as_str())
+                        .collect::<String>(),
+                    p,
+                ),
+                Rule::named_func => {
+                    let mut inner = p.into_inner();
+
+                    debug_assert!(inner.len() == 2);
+
+                    let func = inner.next().unwrap();
+
+                    let expr_name = inner.next().unwrap();
+                    debug_assert!(matches!(expr_name.as_rule(), Rule::expr_name));
+
+                    let expr_name_inner = expr_name.into_inner().next().unwrap();
+
+                    let name = match expr_name_inner.as_rule() {
+                        Rule::ident => expr_name_inner.as_str().to_string(),
+                        Rule::string => build_string(expr_name_inner),
+                        _ => unreachable!(),
+                    };
+
+                    debug_assert!(matches!(func.as_rule(), Rule::func));
+
+                    (
+                        name,
+                        func.clone()
+                            .into_inner()
+                            .skip(1)
+                            .map(|s| s.as_span().as_str())
+                            .collect::<String>(),
+                        func,
+                    )
+                }
+                _ => unreachable!(),
             };
 
-            let args: Vec<Argument> = args_with_expr.into_iter().map(|t| t.1).collect();
+            let token_tree = TokenTree::from(p);
 
-            Aggregation {
-                name: name.map(|n| n.to_string()).unwrap_or_else(|| {
-                    let mut prefix = String::from(method);
-                    prefix.push_str(expr.trim());
-                    prefix
+            let expr = MoonbladePrattParser
+                .parse(&mut vec![token_tree].into_iter())
+                .map_err(|err| ParseError::PrattError(err.to_string()))?;
+
+            match expr {
+                Expr::Func(call) => Ok(Aggregation {
+                    agg_name,
+                    args: call.args,
+                    func_name: call.name,
+                    expr_key,
                 }),
-                args,
-                method: method.to_lowercase(),
-                key,
+                _ => unreachable!(),
             }
-        },
-    )(input)
+        })
+        .collect()
 }
-
-fn aggregations(input: &str) -> IResult<&str, Aggregations> {
-    all_consuming(separated_list1(comma_separator, aggregation))(input)
-}
-
-// fn optimize_aggregations(mut aggregations: Aggregations) -> Aggregations {
-//     let (empty_aggs, non_empty_aggs): (Vec<_>, Vec<_>) =
-//         aggregations.iter_mut().partition(|agg| agg.args.is_empty());
-
-//     if empty_aggs.is_empty() {
-//         return aggregations;
-//     }
-
-//     if let Some(any_non_empty_agg) = non_empty_aggs.get(0) {
-//         for empty_agg in empty_aggs {
-//             empty_agg.key = any_non_empty_agg.key.clone();
-//         }
-//     }
-
-//     aggregations
-// }
-
-// NOTE: the parse functions return a now useless Result (compared to an Option)
-// because they might return something more useful in the future.
-pub fn parse_pipeline(code: &str) -> Result<Pipeline, ()> {
-    match pipeline(code) {
-        Ok(p) => Ok(p.1),
-        Err(_) => Err(()),
-    }
-}
-
-pub fn parse_and_optimize_pipeline(code: &str) -> Result<Pipeline, ()> {
-    parse_pipeline(code).map(|pipeline| unfurl_pipeline(trim_pipeline(pipeline)))
-}
-
-pub fn parse_aggregations(code: &str) -> Result<Aggregations, ()> {
-    match aggregations(code) {
-        Ok(p) => Ok(p.1),
-        Err(_) => Err(()),
-    }
-}
-
-// pub fn parse_and_optimize_aggregations(code: &str) -> Result<Aggregations, ()> {
-//     parse_aggregations(code).map(|aggregations| optimize_aggregations(aggregations))
-// }
 
 #[cfg(test)]
 mod tests {
+    use super::Expr::*;
     use super::*;
 
-    #[test]
-    fn test_boolean_literal() {
-        assert_eq!(boolean_literal("true, test"), Ok((", test", true)));
+    fn id(name: &str) -> Expr {
+        Identifier(name.to_string())
+    }
 
-        assert_eq!(boolean_literal("false"), Ok(("", false)));
+    fn sid(name: &str) -> Expr {
+        SpecialIdentifier(name.to_string())
+    }
+
+    fn func(name: &str, args: Vec<Expr>) -> Expr {
+        Func(FunctionCall {
+            name: name.to_string(),
+            args,
+        })
+    }
+
+    fn s(string: &str) -> Expr {
+        Str(string.to_string())
+    }
+
+    fn r(string: &str) -> Expr {
+        Regex(string.to_string(), false)
+    }
+
+    fn ri(string: &str) -> Expr {
+        Regex(string.to_string(), true)
     }
 
     #[test]
-    fn test_float_literal() {
-        assert_eq!(float_literal("3.56"), Ok(("", 3.56f64)))
+    fn test_booleans() {
+        assert_eq!(parse_expression("true"), Ok(Bool(true)));
+        assert_eq!(parse_expression("false"), Ok(Bool(false)));
     }
 
     #[test]
-    fn test_integer_literal() {
-        assert_eq!(integer_literal("456_400"), Ok(("", 456_400i64)));
-        assert_eq!(integer_literal("-36, test"), Ok((", test", -36i64)));
+    fn test_null() {
+        assert_eq!(parse_expression("null"), Ok(Null));
     }
 
     #[test]
-    fn test_string_literal() {
-        assert_eq!(string_literal("\"\", 45"), Ok((", 45", String::from(""))));
-        assert_eq!(string_literal("'', 45"), Ok((", 45", String::from(""))));
-        assert_eq!(
-            string_literal(r#""hello", 45"#),
-            Ok((", 45", String::from("hello")))
-        );
-        assert_eq!(
-            string_literal(r#""héllo", 45"#),
-            Ok((", 45", String::from("héllo")))
-        );
-        assert_eq!(
-            string_literal(r#""hel\nlo", 45"#),
-            Ok((", 45", String::from("hel\nlo")))
-        );
-        assert_eq!(
-            string_literal(r#""hello \"world\"", 45"#),
-            Ok((", 45", String::from("hello \"world\"")))
-        );
-        assert_eq!(
-            string_literal(r#"'hello \'world\'', 45"#),
-            Ok((", 45", String::from("hello 'world'")))
-        );
+    fn test_integers() {
+        assert_eq!(parse_expression("1"), Ok(Int(1)));
+        assert_eq!(parse_expression("-45"), Ok(Int(-45)));
+        assert_eq!(parse_expression("1_000"), Ok(Int(1000)));
     }
 
     #[test]
-    fn test_regex_literal() {
-        assert_eq!(
-            regex_literal(r#"/test/, ok"#),
-            Ok((", ok", "test".to_string()))
-        );
-
-        assert_eq!(
-            regex_literal(r#"/\nok[a]./, ok"#),
-            Ok((", ok", "\\nok[a].".to_string()))
-        );
-
-        assert_eq!(
-            regex_literal(r#"/\r/, ok"#),
-            Ok((", ok", "\\r".to_string()))
-        );
-
-        assert_eq!(regex_literal(r#"/\//, ok"#), Ok((", ok", "/".to_string())));
-
-        assert_eq!(regex_literal("/test/i"), Ok(("", "(?i)test".to_string())));
+    fn test_floats() {
+        assert_eq!(parse_expression("1.0"), Ok(Float(1.0)));
+        assert_eq!(parse_expression("-45.5"), Ok(Float(-45.5)));
+        assert_eq!(parse_expression("67.36"), Ok(Float(67.36)));
     }
 
     #[test]
-    fn test_underscore_literal() {
-        assert_eq!(underscore_literal("_, 45"), Ok((", 45", ())))
+    fn test_identifiers() {
+        assert_eq!(parse_expression("name"), Ok(id("name")));
+        assert_eq!(parse_expression("%index"), Ok(sid("index")));
     }
 
     #[test]
-    fn test_identifier() {
-        assert_eq!(identifier("input, test"), Ok((", test", "input")));
-        assert_eq!(
-            identifier("PREFIXES_AS_URL, test"),
-            Ok((", test", "PREFIXES_AS_URL"))
-        );
-        assert_eq!(special_identifier("%index, ok"), Ok((", ok", "index")));
+    fn test_strings() {
+        assert_eq!(parse_expression("\"test\""), Ok(s("test")));
+        assert_eq!(parse_expression("'test'"), Ok(s("test")));
+        assert_eq!(parse_expression("'  te st  '"), Ok(s("  te st  ")));
+        assert_eq!(parse_expression("\"\\\"test\\\"\""), Ok(s("\"test\"")));
+        assert_eq!(parse_expression("'\\'test\\''"), Ok(s("'test'")));
+        assert_eq!(parse_expression(r"'\n\r\t\\\''"), Ok(s("\n\r\t\\'")));
+        assert_eq!(parse_expression(r#""\n\r\t\\\"""#), Ok(s("\n\r\t\\\"")));
     }
 
     #[test]
-    fn test_argument() {
-        assert_eq!(argument("true"), Ok(("", Argument::BooleanLiteral(true))));
+    fn test_regexes() {
+        assert_eq!(parse_expression("/test/"), Ok(r("test")));
+        assert_eq!(parse_expression("/test/i"), Ok(ri("test")));
+        assert_eq!(parse_expression("/tes.t?/"), Ok(r("tes.t?")));
+        assert_eq!(parse_expression(r#"/te\.st/"#), Ok(r("te\\.st")));
+        assert_eq!(parse_expression(r#"/te\/st/"#), Ok(r("te/st")));
+        assert_eq!(parse_expression(r#"/te\nst/"#), Ok(r("te\nst")));
+    }
+
+    #[test]
+    fn test_functions() {
         assert_eq!(
-            argument("\"test\""),
-            Ok(("", Argument::StringLiteral(String::from("test"))))
-        );
-        assert_eq!(
-            argument("/test/, name"),
-            Ok((", name", Argument::RegexLiteral(String::from("test"))))
+            parse_expression("add(count, 1)"),
+            Ok(func("add", vec![id("count"), Int(1)]))
         );
     }
 
     #[test]
-    fn test_argument_list() {
-        assert_eq!(argument_list(""), Ok(("", vec![])));
+    fn test_infix() {
         assert_eq!(
-            argument_list("true, _, col0"),
-            Ok((
-                "",
+            parse_expression("1 + 2"),
+            Ok(func("add", vec![Int(1), Int(2)]))
+        );
+    }
+
+    #[test]
+    fn test_infix_associativity() {
+        assert_eq!(
+            parse_expression("1 + 2 * 4"),
+            Ok(func("add", vec![Int(1), func("mul", vec![Int(2), Int(4)])]))
+        );
+    }
+
+    #[test]
+    fn test_expr_recursivity() {
+        assert_eq!(
+            parse_expression("1 + add(name, 3 * 4)"),
+            Ok(func(
+                "add",
                 vec![
-                    Argument::BooleanLiteral(true),
-                    Argument::Underscore,
-                    Argument::Identifier(String::from("col0"))
+                    Int(1),
+                    func("add", vec![id("name"), func("mul", vec![Int(3), Int(4)])])
                 ]
             ))
-        )
+        );
     }
 
     #[test]
-    fn test_function_call() {
+    fn test_prefix_operators() {
+        assert_eq!(parse_expression("!45"), Ok(func("not", vec![Int(45)])));
         assert_eq!(
-            possibly_elided_function_call("trim()"),
-            Ok((
-                "",
-                Argument::Call(FunctionCall {
-                    name: String::from("trim"),
-                    args: vec![]
-                })
+            parse_expression("!add(1, 2) + 4"),
+            Ok(func(
+                "add",
+                vec![func("not", vec![func("add", vec![Int(1), Int(2)])]), Int(4)]
             ))
         );
-
         assert_eq!(
-            possibly_elided_function_call("trim(    )"),
-            Ok((
-                "",
-                Argument::Call(FunctionCall {
-                    name: String::from("trim"),
-                    args: vec![]
-                })
+            parse_expression("!(add(1, 2) + 4)"),
+            Ok(func(
+                "not",
+                vec![func("add", vec![func("add", vec![Int(1), Int(2)]), Int(4)])]
             ))
-        );
-
-        assert_eq!(
-            possibly_elided_function_call("trim(_)"),
-            Ok((
-                "",
-                Argument::Call(FunctionCall {
-                    name: String::from("trim"),
-                    args: vec![Argument::Underscore]
-                })
-            ))
-        );
-
-        assert_eq!(
-            possibly_elided_function_call("trim(_, true, 4.5, 56, col)"),
-            Ok((
-                "",
-                Argument::Call(FunctionCall {
-                    name: String::from("trim"),
-                    args: vec![
-                        Argument::Underscore,
-                        Argument::BooleanLiteral(true),
-                        Argument::FloatLiteral(4.5),
-                        Argument::IntegerLiteral(56),
-                        Argument::Identifier(String::from("col"))
-                    ]
-                })
-            ))
-        );
-
-        assert_eq!(
-            possibly_elided_function_call("column_name"),
-            Ok(("", Argument::Identifier("column_name".to_string())))
         );
     }
 
     #[test]
     fn test_pipeline() {
-        assert!(pipeline("test |").is_err());
-
         assert_eq!(
-            pipeline("trim(name) | len  (_)"),
-            Ok((
-                "",
-                vec![
-                    Argument::Call(FunctionCall {
-                        name: String::from("trim"),
-                        args: vec![Argument::Identifier(String::from("name"))]
-                    }),
-                    Argument::Call(FunctionCall {
-                        name: String::from("len"),
-                        args: vec![Argument::Underscore]
-                    })
-                ]
-            ))
+            parse_pipeline("inc(count) | len(_)"),
+            Ok(vec![
+                func("inc", vec![id("count")]),
+                func("len", vec![Underscore])
+            ])
         );
 
         assert_eq!(
-            pipeline("add(len(name), len(surname)) | len  (_)"),
-            Ok((
-                "",
-                vec![
-                    Argument::Call(FunctionCall {
-                        name: String::from("add"),
-                        args: vec![
-                            Argument::Call(FunctionCall {
-                                name: "len".to_string(),
-                                args: vec![Argument::Identifier("name".to_string())]
-                            }),
-                            Argument::Call(FunctionCall {
-                                name: "len".to_string(),
-                                args: vec![Argument::Identifier("surname".to_string())]
-                            })
-                        ]
-                    }),
-                    Argument::Call(FunctionCall {
-                        name: String::from("len"),
-                        args: vec![Argument::Underscore]
-                    })
-                ]
-            ))
+            parse_pipeline("count + 1 | len(_)"),
+            Ok(vec![
+                func("add", vec![id("count"), Int(1)]),
+                func("len", vec![Underscore])
+            ])
         );
+    }
+
+    #[test]
+    fn test_pipeline_elision() {
+        let pipeline = parse_pipeline("inc(count) | len").map(|p| handle_pipeline_elision(p));
 
         assert_eq!(
-            pipeline("if(true, len(name), len(surname))"),
-            Ok((
-                "",
-                vec![Argument::Call(FunctionCall {
-                    name: String::from("if"),
-                    args: vec![
-                        Argument::BooleanLiteral(true),
-                        Argument::Call(FunctionCall {
-                            name: "len".to_string(),
-                            args: vec![Argument::Identifier("name".to_string())]
-                        }),
-                        Argument::Call(FunctionCall {
-                            name: "len".to_string(),
-                            args: vec![Argument::Identifier("surname".to_string())]
-                        })
-                    ]
-                })]
-            ))
-        );
-
-        assert_eq!(
-            pipeline("trim(name)|len  (_)"),
-            Ok((
-                "",
-                vec![
-                    Argument::Call(FunctionCall {
-                        name: String::from("trim"),
-                        args: vec![Argument::Identifier(String::from("name"))]
-                    }),
-                    Argument::Call(FunctionCall {
-                        name: String::from("len"),
-                        args: vec![Argument::Underscore]
-                    })
-                ]
-            ))
-        );
-
-        assert_eq!(
-            pipeline("trim(name) | len(_)  "),
-            Ok((
-                "",
-                vec![
-                    Argument::Call(FunctionCall {
-                        name: String::from("trim"),
-                        args: vec![Argument::Identifier(String::from("name"))]
-                    }),
-                    Argument::Call(FunctionCall {
-                        name: String::from("len"),
-                        args: vec![Argument::Underscore]
-                    })
-                ]
-            ))
-        );
-
-        assert_eq!(
-            pipeline("trim(A) | len | coalesce(null)"),
-            Ok((
-                "",
-                vec![
-                    Argument::Call(FunctionCall {
-                        name: String::from("trim"),
-                        args: vec![Argument::Identifier("A".to_string())]
-                    }),
-                    Argument::Call(FunctionCall {
-                        name: String::from("len"),
-                        args: vec![Argument::Underscore]
-                    }),
-                    Argument::Call(FunctionCall {
-                        name: String::from("coalesce"),
-                        args: vec![Argument::Null]
-                    })
-                ]
-            ))
-        );
-
-        assert_eq!(
-            pipeline("4.5 | 'test' | true | len"),
-            Ok((
-                "",
-                vec![
-                    Argument::FloatLiteral(4.5),
-                    Argument::StringLiteral("test".to_string()),
-                    Argument::BooleanLiteral(true),
-                    Argument::Call(FunctionCall {
-                        name: "len".to_string(),
-                        args: vec![Argument::Underscore]
-                    })
-                ]
-            ))
-        );
-
-        assert_eq!(
-            pipeline("len | trim"),
-            Ok((
-                "",
-                vec![
-                    Argument::Identifier("len".to_string()),
-                    Argument::Call(FunctionCall {
-                        name: "trim".to_string(),
-                        args: vec![Argument::Underscore]
-                    })
-                ]
-            ))
+            pipeline,
+            Ok(vec![
+                func("inc", vec![id("count")]),
+                func("len", vec![Underscore])
+            ])
         );
     }
 
@@ -892,58 +717,34 @@ mod tests {
     fn test_trim_pipeline() {
         // Should give: add(a, b) | len
         let pipeline = parse_pipeline("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
         let pipeline = trim_pipeline(pipeline);
 
         assert_eq!(
             pipeline,
             vec![
-                Argument::Call(FunctionCall {
-                    name: "add".to_string(),
-                    args: vec![
-                        Argument::Identifier("a".to_string()),
-                        Argument::Identifier("b".to_string())
-                    ]
-                }),
-                Argument::Call(FunctionCall {
-                    name: "len".to_string(),
-                    args: vec![Argument::Underscore]
-                })
+                func("add", vec![id("a"), id("b")]),
+                func("len", vec![Underscore])
             ]
         );
 
         // Should give: 45 | inc
         let pipeline = parse_pipeline("trim(a) | 45 | inc").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
         let pipeline = trim_pipeline(pipeline);
 
-        assert_eq!(
-            pipeline,
-            vec![
-                Argument::IntegerLiteral(45),
-                Argument::Call(FunctionCall {
-                    name: "inc".to_string(),
-                    args: vec![Argument::Underscore]
-                })
-            ]
-        );
+        assert_eq!(pipeline, vec![Int(45), func("inc", vec![Underscore])]);
 
         let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
         let pipeline = trim_pipeline(pipeline);
 
         assert_eq!(
             pipeline,
             vec![
-                Argument::Call(FunctionCall {
-                    name: "trim".to_string(),
-                    args: vec![Argument::Identifier("a".to_string())]
-                }),
-                Argument::Call(FunctionCall {
-                    name: "len".to_string(),
-                    args: vec![Argument::Underscore]
-                }),
-                Argument::Call(FunctionCall {
-                    name: "add".to_string(),
-                    args: vec![Argument::Identifier("b".to_string()), Argument::Underscore]
-                })
+                func("trim", vec![id("a")]),
+                func("len", vec![Underscore]),
+                func("add", vec![id("b"), Underscore]),
             ]
         );
     }
@@ -952,160 +753,49 @@ mod tests {
     fn test_unfurl_pipeline() {
         // Should give: add(b, len(trim(a)))
         let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
         let pipeline = unfurl_pipeline(pipeline);
 
         assert_eq!(
             pipeline,
-            vec![Argument::Call(FunctionCall {
-                name: "add".to_string(),
-                args: vec![
-                    Argument::Identifier("b".to_string()),
-                    Argument::Call(FunctionCall {
-                        name: "len".to_string(),
-                        args: vec![Argument::Call(FunctionCall {
-                            name: "trim".to_string(),
-                            args: vec![Argument::Identifier("a".to_string())]
-                        })]
-                    })
-                ]
-            })]
-        );
-    }
-
-    #[test]
-    fn test_as_suffix() {
-        assert_eq!(
-            as_suffix("as name, test"),
-            Ok((", test", "name".to_string()))
-        );
-        assert_eq!(
-            as_suffix("  as    name, test"),
-            Ok((", test", "name".to_string()))
-        );
-        assert_eq!(
-            as_suffix("as \"name2\", test"),
-            Ok((", test", "name2".to_string()))
-        );
-    }
-
-    #[test]
-    fn test_aggregation() {
-        assert_eq!(
-            aggregation("mean(A)"),
-            Ok((
-                "",
-                Aggregation {
-                    name: "mean(A)".to_string(),
-                    method: "mean".to_string(),
-                    args: vec![Argument::Identifier("A".to_string())],
-                    key: "A".to_string()
-                }
-            ))
-        );
-        assert_eq!(
-            aggregation("mean(A) as avg"),
-            Ok((
-                "",
-                Aggregation {
-                    name: "avg".to_string(),
-                    method: "mean".to_string(),
-                    args: vec![Argument::Identifier("A".to_string())],
-                    key: "A".to_string()
-                }
-            ))
-        );
-        assert_eq!(
-            aggregation("mean(add(A, B))"),
-            Ok((
-                "",
-                Aggregation {
-                    name: "mean(add(A, B))".to_string(),
-                    method: "mean".to_string(),
-                    args: vec![Argument::Call(FunctionCall {
-                        name: "add".to_string(),
-                        args: vec![
-                            Argument::Identifier("A".to_string()),
-                            Argument::Identifier("B".to_string())
-                        ]
-                    })],
-                    key: "add(A, B)".to_string()
-                }
-            ))
+            vec![func(
+                "add",
+                vec![id("b"), func("len", vec![func("trim", vec![id("a")])])]
+            )]
         );
     }
 
     #[test]
     fn test_aggregations() {
         assert_eq!(
-            aggregations("mean(add(A, B)), sum(C) as s"),
-            Ok((
-                "",
-                vec![
-                    Aggregation {
-                        name: "mean(add(A, B))".to_string(),
-                        method: "mean".to_string(),
-                        args: vec![Argument::Call(FunctionCall {
-                            name: "add".to_string(),
-                            args: vec![
-                                Argument::Identifier("A".to_string()),
-                                Argument::Identifier("B".to_string())
-                            ]
-                        })],
-                        key: "add(A, B)".to_string()
-                    },
-                    Aggregation {
-                        name: "s".to_string(),
-                        method: "sum".to_string(),
-                        args: vec![Argument::Identifier("C".to_string())],
-                        key: "C".to_string()
-                    }
-                ]
-            ))
+            parse_aggregations("count(add(A, B) + 1)"),
+            Ok(vec![Aggregation {
+                agg_name: "count(add(A, B) + 1)".to_string(),
+                func_name: "count".to_string(),
+                expr_key: "add(A, B) + 1".to_string(),
+                args: vec![func(
+                    "add",
+                    vec![func("add", vec![id("A"), id("B")]), Int(1)]
+                ),]
+            }])
+        );
+
+        assert_eq!(
+            parse_aggregations("count(a) as c, sum(b) as \"Sum\""),
+            Ok(vec![
+                Aggregation {
+                    agg_name: "c".to_string(),
+                    func_name: "count".to_string(),
+                    expr_key: "a".to_string(),
+                    args: vec![id("a")]
+                },
+                Aggregation {
+                    agg_name: "Sum".to_string(),
+                    func_name: "sum".to_string(),
+                    expr_key: "b".to_string(),
+                    args: vec![id("b")]
+                }
+            ])
         );
     }
-
-    // #[test]
-    // fn test_optimize_aggregations() {
-    //     let aggregations = parse_aggregations("mean(A), sum(A)").unwrap();
-    //     let aggregations = optimize_aggregations(aggregations);
-
-    //     assert_eq!(
-    //         aggregations,
-    //         vec![
-    //             Aggregation {
-    //                 name: "mean(A)".to_string(),
-    //                 method: "mean".to_string(),
-    //                 args: vec![Argument::Identifier("A".to_string())],
-    //                 key: "A".to_string()
-    //             },
-    //             Aggregation {
-    //                 name: "sum(A)".to_string(),
-    //                 method: "sum".to_string(),
-    //                 args: vec![Argument::Identifier("A".to_string())],
-    //                 key: "A".to_string()
-    //             },
-    //         ]
-    //     );
-
-    //     let aggregations = parse_aggregations("count(), sum(A)").unwrap();
-    //     let aggregations = optimize_aggregations(aggregations);
-
-    //     assert_eq!(
-    //         aggregations,
-    //         vec![
-    //             Aggregation {
-    //                 name: "count()".to_string(),
-    //                 method: "count".to_string(),
-    //                 args: vec![],
-    //                 key: "A".to_string()
-    //             },
-    //             Aggregation {
-    //                 name: "sum(A)".to_string(),
-    //                 method: "sum".to_string(),
-    //                 args: vec![Argument::Identifier("A".to_string())],
-    //                 key: "A".to_string()
-    //             },
-    //         ]
-    //     );
-    // }
 }
