@@ -51,9 +51,16 @@ enum TokenTree<'a> {
 impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     fn from(pair: Pair<'a, Rule>) -> Self {
         match pair.as_rule() {
-            Rule::string | Rule::int | Rule::float | Rule::ident | Rule::underscore => {
-                TokenTree::Primary(pair)
-            }
+            Rule::string
+            | Rule::case_insensitive_regex
+            | Rule::case_sensitive_regex
+            | Rule::int
+            | Rule::float
+            | Rule::ident
+            | Rule::underscore
+            | Rule::true_lit
+            | Rule::false_lit
+            | Rule::null => TokenTree::Primary(pair),
             Rule::add => TokenTree::Infix(Operator::Add),
             Rule::mul => TokenTree::Infix(Operator::Mul),
             Rule::not => TokenTree::Infix(Operator::Not),
@@ -85,7 +92,9 @@ fn build_string(pair: Pair<Rule>) -> String {
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::raw_double_quoted_string | Rule::raw_single_quoted_string => {
+            Rule::raw_double_quoted_string
+            | Rule::raw_single_quoted_string
+            | Rule::raw_regex_string => {
                 string.push_str(inner.as_str());
             }
             Rule::escape => {
@@ -106,6 +115,16 @@ fn build_string(pair: Pair<Rule>) -> String {
                     _ => unreachable!(),
                 }
             }
+            Rule::escape_regex => {
+                string.push_str(match inner.as_str() {
+                    r"\n" => "\n",
+                    r"\r" => "\r",
+                    r"\t" => "\t",
+                    r"\\" => "\\",
+                    r"\/" => "/",
+                    rest => rest,
+                });
+            }
             _ => {
                 dbg!(inner);
                 unreachable!()
@@ -123,7 +142,10 @@ pub enum Expr {
     Float(f64),
     Identifier(String),
     Str(String),
+    Regex(String, bool),
+    Bool(bool),
     Underscore,
+    Null,
 }
 
 struct MoonbladePrattParser;
@@ -169,8 +191,13 @@ where
                     Expr::Float(n)
                 }
                 Rule::string => Expr::Str(build_string(token)),
+                Rule::case_insensitive_regex => Expr::Regex(build_string(token), true),
+                Rule::case_sensitive_regex => Expr::Regex(build_string(token), false),
                 Rule::underscore => Expr::Underscore,
                 Rule::ident => Expr::Identifier(token.as_str().to_string()),
+                Rule::true_lit => Expr::Bool(true),
+                Rule::false_lit => Expr::Bool(false),
+                Rule::null => Expr::Null,
                 _ => unreachable!(),
             },
             TokenTree::Expr(group) => self.parse(&mut group.into_iter()).unwrap(),
@@ -384,6 +411,25 @@ mod tests {
         Str(string.to_string())
     }
 
+    fn r(string: &str) -> Expr {
+        Regex(string.to_string(), false)
+    }
+
+    fn ri(string: &str) -> Expr {
+        Regex(string.to_string(), true)
+    }
+
+    #[test]
+    fn test_booleans() {
+        assert_eq!(parse_expression("true"), Ok(Bool(true)));
+        assert_eq!(parse_expression("false"), Ok(Bool(false)));
+    }
+
+    #[test]
+    fn test_null() {
+        assert_eq!(parse_expression("null"), Ok(Null));
+    }
+
     #[test]
     fn test_integers() {
         assert_eq!(parse_expression("1"), Ok(Int(1)));
@@ -407,8 +453,20 @@ mod tests {
     fn test_strings() {
         assert_eq!(parse_expression("\"test\""), Ok(s("test")));
         assert_eq!(parse_expression("'test'"), Ok(s("test")));
+        assert_eq!(parse_expression("\"\\\"test\\\"\""), Ok(s("\"test\"")));
+        assert_eq!(parse_expression("'\\'test\\''"), Ok(s("'test'")));
         assert_eq!(parse_expression(r"'\n\r\t\\\''"), Ok(s("\n\r\t\\'")));
         assert_eq!(parse_expression(r#""\n\r\t\\\"""#), Ok(s("\n\r\t\\\"")));
+    }
+
+    #[test]
+    fn test_regexes() {
+        assert_eq!(parse_expression("/test/"), Ok(r("test")));
+        assert_eq!(parse_expression("/test/i"), Ok(ri("test")));
+        assert_eq!(parse_expression("/tes.t?/"), Ok(r("tes.t?")));
+        assert_eq!(parse_expression(r#"/te\.st/"#), Ok(r("te\\.st")));
+        assert_eq!(parse_expression(r#"/te\/st/"#), Ok(r("te/st")));
+        assert_eq!(parse_expression(r#"/te\nst/"#), Ok(r("te\nst")));
     }
 
     #[test]

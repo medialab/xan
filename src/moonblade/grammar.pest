@@ -2,11 +2,11 @@
 WHITESPACE = _{ " " }
 
 // Literals
-true_lit   = { "true" }
-false_lit  = { "false" }
-bool       = { true_lit | false_lit }
-null       = { "null" }
-underscore = { "_" }
+true_lit   =  { "true" }
+false_lit  =  { "false" }
+bool       = _{ true_lit | false_lit }
+null       =  { "null" }
+underscore =  { "_" }
 
 // Numbers
 digit        = _{ '0'..'9' }
@@ -33,9 +33,9 @@ string               =  { single_quoted_string | double_quoted_string }
 // Regexes
 raw_regex_string       =  { (!("\\" | "/") ~ ANY)+ }
 escape_regex           =  { "\\" ~ ANY }
-case_insensitive_regex = _{ "/" ~ (raw_regex_string | escape_regex)* ~ "/i" }
-case_sensitive_regex   = _{ "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
-regex                  =  { case_insensitive_regex | case_sensitive_regex }
+case_insensitive_regex =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/i" }
+case_sensitive_regex   =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
+regex                  = _{ case_insensitive_regex | case_sensitive_regex }
 
 // Identifiers
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
