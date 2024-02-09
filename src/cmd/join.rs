@@ -76,7 +76,14 @@ join options:
                                 This is a variant of 'left join' in that all rows from
                                 the first files will be written at least one, even if
                                 no pattern from the second file matched.
-    -p, --parallel              When using --regex or --regex-left, parallelize matches.
+    -p, --parallel              Whether to use parallelization to speed up computations.
+                                Will automatically select a suitable number of threads to use
+                                based on your number of cores. Use -t, --threads if you want to
+                                indicate the number of threads yourself. Only works with --regex
+                                and --regex-left currently.
+    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
+                                if you want the number of threads to be automatically chosen instead.
+                                Only works with --regex and --regex-left currently.
     --nulls                     When set, joins will work on empty fields.
                                 Otherwise, empty fields are completely ignored.
                                 (In fact, any row that has an empty field in the
@@ -118,6 +125,7 @@ struct Args {
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
     flag_parallel: bool,
+    flag_threads: Option<usize>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -142,6 +150,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     state.write_headers()?;
 
+    let parallelization = match (args.flag_parallel, args.flag_threads) {
+        (true, None) => Some(None),
+        (_, Some(count)) => Some(Some(count)),
+        _ => None,
+    };
+
     if args.flag_left {
         state.outer_join(false)
     } else if args.flag_right {
@@ -151,9 +165,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.flag_cross {
         state.cross_join()
     } else if args.flag_regex {
-        state.regex_join(true, args.flag_parallel)
+        state.regex_join(true, parallelization)
     } else if args.flag_regex_left {
-        state.regex_join(false, args.flag_parallel)
+        state.regex_join(false, parallelization)
     } else {
         state.inner_join()
     }
@@ -222,7 +236,7 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
         Ok(())
     }
 
-    fn regex_join(mut self, inner: bool, parallel: bool) -> CliResult<()> {
+    fn regex_join(mut self, inner: bool, parallelization: Option<Option<usize>>) -> CliResult<()> {
         if self.sel1.len() > 1 {
             return Err(crate::CliError::Other(
                 "Cannot select multiple columns for first CSV file when using the --regex flag."
@@ -255,7 +269,55 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
             .build()?;
 
         // Peforming join
-        if !parallel {
+        if let Some(threads) = parallelization {
+            let sel1 = self.sel1;
+            let mut wtr = self.wtr;
+
+            self.rdr1
+                .into_byte_records()
+                .parallel_map_custom(
+                    |o| {
+                        if let Some(count) = threads {
+                            o.threads(count)
+                        } else {
+                            o
+                        }
+                    },
+                    move |record| -> CliResult<Vec<csv::ByteRecord>> {
+                        let mut row = record?;
+
+                        let mut rows_to_emit: Vec<csv::ByteRecord> = Vec::new();
+
+                        let mut any_match = false;
+
+                        for m in regex_set.matches(sel1.select(&row).next().unwrap()) {
+                            any_match = true;
+
+                            let mut row_to_write = row.clone();
+                            row_to_write.extend(&regex_rows[m]);
+                            rows_to_emit.push(row_to_write);
+                        }
+
+                        if !inner && !any_match {
+                            row.extend(&pad_right);
+                            rows_to_emit.push(row);
+                        }
+
+                        Ok(rows_to_emit)
+                    },
+                )
+                .try_for_each(|result| -> CliResult<()> {
+                    let rows_to_emit = result?;
+
+                    for row in rows_to_emit {
+                        wtr.write_byte_record(&row)?;
+                    }
+
+                    Ok(())
+                })?;
+
+            wtr.flush()?;
+        } else {
             let mut row = csv::ByteRecord::new();
 
             while self.rdr1.read_byte_record(&mut row)? {
@@ -276,45 +338,6 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
             }
 
             self.wtr.flush()?;
-        } else {
-            let sel1 = self.sel1;
-            let mut wtr = self.wtr;
-
-            self.rdr1
-                .into_byte_records()
-                .parallel_map(move |record| -> CliResult<Vec<csv::ByteRecord>> {
-                    let mut row = record?;
-
-                    let mut rows_to_emit: Vec<csv::ByteRecord> = Vec::new();
-
-                    let mut any_match = false;
-
-                    for m in regex_set.matches(sel1.select(&row).next().unwrap()) {
-                        any_match = true;
-
-                        let mut row_to_write = row.clone();
-                        row_to_write.extend(&regex_rows[m]);
-                        rows_to_emit.push(row_to_write);
-                    }
-
-                    if !inner && !any_match {
-                        row.extend(&pad_right);
-                        rows_to_emit.push(row);
-                    }
-
-                    Ok(rows_to_emit)
-                })
-                .try_for_each(|result| -> CliResult<()> {
-                    let rows_to_emit = result?;
-
-                    for row in rows_to_emit {
-                        wtr.write_byte_record(&row)?;
-                    }
-
-                    Ok(())
-                })?;
-
-            wtr.flush()?;
         }
 
         Ok(())
