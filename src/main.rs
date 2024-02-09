@@ -379,6 +379,12 @@ impl From<regex::Error> for CliError {
     }
 }
 
+impl From<calamine::Error> for CliError {
+    fn from(err: calamine::Error) -> Self {
+        CliError::Other(err.to_string())
+    }
+}
+
 impl From<moonblade::ConcretizationError> for CliError {
     fn from(err: moonblade::ConcretizationError) -> CliError {
         CliError::Other(err.to_string())

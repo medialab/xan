@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use calamine::{open_workbook_auto, DataType, Reader};
+use calamine::{open_workbook_auto, Data, Reader};
 use csv;
 
 use config::Config;
@@ -42,7 +42,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let range = workbook.worksheet_range(&args.flag_sheet);
 
     match range {
-        None => {
+        Err(_) => {
             let sheets = workbook.sheet_names().join(", ");
 
             return Err(CliError::Other(format!(
@@ -50,30 +50,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 &args.flag_sheet, sheets
             )));
         }
-        Some(range) => {
-            let range = range.map_err(|_| "range error")?;
-
+        Ok(range) => {
             for row in range.rows() {
                 record.clear();
 
                 for cell in row {
                     match cell {
-                        DataType::String(value) => record.push_field(value.as_bytes()),
-                        DataType::DateTimeIso(value) => record.push_field(value.as_bytes()),
-                        DataType::DurationIso(value) => record.push_field(value.as_bytes()),
-                        DataType::Bool(value) => {
+                        Data::String(value) => record.push_field(value.as_bytes()),
+                        Data::DateTimeIso(value) => record.push_field(value.as_bytes()),
+                        Data::DurationIso(value) => record.push_field(value.as_bytes()),
+                        Data::Bool(value) => {
                             record.push_field(if *value { b"true" } else { b"false" })
                         }
-                        DataType::Int(value) => record.push_field(value.to_string().as_bytes()),
-                        DataType::Float(value) => record.push_field(value.to_string().as_bytes()),
-                        DataType::DateTime(value) => {
-                            record.push_field(value.to_string().as_bytes())
-                        }
-                        DataType::Duration(value) => {
-                            record.push_field(value.to_string().as_bytes())
-                        }
-                        DataType::Error(err) => record.push_field(err.to_string().as_bytes()),
-                        DataType::Empty => record.push_field(b""),
+                        Data::Int(value) => record.push_field(value.to_string().as_bytes()),
+                        Data::Float(value) => record.push_field(value.to_string().as_bytes()),
+                        Data::DateTime(value) => record.push_field(value.to_string().as_bytes()),
+                        Data::Error(err) => record.push_field(err.to_string().as_bytes()),
+                        Data::Empty => record.push_field(b""),
                     }
                 }
 
