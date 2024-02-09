@@ -1,3 +1,5 @@
+// En tant que chef, je m'engage à ce que nous ne nous
+// fassions pas *tous* tuer.
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
