@@ -4,6 +4,7 @@ use pest_derive::Parser;
 use pratt::{Affix, Associativity, PrattParser, Precedence};
 
 use super::functions::get_function;
+use super::utils::downgrade_float;
 
 #[derive(Parser)]
 #[grammar = "moonblade/grammar.pest"]
@@ -135,9 +136,52 @@ fn build_string(pair: Pair<Rule>) -> String {
     string
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct FunctionCall {
+    name: String,
+    args: Vec<Expr>,
+}
+
+impl FunctionCall {
+    fn has_underscore(&self) -> bool {
+        self.args.iter().any(|arg| match arg {
+            Expr::Func(sub_function_call) => sub_function_call.has_underscore(),
+            Expr::Underscore => true,
+            _ => false,
+        })
+    }
+
+    fn count_underscores(&self) -> usize {
+        self.args
+            .iter()
+            .map(|arg| match arg {
+                Expr::Func(sub_function_call) => sub_function_call.count_underscores(),
+                Expr::Underscore => 1,
+                _ => 0,
+            })
+            .sum()
+    }
+
+    fn fill_underscore(&mut self, with: &Expr) {
+        if let Expr::Func(_) = with {
+            for arg in self.args.iter_mut() {
+                match arg {
+                    Expr::Func(sub) => {
+                        sub.fill_underscore(with);
+                    }
+                    Expr::Underscore => {
+                        *arg = with.clone();
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Func(String, Vec<Expr>),
+    Func(FunctionCall),
     Int(i64),
     Float(f64),
     Identifier(String),
@@ -146,6 +190,38 @@ pub enum Expr {
     Bool(bool),
     Underscore,
     Null,
+}
+
+impl Expr {
+    pub fn has_underscore(&self) -> bool {
+        match self {
+            Self::Func(call) => call.has_underscore(),
+            _ => false,
+        }
+    }
+
+    pub fn try_to_usize(&self) -> Option<usize> {
+        match self {
+            Self::Int(n) => {
+                if *n < 0 {
+                    None
+                } else {
+                    Some(*n as usize)
+                }
+            }
+            Self::Float(f) => match downgrade_float(*f) {
+                None => None,
+                Some(n) => {
+                    if n < 0 {
+                        None
+                    } else {
+                        Some(n as usize)
+                    }
+                }
+            },
+            _ => None,
+        }
+    }
 }
 
 struct MoonbladePrattParser;
@@ -201,13 +277,13 @@ where
                 _ => unreachable!(),
             },
             TokenTree::Expr(group) => self.parse(&mut group.into_iter()).unwrap(),
-            TokenTree::Func(name, group) => Expr::Func(
+            TokenTree::Func(name, group) => Expr::Func(FunctionCall {
                 name,
-                group
+                args: group
                     .into_iter()
                     .map(|g| self.parse(&mut vec![g].into_iter()).unwrap())
                     .collect(),
-            ),
+            }),
             _ => unreachable!(),
         };
 
@@ -218,7 +294,10 @@ where
         let args = vec![lhs, rhs];
 
         Ok(match tree {
-            TokenTree::Infix(op) => Expr::Func(op.to_fn_string(), args),
+            TokenTree::Infix(op) => Expr::Func(FunctionCall {
+                name: op.to_fn_string(),
+                args,
+            }),
             _ => unreachable!(),
         })
     }
@@ -227,7 +306,10 @@ where
         let args = vec![rhs];
 
         Ok(match tree {
-            TokenTree::Infix(op) => Expr::Func(op.to_fn_string(), args),
+            TokenTree::Infix(op) => Expr::Func(FunctionCall {
+                name: op.to_fn_string(),
+                args,
+            }),
             _ => unreachable!(),
         })
     }
@@ -297,7 +379,10 @@ fn handle_pipeline_elision(pipeline: Pipeline) -> Pipeline {
             } else if let Expr::Identifier(ref name) = expr {
                 match get_function(name) {
                     None => expr,
-                    Some(_) => Expr::Func(name.to_string(), vec![Expr::Underscore]),
+                    Some(_) => Expr::Func(FunctionCall {
+                        name: name.to_string(),
+                        args: vec![Expr::Underscore],
+                    }),
                 }
             } else {
                 expr
@@ -306,8 +391,62 @@ fn handle_pipeline_elision(pipeline: Pipeline) -> Pipeline {
         .collect()
 }
 
-fn optimize_pipeline(pipeline: Pipeline) -> Pipeline {
-    handle_pipeline_elision(pipeline)
+// Example: trim(a) | add(a, b) | trim | add(a, b) | len -> add(a, b) | len
+fn trim_pipeline(pipeline: Pipeline) -> Pipeline {
+    match pipeline
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(i, arg)| *i != 0 && !arg.has_underscore())
+        .map(|r| r.0)
+    {
+        None => pipeline,
+        Some(index) => pipeline[index..].to_vec(),
+    }
+}
+
+// Example: trim(a) | len | add(b, _) -> add(b, len(trim(a)))
+// NOTE: we apply this as an optimization to avoid too much cloning
+fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
+    loop {
+        match pipeline.pop() {
+            None => break,
+            Some(arg) => {
+                if let Expr::Func(mut call) = arg {
+                    if call.count_underscores() != 1 {
+                        pipeline.push(Expr::Func(call));
+                        break;
+                    }
+                    match pipeline.pop() {
+                        Some(previous_arg) => {
+                            call.fill_underscore(&previous_arg);
+                            pipeline.push(Expr::Func(call));
+                        }
+                        None => {
+                            pipeline.push(Expr::Func(call));
+                            break;
+                        }
+                    }
+                } else {
+                    pipeline.push(arg);
+                    break;
+                }
+            }
+        }
+    }
+
+    pipeline
+}
+
+fn optimize_pipeline(mut pipeline: Pipeline) -> Pipeline {
+    pipeline = handle_pipeline_elision(pipeline);
+    pipeline = trim_pipeline(pipeline);
+
+    pipeline
+}
+
+fn parse_and_optimize_pipeline(input: &str) -> Result<Pipeline, ParseError> {
+    parse_pipeline(input).map(|pipeline| optimize_pipeline(pipeline))
 }
 
 #[derive(Debug, PartialEq)]
@@ -382,10 +521,10 @@ fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                 .map_err(|err| ParseError::PrattError(err.to_string()))?;
 
             match expr {
-                Expr::Func(name, args) => Ok(Aggregation {
+                Expr::Func(call) => Ok(Aggregation {
                     agg_name,
-                    args,
-                    func_name: name,
+                    args: call.args,
+                    func_name: call.name,
                     expr_key,
                 }),
                 _ => unreachable!(),
@@ -404,7 +543,10 @@ mod tests {
     }
 
     fn func(name: &str, args: Vec<Expr>) -> Expr {
-        Func(name.to_string(), args)
+        Func(FunctionCall {
+            name: name.to_string(),
+            args,
+        })
     }
 
     fn s(string: &str) -> Expr {
@@ -532,7 +674,15 @@ mod tests {
             parse_pipeline("inc(count) | len(_)"),
             Ok(vec![
                 func("inc", vec![id("count")]),
-                func("len", vec![Expr::Underscore])
+                func("len", vec![Underscore])
+            ])
+        );
+
+        assert_eq!(
+            parse_pipeline("count + 1 | len(_)"),
+            Ok(vec![
+                func("add", vec![id("count"), Int(1)]),
+                func("len", vec![Underscore])
             ])
         );
     }
@@ -545,8 +695,60 @@ mod tests {
             pipeline,
             Ok(vec![
                 func("inc", vec![id("count")]),
-                func("len", vec![Expr::Underscore])
+                func("len", vec![Underscore])
             ])
+        );
+    }
+
+    #[test]
+    fn test_trim_pipeline() {
+        // Should give: add(a, b) | len
+        let pipeline = parse_pipeline("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
+        let pipeline = trim_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![
+                func("add", vec![id("a"), id("b")]),
+                func("len", vec![Underscore])
+            ]
+        );
+
+        // Should give: 45 | inc
+        let pipeline = parse_pipeline("trim(a) | 45 | inc").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
+        let pipeline = trim_pipeline(pipeline);
+
+        assert_eq!(pipeline, vec![Int(45), func("inc", vec![Underscore])]);
+
+        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
+        let pipeline = trim_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![
+                func("trim", vec![id("a")]),
+                func("len", vec![Underscore]),
+                func("add", vec![id("b"), Underscore]),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_unfurl_pipeline() {
+        // Should give: add(b, len(trim(a)))
+        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
+        let pipeline = handle_pipeline_elision(pipeline);
+        let pipeline = unfurl_pipeline(pipeline);
+
+        assert_eq!(
+            pipeline,
+            vec![func(
+                "add",
+                vec![id("b"), func("len", vec![func("trim", vec![id("a")])])]
+            )]
         );
     }
 
