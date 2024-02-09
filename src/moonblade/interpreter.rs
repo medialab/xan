@@ -886,6 +886,7 @@ mod tests {
         );
 
         assert_eq!(eval_code("!true"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("!!!true"), Ok(DynamicValue::from(false)));
 
         assert_eq!(eval_code("1 == 2"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("1 > 2"), Ok(DynamicValue::from(false)));

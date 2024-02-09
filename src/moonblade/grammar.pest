@@ -108,7 +108,7 @@ not            =  { "!" }
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Expressions
-expr =  { unary_operator? ~ term ~ (binary_operator ~ term)* }
+expr =  { unary_operator* ~ term ~ (binary_operator ~ term)* }
 term = _{
     func
   | bool
