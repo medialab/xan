@@ -46,6 +46,7 @@ impl Operator {
         match self {
             Self::Add => "add",
             Self::Mul => "mul",
+            Self::Pow => "pow",
             Self::Not => "not",
             _ => unimplemented!(),
         }
@@ -55,14 +56,34 @@ impl Operator {
         self.as_fn_str().to_string()
     }
 
-    // NOTE: precdence taken from JavaScript
+    // NOTE: precedence taken from JavaScript and/or Python
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence#table
+    // https://docs.python.org/3/reference/expressions.html
     fn precedence(&self) -> Affix {
         match self {
             Self::Not => Affix::Prefix(Precedence(14)),
-            Self::Mul => Affix::Infix(Precedence(12), Associativity::Left),
-            Self::Add => Affix::Infix(Precedence(11), Associativity::Left),
-            _ => unimplemented!(),
+            Self::Pow => Affix::Infix(Precedence(13), Associativity::Right),
+            Self::Mul | Self::Div | Self::IDiv | Self::Mod => {
+                Affix::Infix(Precedence(12), Associativity::Left)
+            }
+            Self::Add | Self::Sub | Self::Concat => {
+                Affix::Infix(Precedence(11), Associativity::Left)
+            }
+            Self::In
+            | Self::NotIn
+            | Self::NumLt
+            | Self::NumLe
+            | Self::NumGt
+            | Self::NumGe
+            | Self::StrLt
+            | Self::StrLe
+            | Self::StrGt
+            | Self::StrGe => Affix::Infix(Precedence(9), Associativity::Left),
+            Self::NumEq | Self::NumNe | Self::StrEq | Self::StrNe => {
+                Affix::Infix(Precedence(8), Associativity::Left)
+            }
+            Self::And => Affix::Infix(Precedence(4), Associativity::Left),
+            Self::Or => Affix::Infix(Precedence(3), Associativity::Left),
         }
     }
 }
@@ -696,6 +717,11 @@ mod tests {
             parse_expression("1 + 2 * 4"),
             Ok(func("add", vec![Int(1), func("mul", vec![Int(2), Int(4)])]))
         );
+
+        assert_eq!(
+            parse_expression("2 ** 4"),
+            Ok(func("pow", vec![Int(2), Int(4)]))
+        )
     }
 
     #[test]
