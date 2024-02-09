@@ -43,12 +43,62 @@ ident         = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
 special_ident = @{ "%" ~ ident }
 
 // Operators
-binary_operator = _{ lte | add | sub | mul | div }
-lte             =  { "<=" }
-add             =  { "+" }
-sub             =  { "-" }
-mul             =  { "*" }
-div             =  { "/" }
+binary_operator = _{
+    add
+  | sub
+  | pow
+  | mul
+  | idiv
+  | div
+  | rem
+  | num_eq
+  | num_ne
+  | num_lt
+  | num_le
+  | num_gt
+  | num_ge
+  | str_eq
+  | str_ne
+  | str_lt
+  | str_le
+  | str_gt
+  | str_ge
+  | concat
+  | in_op
+  | not_in
+  | and
+  | or
+}
+
+num_eq = { "==" }
+num_ne = { "!=" | "<>" }
+num_lt = { "<" }
+num_le = { "<=" }
+num_gt = { ">" }
+num_ge = { ">=" }
+
+str_eq = { "eq" }
+str_ne = { "ne" }
+str_lt = { "lt" }
+str_le = { "le" }
+str_gt = { "gt" }
+str_ge = { "ge" }
+
+add  = { "+" }
+sub  = { "-" }
+mul  = { "*" }
+div  = { "/" }
+idiv = { "//" }
+rem  = { "%" }
+pow  = { "**" }
+
+concat = { "." }
+
+and = { "&&" | "and" }
+or  = { "||" | "or" }
+
+in_op     = { "in" }
+not_in = { "not in" }
 
 unary_operator = _{ not }
 not            =  { "!" }

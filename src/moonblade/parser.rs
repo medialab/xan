@@ -14,8 +14,30 @@ pub struct MoonbladePestParser;
 
 #[derive(Debug, PartialEq)]
 enum Operator {
+    NumEq,
+    NumNe,
+    NumLt,
+    NumLe,
+    NumGt,
+    NumGe,
+    StrEq,
+    StrNe,
+    StrLt,
+    StrLe,
+    StrGt,
+    StrGe,
     Add,
+    Sub,
     Mul,
+    Div,
+    IDiv,
+    Mod,
+    Pow,
+    Concat,
+    And,
+    Or,
+    In,
+    NotIn,
     Not,
 }
 
@@ -25,6 +47,7 @@ impl Operator {
             Self::Add => "add",
             Self::Mul => "mul",
             Self::Not => "not",
+            _ => unimplemented!(),
         }
     }
 
@@ -39,6 +62,7 @@ impl Operator {
             Self::Not => Affix::Prefix(Precedence(14)),
             Self::Mul => Affix::Infix(Precedence(12), Associativity::Left),
             Self::Add => Affix::Infix(Precedence(11), Associativity::Left),
+            _ => unimplemented!(),
         }
     }
 }
@@ -65,9 +89,33 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             | Rule::true_lit
             | Rule::false_lit
             | Rule::null => TokenTree::Primary(pair),
+
+            Rule::num_eq => TokenTree::Infix(Operator::NumEq),
+            Rule::num_ne => TokenTree::Infix(Operator::NumNe),
+            Rule::num_lt => TokenTree::Infix(Operator::NumLt),
+            Rule::num_le => TokenTree::Infix(Operator::NumLe),
+            Rule::num_gt => TokenTree::Infix(Operator::NumGt),
+            Rule::num_ge => TokenTree::Infix(Operator::NumGe),
+            Rule::str_eq => TokenTree::Infix(Operator::StrEq),
+            Rule::str_ne => TokenTree::Infix(Operator::StrNe),
+            Rule::str_lt => TokenTree::Infix(Operator::StrLt),
+            Rule::str_le => TokenTree::Infix(Operator::StrLe),
+            Rule::str_gt => TokenTree::Infix(Operator::StrGt),
+            Rule::str_ge => TokenTree::Infix(Operator::StrGe),
             Rule::add => TokenTree::Infix(Operator::Add),
+            Rule::sub => TokenTree::Infix(Operator::Sub),
             Rule::mul => TokenTree::Infix(Operator::Mul),
+            Rule::div => TokenTree::Infix(Operator::Div),
+            Rule::idiv => TokenTree::Infix(Operator::IDiv),
+            Rule::rem => TokenTree::Infix(Operator::Mod),
+            Rule::pow => TokenTree::Infix(Operator::Pow),
+            Rule::concat => TokenTree::Infix(Operator::Concat),
+            Rule::and => TokenTree::Infix(Operator::And),
+            Rule::or => TokenTree::Infix(Operator::Or),
+            Rule::in_op => TokenTree::Infix(Operator::In),
+            Rule::not_in => TokenTree::Infix(Operator::NotIn),
             Rule::not => TokenTree::Infix(Operator::Not),
+
             Rule::expr => {
                 let mut pairs = pair.into_inner();
 
@@ -77,12 +125,14 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
                     TokenTree::Expr(pairs.map(Self::from).collect())
                 }
             }
+
             Rule::func => {
                 let mut pairs = pair.into_inner();
                 let func_name = pairs.next().unwrap().as_str().to_lowercase();
 
                 TokenTree::Func(func_name, pairs.map(Self::from).collect())
             }
+
             _ => {
                 dbg!(&pair);
                 unreachable!();
