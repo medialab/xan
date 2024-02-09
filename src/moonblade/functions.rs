@@ -21,6 +21,30 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, Arity)> {
     Some(match name {
+        "__num_eq" => (
+            |args| number_compare(args, Ordering::is_eq),
+            Arity::Strict(2),
+        ),
+        "__num_gt" => (
+            |args| number_compare(args, Ordering::is_gt),
+            Arity::Strict(2),
+        ),
+        "__num_ge" => (
+            |args| number_compare(args, Ordering::is_ge),
+            Arity::Strict(2),
+        ),
+        "__num_lt" => (
+            |args| number_compare(args, Ordering::is_lt),
+            Arity::Strict(2),
+        ),
+        "__num_le" => (
+            |args| number_compare(args, Ordering::is_le),
+            Arity::Strict(2),
+        ),
+        "__num_ne" => (
+            |args| number_compare(args, Ordering::is_ne),
+            Arity::Strict(2),
+        ),
         "abs" => (
             |args| unary_arithmetic_op(args, DynamicNumber::abs),
             Arity::Strict(1),
@@ -42,10 +66,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             Arity::Strict(1),
         ),
         "div" => (|args| variadic_arithmetic_op(args, Div::div), Arity::Min(2)),
-        "eq" => (
-            |args| number_compare(args, Ordering::is_eq),
-            Arity::Strict(2),
-        ),
         "endswith" => (endswith, Arity::Strict(2)),
         "err" => (err, Arity::Strict(1)),
         "escape_regex" => (escape_regex, Arity::Strict(1)),
@@ -57,14 +77,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "fmt" => (fmt, Arity::Min(1)),
         "get" => (get, Arity::Strict(2)),
-        "gt" => (
-            |args| number_compare(args, Ordering::is_gt),
-            Arity::Strict(2),
-        ),
-        "gte" => (
-            |args| number_compare(args, Ordering::is_ge),
-            Arity::Strict(2),
-        ),
         "idiv" => (
             |args| arithmetic_op(args, DynamicNumber::idiv),
             Arity::Strict(2),
@@ -81,14 +93,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             |args| unary_arithmetic_op(args, DynamicNumber::ln),
             Arity::Strict(1),
         ),
-        "lt" => (
-            |args| number_compare(args, Ordering::is_lt),
-            Arity::Strict(2),
-        ),
-        "lte" => (
-            |args| number_compare(args, Ordering::is_le),
-            Arity::Strict(2),
-        ),
         "ltrim" => (ltrim, Arity::Range(1..=2)),
         "lower" => (lower, Arity::Strict(1)),
         "md5" => (md5, Arity::Strict(1)),
@@ -98,10 +102,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "mul" => (|args| variadic_arithmetic_op(args, Mul::mul), Arity::Min(2)),
         "neg" => (|args| unary_arithmetic_op(args, Neg::neg), Arity::Strict(1)),
-        "neq" => (
-            |args| number_compare(args, Ordering::is_ne),
-            Arity::Strict(2),
-        ),
         "not" => (not, Arity::Strict(1)),
         "or" => (or, Arity::Min(2)),
         "pathjoin" => (pathjoin, Arity::Min(1)),
@@ -124,27 +124,27 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "startswith" => (startswith, Arity::Strict(2)),
         "sub" => (|args| variadic_arithmetic_op(args, Sub::sub), Arity::Min(2)),
-        "s_eq" => (
+        "eq" => (
             |args| sequence_compare(args, Ordering::is_eq),
             Arity::Strict(2),
         ),
-        "s_gt" => (
+        "gt" => (
             |args| sequence_compare(args, Ordering::is_gt),
             Arity::Strict(2),
         ),
-        "s_gte" => (
+        "ge" => (
             |args| sequence_compare(args, Ordering::is_ge),
             Arity::Strict(2),
         ),
-        "s_lt" => (
+        "lt" => (
             |args| sequence_compare(args, Ordering::is_lt),
             Arity::Strict(2),
         ),
-        "s_lte" => (
+        "le" => (
             |args| sequence_compare(args, Ordering::is_le),
             Arity::Strict(2),
         ),
-        "s_neq" => (
+        "ne" => (
             |args| sequence_compare(args, Ordering::is_ne),
             Arity::Strict(2),
         ),

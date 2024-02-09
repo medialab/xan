@@ -47,10 +47,10 @@ fn agg() {
         "stddev",
         "1.2909944487358056",
     );
-    test_single_agg_function(&wrk, "all(gte(n,2)) as all", "all", "false");
-    test_single_agg_function(&wrk, "all(gte(n,1)) as all", "all", "true");
-    test_single_agg_function(&wrk, "any(gte(n,1)) as any", "any", "true");
-    test_single_agg_function(&wrk, "any(gte(n,5)) as any", "any", "false");
+    test_single_agg_function(&wrk, "all(n >= 2) as all", "all", "false");
+    test_single_agg_function(&wrk, "all(n >= 1) as all", "all", "true");
+    test_single_agg_function(&wrk, "any(n >= 1) as any", "any", "true");
+    test_single_agg_function(&wrk, "any(n >= 5) as any", "any", "false");
     test_single_agg_function(&wrk, "first(n) as first", "first", "1");
     test_single_agg_function(&wrk, "last(n) as last", "last", "4");
 }

@@ -589,19 +589,6 @@ mod tests {
     }
 
     #[test]
-    fn test_number_comparison() {
-        assert_eq!(eval_code("eq(3, 4)"), Ok(DynamicValue::Boolean(false)));
-        assert_eq!(eval_code("eq(4, 4)"), Ok(DynamicValue::Boolean(true)));
-        assert_eq!(eval_code("eq(3, '3')"), Ok(DynamicValue::Boolean(true)));
-
-        assert_eq!(eval_code("neq(3, 2)"), Ok(DynamicValue::Boolean(true)));
-        assert_eq!(eval_code("lt(3, 2)"), Ok(DynamicValue::Boolean(false)));
-        assert_eq!(eval_code("lte(3, 2)"), Ok(DynamicValue::Boolean(false)));
-        assert_eq!(eval_code("gt(3, 2)"), Ok(DynamicValue::Boolean(true)));
-        assert_eq!(eval_code("gte(3, 2)"), Ok(DynamicValue::Boolean(true)));
-    }
-
-    #[test]
     fn test_pathjoin() {
         assert_eq!(
             eval_code("pathjoin('one', 'two', 'three')"),
@@ -879,16 +866,39 @@ mod tests {
         assert_eq!(eval_code("1 // 2"), Ok(DynamicValue::from(0)));
         assert_eq!(eval_code("2 ** 4"), Ok(DynamicValue::from(16)));
         assert_eq!(eval_code("8 % 2"), Ok(DynamicValue::from(0)));
+
         assert_eq!(eval_code("'he'.'llo'"), Ok(DynamicValue::from("hello")));
+
         assert_eq!(eval_code("true && false"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("true and false"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("true || false"), Ok(DynamicValue::from(true)));
         assert_eq!(eval_code("true or false"), Ok(DynamicValue::from(true)));
+
+        assert_eq!(
+            eval_code("true && (true && (false || true) || false && false) && false"),
+            Ok(DynamicValue::from(false))
+        );
+
         assert_eq!(eval_code("'h' in 'hello'"), Ok(DynamicValue::from(true)));
         assert_eq!(
             eval_code("'h' not in 'hello'"),
             Ok(DynamicValue::from(false))
         );
+
         assert_eq!(eval_code("!true"), Ok(DynamicValue::from(false)));
+
+        assert_eq!(eval_code("1 == 2"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("1 > 2"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("1 >= 2"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("1 < 2"), Ok(DynamicValue::from(true)));
+        assert_eq!(eval_code("1 <= 2"), Ok(DynamicValue::from(true)));
+        assert_eq!(eval_code("1 != 2"), Ok(DynamicValue::from(true)));
+
+        assert_eq!(eval_code("'a' eq 'b'"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("'a' gt 'b'"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("'a' ge 'b'"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("'a' lt 'b'"), Ok(DynamicValue::from(true)));
+        assert_eq!(eval_code("'a' le 'b'"), Ok(DynamicValue::from(true)));
+        assert_eq!(eval_code("'a' ne 'b'"), Ok(DynamicValue::from(true)));
     }
 }

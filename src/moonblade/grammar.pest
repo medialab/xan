@@ -43,6 +43,7 @@ ident         = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
 special_ident = @{ "%" ~ ident }
 
 // Operators
+// NOTE: order IS important
 binary_operator = _{
     add
   | sub
@@ -53,16 +54,16 @@ binary_operator = _{
   | rem
   | num_eq
   | num_ne
-  | num_lt
   | num_le
-  | num_gt
+  | num_lt
   | num_ge
+  | num_gt
   | str_eq
   | str_ne
-  | str_lt
   | str_le
-  | str_gt
+  | str_lt
   | str_ge
+  | str_gt
   | concat
   | in_op
   | not_in
@@ -97,7 +98,7 @@ concat = { "." }
 and = { "&&" | "and" }
 or  = { "||" | "or" }
 
-in_op     = { "in" }
+in_op  = { "in" }
 not_in = { "not in" }
 
 unary_operator = _{ not }

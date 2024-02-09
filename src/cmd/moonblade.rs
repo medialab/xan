@@ -169,41 +169,23 @@ pub fn get_moonblade_functions_help() -> &'static str {
 
 ## Comparison
 
-    - eq(x, y) -> bool
-        Test numerical equality.
+    - eq(s1, s2) -> bool
+        Test string or sequence equality.
 
-    - gt(x, y) -> bool
-        Test numerical x > y.
+    - ne(s1, s2) -> bool
+        Test string or sequence inequality.
 
-    - gte(x, y) -> bool
-        Test numerical x >= y.
+    - gt(s1, s2) -> bool
+        Test that string or sequence s1 > s2.
 
-    - lt(x, y)
-        Test numerical x < y.
+    - ge(s1, s2) -> bool
+        Test that string or sequence s1 >= s2.
 
-    - lte(x, y)
-        Test numerical x > y.
+    - lt(s1, s2) -> bool
+        Test that string or sequence s1 < s2.
 
-    - neq(x, y) -> bool
-        Test numerical x != y.
-
-    - s_eq(s1, s2) -> bool
-        Test sequence equality.
-
-    - s_gt(s1, s2) -> bool
-        Test sequence s1 > s2.
-
-    - s_gte(s1, s2) -> bool
-        Test sequence s1 >= s2.
-
-    - s_lt(s1, s2) -> bool
-        Test sequence s1 < s2.
-
-    - s_gte(s1, s2) -> bool
-        Test sequence s1 <= s2.
-
-    - s_neq(s1, s2) -> bool
-        Test sequence s1 != s2.
+    - ge(s1, s2) -> bool
+        Test that string or sequence s1 <= s2.
 
 ## String & sequence helpers
 

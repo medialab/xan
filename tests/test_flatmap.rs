@@ -66,7 +66,7 @@ fn flatmap_filtermap() {
         ],
     );
     let mut cmd = wrk.command("flatmap");
-    cmd.arg("if(gte(age, 40), last(split(name, ' ')))")
+    cmd.arg("if(age >= 40, last(split(name, ' ')))")
         .arg("surname")
         .arg("data.csv");
 
