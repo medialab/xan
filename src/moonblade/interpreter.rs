@@ -429,7 +429,7 @@ impl<'a> PipelineProgram<'a> {
             if let ConcreteArgument::Call(call) = arg {
                 call.has_index_variable()
             } else {
-                false
+                arg.is_index_variable()
             }
         });
 

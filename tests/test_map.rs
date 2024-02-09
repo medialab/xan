@@ -20,6 +20,19 @@ fn map() {
 }
 
 #[test]
+fn map_special_identifiers() {
+    let wrk = Workdir::new("map_special_identifiers");
+    wrk.create("data.csv", vec![svec!["n"], svec!["10"], svec!["15"]]);
+
+    let mut cmd = wrk.command("map");
+    cmd.arg("%index").arg("r").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "r"], svec!["10", "0"], svec!["15", "1"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn map_parallel() {
     let wrk = Workdir::new("map_parallel");
     wrk.create(
