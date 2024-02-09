@@ -18,7 +18,7 @@ a,b
 
 The following command:
 
-    $ xan map 'add(a, b)' c > result.csv
+    $ xan map 'a + b' c > result.csv
 
 Will produce the following result:
 

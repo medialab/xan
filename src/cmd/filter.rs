@@ -16,7 +16,7 @@ a
 
 The following command:
 
-    $ xan filter 'gt(a, 1)'
+    $ xan filter 'a > 1'
 
 Will produce the following result:
 

@@ -46,7 +46,7 @@ Mary Sue,45
 
 The following command:
 
-    $ xan flatmap 'if(gte(age, 40), last(split(name, " ")))' surname
+    $ xan flatmap 'if(age >= 40, last(split(name, " ")))' surname
 
 Will produce the following result:
 

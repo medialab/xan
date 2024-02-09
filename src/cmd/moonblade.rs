@@ -20,56 +20,56 @@ xan script language cheatsheet (use --functions for comprehensive list of
 available functions):
 
   . Indexing a column by name:
-        'trim(col)'
+        'name'
 
   . Indexing column with forbidden characters (e.g. spaces, commas etc.):
-        'trim(col(\"Name of film\"))'
+        'col(\"Name of film\")'
 
   . Indexing column by index (0-based):
-        'trim(col(2))'
+        'col(2)'
 
   . Indexing a column by name and 0-based nth (for duplicate headers):
-        'trim(col(\"col\", 1))'
+        'col(\"col\", 1)'
+
+  . Applying functions:
+        'trim(name)'
+        'trim(concat(name, \" \", surname))'
+
+  . Using operators (unary & binary):
+        '-nb1'
+        'nb1 + nb2'
+        '(nb1 > 1) || nb2'
 
   . Integer literals:
-        'add(1, count)'
+        '1'
 
   . Boolean literals (true or false):
-        'coalesce(count, true)'
+        'true'
+        'false'
 
   . Null literals:
-        'coalesce(null, count)'
+        'null'
 
   . Float literals:
-        'mul(0.5, count)'
+        '0.5'
 
   . String literals (can use single or double quotes):
-        'concat(name, \"-\", surname)'
+        '\"hello\"'
 
   . Regex literals:
-        'match(name, /john/)'
+        '/john/'
 
   . Case-insensitive regex literals:
-        'match(name, /john/i)'
+        '/john/i'
 
   . Accessing current row index:
-        'add(%index, 1)'
+        '%index'
 
   . Nesting function calls:
         'add(sub(col1, col2), mul(col3, col4))'
 
   . Basic branching (also consider using the \"coalesce\" function for simple cases):
-        'if(lt(count, 4), trim(name), trim(surname))'
-
-  . Literals can also be returned as-is (e.g. to have a constant value across a column):
-        '4.5'
-        'true'
-        '4'
-        '\"john\"'
-
-  . Simple column names (without restricted characters such as spaces)
-    can be also used as-is to return a copy of a column for instance:
-        'column_name'
+        'if(count < 4, trim(name), trim(surname))'
 
   . Piping (underscore \"_\" becomes a reference to previous result):
         'trim(name) | lower(_) | add(count, len(_))'
@@ -84,13 +84,6 @@ available functions):
         is the same as:
 
         'trim(name) | lower(_)'
-
-Misc notes:
-
-  . This is a minimal interpreted language with dynamic typing,
-    which means functions will usually cast values around to
-    make them fit expectations. Use the `typeof` function if
-    you feel lost.
 "
 }
 
