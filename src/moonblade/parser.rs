@@ -66,9 +66,11 @@ impl Operator {
             Self::Concat => "concat",
             Self::And => "and",
             Self::Or => "or",
-            Self::In => "contains",
-            Self::NotIn => "__not_contains",
             Self::Not => "not",
+
+            // NOTE: In & NotIn are not covered by this match
+            // because lhs and rhs are reversed.
+            _ => unreachable!(),
         }
     }
 
@@ -387,13 +389,24 @@ where
     }
 
     fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
-        let args = vec![lhs, rhs];
-
         Ok(match tree {
-            TokenTree::Infix(op) => Expr::Func(FunctionCall {
-                name: op.to_fn_string(),
-                args,
-            }),
+            TokenTree::Infix(op) => match op {
+                Operator::In => Expr::Func(FunctionCall {
+                    name: "contains".to_string(),
+                    args: vec![rhs, lhs],
+                }),
+                Operator::NotIn => Expr::Func(FunctionCall {
+                    name: "not".to_string(),
+                    args: vec![Expr::Func(FunctionCall {
+                        name: "contains".to_string(),
+                        args: vec![rhs, lhs],
+                    })],
+                }),
+                _ => Expr::Func(FunctionCall {
+                    name: op.to_fn_string(),
+                    args: vec![lhs, rhs],
+                }),
+            },
             _ => unreachable!(),
         })
     }
