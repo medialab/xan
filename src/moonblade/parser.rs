@@ -44,11 +44,31 @@ enum Operator {
 impl Operator {
     fn as_fn_str(&self) -> &'static str {
         match self {
+            Self::NumEq => "__num_eq",
+            Self::NumNe => "__num_ne",
+            Self::NumLt => "__num_lt",
+            Self::NumLe => "__num_le",
+            Self::NumGt => "__num_gt",
+            Self::NumGe => "__num_ge",
+            Self::StrEq => "eq",
+            Self::StrNe => "ne",
+            Self::StrLt => "lt",
+            Self::StrLe => "le",
+            Self::StrGt => "gt",
+            Self::StrGe => "ge",
             Self::Add => "add",
+            Self::Sub => "sub",
             Self::Mul => "mul",
+            Self::Div => "div",
+            Self::IDiv => "idiv",
             Self::Pow => "pow",
+            Self::Mod => "mod",
+            Self::Concat => "concat",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::In => "contains",
+            Self::NotIn => "__not_contains",
             Self::Not => "not",
-            _ => unimplemented!(),
         }
     }
 
