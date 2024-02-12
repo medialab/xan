@@ -31,11 +31,10 @@ double_quoted_string = _{ "\"" ~ (raw_double_quoted_string | escape | " ")* ~ "\
 string               = ${ single_quoted_string | double_quoted_string }
 
 // Regexes
-raw_regex_string       =  { (!("\\" | "/") ~ ANY)+ }
-escape_regex           =  { "\\" ~ ANY }
-case_insensitive_regex =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/i" }
-case_sensitive_regex   =  { "/" ~ (raw_regex_string | escape_regex)* ~ "/" }
-regex                  = _{ case_insensitive_regex | case_sensitive_regex }
+raw_regex_string = { (!("\\" | "/") ~ ANY)+ }
+escape_regex     = { "\\" ~ ANY }
+regex_flag       = { "i" }
+regex            = { "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ (regex_flag)* }
 
 // Identifiers
 ident_char    = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }

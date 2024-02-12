@@ -124,8 +124,7 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     fn from(pair: Pair<'a, Rule>) -> Self {
         match pair.as_rule() {
             Rule::string
-            | Rule::case_insensitive_regex
-            | Rule::case_sensitive_regex
+            | Rule::regex
             | Rule::int
             | Rule::float
             | Rule::ident
@@ -198,6 +197,7 @@ fn build_string(pair: Pair<Rule>) -> String {
             | Rule::raw_regex_string => {
                 string.push_str(inner.as_str());
             }
+            Rule::regex_flag => break,
             Rule::escape => {
                 let inner = inner.into_inner().next().unwrap();
 
@@ -384,8 +384,14 @@ where
                     Expr::Float(n)
                 }
                 Rule::string => Expr::Str(build_string(token)),
-                Rule::case_insensitive_regex => Expr::Regex(build_string(token), true),
-                Rule::case_sensitive_regex => Expr::Regex(build_string(token), false),
+                Rule::regex => {
+                    let case_insensitive = token.clone().into_inner().any(|t| match t.as_rule() {
+                        Rule::regex_flag => token.as_str().contains('i'),
+                        _ => false,
+                    });
+
+                    Expr::Regex(build_string(token), case_insensitive)
+                }
                 Rule::underscore => Expr::Underscore,
                 Rule::ident => Expr::Identifier(token.as_str().to_string()),
                 Rule::special_ident => Expr::SpecialIdentifier(token.as_str()[1..].to_string()),
