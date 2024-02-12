@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.1.0"  #:version
+version = "0.2.0"  #:version
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
@@ -23,6 +23,7 @@ include = [
   "LICENSE-MIT",
   "UNLICENSE",
   "src/**/*.rs",
+  "src/**/*.pest",
   "tests/**/*.rs"
 ]
 
