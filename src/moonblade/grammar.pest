@@ -72,7 +72,7 @@ binary_operator = _{
 }
 
 num_eq = { "==" }
-num_ne = { "!=" | "<>" }
+num_ne = { "!=" }
 num_lt = { "<" }
 num_le = { "<=" }
 num_gt = { ">" }

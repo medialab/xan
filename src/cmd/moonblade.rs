@@ -17,7 +17,7 @@ use CliResult;
 pub fn get_moonblade_cheatsheet() -> &'static str {
     "
 xan script language cheatsheet (use --functions for comprehensive list of
-available functions):
+available functions & operators):
 
   . Indexing a column by name:
         'name'
@@ -43,27 +43,26 @@ available functions):
   . Integer literals:
         '1'
 
-  . Boolean literals (true or false):
+  . Float literals:
+        '0.5'
+
+  . Boolean literals:
         'true'
         'false'
 
   . Null literals:
         'null'
 
-  . Float literals:
-        '0.5'
-
   . String literals (can use single or double quotes):
         '\"hello\"'
+        \"'hello'\"
 
   . Regex literals:
         '/john/'
+        '/john/i' (case-insensitive)
 
-  . Case-insensitive regex literals:
-        '/john/i'
-
-  . Accessing current row index:
-        '%index'
+  . Special variables:
+        '%index' -> current row index
 
   . Nesting function calls:
         'add(sub(col1, col2), mul(col3, col4))'
@@ -89,9 +88,67 @@ available functions):
 
 pub fn get_moonblade_functions_help() -> &'static str {
     "
-# Available functions
+# Available functions & operators
 
-(use --cheatsheet for a reminder of how the scripting language works)
+(use --cheatsheet for a reminder of the expression language's basics)
+
+## Operators
+
+### Unary operators
+
+    !x - boolean negation
+    -x - numerical negation,
+
+### Numerical comparison
+
+Warning: those operators will always consider operands as numbers and will
+try to cast them around as such. For string/sequence comparison, use the
+operators in the next section.
+
+    x == y - numerical equality
+    x != y - numerical inequality
+    x <  y - numerical less than
+    x <= y - numerical less than or equal
+    x >  y - numerical greater than
+    x >= y - numerical greater than or equal
+
+### String/sequence comparison
+
+Warning: those operators will always consider operands as strings or
+sequences and will try to cast them around as such. For numerical comparison,
+use the operators in the previous section.
+
+    x eq y - string equality
+    x ne y - string inequality
+    x lt y - string less than
+    x le y - string less than or equal
+    x gt y - string greater than
+    x ge y - string greater than or equal
+
+### Arithmetic operators
+
+    x + y  - numerical addition
+    x - y  - numerical subtraction
+    x * y  - numerical multiplication
+    x / y  - numerical division
+    x % y  - numerical remainder
+
+    x // y - numerical integer division
+    x ** y - numerical exponentiation
+
+## String operators
+
+    x . y - string concatenation
+
+## Logical operators
+
+    x &&  y - logical and
+    x and y
+    x ||  y - logical or
+    x or  y
+
+    x in y
+    x not in y
 
 ## Arithmetics
 
