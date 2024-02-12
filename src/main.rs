@@ -107,7 +107,6 @@ macro_rules! command_list {
     map         Create a new column by evaluating an expression on each CSV row
     partition   Partition CSV data based on a column value
     rename      Rename columns of a CSV file
-    replace     Replace patterns in CSV data
     reverse     Reverse rows of CSV data
     sample      Randomly sample CSV data
     search      Search CSV data with regexes
@@ -229,7 +228,6 @@ enum Command {
     Map,
     Partition,
     Rename,
-    Replace,
     Reverse,
     Sample,
     Search,
@@ -294,7 +292,6 @@ impl Command {
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),
             Command::Rename => cmd::rename::run(argv),
-            Command::Replace => cmd::replace::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),
             Command::Search => cmd::search::run(argv),

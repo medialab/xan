@@ -28,7 +28,6 @@ pub mod map;
 mod moonblade;
 pub mod partition;
 pub mod rename;
-pub mod replace;
 pub mod reverse;
 pub mod sample;
 pub mod search;

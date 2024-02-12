@@ -47,7 +47,6 @@ cargo install xan
 * `xan kway`
 * `xan map`
 * `xan rename`
-* `xan replace`
 * `xan reverse --in-memory`
 * `xan search --exact`
 * `xan search --flag col`
@@ -98,7 +97,6 @@ given separator.
 * **sample** - Randomly draw rows from CSV data using reservoir sampling (i.e.,
   use memory proportional to the size of the sample).
 * **rename** - Rename columns of a CSV file.
-* **replace** - Replace CSV data using a regex.
 * **reverse** - Reverse order of rows in CSV data.
 * **search** - Run a regex over CSV data. Applies the regex to each field
   individually and shows only matching rows.
