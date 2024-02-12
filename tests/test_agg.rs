@@ -152,7 +152,7 @@ fn agg_combinator() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("sum(add(a, inc(b))) as sum").arg("data.csv");
+    cmd.arg("sum(add(a, b + 1)) as sum").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["sum"], svec!["24"]];

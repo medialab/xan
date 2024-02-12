@@ -61,10 +61,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "concat" => (concat, Arity::Min(1)),
         "contains" => (contains, Arity::Strict(2)),
         "count" => (count, Arity::Strict(2)),
-        "dec" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::dec),
-            Arity::Strict(1),
-        ),
         "div" => (|args| variadic_arithmetic_op(args, Div::div), Arity::Min(2)),
         "endswith" => (endswith, Arity::Strict(2)),
         "err" => (err, Arity::Strict(1)),
@@ -80,10 +76,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "idiv" => (
             |args| arithmetic_op(args, DynamicNumber::idiv),
             Arity::Strict(2),
-        ),
-        "inc" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::inc),
-            Arity::Strict(1),
         ),
         "isfile" => (isfile, Arity::Strict(1)),
         "join" => (join, Arity::Strict(2)),

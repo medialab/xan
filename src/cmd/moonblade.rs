@@ -161,9 +161,6 @@ use the operators in the previous section.
     - ceil(x) -> number
         Return the smallest integer greater than or equal to x.
 
-    - dec(x) -> number
-        Decrement x, subtracting 1.
-
     - div(x, y, *n) -> number
         Divide two or more numbers.
 
@@ -172,9 +169,6 @@ use the operators in the previous section.
 
     - idiv(x, y) -> number
         Integer division of two numbers.
-
-    - inc(x) -> number
-        Increment x, adding 1.
 
     - log(x) -> number
         Return the natural logarithm of x.

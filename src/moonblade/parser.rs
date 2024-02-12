@@ -824,9 +824,9 @@ mod tests {
     #[test]
     fn test_pipeline() {
         assert_eq!(
-            parse_pipeline("inc(count) | len(_)"),
+            parse_pipeline("trim(count) | len(_)"),
             Ok(vec![
-                func("inc", vec![id("count")]),
+                func("trim", vec![id("count")]),
                 func("len", vec![Underscore])
             ])
         );
@@ -842,12 +842,12 @@ mod tests {
 
     #[test]
     fn test_pipeline_elision() {
-        let pipeline = parse_pipeline("inc(count) | len").map(|p| handle_pipeline_elision(p));
+        let pipeline = parse_pipeline("trim(count) | len").map(|p| handle_pipeline_elision(p));
 
         assert_eq!(
             pipeline,
             Ok(vec![
-                func("inc", vec![id("count")]),
+                func("trim", vec![id("count")]),
                 func("len", vec![Underscore])
             ])
         );
@@ -869,11 +869,11 @@ mod tests {
         );
 
         // Should give: 45 | inc
-        let pipeline = parse_pipeline("trim(a) | 45 | inc").unwrap();
+        let pipeline = parse_pipeline("trim(a) | 45 | len").unwrap();
         let pipeline = handle_pipeline_elision(pipeline);
         let pipeline = trim_pipeline(pipeline);
 
-        assert_eq!(pipeline, vec![Int(45), func("inc", vec![Underscore])]);
+        assert_eq!(pipeline, vec![Int(45), func("len", vec![Underscore])]);
 
         let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
         let pipeline = handle_pipeline_elision(pipeline);
