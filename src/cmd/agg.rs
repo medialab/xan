@@ -18,19 +18,19 @@ the whole file.
 
 You can, for instance, compute the sum of a column:
 
-    $ xan agg 'sum(retweet_count)' > result.csv
+    $ xan agg 'sum(retweet_count)' file.csv
 
 You can use dynamic expressions to mangle the data before aggregating it:
 
-    $ xan agg 'sum(add(retweet_count, replies_count))' > result.csv
+    $ xan agg 'sum(retweet_count + replies_count)' file.csv
 
 You can perform multiple aggregations at once:
 
-    $ xan agg 'sum(retweet_count), mean(retweet_count), max(replies_count)' > result.csv
+    $ xan agg 'sum(retweet_count), mean(retweet_count), max(replies_count)' file.csv
 
 You can rename the output columns using the 'as' syntax:
 
-    $ xan agg 'sum(n) as sum, max(replies_count) as \"Max Replies\"' > result.csv
+    $ xan agg 'sum(n) as sum, max(replies_count) as \"Max Replies\"' file.csv
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.

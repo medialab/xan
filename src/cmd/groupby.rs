@@ -23,19 +23,19 @@ each computed aggregation.
 
 You can, for instance, compute the sum of a column per group:
 
-    $ xan groupby user_name 'sum(retweet_count)' > groups.csv
+    $ xan groupby user_name 'sum(retweet_count)' file.csv
 
 You can use dynamic expressions to mangle the data before aggregating it:
 
-    $ xan groupby user_name 'sum(add(retweet_count, replies_count))' > groups.csv
+    $ xan groupby user_name 'sum(retweet_count + replies_count)' file.csv
 
 You can perform multiple aggregations at once:
 
-    $ xan groupby user_name 'sum(retweet_count), mean(retweet_count), max(replies_count)' > groups.csv
+    $ xan groupby user_name 'sum(retweet_count), mean(retweet_count), max(replies_count)' file.csv
 
 You can rename the output columns using the 'as' syntax:
 
-    $ xan groupby user_name 'sum(n) as sum, max(replies_count) as \"Max Replies\"' > groups.csv
+    $ xan groupby user_name 'sum(n) as sum, max(replies_count) as \"Max Replies\"' file.csv
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
