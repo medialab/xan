@@ -13,7 +13,7 @@ macro_rules! part_eq {
 
 fn data(headers: bool) -> Vec<Vec<String>> {
     let mut rows = vec![
-        svec!["NY", "Manhatten"],
+        svec!["NY", "Manhattan"],
         svec!["CA", "San Francisco"],
         svec!["TX", "Dallas"],
         svec!["NY", "Buffalo"],
@@ -47,7 +47,7 @@ CA,San Francisco
         "NY.csv",
         "\
 state,city
-NY,Manhatten
+NY,Manhattan
 NY,Buffalo
 "
     );
@@ -87,7 +87,7 @@ San Francisco
         "NY.csv",
         "\
 city
-Manhatten
+Manhattan
 Buffalo
 "
     );
@@ -125,7 +125,7 @@ CA,San Francisco
         wrk,
         "NY.csv",
         "\
-NY,Manhatten
+NY,Manhattan
 NY,Buffalo
 "
     );
@@ -163,7 +163,7 @@ San Francisco
         wrk,
         "NY.csv",
         "\
-Manhatten
+Manhattan
 Buffalo
 "
     );
@@ -363,6 +363,57 @@ M,Too short
 state,city
 CA,San Francisco
 CO,Denver
+"
+    );
+}
+
+fn sorted_data(headers: bool) -> Vec<Vec<String>> {
+    let mut rows = vec![
+        svec!["NY", "Manhattan"],
+        svec!["NY", "Buffalo"],
+        svec!["CA", "San Francisco"],
+        svec!["TX", "Dallas"],
+        svec!["TX", "Fort Worth"],
+    ];
+    if headers {
+        rows.insert(0, svec!["state", "city"]);
+    }
+    rows
+}
+
+#[test]
+fn partition_sorted() {
+    let wrk = Workdir::new("partition_sorted");
+    wrk.create("in.csv", sorted_data(true));
+
+    let mut cmd = wrk.command("partition");
+    cmd.arg("state").arg(&wrk.path(".")).arg("-S").arg("in.csv");
+    wrk.run(&mut cmd);
+
+    part_eq!(
+        wrk,
+        "CA.csv",
+        "\
+state,city
+CA,San Francisco
+"
+    );
+    part_eq!(
+        wrk,
+        "NY.csv",
+        "\
+state,city
+NY,Manhattan
+NY,Buffalo
+"
+    );
+    part_eq!(
+        wrk,
+        "TX.csv",
+        "\
+state,city
+TX,Dallas
+TX,Fort Worth
 "
     );
 }

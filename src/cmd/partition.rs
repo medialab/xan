@@ -31,6 +31,10 @@ partition options:
     -p, --prefix-length <n>  Truncate the partition column after the
                              specified number of bytes when creating the
                              output file.
+    -S, --sorted             Use this flag if you know the file is sorted
+                             on the partition column in advance, so the command
+                             can run faster and with less memory and resources
+                             opened.
     --drop                   Drop the partition column from results.
 
 Common options:
@@ -52,6 +56,7 @@ struct Args {
     flag_drop: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_sorted: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -96,37 +101,74 @@ impl Args {
             headers = headers.remove(key_col);
         }
 
-        let mut writers: HashMap<Vec<u8>, BoxedWriter> = HashMap::new();
         let mut row = csv::ByteRecord::new();
 
-        while rdr.read_byte_record(&mut row)? {
-            // Decide what file to put this in.
-            let column = &row[key_col];
-            let key = match self.flag_prefix_length {
-                // We exceed --prefix-length, so ignore the extra bytes.
-                Some(len) if len < column.len() => &column[0..len],
-                _ => column,
-            };
+        if self.flag_sorted {
+            let mut current: Option<(Vec<u8>, BoxedWriter)> = None;
 
-            let mut entry = writers.entry(key.to_vec());
-            let wtr = match entry {
-                Entry::Occupied(ref mut occupied) => occupied.get_mut(),
-                Entry::Vacant(vacant) => {
-                    // We have a new key, so make a new writer.
-                    let mut wtr = gen.writer(&*self.arg_outdir, key)?;
-                    if !rconfig.no_headers {
-                        wtr.write_record(&headers)?;
+            while rdr.read_byte_record(&mut row)? {
+                // Decide what file to put this in.
+                let column = &row[key_col];
+                let key = match self.flag_prefix_length {
+                    // We exceed --prefix-length, so ignore the extra bytes.
+                    Some(len) if len < column.len() => &column[0..len],
+                    _ => column,
+                };
+
+                match current {
+                    Some((ref k, _)) if k == key => {}
+                    _ => {
+                        let mut wtr = gen.writer(&self.arg_outdir, key)?;
+
+                        if !rconfig.no_headers {
+                            wtr.write_record(&headers)?;
+                        }
+
+                        current = Some((key.to_vec(), wtr));
                     }
-                    vacant.insert(wtr)
-                }
-            };
+                };
 
-            if self.flag_drop {
-                wtr.write_record(&row.remove(key_col))?;
-            } else {
-                wtr.write_byte_record(&row)?;
+                let wtr = &mut current.as_mut().unwrap().1;
+
+                if self.flag_drop {
+                    wtr.write_record(&row.remove(key_col))?;
+                } else {
+                    wtr.write_byte_record(&row)?;
+                }
+            }
+        } else {
+            let mut writers: HashMap<Vec<u8>, BoxedWriter> = HashMap::new();
+
+            while rdr.read_byte_record(&mut row)? {
+                // Decide what file to put this in.
+                let column = &row[key_col];
+                let key = match self.flag_prefix_length {
+                    // We exceed --prefix-length, so ignore the extra bytes.
+                    Some(len) if len < column.len() => &column[0..len],
+                    _ => column,
+                };
+
+                let mut entry = writers.entry(key.to_vec());
+                let wtr = match entry {
+                    Entry::Occupied(ref mut occupied) => occupied.get_mut(),
+                    Entry::Vacant(vacant) => {
+                        // We have a new key, so make a new writer.
+                        let mut wtr = gen.writer(&self.arg_outdir, key)?;
+                        if !rconfig.no_headers {
+                            wtr.write_record(&headers)?;
+                        }
+                        vacant.insert(wtr)
+                    }
+                };
+
+                if self.flag_drop {
+                    wtr.write_record(&row.remove(key_col))?;
+                } else {
+                    wtr.write_byte_record(&row)?;
+                }
             }
         }
+
         Ok(())
     }
 }

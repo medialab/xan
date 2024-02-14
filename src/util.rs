@@ -241,7 +241,7 @@ impl FilenameTemplate {
         }
         let spath = Some(full_path.display().to_string());
         Config::new(&spath).writer_with_options(
-            &fs::OpenOptions::new()
+            fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .truncate(true),
