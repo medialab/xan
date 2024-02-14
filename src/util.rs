@@ -240,7 +240,12 @@ impl FilenameTemplate {
             create_dir_all_threadsafe(parent)?;
         }
         let spath = Some(full_path.display().to_string());
-        Config::new(&spath).writer()
+        Config::new(&spath).writer_with_options(
+            &fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true),
+        )
     }
 }
 

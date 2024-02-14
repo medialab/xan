@@ -279,6 +279,13 @@ impl Config {
         Ok(self.from_writer(self.io_writer()?))
     }
 
+    pub fn writer_with_options(
+        &self,
+        options: &fs::OpenOptions,
+    ) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>> {
+        Ok(self.from_writer(self.io_writer_with_options(options)?))
+    }
+
     pub fn reader(&self) -> io::Result<csv::Reader<Box<dyn io::Read + 'static>>> {
         Ok(self.from_reader(self.io_reader()?))
     }
@@ -413,6 +420,16 @@ impl Config {
             .quoting(self.quoting)
             .escape(self.escape)
             .from_reader(rdr)
+    }
+
+    fn io_writer_with_options(
+        &self,
+        options: &fs::OpenOptions,
+    ) -> io::Result<Box<dyn io::Write + 'static>> {
+        Ok(match self.path {
+            None => Box::new(io::stdout()),
+            Some(ref p) => Box::new(options.open(p)?),
+        })
     }
 
     pub fn io_writer(&self) -> io::Result<Box<dyn io::Write + 'static>> {
