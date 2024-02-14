@@ -554,6 +554,9 @@ pub trait ImmutableRecordHelpers<'a> {
 
     #[must_use]
     fn append(&self, cell_value: Self::Cell) -> Self;
+
+    #[must_use]
+    fn remove(&self, column_index: usize) -> Self;
 }
 
 impl<'a> ImmutableRecordHelpers<'a> for csv::ByteRecord {
@@ -586,6 +589,13 @@ impl<'a> ImmutableRecordHelpers<'a> for csv::ByteRecord {
         new_record.push_field(cell_value);
         new_record
     }
+
+    fn remove(&self, column_index: usize) -> Self {
+        self.iter()
+            .enumerate()
+            .filter_map(|(i, c)| if i == column_index { None } else { Some(c) })
+            .collect()
+    }
 }
 
 impl<'a> ImmutableRecordHelpers<'a> for csv::StringRecord {
@@ -617,6 +627,13 @@ impl<'a> ImmutableRecordHelpers<'a> for csv::StringRecord {
         let mut new_record = self.clone();
         new_record.push_field(cell_value);
         new_record
+    }
+
+    fn remove(&self, column_index: usize) -> Self {
+        self.iter()
+            .enumerate()
+            .filter_map(|(i, c)| if i == column_index { None } else { Some(c) })
+            .collect()
     }
 }
 

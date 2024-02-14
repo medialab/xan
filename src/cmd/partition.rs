@@ -9,7 +9,7 @@ use regex::Regex;
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
-use util::{self, FilenameTemplate};
+use util::{self, FilenameTemplate, ImmutableRecordHelpers};
 use CliResult;
 
 static USAGE: &str = "
@@ -88,12 +88,17 @@ impl Args {
     fn sequential_partition(&self) -> CliResult<()> {
         let rconfig = self.rconfig();
         let mut rdr = rconfig.reader()?;
-        let headers = rdr.byte_headers()?.clone();
+        let mut headers = rdr.byte_headers()?.clone();
         let key_col = self.key_column(&rconfig, &headers)?;
         let mut gen = WriterGenerator::new(self.flag_filename.clone());
 
+        if self.flag_drop {
+            headers = headers.remove(key_col);
+        }
+
         let mut writers: HashMap<Vec<u8>, BoxedWriter> = HashMap::new();
         let mut row = csv::ByteRecord::new();
+
         while rdr.read_byte_record(&mut row)? {
             // Decide what file to put this in.
             let column = &row[key_col];
@@ -102,33 +107,22 @@ impl Args {
                 Some(len) if len < column.len() => &column[0..len],
                 _ => column,
             };
+
             let mut entry = writers.entry(key.to_vec());
-            let wtr =
-                match entry {
-                    Entry::Occupied(ref mut occupied) => occupied.get_mut(),
-                    Entry::Vacant(vacant) => {
-                        // We have a new key, so make a new writer.
-                        let mut wtr = gen.writer(&*self.arg_outdir, key)?;
-                        if !rconfig.no_headers {
-                            if self.flag_drop {
-                                wtr.write_record(headers.iter().enumerate().filter_map(
-                                    |(i, e)| if i != key_col { Some(e) } else { None },
-                                ))?;
-                            } else {
-                                wtr.write_record(&headers)?;
-                            }
-                        }
-                        vacant.insert(wtr)
+            let wtr = match entry {
+                Entry::Occupied(ref mut occupied) => occupied.get_mut(),
+                Entry::Vacant(vacant) => {
+                    // We have a new key, so make a new writer.
+                    let mut wtr = gen.writer(&*self.arg_outdir, key)?;
+                    if !rconfig.no_headers {
+                        wtr.write_record(&headers)?;
                     }
-                };
+                    vacant.insert(wtr)
+                }
+            };
+
             if self.flag_drop {
-                wtr.write_record(row.iter().enumerate().filter_map(|(i, e)| {
-                    if i != key_col {
-                        Some(e)
-                    } else {
-                        None
-                    }
-                }))?;
+                wtr.write_record(&row.remove(key_col))?;
             } else {
                 wtr.write_byte_record(&row)?;
             }
