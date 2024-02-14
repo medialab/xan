@@ -23,15 +23,15 @@ Usage:
     xan partition --help
 
 partition options:
-    --filename <filename>  A filename template to use when constructing
-                           the names of the output files.  The string '{}'
-                           will be replaced by a value based on the value
-                           of the field, but sanitized for shell safety.
-                           [default: {}.csv]
+    --filename <filename>    A filename template to use when constructing
+                             the names of the output files.  The string '{}'
+                             will be replaced by a value based on the value
+                             of the field, but sanitized for shell safety.
+                             [default: {}.csv]
     -p, --prefix-length <n>  Truncate the partition column after the
-                           specified number of bytes when creating the
-                           output file.
-    --drop                 Drop the partition column from results.
+                             specified number of bytes when creating the
+                             output file.
+    --drop                   Drop the partition column from results.
 
 Common options:
     -h, --help             Display this message
