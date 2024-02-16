@@ -332,11 +332,11 @@ use the operators in the previous section.
     - abspath(string) -> string
         Return absolute & canonicalized path.
 
-    - filesize(string) -> int
-        Return the size of given file in bytes.
-
     - bytesize(integer) -> string
         Return a number of bytes in human-readable format (KB, MB, GB, etc.).
+
+    - filesize(string) -> int
+        Return the size of given file in bytes.
 
     - isfile(string) -> bool
         Return whether the given path is an existing file on disk.
