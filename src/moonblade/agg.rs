@@ -1039,16 +1039,8 @@ impl<'a> GroupAggregationProgram<'a> {
         Ok(())
     }
 
-    pub fn headers_with_prepended_group_column(&self, group_column_name: &str) -> ByteRecord {
-        let mut record = ByteRecord::new();
-
-        record.push_field(group_column_name.as_bytes());
-
-        for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.agg_name.as_bytes());
-        }
-
-        record
+    pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
+        self.aggregations.iter().map(|agg| agg.agg_name.as_bytes())
     }
 
     pub fn finalize<F, E>(mut self, mut callback: F) -> Result<(), E>
