@@ -85,7 +85,7 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
         }
         Ok(rr) => {
             let mut wtr = Config::new(&args.flag_output).writer()?;
-            let mut reverse_csv_reader = rconfig.from_reader(rr);
+            let mut reverse_csv_reader = rconfig.csv_reader_from_reader(rr);
 
             if !args.flag_no_headers && headers_size > 0 {
                 let headers = config_csv_reader.byte_headers()?;
