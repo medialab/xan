@@ -703,6 +703,10 @@ struct KeyedAggregatorEntry {
     aggregator: CompositeAggregator,
 }
 
+// TODO: KeyedAggregatorEntry is quite large and basically has constant keys wrt a specific
+// aggregation call. It should be kept at program level and not broadcasted per group
+// What's more, it could help us avoid the weird unordered loop matching aggregations to
+// the correct expression key.
 #[derive(Debug)]
 struct KeyedAggregator {
     mapping: Vec<KeyedAggregatorEntry>,
