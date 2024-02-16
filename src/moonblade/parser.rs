@@ -180,7 +180,6 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             }
 
             _ => {
-                dbg!(&pair);
                 unreachable!();
             }
         }
