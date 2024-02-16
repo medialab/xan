@@ -221,20 +221,17 @@ enum MedianType {
 
 #[derive(Debug)]
 struct Numbers {
-    sorted: bool,
     numbers: Vec<DynamicNumber>,
 }
 
 impl Numbers {
     fn new() -> Self {
         Self {
-            sorted: false,
             numbers: Vec::new(),
         }
     }
 
     fn clear(&mut self) {
-        self.sorted = false;
         self.numbers.clear();
     }
 
@@ -242,19 +239,12 @@ impl Numbers {
         self.numbers.push(number);
     }
 
-    fn sort_if_needed(&mut self) {
-        if self.sorted {
-            return;
-        }
-
-        // TODO: can be done in parallel in the future if required, using rayon
+    // TODO: par_finalize
+    fn finalize(&mut self) {
         self.numbers.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        self.sorted = true;
     }
 
-    fn median(&mut self, median_type: &MedianType) -> Option<DynamicNumber> {
-        self.sort_if_needed();
-
+    fn median(&self, median_type: &MedianType) -> Option<DynamicNumber> {
         let count = self.numbers.len();
 
         if count == 0 {
@@ -427,6 +417,15 @@ macro_rules! build_aggregation_method_enum {
                     )+
                 };
             }
+
+            fn finalize(&mut self) {
+                match self {
+                    Self::Numbers(inner) => {
+                        inner.finalize();
+                    }
+                    _ => (),
+                }
+            }
         }
     };
 }
@@ -493,28 +492,6 @@ macro_rules! build_variant_methods {
     };
 }
 
-macro_rules! build_variant_methods_mut {
-    ($variant: ident, $has_name: ident, $gettr_name: ident) => {
-        fn $has_name(&self) -> bool {
-            self.methods.iter().any(|m| match m {
-                Aggregator::$variant(_) => true,
-                _ => false,
-            })
-        }
-
-        fn $gettr_name(&mut self) -> &mut $variant {
-            for method in self.methods.iter_mut() {
-                match method {
-                    Aggregator::$variant(m) => return m,
-                    _ => continue,
-                }
-            }
-
-            unreachable!()
-        }
-    };
-}
-
 #[derive(Debug)]
 struct CompositeAggregator {
     methods: Vec<Aggregator>,
@@ -549,7 +526,7 @@ impl CompositeAggregator {
         get_lexicographic_extent
     );
     build_variant_methods!(Frequencies, has_frequencies, get_frequencies);
-    build_variant_methods_mut!(Numbers, has_numbers, get_numbers_mut);
+    build_variant_methods!(Numbers, has_numbers, get_numbers);
     build_variant_methods!(Sum, has_sum, get_sum);
     build_variant_methods!(Welford, has_welford, get_welford);
 
@@ -673,7 +650,13 @@ impl CompositeAggregator {
         Ok(())
     }
 
-    fn finalize_method(&mut self, method: &ConcreteAggregationMethod) -> DynamicValue {
+    fn finalize(&mut self) {
+        for method in self.methods.iter_mut() {
+            method.finalize();
+        }
+    }
+
+    fn get_method_value(&self, method: &ConcreteAggregationMethod) -> DynamicValue {
         match method {
             ConcreteAggregationMethod::All => DynamicValue::from(self.get_allany().all()),
             ConcreteAggregationMethod::Any => DynamicValue::from(self.get_allany().any()),
@@ -692,7 +675,7 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Min => DynamicValue::from(self.get_extent().min()),
             ConcreteAggregationMethod::Mean => DynamicValue::from(self.get_welford().mean()),
             ConcreteAggregationMethod::Median(median_type) => {
-                DynamicValue::from(self.get_numbers_mut().median(median_type))
+                DynamicValue::from(self.get_numbers().median(median_type))
             }
             ConcreteAggregationMethod::Max => DynamicValue::from(self.get_extent().max()),
             ConcreteAggregationMethod::Mode => DynamicValue::from(self.get_frequencies().mode()),
@@ -779,9 +762,15 @@ impl KeyedAggregator {
         Ok(())
     }
 
-    fn finalize(&mut self, key: &str, method: &ConcreteAggregationMethod) -> Option<DynamicValue> {
+    fn finalize(&mut self) {
+        for entry in self.mapping.iter_mut() {
+            entry.aggregator.finalize();
+        }
+    }
+
+    fn get_value(&mut self, key: &str, method: &ConcreteAggregationMethod) -> Option<DynamicValue> {
         self.get_mut(key)
-            .map(|entry| entry.aggregator.finalize_method(method))
+            .map(|entry| entry.aggregator.get_method_value(method))
     }
 }
 
@@ -991,10 +980,12 @@ impl<'a> AggregationProgram<'a> {
     pub fn finalize(&mut self) -> ByteRecord {
         let mut record = ByteRecord::new();
 
+        self.aggregator.finalize();
+
         for aggregation in self.aggregations.iter() {
             let value = self
                 .aggregator
-                .finalize(&aggregation.expr_key, &aggregation.method)
+                .get_value(&aggregation.expr_key, &aggregation.method)
                 .unwrap();
 
             record.push_field(&value.serialize_as_bytes(b"|"));
@@ -1007,10 +998,12 @@ impl<'a> AggregationProgram<'a> {
         let mut record = ByteRecord::new();
         record.push_field(group);
 
+        self.aggregator.finalize();
+
         for aggregation in self.aggregations.iter() {
             let value = self
                 .aggregator
-                .finalize(&aggregation.expr_key, &aggregation.method)
+                .get_value(&aggregation.expr_key, &aggregation.method)
                 .unwrap();
 
             record.push_field(&value.serialize_as_bytes(b"|"));
@@ -1082,9 +1075,11 @@ impl<'a> GroupAggregationProgram<'a> {
             record.clear();
             record.push_field(&group);
 
+            aggregator.finalize();
+
             for aggregation in self.aggregations.iter_mut() {
                 let value = aggregator
-                    .finalize(&aggregation.expr_key, &aggregation.method)
+                    .get_value(&aggregation.expr_key, &aggregation.method)
                     .unwrap();
 
                 record.push_field(&value.serialize_as_bytes(b"|"));
@@ -1122,6 +1117,11 @@ mod tests {
         let mut lone_numbers = Numbers::from(vec![8]);
         let mut odd_numbers = Numbers::from(odd);
         let mut even_numbers = Numbers::from(even);
+
+        no_numbers.finalize();
+        lone_numbers.finalize();
+        odd_numbers.finalize();
+        even_numbers.finalize();
 
         // Low
         assert_eq!(no_numbers.median(&MedianType::Low), None);
