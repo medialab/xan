@@ -721,6 +721,10 @@ impl KeyedAggregator {
         }
     }
 
+    fn get(&self, key: &str) -> Option<&KeyedAggregatorEntry> {
+        self.mapping.iter().find(|entry| entry.key == key)
+    }
+
     fn get_mut(&mut self, key: &str) -> Option<&mut KeyedAggregatorEntry> {
         self.mapping.iter_mut().find(|entry| entry.key == key)
     }
@@ -768,8 +772,8 @@ impl KeyedAggregator {
         }
     }
 
-    fn get_value(&mut self, key: &str, method: &ConcreteAggregationMethod) -> Option<DynamicValue> {
-        self.get_mut(key)
+    fn get_value(&self, key: &str, method: &ConcreteAggregationMethod) -> Option<DynamicValue> {
+        self.get(key)
             .map(|entry| entry.aggregator.get_method_value(method))
     }
 }
@@ -955,26 +959,8 @@ impl<'a> AggregationProgram<'a> {
             .run_with_record(record, &self.headers_index, &self.variables)
     }
 
-    pub fn headers(&self) -> ByteRecord {
-        let mut record = ByteRecord::new();
-
-        for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.agg_name.as_bytes());
-        }
-
-        record
-    }
-
-    pub fn headers_with_prepended_group_column(&self, group_column_name: &str) -> ByteRecord {
-        let mut record = ByteRecord::new();
-
-        record.push_field(group_column_name.as_bytes());
-
-        for aggregation in self.aggregations.iter() {
-            record.push_field(aggregation.agg_name.as_bytes());
-        }
-
-        record
+    pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
+        self.aggregations.iter().map(|agg| agg.agg_name.as_bytes())
     }
 
     pub fn finalize(&mut self) -> ByteRecord {

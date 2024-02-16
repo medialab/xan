@@ -125,9 +125,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
         let mut current_group: Option<Vec<u8>> = None;
 
-        wtr.write_byte_record(
-            &program.headers_with_prepended_group_column(&args.flag_group_column),
-        )?;
+        record.push_field(&args.flag_group_column.as_bytes());
+        record.extend(program.headers());
+
+        wtr.write_byte_record(&record)?;
 
         let mut index: usize = 0;
 

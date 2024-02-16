@@ -107,7 +107,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
 
-    wtr.write_byte_record(&program.headers())?;
+    wtr.write_record(program.headers())?;
 
     let mut index: usize = 0;
 
