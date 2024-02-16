@@ -466,16 +466,22 @@ impl DynamicValue {
     pub fn serialize_as_bytes(&self, plural_separator: &[u8]) -> Cow<[u8]> {
         match self {
             Self::List(list) => {
+                if list.is_empty() {
+                    return Cow::Borrowed(b"");
+                }
+
+                if list.len() == 1 {
+                    return list[0].serialize_as_bytes(plural_separator);
+                }
+
                 let mut bytes: Vec<u8> = Vec::new();
 
-                for value in list {
-                    bytes.extend_from_slice(&value.serialize_as_bytes(plural_separator));
+                for i in 0..(list.len() - 1) {
+                    bytes.extend_from_slice(&list[i].serialize_as_bytes(plural_separator));
                     bytes.extend_from_slice(plural_separator);
                 }
 
-                if !bytes.is_empty() {
-                    bytes.truncate(bytes.len() - plural_separator.len());
-                }
+                bytes.extend_from_slice(&list[list.len() - 1].serialize_as_bytes(plural_separator));
 
                 Cow::Owned(bytes)
             }
