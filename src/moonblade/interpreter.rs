@@ -890,4 +890,13 @@ mod tests {
         assert_eq!(eval_code("'a' le 'b'"), Ok(DynamicValue::from(true)));
         assert_eq!(eval_code("'a' ne 'b'"), Ok(DynamicValue::from(true)));
     }
+
+    #[test]
+    fn test_bytesize() {
+        assert_eq!(
+            eval_code("bytesize(2510)"),
+            Ok(DynamicValue::from("2.5 KB"))
+        );
+        assert_eq!(eval_code("bytesize(0)"), Ok(DynamicValue::from("0 B")));
+    }
 }

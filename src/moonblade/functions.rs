@@ -7,6 +7,7 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::path::Path;
 use std::path::PathBuf;
 
+use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
 use regex;
@@ -52,6 +53,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "abspath" => (abspath, Arity::Strict(1)),
         "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
         "and" => (and, Arity::Min(2)),
+        "bytesize" => (bytesize, Arity::Strict(1)),
         "ceil" => (
             |args| unary_arithmetic_op(args, DynamicNumber::ceil),
             Arity::Strict(1),
@@ -751,6 +753,13 @@ fn filesize(args: BoundArguments) -> FunctionResult {
         Ok(size) => Ok(DynamicValue::from(size.len() as i64)),
         Err(_) => Err(CallError::CannotOpenFile(path.into_owned())),
     }
+}
+
+fn bytesize(args: BoundArguments) -> FunctionResult {
+    let bytes = args.get1().try_as_usize()? as u64;
+    let human_readable = ByteSize::b(bytes).to_string();
+
+    Ok(DynamicValue::from(human_readable))
 }
 
 // Introspection
