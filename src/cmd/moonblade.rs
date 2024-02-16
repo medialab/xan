@@ -601,13 +601,11 @@ pub fn handle_eval_result<'b>(
         },
         Err(err) => match args.error_policy {
             MoonbladeErrorPolicy::Ignore => {
-                let value = DynamicValue::None.serialize_as_bytes(b"|");
-
                 if args.mode.is_map() {
-                    record.push_field(&value);
+                    record.push_field(b"");
                     records_to_emit.push(Cow::Borrowed(record));
                 } else if args.mode.is_transform() {
-                    let record = record.replace_at(replace.unwrap(), &value);
+                    let record = record.replace_at(replace.unwrap(), b"");
                     records_to_emit.push(Cow::Owned(record));
                 }
             }
@@ -616,14 +614,12 @@ pub fn handle_eval_result<'b>(
                     unreachable!();
                 }
 
-                let value = DynamicValue::None.serialize_as_bytes(b"|");
-
                 if args.mode.is_map() {
-                    record.push_field(&value);
+                    record.push_field(b"");
                     record.push_field(err.to_string().as_bytes());
                     records_to_emit.push(Cow::Borrowed(record));
                 } else if args.mode.is_transform() {
-                    let mut record = record.replace_at(replace.unwrap(), &value);
+                    let mut record = record.replace_at(replace.unwrap(), b"");
                     record.push_field(err.to_string().as_bytes());
                     records_to_emit.push(Cow::Owned(record));
                 }
@@ -631,13 +627,11 @@ pub fn handle_eval_result<'b>(
             MoonbladeErrorPolicy::Log => {
                 eprintln!("Row n°{}: {}", index + 1, err);
 
-                let value = DynamicValue::None.serialize_as_bytes(b"|");
-
                 if args.mode.is_map() {
-                    record.push_field(&value);
+                    record.push_field(b"");
                     records_to_emit.push(Cow::Borrowed(record));
                 } else if args.mode.is_transform() {
-                    let record = record.replace_at(replace.unwrap(), &value);
+                    let record = record.replace_at(replace.unwrap(), b"");
                     records_to_emit.push(Cow::Owned(record));
                 }
             }
