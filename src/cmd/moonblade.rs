@@ -563,7 +563,7 @@ pub fn handle_eval_result<'b>(
                 }
             }
             MoonbladeMode::Map => {
-                record.push_field(&value.serialize_as_bytes(b"|"));
+                record.push_field(&value.serialize_as_bytes());
 
                 if args.error_policy.will_report() {
                     record.push_field(b"");
@@ -572,8 +572,7 @@ pub fn handle_eval_result<'b>(
                 records_to_emit.push(Cow::Borrowed(record));
             }
             MoonbladeMode::Transform => {
-                let mut record =
-                    record.replace_at(replace.unwrap(), &value.serialize_as_bytes(b"|"));
+                let mut record = record.replace_at(replace.unwrap(), &value.serialize_as_bytes());
 
                 if args.error_policy.will_report() {
                     record.push_field(b"");
@@ -587,7 +586,7 @@ pub fn handle_eval_result<'b>(
                 }
 
                 for subvalue in value.flat_iter() {
-                    let cell = subvalue.serialize_as_bytes(b"|");
+                    let cell = subvalue.serialize_as_bytes();
 
                     let new_record = if let Some(idx) = replace {
                         record.replace_at(idx, &cell)

@@ -974,7 +974,7 @@ impl<'a> AggregationProgram<'a> {
                 .get_value(&aggregation.expr_key, &aggregation.method)
                 .unwrap();
 
-            record.push_field(&value.serialize_as_bytes(b"|"));
+            record.push_field(&value.serialize_as_bytes());
         }
 
         record
@@ -992,7 +992,7 @@ impl<'a> AggregationProgram<'a> {
                 .get_value(&aggregation.expr_key, &aggregation.method)
                 .unwrap();
 
-            record.push_field(&value.serialize_as_bytes(b"|"));
+            record.push_field(&value.serialize_as_bytes());
         }
         record
     }
@@ -1060,7 +1060,7 @@ impl<'a> GroupAggregationProgram<'a> {
                     .get_value(&aggregation.expr_key, &aggregation.method)
                     .unwrap();
 
-                record.push_field(&value.serialize_as_bytes(b"|"));
+                record.push_field(&value.serialize_as_bytes());
             }
 
             callback(&record)?;
