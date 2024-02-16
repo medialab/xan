@@ -332,6 +332,9 @@ use the operators in the previous section.
     - abspath(string) -> string
         Return absolute & canonicalized path.
 
+    - bytesize(integer) -> string
+        Return a number of bytes in human-readable format (KB, MB, GB, etc.).
+
     - filesize(string) -> int
         Return the size of given file in bytes.
 
