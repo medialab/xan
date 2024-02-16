@@ -7,7 +7,7 @@ use std::str;
 use std::thread;
 use std::time;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use colored::{Color, ColoredString, Colorize, Styles};
 use csv;
@@ -172,8 +172,8 @@ pub fn parse_timezone(tz: Option<String>) -> Result<Tz, String> {
 
 pub fn parse_date(date: &str, tz: Tz, input_fmt: &Option<String>) -> Result<DateTime<Utc>, String> {
     match input_fmt {
-        Some(fmt) => match tz.datetime_from_str(date, fmt) {
-            Ok(time) => Ok(time.with_timezone(&Utc)),
+        Some(fmt) => match NaiveDateTime::parse_from_str(date, fmt) {
+            Ok(time) => Ok(tz.from_local_datetime(&time).unwrap().with_timezone(&Utc)),
             _ => Err(format!("{} is not a valid format", fmt)),
         },
         None => match parse_with_timezone(date, &tz) {
