@@ -67,8 +67,8 @@ impl AllAny {
 
 #[derive(Debug)]
 struct FirstLast {
-    first: Option<Rc<DynamicValue>>,
-    last: Option<Rc<DynamicValue>>,
+    first: Option<(usize, Rc<DynamicValue>)>,
+    last: Option<(usize, Rc<DynamicValue>)>,
 }
 
 impl FirstLast {
@@ -84,20 +84,20 @@ impl FirstLast {
         self.last = None;
     }
 
-    fn add(&mut self, next_value: &Rc<DynamicValue>) {
+    fn add(&mut self, index: usize, next_value: &Rc<DynamicValue>) {
         if self.first.is_none() {
-            self.first = Some(next_value.clone());
+            self.first = Some((index, next_value.clone()));
         }
 
-        self.last = Some(next_value.clone());
+        self.last = Some((index, next_value.clone()));
     }
 
     fn first(&self) -> Option<DynamicValue> {
-        self.first.as_ref().map(|p| p.as_ref().clone())
+        self.first.as_ref().map(|p| p.1.as_ref().clone())
     }
 
     fn last(&self) -> Option<DynamicValue> {
-        self.last.as_ref().map(|p| p.as_ref().clone())
+        self.last.as_ref().map(|p| p.1.as_ref().clone())
     }
 }
 
@@ -600,7 +600,11 @@ impl CompositeAggregator {
         }
     }
 
-    fn process_value(&mut self, value_opt: Option<DynamicValue>) -> Result<(), CallError> {
+    fn process_value(
+        &mut self,
+        index: usize,
+        value_opt: Option<DynamicValue>,
+    ) -> Result<(), CallError> {
         let value_opt = value_opt.map(Rc::new);
 
         for method in self.methods.iter_mut() {
@@ -619,7 +623,7 @@ impl CompositeAggregator {
                     }
                     Aggregator::FirstLast(firstlast) => {
                         if !value.is_nullish() {
-                            firstlast.add(value);
+                            firstlast.add(index, value);
                         }
                     }
                     Aggregator::LexicographicExtent(extent) => {
@@ -748,6 +752,7 @@ impl KeyedAggregator {
 
     fn run_with_record(
         &mut self,
+        index: usize,
         record: &ByteRecord,
         headers_index: &HeadersIndex,
         variables: &Variables,
@@ -759,12 +764,15 @@ impl KeyedAggregator {
                 Some(expr) => Some(eval_expr(expr, record, headers_index, variables)?),
             };
 
-            entry.aggregator.process_value(value).map_err(|err| {
-                EvaluationError::Call(SpecifiedCallError {
-                    reason: err,
-                    function_name: format!("<agg-expr: {}>", entry.key),
-                })
-            })?;
+            entry
+                .aggregator
+                .process_value(index, value)
+                .map_err(|err| {
+                    EvaluationError::Call(SpecifiedCallError {
+                        reason: err,
+                        function_name: format!("<agg-expr: {}>", entry.key),
+                    })
+                })?;
         }
 
         Ok(())
@@ -958,9 +966,13 @@ impl<'a> AggregationProgram<'a> {
         self.aggregator.clear_inner_aggregators();
     }
 
-    pub fn run_with_record(&mut self, record: &ByteRecord) -> Result<(), EvaluationError> {
+    pub fn run_with_record(
+        &mut self,
+        index: usize,
+        record: &ByteRecord,
+    ) -> Result<(), EvaluationError> {
         self.aggregator
-            .run_with_record(record, &self.headers_index, &self.variables)
+            .run_with_record(index, record, &self.headers_index, &self.variables)
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
@@ -1025,18 +1037,22 @@ impl<'a> GroupAggregationProgram<'a> {
     pub fn run_with_record(
         &mut self,
         group: Vec<u8>,
+        index: usize,
         record: &ByteRecord,
     ) -> Result<(), EvaluationError> {
         match self.groups.entry(group) {
             Entry::Vacant(entry) => {
                 let mut aggregator = KeyedAggregator::from(&self.aggregations);
-                aggregator.run_with_record(record, &self.headers_index, &self.variables)?;
+                aggregator.run_with_record(index, record, &self.headers_index, &self.variables)?;
                 entry.insert(aggregator);
             }
             Entry::Occupied(mut entry) => {
-                entry
-                    .get_mut()
-                    .run_with_record(record, &self.headers_index, &self.variables)?;
+                entry.get_mut().run_with_record(
+                    index,
+                    record,
+                    &self.headers_index,
+                    &self.variables,
+                )?;
             }
         }
 

@@ -150,7 +150,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             program
-                .run_with_record(&record)
+                .run_with_record(index, &record)
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
         if let Some(group_name) = current_group {
@@ -171,7 +171,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let group = record[column_index].to_vec();
 
             program
-                .run_with_record(group, &record)
+                .run_with_record(group, index, &record)
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
 
