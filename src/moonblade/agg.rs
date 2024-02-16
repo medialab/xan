@@ -995,23 +995,6 @@ impl<'a> AggregationProgram<'a> {
 
         record
     }
-
-    pub fn finalize_with_group(&mut self, group: &[u8]) -> ByteRecord {
-        let mut record = ByteRecord::new();
-        record.push_field(group);
-
-        self.aggregator.finalize();
-
-        for aggregation in self.aggregations.iter() {
-            let value = self
-                .aggregator
-                .get_value(&aggregation.expr_key, &aggregation.method)
-                .unwrap();
-
-            record.push_field(&value.serialize_as_bytes());
-        }
-        record
-    }
 }
 
 #[derive(Debug)]
@@ -1063,19 +1046,15 @@ impl<'a> GroupAggregationProgram<'a> {
         self.aggregations.iter().map(|agg| agg.agg_name.as_bytes())
     }
 
-    pub fn finalize<F, E>(mut self, mut callback: F) -> Result<(), E>
-    where
-        F: FnMut(&ByteRecord) -> Result<(), E>,
-    {
-        let mut record = ByteRecord::new();
+    pub fn into_byte_records(self) -> impl Iterator<Item = (Vec<u8>, ByteRecord)> + 'a {
+        let mut aggregations = self.aggregations;
 
-        for (group, mut aggregator) in self.groups.into_iter() {
-            record.clear();
-            record.push_field(&group);
+        self.groups.into_iter().map(move |(group, mut aggregator)| {
+            let mut record = ByteRecord::new();
 
             aggregator.finalize();
 
-            for aggregation in self.aggregations.iter_mut() {
+            for aggregation in aggregations.iter_mut() {
                 let value = aggregator
                     .get_value(&aggregation.expr_key, &aggregation.method)
                     .unwrap();
@@ -1083,10 +1062,8 @@ impl<'a> GroupAggregationProgram<'a> {
                 record.push_field(&value.serialize_as_bytes());
             }
 
-            callback(&record)?;
-        }
-
-        Ok(())
+            (group, record)
+        })
     }
 }
 

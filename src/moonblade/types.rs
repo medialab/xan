@@ -476,10 +476,9 @@ impl DynamicValue {
 
                 let mut bytes: Vec<u8> = Vec::new();
 
-                for i in 0..(list.len() - 1) {
-                    bytes.extend_from_slice(
-                        &list[i].serialize_as_bytes_with_options(plural_separator),
-                    );
+                for item in list.iter().take(list.len() - 1) {
+                    bytes
+                        .extend_from_slice(&item.serialize_as_bytes_with_options(plural_separator));
                     bytes.extend_from_slice(plural_separator);
                 }
 
