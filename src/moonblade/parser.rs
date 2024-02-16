@@ -489,18 +489,11 @@ fn parse_expression(input: &str) -> Result<Expr, ParseError> {
 
 pub type Pipeline = Vec<Expr>;
 
-// TODO: trim, unfurl
-
 fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
-    let mut pairs =
+    let pairs =
         MoonbladePestParser::parse(Rule::pipeline, input).map_err(ParseError::from_pest_error)?;
 
-    let first_pair = pairs.next().unwrap();
-
-    debug_assert!(matches!(first_pair.as_rule(), Rule::pipeline));
-
-    first_pair
-        .into_inner()
+    pairs
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
         .map(|p| {
             let token_tree = TokenTree::from(p);
@@ -602,15 +595,10 @@ pub struct Aggregation {
 pub type Aggregations = Vec<Aggregation>;
 
 pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
-    let mut pairs =
+    let pairs =
         MoonbladePestParser::parse(Rule::named_aggs, input).map_err(ParseError::from_pest_error)?;
 
-    let first_pair = pairs.next().unwrap();
-
-    debug_assert!(matches!(first_pair.as_rule(), Rule::named_aggs));
-
-    first_pair
-        .into_inner()
+    pairs
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
         .map(|p| {
             let (agg_name, expr_key, p) = match p.as_rule() {

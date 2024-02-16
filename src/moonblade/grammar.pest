@@ -129,10 +129,10 @@ full_expr = _{ SOI ~ expr ~ EOI }
 expr_name      =  { ident | string }
 named_expr     =  { expr ~ "as" ~ expr_name }
 opt_named_expr = _{ named_expr | expr }
-named_exprs    =  { SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
+named_exprs    = _{ SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
 
 named_func     =  { func ~ "as" ~ expr_name }
 opt_named_func = _{ named_func | func }
-named_aggs     =  { SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ EOI }
+named_aggs     = _{ SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ EOI }
 
-pipeline = { SOI ~ expr ~ ("|" ~ expr)* ~ EOI }
+pipeline = _{ SOI ~ expr ~ ("|" ~ expr)* ~ EOI }
