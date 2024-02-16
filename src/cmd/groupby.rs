@@ -2,7 +2,7 @@ use csv;
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
-use util;
+use util::{self, ImmutableRecordHelpers};
 use CliResult;
 
 use moonblade::AggregationProgram;
@@ -125,7 +125,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
         let mut current_group: Option<Vec<u8>> = None;
 
-        record.push_field(&args.flag_group_column.as_bytes());
+        record.push_field(args.flag_group_column.as_bytes());
         record.extend(program.headers());
 
         wtr.write_byte_record(&record)?;
@@ -142,7 +142,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 Some(group_name) => {
                     if group_name != &group {
-                        wtr.write_byte_record(&program.finalize_with_group(group_name))?;
+                        wtr.write_byte_record(&program.finalize().prepend(group_name))?;
                         program.clear();
                         current_group = Some(group);
                     }
@@ -150,15 +150,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             program
-                .run_with_record(&record)
+                .run_with_record(index, &record)
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
         if let Some(group_name) = current_group {
-            wtr.write_byte_record(&program.finalize_with_group(&group_name))?;
+            wtr.write_byte_record(&program.finalize().prepend(&group_name))?;
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
-        record.push_field(&args.flag_group_column.as_bytes());
+        record.push_field(args.flag_group_column.as_bytes());
         record.extend(program.headers());
 
         wtr.write_byte_record(&record)?;
@@ -171,11 +171,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let group = record[column_index].to_vec();
 
             program
-                .run_with_record(group, &record)
+                .run_with_record(group, index, &record)
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
 
-        program.finalize(|output_record| wtr.write_byte_record(output_record))?;
+        for (group, group_record) in program.into_byte_records() {
+            wtr.write_byte_record(&group_record.prepend(&group))?;
+        }
     }
 
     Ok(wtr.flush()?)

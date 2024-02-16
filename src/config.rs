@@ -276,18 +276,18 @@ impl Config {
     }
 
     pub fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>> {
-        Ok(self.from_writer(self.io_writer()?))
+        Ok(self.csv_writer_from_writer(self.io_writer()?))
     }
 
     pub fn writer_with_options(
         &self,
         options: &fs::OpenOptions,
     ) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>> {
-        Ok(self.from_writer(self.io_writer_with_options(options)?))
+        Ok(self.csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
     pub fn reader(&self) -> io::Result<csv::Reader<Box<dyn io::Read + 'static>>> {
-        Ok(self.from_reader(self.io_reader()?))
+        Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
     pub fn reader_file(&self) -> io::Result<csv::Reader<fs::File>> {
@@ -296,7 +296,7 @@ impl Config {
                 io::ErrorKind::Other,
                 "Cannot use <stdin> here",
             )),
-            Some(ref p) => fs::File::open(p).map(|f| self.from_reader(f)),
+            Some(ref p) => fs::File::open(p).map(|f| self.csv_reader_from_reader(f)),
         }
     }
 
@@ -335,7 +335,7 @@ impl Config {
                  Please re-create the index.",
             ));
         }
-        let csv_rdr = self.from_reader(csv_file);
+        let csv_rdr = self.csv_reader_from_reader(csv_file);
         Ok(Some((csv_rdr, idx_file)))
     }
 
@@ -411,7 +411,7 @@ impl Config {
         }
     }
 
-    pub fn from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
+    pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
         csv::ReaderBuilder::new()
             .flexible(self.flexible)
             .delimiter(self.delimiter)
@@ -439,7 +439,7 @@ impl Config {
         })
     }
 
-    pub fn from_writer<W: io::Write>(&self, wtr: W) -> csv::Writer<W> {
+    pub fn csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> csv::Writer<W> {
         csv::WriterBuilder::new()
             .flexible(self.flexible)
             .delimiter(self.delimiter)

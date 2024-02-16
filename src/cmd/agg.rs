@@ -115,7 +115,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index += 1;
 
         program
-            .run_with_record(&record)
+            .run_with_record(index, &record)
             .or_else(|error| error_policy.handle_error(index, error))?;
     }
 

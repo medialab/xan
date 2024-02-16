@@ -463,7 +463,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn serialize_as_bytes(&self, plural_separator: &[u8]) -> Cow<[u8]> {
+    pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<[u8]> {
         match self {
             Self::List(list) => {
                 if list.is_empty() {
@@ -471,17 +471,20 @@ impl DynamicValue {
                 }
 
                 if list.len() == 1 {
-                    return list[0].serialize_as_bytes(plural_separator);
+                    return list[0].serialize_as_bytes_with_options(plural_separator);
                 }
 
                 let mut bytes: Vec<u8> = Vec::new();
 
-                for i in 0..(list.len() - 1) {
-                    bytes.extend_from_slice(&list[i].serialize_as_bytes(plural_separator));
+                for item in list.iter().take(list.len() - 1) {
+                    bytes
+                        .extend_from_slice(&item.serialize_as_bytes_with_options(plural_separator));
                     bytes.extend_from_slice(plural_separator);
                 }
 
-                bytes.extend_from_slice(&list[list.len() - 1].serialize_as_bytes(plural_separator));
+                bytes.extend_from_slice(
+                    &list[list.len() - 1].serialize_as_bytes_with_options(plural_separator),
+                );
 
                 Cow::Owned(bytes)
             }
@@ -498,6 +501,10 @@ impl DynamicValue {
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
+    }
+
+    pub fn serialize_as_bytes(&self) -> Cow<[u8]> {
+        self.serialize_as_bytes_with_options(b"|")
     }
 
     pub fn try_as_str(&self) -> Result<Cow<str>, CallError> {

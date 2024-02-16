@@ -156,11 +156,11 @@ impl Args {
         let mut records: Vec<_> = repeat(csv::StringRecord::new()).take(stats.len()).collect();
         let pool = ThreadPool::new(self.njobs());
         let mut results = vec![];
-        for mut stat in stats.into_iter() {
+        for stat in stats.into_iter() {
             let (send, recv) = channel::bounded(0);
             results.push(recv);
             pool.execute(move || {
-                send.send(stat.to_record());
+                send.send(stat.into_record());
             });
         }
         for (i, recv) in results.into_iter().enumerate() {
@@ -361,7 +361,7 @@ impl Stats {
         }
     }
 
-    fn to_record(&mut self) -> csv::StringRecord {
+    fn into_record(mut self) -> csv::StringRecord {
         let typ = self.typ;
         let mut pieces = vec![];
         let empty = || "".to_owned();
