@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use std::convert::From;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 
+use chrono::{DateTime, SecondsFormat, Utc};
 use csv::ByteRecord;
 use regex::Regex;
 
@@ -447,6 +448,7 @@ pub enum DynamicValue {
     Integer(i64),
     Boolean(bool),
     Regex(Regex),
+    DateTime(DateTime<Utc>),
     None,
 }
 
@@ -459,6 +461,7 @@ impl DynamicValue {
             Self::Integer(_) => "integer",
             Self::Boolean(_) => "boolean",
             Self::Regex(_) => "regex",
+            Self::DateTime(_) => "datetime",
             Self::None => "none",
         }
     }
@@ -499,6 +502,11 @@ impl DynamicValue {
                 }
             }
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
+            Self::DateTime(value) => Cow::Owned(
+                value
+                    .to_rfc3339_opts(SecondsFormat::Secs, true)
+                    .into_bytes(),
+            ),
             Self::None => Cow::Borrowed(b""),
         }
     }
@@ -523,6 +531,7 @@ impl DynamicValue {
                 }
             }
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
+            Self::DateTime(value) => Cow::Owned(value.to_rfc3339_opts(SecondsFormat::Secs, true)),
             Self::None => Cow::Borrowed(""),
         })
     }
@@ -689,6 +698,7 @@ impl DynamicValue {
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
+            Self::DateTime(_value) => true,
             Self::None => false,
         }
     }
