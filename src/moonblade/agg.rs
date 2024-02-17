@@ -602,10 +602,8 @@ impl CompositeAggregator {
     fn process_value(
         &mut self,
         index: usize,
-        value_opt: Option<DynamicValue>,
+        value_opt: Option<Rc<DynamicValue>>,
     ) -> Result<(), CallError> {
-        let value_opt = value_opt.map(Rc::new);
-
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
                 Some(value) => match method {
@@ -909,7 +907,7 @@ fn run_with_record_on_aggregators(
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(eval_expr(expr, record, headers_index, variables)?),
+            Some(expr) => Some(Rc::new(eval_expr(expr, record, headers_index, variables)?)),
         };
 
         aggregator.process_value(index, value).map_err(|err| {
