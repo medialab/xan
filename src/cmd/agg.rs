@@ -52,6 +52,9 @@ agg options:
                               - \"ignore\": ignore row altogether
                               - \"log\": print error to stderr
                             [default: panic].
+    -p, --parallel          Whether to use parallelization to speed up computations.
+                            Will automatically select a suitable number of threads to use
+                            based on your number of cores.
 
 Common options:
     -h, --help               Display this message
@@ -73,6 +76,7 @@ struct Args {
     flag_errors: String,
     flag_cheatsheet: bool,
     flag_functions: bool,
+    flag_parallel: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -119,7 +123,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .or_else(|error| error_policy.handle_error(index, error))?;
     }
 
-    wtr.write_byte_record(&program.finalize())?;
+    wtr.write_byte_record(&program.finalize(args.flag_parallel))?;
 
     Ok(wtr.flush()?)
 }

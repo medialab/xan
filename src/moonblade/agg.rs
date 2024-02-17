@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use csv::ByteRecord;
+use rayon::prelude::*;
 
 use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
 use super::interpreter::{concretize_expression, eval_expr, ConcreteArgument};
@@ -238,9 +239,14 @@ impl Numbers {
         self.numbers.push(number);
     }
 
-    // TODO: par_finalize
-    fn finalize(&mut self) {
-        self.numbers.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    fn finalize(&mut self, parallel: bool) {
+        let cmp = |a: &DynamicNumber, b: &DynamicNumber| a.partial_cmp(b).unwrap();
+
+        if parallel {
+            self.numbers.par_sort_unstable_by(cmp);
+        } else {
+            self.numbers.sort_unstable_by(cmp);
+        }
     }
 
     fn median(&self, median_type: &MedianType) -> Option<DynamicNumber> {
@@ -417,10 +423,10 @@ macro_rules! build_aggregation_method_enum {
                 };
             }
 
-            fn finalize(&mut self) {
+            fn finalize(&mut self, parallel: bool) {
                 match self {
                     Self::Numbers(inner) => {
-                        inner.finalize();
+                        inner.finalize(parallel);
                     }
                     _ => (),
                 }
@@ -651,9 +657,9 @@ impl CompositeAggregator {
         Ok(())
     }
 
-    fn finalize(&mut self) {
+    fn finalize(&mut self, parallel: bool) {
         for method in self.methods.iter_mut() {
-            method.finalize();
+            method.finalize(parallel);
         }
     }
 
@@ -968,9 +974,9 @@ impl<'a> AggregationProgram<'a> {
         self.planner.headers()
     }
 
-    pub fn finalize(&mut self) -> ByteRecord {
+    pub fn finalize(&mut self, parallel: bool) -> ByteRecord {
         for aggregator in self.aggregators.iter_mut() {
-            aggregator.finalize();
+            aggregator.finalize(parallel);
         }
 
         let mut record = ByteRecord::new();
@@ -1031,14 +1037,17 @@ impl<'a> GroupAggregationProgram<'a> {
         self.planner.headers()
     }
 
-    pub fn into_byte_records(self) -> impl Iterator<Item = (Vec<u8>, ByteRecord)> + 'a {
+    pub fn into_byte_records(
+        self,
+        parallel: bool,
+    ) -> impl Iterator<Item = (Vec<u8>, ByteRecord)> + 'a {
         let planner = self.planner;
 
         self.groups
             .into_iter()
             .map(move |(group, mut aggregators)| {
                 for aggregator in aggregators.iter_mut() {
-                    aggregator.finalize();
+                    aggregator.finalize(parallel);
                 }
 
                 let mut record = ByteRecord::new();
@@ -1078,10 +1087,10 @@ mod tests {
         let mut odd_numbers = Numbers::from(odd);
         let mut even_numbers = Numbers::from(even);
 
-        no_numbers.finalize();
-        lone_numbers.finalize();
-        odd_numbers.finalize();
-        even_numbers.finalize();
+        no_numbers.finalize(false);
+        lone_numbers.finalize(false);
+        odd_numbers.finalize(false);
+        even_numbers.finalize(false);
 
         // Low
         assert_eq!(no_numbers.median(&MedianType::Low), None);

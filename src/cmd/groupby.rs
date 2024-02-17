@@ -62,6 +62,9 @@ groupby options:
                               - \"ignore\": ignore row altogether
                               - \"log\": print error to stderr
                             [default: panic].
+    -p, --parallel          Whether to use parallelization to speed up computations.
+                            Will automatically select a suitable number of threads to use
+                            based on your number of cores.
 
 Common options:
     -h, --help               Display this message
@@ -86,6 +89,7 @@ struct Args {
     flag_group_column: String,
     flag_sorted: bool,
     flag_errors: String,
+    flag_parallel: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -142,7 +146,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 Some(group_name) => {
                     if group_name != &group {
-                        wtr.write_byte_record(&program.finalize().prepend(group_name))?;
+                        wtr.write_byte_record(
+                            &program.finalize(args.flag_parallel).prepend(group_name),
+                        )?;
                         program.clear();
                         current_group = Some(group);
                     }
@@ -154,7 +160,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
         if let Some(group_name) = current_group {
-            wtr.write_byte_record(&program.finalize().prepend(&group_name))?;
+            wtr.write_byte_record(&program.finalize(args.flag_parallel).prepend(&group_name))?;
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
@@ -175,7 +181,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
 
-        for (group, group_record) in program.into_byte_records() {
+        for (group, group_record) in program.into_byte_records(args.flag_parallel) {
             wtr.write_byte_record(&group_record.prepend(&group))?;
         }
     }
