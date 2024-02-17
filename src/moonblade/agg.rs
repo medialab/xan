@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -530,28 +529,6 @@ impl Aggregator {
 // inferred from aggregating sum and count. Also if the user asks for both
 // sum and mean, the sum will only be aggregated once.
 
-macro_rules! build_variant_methods {
-    ($variant: ident, $has_name: ident, $gettr_name: ident) => {
-        fn $has_name(&self) -> bool {
-            self.methods.iter().any(|m| match m {
-                Aggregator::$variant(_) => true,
-                _ => false,
-            })
-        }
-
-        fn $gettr_name(&self) -> &$variant {
-            for method in self.methods.iter() {
-                match method {
-                    Aggregator::$variant(m) => return m,
-                    _ => continue,
-                }
-            }
-
-            unreachable!()
-        }
-    };
-}
-
 #[derive(Debug, Clone)]
 struct CompositeAggregator {
     methods: Vec<Aggregator>,
@@ -570,27 +547,7 @@ impl CompositeAggregator {
         }
     }
 
-    fn with_method(method: &ConcreteAggregationMethod) -> Self {
-        let mut aggregator = Self::new();
-        aggregator.add_method(method);
-        aggregator
-    }
-
-    build_variant_methods!(AllAny, has_allany, get_allany);
-    build_variant_methods!(Count, has_count, get_count);
-    build_variant_methods!(Extent, has_extent, get_extent);
-    build_variant_methods!(FirstLast, has_firstlast, get_firstlast);
-    build_variant_methods!(
-        LexicographicExtent,
-        has_lexicographic_extent,
-        get_lexicographic_extent
-    );
-    build_variant_methods!(Frequencies, has_frequencies, get_frequencies);
-    build_variant_methods!(Numbers, has_numbers, get_numbers);
-    build_variant_methods!(Sum, has_sum, get_sum);
-    build_variant_methods!(Welford, has_welford, get_welford);
-
-    fn add_method_for_planner(&mut self, method: &ConcreteAggregationMethod) -> usize {
+    fn add_method(&mut self, method: &ConcreteAggregationMethod) -> usize {
         macro_rules! upsert_aggregator {
             ($variant: ident) => {
                 match self.methods.iter().position(|item| match item {
@@ -638,76 +595,6 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::StddevPop
             | ConcreteAggregationMethod::StddevSample => {
                 upsert_aggregator!(Welford)
-            }
-        }
-    }
-
-    fn add_method(&mut self, method: &ConcreteAggregationMethod) {
-        match method {
-            ConcreteAggregationMethod::All | ConcreteAggregationMethod::Any => {
-                if self.has_allany() {
-                    return;
-                }
-
-                self.methods.push(Aggregator::AllAny(AllAny::new()));
-            }
-            ConcreteAggregationMethod::Count => {
-                if self.has_count() {
-                    return;
-                }
-
-                self.methods.push(Aggregator::Count(Count::new()));
-            }
-            ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
-                if self.has_extent() {
-                    return;
-                }
-
-                self.methods.push(Aggregator::Extent(Extent::new()));
-            }
-            ConcreteAggregationMethod::First | ConcreteAggregationMethod::Last => {
-                if self.has_firstlast() {
-                    return;
-                }
-
-                self.methods.push(Aggregator::FirstLast(FirstLast::new()));
-            }
-            ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
-                if self.has_lexicographic_extent() {
-                    return;
-                }
-
-                self.methods
-                    .push(Aggregator::LexicographicExtent(LexicographicExtent::new()));
-            }
-            ConcreteAggregationMethod::Median(_) => {
-                if !self.has_numbers() {
-                    self.methods.push(Aggregator::Numbers(Numbers::new()));
-                }
-            }
-            ConcreteAggregationMethod::Mode | ConcreteAggregationMethod::Cardinality => {
-                if !self.has_frequencies() {
-                    self.methods
-                        .push(Aggregator::Frequencies(Frequencies::new()));
-                }
-            }
-            ConcreteAggregationMethod::Sum => {
-                if self.has_sum() {
-                    return;
-                }
-
-                self.methods.push(Aggregator::Sum(Sum::new()));
-            }
-            ConcreteAggregationMethod::Mean
-            | ConcreteAggregationMethod::VarPop
-            | ConcreteAggregationMethod::VarSample
-            | ConcreteAggregationMethod::StddevPop
-            | ConcreteAggregationMethod::StddevSample => {
-                if self.has_welford() {
-                    return;
-                }
-
-                self.methods.push(Aggregator::Welford(Welford::new()));
             }
         }
     }
@@ -774,141 +661,6 @@ impl CompositeAggregator {
 
     fn get_final_value(&self, handle: usize, method: &ConcreteAggregationMethod) -> DynamicValue {
         self.methods[handle].get_final_value(method)
-    }
-
-    fn get_method_value(&self, method: &ConcreteAggregationMethod) -> DynamicValue {
-        match method {
-            ConcreteAggregationMethod::All => DynamicValue::from(self.get_allany().all()),
-            ConcreteAggregationMethod::Any => DynamicValue::from(self.get_allany().any()),
-            ConcreteAggregationMethod::Cardinality => {
-                DynamicValue::from(self.get_frequencies().cardinality())
-            }
-            ConcreteAggregationMethod::Count => DynamicValue::from(self.get_count().get()),
-            ConcreteAggregationMethod::First => DynamicValue::from(self.get_firstlast().first()),
-            ConcreteAggregationMethod::Last => DynamicValue::from(self.get_firstlast().last()),
-            ConcreteAggregationMethod::LexFirst => {
-                DynamicValue::from(self.get_lexicographic_extent().first())
-            }
-            ConcreteAggregationMethod::LexLast => {
-                DynamicValue::from(self.get_lexicographic_extent().last())
-            }
-            ConcreteAggregationMethod::Min => DynamicValue::from(self.get_extent().min()),
-            ConcreteAggregationMethod::Mean => DynamicValue::from(self.get_welford().mean()),
-            ConcreteAggregationMethod::Median(median_type) => {
-                DynamicValue::from(self.get_numbers().median(median_type))
-            }
-            ConcreteAggregationMethod::Max => DynamicValue::from(self.get_extent().max()),
-            ConcreteAggregationMethod::Mode => DynamicValue::from(self.get_frequencies().mode()),
-            ConcreteAggregationMethod::Sum => DynamicValue::from(self.get_sum().get()),
-            ConcreteAggregationMethod::VarPop => DynamicValue::from(self.get_welford().variance()),
-            ConcreteAggregationMethod::VarSample => {
-                DynamicValue::from(self.get_welford().sample_variance())
-            }
-            ConcreteAggregationMethod::StddevPop => DynamicValue::from(self.get_welford().stdev()),
-            ConcreteAggregationMethod::StddevSample => {
-                DynamicValue::from(self.get_welford().sample_stdev())
-            }
-        }
-    }
-}
-
-// NOTE: the rationale of the `KeyedAggregator` is to make sure to group
-// aggregations per expression. This means 'sum(A) as sum, mean(A)` will never
-// need to run the expression twice and can share an `CompositeAggregator` allocation.
-// TODO: deal with count() having no expr.
-#[derive(Debug)]
-struct KeyedAggregatorEntry {
-    key: String,
-    expr: Option<ConcreteArgument>,
-    aggregator: CompositeAggregator,
-}
-
-// TODO: KeyedAggregatorEntry is quite large and basically has constant keys wrt a specific
-// aggregation call. It should be kept at program level and not broadcasted per group
-// What's more, it could help us avoid the weird unordered loop matching aggregations to
-// the correct expression key.
-#[derive(Debug)]
-struct KeyedAggregator {
-    mapping: Vec<KeyedAggregatorEntry>,
-}
-
-impl KeyedAggregator {
-    fn new() -> Self {
-        Self {
-            mapping: Vec::new(),
-        }
-    }
-
-    fn get(&self, key: &str) -> Option<&KeyedAggregatorEntry> {
-        self.mapping.iter().find(|entry| entry.key == key)
-    }
-
-    fn get_mut(&mut self, key: &str) -> Option<&mut KeyedAggregatorEntry> {
-        self.mapping.iter_mut().find(|entry| entry.key == key)
-    }
-
-    fn add(&mut self, aggregation: &ConcreteAggregation) {
-        match self.get_mut(&aggregation.expr_key) {
-            None => {
-                self.mapping.push(KeyedAggregatorEntry {
-                    key: aggregation.expr_key.clone(),
-                    expr: aggregation.expr.clone(),
-                    aggregator: CompositeAggregator::with_method(&aggregation.method),
-                });
-            }
-            Some(entry) => entry.aggregator.add_method(&aggregation.method),
-        }
-    }
-
-    fn run_with_record(
-        &mut self,
-        index: usize,
-        record: &ByteRecord,
-        headers_index: &HeadersIndex,
-        variables: &Variables,
-    ) -> Result<(), EvaluationError> {
-        for entry in self.mapping.iter_mut() {
-            // NOTE: count tolerates having no expression to evaluate, for instance.
-            let value = match &entry.expr {
-                None => None,
-                Some(expr) => Some(eval_expr(expr, record, headers_index, variables)?),
-            };
-
-            entry
-                .aggregator
-                .process_value(index, value)
-                .map_err(|err| {
-                    EvaluationError::Call(SpecifiedCallError {
-                        reason: err,
-                        function_name: format!("<agg-expr: {}>", entry.key),
-                    })
-                })?;
-        }
-
-        Ok(())
-    }
-
-    fn finalize(&mut self) {
-        for entry in self.mapping.iter_mut() {
-            entry.aggregator.finalize();
-        }
-    }
-
-    fn get_value(&self, key: &str, method: &ConcreteAggregationMethod) -> Option<DynamicValue> {
-        self.get(key)
-            .map(|entry| entry.aggregator.get_method_value(method))
-    }
-}
-
-impl From<&ConcreteAggregations> for KeyedAggregator {
-    fn from(aggregations: &ConcreteAggregations) -> Self {
-        let mut aggregator = Self::new();
-
-        for agg in aggregations {
-            aggregator.add(agg);
-        }
-
-        aggregator
     }
 }
 
@@ -1089,7 +841,7 @@ impl From<ConcreteAggregations> for ConcreteAggregationPlanner {
             {
                 let aggregator_index = execution_plan[expr_index]
                     .aggregator_blueprint
-                    .add_method_for_planner(&agg.method);
+                    .add_method(&agg.method);
 
                 output_plan.push(PlannerOutputUnit {
                     expr_index,
@@ -1100,7 +852,7 @@ impl From<ConcreteAggregations> for ConcreteAggregationPlanner {
             } else {
                 let expr_index = execution_plan.len();
                 let mut aggregator_blueprint = CompositeAggregator::new();
-                let aggregator_index = aggregator_blueprint.add_method_for_planner(&agg.method);
+                let aggregator_index = aggregator_blueprint.add_method(&agg.method);
 
                 execution_plan.push(PlannerExecutionUnit {
                     expr_key: agg.expr_key,
@@ -1135,6 +887,40 @@ impl ConcreteAggregationPlanner {
     fn headers(&self) -> impl Iterator<Item = &[u8]> {
         self.output_plan.iter().map(|unit| unit.agg_name.as_bytes())
     }
+
+    fn results<'a>(
+        &'a self,
+        aggregators: &'a [CompositeAggregator],
+    ) -> impl Iterator<Item = DynamicValue> + 'a {
+        self.output_plan.iter().map(move |unit| {
+            aggregators[unit.expr_index].get_final_value(unit.aggregator_index, &unit.agg_method)
+        })
+    }
+}
+
+fn run_with_record_on_aggregators(
+    planner: &ConcreteAggregationPlanner,
+    aggregators: &mut Vec<CompositeAggregator>,
+    index: usize,
+    record: &ByteRecord,
+    headers_index: &HeadersIndex,
+    variables: &Variables,
+) -> Result<(), EvaluationError> {
+    for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
+        let value = match &unit.expr {
+            None => None,
+            Some(expr) => Some(eval_expr(expr, record, headers_index, variables)?),
+        };
+
+        aggregator.process_value(index, value).map_err(|err| {
+            EvaluationError::Call(SpecifiedCallError {
+                reason: err,
+                function_name: format!("<agg-expr: {}>", unit.expr_key),
+            })
+        })?;
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -1165,55 +951,33 @@ impl<'a> AggregationProgram<'a> {
         }
     }
 
-    // TODO: factorize within planner's context, taking the aggregators on which to run
     pub fn run_with_record(
         &mut self,
         index: usize,
         record: &ByteRecord,
     ) -> Result<(), EvaluationError> {
-        for (unit, aggregator) in self
-            .planner
-            .execution_plan
-            .iter()
-            .zip(self.aggregators.iter_mut())
-        {
-            let value = match &unit.expr {
-                None => None,
-                Some(expr) => Some(eval_expr(
-                    expr,
-                    record,
-                    &self.headers_index,
-                    &self.variables,
-                )?),
-            };
-
-            aggregator.process_value(index, value).map_err(|err| {
-                EvaluationError::Call(SpecifiedCallError {
-                    reason: err,
-                    function_name: format!("<agg-expr: {}>", unit.expr_key),
-                })
-            })?;
-        }
-
-        Ok(())
+        run_with_record_on_aggregators(
+            &self.planner,
+            &mut self.aggregators,
+            index,
+            record,
+            &self.headers_index,
+            &self.variables,
+        )
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
         self.planner.headers()
     }
 
-    // TODO: factorize in planner context
     pub fn finalize(&mut self) -> ByteRecord {
-        let mut record = ByteRecord::new();
-
         for aggregator in self.aggregators.iter_mut() {
             aggregator.finalize();
         }
 
-        for unit in self.planner.output_plan.iter() {
-            let value = self.aggregators[unit.expr_index]
-                .get_final_value(unit.aggregator_index, &unit.agg_method);
+        let mut record = ByteRecord::new();
 
+        for value in self.planner.results(&self.aggregators) {
             record.push_field(&value.serialize_as_bytes());
         }
 
@@ -1223,8 +987,8 @@ impl<'a> AggregationProgram<'a> {
 
 #[derive(Debug)]
 pub struct GroupAggregationProgram<'a> {
-    aggregations: ConcreteAggregations,
-    groups: HashMap<Vec<u8>, KeyedAggregator>,
+    planner: ConcreteAggregationPlanner,
+    groups: HashMap<Vec<u8>, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
     variables: Variables<'a>,
 }
@@ -1232,9 +996,10 @@ pub struct GroupAggregationProgram<'a> {
 impl<'a> GroupAggregationProgram<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
+        let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
 
         Ok(Self {
-            aggregations: concrete_aggregations,
+            planner,
             groups: HashMap::new(),
             headers_index: HeadersIndex::from_headers(headers),
             variables: Variables::new(),
@@ -1247,47 +1012,45 @@ impl<'a> GroupAggregationProgram<'a> {
         index: usize,
         record: &ByteRecord,
     ) -> Result<(), EvaluationError> {
-        match self.groups.entry(group) {
-            Entry::Vacant(entry) => {
-                let mut aggregator = KeyedAggregator::from(&self.aggregations);
-                aggregator.run_with_record(index, record, &self.headers_index, &self.variables)?;
-                entry.insert(aggregator);
-            }
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().run_with_record(
-                    index,
-                    record,
-                    &self.headers_index,
-                    &self.variables,
-                )?;
-            }
-        }
+        let planner = &self.planner;
 
-        Ok(())
+        let aggregators = self
+            .groups
+            .entry(group)
+            .or_insert_with(|| planner.instantiate_aggregators());
+
+        run_with_record_on_aggregators(
+            &self.planner,
+            aggregators,
+            index,
+            record,
+            &self.headers_index,
+            &self.variables,
+        )
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
-        self.aggregations.iter().map(|agg| agg.agg_name.as_bytes())
+        self.planner.headers()
     }
 
     pub fn into_byte_records(self) -> impl Iterator<Item = (Vec<u8>, ByteRecord)> + 'a {
-        let mut aggregations = self.aggregations;
+        let planner = self.planner;
 
-        self.groups.into_iter().map(move |(group, mut aggregator)| {
-            let mut record = ByteRecord::new();
+        self.groups
+            .into_iter()
+            .map(move |(group, mut aggregators)| {
+                for aggregator in aggregators.iter_mut() {
+                    aggregator.finalize();
+                }
 
-            aggregator.finalize();
+                let mut record = ByteRecord::new();
 
-            for aggregation in aggregations.iter_mut() {
-                let value = aggregator
-                    .get_value(&aggregation.expr_key, &aggregation.method)
-                    .unwrap();
+                for value in planner.results(&aggregators) {
+                    record.push_field(&value.serialize_as_bytes());
+                }
 
-                record.push_field(&value.serialize_as_bytes());
-            }
-
-            (group, record)
-        })
+                (group, record)
+            })
     }
 }
 
