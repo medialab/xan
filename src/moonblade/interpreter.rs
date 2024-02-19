@@ -97,7 +97,7 @@ pub struct ConcreteSubroutine {
 
 impl ConcreteSubroutine {
     fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
-        let mut bound_args = BoundArguments::with_capacity(self.args.len());
+        let mut bound_args = BoundArguments::new();
 
         for (i, arg) in self.args.iter().enumerate() {
             match arg {
@@ -280,14 +280,19 @@ fn concretize_call(
     headers: &ByteRecord,
 ) -> Result<ConcreteArgument, ConcretizationError> {
     let function_name = call.name;
+    let arity = call.args.len();
+
+    if arity > 8 {
+        return Err(ConcretizationError::TooManyArguments(arity));
+    }
 
     // Statically analyzable col() function call
     if function_name == "col" {
-        if !(1..=2).contains(&call.args.len()) {
+        if !(1..=2).contains(&arity) {
             return Err(ConcretizationError::from_invalid_range_arity(
                 "col".to_string(),
                 1..=2,
-                call.args.len(),
+                arity,
             ));
         }
 

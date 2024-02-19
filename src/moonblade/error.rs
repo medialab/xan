@@ -23,6 +23,7 @@ pub enum ConcretizationError {
     InvalidRegex(String),
     UnknownFunction(String),
     InvalidArity((String, InvalidArity)),
+    TooManyArguments(usize),
 }
 
 impl ConcretizationError {
@@ -69,6 +70,9 @@ impl Display for ConcretizationError {
             Self::ParseError(expr) => write!(f, "could not parse expression: {}", expr),
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
             Self::InvalidArity((name, arity)) => write!(f, "{}: {}", name, arity),
+            Self::TooManyArguments(actual) => {
+                write!(f, "got {} arguments. Cannot exceed 8.", actual)
+            }
         }
     }
 }

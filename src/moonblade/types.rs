@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use std::convert::From;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 
+use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::Regex;
 
@@ -856,17 +857,20 @@ pub type BoundArgument<'a> = Cow<'a, DynamicValue>;
 pub type EvaluationResult<'a> = Result<BoundArgument<'a>, EvaluationError>;
 pub type Variables<'a> = BTreeMap<&'a str, DynamicValue>;
 
+const BOUND_ARGUMENTS_CAPACITY: usize = 8;
+
 pub struct BoundArguments<'a> {
-    stack: Vec<BoundArgument<'a>>,
+    stack: ArrayVec<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
 }
 
 impl<'a> BoundArguments<'a> {
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            stack: Vec::with_capacity(capacity),
+            stack: ArrayVec::new(),
         }
     }
 
+    // TODO: validate less than 8 arguments when parsing or concretizing
     pub fn push(&mut self, arg: BoundArgument<'a>) {
         self.stack.push(arg);
     }
@@ -933,7 +937,9 @@ impl<'a> BoundArguments<'a> {
     }
 }
 
-pub struct BoundArgumentsIntoIterator<'a>(std::vec::IntoIter<BoundArgument<'a>>);
+pub struct BoundArgumentsIntoIterator<'a>(
+    arrayvec::IntoIter<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
+);
 
 impl<'a> Iterator for BoundArgumentsIntoIterator<'a> {
     type Item = BoundArgument<'a>;

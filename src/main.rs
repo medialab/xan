@@ -1,3 +1,4 @@
+extern crate arrayvec;
 extern crate atty;
 extern crate byteorder;
 extern crate bytesize;
