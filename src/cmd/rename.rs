@@ -64,8 +64,6 @@ struct Args {
     flag_prefix: Option<String>,
 }
 
-// TODO: no headers
-
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
