@@ -33,6 +33,7 @@ cargo install xan
 * `xan behead`
 * `xan bins`
 * `xan datefmt`
+* `xan dedup`
 * `xan enum`
 * `xan explode`
 * `xan flatmap`
@@ -64,6 +65,7 @@ cargo install xan
 * **cat** - Concatenate CSV files by row or by column.
 * **count** - Count the rows in a CSV file. (Instantaneous with an index.)
 * **datefmt** - Add a column with the date from a CSV column in a specified format and timezone.
+* **dedup** - Deduplicate a CSV file.
 * **enum** - Enumerate CSV file by preprending an index column.
 * **explode** - Explode rows into multiple ones by splitting a column value based on the
 given separator.

@@ -369,6 +369,10 @@ impl Selection {
         self.iter().map(move |i| &row[*i])
     }
 
+    pub fn collect(&self, row: &csv::ByteRecord) -> Vec<Vec<u8>> {
+        self.select(row).map(|f| f.to_vec()).collect()
+    }
+
     pub fn has_duplicates(&self) -> bool {
         let mut indices = self.0.clone();
         indices.sort();

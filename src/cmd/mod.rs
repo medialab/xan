@@ -4,6 +4,7 @@ pub mod bins;
 pub mod cat;
 pub mod count;
 pub mod datefmt;
+pub mod dedup;
 pub mod enumerate;
 pub mod explode;
 pub mod filter;
