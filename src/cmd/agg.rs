@@ -1,4 +1,9 @@
+use std::cell::RefCell;
+use std::sync::Arc;
+
 use csv;
+use rayon::prelude::*;
+use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
 use util;
@@ -109,18 +114,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
 
-    let mut record = csv::ByteRecord::new();
-
     wtr.write_record(program.headers())?;
 
-    let mut index: usize = 0;
+    if !args.flag_parallel {
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
 
-    while rdr.read_byte_record(&mut record)? {
-        index += 1;
+        while rdr.read_byte_record(&mut record)? {
+            index += 1;
 
-        program
-            .run_with_record(index, &record)
-            .or_else(|error| error_policy.handle_error(index, error))?;
+            program
+                .run_with_record(index, &record)
+                .or_else(|error| error_policy.handle_error(index, error))?;
+        }
+    } else {
+        let local: Arc<ThreadLocal<RefCell<AggregationProgram>>> = Arc::new(ThreadLocal::new());
+
+        rdr.into_byte_records()
+            .enumerate()
+            .par_bridge()
+            .try_for_each(|(index, rdr_result)| -> CliResult<()> {
+                let record = rdr_result?;
+
+                let mut local_program = local.get_or(|| RefCell::new(program.clone())).borrow_mut();
+
+                local_program
+                    .run_with_record(index, &record)
+                    .or_else(|error| error_policy.handle_error(index, error))?;
+
+                Ok(())
+            })?;
+
+        for local_program in Arc::try_unwrap(local).unwrap().into_iter() {
+            program.merge(local_program.into_inner());
+        }
     }
 
     wtr.write_byte_record(&program.finalize(args.flag_parallel))?;

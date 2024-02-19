@@ -29,6 +29,10 @@ impl Count {
     fn get(&self) -> usize {
         self.current
     }
+
+    fn merge(&mut self, other: Self) {
+        self.current += other.current;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +65,11 @@ impl AllAny {
 
     fn any(&self) -> bool {
         self.any
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.all = self.all && other.all;
+        self.any = self.any || other.any;
     }
 }
 
@@ -98,6 +107,30 @@ impl FirstLast {
     fn last(&self) -> Option<DynamicValue> {
         self.last.as_ref().map(|p| p.1.clone())
     }
+
+    fn merge(&mut self, other: Self) {
+        match self.first.as_ref() {
+            None => self.first = other.first,
+            Some((i, _)) => {
+                if let Some((j, _)) = other.first.as_ref() {
+                    if i > j {
+                        self.first = other.first;
+                    }
+                }
+            }
+        };
+
+        match self.last.as_ref() {
+            None => self.last = other.last,
+            Some((i, _)) => {
+                if let Some((j, _)) = other.last.as_ref() {
+                    if i < j {
+                        self.last = other.last;
+                    }
+                }
+            }
+        };
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -132,6 +165,10 @@ impl Sum {
 
     fn get(&self) -> DynamicNumber {
         self.current
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.add(&other.current);
     }
 }
 
@@ -171,6 +208,24 @@ impl Extent {
     fn max(&self) -> Option<DynamicNumber> {
         self.extent.map(|e| e.1)
     }
+
+    fn merge(&mut self, other: Self) {
+        match self.extent.as_mut() {
+            None => {
+                self.extent = other.extent;
+            }
+            Some((min, max)) => {
+                if let Some((other_min, other_max)) = other.extent {
+                    if other_min < *min {
+                        *min = other_min;
+                    }
+                    if other_max > *max {
+                        *max = other_max;
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -208,6 +263,24 @@ impl LexicographicExtent {
 
     fn last(&self) -> Option<String> {
         self.extent.as_ref().map(|e| e.1.clone())
+    }
+
+    fn merge(&mut self, other: Self) {
+        match self.extent.as_mut() {
+            None => {
+                self.extent = other.extent;
+            }
+            Some((min, max)) => {
+                if let Some((other_min, other_max)) = other.extent {
+                    if other_min < *min {
+                        *min = other_min;
+                    }
+                    if other_max > *max {
+                        *max = other_max;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -286,6 +359,10 @@ impl Numbers {
 
         Some(median)
     }
+
+    fn merge(&mut self, other: Self) {
+        self.numbers.extend(other.numbers);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -304,11 +381,15 @@ impl Frequencies {
         self.counter.clear();
     }
 
-    fn add(&mut self, value: String) {
+    fn add_count(&mut self, value: String, count: usize) {
         self.counter
             .entry(value)
-            .and_modify(|count| *count += 1)
-            .or_insert(1);
+            .and_modify(|current| *current += count)
+            .or_insert(count);
+    }
+
+    fn add(&mut self, value: String) {
+        self.add_count(value, 1);
     }
 
     fn mode(&self) -> Option<String> {
@@ -333,9 +414,17 @@ impl Frequencies {
     fn cardinality(&self) -> usize {
         self.counter.len()
     }
+
+    fn merge(&mut self, other: Self) {
+        for (key, count) in other.counter {
+            self.add_count(key, count);
+        }
+    }
 }
 
 // NOTE: this is an implementation of Welford's online algorithm
+// Ref: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+// Ref: https://en.wikipedia.org/wiki/Standard_deviation
 #[derive(Debug, Clone)]
 struct Welford {
     count: usize,
@@ -402,6 +491,21 @@ impl Welford {
     fn sample_stdev(&self) -> Option<f64> {
         self.sample_variance().map(|v| v.sqrt())
     }
+
+    fn merge(&mut self, other: Self) {
+        self.count += other.count;
+
+        let count1 = self.count as f64;
+        let count2 = self.count as f64;
+
+        let total = count1 + count2;
+
+        let mean_diff_squared = (self.mean - other.mean).powi(2);
+        self.mean = ((count1 * self.mean) + (count2 * other.mean)) / total;
+
+        self.m2 = (((count1 * self.m2) + (count2 * other.m2)) / total)
+            + ((count1 * count2 * mean_diff_squared) / (total * total));
+    }
 }
 
 macro_rules! build_aggregation_method_enum {
@@ -419,6 +523,15 @@ macro_rules! build_aggregation_method_enum {
                     $(
                         Self::$variant(inner) => inner.clear(),
                     )+
+                };
+            }
+
+            fn merge(&mut self, other: Self) {
+                match (self, other) {
+                    $(
+                        (Self::$variant(inner), Self::$variant(inner_other)) => inner.merge(inner_other),
+                    )+
+                    _ => unreachable!(),
                 };
             }
 
@@ -549,6 +662,12 @@ impl CompositeAggregator {
     fn clear(&mut self) {
         for method in self.methods.iter_mut() {
             method.clear();
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        for (self_method, other_method) in self.methods.iter_mut().zip(other.methods) {
+            self_method.merge(other_method);
         }
     }
 
@@ -698,7 +817,7 @@ fn validate_aggregation_function_arity(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConcreteAggregationMethod {
     All,
     Any,
@@ -808,7 +927,7 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 // NOTE: each execution unit is iterated upon linearly to aggregate values
 // all while running a minimum number of operations (batched by 1. expression
 // keys and 2. composite aggregation atom).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PlannerExecutionUnit {
     expr_key: String,
     expr: Option<ConcreteArgument>,
@@ -818,7 +937,7 @@ struct PlannerExecutionUnit {
 // NOTE: output unit are aligned with the list of concrete aggregations and
 // offer a way to navigate the expression key indexation layer, then the
 // composite aggregation layer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PlannerOutputUnit {
     expr_index: usize,
     aggregator_index: usize,
@@ -826,7 +945,7 @@ struct PlannerOutputUnit {
     agg_method: ConcreteAggregationMethod,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConcreteAggregationPlanner {
     execution_plan: Vec<PlannerExecutionUnit>,
     output_plan: Vec<PlannerOutputUnit>,
@@ -901,6 +1020,9 @@ impl ConcreteAggregationPlanner {
     }
 }
 
+// NOTE: parallelizing "horizontally" the planner's execution units does not
+// seem to yield any performance increase. I guess the overhead is greater than
+// the inner computation time.
 fn run_with_record_on_aggregators(
     planner: &ConcreteAggregationPlanner,
     aggregators: &mut Vec<CompositeAggregator>,
@@ -926,7 +1048,7 @@ fn run_with_record_on_aggregators(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AggregationProgram<'a> {
     aggregators: Vec<CompositeAggregator>,
     planner: ConcreteAggregationPlanner,
@@ -951,6 +1073,14 @@ impl<'a> AggregationProgram<'a> {
     pub fn clear(&mut self) {
         for aggregator in self.aggregators.iter_mut() {
             aggregator.clear()
+        }
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        for (self_aggregator, other_aggregator) in
+            self.aggregators.iter_mut().zip(other.aggregators)
+        {
+            self_aggregator.merge(other_aggregator);
         }
     }
 
@@ -988,7 +1118,7 @@ impl<'a> AggregationProgram<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GroupAggregationProgram<'a> {
     planner: ConcreteAggregationPlanner,
     groups: HashMap<Vec<u8>, Vec<CompositeAggregator>>,
