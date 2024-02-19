@@ -665,6 +665,12 @@ impl CompositeAggregator {
         }
     }
 
+    fn merge(&mut self, other: Self) {
+        for (self_method, other_method) in self.methods.iter_mut().zip(other.methods) {
+            self_method.merge(other_method);
+        }
+    }
+
     fn add_method(&mut self, method: &ConcreteAggregationMethod) -> usize {
         macro_rules! upsert_aggregator {
             ($variant: ident) => {
@@ -811,7 +817,7 @@ fn validate_aggregation_function_arity(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConcreteAggregationMethod {
     All,
     Any,
@@ -921,7 +927,7 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 // NOTE: each execution unit is iterated upon linearly to aggregate values
 // all while running a minimum number of operations (batched by 1. expression
 // keys and 2. composite aggregation atom).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PlannerExecutionUnit {
     expr_key: String,
     expr: Option<ConcreteArgument>,
@@ -931,7 +937,7 @@ struct PlannerExecutionUnit {
 // NOTE: output unit are aligned with the list of concrete aggregations and
 // offer a way to navigate the expression key indexation layer, then the
 // composite aggregation layer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PlannerOutputUnit {
     expr_index: usize,
     aggregator_index: usize,
@@ -939,7 +945,7 @@ struct PlannerOutputUnit {
     agg_method: ConcreteAggregationMethod,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConcreteAggregationPlanner {
     execution_plan: Vec<PlannerExecutionUnit>,
     output_plan: Vec<PlannerOutputUnit>,
@@ -1014,6 +1020,9 @@ impl ConcreteAggregationPlanner {
     }
 }
 
+// NOTE: parallelizing "horizontally" the planner's execution units does not
+// seem to yield any performance increase. I guess the overhead is greater than
+// the inner computation time.
 fn run_with_record_on_aggregators(
     planner: &ConcreteAggregationPlanner,
     aggregators: &mut Vec<CompositeAggregator>,
@@ -1039,7 +1048,7 @@ fn run_with_record_on_aggregators(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AggregationProgram<'a> {
     aggregators: Vec<CompositeAggregator>,
     planner: ConcreteAggregationPlanner,
@@ -1064,6 +1073,14 @@ impl<'a> AggregationProgram<'a> {
     pub fn clear(&mut self) {
         for aggregator in self.aggregators.iter_mut() {
             aggregator.clear()
+        }
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        for (self_aggregator, other_aggregator) in
+            self.aggregators.iter_mut().zip(other.aggregators)
+        {
+            self_aggregator.merge(other_aggregator);
         }
     }
 
@@ -1101,7 +1118,7 @@ impl<'a> AggregationProgram<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GroupAggregationProgram<'a> {
     planner: ConcreteAggregationPlanner,
     groups: HashMap<Vec<u8>, Vec<CompositeAggregator>>,

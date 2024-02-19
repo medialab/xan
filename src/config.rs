@@ -286,7 +286,7 @@ impl Config {
         Ok(self.csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
-    pub fn reader(&self) -> io::Result<csv::Reader<Box<dyn io::Read + 'static>>> {
+    pub fn reader(&self) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
@@ -346,7 +346,7 @@ impl Config {
         }
     }
 
-    pub fn io_reader(&self) -> io::Result<Box<dyn io::Read + 'static>> {
+    pub fn io_reader(&self) -> io::Result<Box<dyn io::Read + Send + 'static>> {
         Ok(match self.path {
             None => {
                 if atty::is(atty::Stream::Stdin) {
