@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use csv::ByteRecord;
 use rayon::prelude::*;
@@ -67,8 +66,8 @@ impl AllAny {
 
 #[derive(Debug, Clone)]
 struct FirstLast {
-    first: Option<(usize, Rc<DynamicValue>)>,
-    last: Option<(usize, Rc<DynamicValue>)>,
+    first: Option<(usize, DynamicValue)>,
+    last: Option<(usize, DynamicValue)>,
 }
 
 impl FirstLast {
@@ -84,7 +83,7 @@ impl FirstLast {
         self.last = None;
     }
 
-    fn add(&mut self, index: usize, next_value: &Rc<DynamicValue>) {
+    fn add(&mut self, index: usize, next_value: &DynamicValue) {
         if self.first.is_none() {
             self.first = Some((index, next_value.clone()));
         }
@@ -93,11 +92,11 @@ impl FirstLast {
     }
 
     fn first(&self) -> Option<DynamicValue> {
-        self.first.as_ref().map(|p| p.1.as_ref().clone())
+        self.first.as_ref().map(|p| p.1.clone())
     }
 
     fn last(&self) -> Option<DynamicValue> {
-        self.last.as_ref().map(|p| p.1.as_ref().clone())
+        self.last.as_ref().map(|p| p.1.clone())
     }
 }
 
@@ -608,7 +607,7 @@ impl CompositeAggregator {
     fn process_value(
         &mut self,
         index: usize,
-        value_opt: Option<Rc<DynamicValue>>,
+        value_opt: Option<DynamicValue>,
     ) -> Result<(), CallError> {
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
@@ -913,7 +912,7 @@ fn run_with_record_on_aggregators(
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(Rc::new(eval_expr(expr, record, headers_index, variables)?)),
+            Some(expr) => Some(eval_expr(expr, record, headers_index, variables)?),
         };
 
         aggregator.process_value(index, value).map_err(|err| {
