@@ -429,6 +429,12 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
     - sum(<expr>) -> number
         Sum of numerical values.
 
+    - type(<expr>) -> string
+        Best type description for seen values.
+
+    - types(<expr>) -> string
+        Sorted list, pipe-separated, of all the types seen in the values.
+
     - var(<expr>) -> number
         Population variance. Same as `var_pop`.
 

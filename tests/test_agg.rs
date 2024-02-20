@@ -206,3 +206,47 @@ fn agg_parallel() {
     let expected = vec![svec!["sum"], svec!["16"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_types() {
+    let wrk = Workdir::new("agg_types");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["I", "E", "S", "M", "F"],
+            svec!["1", "", "test1", "", "2"],
+            svec!["2", "", "test2", "3", "2.5"],
+            svec!["", "", "test3", "3.5", "1"],
+            svec!["4", "", "4", "test", ""],
+            svec!["5", "", "test5", "string", "5.6"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("type(I) as I, type(E) as E, type(S) as S, type(M) as M, type(F) as F")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["I", "E", "S", "M", "F"],
+        svec!["int", "empty", "string", "string", "float"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("types(I) as I, types(E) as E, types(S) as S, types(M) as M, types(F) as F")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["I", "E", "S", "M", "F"],
+        svec![
+            "int|empty",
+            "empty",
+            "int|string",
+            "int|float|string|empty",
+            "int|float|empty"
+        ],
+    ];
+    assert_eq!(got, expected);
+}

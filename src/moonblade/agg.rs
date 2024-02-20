@@ -508,6 +508,104 @@ impl Welford {
     }
 }
 
+const TYPE_EMPTY: u8 = 0;
+const TYPE_STRING: u8 = 1;
+const TYPE_FLOAT: u8 = 2;
+const TYPE_INT: u8 = 3;
+
+#[derive(Debug, Clone)]
+struct Types {
+    bitset: u8,
+}
+
+impl Types {
+    fn new() -> Self {
+        Types { bitset: 0 }
+    }
+
+    fn set(&mut self, pos: u8) {
+        self.bitset |= 1 << pos;
+    }
+
+    fn set_empty(&mut self) {
+        self.set(TYPE_EMPTY)
+    }
+
+    fn set_string(&mut self) {
+        self.set(TYPE_STRING)
+    }
+
+    fn set_float(&mut self) {
+        self.set(TYPE_FLOAT)
+    }
+
+    fn set_int(&mut self) {
+        self.set(TYPE_INT)
+    }
+
+    fn has(&self, pos: u8) -> bool {
+        ((self.bitset >> pos) & 1) == 1
+    }
+
+    fn has_empty(&self) -> bool {
+        self.has(TYPE_EMPTY)
+    }
+
+    fn has_string(&self) -> bool {
+        self.has(TYPE_STRING)
+    }
+
+    fn has_float(&self) -> bool {
+        self.has(TYPE_FLOAT)
+    }
+
+    fn has_int(&self) -> bool {
+        self.has(TYPE_INT)
+    }
+
+    fn most_likely_type(&self) -> Option<&str> {
+        Some(if self.has_string() {
+            "string"
+        } else if self.has_float() {
+            "float"
+        } else if self.has_int() {
+            "int"
+        } else if self.has_empty() {
+            "empty"
+        } else {
+            return None;
+        })
+    }
+
+    fn sorted_types(&self) -> Vec<&str> {
+        let mut result: Vec<&str> = Vec::new();
+
+        if self.has_int() {
+            result.push("int");
+        }
+        if self.has_float() {
+            result.push("float");
+        }
+        if self.has_string() {
+            result.push("string");
+        }
+        if self.has_empty() {
+            result.push("empty");
+        }
+
+        result
+    }
+
+    fn clear(&mut self) {
+        self.bitset = 0;
+        self.set_empty();
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.bitset |= other.bitset;
+    }
+}
+
 macro_rules! build_aggregation_method_enum {
     ($($variant: ident,)+) => {
         #[derive(Debug, Clone)]
@@ -556,6 +654,7 @@ build_aggregation_method_enum!(
     Frequencies,
     Numbers,
     Sum,
+    Types,
     Welford,
 );
 
@@ -613,6 +712,12 @@ impl Aggregator {
             }
             (Self::Welford(inner), ConcreteAggregationMethod::StddevSample) => {
                 DynamicValue::from(inner.sample_stdev())
+            }
+            (Self::Types(inner), ConcreteAggregationMethod::Types) => {
+                DynamicValue::from(inner.sorted_types().join("|"))
+            }
+            (Self::Types(inner), ConcreteAggregationMethod::Type) => {
+                DynamicValue::from(inner.most_likely_type())
             }
             _ => unreachable!(),
         }
@@ -720,6 +825,9 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::StddevSample => {
                 upsert_aggregator!(Welford)
             }
+            ConcreteAggregationMethod::Types | ConcreteAggregationMethod::Type => {
+                upsert_aggregator!(Types)
+            }
         }
     }
 
@@ -761,6 +869,18 @@ impl CompositeAggregator {
                     }
                     Aggregator::Welford(variance) => {
                         variance.add(value.try_as_f64()?);
+                    }
+                    Aggregator::Types(types) => {
+                        if value.is_nullish() {
+                            types.set_empty();
+                        } else if let Ok(n) = value.try_as_number() {
+                            match n {
+                                DynamicNumber::Float(_) => types.set_float(),
+                                DynamicNumber::Integer(_) => types.set_int(),
+                            };
+                        } else {
+                            types.set_string();
+                        }
                     }
                 },
                 None => match method {
@@ -837,6 +957,8 @@ enum ConcreteAggregationMethod {
     VarSample,
     StddevPop,
     StddevSample,
+    Type,
+    Types,
 }
 
 impl ConcreteAggregationMethod {
@@ -862,6 +984,8 @@ impl ConcreteAggregationMethod {
             "stddev" | "stddev_pop" => Self::StddevPop,
             "stddev_sample" => Self::StddevSample,
             "sum" => Self::Sum,
+            "type" => Self::Type,
+            "types" => Self::Types,
             _ => return None,
         })
     }
@@ -1207,7 +1331,7 @@ mod tests {
     }
 
     #[test]
-    fn test_median_types() {
+    fn test_median_aggregator() {
         let odd = vec![1, 3, 5];
         let even = vec![1, 2, 6, 7];
 
@@ -1274,6 +1398,29 @@ mod tests {
             even_numbers.median(&MedianType::Interpolation),
             Some(DynamicNumber::Float(4.0))
         );
+    }
+
+    #[test]
+    fn test_types_aggregator() {
+        let mut types = Types::new();
+
+        assert_eq!(types.sorted_types(), Vec::<&str>::new());
+        assert_eq!(types.most_likely_type(), None);
+
+        types.set_int();
+
+        assert_eq!(types.sorted_types(), vec!["int"]);
+        assert_eq!(types.most_likely_type(), Some("int"));
+
+        types.set_float();
+
+        assert_eq!(types.sorted_types(), vec!["int", "float"]);
+        assert_eq!(types.most_likely_type(), Some("float"));
+
+        types.set_string();
+
+        assert_eq!(types.sorted_types(), vec!["int", "float", "string"]);
+        assert_eq!(types.most_likely_type(), Some("string"));
     }
 
     // #[test]

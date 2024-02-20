@@ -575,17 +575,14 @@ impl DynamicValue {
 
     pub fn try_as_number(&self) -> Result<DynamicNumber, CallError> {
         Ok(match self {
-            Self::String(string) => match string.parse::<i64>() {
-                Ok(value) => DynamicNumber::Integer(value),
-                Err(_) => match string.parse::<f64>() {
-                    Ok(value) => DynamicNumber::Float(value),
-                    Err(_) => {
-                        return Err(CallError::Cast((
-                            "string".to_string(),
-                            "number".to_string(),
-                        )))
-                    }
-                },
+            Self::String(string) => match string.parse::<DynamicNumber>() {
+                Err(_) => {
+                    return Err(CallError::Cast((
+                        "string".to_string(),
+                        "number".to_string(),
+                    )))
+                }
+                Ok(number) => number,
             },
             Self::Integer(value) => DynamicNumber::Integer(*value),
             Self::Float(value) => DynamicNumber::Float(*value),
