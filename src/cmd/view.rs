@@ -510,7 +510,7 @@ impl<'a> Iterator for DisplayedColumnsIter<'a> {
 // fitting perfectly, then the number of columns displayed.
 fn infer_best_column_display(
     cols: usize,
-    max_column_widths: &Vec<usize>,
+    max_column_widths: &[usize],
     expand: bool,
     left_advantage: usize,
 ) -> DisplayedColumns {

@@ -218,7 +218,7 @@ impl ConcreteStatement {
                     }));
                 }
 
-                let name_or_pos = self.args.get(0).unwrap().evaluate(context)?;
+                let name_or_pos = self.args.first().unwrap().evaluate(context)?;
                 let pos = match self.args.get(1) {
                     Some(p) => Some(p.evaluate(context)?),
                     None => None,

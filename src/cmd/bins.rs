@@ -152,7 +152,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     Ok(wtr.flush()?)
 }
 
-fn compute_rectified_iqr(numbers: &Vec<f64>, stats: &SeriesStats) -> Option<f64> {
+fn compute_rectified_iqr(numbers: &[f64], stats: &SeriesStats) -> Option<f64> {
     if numbers.len() < 4 {
         None
     } else {

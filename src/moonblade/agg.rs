@@ -1013,7 +1013,7 @@ fn concretize_aggregations(
 
         let expr = aggregation
             .args
-            .get(0)
+            .first()
             .map(|arg| concretize_expression(arg.clone(), headers))
             .transpose()?;
 

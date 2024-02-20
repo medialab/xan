@@ -23,16 +23,16 @@ pub enum ColumIndexationBy {
 }
 
 impl ColumIndexationBy {
-    pub fn from_arguments(arguments: &Vec<Expr>) -> Option<Self> {
+    pub fn from_arguments(arguments: &[Expr]) -> Option<Self> {
         if arguments.len() == 1 {
-            let first_arg = arguments.get(0).unwrap();
+            let first_arg = arguments.first().unwrap();
             match first_arg {
                 Expr::Str(column_name) => Some(Self::Name(column_name.clone())),
                 Expr::Float(_) | Expr::Int(_) => first_arg.try_to_usize().map(Self::Pos),
                 _ => None,
             }
         } else if arguments.len() == 2 {
-            match arguments.get(0).unwrap() {
+            match arguments.first().unwrap() {
                 Expr::Str(column_name) => {
                     let second_arg = arguments.get(1).unwrap();
 
