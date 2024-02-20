@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fs;
 use std::io;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
@@ -651,6 +652,49 @@ pub fn str_to_csv_byte_record(target: &str) -> csv::ByteRecord {
     match reader.into_byte_records().next() {
         Some(record) => record.unwrap(),
         None => csv::ByteRecord::new(),
+    }
+}
+
+pub struct Chunks<I> {
+    size: NonZeroUsize,
+    inner: I,
+}
+
+impl<I> Iterator for Chunks<I>
+where
+    I: Iterator,
+{
+    type Item = Vec<I::Item>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut chunk: Vec<I::Item> = Vec::new();
+
+        while chunk.len() < self.size.into() {
+            match self.inner.next() {
+                None => {
+                    if chunk.is_empty() {
+                        return None;
+                    }
+
+                    return Some(chunk);
+                }
+                Some(item) => {
+                    chunk.push(item);
+                }
+            }
+        }
+
+        Some(chunk)
+    }
+}
+
+pub trait ChunksIteratorExt: Sized {
+    fn chunks(self, size: NonZeroUsize) -> Chunks<Self>;
+}
+
+impl<T: Iterator> ChunksIteratorExt for T {
+    fn chunks(self, size: NonZeroUsize) -> Chunks<Self> {
+        Chunks { size, inner: self }
     }
 }
 

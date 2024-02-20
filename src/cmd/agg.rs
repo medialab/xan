@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use csv;
@@ -6,7 +7,7 @@ use rayon::prelude::*;
 use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
-use util;
+use util::{self, ChunksIteratorExt};
 use CliResult;
 
 use moonblade::AggregationProgram;
@@ -52,14 +53,17 @@ Usage:
     xan agg --functions
 
 agg options:
-    -e, --errors <policy>   What to do with evaluation errors. One of:
-                              - \"panic\": exit on first error
-                              - \"ignore\": ignore row altogether
-                              - \"log\": print error to stderr
-                            [default: panic].
-    -p, --parallel          Whether to use parallelization to speed up computations.
-                            Will automatically select a suitable number of threads to use
-                            based on your number of cores.
+    -e, --errors <policy>    What to do with evaluation errors. One of:
+                               - \"panic\": exit on first error
+                               - \"ignore\": ignore row altogether
+                               - \"log\": print error to stderr
+                             [default: panic].
+    -p, --parallel           Whether to use parallelization to speed up computations.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores.
+    -c, --chunk-size <size>  Number of rows in a batch to send to a thread at once when
+                             using -p, --parallel.
+                             [default: 4096]
 
 Common options:
     -h, --help               Display this message
@@ -82,6 +86,7 @@ struct Args {
     flag_cheatsheet: bool,
     flag_functions: bool,
     flag_parallel: bool,
+    flag_chunk_size: NonZeroUsize,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -128,19 +133,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
     } else {
+        // NOTE: it looks like parallelization is basically moot if the inner
+        // expressions are trivial. Reading the CSV file linearly is the bottleneck here.
+        // This means that if what is parallelized runs faster than actually reading
+        // the CSV file, parallelization does not yield any performance increase.
+        // This can somehow be tweaked by sending chunks, but not that much.
+        // So if you read files or perform costly computations for each row, it might be
+        // worthwhile. Else it will actually hurt performance...
         let local: Arc<ThreadLocal<RefCell<AggregationProgram>>> = Arc::new(ThreadLocal::new());
 
         rdr.into_byte_records()
             .enumerate()
+            .chunks(args.flag_chunk_size)
             .par_bridge()
-            .try_for_each(|(index, rdr_result)| -> CliResult<()> {
-                let record = rdr_result?;
+            .try_for_each(|chunk| -> CliResult<()> {
+                for (index, rdr_result) in chunk {
+                    let record = rdr_result?;
 
-                let mut local_program = local.get_or(|| RefCell::new(program.clone())).borrow_mut();
+                    let mut local_program =
+                        local.get_or(|| RefCell::new(program.clone())).borrow_mut();
 
-                local_program
-                    .run_with_record(index, &record)
-                    .or_else(|error| error_policy.handle_error(index, error))?;
+                    local_program
+                        .run_with_record(index, &record)
+                        .or_else(|error| error_policy.handle_error(index, error))?;
+                }
 
                 Ok(())
             })?;
