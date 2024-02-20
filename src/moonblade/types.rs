@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::convert::From;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
+use std::str::FromStr;
 
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
@@ -437,6 +438,20 @@ impl Div for DynamicNumber {
                 DynamicNumber::Float(b) => a / b,
             },
         })
+    }
+}
+
+impl FromStr for DynamicNumber {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<i64>() {
+            Err(_) => match s.parse::<f64>() {
+                Err(_) => Err(()),
+                Ok(n) => Ok(DynamicNumber::Float(n)),
+            },
+            Ok(n) => Ok(DynamicNumber::Integer(n)),
+        }
     }
 }
 
