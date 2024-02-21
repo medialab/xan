@@ -1,15 +1,19 @@
 use workdir::Workdir;
 
-fn sort_output(data: Vec<Vec<String>>) -> Vec<Vec<String>> {
+fn sort_output_on_n_first(data: Vec<Vec<String>>, n: usize) -> Vec<Vec<String>> {
     let mut output = Vec::new();
     output.push(data[0].clone());
 
     let mut rows = data.into_iter().skip(1).collect::<Vec<Vec<String>>>();
-    rows.sort_by(|a, b| a[0].cmp(&b[0]));
+    rows.sort_by(|a, b| a[0..n].cmp(&b[0..n]));
 
     output.extend(rows);
 
     output
+}
+
+fn sort_output(data: Vec<Vec<String>>) -> Vec<Vec<String>> {
+    sort_output_on_n_first(data, 1)
 }
 
 #[test]
@@ -235,6 +239,36 @@ fn groupby_sorted() {
         svec!["z", "3"],
         svec!["y", "1"],
         svec!["x", "3"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn groupby_complex_selection() {
+    let wrk = Workdir::new("groupby_complex_selection");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color", "count"],
+            svec!["john", "blue", "1"],
+            svec!["mary", "orange", "3"],
+            svec!["mary", "orange", "2"],
+            svec!["john", "yellow", "9"],
+            svec!["john", "blue", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("groupby");
+    cmd.arg("name,color")
+        .arg("sum(count) as sum")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = sort_output_on_n_first(wrk.read_stdout(&mut cmd), 2);
+    let expected = vec![
+        svec!["name", "color", "sum"],
+        svec!["john", "blue", "3"],
+        svec!["john", "yellow", "9"],
+        svec!["mary", "orange", "5"],
     ];
     assert_eq!(got, expected);
 }

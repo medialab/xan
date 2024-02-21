@@ -1242,10 +1242,12 @@ impl<'a> AggregationProgram<'a> {
     }
 }
 
+type GroupKey = Vec<Vec<u8>>;
+
 #[derive(Debug, Clone)]
 pub struct GroupAggregationProgram<'a> {
     planner: ConcreteAggregationPlanner,
-    groups: HashMap<Vec<u8>, Vec<CompositeAggregator>>,
+    groups: HashMap<GroupKey, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
     variables: Variables<'a>,
 }
@@ -1265,7 +1267,7 @@ impl<'a> GroupAggregationProgram<'a> {
 
     pub fn run_with_record(
         &mut self,
-        group: Vec<u8>,
+        group: GroupKey,
         index: usize,
         record: &ByteRecord,
     ) -> Result<(), EvaluationError> {
@@ -1293,7 +1295,7 @@ impl<'a> GroupAggregationProgram<'a> {
     pub fn into_byte_records(
         self,
         parallel: bool,
-    ) -> impl Iterator<Item = (Vec<u8>, ByteRecord)> + 'a {
+    ) -> impl Iterator<Item = (GroupKey, ByteRecord)> + 'a {
         let planner = self.planner;
 
         self.groups

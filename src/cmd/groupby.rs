@@ -1,8 +1,10 @@
+use std::io::Write;
+
 use csv;
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
-use util::{self, ImmutableRecordHelpers};
+use util;
 use CliResult;
 
 use moonblade::AggregationProgram;
@@ -13,12 +15,26 @@ use cmd::moonblade::{
     get_moonblade_functions_help, MoonbladeErrorPolicy,
 };
 
+fn write_group(
+    wtr: &mut csv::Writer<Box<dyn Write>>,
+    group: &Vec<Vec<u8>>,
+    addendum: &csv::ByteRecord,
+) -> CliResult<()> {
+    let mut record = csv::ByteRecord::new();
+    record.extend(group);
+    record.extend(addendum);
+
+    wtr.write_byte_record(&record)?;
+
+    Ok(())
+}
+
 static USAGE: &str = "
-Group a CSV file by values contained in a given column then aggregate data per
+Group a CSV file by values contained in a column selection then aggregate data per
 group using a custom aggregation expression.
 
 The result of running the command will be a CSV file containing the grouped
-column and additional columns for each computed aggregation.
+columns and additional columns for each computed aggregation.
 
 You can, for instance, compute the sum of a column per group:
 
@@ -35,6 +51,10 @@ You can perform multiple aggregations at once:
 You can rename the output columns using the 'as' syntax:
 
     $ xan groupby user_name 'sum(n) as sum, max(replies_count) as \"Max Replies\"' file.csv
+
+You can group on multiple columns (read `xan select -h` for more information about column selection):
+
+    $ xan groupby name,surname 'sum(count)' file.csv
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
@@ -117,36 +137,41 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let headers = rdr.byte_headers()?;
 
-    let column_index = rconf.single_selection(headers)?;
+    let sel = rconf.selection(headers)?;
 
     let mut record = csv::ByteRecord::new();
 
     if args.flag_sorted {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
-        let mut current_group: Option<Vec<u8>> = None;
+        let mut current: Option<Vec<Vec<u8>>> = None;
 
-        record.push_field(&headers[column_index]);
-        record.extend(program.headers());
-
-        wtr.write_byte_record(&record)?;
+        write_group(
+            &mut wtr,
+            &sel.collect(headers),
+            &program.headers().collect(),
+        )?;
 
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             index += 1;
 
-            let group = record[column_index].to_vec();
-            match current_group.as_ref() {
+            let group = sel.collect(&record);
+
+            match current.as_ref() {
                 None => {
-                    current_group = Some(group);
+                    current = Some(group);
                 }
-                Some(group_name) => {
-                    if group_name != &group {
-                        wtr.write_byte_record(
-                            &program.finalize(args.flag_parallel).prepend(group_name),
+                Some(current_group) => {
+                    if current_group != &group {
+                        dbg!(current_group);
+                        write_group(
+                            &mut wtr,
+                            current_group,
+                            &program.finalize(args.flag_parallel),
                         )?;
                         program.clear();
-                        current_group = Some(group);
+                        current = Some(group);
                     }
                 }
             };
@@ -155,22 +180,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .run_with_record(index, &record)
                 .or_else(|error| error_policy.handle_error(index, error))?;
         }
-        if let Some(group_name) = current_group {
-            wtr.write_byte_record(&program.finalize(args.flag_parallel).prepend(&group_name))?;
+
+        // Flushing final group
+        if let Some(current_group) = current {
+            write_group(
+                &mut wtr,
+                &current_group,
+                &program.finalize(args.flag_parallel),
+            )?;
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
-        record.push_field(&headers[column_index]);
-        record.extend(program.headers());
 
-        wtr.write_byte_record(&record)?;
+        write_group(
+            &mut wtr,
+            &sel.collect(headers),
+            &program.headers().collect(),
+        )?;
 
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             index += 1;
 
-            let group = record[column_index].to_vec();
+            let group = sel.collect(&record);
 
             program
                 .run_with_record(group, index, &record)
@@ -178,7 +211,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for (group, group_record) in program.into_byte_records(args.flag_parallel) {
-            wtr.write_byte_record(&group_record.prepend(&group))?;
+            write_group(&mut wtr, &group, &group_record)?;
         }
     }
 
