@@ -1000,7 +1000,7 @@ fn get_separator_from_optional_first_argument(args: Vec<ConcreteExpr>) -> Option
     Some(match args.first() {
         None => "|".to_string(),
         Some(arg) => match arg {
-            ConcreteExpr::Str(separator) => separator.try_as_str().expect("").into_owned(),
+            ConcreteExpr::Value(separator) => separator.try_as_str().expect("").into_owned(),
             _ => return None,
         },
     })

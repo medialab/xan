@@ -26,14 +26,9 @@ pub struct EvaluationContext<'a> {
 pub enum ConcreteExpr {
     Variable(String),
     Column(usize),
-    Str(DynamicValue),
-    Float(DynamicValue),
-    Int(DynamicValue),
-    Bool(DynamicValue),
-    Regex(DynamicValue),
+    Value(DynamicValue),
     Call(ConcreteFunctionCall),
     SpecialCall(ConcreteSpecialFunctionCall),
-    Null,
 }
 
 impl ConcreteExpr {
@@ -42,11 +37,7 @@ impl ConcreteExpr {
         context: &'a EvaluationContext,
     ) -> Result<BoundArgument<'a>, BindingError> {
         Ok(match self {
-            Self::Str(value) => Cow::Borrowed(value),
-            Self::Float(value) => Cow::Borrowed(value),
-            Self::Int(value) => Cow::Borrowed(value),
-            Self::Bool(value) => Cow::Borrowed(value),
-            Self::Null => Cow::Owned(DynamicValue::None),
+            Self::Value(value) => Cow::Borrowed(value),
             Self::Column(index) => match context.record.get(*index) {
                 None => return Err(BindingError::ColumnOutOfRange(*index)),
                 Some(cell) => match std::str::from_utf8(cell) {
@@ -58,7 +49,6 @@ impl ConcreteExpr {
                 Some(value) => Cow::Borrowed(value),
                 None => return Err(BindingError::UnknownVariable(name.clone())),
             },
-            Self::Regex(value) => Cow::Borrowed(value),
             Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
         })
     }
@@ -312,11 +302,11 @@ pub fn concretize_expression(
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
         Expr::Underscore => unreachable!(),
-        Expr::Null => ConcreteExpr::Null,
-        Expr::Bool(v) => ConcreteExpr::Bool(DynamicValue::Boolean(v)),
-        Expr::Float(v) => ConcreteExpr::Float(DynamicValue::Float(v)),
-        Expr::Int(v) => ConcreteExpr::Int(DynamicValue::Integer(v)),
-        Expr::Str(v) => ConcreteExpr::Str(DynamicValue::String(v)),
+        Expr::Null => ConcreteExpr::Value(DynamicValue::None),
+        Expr::Bool(v) => ConcreteExpr::Value(DynamicValue::Boolean(v)),
+        Expr::Float(v) => ConcreteExpr::Value(DynamicValue::Float(v)),
+        Expr::Int(v) => ConcreteExpr::Value(DynamicValue::Integer(v)),
+        Expr::Str(v) => ConcreteExpr::Value(DynamicValue::String(v)),
         Expr::Identifier(name) => {
             let indexation = ColumIndexationBy::Name(name);
 
@@ -330,7 +320,7 @@ pub fn concretize_expression(
             .case_insensitive(case_insensitive)
             .build()
         {
-            Ok(regex) => ConcreteExpr::Regex(DynamicValue::Regex(regex)),
+            Ok(regex) => ConcreteExpr::Value(DynamicValue::Regex(regex)),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Expr::Func(call) => concretize_call(call, headers)?,
