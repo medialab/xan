@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use csv::ByteRecord;
 use rayon::prelude::*;
@@ -415,6 +415,12 @@ impl Frequencies {
         self.counter.len()
     }
 
+    fn join(&self, separator: &str) -> String {
+        let mut keys: Vec<_> = self.counter.keys().map(|k| k.as_str()).collect();
+        keys.sort_unstable();
+        keys.join(separator)
+    }
+
     fn merge(&mut self, other: Self) {
         for (key, count) in other.counter {
             self.add_count(key, count);
@@ -510,16 +516,12 @@ impl Welford {
 
 #[derive(Debug, Clone)]
 struct Values {
-    identity: String,
     values: Vec<String>,
 }
 
 impl Values {
-    fn new(identity: String) -> Self {
-        Self {
-            identity,
-            values: Vec::new(),
-        }
+    fn new() -> Self {
+        Self { values: Vec::new() }
     }
 
     fn clear(&mut self) {
@@ -532,41 +534,6 @@ impl Values {
 
     fn join(&self, separator: &str) -> String {
         self.values.join(separator)
-    }
-
-    fn merge(&mut self, other: Self) {
-        self.values.extend(other.values);
-    }
-}
-
-#[derive(Debug, Clone)]
-struct DistinctValues {
-    identity: String,
-    values: BTreeSet<String>,
-}
-
-impl DistinctValues {
-    fn new(identity: String) -> Self {
-        Self {
-            identity,
-            values: BTreeSet::new(),
-        }
-    }
-
-    fn clear(&mut self) {
-        self.values.clear()
-    }
-
-    fn add(&mut self, string: String) {
-        self.values.insert(string);
-    }
-
-    fn join(&self, separator: &str) -> String {
-        self.values
-            .iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>()
-            .join(separator)
     }
 
     fn merge(&mut self, other: Self) {
@@ -714,7 +681,6 @@ macro_rules! build_aggregation_method_enum {
 build_aggregation_method_enum!(
     AllAny,
     Count,
-    DistinctValues,
     Extent,
     FirstLast,
     Values,
@@ -741,7 +707,7 @@ impl Aggregator {
             (Self::Count(inner), ConcreteAggregationMethod::Count) => {
                 DynamicValue::from(inner.get())
             }
-            (Self::DistinctValues(inner), ConcreteAggregationMethod::DistinctValues(separator)) => {
+            (Self::Frequencies(inner), ConcreteAggregationMethod::DistinctValues(separator)) => {
                 DynamicValue::from(inner.join(separator))
             }
             (Self::FirstLast(inner), ConcreteAggregationMethod::First) => {
@@ -886,7 +852,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Median(_) => {
                 upsert_aggregator!(Numbers)
             }
-            ConcreteAggregationMethod::Mode | ConcreteAggregationMethod::Cardinality => {
+            ConcreteAggregationMethod::Mode
+            | ConcreteAggregationMethod::Cardinality
+            | ConcreteAggregationMethod::DistinctValues(_) => {
                 upsert_aggregator!(Frequencies)
             }
             ConcreteAggregationMethod::Sum => {
@@ -902,35 +870,8 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Types | ConcreteAggregationMethod::Type => {
                 upsert_aggregator!(Types)
             }
-            ConcreteAggregationMethod::Values(sep) => {
-                match self.methods.iter().position(|item| {
-                    matches!(item,
-                    Aggregator::Values(inner) if sep == &inner.identity)
-                }) {
-                    Some(idx) => idx,
-                    None => {
-                        let idx = self.methods.len();
-                        self.methods
-                            .push(Aggregator::Values(Values::new(sep.to_string())));
-                        idx
-                    }
-                }
-            }
-            ConcreteAggregationMethod::DistinctValues(sep) => {
-                match self.methods.iter().position(|item| {
-                    matches!(item,
-                    Aggregator::DistinctValues(inner) if sep == &inner.identity)
-                }) {
-                    Some(idx) => idx,
-                    None => {
-                        let idx = self.methods.len();
-                        self.methods
-                            .push(Aggregator::DistinctValues(DistinctValues::new(
-                                sep.to_string(),
-                            )));
-                        idx
-                    }
-                }
+            ConcreteAggregationMethod::Values(_) => {
+                upsert_aggregator!(Values)
             }
         }
     }
@@ -987,9 +928,6 @@ impl CompositeAggregator {
                         }
                     }
                     Aggregator::Values(values) => {
-                        values.add(value.try_as_str()?.into_owned());
-                    }
-                    Aggregator::DistinctValues(values) => {
                         values.add(value.try_as_str()?.into_owned());
                     }
                 },
