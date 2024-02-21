@@ -383,6 +383,10 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
         will count all non-null values returned by given expression, while
         `count()` without any expression will count every matching row.
 
+    - distinct_values(<expr>, separator?) -> string
+        List of sorted distinct values joined by a pipe character ('|') by default or by
+        the provided separator.
+
     - first(<expr>) -> string
         Return first seen non nullish element of the values returned by the given expression.
 
@@ -434,6 +438,10 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
 
     - types(<expr>) -> string
         Sorted list, pipe-separated, of all the types seen in the values.
+
+    - values(<expr>, separator?) -> string
+        List of values joined by a pipe character ('|') by default or by
+        the provided separator.
 
     - var(<expr>) -> number
         Population variance. Same as `var_pop`.

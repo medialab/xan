@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use csv::ByteRecord;
 use rayon::prelude::*;
@@ -516,7 +516,7 @@ struct Values {
 
 impl Values {
     fn new(identity: String) -> Self {
-        Values {
+        Self {
             identity,
             values: Vec::new(),
         }
@@ -532,6 +532,41 @@ impl Values {
 
     fn join(&self, separator: &str) -> String {
         self.values.join(separator)
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.values.extend(other.values);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DistinctValues {
+    identity: String,
+    values: BTreeSet<String>,
+}
+
+impl DistinctValues {
+    fn new(identity: String) -> Self {
+        Self {
+            identity,
+            values: BTreeSet::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.values.clear()
+    }
+
+    fn add(&mut self, string: String) {
+        self.values.insert(string);
+    }
+
+    fn join(&self, separator: &str) -> String {
+        self.values
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(separator)
     }
 
     fn merge(&mut self, other: Self) {
@@ -679,6 +714,7 @@ macro_rules! build_aggregation_method_enum {
 build_aggregation_method_enum!(
     AllAny,
     Count,
+    DistinctValues,
     Extent,
     FirstLast,
     Values,
@@ -705,14 +741,14 @@ impl Aggregator {
             (Self::Count(inner), ConcreteAggregationMethod::Count) => {
                 DynamicValue::from(inner.get())
             }
+            (Self::DistinctValues(inner), ConcreteAggregationMethod::DistinctValues(separator)) => {
+                DynamicValue::from(inner.join(separator))
+            }
             (Self::FirstLast(inner), ConcreteAggregationMethod::First) => {
                 DynamicValue::from(inner.first())
             }
             (Self::FirstLast(inner), ConcreteAggregationMethod::Last) => {
                 DynamicValue::from(inner.last())
-            }
-            (Self::Values(inner), ConcreteAggregationMethod::Values(separator)) => {
-                DynamicValue::from(inner.join(separator))
             }
             (Self::LexicographicExtent(inner), ConcreteAggregationMethod::LexFirst) => {
                 DynamicValue::from(inner.first())
@@ -753,6 +789,9 @@ impl Aggregator {
             }
             (Self::Types(inner), ConcreteAggregationMethod::Type) => {
                 DynamicValue::from(inner.most_likely_type())
+            }
+            (Self::Values(inner), ConcreteAggregationMethod::Values(separator)) => {
+                DynamicValue::from(inner.join(separator))
             }
             _ => unreachable!(),
         }
@@ -877,6 +916,22 @@ impl CompositeAggregator {
                     }
                 }
             }
+            ConcreteAggregationMethod::DistinctValues(sep) => {
+                match self.methods.iter().position(|item| {
+                    matches!(item,
+                    Aggregator::DistinctValues(inner) if sep == &inner.identity)
+                }) {
+                    Some(idx) => idx,
+                    None => {
+                        let idx = self.methods.len();
+                        self.methods
+                            .push(Aggregator::DistinctValues(DistinctValues::new(
+                                sep.to_string(),
+                            )));
+                        idx
+                    }
+                }
+            }
         }
     }
 
@@ -934,6 +989,9 @@ impl CompositeAggregator {
                     Aggregator::Values(values) => {
                         values.add(value.try_as_str()?.into_owned());
                     }
+                    Aggregator::DistinctValues(values) => {
+                        values.add(value.try_as_str()?.into_owned());
+                    }
                 },
                 None => match method {
                     Aggregator::Count(count) => {
@@ -975,7 +1033,7 @@ fn validate_aggregation_function_arity(
                 Ok(())
             }
         }
-        "values" => {
+        "values" | "distinct_values" => {
             if !(1..=2).contains(&arity) {
                 Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.func_name.clone(),
@@ -1016,6 +1074,7 @@ enum ConcreteAggregationMethod {
     Any,
     Cardinality,
     Count,
+    DistinctValues(String),
     First,
     Last,
     LexFirst,
@@ -1042,6 +1101,12 @@ impl ConcreteAggregationMethod {
             "any" => Self::Any,
             "cardinality" => Self::Cardinality,
             "count" => Self::Count,
+            "distinct_values" => {
+                Self::DistinctValues(match get_separator_from_optional_first_argument(args) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                })
+            }
             "first" => Self::First,
             "last" => Self::Last,
             "lex_first" => Self::LexFirst,

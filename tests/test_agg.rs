@@ -274,3 +274,54 @@ fn agg_values() {
     let expected = vec![svec!["V"], svec!["John~Mary~Lucas"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_values_identity() {
+    let wrk = Workdir::new("agg_values_identity");
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["John"], svec!["Mary"], svec!["Lucas"]],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("values(name) as V1, values(name, '-') as V2")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["V1", "V2"],
+        svec!["John|Mary|Lucas", "John-Mary-Lucas"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn agg_distinct_values() {
+    let wrk = Workdir::new("agg_distinct_values");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["John"],
+            svec!["Mary"],
+            svec!["Lucas"],
+            svec!["Mary"],
+            svec!["Lucas"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("distinct_values(name) as V").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["V"], svec!["John|Lucas|Mary"]];
+    assert_eq!(got, expected);
+
+    // Custom separator
+    let mut cmd = wrk.command("agg");
+    cmd.arg("distinct_values(name, '~') as V").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["V"], svec!["John~Lucas~Mary"]];
+    assert_eq!(got, expected);
+}
