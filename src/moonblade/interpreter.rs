@@ -26,6 +26,8 @@ pub enum ConcreteExpr {
     SpecialCall(ConcreteSpecialFunctionCall),
 }
 
+// NOTE: the bind/evaluate distinction is still useful to propagate the calling
+// function context when constructing specified errors.
 impl ConcreteExpr {
     fn bind<'a>(
         &'a self,

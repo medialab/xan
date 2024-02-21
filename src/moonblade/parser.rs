@@ -422,7 +422,7 @@ where
                             None => Expr::Identifier(name),
                             Some(_) => Expr::Func({
                                 FunctionCall {
-                                    name: name,
+                                    name,
                                     args: vec![lhs],
                                 }
                             }),
