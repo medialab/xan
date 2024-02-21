@@ -3,7 +3,7 @@
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use pratt::{Affix, Associativity, PrattParser, Precedence};
+use pratt::{Affix, Associativity, PrattError, PrattParser, Precedence};
 
 use super::functions::get_function;
 use super::utils::downgrade_float;
@@ -40,6 +40,7 @@ enum Operator {
     NotIn,
     Not,
     Neg,
+    Pipe,
 }
 
 impl Operator {
@@ -70,7 +71,7 @@ impl Operator {
             Self::Not => "not",
             Self::Neg => "neg",
 
-            // NOTE: In & NotIn are not covered by this match
+            // NOTE: `Pipe`, `In` and `NotIn` are not covered by this match
             // because lhs and rhs are reversed.
             _ => unreachable!(),
         }
@@ -108,6 +109,7 @@ impl Operator {
             }
             Self::And => Affix::Infix(Precedence(4), Associativity::Left),
             Self::Or => Affix::Infix(Precedence(3), Associativity::Left),
+            Self::Pipe => Affix::Infix(Precedence(2), Associativity::Left),
         }
     }
 }
@@ -158,6 +160,7 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             Rule::or => TokenTree::Infix(Operator::Or),
             Rule::in_op => TokenTree::Infix(Operator::In),
             Rule::not_in => TokenTree::Infix(Operator::NotIn),
+            Rule::pipe => TokenTree::Infix(Operator::Pipe),
 
             Rule::not => TokenTree::Infix(Operator::Not),
             Rule::neg => TokenTree::Infix(Operator::Neg),
@@ -262,17 +265,15 @@ impl FunctionCall {
     }
 
     fn fill_underscore(&mut self, with: &Expr) {
-        if let Expr::Func(_) = with {
-            for arg in self.args.iter_mut() {
-                match arg {
-                    Expr::Func(sub) => {
-                        sub.fill_underscore(with);
-                    }
-                    Expr::Underscore => {
-                        *arg = with.clone();
-                    }
-                    _ => (),
+        for arg in self.args.iter_mut() {
+            match arg {
+                Expr::Func(sub) => {
+                    sub.fill_underscore(with);
                 }
+                Expr::Underscore => {
+                    *arg = with.clone();
+                }
+                _ => (),
             }
         }
     }
@@ -399,13 +400,23 @@ where
                 Rule::null => Expr::Null,
                 _ => unreachable!(),
             },
-            TokenTree::Expr(group) => self.parse(&mut group.into_iter()).unwrap(),
+            TokenTree::Expr(group) => {
+                self.parse(&mut group.into_iter())
+                    .map_err(|err| match err {
+                        PrattError::UserError(inner) => inner,
+                        _ => unreachable!(),
+                    })?
+            }
             TokenTree::Func(name, group) => Expr::Func(FunctionCall {
                 name,
                 args: group
                     .into_iter()
-                    .map(|g| self.parse(&mut vec![g].into_iter()).unwrap())
-                    .collect(),
+                    .map(|g| self.parse(&mut vec![g].into_iter()))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|err| match err {
+                        PrattError::UserError(inner) => inner,
+                        _ => unreachable!(),
+                    })?,
             }),
             _ => unreachable!(),
         };
@@ -415,23 +426,46 @@ where
 
     fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
         Ok(match tree {
-            TokenTree::Infix(op) => match op {
-                Operator::In => Expr::Func(FunctionCall {
-                    name: "contains".to_string(),
-                    args: vec![rhs, lhs],
-                }),
-                Operator::NotIn => Expr::Func(FunctionCall {
-                    name: "not".to_string(),
-                    args: vec![Expr::Func(FunctionCall {
+            TokenTree::Infix(op) => {
+                match op {
+                    // Swapping operands
+                    Operator::In => Expr::Func(FunctionCall {
                         name: "contains".to_string(),
                         args: vec![rhs, lhs],
-                    })],
-                }),
-                _ => Expr::Func(FunctionCall {
-                    name: op.to_fn_string(),
-                    args: vec![lhs, rhs],
-                }),
-            },
+                    }),
+                    Operator::NotIn => Expr::Func(FunctionCall {
+                        name: "not".to_string(),
+                        args: vec![Expr::Func(FunctionCall {
+                            name: "contains".to_string(),
+                            args: vec![rhs, lhs],
+                        })],
+                    }),
+
+                    // Pipe threading
+                    Operator::Pipe => match rhs {
+                        Expr::Func(mut call) => {
+                            call.fill_underscore(&lhs);
+                            Expr::Func(call)
+                        }
+                        Expr::Identifier(name) => match get_function(&name) {
+                            None => Expr::Identifier(name),
+                            Some(_) => Expr::Func({
+                                FunctionCall {
+                                    name: name,
+                                    args: vec![lhs],
+                                }
+                            }),
+                        },
+                        _ => rhs,
+                    },
+
+                    // General case
+                    _ => Expr::Func(FunctionCall {
+                        name: op.to_fn_string(),
+                        args: vec![lhs, rhs],
+                    }),
+                }
+            }
             _ => unreachable!(),
         })
     }
@@ -811,86 +845,54 @@ mod tests {
     }
 
     #[test]
-    fn test_pipeline() {
+    fn test_pipeline_operator() {
+        // Basics
         assert_eq!(
-            parse_pipeline("trim(count) | len(_)"),
-            Ok(vec![
-                func("trim", vec![id("count")]),
-                func("len", vec![Underscore])
-            ])
+            parse_expression("trim(count) | len(_)"),
+            Ok(func("len", vec![func("trim", vec![id("count")])]))
         );
 
         assert_eq!(
-            parse_pipeline("count + 1 | len(_)"),
-            Ok(vec![
-                func("add", vec![id("count"), Int(1)]),
-                func("len", vec![Underscore])
-            ])
-        );
-    }
-
-    #[test]
-    fn test_pipeline_elision() {
-        let pipeline = parse_pipeline("trim(count) | len").map(|p| handle_pipeline_elision(p));
-
-        assert_eq!(
-            pipeline,
-            Ok(vec![
-                func("trim", vec![id("count")]),
-                func("len", vec![Underscore])
-            ])
-        );
-    }
-
-    #[test]
-    fn test_trim_pipeline() {
-        // Should give: add(a, b) | len
-        let pipeline = parse_pipeline("trim(a) | add(a, b) | trim | add(a, b) | len").unwrap();
-        let pipeline = handle_pipeline_elision(pipeline);
-        let pipeline = trim_pipeline(pipeline);
-
-        assert_eq!(
-            pipeline,
-            vec![
-                func("add", vec![id("a"), id("b")]),
-                func("len", vec![Underscore])
-            ]
+            parse_expression("count + 1 | len(_)"),
+            Ok(func("len", vec![func("add", vec![id("count"), Int(1)])]))
         );
 
-        // Should give: 45 | inc
-        let pipeline = parse_pipeline("trim(a) | 45 | len").unwrap();
-        let pipeline = handle_pipeline_elision(pipeline);
-        let pipeline = trim_pipeline(pipeline);
-
-        assert_eq!(pipeline, vec![Int(45), func("len", vec![Underscore])]);
-
-        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
-        let pipeline = handle_pipeline_elision(pipeline);
-        let pipeline = trim_pipeline(pipeline);
-
+        // Double underscore
         assert_eq!(
-            pipeline,
-            vec![
-                func("trim", vec![id("a")]),
-                func("len", vec![Underscore]),
-                func("add", vec![id("b"), Underscore]),
-            ]
+            parse_expression("count | add(_, _)"),
+            Ok(func("add", vec![id("count"), id("count")]))
         );
-    }
 
-    #[test]
-    fn test_unfurl_pipeline() {
-        // Should give: add(b, len(trim(a)))
-        let pipeline = parse_pipeline("trim(a) | len | add(b, _)").unwrap();
-        let pipeline = handle_pipeline_elision(pipeline);
-        let pipeline = unfurl_pipeline(pipeline);
-
+        // Nested underscores
         assert_eq!(
-            pipeline,
-            vec![func(
+            parse_expression("count | add(1, sub(2, _))"),
+            Ok(func(
                 "add",
-                vec![id("b"), func("len", vec![func("trim", vec![id("a")])])]
-            )]
+                vec![Int(1), func("sub", vec![Int(2), id("count")])]
+            ))
+        );
+
+        assert_eq!(
+            parse_expression("count | add(1, sub(2, _)) | len(_)"),
+            Ok(func(
+                "len",
+                vec![func(
+                    "add",
+                    vec![Int(1), func("sub", vec![Int(2), id("count")])]
+                )]
+            ))
+        );
+
+        // Elision
+        assert_eq!(
+            parse_expression("trim(count) | len"),
+            Ok(func("len", vec![func("trim", vec![id("count")])]))
+        );
+
+        // Trimming
+        assert_eq!(
+            parse_expression("trim(a) | add(a, b) | trim | add(a, b) | len"),
+            Ok(func("len", vec![func("add", vec![id("a"), id("b")])]))
         );
     }
 

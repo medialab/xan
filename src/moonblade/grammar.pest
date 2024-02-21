@@ -68,6 +68,7 @@ binary_operator = _{
   | not_in
   | and
   | or
+  | pipe
 }
 
 num_eq = { "==" }
@@ -93,6 +94,8 @@ rem  = { "%" }
 pow  = { "**" }
 
 concat = { "." }
+
+pipe = { "|" }
 
 and = { "&&" | "and" }
 or  = { "||" | "or" }
