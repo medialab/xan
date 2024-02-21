@@ -141,16 +141,18 @@ impl fmt::Debug for ConcreteSubroutine {
 enum StatementKind {
     If(bool),
     Col,
+    Index,
 }
 
 impl StatementKind {
     fn parse(name: &str) -> Option<Self> {
-        match name {
-            "if" => Some(Self::If(false)),
-            "unless" => Some(Self::If(true)),
-            "col" => Some(Self::Col),
-            _ => None,
-        }
+        Some(match name {
+            "if" => Self::If(false),
+            "unless" => Self::If(true),
+            "col" => Self::Col,
+            "index" => Self::Index,
+            _ => return None,
+        })
     }
 
     fn name(&self) -> &str {
@@ -163,6 +165,7 @@ impl StatementKind {
                 }
             }
             Self::Col => "col",
+            Self::Index => "index",
         }
     }
 }
@@ -208,6 +211,7 @@ impl ConcreteStatement {
                     Some(arg) => arg.evaluate(context),
                 }
             }
+
             StatementKind::Col => {
                 let arity = self.args.len();
 
@@ -245,6 +249,11 @@ impl ConcreteStatement {
                     },
                 }
             }
+
+            StatementKind::Index => Ok(match context.variables.get("index") {
+                None => Cow::Owned(DynamicValue::None),
+                Some(index) => Cow::Borrowed(index),
+            }),
         }
     }
 }
@@ -481,7 +490,7 @@ mod tests {
         record.push_field(b"34");
         record.push_field(b"62");
 
-        program.set(&"index", DynamicValue::Integer(2));
+        program.set("index", DynamicValue::Integer(2));
         program
             .run_with_record(&record)
             .map_err(RunError::Evaluation)
@@ -499,6 +508,11 @@ mod tests {
             Ok(DynamicValue::Integer(64))
         );
     }
+
+    // #[test]
+    // fn test_index() {
+    //     assert_eq!(eval_code("index() + 2"), Ok(DynamicValue::from(4)));
+    // }
 
     #[test]
     fn test_variable_binding() {
