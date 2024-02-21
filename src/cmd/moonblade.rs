@@ -308,6 +308,9 @@ use the operators in the previous section.
     - err(msg) -> error
         Make the expression return a custom error.
 
+    - index() -> integer?
+        Return the row's index, if applicable.
+
     - typeof(value) -> string
         Return type of value.
 
@@ -719,7 +722,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         }
     }
 
-    let mut program = Program::parse(&map_expr, &headers)?;
+    let program = Program::parse(&map_expr, &headers)?;
 
     if must_write_headers {
         wtr.write_byte_record(&modified_headers)?;
@@ -749,12 +752,9 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                 )> {
                     let record = record?;
 
-                    let mut local_program =
-                        local.get_or(|| RefCell::new(program.clone())).borrow_mut();
+                    let local_program = local.get_or(|| RefCell::new(program.clone())).borrow_mut();
 
-                    local_program.set("index", DynamicValue::Integer(i as i64));
-
-                    let eval_result = local_program.run_with_record(&record);
+                    let eval_result = local_program.run_with_record(i, &record);
 
                     Ok((i, record, eval_result))
                 },
@@ -777,9 +777,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
-        program.set("index", DynamicValue::Integer(i as i64));
-
-        let eval_result = program.run_with_record(&record);
+        let eval_result = program.run_with_record(i, &record);
 
         let records_to_emit =
             handle_eval_result(&args, i, &mut record, eval_result, column_to_replace)?;

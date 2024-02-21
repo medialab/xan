@@ -12,19 +12,17 @@ use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
-    Variables,
 };
 
 #[derive(Debug, Clone)]
 pub struct EvaluationContext<'a> {
     pub headers_index: &'a HeadersIndex,
+    pub index: Option<usize>,
     pub record: &'a ByteRecord,
-    pub variables: &'a Variables<'a>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ConcreteExpr {
-    Variable(String),
     Column(usize),
     Value(DynamicValue),
     Call(ConcreteFunctionCall),
@@ -44,10 +42,6 @@ impl ConcreteExpr {
                     Err(_) => return Err(BindingError::UnicodeDecodeError),
                     Ok(value) => Cow::Owned(DynamicValue::from(value)),
                 },
-            },
-            Self::Variable(name) => match context.variables.get::<str>(name) {
-                Some(value) => Cow::Borrowed(value),
-                None => return Err(BindingError::UnknownVariable(name.clone())),
             },
             Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
         })
@@ -84,6 +78,9 @@ impl ConcreteFunctionCall {
                 ConcreteExpr::Call(sub_function_call) => {
                     bound_args.push(sub_function_call.run(context)?);
                 }
+                ConcreteExpr::SpecialCall(sub_function_call) => {
+                    bound_args.push(sub_function_call.run(context)?);
+                }
                 _ => bound_args.push(arg.bind(context).map_err(|err| {
                     EvaluationError::Binding(SpecifiedBindingError {
                         function_name: self.name.to_string(),
@@ -118,13 +115,13 @@ impl fmt::Debug for ConcreteFunctionCall {
 }
 
 #[derive(Debug, Clone)]
-enum StatementKind {
+enum SpecialFunction {
     If(bool),
     Col,
     Index,
 }
 
-impl StatementKind {
+impl SpecialFunction {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "if" => Self::If(false),
@@ -152,14 +149,14 @@ impl StatementKind {
 
 #[derive(Debug, Clone)]
 pub struct ConcreteSpecialFunctionCall {
-    kind: StatementKind,
+    kind: SpecialFunction,
     args: Vec<ConcreteExpr>,
 }
 
 impl ConcreteSpecialFunctionCall {
     fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         match self.kind {
-            StatementKind::If(reverse) => {
+            SpecialFunction::If(reverse) => {
                 let arity = self.args.len();
 
                 if !(2..=3).contains(&arity) {
@@ -192,7 +189,7 @@ impl ConcreteSpecialFunctionCall {
                 }
             }
 
-            StatementKind::Col => {
+            SpecialFunction::Col => {
                 let arity = self.args.len();
 
                 if !(1..=2).contains(&arity) {
@@ -230,10 +227,10 @@ impl ConcreteSpecialFunctionCall {
                 }
             }
 
-            StatementKind::Index => Ok(match context.variables.get("index") {
-                None => Cow::Owned(DynamicValue::None),
-                Some(index) => Cow::Borrowed(index),
-            }),
+            SpecialFunction::Index => Ok(Cow::Owned(match context.index {
+                None => DynamicValue::None,
+                Some(index) => DynamicValue::from(index),
+            })),
         }
     }
 }
@@ -248,6 +245,8 @@ fn concretize_call(
     if arity > 8 {
         return Err(ConcretizationError::TooManyArguments(arity));
     }
+
+    // TODO: validate special function arity here!
 
     // Statically analyzable col() function call
     if function_name == "col" {
@@ -273,7 +272,7 @@ fn concretize_call(
         concrete_args.push(concretize_expression(arg, headers)?);
     }
 
-    Ok(if let Some(kind) = StatementKind::parse(&function_name) {
+    Ok(if let Some(kind) = SpecialFunction::parse(&function_name) {
         ConcreteExpr::SpecialCall(ConcreteSpecialFunctionCall {
             kind,
             args: concrete_args,
@@ -315,7 +314,6 @@ pub fn concretize_expression(
                 None => return Err(ConcretizationError::ColumnNotFound(indexation)),
             }
         }
-        Expr::SpecialIdentifier(name) => ConcreteExpr::Variable(name),
         Expr::Regex(pattern, case_insensitive) => match RegexBuilder::new(&pattern)
             .case_insensitive(case_insensitive)
             .build()
@@ -327,15 +325,15 @@ pub fn concretize_expression(
     })
 }
 
-pub fn eval_expr(
+pub fn eval_expression(
     expr: &ConcreteExpr,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
-    variables: &Variables,
+    index: Option<usize>,
 ) -> Result<DynamicValue, EvaluationError> {
     let context = EvaluationContext {
         record,
-        variables,
+        index,
         headers_index,
     };
 
@@ -343,13 +341,12 @@ pub fn eval_expr(
 }
 
 #[derive(Clone)]
-pub struct Program<'a> {
+pub struct Program {
     expr: ConcreteExpr,
     headers_index: HeadersIndex,
-    variables: Variables<'a>,
 }
 
-impl<'a> Program<'a> {
+impl Program {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let expr = match parse_expression(code) {
             Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
@@ -358,17 +355,16 @@ impl<'a> Program<'a> {
 
         Ok(Self {
             expr,
-            variables: Variables::new(),
             headers_index: HeadersIndex::from_headers(headers),
         })
     }
 
-    pub fn run_with_record(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
-        eval_expr(&self.expr, record, &self.headers_index, &self.variables)
-    }
-
-    pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {
-        self.variables.insert(key, value);
+    pub fn run_with_record(
+        &self,
+        index: usize,
+        record: &ByteRecord,
+    ) -> Result<DynamicValue, EvaluationError> {
+        eval_expression(&self.expr, record, &self.headers_index, Some(index))
     }
 }
 
@@ -386,7 +382,7 @@ mod tests {
         headers.push_field(b"a");
         headers.push_field(b"b");
 
-        let mut program = Program::parse(code, &headers).map_err(RunError::Prepare)?;
+        let program = Program::parse(code, &headers).map_err(RunError::Prepare)?;
 
         let mut record = ByteRecord::new();
         record.push_field(b"john");
@@ -394,9 +390,8 @@ mod tests {
         record.push_field(b"34");
         record.push_field(b"62");
 
-        program.set("index", DynamicValue::Integer(2));
         program
-            .run_with_record(&record)
+            .run_with_record(2, &record)
             .map_err(RunError::Evaluation)
     }
 
@@ -413,14 +408,9 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_index() {
-    //     assert_eq!(eval_code("index() + 2"), Ok(DynamicValue::from(4)));
-    // }
-
     #[test]
-    fn test_variable_binding() {
-        assert_eq!(eval_code("add(%index, 2)"), Ok(DynamicValue::from(4)));
+    fn test_index() {
+        assert_eq!(eval_code("index() + 2"), Ok(DynamicValue::from(4)));
     }
 
     #[test]

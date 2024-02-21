@@ -4,9 +4,9 @@ use csv::ByteRecord;
 use rayon::prelude::*;
 
 use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
-use super::interpreter::{concretize_expression, eval_expr, ConcreteExpr};
+use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
-use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
+use super::types::{DynamicNumber, DynamicValue, HeadersIndex};
 
 #[derive(Debug, Clone)]
 struct Count {
@@ -1232,12 +1232,11 @@ fn run_with_record_on_aggregators(
     index: usize,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
-    variables: &Variables,
 ) -> Result<(), EvaluationError> {
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(eval_expr(expr, record, headers_index, variables)?),
+            Some(expr) => Some(eval_expression(expr, record, headers_index, Some(index))?),
         };
 
         aggregator.process_value(index, value).map_err(|err| {
@@ -1252,14 +1251,13 @@ fn run_with_record_on_aggregators(
 }
 
 #[derive(Debug, Clone)]
-pub struct AggregationProgram<'a> {
+pub struct AggregationProgram {
     aggregators: Vec<CompositeAggregator>,
     planner: ConcreteAggregationPlanner,
     headers_index: HeadersIndex,
-    variables: Variables<'a>,
 }
 
-impl<'a> AggregationProgram<'a> {
+impl AggregationProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
@@ -1269,7 +1267,6 @@ impl<'a> AggregationProgram<'a> {
             planner,
             aggregators,
             headers_index: HeadersIndex::from_headers(headers),
-            variables: Variables::new(),
         })
     }
 
@@ -1298,7 +1295,6 @@ impl<'a> AggregationProgram<'a> {
             index,
             record,
             &self.headers_index,
-            &self.variables,
         )
     }
 
@@ -1324,14 +1320,13 @@ impl<'a> AggregationProgram<'a> {
 type GroupKey = Vec<Vec<u8>>;
 
 #[derive(Debug, Clone)]
-pub struct GroupAggregationProgram<'a> {
+pub struct GroupAggregationProgram {
     planner: ConcreteAggregationPlanner,
     groups: HashMap<GroupKey, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
-    variables: Variables<'a>,
 }
 
-impl<'a> GroupAggregationProgram<'a> {
+impl GroupAggregationProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
@@ -1340,7 +1335,6 @@ impl<'a> GroupAggregationProgram<'a> {
             planner,
             groups: HashMap::new(),
             headers_index: HeadersIndex::from_headers(headers),
-            variables: Variables::new(),
         })
     }
 
@@ -1363,7 +1357,6 @@ impl<'a> GroupAggregationProgram<'a> {
             index,
             record,
             &self.headers_index,
-            &self.variables,
         )
     }
 
@@ -1371,10 +1364,7 @@ impl<'a> GroupAggregationProgram<'a> {
         self.planner.headers()
     }
 
-    pub fn into_byte_records(
-        self,
-        parallel: bool,
-    ) -> impl Iterator<Item = (GroupKey, ByteRecord)> + 'a {
+    pub fn into_byte_records(self, parallel: bool) -> impl Iterator<Item = (GroupKey, ByteRecord)> {
         let planner = self.planner;
 
         self.groups

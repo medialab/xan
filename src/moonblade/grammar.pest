@@ -37,9 +37,8 @@ regex_flag       = { "i" }
 regex            = { "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ (regex_flag)* }
 
 // Identifiers
-ident_char    = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
-ident         = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
-special_ident = @{ "%" ~ ident }
+ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
+ident      = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
 
 // Operators
 // NOTE: order IS important
@@ -121,7 +120,6 @@ term = _{
   | float
   | int
   | ident
-  | special_ident
   | underscore
   | "(" ~ expr ~ ")"
 }

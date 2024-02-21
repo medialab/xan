@@ -130,7 +130,6 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             | Rule::int
             | Rule::float
             | Rule::ident
-            | Rule::special_ident
             | Rule::underscore
             | Rule::true_lit
             | Rule::false_lit
@@ -266,7 +265,6 @@ pub enum Expr {
     Int(i64),
     Float(f64),
     Identifier(String),
-    SpecialIdentifier(String),
     Str(String),
     Regex(String, bool),
     Bool(bool),
@@ -368,7 +366,6 @@ where
                 }
                 Rule::underscore => Expr::Underscore,
                 Rule::ident => Expr::Identifier(token.as_str().to_string()),
-                Rule::special_ident => Expr::SpecialIdentifier(token.as_str()[1..].to_string()),
                 Rule::true_lit => Expr::Bool(true),
                 Rule::false_lit => Expr::Bool(false),
                 Rule::null => Expr::Null,
@@ -582,10 +579,6 @@ mod tests {
         Identifier(name.to_string())
     }
 
-    fn sid(name: &str) -> Expr {
-        SpecialIdentifier(name.to_string())
-    }
-
     fn func(name: &str, args: Vec<Expr>) -> Expr {
         Func(FunctionCall {
             name: name.to_string(),
@@ -633,7 +626,6 @@ mod tests {
     #[test]
     fn test_identifiers() {
         assert_eq!(parse_expression("name"), Ok(id("name")));
-        assert_eq!(parse_expression("%index"), Ok(sid("index")));
     }
 
     #[test]

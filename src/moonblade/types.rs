@@ -867,7 +867,6 @@ impl PartialEq for DynamicValue {
 
 pub type BoundArgument<'a> = Cow<'a, DynamicValue>;
 pub type EvaluationResult<'a> = Result<BoundArgument<'a>, EvaluationError>;
-pub type Variables<'a> = BTreeMap<&'a str, DynamicValue>;
 
 const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
