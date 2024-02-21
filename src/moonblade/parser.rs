@@ -733,6 +733,14 @@ mod tests {
             Ok(func("len", vec![func("add", vec![id("count"), Int(1)])]))
         );
 
+        assert_eq!(
+            parse_expression("add(trim(name) | len, 2)"),
+            Ok(func(
+                "add",
+                vec![func("len", vec![func("trim", vec![id("name")])]), Int(2)]
+            ))
+        );
+
         // Double underscore
         assert_eq!(
             parse_expression("count | add(_, _)"),

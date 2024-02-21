@@ -61,28 +61,8 @@ available functions & operators):
         '/john/'
         '/john/i' (case-insensitive)
 
-  . Special variables:
-        '%index' -> current row index
-
   . Nesting function calls:
         'add(sub(col1, col2), mul(col3, col4))'
-
-  . Basic branching (also consider using the \"coalesce\" function for simple cases):
-        'if(count < 4, trim(name), trim(surname))'
-
-  . Piping (underscore \"_\" becomes a reference to previous result):
-        'trim(name) | lower(_) | add(count, len(_))'
-
-        is the same as:
-
-        'add(count, len(lower(trim(name))))'
-
-  . Piping shorthand for unary functions:
-        'trim(name) | lower'
-
-        is the same as:
-
-        'trim(name) | lower(_)'
 "
 }
 
@@ -149,6 +129,13 @@ use the operators in the previous section.
 
     x in y
     x not in y
+
+## Pipeline operator (using \"_\" for left-hand size substitution)
+
+    'trim(name) | len(_)'         - Same as len(trim(name))
+    'trim(name) | len'            - Supports elision for unary functions
+    'trim(name) | add(1, len(_))' - Can be nested
+    'add(trim(name) | len, 2)'    - Can be used anywhere
 
 ## Arithmetics
 
