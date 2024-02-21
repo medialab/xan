@@ -17,9 +17,8 @@ static USAGE: &str = "
 Group a CSV file by values contained in a given column then aggregate data per
 group using a custom aggregation expression.
 
-The result of running the command will be a CSV file containing a \"group\"
-column containing the value representing each group and additional columns for
-each computed aggregation.
+The result of running the command will be a CSV file containing the grouped
+column and additional columns for each computed aggregation.
 
 You can, for instance, compute the sum of a column per group:
 
@@ -52,10 +51,8 @@ Usage:
     xan groupby --functions
 
 groupby options:
-    --group-column <name>   Name of the column containing group values.
-                            [default: group].
     -S, --sorted            Use this flag to indicate that the file is already sorted on the
-                            group column, in which case the command will be able to considerably
+                            group columns, in which case the command will be able to considerably
                             optimize memory usage.
     -e, --errors <policy>   What to do with evaluation errors. One of:
                               - \"panic\": exit on first error
@@ -86,7 +83,6 @@ struct Args {
     flag_aggs: bool,
     flag_cheatsheet: bool,
     flag_functions: bool,
-    flag_group_column: String,
     flag_sorted: bool,
     flag_errors: String,
     flag_parallel: bool,
@@ -129,7 +125,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
         let mut current_group: Option<Vec<u8>> = None;
 
-        record.push_field(args.flag_group_column.as_bytes());
+        record.push_field(&headers[column_index]);
         record.extend(program.headers());
 
         wtr.write_byte_record(&record)?;
@@ -164,7 +160,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
-        record.push_field(args.flag_group_column.as_bytes());
+        record.push_field(&headers[column_index]);
         record.extend(program.headers());
 
         wtr.write_byte_record(&record)?;
