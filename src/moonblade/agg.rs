@@ -4,7 +4,7 @@ use csv::ByteRecord;
 use rayon::prelude::*;
 
 use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
-use super::interpreter::{concretize_expression, eval_expr, ConcreteArgument};
+use super::interpreter::{concretize_expression, eval_expr, ConcreteExpr};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, HeadersIndex, Variables};
 
@@ -996,11 +996,11 @@ fn validate_aggregation_function_arity(
     }
 }
 
-fn get_separator_from_optional_first_argument(args: Vec<ConcreteArgument>) -> Option<String> {
+fn get_separator_from_optional_first_argument(args: Vec<ConcreteExpr>) -> Option<String> {
     Some(match args.first() {
         None => "|".to_string(),
         Some(arg) => match arg {
-            ConcreteArgument::Str(separator) => separator.try_as_str().expect("").into_owned(),
+            ConcreteExpr::Str(separator) => separator.try_as_str().expect("").into_owned(),
             _ => return None,
         },
     })
@@ -1033,7 +1033,7 @@ enum ConcreteAggregationMethod {
 }
 
 impl ConcreteAggregationMethod {
-    fn parse(name: &str, args: Vec<ConcreteArgument>) -> Result<Self, ConcretizationError> {
+    fn parse(name: &str, args: Vec<ConcreteExpr>) -> Result<Self, ConcretizationError> {
         Ok(match name {
             "all" => Self::All,
             "any" => Self::Any,
@@ -1076,9 +1076,9 @@ impl ConcreteAggregationMethod {
 struct ConcreteAggregation {
     agg_name: String,
     method: ConcreteAggregationMethod,
-    expr: Option<ConcreteArgument>,
+    expr: Option<ConcreteExpr>,
     expr_key: String,
-    // args: Vec<ConcreteArgument>,
+    // args: Vec<ConcreteExpr>,
 }
 
 type ConcreteAggregations = Vec<ConcreteAggregation>;
@@ -1098,7 +1098,7 @@ fn concretize_aggregations(
             .map(|arg| concretize_expression(arg.clone(), headers))
             .transpose()?;
 
-        let mut args: Vec<ConcreteArgument> = Vec::new();
+        let mut args: Vec<ConcreteExpr> = Vec::new();
 
         for arg in aggregation.args.into_iter().skip(1) {
             args.push(concretize_expression(arg, headers)?);
@@ -1133,7 +1133,7 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 #[derive(Debug, Clone)]
 struct PlannerExecutionUnit {
     expr_key: String,
-    expr: Option<ConcreteArgument>,
+    expr: Option<ConcreteExpr>,
     aggregator_blueprint: CompositeAggregator,
 }
 

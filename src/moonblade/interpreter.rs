@@ -23,7 +23,7 @@ pub struct EvaluationContext<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub enum ConcreteArgument {
+pub enum ConcreteExpr {
     Variable(String),
     Column(usize),
     Str(DynamicValue),
@@ -35,7 +35,7 @@ pub enum ConcreteArgument {
     Null,
 }
 
-impl ConcreteArgument {
+impl ConcreteExpr {
     fn bind<'a>(
         &'a self,
         context: &'a EvaluationContext,
@@ -87,7 +87,7 @@ impl ConcreteArgument {
 pub struct ConcreteSubroutine {
     name: String,
     function: Function,
-    args: Vec<ConcreteArgument>,
+    args: Vec<ConcreteExpr>,
 }
 
 impl ConcreteSubroutine {
@@ -96,7 +96,7 @@ impl ConcreteSubroutine {
 
         for (i, arg) in self.args.iter().enumerate() {
             match arg {
-                ConcreteArgument::Call(sub_function_call) => {
+                ConcreteExpr::Call(sub_function_call) => {
                     bound_args.push(sub_function_call.run(context)?);
                 }
                 _ => bound_args.push(arg.bind(context).map_err(|err| {
@@ -168,7 +168,7 @@ impl StatementKind {
 #[derive(Debug, Clone)]
 pub struct ConcreteStatement {
     kind: StatementKind,
-    args: Vec<ConcreteArgument>,
+    args: Vec<ConcreteExpr>,
 }
 
 impl ConcreteStatement {
@@ -187,7 +187,7 @@ impl ConcreteStatement {
                 let condition = &self.args[0];
                 let result = condition.evaluate(context)?;
 
-                let mut branch: Option<&ConcreteArgument> = None;
+                let mut branch: Option<&ConcreteExpr> = None;
 
                 let mut go_left = result.is_truthy();
 
@@ -280,7 +280,7 @@ impl ConcreteFunctionCall {
 fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
-) -> Result<ConcreteArgument, ConcretizationError> {
+) -> Result<ConcreteExpr, ConcretizationError> {
     let function_name = call.name;
     let arity = call.args.len();
 
@@ -300,7 +300,7 @@ fn concretize_call(
 
         if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
             match column_indexation.find_column_index(headers) {
-                Some(index) => return Ok(ConcreteArgument::Column(index)),
+                Some(index) => return Ok(ConcreteExpr::Column(index)),
                 None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
             };
         }
@@ -313,7 +313,7 @@ fn concretize_call(
     }
 
     Ok(if let Some(kind) = StatementKind::parse(&function_name) {
-        ConcreteArgument::Call(ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
+        ConcreteExpr::Call(ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
             kind,
             args: concrete_args,
         }))
@@ -325,7 +325,7 @@ fn concretize_call(
                     .1
                     .validate(&function_name, concrete_args.len())?;
 
-                ConcreteArgument::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
+                ConcreteExpr::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
                     name: function_name.clone(),
                     function: function_info.0,
                     args: concrete_args,
@@ -338,28 +338,28 @@ fn concretize_call(
 pub fn concretize_expression(
     expr: Expr,
     headers: &ByteRecord,
-) -> Result<ConcreteArgument, ConcretizationError> {
+) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
         Expr::Underscore => unreachable!(),
-        Expr::Null => ConcreteArgument::Null,
-        Expr::Bool(v) => ConcreteArgument::Bool(DynamicValue::Boolean(v)),
-        Expr::Float(v) => ConcreteArgument::Float(DynamicValue::Float(v)),
-        Expr::Int(v) => ConcreteArgument::Int(DynamicValue::Integer(v)),
-        Expr::Str(v) => ConcreteArgument::Str(DynamicValue::String(v)),
+        Expr::Null => ConcreteExpr::Null,
+        Expr::Bool(v) => ConcreteExpr::Bool(DynamicValue::Boolean(v)),
+        Expr::Float(v) => ConcreteExpr::Float(DynamicValue::Float(v)),
+        Expr::Int(v) => ConcreteExpr::Int(DynamicValue::Integer(v)),
+        Expr::Str(v) => ConcreteExpr::Str(DynamicValue::String(v)),
         Expr::Identifier(name) => {
             let indexation = ColumIndexationBy::Name(name);
 
             match indexation.find_column_index(headers) {
-                Some(index) => ConcreteArgument::Column(index),
+                Some(index) => ConcreteExpr::Column(index),
                 None => return Err(ConcretizationError::ColumnNotFound(indexation)),
             }
         }
-        Expr::SpecialIdentifier(name) => ConcreteArgument::Variable(name),
+        Expr::SpecialIdentifier(name) => ConcreteExpr::Variable(name),
         Expr::Regex(pattern, case_insensitive) => match RegexBuilder::new(&pattern)
             .case_insensitive(case_insensitive)
             .build()
         {
-            Ok(regex) => ConcreteArgument::Regex(DynamicValue::Regex(regex)),
+            Ok(regex) => ConcreteExpr::Regex(DynamicValue::Regex(regex)),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Expr::Func(call) => concretize_call(call, headers)?,
@@ -367,7 +367,7 @@ pub fn concretize_expression(
 }
 
 pub fn eval_expr(
-    expr: &ConcreteArgument,
+    expr: &ConcreteExpr,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
     variables: &Variables,
@@ -383,7 +383,7 @@ pub fn eval_expr(
 
 #[derive(Clone)]
 pub struct Program<'a> {
-    expr: ConcreteArgument,
+    expr: ConcreteExpr,
     headers_index: HeadersIndex,
     variables: Variables<'a>,
     should_bind_index: bool,
@@ -396,7 +396,7 @@ impl<'a> Program<'a> {
             Ok(pipeline) => concretize_expression(pipeline, headers)?,
         };
 
-        let should_bind_index = if let ConcreteArgument::Call(ref call) = expr {
+        let should_bind_index = if let ConcreteExpr::Call(ref call) = expr {
             call.has_index_variable()
         } else {
             expr.is_index_variable()
