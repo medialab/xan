@@ -19,7 +19,6 @@ use super::types::{
 pub struct EvaluationContext<'a> {
     pub headers_index: &'a HeadersIndex,
     pub record: &'a ByteRecord,
-    pub last_value: Option<&'a DynamicValue>,
     pub variables: &'a Variables<'a>,
 }
 
@@ -34,7 +33,6 @@ pub enum ConcreteArgument {
     Regex(DynamicValue),
     Call(ConcreteFunctionCall),
     Null,
-    Underscore,
 }
 
 impl ConcreteArgument {
@@ -47,9 +45,6 @@ impl ConcreteArgument {
             Self::Float(value) => Cow::Borrowed(value),
             Self::Int(value) => Cow::Borrowed(value),
             Self::Bool(value) => Cow::Borrowed(value),
-            Self::Underscore => {
-                Cow::Borrowed(context.last_value.unwrap_or_else(|| &DynamicValue::None))
-            }
             Self::Null => Cow::Owned(DynamicValue::None),
             Self::Column(index) => match context.record.get(*index) {
                 None => return Err(BindingError::ColumnOutOfRange(*index)),
@@ -345,7 +340,7 @@ pub fn concretize_expression(
     headers: &ByteRecord,
 ) -> Result<ConcreteArgument, ConcretizationError> {
     Ok(match expr {
-        Expr::Underscore => ConcreteArgument::Underscore,
+        Expr::Underscore => unreachable!(),
         Expr::Null => ConcreteArgument::Null,
         Expr::Bool(v) => ConcreteArgument::Bool(DynamicValue::Boolean(v)),
         Expr::Float(v) => ConcreteArgument::Float(DynamicValue::Float(v)),
@@ -381,7 +376,6 @@ pub fn eval_expr(
         record,
         variables,
         headers_index,
-        last_value: None,
     };
 
     expr.evaluate(&context).map(|value| value.into_owned())
