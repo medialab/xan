@@ -32,6 +32,7 @@ pub enum ConcreteExpr {
     Bool(DynamicValue),
     Regex(DynamicValue),
     Call(ConcreteFunctionCall),
+    SpecialCall(ConcreteSpecialFunctionCall),
     Null,
 }
 
@@ -58,13 +59,14 @@ impl ConcreteExpr {
                 None => return Err(BindingError::UnknownVariable(name.clone())),
             },
             Self::Regex(value) => Cow::Borrowed(value),
-            Self::Call(_) => return Err(BindingError::IllegalBinding),
+            Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
         })
     }
 
     fn evaluate<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         match self {
             Self::Call(function_call) => function_call.run(context),
+            Self::SpecialCall(function_call) => function_call.run(context),
             _ => self.bind(context).map_err(|err| {
                 EvaluationError::Binding(SpecifiedBindingError {
                     function_name: "<expr>".to_string(),
@@ -74,23 +76,16 @@ impl ConcreteExpr {
             }),
         }
     }
-
-    fn is_index_variable(&self) -> bool {
-        match self {
-            Self::Variable(name) => name == "index",
-            _ => false,
-        }
-    }
 }
 
 #[derive(Clone)]
-pub struct ConcreteSubroutine {
+pub struct ConcreteFunctionCall {
     name: String,
     function: Function,
     args: Vec<ConcreteExpr>,
 }
 
-impl ConcreteSubroutine {
+impl ConcreteFunctionCall {
     fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         let mut bound_args = BoundArguments::new();
 
@@ -122,9 +117,9 @@ impl ConcreteSubroutine {
 // NOTE: in older rust versions, Debug cannot be derived
 // correctly from `fn` and it will not compile without
 // this custom `Debug` implementation
-impl fmt::Debug for ConcreteSubroutine {
+impl fmt::Debug for ConcreteFunctionCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ConcreteSubroutine")
+        f.debug_struct("ConcreteFunctionCall")
             .field("name", &self.name)
             .field("function", &"<function>")
             .field("args", &self.args)
@@ -166,12 +161,12 @@ impl StatementKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConcreteStatement {
+pub struct ConcreteSpecialFunctionCall {
     kind: StatementKind,
     args: Vec<ConcreteExpr>,
 }
 
-impl ConcreteStatement {
+impl ConcreteSpecialFunctionCall {
     fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         match self.kind {
             StatementKind::If(reverse) => {
@@ -253,30 +248,6 @@ impl ConcreteStatement {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ConcreteFunctionCall {
-    Subroutine(ConcreteSubroutine),
-    SpecialStatement(ConcreteStatement),
-}
-
-impl ConcreteFunctionCall {
-    fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
-        match self {
-            Self::Subroutine(subroutine) => subroutine.run(context),
-            Self::SpecialStatement(statement) => statement.run(context),
-        }
-    }
-
-    fn has_index_variable(&self) -> bool {
-        let args = match self {
-            Self::SpecialStatement(statement) => &statement.args,
-            Self::Subroutine(subroutine) => &subroutine.args,
-        };
-
-        args.iter().any(|arg| arg.is_index_variable())
-    }
-}
-
 fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
@@ -313,10 +284,10 @@ fn concretize_call(
     }
 
     Ok(if let Some(kind) = StatementKind::parse(&function_name) {
-        ConcreteExpr::Call(ConcreteFunctionCall::SpecialStatement(ConcreteStatement {
+        ConcreteExpr::SpecialCall(ConcreteSpecialFunctionCall {
             kind,
             args: concrete_args,
-        }))
+        })
     } else {
         match get_function(&function_name) {
             None => return Err(ConcretizationError::UnknownFunction(function_name.clone())),
@@ -325,11 +296,11 @@ fn concretize_call(
                     .1
                     .validate(&function_name, concrete_args.len())?;
 
-                ConcreteExpr::Call(ConcreteFunctionCall::Subroutine(ConcreteSubroutine {
+                ConcreteExpr::Call(ConcreteFunctionCall {
                     name: function_name.clone(),
                     function: function_info.0,
                     args: concrete_args,
-                }))
+                })
             }
         }
     })
@@ -386,7 +357,6 @@ pub struct Program<'a> {
     expr: ConcreteExpr,
     headers_index: HeadersIndex,
     variables: Variables<'a>,
-    should_bind_index: bool,
 }
 
 impl<'a> Program<'a> {
@@ -396,17 +366,10 @@ impl<'a> Program<'a> {
             Ok(pipeline) => concretize_expression(pipeline, headers)?,
         };
 
-        let should_bind_index = if let ConcreteExpr::Call(ref call) = expr {
-            call.has_index_variable()
-        } else {
-            expr.is_index_variable()
-        };
-
         Ok(Self {
             expr,
             variables: Variables::new(),
             headers_index: HeadersIndex::from_headers(headers),
-            should_bind_index,
         })
     }
 
@@ -415,10 +378,6 @@ impl<'a> Program<'a> {
     }
 
     pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {
-        if key == "index" && !self.should_bind_index {
-            return;
-        }
-
         self.variables.insert(key, value);
     }
 }

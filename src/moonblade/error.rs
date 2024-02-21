@@ -137,7 +137,6 @@ impl Display for SpecifiedBindingError {
 
 #[derive(Debug, PartialEq)]
 pub enum BindingError {
-    IllegalBinding,
     ColumnOutOfRange(usize),
     UnicodeDecodeError,
     UnknownVariable(String),
@@ -146,7 +145,6 @@ pub enum BindingError {
 impl Display for BindingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::IllegalBinding => write!(f, "illegal binding"),
             Self::ColumnOutOfRange(idx) => write!(f, "column \"{}\" is out of range", idx),
             Self::UnknownVariable(name) => write!(f, "unknown variable \"{}\"", name),
             Self::UnicodeDecodeError => write!(f, "unicode decode error"),
