@@ -508,6 +508,37 @@ impl Welford {
     }
 }
 
+#[derive(Debug, Clone)]
+struct Values {
+    identity: String,
+    values: Vec<String>,
+}
+
+impl Values {
+    fn new(identity: String) -> Self {
+        Values {
+            identity,
+            values: Vec::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.values.clear()
+    }
+
+    fn add(&mut self, string: String) {
+        self.values.push(string);
+    }
+
+    fn join(&self, separator: &str) -> String {
+        self.values.join(separator)
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.values.extend(other.values);
+    }
+}
+
 const TYPE_EMPTY: u8 = 0;
 const TYPE_STRING: u8 = 1;
 const TYPE_FLOAT: u8 = 2;
@@ -650,6 +681,7 @@ build_aggregation_method_enum!(
     Count,
     Extent,
     FirstLast,
+    Values,
     LexicographicExtent,
     Frequencies,
     Numbers,
@@ -678,6 +710,9 @@ impl Aggregator {
             }
             (Self::FirstLast(inner), ConcreteAggregationMethod::Last) => {
                 DynamicValue::from(inner.last())
+            }
+            (Self::Values(inner), ConcreteAggregationMethod::Values(separator)) => {
+                DynamicValue::from(inner.join(separator))
             }
             (Self::LexicographicExtent(inner), ConcreteAggregationMethod::LexFirst) => {
                 DynamicValue::from(inner.first())
@@ -828,6 +863,20 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Types | ConcreteAggregationMethod::Type => {
                 upsert_aggregator!(Types)
             }
+            ConcreteAggregationMethod::Values(sep) => {
+                match self.methods.iter().position(|item| {
+                    matches!(item,
+                    Aggregator::Values(inner) if sep == &inner.identity)
+                }) {
+                    Some(idx) => idx,
+                    None => {
+                        let idx = self.methods.len();
+                        self.methods
+                            .push(Aggregator::Values(Values::new(sep.to_string())));
+                        idx
+                    }
+                }
+            }
         }
     }
 
@@ -882,6 +931,9 @@ impl CompositeAggregator {
                             types.set_string();
                         }
                     }
+                    Aggregator::Values(values) => {
+                        values.add(value.try_as_str()?.into_owned());
+                    }
                 },
                 None => match method {
                     Aggregator::Count(count) => {
@@ -923,6 +975,17 @@ fn validate_aggregation_function_arity(
                 Ok(())
             }
         }
+        "values" => {
+            if !(1..=2).contains(&arity) {
+                Err(ConcretizationError::from_invalid_range_arity(
+                    aggregation.func_name.clone(),
+                    1..=2,
+                    arity,
+                ))
+            } else {
+                Ok(())
+            }
+        }
         _ => {
             if arity != 1 {
                 Err(ConcretizationError::from_invalid_arity(
@@ -935,6 +998,16 @@ fn validate_aggregation_function_arity(
             }
         }
     }
+}
+
+fn get_separator_from_optional_first_argument(args: Vec<ConcreteArgument>) -> Option<String> {
+    Some(match args.first() {
+        None => "|".to_string(),
+        Some(arg) => match arg {
+            ConcreteArgument::Str(separator) => separator.try_as_str().expect("").into_owned(),
+            _ => return None,
+        },
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -953,6 +1026,7 @@ enum ConcreteAggregationMethod {
     Median(MedianType),
     Mode,
     Sum,
+    Values(String),
     VarPop,
     VarSample,
     StddevPop,
@@ -962,8 +1036,8 @@ enum ConcreteAggregationMethod {
 }
 
 impl ConcreteAggregationMethod {
-    fn parse(name: &str) -> Option<Self> {
-        Some(match name {
+    fn parse(name: &str, args: Vec<ConcreteArgument>) -> Result<Self, ConcretizationError> {
+        Ok(match name {
             "all" => Self::All,
             "any" => Self::Any,
             "cardinality" => Self::Cardinality,
@@ -979,6 +1053,10 @@ impl ConcreteAggregationMethod {
             "median_high" => Self::Median(MedianType::High),
             "median_low" => Self::Median(MedianType::Low),
             "mode" => Self::Mode,
+            "values" => Self::Values(match get_separator_from_optional_first_argument(args) {
+                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                Some(separator) => separator,
+            }),
             "var" | "var_pop" => Self::VarPop,
             "var_sample" => Self::VarSample,
             "stddev" | "stddev_pop" => Self::StddevPop,
@@ -986,7 +1064,7 @@ impl ConcreteAggregationMethod {
             "sum" => Self::Sum,
             "type" => Self::Type,
             "types" => Self::Types,
-            _ => return None,
+            _ => return Err(ConcretizationError::UnknownFunction(name.to_string())),
         })
     }
 }
@@ -1023,19 +1101,17 @@ fn concretize_aggregations(
             args.push(concretize_expression(arg, headers)?);
         }
 
-        if let Some(method) = ConcreteAggregationMethod::parse(&aggregation.func_name) {
-            let concrete_aggregation = ConcreteAggregation {
-                agg_name: aggregation.agg_name,
-                method,
-                expr_key: aggregation.expr_key,
-                expr,
-                // args,
-            };
+        let method = ConcreteAggregationMethod::parse(&aggregation.func_name, args)?;
 
-            concrete_aggregations.push(concrete_aggregation);
-        } else {
-            return Err(ConcretizationError::UnknownFunction(aggregation.func_name));
-        }
+        let concrete_aggregation = ConcreteAggregation {
+            agg_name: aggregation.agg_name,
+            method,
+            expr_key: aggregation.expr_key,
+            expr,
+            // args,
+        };
+
+        concrete_aggregations.push(concrete_aggregation);
     }
 
     Ok(concrete_aggregations)

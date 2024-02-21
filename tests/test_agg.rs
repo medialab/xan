@@ -250,3 +250,27 @@ fn agg_types() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_values() {
+    let wrk = Workdir::new("agg_values");
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["John"], svec!["Mary"], svec!["Lucas"]],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("values(name) as V").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["V"], svec!["John|Mary|Lucas"]];
+    assert_eq!(got, expected);
+
+    // Custom separator
+    let mut cmd = wrk.command("agg");
+    cmd.arg("values(name, '~') as V").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["V"], svec!["John~Mary~Lucas"]];
+    assert_eq!(got, expected);
+}

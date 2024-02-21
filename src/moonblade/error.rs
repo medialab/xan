@@ -16,7 +16,7 @@ fn format_column_indexation_error(
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub enum ConcretizationError {
     ParseError(String),
     ColumnNotFound(ColumIndexationBy),
@@ -24,6 +24,7 @@ pub enum ConcretizationError {
     UnknownFunction(String),
     InvalidArity((String, InvalidArity)),
     TooManyArguments(usize),
+    NotStaticallyAnalyzable,
 }
 
 impl ConcretizationError {
@@ -73,11 +74,12 @@ impl Display for ConcretizationError {
             Self::TooManyArguments(actual) => {
                 write!(f, "got {} arguments. Cannot exceed 8.", actual)
             }
+            Self::NotStaticallyAnalyzable => write!(f, "not statically analyzable"),
         }
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub struct InvalidArity {
     expected: Arity,
     got: usize,
@@ -111,7 +113,7 @@ impl Display for InvalidArity {
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub struct SpecifiedBindingError {
     pub function_name: String,
     pub arg_index: Option<usize>,
@@ -133,7 +135,7 @@ impl Display for SpecifiedBindingError {
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub enum BindingError {
     IllegalBinding,
     ColumnOutOfRange(usize),
@@ -152,7 +154,7 @@ impl Display for BindingError {
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub struct SpecifiedCallError {
     pub function_name: String,
     pub reason: CallError,
@@ -168,7 +170,7 @@ impl Display for SpecifiedCallError {
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub enum CallError {
     InvalidArity(InvalidArity),
     InvalidPath,
@@ -238,7 +240,7 @@ impl Display for CallError {
     }
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub enum EvaluationError {
     Binding(SpecifiedBindingError),
     Call(SpecifiedCallError),
@@ -254,7 +256,7 @@ impl Display for EvaluationError {
 }
 
 #[cfg(test)]
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub enum RunError {
     Prepare(ConcretizationError),
     Evaluation(EvaluationError),

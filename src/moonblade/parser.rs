@@ -607,9 +607,9 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                     p.clone()
                         .into_inner()
                         .skip(1)
+                        .take(1)
                         .map(|s| s.as_span().as_str())
-                        .collect::<Vec<_>>()
-                        .join(", "),
+                        .collect::<String>(),
                     p,
                 ),
                 Rule::named_func => {
@@ -637,9 +637,9 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                         func.clone()
                             .into_inner()
                             .skip(1)
+                            .take(1)
                             .map(|s| s.as_span().as_str())
-                            .collect::<Vec<_>>()
-                            .join(", "),
+                            .collect::<String>(),
                         func,
                     )
                 }
@@ -914,7 +914,7 @@ mod tests {
             Ok(vec![Aggregation {
                 agg_name: "join(name, '|')".to_string(),
                 func_name: "join".to_string(),
-                expr_key: "name, '|'".to_string(),
+                expr_key: "name".to_string(),
                 args: vec![id("name"), s("|")]
             }])
         );
