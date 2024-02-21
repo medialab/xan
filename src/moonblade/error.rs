@@ -114,49 +114,12 @@ impl Display for InvalidArity {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct SpecifiedBindingError {
+pub struct SpecifiedEvaluationError {
     pub function_name: String,
-    pub arg_index: Option<usize>,
-    pub reason: BindingError,
+    pub reason: EvaluationError,
 }
 
-impl Display for SpecifiedBindingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.arg_index {
-            Some(i) => write!(
-                f,
-                "error when binding arg n°{} for \"{}\": {}",
-                i + 1,
-                self.function_name,
-                self.reason
-            ),
-            None => write!(f, "error when binding expression: {}", self.reason),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum BindingError {
-    ColumnOutOfRange(usize),
-    UnicodeDecodeError,
-}
-
-impl Display for BindingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ColumnOutOfRange(idx) => write!(f, "column \"{}\" is out of range", idx),
-            Self::UnicodeDecodeError => write!(f, "unicode decode error"),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct SpecifiedCallError {
-    pub function_name: String,
-    pub reason: CallError,
-}
-
-impl Display for SpecifiedCallError {
+impl Display for SpecifiedEvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -167,7 +130,7 @@ impl Display for SpecifiedCallError {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum CallError {
+pub enum EvaluationError {
     InvalidArity(InvalidArity),
     InvalidPath,
     NotImplemented(String),
@@ -179,9 +142,11 @@ pub enum CallError {
     UnsupportedDecoderTrap(String),
     DecodeError,
     ColumnNotFound(ColumIndexationBy),
+    ColumnOutOfRange(usize),
+    UnicodeDecodeError,
 }
 
-impl CallError {
+impl EvaluationError {
     pub fn from_invalid_arity(expected: usize, got: usize) -> Self {
         Self::InvalidArity(InvalidArity {
             expected: Arity::Strict(expected),
@@ -204,7 +169,7 @@ impl CallError {
     }
 }
 
-impl Display for CallError {
+impl Display for EvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidPath => write!(f, "invalid posix path"),
@@ -232,21 +197,8 @@ impl Display for CallError {
             }
             Self::DecodeError => write!(f, "could not decode"),
             Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum EvaluationError {
-    Binding(SpecifiedBindingError),
-    Call(SpecifiedCallError),
-}
-
-impl Display for EvaluationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Binding(err) => err.fmt(f),
-            Self::Call(err) => err.fmt(f),
+            Self::ColumnOutOfRange(idx) => write!(f, "column \"{}\" is out of range", idx),
+            Self::UnicodeDecodeError => write!(f, "unicode decode error"),
         }
     }
 }
@@ -255,5 +207,5 @@ impl Display for EvaluationError {
 #[derive(Debug, PartialEq)]
 pub enum RunError {
     Prepare(ConcretizationError),
-    Evaluation(EvaluationError),
+    Evaluation(SpecifiedEvaluationError),
 }

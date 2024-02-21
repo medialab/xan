@@ -14,10 +14,10 @@ use regex;
 use unidecode::unidecode;
 use uuid::Uuid;
 
-use super::error::CallError;
+use super::error::EvaluationError;
 use super::types::{Arity, BoundArguments, DynamicNumber, DynamicValue};
 
-type FunctionResult = Result<DynamicValue, CallError>;
+type FunctionResult = Result<DynamicValue, EvaluationError>;
 pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, Arity)> {
@@ -343,7 +343,7 @@ fn first(mut args: BoundArguments) -> FunctionResult {
                 Some(value) => value.clone(),
             },
             _ => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "sequence".to_string(),
                 )))
@@ -359,7 +359,7 @@ fn first(mut args: BoundArguments) -> FunctionResult {
                 }
             }
             _ => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "sequence".to_string(),
                 )))
@@ -379,7 +379,7 @@ fn last(mut args: BoundArguments) -> FunctionResult {
                 Some(value) => value.clone(),
             },
             _ => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "sequence".to_string(),
                 )))
@@ -392,7 +392,7 @@ fn last(mut args: BoundArguments) -> FunctionResult {
                 Some(value) => value,
             },
             _ => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "sequence".to_string(),
                 )))
@@ -432,7 +432,7 @@ fn get(args: BoundArguments) -> FunctionResult {
             }
         }
         value => {
-            return Err(CallError::Cast((
+            return Err(EvaluationError::Cast((
                 value.type_of().to_string(),
                 "sequence".to_string(),
             )))
@@ -481,9 +481,9 @@ fn slice(args: BoundArguments) -> FunctionResult {
 
             Ok(DynamicValue::from(substring))
         }
-        DynamicValue::List(_) => Err(CallError::NotImplemented("list".to_string())),
+        DynamicValue::List(_) => Err(EvaluationError::NotImplemented("list".to_string())),
         value => {
-            return Err(CallError::Cast((
+            return Err(EvaluationError::Cast((
                 value.type_of().to_string(),
                 "sequence".to_string(),
             )))
@@ -517,9 +517,9 @@ fn contains(args: BoundArguments) -> FunctionResult {
                 Ok(DynamicValue::from(text.contains(&*pattern)))
             }
         },
-        DynamicValue::List(_) => Err(CallError::NotImplemented("list".to_string())),
+        DynamicValue::List(_) => Err(EvaluationError::NotImplemented("list".to_string())),
         value => {
-            return Err(CallError::Cast((
+            return Err(EvaluationError::Cast((
                 value.type_of().to_string(),
                 "sequence".to_string(),
             )))
@@ -658,7 +658,7 @@ fn abspath(args: BoundArguments) -> FunctionResult {
     let mut path = PathBuf::new();
     path.push(arg.as_ref());
     let path = path.canonicalize().unwrap();
-    let path = String::from(path.to_str().ok_or(CallError::InvalidPath)?);
+    let path = String::from(path.to_str().ok_or(EvaluationError::InvalidPath)?);
 
     Ok(DynamicValue::from(path))
 }
@@ -670,17 +670,17 @@ fn pathjoin(args: BoundArguments) -> FunctionResult {
         path.push(arg.try_as_str()?.as_ref());
     }
 
-    let path = String::from(path.to_str().ok_or(CallError::InvalidPath)?);
+    let path = String::from(path.to_str().ok_or(EvaluationError::InvalidPath)?);
 
     Ok(DynamicValue::from(path))
 }
 
-fn decoder_trap_from_str(name: &str) -> Result<DecoderTrap, CallError> {
+fn decoder_trap_from_str(name: &str) -> Result<DecoderTrap, EvaluationError> {
     Ok(match name {
         "strict" => DecoderTrap::Strict,
         "replace" => DecoderTrap::Replace,
         "ignore" => DecoderTrap::Ignore,
-        _ => return Err(CallError::UnsupportedDecoderTrap(name.to_string())),
+        _ => return Err(EvaluationError::UnsupportedDecoderTrap(name.to_string())),
     })
 }
 
@@ -696,7 +696,7 @@ fn read(args: BoundArguments) -> FunctionResult {
 
     // TODO: handle encoding
     let mut file = match File::open(path.as_ref()) {
-        Err(_) => return Err(CallError::CannotOpenFile(path.into_owned())),
+        Err(_) => return Err(EvaluationError::CannotOpenFile(path.into_owned())),
         Ok(f) => f,
     };
 
@@ -705,7 +705,7 @@ fn read(args: BoundArguments) -> FunctionResult {
             let encoding_name = encoding_value.try_as_str()?.replace('_', "-");
             let encoding = encoding_from_whatwg_label(&encoding_name);
             let encoding = encoding
-                .ok_or_else(|| CallError::UnsupportedEncoding(encoding_name.to_string()))?;
+                .ok_or_else(|| EvaluationError::UnsupportedEncoding(encoding_name.to_string()))?;
 
             let decoder_trap = match args.get(2) {
                 Some(trap) => decoder_trap_from_str(&trap.try_as_str()?)?,
@@ -717,15 +717,15 @@ fn read(args: BoundArguments) -> FunctionResult {
             if path.ends_with(".gz") {
                 let mut gz = GzDecoder::new(file);
                 gz.read_to_end(&mut buffer)
-                    .map_err(|_| CallError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
             } else {
                 file.read_to_end(&mut buffer)
-                    .map_err(|_| CallError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
             }
 
             encoding
                 .decode(&buffer, decoder_trap)
-                .map_err(|_| CallError::DecodeError)?
+                .map_err(|_| EvaluationError::DecodeError)?
         }
         None => {
             let mut buffer = String::new();
@@ -733,10 +733,10 @@ fn read(args: BoundArguments) -> FunctionResult {
             if path.ends_with(".gz") {
                 let mut gz = GzDecoder::new(file);
                 gz.read_to_string(&mut buffer)
-                    .map_err(|_| CallError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
             } else {
                 file.read_to_string(&mut buffer)
-                    .map_err(|_| CallError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
             }
 
             buffer
@@ -751,7 +751,7 @@ fn filesize(args: BoundArguments) -> FunctionResult {
 
     match fs::metadata(path.as_ref()) {
         Ok(size) => Ok(DynamicValue::from(size.len() as i64)),
-        Err(_) => Err(CallError::CannotOpenFile(path.into_owned())),
+        Err(_) => Err(EvaluationError::CannotOpenFile(path.into_owned())),
     }
 }
 
@@ -781,7 +781,7 @@ fn uuid(_args: BoundArguments) -> FunctionResult {
 fn err(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
-    Err(CallError::Custom(arg.to_string()))
+    Err(EvaluationError::Custom(arg.to_string()))
 }
 
 fn val(mut args: BoundArguments) -> FunctionResult {

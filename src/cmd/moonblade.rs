@@ -8,7 +8,7 @@ use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
-use moonblade::{DynamicValue, EvaluationError, Program};
+use moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
 use select::SelectColumns;
 use util::ImmutableRecordHelpers;
 use CliError;
@@ -498,8 +498,8 @@ impl MoonbladeErrorPolicy {
     pub fn handle_error(
         &self,
         index: usize,
-        error: EvaluationError,
-    ) -> Result<(), EvaluationError> {
+        error: SpecifiedEvaluationError,
+    ) -> Result<(), SpecifiedEvaluationError> {
         match self {
             MoonbladeErrorPolicy::Panic => Err(error)?,
             MoonbladeErrorPolicy::Ignore => Ok(()),
@@ -551,7 +551,7 @@ pub fn handle_eval_result<'b>(
     args: &MoonbladeCmdArgs,
     index: usize,
     record: &'b mut csv::ByteRecord,
-    eval_result: Result<DynamicValue, EvaluationError>,
+    eval_result: Result<DynamicValue, SpecifiedEvaluationError>,
     replace: Option<usize>,
 ) -> Result<Vec<Cow<'b, csv::ByteRecord>>, String> {
     let mut records_to_emit: Vec<Cow<csv::ByteRecord>> = Vec::new();
@@ -748,7 +748,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                 move |(i, record)| -> CliResult<(
                     usize,
                     csv::ByteRecord,
-                    Result<DynamicValue, EvaluationError>,
+                    Result<DynamicValue, SpecifiedEvaluationError>,
                 )> {
                     let record = record?;
 

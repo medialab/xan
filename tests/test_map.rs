@@ -20,12 +20,12 @@ fn map() {
 }
 
 #[test]
-fn map_special_identifiers() {
-    let wrk = Workdir::new("map_special_identifiers");
+fn map_index() {
+    let wrk = Workdir::new("map_index");
     wrk.create("data.csv", vec![svec!["n"], svec!["10"], svec!["15"]]);
 
     let mut cmd = wrk.command("map");
-    cmd.arg("%index").arg("r").arg("data.csv");
+    cmd.arg("index()").arg("r").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n", "r"], svec!["10", "0"], svec!["15", "1"]];

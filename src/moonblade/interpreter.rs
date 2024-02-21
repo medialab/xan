@@ -4,10 +4,7 @@ use std::borrow::Cow;
 use csv::ByteRecord;
 use regex::RegexBuilder;
 
-use super::error::{
-    BindingError, CallError, ConcretizationError, EvaluationError, SpecifiedBindingError,
-    SpecifiedCallError,
-};
+use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
 use super::types::{
@@ -33,13 +30,13 @@ impl ConcreteExpr {
     fn bind<'a>(
         &'a self,
         context: &'a EvaluationContext,
-    ) -> Result<BoundArgument<'a>, BindingError> {
+    ) -> Result<BoundArgument<'a>, EvaluationError> {
         Ok(match self {
             Self::Value(value) => Cow::Borrowed(value),
             Self::Column(index) => match context.record.get(*index) {
-                None => return Err(BindingError::ColumnOutOfRange(*index)),
+                None => return Err(EvaluationError::ColumnOutOfRange(*index)),
                 Some(cell) => match std::str::from_utf8(cell) {
-                    Err(_) => return Err(BindingError::UnicodeDecodeError),
+                    Err(_) => return Err(EvaluationError::UnicodeDecodeError),
                     Ok(value) => Cow::Owned(DynamicValue::from(value)),
                 },
             },
@@ -51,12 +48,9 @@ impl ConcreteExpr {
         match self {
             Self::Call(function_call) => function_call.run(context),
             Self::SpecialCall(function_call) => function_call.run(context),
-            _ => self.bind(context).map_err(|err| {
-                EvaluationError::Binding(SpecifiedBindingError {
-                    function_name: "<expr>".to_string(),
-                    arg_index: None,
-                    reason: err,
-                })
+            _ => self.bind(context).map_err(|err| SpecifiedEvaluationError {
+                function_name: "<expr>".to_string(),
+                reason: err,
             }),
         }
     }
@@ -73,7 +67,7 @@ impl ConcreteFunctionCall {
     fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
         let mut bound_args = BoundArguments::new();
 
-        for (i, arg) in self.args.iter().enumerate() {
+        for arg in self.args.iter() {
             match arg {
                 ConcreteExpr::Call(sub_function_call) => {
                     bound_args.push(sub_function_call.run(context)?);
@@ -81,22 +75,21 @@ impl ConcreteFunctionCall {
                 ConcreteExpr::SpecialCall(sub_function_call) => {
                     bound_args.push(sub_function_call.run(context)?);
                 }
-                _ => bound_args.push(arg.bind(context).map_err(|err| {
-                    EvaluationError::Binding(SpecifiedBindingError {
+                _ => {
+                    bound_args.push(arg.bind(context).map_err(|err| SpecifiedEvaluationError {
                         function_name: self.name.to_string(),
-                        arg_index: Some(i),
                         reason: err,
-                    })
-                })?),
+                    })?)
+                }
             }
         }
 
         match (self.function)(bound_args) {
             Ok(value) => Ok(Cow::Owned(value)),
-            Err(err) => Err(EvaluationError::Call(SpecifiedCallError {
+            Err(err) => Err(SpecifiedEvaluationError {
                 function_name: self.name.clone(),
                 reason: err,
-            })),
+            }),
         }
     }
 }
@@ -160,10 +153,10 @@ impl ConcreteSpecialFunctionCall {
                 let arity = self.args.len();
 
                 if !(2..=3).contains(&arity) {
-                    return Err(EvaluationError::Call(SpecifiedCallError {
+                    return Err(SpecifiedEvaluationError {
                         function_name: self.kind.name().to_string(),
-                        reason: CallError::from_invalid_range_arity(2..=3, arity),
-                    }));
+                        reason: EvaluationError::from_invalid_range_arity(2..=3, arity),
+                    });
                 }
 
                 let condition = &self.args[0];
@@ -193,10 +186,10 @@ impl ConcreteSpecialFunctionCall {
                 let arity = self.args.len();
 
                 if !(1..=2).contains(&arity) {
-                    return Err(EvaluationError::Call(SpecifiedCallError {
+                    return Err(SpecifiedEvaluationError {
                         function_name: self.kind.name().to_string(),
-                        reason: CallError::from_invalid_range_arity(1..=2, arity),
-                    }));
+                        reason: EvaluationError::from_invalid_range_arity(1..=2, arity),
+                    });
                 }
 
                 let name_or_pos = self.args.first().unwrap().evaluate(context)?;
@@ -206,21 +199,20 @@ impl ConcreteSpecialFunctionCall {
                 };
 
                 match ColumIndexationBy::from_bound_arguments(name_or_pos, pos) {
-                    None => Err(EvaluationError::Call(SpecifiedCallError {
+                    None => Err(SpecifiedEvaluationError {
                         function_name: self.kind.name().to_string(),
-                        reason: CallError::Custom("invalid arguments".to_string()),
-                    })),
+                        reason: EvaluationError::Custom("invalid arguments".to_string()),
+                    }),
                     Some(indexation) => match context.headers_index.get(&indexation) {
-                        None => Err(EvaluationError::Call(SpecifiedCallError {
+                        None => Err(SpecifiedEvaluationError {
                             function_name: self.kind.name().to_string(),
-                            reason: CallError::ColumnNotFound(indexation),
-                        })),
+                            reason: EvaluationError::ColumnNotFound(indexation),
+                        }),
                         Some(index) => match std::str::from_utf8(&context.record[index]) {
-                            Err(_) => Err(EvaluationError::Binding(SpecifiedBindingError {
+                            Err(_) => Err(SpecifiedEvaluationError {
                                 function_name: self.kind.name().to_string(),
-                                arg_index: None,
-                                reason: BindingError::UnicodeDecodeError,
-                            })),
+                                reason: EvaluationError::UnicodeDecodeError,
+                            }),
                             Ok(value) => Ok(Cow::Owned(DynamicValue::from(value))),
                         },
                     },
@@ -330,7 +322,7 @@ pub fn eval_expression(
     record: &ByteRecord,
     headers_index: &HeadersIndex,
     index: Option<usize>,
-) -> Result<DynamicValue, EvaluationError> {
+) -> Result<DynamicValue, SpecifiedEvaluationError> {
     let context = EvaluationContext {
         record,
         index,
@@ -363,7 +355,7 @@ impl Program {
         &self,
         index: usize,
         record: &ByteRecord,
-    ) -> Result<DynamicValue, EvaluationError> {
+    ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         eval_expression(&self.expr, record, &self.headers_index, Some(index))
     }
 }

@@ -11,7 +11,7 @@ use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::Regex;
 
-use super::error::{CallError, ConcretizationError, EvaluationError};
+use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::parser::Expr;
 use super::utils::downgrade_float;
 
@@ -523,10 +523,13 @@ impl DynamicValue {
         self.serialize_as_bytes_with_options(b"|")
     }
 
-    pub fn try_as_str(&self) -> Result<Cow<str>, CallError> {
+    pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::List(_) => {
-                return Err(CallError::Cast(("list".to_string(), "string".to_string())))
+                return Err(EvaluationError::Cast((
+                    "list".to_string(),
+                    "string".to_string(),
+                )))
             }
             Self::String(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string()),
@@ -543,41 +546,41 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_as_regex(&self) -> Result<&Regex, CallError> {
+    pub fn try_as_regex(&self) -> Result<&Regex, EvaluationError> {
         match self {
             Self::Regex(regex) => Ok(regex),
-            value => Err(CallError::Cast((
+            value => Err(EvaluationError::Cast((
                 value.type_of().to_string(),
                 "regex".to_string(),
             ))),
         }
     }
 
-    pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, CallError> {
+    pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
-            value => Err(CallError::Cast((
+            value => Err(EvaluationError::Cast((
                 value.type_of().to_string(),
                 "list".to_string(),
             ))),
         }
     }
 
-    pub fn try_into_list(self) -> Result<Vec<DynamicValue>, CallError> {
+    pub fn try_into_list(self) -> Result<Vec<DynamicValue>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
-            value => Err(CallError::Cast((
+            value => Err(EvaluationError::Cast((
                 value.type_of().to_string(),
                 "list".to_string(),
             ))),
         }
     }
 
-    pub fn try_as_number(&self) -> Result<DynamicNumber, CallError> {
+    pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<DynamicNumber>() {
                 Err(_) => {
-                    return Err(CallError::Cast((
+                    return Err(EvaluationError::Cast((
                         "string".to_string(),
                         "number".to_string(),
                     )))
@@ -588,7 +591,7 @@ impl DynamicValue {
             Self::Float(value) => DynamicNumber::Float(*value),
             Self::Boolean(value) => DynamicNumber::Integer(*value as i64),
             value => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "number".to_string(),
                 )))
@@ -596,11 +599,11 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_as_usize(&self) -> Result<usize, CallError> {
+    pub fn try_as_usize(&self) -> Result<usize, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<usize>() {
                 Err(_) => {
-                    return Err(CallError::Cast((
+                    return Err(EvaluationError::Cast((
                         "string".to_string(),
                         "unsigned_number".to_string(),
                     )))
@@ -612,14 +615,14 @@ impl DynamicValue {
                     if safe_downgraded_value >= 0 {
                         safe_downgraded_value as usize
                     } else {
-                        return Err(CallError::Cast((
+                        return Err(EvaluationError::Cast((
                             "float".to_string(),
                             "unsigned_number".to_string(),
                         )));
                     }
                 }
                 None => {
-                    return Err(CallError::Cast((
+                    return Err(EvaluationError::Cast((
                         "float".to_string(),
                         "unsigned_number".to_string(),
                     )))
@@ -629,7 +632,7 @@ impl DynamicValue {
                 if value >= &0 {
                     (*value) as usize
                 } else {
-                    return Err(CallError::Cast((
+                    return Err(EvaluationError::Cast((
                         "integer".to_string(),
                         "unsigned_number".to_string(),
                     )));
@@ -637,7 +640,7 @@ impl DynamicValue {
             }
             Self::Boolean(value) => (*value) as usize,
             _ => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     "boolean".to_string(),
                     "unsigned_number".to_string(),
                 )))
@@ -645,11 +648,11 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_as_i64(&self) -> Result<i64, CallError> {
+    pub fn try_as_i64(&self) -> Result<i64, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<i64>() {
                 Err(_) => {
-                    return Err(CallError::Cast((
+                    return Err(EvaluationError::Cast((
                         "string".to_string(),
                         "integer".to_string(),
                     )))
@@ -659,7 +662,7 @@ impl DynamicValue {
             Self::Float(value) => match downgrade_float(*value) {
                 Some(safe_downgraded_value) => safe_downgraded_value,
                 None => {
-                    return Err(CallError::Cast((
+                    return Err(EvaluationError::Cast((
                         "float".to_string(),
                         "integer".to_string(),
                     )))
@@ -668,7 +671,7 @@ impl DynamicValue {
             Self::Integer(value) => *value,
             Self::Boolean(value) => (*value) as i64,
             value => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "integer".to_string(),
                 )))
@@ -676,17 +679,22 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_as_f64(&self) -> Result<f64, CallError> {
+    pub fn try_as_f64(&self) -> Result<f64, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<f64>() {
-                Err(_) => return Err(CallError::Cast(("string".to_string(), "float".to_string()))),
+                Err(_) => {
+                    return Err(EvaluationError::Cast((
+                        "string".to_string(),
+                        "float".to_string(),
+                    )))
+                }
                 Ok(value) => value,
             },
             Self::Float(value) => *value,
             Self::Integer(value) => *value as f64,
             Self::Boolean(value) => *value as usize as f64,
             value => {
-                return Err(CallError::Cast((
+                return Err(EvaluationError::Cast((
                     value.type_of().to_string(),
                     "float".to_string(),
                 )))
@@ -866,7 +874,7 @@ impl PartialEq for DynamicValue {
 }
 
 pub type BoundArgument<'a> = Cow<'a, DynamicValue>;
-pub type EvaluationResult<'a> = Result<BoundArgument<'a>, EvaluationError>;
+pub type EvaluationResult<'a> = Result<BoundArgument<'a>, SpecifiedEvaluationError>;
 
 const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
@@ -916,11 +924,11 @@ impl<'a> BoundArguments<'a> {
         (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 
-    pub fn get1_str(&'a self) -> Result<Cow<'a, str>, CallError> {
+    pub fn get1_str(&'a self) -> Result<Cow<'a, str>, EvaluationError> {
         self.get1().try_as_str()
     }
 
-    pub fn pop1_list(&mut self) -> Result<Cow<Vec<DynamicValue>>, CallError> {
+    pub fn pop1_list(&mut self) -> Result<Cow<Vec<DynamicValue>>, EvaluationError> {
         Ok(match self.pop1() {
             Cow::Owned(v) => Cow::Owned(v.try_into_list()?),
             Cow::Borrowed(v) => Cow::Borrowed(v.try_as_list()?),
@@ -931,17 +939,17 @@ impl<'a> BoundArguments<'a> {
         self.pop1().is_truthy()
     }
 
-    pub fn pop1_number(&mut self) -> Result<DynamicNumber, CallError> {
+    pub fn pop1_number(&mut self) -> Result<DynamicNumber, EvaluationError> {
         self.pop1().try_as_number()
     }
 
-    pub fn get2_str(&self) -> Result<(Cow<str>, Cow<str>), CallError> {
+    pub fn get2_str(&self) -> Result<(Cow<str>, Cow<str>), EvaluationError> {
         let (a, b) = self.get2();
 
         Ok((a.try_as_str()?, b.try_as_str()?))
     }
 
-    pub fn get2_number(&self) -> Result<(DynamicNumber, DynamicNumber), CallError> {
+    pub fn get2_number(&self) -> Result<(DynamicNumber, DynamicNumber), EvaluationError> {
         let (a, b) = self.get2();
 
         Ok((a.try_as_number()?, b.try_as_number()?))

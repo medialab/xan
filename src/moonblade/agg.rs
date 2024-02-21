@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use csv::ByteRecord;
 use rayon::prelude::*;
 
-use super::error::{CallError, ConcretizationError, EvaluationError, SpecifiedCallError};
+use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
 use super::types::{DynamicNumber, DynamicValue, HeadersIndex};
@@ -880,7 +880,7 @@ impl CompositeAggregator {
         &mut self,
         index: usize,
         value_opt: Option<DynamicValue>,
-    ) -> Result<(), CallError> {
+    ) -> Result<(), EvaluationError> {
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
                 Some(value) => match method {
@@ -1232,19 +1232,19 @@ fn run_with_record_on_aggregators(
     index: usize,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
-) -> Result<(), EvaluationError> {
+) -> Result<(), SpecifiedEvaluationError> {
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
             Some(expr) => Some(eval_expression(expr, record, headers_index, Some(index))?),
         };
 
-        aggregator.process_value(index, value).map_err(|err| {
-            EvaluationError::Call(SpecifiedCallError {
+        aggregator
+            .process_value(index, value)
+            .map_err(|err| SpecifiedEvaluationError {
                 reason: err,
                 function_name: format!("<agg-expr: {}>", unit.expr_key),
-            })
-        })?;
+            })?;
     }
 
     Ok(())
@@ -1288,7 +1288,7 @@ impl AggregationProgram {
         &mut self,
         index: usize,
         record: &ByteRecord,
-    ) -> Result<(), EvaluationError> {
+    ) -> Result<(), SpecifiedEvaluationError> {
         run_with_record_on_aggregators(
             &self.planner,
             &mut self.aggregators,
@@ -1343,7 +1343,7 @@ impl GroupAggregationProgram {
         group: GroupKey,
         index: usize,
         record: &ByteRecord,
-    ) -> Result<(), EvaluationError> {
+    ) -> Result<(), SpecifiedEvaluationError> {
         let planner = &self.planner;
 
         let aggregators = self

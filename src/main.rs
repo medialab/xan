@@ -392,8 +392,8 @@ impl From<moonblade::ConcretizationError> for CliError {
     }
 }
 
-impl From<moonblade::EvaluationError> for CliError {
-    fn from(err: moonblade::EvaluationError) -> CliError {
+impl From<moonblade::SpecifiedEvaluationError> for CliError {
+    fn from(err: moonblade::SpecifiedEvaluationError) -> CliError {
         CliError::Other(err.to_string())
     }
 }
