@@ -17,6 +17,12 @@ use cmd::moonblade::{
     get_moonblade_functions_help, MoonbladeErrorPolicy,
 };
 
+// NOTE: what was tried for parallelization:
+//   1. Horizontal parallelization (by execution unit of the aggregation planner)
+//   2. Vertical parallelization by broadcasting lines to multiple threads
+//   3. Chunking vertical parallelization
+//   4. Aggregator finalization parallelization (sorting for median, for instance)
+
 static USAGE: &str = "
 Aggregate CSV data using a custom aggregation expression. The result of running
 the command will be a single row of CSV containing the result of aggregating
