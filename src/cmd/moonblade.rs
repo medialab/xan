@@ -8,7 +8,7 @@ use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
-use moonblade::{DynamicValue, EvaluationError, PipelineProgram};
+use moonblade::{DynamicValue, EvaluationError, Program};
 use select::SelectColumns;
 use util::ImmutableRecordHelpers;
 use CliError;
@@ -732,7 +732,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         }
     }
 
-    let mut program = PipelineProgram::parse(&map_expr, &headers)?;
+    let mut program = Program::parse(&map_expr, &headers)?;
 
     if must_write_headers {
         wtr.write_byte_record(&modified_headers)?;
@@ -740,7 +740,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
 
     if let Some(threads) = args.parallelization {
         // NOTE: this could be a OnceCell but it is very new in rust
-        let local: Arc<ThreadLocal<RefCell<PipelineProgram>>> = Arc::new(match threads {
+        let local: Arc<ThreadLocal<RefCell<Program>>> = Arc::new(match threads {
             None => ThreadLocal::new(),
             Some(count) => ThreadLocal::with_capacity(count),
         });

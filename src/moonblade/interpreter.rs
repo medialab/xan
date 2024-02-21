@@ -9,7 +9,7 @@ use super::error::{
     SpecifiedCallError,
 };
 use super::functions::{get_function, Function};
-use super::parser::{parse_and_optimize_pipeline, Expr, FunctionCall, Pipeline};
+use super::parser::{parse_expression, Expr, FunctionCall};
 use super::types::{
     BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
     Variables,
@@ -282,8 +282,6 @@ impl ConcreteFunctionCall {
     }
 }
 
-type ConcretePipeline = Vec<ConcreteArgument>;
-
 fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
@@ -373,41 +371,6 @@ pub fn concretize_expression(
     })
 }
 
-fn concretize_pipeline(
-    pipeline: Pipeline,
-    headers: &ByteRecord,
-) -> Result<ConcretePipeline, ConcretizationError> {
-    let mut concrete_pipeline: ConcretePipeline = Vec::new();
-
-    for argument in pipeline {
-        concrete_pipeline.push(concretize_expression(argument, headers)?);
-    }
-
-    Ok(concrete_pipeline)
-}
-
-pub fn eval_pipeline(
-    pipeline: &ConcretePipeline,
-    record: &ByteRecord,
-    headers_index: &HeadersIndex,
-    variables: &Variables,
-) -> Result<DynamicValue, EvaluationError> {
-    let mut last_value = DynamicValue::None;
-
-    for arg in pipeline {
-        last_value = arg
-            .evaluate(&EvaluationContext {
-                headers_index,
-                record,
-                variables,
-                last_value: Some(&last_value),
-            })?
-            .into_owned();
-    }
-
-    Ok(last_value)
-}
-
 pub fn eval_expr(
     expr: &ConcreteArgument,
     record: &ByteRecord,
@@ -425,30 +388,28 @@ pub fn eval_expr(
 }
 
 #[derive(Clone)]
-pub struct PipelineProgram<'a> {
-    pipeline: ConcretePipeline,
+pub struct Program<'a> {
+    expr: ConcreteArgument,
     headers_index: HeadersIndex,
     variables: Variables<'a>,
     should_bind_index: bool,
 }
 
-impl<'a> PipelineProgram<'a> {
+impl<'a> Program<'a> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let pipeline = match parse_and_optimize_pipeline(code) {
+        let expr = match parse_expression(code) {
             Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
-            Ok(pipeline) => concretize_pipeline(pipeline, headers)?,
+            Ok(pipeline) => concretize_expression(pipeline, headers)?,
         };
 
-        let should_bind_index = pipeline.iter().any(|arg| {
-            if let ConcreteArgument::Call(call) = arg {
-                call.has_index_variable()
-            } else {
-                arg.is_index_variable()
-            }
-        });
+        let should_bind_index = if let ConcreteArgument::Call(ref call) = expr {
+            call.has_index_variable()
+        } else {
+            expr.is_index_variable()
+        };
 
         Ok(Self {
-            pipeline,
+            expr,
             variables: Variables::new(),
             headers_index: HeadersIndex::from_headers(headers),
             should_bind_index,
@@ -456,7 +417,7 @@ impl<'a> PipelineProgram<'a> {
     }
 
     pub fn run_with_record(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
-        eval_pipeline(&self.pipeline, record, &self.headers_index, &self.variables)
+        eval_expr(&self.expr, record, &self.headers_index, &self.variables)
     }
 
     pub fn set<'b>(&'b mut self, key: &'a str, value: DynamicValue) {
@@ -482,7 +443,7 @@ mod tests {
         headers.push_field(b"a");
         headers.push_field(b"b");
 
-        let mut program = PipelineProgram::parse(code, &headers).map_err(RunError::Prepare)?;
+        let mut program = Program::parse(code, &headers).map_err(RunError::Prepare)?;
 
         let mut record = ByteRecord::new();
         record.push_field(b"john");

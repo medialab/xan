@@ -245,25 +245,6 @@ pub struct FunctionCall {
 }
 
 impl FunctionCall {
-    fn has_underscore(&self) -> bool {
-        self.args.iter().any(|arg| match arg {
-            Expr::Func(sub_function_call) => sub_function_call.has_underscore(),
-            Expr::Underscore => true,
-            _ => false,
-        })
-    }
-
-    fn count_underscores(&self) -> usize {
-        self.args
-            .iter()
-            .map(|arg| match arg {
-                Expr::Func(sub_function_call) => sub_function_call.count_underscores(),
-                Expr::Underscore => 1,
-                _ => 0,
-            })
-            .sum()
-    }
-
     fn fill_underscore(&mut self, with: &Expr) {
         for arg in self.args.iter_mut() {
             match arg {
@@ -307,13 +288,6 @@ impl Expr {
                     arg.simplify();
                 }
             }
-        }
-    }
-
-    pub fn has_underscore(&self) -> bool {
-        match self {
-            Self::Func(call) => call.has_underscore(),
-            _ => false,
         }
     }
 
@@ -509,8 +483,7 @@ fn apply_pratt_parser(token_tree: TokenTree) -> Result<Expr, ParseError> {
     }
 }
 
-#[cfg(test)]
-fn parse_expression(input: &str) -> Result<Expr, ParseError> {
+pub fn parse_expression(input: &str) -> Result<Expr, ParseError> {
     let mut pairs =
         MoonbladePestParser::parse(Rule::full_expr, input).map_err(ParseError::from_pest_error)?;
 
@@ -519,103 +492,6 @@ fn parse_expression(input: &str) -> Result<Expr, ParseError> {
     let token_tree = TokenTree::from(first_pair);
 
     apply_pratt_parser(token_tree)
-}
-
-pub type Pipeline = Vec<Expr>;
-
-fn parse_pipeline(input: &str) -> Result<Pipeline, ParseError> {
-    let pairs =
-        MoonbladePestParser::parse(Rule::pipeline, input).map_err(ParseError::from_pest_error)?;
-
-    pairs
-        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
-        .map(|p| {
-            let token_tree = TokenTree::from(p);
-
-            apply_pratt_parser(token_tree)
-        })
-        .collect()
-}
-
-fn handle_pipeline_elision(pipeline: Pipeline) -> Pipeline {
-    pipeline
-        .into_iter()
-        .enumerate()
-        .map(|(i, expr)| {
-            if i == 0 {
-                expr
-            } else if let Expr::Identifier(ref name) = expr {
-                match get_function(name) {
-                    None => expr,
-                    Some(_) => Expr::Func(FunctionCall {
-                        name: name.to_string(),
-                        args: vec![Expr::Underscore],
-                    }),
-                }
-            } else {
-                expr
-            }
-        })
-        .collect()
-}
-
-// Example: trim(a) | add(a, b) | trim | add(a, b) | len -> add(a, b) | len
-fn trim_pipeline(pipeline: Pipeline) -> Pipeline {
-    match pipeline
-        .iter()
-        .enumerate()
-        .rev()
-        .find(|(i, arg)| *i != 0 && !arg.has_underscore())
-        .map(|r| r.0)
-    {
-        None => pipeline,
-        Some(index) => pipeline[index..].to_vec(),
-    }
-}
-
-// Example: trim(a) | len | add(b, _) -> add(b, len(trim(a)))
-// NOTE: we apply this as an optimization to avoid too much cloning
-fn unfurl_pipeline(mut pipeline: Pipeline) -> Pipeline {
-    loop {
-        match pipeline.pop() {
-            None => break,
-            Some(arg) => {
-                if let Expr::Func(mut call) = arg {
-                    if call.count_underscores() != 1 {
-                        pipeline.push(Expr::Func(call));
-                        break;
-                    }
-                    match pipeline.pop() {
-                        Some(previous_arg) => {
-                            call.fill_underscore(&previous_arg);
-                            pipeline.push(Expr::Func(call));
-                        }
-                        None => {
-                            pipeline.push(Expr::Func(call));
-                            break;
-                        }
-                    }
-                } else {
-                    pipeline.push(arg);
-                    break;
-                }
-            }
-        }
-    }
-
-    pipeline
-}
-
-fn optimize_pipeline(mut pipeline: Pipeline) -> Pipeline {
-    pipeline = handle_pipeline_elision(pipeline);
-    pipeline = trim_pipeline(pipeline);
-    pipeline = unfurl_pipeline(pipeline);
-
-    pipeline
-}
-
-pub fn parse_and_optimize_pipeline(input: &str) -> Result<Pipeline, ParseError> {
-    parse_pipeline(input).map(optimize_pipeline)
 }
 
 #[derive(Debug, PartialEq)]

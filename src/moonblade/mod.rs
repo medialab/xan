@@ -8,5 +8,5 @@ mod utils;
 
 pub use self::agg::{AggregationProgram, GroupAggregationProgram};
 pub use self::error::{ConcretizationError, EvaluationError};
-pub use self::interpreter::PipelineProgram;
+pub use self::interpreter::Program;
 pub use self::types::DynamicValue;
