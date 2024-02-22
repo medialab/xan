@@ -167,11 +167,11 @@ impl Sum {
     }
 
     // TODO: implement kahan-babushka summation from https://github.com/simple-statistics/simple-statistics/blob/main/src/sum.js
-    fn add(&mut self, value: &DynamicNumber) {
+    fn add(&mut self, value: DynamicNumber) {
         match &mut self.current {
             DynamicNumber::Float(a) => match value {
                 DynamicNumber::Float(b) => *a += b,
-                DynamicNumber::Integer(b) => *a += *b as f64,
+                DynamicNumber::Integer(b) => *a += b as f64,
             },
             DynamicNumber::Integer(a) => match value {
                 DynamicNumber::Float(b) => self.current = DynamicNumber::Float((*a as f64) + b),
@@ -185,7 +185,7 @@ impl Sum {
     }
 
     fn merge(&mut self, other: Self) {
-        self.add(&other.current);
+        self.add(other.current);
     }
 }
 
@@ -554,6 +554,10 @@ impl Welford {
         self.count = count;
         self.mean = mean;
         self.m2 = m2;
+    }
+
+    fn count(&self) -> usize {
+        self.count
     }
 
     fn mean(&self) -> Option<f64> {
@@ -1078,7 +1082,7 @@ impl CompositeAggregator {
                     }
                     Aggregator::Sum(sum) => {
                         if !value.is_nullish() {
-                            sum.add(&value.try_as_number()?);
+                            sum.add(value.try_as_number()?);
                         }
                     }
                     Aggregator::Welford(variance) => {
@@ -1567,6 +1571,73 @@ impl GroupAggregationProgram {
 
                 Ok((group, record))
             })
+    }
+}
+
+#[derive(Debug)]
+struct Stats {
+    count: Count,
+    extent: Extent,
+    lexicograhic_extent: LexicographicExtent,
+    welford: Welford,
+    sum: Sum,
+    types: Types,
+    frequencies: Option<Frequencies>,
+    numbers: Option<Numbers>,
+}
+
+impl Stats {
+    fn new() -> Self {
+        Self {
+            count: Count::new(),
+            extent: Extent::new(),
+            lexicograhic_extent: LexicographicExtent::new(),
+            welford: Welford::new(),
+            sum: Sum::new(),
+            types: Types::new(),
+            frequencies: None,
+            numbers: None,
+        }
+    }
+
+    fn compute_frequencies(&mut self) {
+        self.frequencies = Some(Frequencies::new());
+    }
+
+    fn compute_numbers(&mut self) {
+        self.numbers = Some(Numbers::new());
+    }
+
+    fn process(&mut self, cell: &[u8]) {
+        if cell.is_empty() {
+            self.types.set_empty();
+            return;
+        }
+
+        self.count.add();
+
+        let string = std::str::from_utf8(cell).expect("could not decode as utf-8");
+
+        if let Ok(number) = string.parse::<DynamicNumber>() {
+            self.sum.add(number);
+            self.welford.add(number.as_float());
+            self.extent.add(number);
+
+            match number {
+                DynamicNumber::Float(_) => self.types.set_float(),
+                DynamicNumber::Integer(_) => self.types.set_int(),
+            }
+
+            if let Some(numbers) = self.numbers.as_mut() {
+                numbers.add(number);
+            }
+        } else {
+            self.types.set_string();
+        }
+
+        if let Some(frequencies) = self.frequencies.as_mut() {
+            // frequencies.add()
+        }
     }
 }
 

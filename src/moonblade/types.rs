@@ -226,6 +226,13 @@ impl DynamicNumber {
         }
     }
 
+    pub fn as_float(self) -> f64 {
+        match self {
+            Self::Float(f) => f,
+            Self::Integer(i) => i as f64,
+        }
+    }
+
     pub fn idiv(self, rhs: Self) -> Self {
         Self::Integer(match self {
             Self::Integer(a) => match rhs {
