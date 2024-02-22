@@ -325,3 +325,52 @@ fn agg_distinct_values() {
     let expected = vec![svec!["V"], svec!["John~Lucas~Mary"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn add_arg_extent() {
+    let wrk = Workdir::new("add_arg_extent");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "n"],
+            svec!["John", "3"],
+            svec!["Mary", "1"],
+            svec!["Lucas", "2"],
+        ],
+    );
+
+    // Implicit index
+    let mut cmd = wrk.command("agg");
+    cmd.arg("argmin(n) as argmin, argmax(n) as argmax")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["argmin", "argmax"], svec!["1", "0"]];
+    assert_eq!(got, expected);
+
+    // Expression
+    let mut cmd = wrk.command("agg");
+    cmd.arg("argmin(n, name) as argmin, argmax(n, name) as argmax")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["argmin", "argmax"], svec!["Mary", "John"]];
+    assert_eq!(got, expected);
+
+    // Testing interference with min/max (in both orders)
+    let mut cmd = wrk.command("agg");
+    cmd.arg("argmin(n, name) as argmin, min(n) as min")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["argmin", "min"], svec!["Mary", "1"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("min(n) as min, argmin(n, name) as argmin")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["min", "argmin"], svec!["1", "Mary"]];
+    assert_eq!(got, expected);
+}

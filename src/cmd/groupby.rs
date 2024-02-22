@@ -154,8 +154,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            index += 1;
-
             let group = sel.collect(&record);
 
             match current.as_ref() {
@@ -179,6 +177,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             program
                 .run_with_record(index, &record)
                 .or_else(|error| error_policy.handle_row_error(index, error))?;
+
+            index += 1;
         }
 
         // Flushing final group
@@ -201,13 +201,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            index += 1;
-
             let group = sel.collect(&record);
 
             program
                 .run_with_record(group, index, &record)
                 .or_else(|error| error_policy.handle_row_error(index, error))?;
+
+            index += 1;
         }
 
         for result in program.into_byte_records(args.flag_parallel) {

@@ -8,7 +8,7 @@ use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
-use moonblade::{DynamicValue, EvaluationError, Program, SpecifiedEvaluationError};
+use moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
 use select::SelectColumns;
 use util::ImmutableRecordHelpers;
 use CliError;
@@ -362,6 +362,14 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
     - any(<expr>) -> bool
         Returns true if one of the elements returned by given expression is truthy.
 
+    - argmin(<expr>, <expr>?) -> any
+        Return the index of the row where the first expression is minimized, or
+        the result of the second expression where the first expression is minimized.
+
+    - argmax(<expr>, <expr>?) -> any
+        Return the index of the row where the first expression is maximized, or
+        the result of the second expression where the first expression is maximized.
+
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
 
@@ -389,6 +397,9 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
     - lex_last(<expr>) -> string
         Return last string in lexicographical order.
 
+    - min(<expr>) -> number | string
+        Minimum numerical value.
+
     - max(<expr>) -> number | string
         Maximum numerical value.
 
@@ -403,9 +414,6 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
 
     - median_low(<expr>) -> number
         Median of numerical values, returning lower value on even counts.
-
-    - min(<expr>) -> number | string
-        Minimum numerical value.
 
     - mode(<expr>) - string
         Value appearing the most, breaking ties arbitrarily in favor of the
@@ -513,8 +521,8 @@ impl MoonbladeErrorPolicy {
 
     pub fn handle_error<T: Default>(
         &self,
-        result: Result<T, EvaluationError>,
-    ) -> Result<T, EvaluationError> {
+        result: Result<T, SpecifiedEvaluationError>,
+    ) -> Result<T, SpecifiedEvaluationError> {
         match result {
             Ok(value) => Ok(value),
             Err(err) => match self {

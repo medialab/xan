@@ -132,11 +132,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            index += 1;
-
             program
                 .run_with_record(index, &record)
                 .or_else(|error| error_policy.handle_row_error(index, error))?;
+
+            index += 1;
         }
     } else {
         // NOTE: it looks like parallelization is basically moot if the inner

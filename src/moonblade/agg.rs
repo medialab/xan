@@ -245,7 +245,7 @@ impl Extent {
     }
 }
 
-type ArgExtentEntry = (DynamicNumber, (usize, csv::ByteRecord));
+type ArgExtentEntry = (DynamicNumber, (usize, ByteRecord));
 
 #[derive(Debug, Clone)]
 struct ArgExtent {
@@ -261,7 +261,7 @@ impl ArgExtent {
         self.extent = None;
     }
 
-    fn add(&mut self, index: usize, value: DynamicNumber, arg: &csv::ByteRecord) {
+    fn add(&mut self, index: usize, value: DynamicNumber, arg: &ByteRecord) {
         match &mut self.extent {
             None => {
                 self.extent = Some(((value, (index, arg.clone())), (value, (index, arg.clone()))))
@@ -286,6 +286,14 @@ impl ArgExtent {
 
     fn max(&self) -> Option<DynamicNumber> {
         self.extent.as_ref().map(|e| e.1 .0)
+    }
+
+    fn argmin(&self) -> Option<&(usize, ByteRecord)> {
+        self.extent.as_ref().map(|e| &e.0 .1)
+    }
+
+    fn argmax(&self) -> Option<&(usize, ByteRecord)> {
+        self.extent.as_ref().map(|e| &e.1 .1)
     }
 
     fn merge(&mut self, other: Self) {
@@ -781,7 +789,7 @@ impl Aggregator {
         &self,
         method: &ConcreteAggregationMethod,
         context: &EvaluationContext,
-    ) -> Result<DynamicValue, EvaluationError> {
+    ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         Ok(match (self, method) {
             (Self::AllAny(inner), ConcreteAggregationMethod::All) => {
                 DynamicValue::from(inner.all())
@@ -816,6 +824,16 @@ impl Aggregator {
             (Self::ArgExtent(inner), ConcreteAggregationMethod::Min) => {
                 DynamicValue::from(inner.min())
             }
+            (Self::ArgExtent(inner), ConcreteAggregationMethod::ArgMin(expr_opt)) => {
+                if let Some((index, record)) = inner.argmin() {
+                    match expr_opt {
+                        None => DynamicValue::from(*index),
+                        Some(expr) => return eval_expression(expr, Some(*index), record, context),
+                    }
+                } else {
+                    DynamicValue::None
+                }
+            }
             (Self::Welford(inner), ConcreteAggregationMethod::Mean) => {
                 DynamicValue::from(inner.mean())
             }
@@ -827,6 +845,16 @@ impl Aggregator {
             }
             (Self::ArgExtent(inner), ConcreteAggregationMethod::Max) => {
                 DynamicValue::from(inner.max())
+            }
+            (Self::ArgExtent(inner), ConcreteAggregationMethod::ArgMax(expr_opt)) => {
+                if let Some((index, record)) = inner.argmax() {
+                    match expr_opt {
+                        None => DynamicValue::from(*index),
+                        Some(expr) => return eval_expression(expr, Some(*index), record, context),
+                    }
+                } else {
+                    DynamicValue::None
+                }
             }
             (Self::Frequencies(inner), ConcreteAggregationMethod::Mode) => {
                 DynamicValue::from(inner.mode())
@@ -1083,7 +1111,7 @@ impl CompositeAggregator {
         handle: usize,
         method: &ConcreteAggregationMethod,
         context: &EvaluationContext,
-    ) -> Result<DynamicValue, EvaluationError> {
+    ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         self.methods[handle].get_final_value(method, context)
     }
 }
@@ -1144,8 +1172,8 @@ fn get_separator_from_optional_first_argument(args: Vec<ConcreteExpr>) -> Option
 enum ConcreteAggregationMethod {
     All,
     Any,
-    ArgMin(ConcreteExpr),
-    ArgMax(ConcreteExpr),
+    ArgMin(Option<ConcreteExpr>),
+    ArgMax(Option<ConcreteExpr>),
     Cardinality,
     Count,
     DistinctValues(String),
@@ -1173,8 +1201,8 @@ impl ConcreteAggregationMethod {
         Ok(match name {
             "all" => Self::All,
             "any" => Self::Any,
-            "argmin" => Self::ArgMin(args.pop().unwrap()),
-            "argmax" => Self::ArgMax(args.pop().unwrap()),
+            "argmin" => Self::ArgMin(args.pop()),
+            "argmax" => Self::ArgMax(args.pop()),
             "cardinality" => Self::Cardinality,
             "count" => Self::Count,
             "distinct_values" => {
@@ -1355,7 +1383,7 @@ impl ConcreteAggregationPlanner {
         &'a self,
         aggregators: &'a [CompositeAggregator],
         context: &'a EvaluationContext,
-    ) -> impl Iterator<Item = Result<DynamicValue, EvaluationError>> + 'a {
+    ) -> impl Iterator<Item = Result<DynamicValue, SpecifiedEvaluationError>> + 'a {
         self.output_plan.iter().map(move |unit| {
             aggregators[unit.expr_index].get_final_value(
                 unit.aggregator_index,
@@ -1445,7 +1473,7 @@ impl AggregationProgram {
         self.planner.headers()
     }
 
-    pub fn finalize(&mut self, parallel: bool) -> Result<ByteRecord, EvaluationError> {
+    pub fn finalize(&mut self, parallel: bool) -> Result<ByteRecord, SpecifiedEvaluationError> {
         for aggregator in self.aggregators.iter_mut() {
             aggregator.finalize(parallel);
         }
@@ -1504,7 +1532,7 @@ impl GroupAggregationProgram {
     pub fn into_byte_records(
         self,
         parallel: bool,
-    ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), EvaluationError>> {
+    ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), SpecifiedEvaluationError>> {
         let planner = self.planner;
         let context = self.context;
 
