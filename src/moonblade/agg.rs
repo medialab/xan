@@ -73,59 +73,76 @@ impl AllAny {
     }
 }
 
+// NOTE: I am splitting first and last because first can be more efficient
+// This is typically not the case for extents where the amount of copying
+// is mostly arbitrary
 #[derive(Debug, Clone)]
-struct FirstLast {
-    first: Option<(usize, DynamicValue)>,
-    last: Option<(usize, DynamicValue)>,
+struct First {
+    item: Option<(usize, DynamicValue)>,
 }
 
-impl FirstLast {
+impl First {
     fn new() -> Self {
-        Self {
-            first: None,
-            last: None,
-        }
+        Self { item: None }
     }
 
     fn clear(&mut self) {
-        self.first = None;
-        self.last = None;
+        self.item = None;
     }
 
     fn add(&mut self, index: usize, next_value: &DynamicValue) {
-        if self.first.is_none() {
-            self.first = Some((index, next_value.clone()));
+        if self.item.is_none() {
+            self.item = Some((index, next_value.clone()));
         }
-
-        self.last = Some((index, next_value.clone()));
     }
 
     fn first(&self) -> Option<DynamicValue> {
-        self.first.as_ref().map(|p| p.1.clone())
-    }
-
-    fn last(&self) -> Option<DynamicValue> {
-        self.last.as_ref().map(|p| p.1.clone())
+        self.item.as_ref().map(|p| p.1.clone())
     }
 
     fn merge(&mut self, other: Self) {
-        match self.first.as_ref() {
-            None => self.first = other.first,
+        match self.item.as_ref() {
+            None => self.item = other.item,
             Some((i, _)) => {
-                if let Some((j, _)) = other.first.as_ref() {
+                if let Some((j, _)) = other.item.as_ref() {
                     if i > j {
-                        self.first = other.first;
+                        self.item = other.item;
                     }
                 }
             }
         };
+    }
+}
 
-        match self.last.as_ref() {
-            None => self.last = other.last,
+#[derive(Debug, Clone)]
+struct Last {
+    item: Option<(usize, DynamicValue)>,
+}
+
+impl Last {
+    fn new() -> Self {
+        Self { item: None }
+    }
+
+    fn clear(&mut self) {
+        self.item = None;
+    }
+
+    fn add(&mut self, index: usize, next_value: &DynamicValue) {
+        self.item = Some((index, next_value.clone()));
+    }
+
+    fn last(&self) -> Option<DynamicValue> {
+        self.item.as_ref().map(|p| p.1.clone())
+    }
+
+    fn merge(&mut self, other: Self) {
+        match self.item.as_ref() {
+            None => self.item = other.item,
             Some((i, _)) => {
-                if let Some((j, _)) = other.last.as_ref() {
+                if let Some((j, _)) = other.item.as_ref() {
                     if i < j {
-                        self.last = other.last;
+                        self.item = other.item;
                     }
                 }
             }
@@ -682,7 +699,8 @@ build_aggregation_method_enum!(
     AllAny,
     Count,
     Extent,
-    FirstLast,
+    First,
+    Last,
     Values,
     LexicographicExtent,
     Frequencies,
@@ -710,10 +728,10 @@ impl Aggregator {
             (Self::Frequencies(inner), ConcreteAggregationMethod::DistinctValues(separator)) => {
                 DynamicValue::from(inner.join(separator))
             }
-            (Self::FirstLast(inner), ConcreteAggregationMethod::First) => {
+            (Self::First(inner), ConcreteAggregationMethod::First) => {
                 DynamicValue::from(inner.first())
             }
-            (Self::FirstLast(inner), ConcreteAggregationMethod::Last) => {
+            (Self::Last(inner), ConcreteAggregationMethod::Last) => {
                 DynamicValue::from(inner.last())
             }
             (Self::LexicographicExtent(inner), ConcreteAggregationMethod::LexFirst) => {
@@ -843,8 +861,11 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
                 upsert_aggregator!(Extent)
             }
-            ConcreteAggregationMethod::First | ConcreteAggregationMethod::Last => {
-                upsert_aggregator!(FirstLast)
+            ConcreteAggregationMethod::First => {
+                upsert_aggregator!(First)
+            }
+            ConcreteAggregationMethod::Last => {
+                upsert_aggregator!(Last)
             }
             ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
                 upsert_aggregator!(LexicographicExtent)
@@ -895,9 +916,14 @@ impl CompositeAggregator {
                     Aggregator::Extent(extent) => {
                         extent.add(value.try_as_number()?);
                     }
-                    Aggregator::FirstLast(firstlast) => {
+                    Aggregator::First(first) => {
                         if !value.is_nullish() {
-                            firstlast.add(index, value);
+                            first.add(index, value);
+                        }
+                    }
+                    Aggregator::Last(last) => {
+                        if !value.is_nullish() {
+                            last.add(index, value);
                         }
                     }
                     Aggregator::LexicographicExtent(extent) => {
