@@ -245,6 +245,71 @@ impl Extent {
     }
 }
 
+// type ArgExtentEntry = (DynamicNumber, (usize, csv::ByteRecord));
+
+// #[derive(Debug, Clone)]
+// struct ArgExtent {
+//     extent: Option<(ArgExtentEntry, ArgExtentEntry)>,
+// }
+
+// impl ArgExtent {
+//     fn new() -> Self {
+//         Self { extent: None }
+//     }
+
+//     fn clear(&mut self) {
+//         self.extent = None;
+//     }
+
+//     fn add(&mut self, index: usize, value: DynamicNumber, arg: &csv::ByteRecord) {
+//         match &mut self.extent {
+//             None => {
+//                 self.extent = Some(((value, (index, arg.clone())), (value, (index, arg.clone()))))
+//             }
+//             Some(((min, min_arg), (max, max_arg))) => {
+//                 if value < *min {
+//                     *min = value;
+//                     *min_arg = (index, arg.clone());
+//                 }
+
+//                 if value > *max {
+//                     *max = value;
+//                     *max_arg = (index, arg.clone());
+//                 }
+//             }
+//         }
+//     }
+
+//     fn min(&self) -> Option<DynamicNumber> {
+//         self.extent.as_ref().map(|e| e.0 .0)
+//     }
+
+//     fn max(&self) -> Option<DynamicNumber> {
+//         self.extent.as_ref().map(|e| e.1 .0)
+//     }
+
+//     fn merge(&mut self, other: Self) {
+//         match self.extent.as_mut() {
+//             None => {
+//                 self.extent = other.extent;
+//             }
+//             Some(((min, arg_min), (max, arg_max))) => {
+//                 if let Some(((other_min, arg_other_min), (other_max, arg_other_max))) = other.extent
+//                 {
+//                     if other_min < *min {
+//                         *min = other_min;
+//                         *arg_min = arg_other_min;
+//                     }
+//                     if other_max > *max {
+//                         *max = other_max;
+//                         *arg_max = arg_other_max;
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
 #[derive(Debug, Clone)]
 struct LexicographicExtent {
     extent: Option<(String, String)>,
