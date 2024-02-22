@@ -7,6 +7,6 @@ mod types;
 mod utils;
 
 pub use self::agg::{AggregationProgram, GroupAggregationProgram};
-pub use self::error::{ConcretizationError, SpecifiedEvaluationError};
+pub use self::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 pub use self::interpreter::Program;
 pub use self::types::DynamicValue;

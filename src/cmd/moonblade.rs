@@ -8,7 +8,7 @@ use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 
 use config::{Config, Delimiter};
-use moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
+use moonblade::{DynamicValue, EvaluationError, Program, SpecifiedEvaluationError};
 use select::SelectColumns;
 use util::ImmutableRecordHelpers;
 use CliError;
@@ -495,7 +495,7 @@ impl MoonbladeErrorPolicy {
         matches!(self, Self::Report)
     }
 
-    pub fn handle_error(
+    pub fn handle_row_error(
         &self,
         index: usize,
         error: SpecifiedEvaluationError,
@@ -508,6 +508,24 @@ impl MoonbladeErrorPolicy {
                 Ok(())
             }
             _ => unreachable!(),
+        }
+    }
+
+    pub fn handle_error<T: Default>(
+        &self,
+        result: Result<T, EvaluationError>,
+    ) -> Result<T, EvaluationError> {
+        match result {
+            Ok(value) => Ok(value),
+            Err(err) => match self {
+                MoonbladeErrorPolicy::Panic => Err(err)?,
+                MoonbladeErrorPolicy::Ignore => Ok(T::default()),
+                MoonbladeErrorPolicy::Log => {
+                    eprintln!("{}", err);
+                    Ok(T::default())
+                }
+                _ => unreachable!(),
+            },
         }
     }
 }

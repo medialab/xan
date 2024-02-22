@@ -168,7 +168,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         write_group(
                             &mut wtr,
                             current_group,
-                            &program.finalize(args.flag_parallel),
+                            &error_policy.handle_error(program.finalize(args.flag_parallel))?,
                         )?;
                         program.clear();
                         current = Some(group);
@@ -178,7 +178,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             program
                 .run_with_record(index, &record)
-                .or_else(|error| error_policy.handle_error(index, error))?;
+                .or_else(|error| error_policy.handle_row_error(index, error))?;
         }
 
         // Flushing final group
@@ -186,7 +186,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write_group(
                 &mut wtr,
                 &current_group,
-                &program.finalize(args.flag_parallel),
+                &error_policy.handle_error(program.finalize(args.flag_parallel))?,
             )?;
         }
     } else {
@@ -207,10 +207,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             program
                 .run_with_record(group, index, &record)
-                .or_else(|error| error_policy.handle_error(index, error))?;
+                .or_else(|error| error_policy.handle_row_error(index, error))?;
         }
 
-        for (group, group_record) in program.into_byte_records(args.flag_parallel) {
+        for result in program.into_byte_records(args.flag_parallel) {
+            let (group, group_record) = error_policy.handle_error(result)?;
+
             write_group(&mut wtr, &group, &group_record)?;
         }
     }

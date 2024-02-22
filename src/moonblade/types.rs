@@ -466,6 +466,12 @@ pub enum DynamicValue {
     None,
 }
 
+impl Default for DynamicValue {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
 impl DynamicValue {
     pub fn type_of(&self) -> &str {
         match self {

@@ -136,7 +136,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             program
                 .run_with_record(index, &record)
-                .or_else(|error| error_policy.handle_error(index, error))?;
+                .or_else(|error| error_policy.handle_row_error(index, error))?;
         }
     } else {
         // NOTE: it looks like parallelization is basically moot if the inner
@@ -161,7 +161,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     local_program
                         .run_with_record(index, &record)
-                        .or_else(|error| error_policy.handle_error(index, error))?;
+                        .or_else(|error| error_policy.handle_row_error(index, error))?;
                 }
 
                 Ok(())
@@ -172,7 +172,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    wtr.write_byte_record(&program.finalize(args.flag_parallel))?;
+    wtr.write_byte_record(&error_policy.handle_error(program.finalize(args.flag_parallel))?)?;
 
     Ok(wtr.flush()?)
 }

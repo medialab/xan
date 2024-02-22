@@ -245,70 +245,70 @@ impl Extent {
     }
 }
 
-// type ArgExtentEntry = (DynamicNumber, (usize, csv::ByteRecord));
+type ArgExtentEntry = (DynamicNumber, (usize, csv::ByteRecord));
 
-// #[derive(Debug, Clone)]
-// struct ArgExtent {
-//     extent: Option<(ArgExtentEntry, ArgExtentEntry)>,
-// }
+#[derive(Debug, Clone)]
+struct ArgExtent {
+    extent: Option<(ArgExtentEntry, ArgExtentEntry)>,
+}
 
-// impl ArgExtent {
-//     fn new() -> Self {
-//         Self { extent: None }
-//     }
+impl ArgExtent {
+    fn new() -> Self {
+        Self { extent: None }
+    }
 
-//     fn clear(&mut self) {
-//         self.extent = None;
-//     }
+    fn clear(&mut self) {
+        self.extent = None;
+    }
 
-//     fn add(&mut self, index: usize, value: DynamicNumber, arg: &csv::ByteRecord) {
-//         match &mut self.extent {
-//             None => {
-//                 self.extent = Some(((value, (index, arg.clone())), (value, (index, arg.clone()))))
-//             }
-//             Some(((min, min_arg), (max, max_arg))) => {
-//                 if value < *min {
-//                     *min = value;
-//                     *min_arg = (index, arg.clone());
-//                 }
+    fn add(&mut self, index: usize, value: DynamicNumber, arg: &csv::ByteRecord) {
+        match &mut self.extent {
+            None => {
+                self.extent = Some(((value, (index, arg.clone())), (value, (index, arg.clone()))))
+            }
+            Some(((min, min_arg), (max, max_arg))) => {
+                if value < *min {
+                    *min = value;
+                    *min_arg = (index, arg.clone());
+                }
 
-//                 if value > *max {
-//                     *max = value;
-//                     *max_arg = (index, arg.clone());
-//                 }
-//             }
-//         }
-//     }
+                if value > *max {
+                    *max = value;
+                    *max_arg = (index, arg.clone());
+                }
+            }
+        }
+    }
 
-//     fn min(&self) -> Option<DynamicNumber> {
-//         self.extent.as_ref().map(|e| e.0 .0)
-//     }
+    fn min(&self) -> Option<DynamicNumber> {
+        self.extent.as_ref().map(|e| e.0 .0)
+    }
 
-//     fn max(&self) -> Option<DynamicNumber> {
-//         self.extent.as_ref().map(|e| e.1 .0)
-//     }
+    fn max(&self) -> Option<DynamicNumber> {
+        self.extent.as_ref().map(|e| e.1 .0)
+    }
 
-//     fn merge(&mut self, other: Self) {
-//         match self.extent.as_mut() {
-//             None => {
-//                 self.extent = other.extent;
-//             }
-//             Some(((min, arg_min), (max, arg_max))) => {
-//                 if let Some(((other_min, arg_other_min), (other_max, arg_other_max))) = other.extent
-//                 {
-//                     if other_min < *min {
-//                         *min = other_min;
-//                         *arg_min = arg_other_min;
-//                     }
-//                     if other_max > *max {
-//                         *max = other_max;
-//                         *arg_max = arg_other_max;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
+    fn merge(&mut self, other: Self) {
+        match self.extent.as_mut() {
+            None => {
+                self.extent = other.extent;
+            }
+            Some(((min, arg_min), (max, arg_max))) => {
+                if let Some(((other_min, arg_other_min), (other_max, arg_other_max))) = other.extent
+                {
+                    if other_min < *min {
+                        *min = other_min;
+                        *arg_min = arg_other_min;
+                    }
+                    if other_max > *max {
+                        *max = other_max;
+                        *arg_max = arg_other_max;
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct LexicographicExtent {
@@ -762,6 +762,7 @@ macro_rules! build_aggregation_method_enum {
 
 build_aggregation_method_enum!(
     AllAny,
+    ArgExtent,
     Count,
     Extent,
     First,
@@ -776,8 +777,12 @@ build_aggregation_method_enum!(
 );
 
 impl Aggregator {
-    fn get_final_value(&self, method: &ConcreteAggregationMethod) -> DynamicValue {
-        match (self, method) {
+    fn get_final_value(
+        &self,
+        method: &ConcreteAggregationMethod,
+        context: &EvaluationContext,
+    ) -> Result<DynamicValue, EvaluationError> {
+        Ok(match (self, method) {
             (Self::AllAny(inner), ConcreteAggregationMethod::All) => {
                 DynamicValue::from(inner.all())
             }
@@ -808,6 +813,9 @@ impl Aggregator {
             (Self::Extent(inner), ConcreteAggregationMethod::Min) => {
                 DynamicValue::from(inner.min())
             }
+            (Self::ArgExtent(inner), ConcreteAggregationMethod::Min) => {
+                DynamicValue::from(inner.min())
+            }
             (Self::Welford(inner), ConcreteAggregationMethod::Mean) => {
                 DynamicValue::from(inner.mean())
             }
@@ -815,6 +823,9 @@ impl Aggregator {
                 DynamicValue::from(inner.median(median_type))
             }
             (Self::Extent(inner), ConcreteAggregationMethod::Max) => {
+                DynamicValue::from(inner.max())
+            }
+            (Self::ArgExtent(inner), ConcreteAggregationMethod::Max) => {
                 DynamicValue::from(inner.max())
             }
             (Self::Frequencies(inner), ConcreteAggregationMethod::Mode) => {
@@ -843,7 +854,7 @@ impl Aggregator {
                 DynamicValue::from(inner.join(separator))
             }
             _ => unreachable!(),
-        }
+        })
     }
 }
 
@@ -902,10 +913,11 @@ impl CompositeAggregator {
     fn add_method(&mut self, method: &ConcreteAggregationMethod) -> usize {
         macro_rules! upsert_aggregator {
             ($variant: ident) => {
-                match self.methods.iter().position(|item| match item {
-                    Aggregator::$variant(_) => true,
-                    _ => false,
-                }) {
+                match self
+                    .methods
+                    .iter()
+                    .position(|item| matches!(item, Aggregator::$variant(_)))
+                {
                     Some(idx) => idx,
                     None => {
                         let idx = self.methods.len();
@@ -924,7 +936,29 @@ impl CompositeAggregator {
                 upsert_aggregator!(Count)
             }
             ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
-                upsert_aggregator!(Extent)
+                // NOTE: if some ArgExtent already exists, we merge into it.
+                match self
+                    .methods
+                    .iter()
+                    .position(|item| matches!(item, Aggregator::ArgExtent(_)))
+                {
+                    None => upsert_aggregator!(Extent),
+                    Some(idx) => idx,
+                }
+            }
+            ConcreteAggregationMethod::ArgMin(_) | ConcreteAggregationMethod::ArgMax(_) => {
+                // NOTE: if some Extent exist, we replace it
+                match self
+                    .methods
+                    .iter()
+                    .position(|item| matches!(item, Aggregator::Extent(_)))
+                {
+                    None => upsert_aggregator!(ArgExtent),
+                    Some(idx) => {
+                        self.methods[idx] = Aggregator::ArgExtent(ArgExtent::new());
+                        idx
+                    }
+                }
             }
             ConcreteAggregationMethod::First => {
                 upsert_aggregator!(First)
@@ -966,6 +1000,7 @@ impl CompositeAggregator {
         &mut self,
         index: usize,
         value_opt: Option<DynamicValue>,
+        record: &ByteRecord,
     ) -> Result<(), EvaluationError> {
         for method in self.methods.iter_mut() {
             match value_opt.as_ref() {
@@ -980,6 +1015,9 @@ impl CompositeAggregator {
                     }
                     Aggregator::Extent(extent) => {
                         extent.add(value.try_as_number()?);
+                    }
+                    Aggregator::ArgExtent(extent) => {
+                        extent.add(index, value.try_as_number()?, record);
                     }
                     Aggregator::First(first) => {
                         if !value.is_nullish() {
@@ -1040,8 +1078,13 @@ impl CompositeAggregator {
         }
     }
 
-    fn get_final_value(&self, handle: usize, method: &ConcreteAggregationMethod) -> DynamicValue {
-        self.methods[handle].get_final_value(method)
+    fn get_final_value(
+        &self,
+        handle: usize,
+        method: &ConcreteAggregationMethod,
+        context: &EvaluationContext,
+    ) -> Result<DynamicValue, EvaluationError> {
+        self.methods[handle].get_final_value(method, context)
     }
 }
 
@@ -1062,7 +1105,7 @@ fn validate_aggregation_function_arity(
                 Ok(())
             }
         }
-        "values" | "distinct_values" => {
+        "values" | "distinct_values" | "argmin" | "argmax" => {
             if !(1..=2).contains(&arity) {
                 Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.func_name.clone(),
@@ -1101,6 +1144,8 @@ fn get_separator_from_optional_first_argument(args: Vec<ConcreteExpr>) -> Option
 enum ConcreteAggregationMethod {
     All,
     Any,
+    ArgMin(ConcreteExpr),
+    ArgMax(ConcreteExpr),
     Cardinality,
     Count,
     DistinctValues(String),
@@ -1124,10 +1169,12 @@ enum ConcreteAggregationMethod {
 }
 
 impl ConcreteAggregationMethod {
-    fn parse(name: &str, args: Vec<ConcreteExpr>) -> Result<Self, ConcretizationError> {
+    fn parse(name: &str, mut args: Vec<ConcreteExpr>) -> Result<Self, ConcretizationError> {
         Ok(match name {
             "all" => Self::All,
             "any" => Self::Any,
+            "argmin" => Self::ArgMin(args.pop().unwrap()),
+            "argmax" => Self::ArgMax(args.pop().unwrap()),
             "cardinality" => Self::Cardinality,
             "count" => Self::Count,
             "distinct_values" => {
@@ -1307,9 +1354,14 @@ impl ConcreteAggregationPlanner {
     fn results<'a>(
         &'a self,
         aggregators: &'a [CompositeAggregator],
-    ) -> impl Iterator<Item = DynamicValue> + 'a {
+        context: &'a EvaluationContext,
+    ) -> impl Iterator<Item = Result<DynamicValue, EvaluationError>> + 'a {
         self.output_plan.iter().map(move |unit| {
-            aggregators[unit.expr_index].get_final_value(unit.aggregator_index, &unit.agg_method)
+            aggregators[unit.expr_index].get_final_value(
+                unit.aggregator_index,
+                &unit.agg_method,
+                context,
+            )
         })
     }
 }
@@ -1331,7 +1383,7 @@ fn run_with_record_on_aggregators(
         };
 
         aggregator
-            .process_value(index, value)
+            .process_value(index, value, record)
             .map_err(|err| SpecifiedEvaluationError {
                 reason: err,
                 function_name: format!("<agg-expr: {}>", unit.expr_key),
@@ -1393,18 +1445,18 @@ impl AggregationProgram {
         self.planner.headers()
     }
 
-    pub fn finalize(&mut self, parallel: bool) -> ByteRecord {
+    pub fn finalize(&mut self, parallel: bool) -> Result<ByteRecord, EvaluationError> {
         for aggregator in self.aggregators.iter_mut() {
             aggregator.finalize(parallel);
         }
 
         let mut record = ByteRecord::new();
 
-        for value in self.planner.results(&self.aggregators) {
-            record.push_field(&value.serialize_as_bytes());
+        for value in self.planner.results(&self.aggregators, &self.context) {
+            record.push_field(&value?.serialize_as_bytes());
         }
 
-        record
+        Ok(record)
     }
 }
 
@@ -1449,8 +1501,12 @@ impl GroupAggregationProgram {
         self.planner.headers()
     }
 
-    pub fn into_byte_records(self, parallel: bool) -> impl Iterator<Item = (GroupKey, ByteRecord)> {
+    pub fn into_byte_records(
+        self,
+        parallel: bool,
+    ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), EvaluationError>> {
         let planner = self.planner;
+        let context = self.context;
 
         self.groups
             .into_iter()
@@ -1461,11 +1517,11 @@ impl GroupAggregationProgram {
 
                 let mut record = ByteRecord::new();
 
-                for value in planner.results(&aggregators) {
-                    record.push_field(&value.serialize_as_bytes());
+                for value in planner.results(&aggregators, &context) {
+                    record.push_field(&value?.serialize_as_bytes());
                 }
 
-                (group, record)
+                Ok((group, record))
             })
     }
 }
