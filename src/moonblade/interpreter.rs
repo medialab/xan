@@ -12,10 +12,20 @@ use super::types::{
 };
 
 #[derive(Debug, Clone)]
-pub struct EvaluationContext<'a> {
-    pub headers_index: &'a HeadersIndex,
-    pub index: Option<usize>,
-    pub record: &'a ByteRecord,
+pub struct EvaluationContext {
+    headers_index: HeadersIndex,
+}
+
+impl EvaluationContext {
+    pub fn new(headers: &ByteRecord) -> Self {
+        Self {
+            headers_index: HeadersIndex::from_headers(headers),
+        }
+    }
+
+    pub fn get_column_index(&self, indexation: &ColumIndexationBy) -> Option<usize> {
+        self.headers_index.get(indexation)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -29,13 +39,10 @@ pub enum ConcreteExpr {
 // NOTE: the bind/evaluate distinction is still useful to propagate the calling
 // function context when constructing specified errors.
 impl ConcreteExpr {
-    fn bind<'a>(
-        &'a self,
-        context: &'a EvaluationContext,
-    ) -> Result<BoundArgument<'a>, EvaluationError> {
+    fn bind<'a>(&'a self, record: &ByteRecord) -> Result<BoundArgument<'a>, EvaluationError> {
         Ok(match self {
             Self::Value(value) => Cow::Borrowed(value),
-            Self::Column(index) => match context.record.get(*index) {
+            Self::Column(index) => match record.get(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
                 Some(cell) => match std::str::from_utf8(cell) {
                     Err(_) => return Err(EvaluationError::UnicodeDecodeError),
@@ -46,11 +53,16 @@ impl ConcreteExpr {
         })
     }
 
-    fn evaluate<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
+    fn evaluate<'a>(
+        &'a self,
+        index: Option<usize>,
+        record: &ByteRecord,
+        context: &'a EvaluationContext,
+    ) -> EvaluationResult<'a> {
         match self {
-            Self::Call(function_call) => function_call.run(context),
-            Self::SpecialCall(function_call) => function_call.run(context),
-            _ => self.bind(context).map_err(|err| SpecifiedEvaluationError {
+            Self::Call(function_call) => function_call.run(index, record, context),
+            Self::SpecialCall(function_call) => function_call.run(index, record, context),
+            _ => self.bind(record).map_err(|err| SpecifiedEvaluationError {
                 function_name: "<expr>".to_string(),
                 reason: err,
             }),
@@ -66,23 +78,26 @@ pub struct ConcreteFunctionCall {
 }
 
 impl ConcreteFunctionCall {
-    fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
+    fn run<'a>(
+        &'a self,
+        index: Option<usize>,
+        record: &ByteRecord,
+        context: &'a EvaluationContext,
+    ) -> EvaluationResult<'a> {
         let mut bound_args = BoundArguments::new();
 
         for arg in self.args.iter() {
             match arg {
                 ConcreteExpr::Call(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(context)?);
+                    bound_args.push(sub_function_call.run(index, record, context)?);
                 }
                 ConcreteExpr::SpecialCall(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(context)?);
+                    bound_args.push(sub_function_call.run(index, record, context)?);
                 }
-                _ => {
-                    bound_args.push(arg.bind(context).map_err(|err| SpecifiedEvaluationError {
-                        function_name: self.name.to_string(),
-                        reason: err,
-                    })?)
-                }
+                _ => bound_args.push(arg.bind(record).map_err(|err| SpecifiedEvaluationError {
+                    function_name: self.name.to_string(),
+                    reason: err,
+                })?),
             }
         }
 
@@ -149,7 +164,12 @@ pub struct ConcreteSpecialFunctionCall {
 }
 
 impl ConcreteSpecialFunctionCall {
-    fn run<'a>(&'a self, context: &'a EvaluationContext) -> EvaluationResult<'a> {
+    fn run<'a>(
+        &'a self,
+        index: Option<usize>,
+        record: &ByteRecord,
+        context: &'a EvaluationContext,
+    ) -> EvaluationResult<'a> {
         match self.kind {
             SpecialFunction::If(reverse) => {
                 let arity = self.args.len();
@@ -162,7 +182,7 @@ impl ConcreteSpecialFunctionCall {
                 }
 
                 let condition = &self.args[0];
-                let result = condition.evaluate(context)?;
+                let result = condition.evaluate(index, record, context)?;
 
                 let mut branch: Option<&ConcreteExpr> = None;
 
@@ -180,7 +200,7 @@ impl ConcreteSpecialFunctionCall {
 
                 match branch {
                     None => Ok(Cow::Owned(DynamicValue::None)),
-                    Some(arg) => arg.evaluate(context),
+                    Some(arg) => arg.evaluate(index, record, context),
                 }
             }
 
@@ -194,9 +214,13 @@ impl ConcreteSpecialFunctionCall {
                     });
                 }
 
-                let name_or_pos = self.args.first().unwrap().evaluate(context)?;
+                let name_or_pos = self
+                    .args
+                    .first()
+                    .unwrap()
+                    .evaluate(index, record, context)?;
                 let pos = match self.args.get(1) {
-                    Some(p) => Some(p.evaluate(context)?),
+                    Some(p) => Some(p.evaluate(index, record, context)?),
                     None => None,
                 };
 
@@ -205,12 +229,12 @@ impl ConcreteSpecialFunctionCall {
                         function_name: self.kind.name().to_string(),
                         reason: EvaluationError::Custom("invalid arguments".to_string()),
                     }),
-                    Some(indexation) => match context.headers_index.get(&indexation) {
+                    Some(indexation) => match context.get_column_index(&indexation) {
                         None => Err(SpecifiedEvaluationError {
                             function_name: self.kind.name().to_string(),
                             reason: EvaluationError::ColumnNotFound(indexation),
                         }),
-                        Some(index) => match std::str::from_utf8(&context.record[index]) {
+                        Some(index) => match std::str::from_utf8(&record[index]) {
                             Err(_) => Err(SpecifiedEvaluationError {
                                 function_name: self.kind.name().to_string(),
                                 reason: EvaluationError::UnicodeDecodeError,
@@ -221,7 +245,7 @@ impl ConcreteSpecialFunctionCall {
                 }
             }
 
-            SpecialFunction::Index => Ok(Cow::Owned(match context.index {
+            SpecialFunction::Index => Ok(Cow::Owned(match index {
                 None => DynamicValue::None,
                 Some(index) => DynamicValue::from(index),
             })),
@@ -321,23 +345,18 @@ pub fn concretize_expression(
 
 pub fn eval_expression(
     expr: &ConcreteExpr,
-    record: &ByteRecord,
-    headers_index: &HeadersIndex,
     index: Option<usize>,
+    record: &ByteRecord,
+    context: &EvaluationContext,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let context = EvaluationContext {
-        record,
-        index,
-        headers_index,
-    };
-
-    expr.evaluate(&context).map(|value| value.into_owned())
+    expr.evaluate(index, record, context)
+        .map(|value| value.into_owned())
 }
 
 #[derive(Clone)]
 pub struct Program {
     expr: ConcreteExpr,
-    headers_index: HeadersIndex,
+    context: EvaluationContext,
 }
 
 impl Program {
@@ -349,7 +368,7 @@ impl Program {
 
         Ok(Self {
             expr,
-            headers_index: HeadersIndex::from_headers(headers),
+            context: EvaluationContext::new(headers),
         })
     }
 
@@ -358,7 +377,7 @@ impl Program {
         index: usize,
         record: &ByteRecord,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression(&self.expr, record, &self.headers_index, Some(index))
+        eval_expression(&self.expr, Some(index), record, &self.context)
     }
 }
 

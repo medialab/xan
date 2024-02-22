@@ -4,9 +4,9 @@ use csv::ByteRecord;
 use rayon::prelude::*;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
+use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
-use super::types::{DynamicNumber, DynamicValue, HeadersIndex};
+use super::types::{DynamicNumber, DynamicValue};
 
 #[derive(Debug, Clone)]
 struct Count {
@@ -1322,12 +1322,12 @@ fn run_with_record_on_aggregators(
     aggregators: &mut Vec<CompositeAggregator>,
     index: usize,
     record: &ByteRecord,
-    headers_index: &HeadersIndex,
+    context: &EvaluationContext,
 ) -> Result<(), SpecifiedEvaluationError> {
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(eval_expression(expr, record, headers_index, Some(index))?),
+            Some(expr) => Some(eval_expression(expr, Some(index), record, context)?),
         };
 
         aggregator
@@ -1345,7 +1345,7 @@ fn run_with_record_on_aggregators(
 pub struct AggregationProgram {
     aggregators: Vec<CompositeAggregator>,
     planner: ConcreteAggregationPlanner,
-    headers_index: HeadersIndex,
+    context: EvaluationContext,
 }
 
 impl AggregationProgram {
@@ -1357,7 +1357,7 @@ impl AggregationProgram {
         Ok(Self {
             planner,
             aggregators,
-            headers_index: HeadersIndex::from_headers(headers),
+            context: EvaluationContext::new(headers),
         })
     }
 
@@ -1385,7 +1385,7 @@ impl AggregationProgram {
             &mut self.aggregators,
             index,
             record,
-            &self.headers_index,
+            &self.context,
         )
     }
 
@@ -1414,7 +1414,7 @@ type GroupKey = Vec<Vec<u8>>;
 pub struct GroupAggregationProgram {
     planner: ConcreteAggregationPlanner,
     groups: HashMap<GroupKey, Vec<CompositeAggregator>>,
-    headers_index: HeadersIndex,
+    context: EvaluationContext,
 }
 
 impl GroupAggregationProgram {
@@ -1425,7 +1425,7 @@ impl GroupAggregationProgram {
         Ok(Self {
             planner,
             groups: HashMap::new(),
-            headers_index: HeadersIndex::from_headers(headers),
+            context: EvaluationContext::new(headers),
         })
     }
 
@@ -1442,13 +1442,7 @@ impl GroupAggregationProgram {
             .entry(group)
             .or_insert_with(|| planner.instantiate_aggregators());
 
-        run_with_record_on_aggregators(
-            &self.planner,
-            aggregators,
-            index,
-            record,
-            &self.headers_index,
-        )
+        run_with_record_on_aggregators(&self.planner, aggregators, index, record, &self.context)
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
