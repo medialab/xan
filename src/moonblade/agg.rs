@@ -556,10 +556,6 @@ impl Welford {
         self.m2 = m2;
     }
 
-    fn count(&self) -> usize {
-        self.count
-    }
-
     fn mean(&self) -> Option<f64> {
         if self.count == 0 {
             return None;
@@ -1616,9 +1612,9 @@ impl Stats {
 
         self.count.add();
 
-        let string = std::str::from_utf8(cell).expect("could not decode as utf-8");
+        let cell = std::str::from_utf8(cell).expect("could not decode as utf-8");
 
-        if let Ok(number) = string.parse::<DynamicNumber>() {
+        if let Ok(number) = cell.parse::<DynamicNumber>() {
             self.sum.add(number);
             self.welford.add(number.as_float());
             self.extent.add(number);
@@ -1636,8 +1632,10 @@ impl Stats {
         }
 
         if let Some(frequencies) = self.frequencies.as_mut() {
-            // frequencies.add()
+            frequencies.add(cell.to_string());
         }
+
+        self.lexicograhic_extent.add(cell);
     }
 }
 
