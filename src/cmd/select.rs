@@ -14,24 +14,31 @@ name if there is a header row (duplicate column names can be disambiguated with
 more indexing). Finally, column ranges can be specified.
 
   Select the first and fourth columns:
-  $ xan select 0,3
+    $ xan select 0,3
 
   Select the first 4 columns (by index and by name):
-  $ xan select 0-3
-  $ xan select Header1-Header4
+    $ xan select 0-3
+    $ xan select Header1-Header4
 
   Ignore the first 2 columns (by range and by omission):
-  $ xan select 2-
-  $ xan select '!0-1'
+    $ xan select 2-
+    $ xan select '!0-1'
 
   Select the third column named 'Foo':
-  $ xan select 'Foo[2]'
+    $ xan select 'Foo[2]'
 
   Re-order and duplicate columns arbitrarily:
-  $ xan select 3-1,Header3-Header1,Header1,Foo[2],Header1
+    $ xan select 3-1,Header3-Header1,Header1,Foo[2],Header1
 
   Quote column names that conflict with selector syntax:
-  $ xan select '\"Date - Opening\",\"Date - Actual Closing\"'
+    $ xan select '\"Date - Opening\",\"Date - Actual Closing\"'
+
+  Select all the columns (useful to add some copies of columns):
+    $ xan select '*'
+    $ xan select '*,name'
+    $ xan select '*,1'
+    $ xan select '0-'
+    $ xan select '-0'
 
 Usage:
     xan select [options] [--] <selection> [<input>]

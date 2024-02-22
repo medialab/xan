@@ -78,6 +78,21 @@ select_test!(select_simple, "h1", "0", ["h1"], ["a"]);
 select_test!(select_simple_idx, "h1[0]", "0", ["h1"], ["a"]);
 select_test!(select_simple_idx_2, "h1[1]", "4", ["h1"], ["e"]);
 
+select_test!(
+    select_all,
+    "*",
+    "*",
+    ["h1", "h2", "h[]3", "h4", "h1"],
+    ["a", "b", "c", "d", "e"]
+);
+select_test!(
+    select_all_then_some,
+    "*,h2",
+    "*,1",
+    ["h1", "h2", "h[]3", "h4", "h1", "h2"],
+    ["a", "b", "c", "d", "e", "b"]
+);
+
 select_test!(select_quoted, r#""h[]3""#, "2", ["h[]3"], ["c"]);
 select_test!(select_quoted_idx, r#""h[]3"[0]"#, "2", ["h[]3"], ["c"]);
 

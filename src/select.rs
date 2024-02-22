@@ -102,11 +102,24 @@ impl SelectorParser {
             if self.cur().is_none() {
                 break;
             }
+
+            if self.cur() == Some('*') {
+                sels.push(Selector::All);
+
+                self.bump();
+                if self.is_end_of_selector() {
+                    self.bump();
+                }
+
+                continue;
+            }
+
             let f1: OneSelector = if self.cur() == Some('-') {
                 OneSelector::Start
             } else {
                 self.parse_one()?
             };
+
             let f2: Option<OneSelector> = if self.cur() == Some('-') {
                 self.bump();
                 Some(if self.is_end_of_selector() {
@@ -117,16 +130,19 @@ impl SelectorParser {
             } else {
                 None
             };
+
             if !self.is_end_of_selector() {
                 return Err(format!(
                     "Expected end of field but got '{}' instead.",
                     self.cur().unwrap()
                 ));
             }
+
             sels.push(match f2 {
                 Some(end) => Selector::Range(f1, end),
                 None => Selector::One(f1),
             });
+
             self.bump();
         }
         Ok(sels)
@@ -235,6 +251,7 @@ impl SelectorParser {
 enum Selector {
     One(OneSelector),
     Range(OneSelector, OneSelector),
+    All,
 }
 
 #[derive(Clone)]
@@ -252,6 +269,7 @@ impl Selector {
         use_names: bool,
     ) -> Result<Vec<usize>, String> {
         match *self {
+            Selector::All => Ok((0..first_record.len()).collect()),
             Selector::One(ref sel) => sel.index(first_record, use_names).map(|i| vec![i]),
             Selector::Range(ref sel1, ref sel2) => {
                 let i1 = sel1.index(first_record, use_names)?;
@@ -337,6 +355,7 @@ impl OneSelector {
 impl fmt::Debug for Selector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Selector::All => write!(f, "All"),
             Selector::One(ref sel) => sel.fmt(f),
             Selector::Range(ref s, ref e) => write!(f, "Range({:?}, {:?})", s, e),
         }
