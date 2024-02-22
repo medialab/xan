@@ -1042,10 +1042,14 @@ impl CompositeAggregator {
                         }
                     }
                     Aggregator::Extent(extent) => {
-                        extent.add(value.try_as_number()?);
+                        if !value.is_nullish() {
+                            extent.add(value.try_as_number()?);
+                        }
                     }
                     Aggregator::ArgExtent(extent) => {
-                        extent.add(index, value.try_as_number()?, record);
+                        if !value.is_nullish() {
+                            extent.add(index, value.try_as_number()?, record);
+                        }
                     }
                     Aggregator::First(first) => {
                         if !value.is_nullish() {
@@ -1058,19 +1062,29 @@ impl CompositeAggregator {
                         }
                     }
                     Aggregator::LexicographicExtent(extent) => {
-                        extent.add(&value.try_as_str()?);
+                        if !value.is_nullish() {
+                            extent.add(&value.try_as_str()?);
+                        }
                     }
                     Aggregator::Frequencies(frequencies) => {
-                        frequencies.add(value.try_as_str()?.into_owned());
+                        if !value.is_nullish() {
+                            frequencies.add(value.try_as_str()?.into_owned());
+                        }
                     }
                     Aggregator::Numbers(numbers) => {
-                        numbers.add(value.try_as_number()?);
+                        if !value.is_nullish() {
+                            numbers.add(value.try_as_number()?);
+                        }
                     }
                     Aggregator::Sum(sum) => {
-                        sum.add(&value.try_as_number()?);
+                        if !value.is_nullish() {
+                            sum.add(&value.try_as_number()?);
+                        }
                     }
                     Aggregator::Welford(variance) => {
-                        variance.add(value.try_as_f64()?);
+                        if !value.is_nullish() {
+                            variance.add(value.try_as_f64()?);
+                        }
                     }
                     Aggregator::Types(types) => {
                         if value.is_nullish() {
@@ -1085,7 +1099,9 @@ impl CompositeAggregator {
                         }
                     }
                     Aggregator::Values(values) => {
-                        values.add(value.try_as_str()?.into_owned());
+                        if !value.is_nullish() {
+                            values.add(value.try_as_str()?.into_owned());
+                        }
                     }
                 },
                 None => match method {

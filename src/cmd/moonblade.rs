@@ -356,6 +356,15 @@ pub fn get_moonblade_aggregations_function_help() -> &'static str {
 
 (use --cheatsheet for a reminder of how the scripting language works)
 
+Note that most functions ignore null values (empty strings), but that functions
+operating on numbers will yield an error if encountering a string that cannot
+be safely parsed as a number.
+
+You can always use `coalesce` to nudge values around and force aggregation functions to
+consider null values or make them avoid non-numerical values altogether.
+
+Example: considering null values when computing a mean => 'mean(coalesce(number, 0))'
+
     - all(<expr>) -> bool
         Returns true if all elements returned by given expression are truthy.
 
