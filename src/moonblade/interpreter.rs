@@ -264,24 +264,42 @@ fn concretize_call(
         return Err(ConcretizationError::TooManyArguments(arity));
     }
 
-    // TODO: validate special function arity here!
+    // Validating special function arities
+    match function_name.as_str() {
+        "col" => {
+            if !(1..=2).contains(&arity) {
+                return Err(ConcretizationError::from_invalid_range_arity(
+                    function_name,
+                    1..=2,
+                    arity,
+                ));
+            }
 
-    // Statically analyzable col() function call
-    if function_name == "col" {
-        if !(1..=2).contains(&arity) {
+            // Statically analyzable col() function call
+            if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
+                match column_indexation.find_column_index(headers) {
+                    Some(index) => return Ok(ConcreteExpr::Column(index)),
+                    None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
+                };
+            }
+        }
+        "if" | "unless" if !(2..=3).contains(&arity) => {
             return Err(ConcretizationError::from_invalid_range_arity(
-                "col".to_string(),
-                1..=2,
+                function_name,
+                2..=3,
                 arity,
             ));
         }
-
-        if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
-            match column_indexation.find_column_index(headers) {
-                Some(index) => return Ok(ConcreteExpr::Column(index)),
-                None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
-            };
+        "index" => {
+            if arity != 0 {
+                return Err(ConcretizationError::from_invalid_arity(
+                    function_name,
+                    1,
+                    arity,
+                ));
+            }
         }
+        _ => (),
     }
 
     let mut concrete_args = Vec::new();
