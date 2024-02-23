@@ -43,6 +43,7 @@ mod test_join;
 mod test_kway;
 mod test_map;
 mod test_partition;
+mod test_range;
 mod test_rename;
 mod test_reverse;
 mod test_search;

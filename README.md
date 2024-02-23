@@ -47,6 +47,7 @@ cargo install xan
 * `xan jsonl`
 * `xan kway`
 * `xan map`
+* `xan range`
 * `xan rename`
 * `xan reverse --in-memory`
 * `xan search --exact`
@@ -99,6 +100,7 @@ given separator.
 * **pseudo** - Pseudonymise the value of the given column by replacing them by an incremental identifier.
 * **sample** - Randomly draw rows from CSV data using reservoir sampling (i.e.,
   use memory proportional to the size of the sample).
+* **range** - Create a CSV file from a numerical range.
 * **rename** - Rename columns of a CSV file.
 * **reverse** - Reverse order of rows in CSV data.
 * **search** - Run a regex over CSV data. Applies the regex to each field

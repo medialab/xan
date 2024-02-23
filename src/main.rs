@@ -107,6 +107,7 @@ macro_rules! command_list {
     kway        Merge multiple similar already sorted CSV files
     map         Create a new column by evaluating an expression on each CSV row
     partition   Partition CSV data based on a column value
+    range       Create a CSV file from a numerical range
     rename      Rename columns of a CSV file
     reverse     Reverse rows of CSV data
     sample      Randomly sample CSV data
@@ -230,6 +231,7 @@ enum Command {
     Kway,
     Map,
     Partition,
+    Range,
     Rename,
     Reverse,
     Sample,
@@ -296,6 +298,7 @@ impl Command {
             Command::Kway => cmd::kway::run(argv),
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),
+            Command::Range => cmd::range::run(argv),
             Command::Rename => cmd::rename::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),

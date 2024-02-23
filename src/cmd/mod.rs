@@ -28,6 +28,7 @@ pub mod kway;
 pub mod map;
 mod moonblade;
 pub mod partition;
+pub mod range;
 pub mod rename;
 pub mod reverse;
 pub mod sample;
