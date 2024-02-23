@@ -59,7 +59,7 @@ Usage:
     xan agg --functions
 
 agg options:
-    -e, --errors <policy>    What to do with evaluation errors. One of:
+    -E, --errors <policy>    What to do with evaluation errors. One of:
                                - \"panic\": exit on first error
                                - \"ignore\": ignore row altogether
                                - \"log\": print error to stderr

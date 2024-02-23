@@ -178,3 +178,28 @@ select_test_err!(select_err_idx_not_int_2, "h1[a]");
 select_test_err!(select_err_unclosed_quote, r#""h1"#);
 select_test_err!(select_err_unclosed_bracket, r#""h1"[1"#);
 select_test_err!(select_err_expected_end_of_field, "a-b-");
+
+#[test]
+fn select_evaluate() {
+    let wrk = Workdir::new("select_evaluate");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "count1", "count2"],
+            svec!["john", "2", "3"],
+            svec!["mary", "5", "7"],
+        ],
+    );
+    let mut cmd = wrk.command("select");
+    cmd.arg("-e")
+        .arg("name, name as name_copy, count1 + count2 as total")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "name_copy", "total"],
+        svec!["john", "john", "5"],
+        svec!["mary", "mary", "12"],
+    ];
+    assert_eq!(got, expected);
+}

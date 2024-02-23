@@ -49,14 +49,14 @@ transform options:
                                indicate the number of threads yourself.
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
-    -e, --errors <policy>      What to do with evaluation errors. One of:
+    -E, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "report": add a column containing error
                                  - "ignore": coerce result for row to null
                                  - "log": print error to stderr
                                [default: panic].
-    -E, --error-column <name>  Name of the column containing errors if
-                               "-e/--errors" is set to "report".
+    --error-column <name>      Name of the column containing errors if
+                               "-E/--errors" is set to "report".
                                [default: xan_error].
 
 Common options:

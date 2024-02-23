@@ -491,6 +491,46 @@ pub fn parse_expression(input: &str) -> Result<Expr, ParseError> {
     apply_pratt_parser(token_tree)
 }
 
+pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, ParseError> {
+    let pairs = MoonbladePestParser::parse(Rule::named_exprs, input)
+        .map_err(ParseError::from_pest_error)?;
+
+    pairs
+        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
+        .map(|p| {
+            let (name, p) = match p.as_rule() {
+                Rule::expr => (p.as_span().as_str().to_string(), p),
+                Rule::named_expr => {
+                    let mut inner = p.into_inner();
+
+                    debug_assert!(inner.len() == 2);
+
+                    let expr = inner.next().unwrap();
+
+                    let expr_name = inner.next().unwrap();
+                    debug_assert!(matches!(expr_name.as_rule(), Rule::expr_name));
+
+                    let expr_name_inner = expr_name.into_inner().next().unwrap();
+
+                    let name = match expr_name_inner.as_rule() {
+                        Rule::ident => expr_name_inner.as_str().to_string(),
+                        Rule::string => build_string(expr_name_inner),
+                        _ => unreachable!(),
+                    };
+
+                    (name, expr)
+                }
+                _ => unreachable!(),
+            };
+
+            let token_tree = TokenTree::from(p);
+            let expr = apply_pratt_parser(token_tree)?;
+
+            Ok((expr, name))
+        })
+        .collect()
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Aggregation {
     pub agg_name: String,
@@ -812,6 +852,17 @@ mod tests {
                     expr_key: "b".to_string(),
                     args: vec![id("b")]
                 }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_named_expressions() {
+        assert_eq!(
+            parse_named_expressions("name, 1 + 2 as three"),
+            Ok(vec![
+                (id("name"), "name".to_string()),
+                (func("add", vec![Int(1), Int(2)]), "three".to_string())
             ])
         );
     }

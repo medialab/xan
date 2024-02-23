@@ -43,7 +43,7 @@ filter options:
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
     -v, --invert-match         If set, will invert the evaluated value.
-    -e, --errors <policy>      What to do w'ith evaluation errors. One of:
+    -E, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "ignore": coerce result for row to null
                                  - "log": print error to stderr

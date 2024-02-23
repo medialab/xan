@@ -381,7 +381,7 @@ impl Program {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let expr = match parse_expression(code) {
             Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
-            Ok(pipeline) => concretize_expression(pipeline, headers)?,
+            Ok(parsed_expr) => concretize_expression(parsed_expr, headers)?,
         };
 
         Ok(Self {

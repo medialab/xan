@@ -96,8 +96,8 @@ fn map_errors_report() {
     let mut cmd = wrk.command("map");
     cmd.arg("add(a, b)")
         .arg("c")
-        .args(&["-e", "report"])
-        .args(&["-E", "error"])
+        .args(&["-E", "report"])
+        .args(&["--error-column", "error"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -119,7 +119,7 @@ fn map_errors_ignore() {
     let mut cmd = wrk.command("map");
     cmd.arg("add(a, b)")
         .arg("c")
-        .args(&["-e", "ignore"])
+        .args(&["-E", "ignore"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -141,7 +141,7 @@ fn map_errors_log() {
     let mut cmd = wrk.command("map");
     cmd.arg("add(a, b)")
         .arg("c")
-        .args(&["-e", "log"])
+        .args(&["-E", "log"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
