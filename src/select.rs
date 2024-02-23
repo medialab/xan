@@ -416,7 +416,7 @@ impl Selection {
         self.0.len()
     }
 
-    pub fn indices<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+    pub fn indices(&self) -> impl Iterator<Item = usize> + '_ {
         self.0.iter().copied()
     }
 }
