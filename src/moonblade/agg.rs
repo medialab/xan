@@ -190,11 +190,11 @@ impl Sum {
 }
 
 #[derive(Debug, Clone)]
-struct Extent {
-    extent: Option<(DynamicNumber, DynamicNumber)>,
+struct GenericExtent<T: Copy + PartialOrd> {
+    extent: Option<(T, T)>,
 }
 
-impl Extent {
+impl<T: Copy + PartialOrd> GenericExtent<T> {
     fn new() -> Self {
         Self { extent: None }
     }
@@ -203,7 +203,7 @@ impl Extent {
         self.extent = None;
     }
 
-    fn add(&mut self, value: DynamicNumber) {
+    fn add(&mut self, value: T) {
         match &mut self.extent {
             None => self.extent = Some((value, value)),
             Some((min, max)) => {
@@ -218,11 +218,11 @@ impl Extent {
         }
     }
 
-    fn min(&self) -> Option<DynamicNumber> {
+    fn min(&self) -> Option<T> {
         self.extent.map(|e| e.0)
     }
 
-    fn max(&self) -> Option<DynamicNumber> {
+    fn max(&self) -> Option<T> {
         self.extent.map(|e| e.1)
     }
 
@@ -244,6 +244,8 @@ impl Extent {
         }
     }
 }
+
+type Extent = GenericExtent<DynamicNumber>;
 
 type ArgExtentEntry = (DynamicNumber, (usize, ByteRecord));
 
@@ -1580,7 +1582,7 @@ pub struct Stats {
     nulls: bool,
     count: Count,
     extent: Extent,
-    length_extent: Extent,
+    length_extent: GenericExtent<usize>,
     lexicograhic_extent: LexicographicExtent,
     welford: Welford,
     sum: Sum,
@@ -1595,7 +1597,7 @@ impl Stats {
             nulls: false,
             count: Count::new(),
             extent: Extent::new(),
-            length_extent: Extent::new(),
+            length_extent: GenericExtent::new(),
             lexicograhic_extent: LexicographicExtent::new(),
             welford: Welford::new(),
             sum: Sum::new(),
@@ -1687,8 +1689,7 @@ impl Stats {
     }
 
     pub fn process(&mut self, cell: &[u8]) {
-        self.length_extent
-            .add(DynamicNumber::Integer(cell.len() as i64));
+        self.length_extent.add(cell.len());
 
         if cell.is_empty() {
             self.types.set_empty();
