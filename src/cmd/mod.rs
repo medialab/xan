@@ -20,7 +20,6 @@ pub mod groupby;
 pub mod headers;
 pub mod hist;
 pub mod implode;
-pub mod index;
 pub mod input;
 pub mod join;
 pub mod jsonl;

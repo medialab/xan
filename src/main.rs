@@ -100,7 +100,6 @@ macro_rules! command_list {
     help        Show this usage message.
     hist        Print a histogram with rows of CSV file as bars
     implode     Collapse consecutive identical rows based on a diverging column
-    index       Create CSV index for faster access
     input       Read CSV data with special quoting rules
     join        Join CSV files
     jsonl       Convert newline-delimited JSON files to CSV
@@ -223,7 +222,6 @@ enum Command {
     Help,
     Hist,
     Implode,
-    Index,
     Input,
     Join,
     Jsonl,
@@ -289,7 +287,6 @@ impl Command {
             }
             Command::Hist => cmd::hist::run(argv),
             Command::Implode => cmd::implode::run(argv),
-            Command::Index => cmd::index::run(argv),
             Command::Input => cmd::input::run(argv),
             Command::Join => cmd::join::run(argv),
             Command::Jsonl => cmd::jsonl::run(argv),

@@ -86,8 +86,6 @@ given separator.
 * **headers** - Show the headers of CSV data. Or show the intersection of all
   headers between many CSV files.
 * **implode** - Collapse consecutive identical rows based on a diverging column.
-* **index** - Create an index for a CSV file. This is very quick and provides
-  constant time indexing into the CSV file.
 * **input** - Read CSV data with exotic quoting/escaping rules.
 * **jsonl** - Convert newline-delimited JSON to CSV.
 * **join** - Inner, outer and cross joins. Uses a simple hash index to make it

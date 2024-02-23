@@ -66,14 +66,6 @@ impl Workdir {
         wtr.flush().unwrap();
     }
 
-    pub fn create_indexed<T: Csv>(&self, name: &str, rows: T) {
-        self.create(name, rows);
-
-        let mut cmd = self.command("index");
-        cmd.arg(name);
-        self.run(&mut cmd);
-    }
-
     pub fn read_stdout<T: Csv>(&self, cmd: &mut process::Command) -> T {
         let stdout: String = self.stdout(cmd);
         let mut rdr = csv::ReaderBuilder::new()
