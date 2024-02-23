@@ -54,6 +54,7 @@ cargo install xan
 * `xan shuffle`
 * `xan sort -u`
 * `xan transform`
+* `xan transpose`
 * `xan view`
 * `xan xls`
 
@@ -112,5 +113,6 @@ given separator.
 * **stats** - Show basic types and statistics of each column in the CSV file.
   (i.e., mean, standard deviation, median, range, etc.)
 * **transform** - Transform a column by evaluating an expression on each CSV row.
+* **transpose** - Transpose CSV file
 * **view** - Preview a CSV file in a human-friendly way.
 * **xls** - Convert Excel/OpenOffice spreadsheets to CSV.

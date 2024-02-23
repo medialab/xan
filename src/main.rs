@@ -118,6 +118,7 @@ macro_rules! command_list {
     split       Split CSV data into many files
     stats       Compute basic statistics
     transform   Transform a column by evaluating an expression on each CSV row
+    transpose   Transpose CSV file
     view        Preview a CSV file in a human-friendly way
     xls         Convert Excel/OpenOffice spreadsheets to CSV
 "
@@ -240,6 +241,7 @@ enum Command {
     Split,
     Stats,
     Transform,
+    Transpose,
     View,
     Xls,
 }
@@ -305,6 +307,7 @@ impl Command {
             Command::Split => cmd::split::run(argv),
             Command::Stats => cmd::stats::run(argv),
             Command::Transform => cmd::transform::run(argv),
+            Command::Transpose => cmd::transpose::run(argv),
             Command::View => cmd::view::run(argv),
             Command::Xls => cmd::xls::run(argv),
         }
