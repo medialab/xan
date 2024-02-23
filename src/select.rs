@@ -431,6 +431,10 @@ impl Selection {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    pub fn indices<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+        self.0.iter().copied()
+    }
 }
 
 impl ops::Deref for Selection {

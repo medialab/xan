@@ -1,12 +1,6 @@
-use std::borrow::ToOwned;
-use std::collections::hash_map::{Entry, HashMap};
 use std::process;
 
-use csv;
-use stats::Frequencies;
-
 use workdir::Workdir;
-use {Csv, CsvData};
 
 fn setup(name: &str) -> (Workdir, process::Command) {
     let rows = vec![
@@ -16,7 +10,6 @@ fn setup(name: &str) -> (Workdir, process::Command) {
         svec!["a", "y"],
         svec!["b", "z"],
         svec!["", "z"],
-        svec!["<null>", "x"],
     ];
 
     let wrk = Workdir::new(name);
@@ -39,11 +32,10 @@ fn frequency_no_headers() {
     got = got.into_iter().skip(1).collect();
     got.sort();
     let expected = vec![
-        svec!["1", "<null>", "1"],
-        svec!["1", "<null>", "1"],
-        svec!["1", "a", "3"],
-        svec!["1", "b", "1"],
-        svec!["1", "h1", "1"],
+        svec!["0", "<empty>", "1"],
+        svec!["0", "a", "3"],
+        svec!["0", "b", "1"],
+        svec!["0", "h1", "1"],
     ];
     assert_eq!(got, expected);
 }
@@ -59,7 +51,6 @@ fn frequency_no_extra() {
     got.sort();
     let expected = vec![
         svec!["field", "value", "count"],
-        svec!["h1", "<null>", "1"],
         svec!["h1", "a", "3"],
         svec!["h1", "b", "1"],
     ];
@@ -75,8 +66,7 @@ fn frequency_nulls() {
     got.sort();
     let expected = vec![
         svec!["field", "value", "count"],
-        svec!["h1", "<null>", "1"],
-        svec!["h1", "<null>", "1"],
+        svec!["h1", "<empty>", "1"],
         svec!["h1", "a", "3"],
         svec!["h1", "b", "1"],
     ];
@@ -99,16 +89,16 @@ fn frequency_limit() {
 }
 
 #[test]
-fn frequency_asc() {
-    let (wrk, mut cmd) = setup("frequency_asc");
+fn frequency_reverse() {
+    let (wrk, mut cmd) = setup("frequency_reverse");
     cmd.args(["--limit", "1"])
         .args(["--select", "h2"])
-        .arg("--asc")
+        .arg("--reverse")
         .arg("--no-extra");
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     got.sort();
-    let expected = vec![svec!["field", "value", "count"], svec!["h2", "x", "1"]];
+    let expected = vec![svec!["field", "value", "count"], svec!["h2", "y", "2"]];
     assert_eq!(got, expected);
 }
 
@@ -121,123 +111,8 @@ fn frequency_select() {
     got.sort();
     let expected = vec![
         svec!["field", "value", "count"],
-        svec!["h2", "x", "1"],
         svec!["h2", "y", "2"],
         svec!["h2", "z", "3"],
     ];
     assert_eq!(got, expected);
-}
-
-// This tests that running the frequency command on a CSV file with these two
-// rows does not burst in flames:
-//
-//     \u{FEFF}
-//     ""
-//
-// In this case, the `param_prop_frequency` just ignores this particular test.
-// Namely, \u{FEFF} is the UTF-8 BOM, which is ignored by the underlying CSV
-// reader.
-#[test]
-fn frequency_bom() {
-    let rows = CsvData {
-        data: vec![
-            ::CsvRecord(vec!["\u{FEFF}".to_string()]),
-            ::CsvRecord(vec!["".to_string()]),
-        ],
-    };
-    assert!(param_prop_frequency("prop_frequency", rows, false))
-}
-
-fn param_prop_frequency(name: &str, rows: CsvData, idx: bool) -> bool {
-    if !rows.is_empty() && rows[0][0].len() == 3 && rows[0][0] == "\u{FEFF}" {
-        return true;
-    }
-    let wrk = Workdir::new(name);
-    if idx {
-        wrk.create_indexed("in.csv", rows.clone());
-    } else {
-        wrk.create("in.csv", rows.clone());
-    }
-
-    let mut cmd = wrk.command("frequency");
-    cmd.arg("in.csv").args(["-j", "4"]).args(["--limit", "0"]);
-
-    let stdout = wrk.stdout::<String>(&mut cmd);
-    let got_ftables = ftables_from_csv_string(stdout);
-    let expected_ftables = ftables_from_rows(rows);
-    assert_eq_ftables(&got_ftables, &expected_ftables)
-}
-
-type FTables = HashMap<String, Frequencies<String>>;
-
-#[derive(Deserialize)]
-struct FRow {
-    field: String,
-    value: String,
-    count: usize,
-}
-
-fn ftables_from_rows<T: Csv>(rows: T) -> FTables {
-    let mut rows = rows.to_vecs();
-    if rows.len() <= 1 {
-        return HashMap::new();
-    }
-
-    let header = rows.remove(0);
-    let mut ftables = HashMap::new();
-    for field in header.iter() {
-        ftables.insert(field.clone(), Frequencies::new());
-    }
-    for row in rows.into_iter() {
-        for (i, mut field) in row.into_iter().enumerate() {
-            field = field.to_owned();
-            if field.is_empty() {
-                field = "<null>".to_owned();
-            }
-            ftables.get_mut(&header[i]).unwrap().add(field);
-        }
-    }
-    ftables
-}
-
-fn ftables_from_csv_string(data: String) -> FTables {
-    let mut rdr = csv::Reader::from_reader(data.as_bytes());
-    let mut ftables = HashMap::new();
-    for frow in rdr.deserialize() {
-        let frow: FRow = frow.unwrap();
-        match ftables.entry(frow.field) {
-            Entry::Vacant(v) => {
-                let mut ftable = Frequencies::new();
-                for _ in 0..frow.count {
-                    ftable.add(frow.value.clone());
-                }
-                v.insert(ftable);
-            }
-            Entry::Occupied(mut v) => {
-                for _ in 0..frow.count {
-                    v.get_mut().add(frow.value.clone());
-                }
-            }
-        }
-    }
-    ftables
-}
-
-fn freq_data<T>(ftable: &Frequencies<T>) -> Vec<(&T, u64)>
-where
-    T: ::std::hash::Hash + Ord + Clone,
-{
-    let mut freqs = ftable.most_frequent();
-    freqs.sort();
-    freqs
-}
-
-fn assert_eq_ftables(got: &FTables, expected: &FTables) -> bool {
-    for (k, v) in got.iter() {
-        assert_eq!(freq_data(v), freq_data(expected.get(k).unwrap()));
-    }
-    for (k, v) in expected.iter() {
-        assert_eq!(freq_data(got.get(k).unwrap()), freq_data(v));
-    }
-    true
 }

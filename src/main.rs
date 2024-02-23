@@ -38,7 +38,6 @@ extern crate pest;
 extern crate pest_derive;
 extern crate pratt;
 extern crate serde_json;
-extern crate stats;
 extern crate termsize;
 extern crate textwrap;
 extern crate threadpool;

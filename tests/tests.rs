@@ -1,12 +1,10 @@
 #![allow(dead_code)]
 
-#[macro_use]
 extern crate serde_derive;
 
 extern crate csv;
 extern crate filetime;
 extern crate rand;
-extern crate stats;
 
 use std::fmt;
 use std::mem::transmute;

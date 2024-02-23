@@ -457,7 +457,7 @@ impl Numbers {
 
 #[derive(Debug, Clone)]
 struct Frequencies {
-    counter: HashMap<String, usize>,
+    counter: HashMap<String, u64>,
 }
 
 impl Frequencies {
@@ -471,7 +471,7 @@ impl Frequencies {
         self.counter.clear();
     }
 
-    fn add_count(&mut self, value: String, count: usize) {
+    fn add_count(&mut self, value: String, count: u64) {
         self.counter
             .entry(value)
             .and_modify(|current| *current += count)
@@ -483,7 +483,7 @@ impl Frequencies {
     }
 
     fn mode(&self) -> Option<String> {
-        let mut max: Option<(usize, &String)> = None;
+        let mut max: Option<(u64, &String)> = None;
 
         for (key, count) in self.counter.iter() {
             max = match max {
@@ -1571,9 +1571,11 @@ impl GroupAggregationProgram {
 }
 
 #[derive(Debug)]
-struct Stats {
+pub struct Stats {
+    nulls: bool,
     count: Count,
     extent: Extent,
+    length_extent: Extent,
     lexicograhic_extent: LexicographicExtent,
     welford: Welford,
     sum: Sum,
@@ -1583,10 +1585,12 @@ struct Stats {
 }
 
 impl Stats {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
+            nulls: false,
             count: Count::new(),
             extent: Extent::new(),
+            length_extent: Extent::new(),
             lexicograhic_extent: LexicographicExtent::new(),
             welford: Welford::new(),
             sum: Sum::new(),
@@ -1596,17 +1600,63 @@ impl Stats {
         }
     }
 
-    fn compute_frequencies(&mut self) {
+    pub fn include_nulls(&mut self) {
+        self.nulls = true;
+    }
+
+    pub fn compute_frequencies(&mut self) {
         self.frequencies = Some(Frequencies::new());
     }
 
-    fn compute_numbers(&mut self) {
+    pub fn compute_numbers(&mut self) {
         self.numbers = Some(Numbers::new());
     }
 
-    fn process(&mut self, cell: &[u8]) {
+    pub fn headers(&self) -> ByteRecord {
+        let mut headers = ByteRecord::new();
+
+        headers.push_field(b"field");
+        headers.push_field(b"type");
+        headers.push_field(b"types");
+        headers.push_field(b"sum");
+        headers.push_field(b"mean");
+        headers.push_field(b"variance");
+        headers.push_field(b"stddev");
+        headers.push_field(b"min");
+        headers.push_field(b"max");
+        headers.push_field(b"lex_first");
+        headers.push_field(b"lex_last");
+        headers.push_field(b"min_length");
+        headers.push_field(b"max_length");
+
+        headers
+    }
+
+    pub fn results(&self, name: &[u8]) -> ByteRecord {
+        let mut record = ByteRecord::new();
+
+        record.push_field(name);
+        record.push_field(
+            self.types
+                .most_likely_type()
+                .map(|t| t.as_bytes())
+                .unwrap_or(b""),
+        );
+
+        record
+    }
+
+    pub fn process(&mut self, cell: &[u8]) {
+        self.length_extent
+            .add(DynamicNumber::Integer(cell.len() as i64));
+
         if cell.is_empty() {
             self.types.set_empty();
+
+            if self.nulls {
+                self.welford.add(0.0);
+            }
+
             return;
         }
 
