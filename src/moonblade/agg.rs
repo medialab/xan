@@ -152,40 +152,46 @@ impl Last {
 
 #[derive(Debug, Clone)]
 struct Sum {
-    current: DynamicNumber,
+    current: Option<DynamicNumber>,
 }
 
 impl Sum {
     fn new() -> Self {
-        Self {
-            current: DynamicNumber::Integer(0),
-        }
+        Self { current: None }
     }
 
     fn clear(&mut self) {
-        self.current = DynamicNumber::Integer(0);
+        self.current = None;
     }
 
-    // TODO: implement kahan-babushka summation from https://github.com/simple-statistics/simple-statistics/blob/main/src/sum.js
     fn add(&mut self, value: DynamicNumber) {
-        match &mut self.current {
-            DynamicNumber::Float(a) => match value {
-                DynamicNumber::Float(b) => *a += b,
-                DynamicNumber::Integer(b) => *a += b as f64,
-            },
-            DynamicNumber::Integer(a) => match value {
-                DynamicNumber::Float(b) => self.current = DynamicNumber::Float((*a as f64) + b),
-                DynamicNumber::Integer(b) => *a += b,
-            },
+        match self.current.as_mut() {
+            None => self.current = Some(value),
+            Some(current_sum) => {
+                match current_sum {
+                    DynamicNumber::Float(a) => match value {
+                        DynamicNumber::Float(b) => *a += b,
+                        DynamicNumber::Integer(b) => *a += b as f64,
+                    },
+                    DynamicNumber::Integer(a) => match value {
+                        DynamicNumber::Float(b) => {
+                            self.current = Some(DynamicNumber::Float((*a as f64) + b));
+                        }
+                        DynamicNumber::Integer(b) => *a += b,
+                    },
+                };
+            }
         };
     }
 
-    fn get(&self) -> DynamicNumber {
+    fn get(&self) -> Option<DynamicNumber> {
         self.current
     }
 
     fn merge(&mut self, other: Self) {
-        self.add(other.current);
+        if let Some(other_sum) = other.current {
+            self.add(other_sum);
+        }
     }
 }
 
@@ -1663,7 +1669,7 @@ impl Stats {
                 .unwrap_or(b""),
         );
         record.push_field(self.types.sorted_types().join("|").as_bytes());
-        record.push_field(self.sum.get().to_string().as_bytes());
+        record.push_field(&map_to_field(self.sum.get()));
         record.push_field(&map_to_field(self.welford.mean()));
 
         if let Some(numbers) = self.numbers.as_ref() {
