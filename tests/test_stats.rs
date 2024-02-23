@@ -24,9 +24,15 @@ macro_rules! stats_test_headers {
     };
     ($name:ident, $field:expr, $rows:expr, $expect:expr, $nulls:expr) => {
         #[test]
-        fn headers() {
-            let name = concat!(stringify!($name), "_headers");
-            test_stats(name, $field, $rows, $expect, true, $nulls);
+        fn headers_no_index() {
+            let name = concat!(stringify!($name), "_headers_no_index");
+            test_stats(name, $field, $rows, $expect, true, false, $nulls);
+        }
+
+        #[test]
+        fn headers_index() {
+            let name = concat!(stringify!($name), "_headers_index");
+            test_stats(name, $field, $rows, $expect, true, true, $nulls);
         }
     };
 }
@@ -37,18 +43,31 @@ macro_rules! stats_test_no_headers {
     };
     ($name:ident, $field:expr, $rows:expr, $expect:expr, $nulls:expr) => {
         #[test]
-        fn no_headers() {
-            let name = concat!(stringify!($name), "_no_headers");
-            test_stats(name, $field, $rows, $expect, false, $nulls);
+        fn no_headers_no_index() {
+            let name = concat!(stringify!($name), "_no_headers_no_index");
+            test_stats(name, $field, $rows, $expect, false, false, $nulls);
+        }
+
+        #[test]
+        fn no_headers_index() {
+            let name = concat!(stringify!($name), "_no_headers_index");
+            test_stats(name, $field, $rows, $expect, false, true, $nulls);
         }
     };
 }
 
-fn test_stats<S>(name: S, field: &str, rows: &[&str], expected: &str, headers: bool, nulls: bool)
-where
+fn test_stats<S>(
+    name: S,
+    field: &str,
+    rows: &[&str],
+    expected: &str,
+    headers: bool,
+    use_index: bool,
+    nulls: bool,
+) where
     S: ::std::ops::Deref<Target = str>,
 {
-    let (wrk, mut cmd) = setup(name, rows, headers, nulls);
+    let (wrk, mut cmd) = setup(name, rows, headers, use_index, nulls);
     let field_val = get_field_value(&wrk, &mut cmd, field);
     // Only compare the first few bytes since floating point arithmetic
     // can mess with exact comparisons.
@@ -56,7 +75,13 @@ where
     assert_eq!(&field_val[0..len], &expected[0..len]);
 }
 
-fn setup<S>(name: S, rows: &[&str], headers: bool, nulls: bool) -> (Workdir, process::Command)
+fn setup<S>(
+    name: S,
+    rows: &[&str],
+    headers: bool,
+    use_index: bool,
+    nulls: bool,
+) -> (Workdir, process::Command)
 where
     S: ::std::ops::Deref<Target = str>,
 {
@@ -65,8 +90,11 @@ where
     if headers {
         data.insert(0, svec!["header"]);
     }
-
-    wrk.create("in.csv", data);
+    if use_index {
+        wrk.create_indexed("in.csv", data);
+    } else {
+        wrk.create("in.csv", data);
+    }
 
     let mut cmd = wrk.command("stats");
     cmd.arg("in.csv");

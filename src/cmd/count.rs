@@ -34,12 +34,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = conf.reader()?;
-    let mut count: u64 = 0;
-    let mut record = csv::ByteRecord::new();
-    while rdr.read_byte_record(&mut record)? {
-        count += 1;
-    }
-
+    let count = match conf.indexed()? {
+        Some(idx) => idx.count(),
+        None => {
+            let mut rdr = conf.reader()?;
+            let mut count = 0u64;
+            let mut record = csv::ByteRecord::new();
+            while rdr.read_byte_record(&mut record)? {
+                count += 1;
+            }
+            count
+        }
+    };
     Ok(println!("{}", count))
 }

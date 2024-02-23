@@ -38,6 +38,7 @@ mod test_frequency;
 mod test_groupby;
 mod test_headers;
 mod test_implode;
+mod test_index;
 mod test_join;
 mod test_kway;
 mod test_map;
