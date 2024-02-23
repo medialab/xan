@@ -99,14 +99,6 @@ pub fn errif_greater_one_stdin(inps: &[Config]) -> Result<(), String> {
     Ok(())
 }
 
-pub fn chunk_size(nitems: usize, njobs: usize) -> usize {
-    if nitems < njobs {
-        nitems
-    } else {
-        nitems / njobs
-    }
-}
-
 pub fn num_of_chunks(nitems: usize, chunk_size: usize) -> usize {
     if chunk_size == 0 {
         return nitems;

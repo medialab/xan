@@ -110,13 +110,13 @@ where
 
 fn get_field_value(wrk: &Workdir, cmd: &mut process::Command, field: &str) -> String {
     if field == "median" {
-        cmd.arg("--median");
+        cmd.arg("--quantiles");
     }
     if field == "cardinality" {
         cmd.arg("--cardinality");
     }
     if field == "mode" {
-        cmd.arg("--mode");
+        cmd.arg("--cardinality");
     }
 
     let mut rows: Vec<Vec<String>> = wrk.read_stdout(cmd);
@@ -135,41 +135,38 @@ fn get_field_value(wrk: &Workdir, cmd: &mut process::Command, field: &str) -> St
     );
 }
 
-stats_tests!(stats_infer_unicode, "type", &["a"], "Unicode");
-stats_tests!(stats_infer_int, "type", &["1"], "Integer");
-stats_tests!(stats_infer_float, "type", &["1.2"], "Float");
-stats_tests!(stats_infer_null, "type", &[""], "NULL");
-stats_tests!(stats_infer_unicode_null, "type", &["a", ""], "Unicode");
-stats_tests!(stats_infer_int_null, "type", &["1", ""], "Integer");
-stats_tests!(stats_infer_float_null, "type", &["1.2", ""], "Float");
-stats_tests!(stats_infer_null_unicode, "type", &["", "a"], "Unicode");
-stats_tests!(stats_infer_null_int, "type", &["", "1"], "Integer");
-stats_tests!(stats_infer_null_float, "type", &["", "1.2"], "Float");
-stats_tests!(stats_infer_int_unicode, "type", &["1", "a"], "Unicode");
-stats_tests!(stats_infer_unicode_int, "type", &["a", "1"], "Unicode");
-stats_tests!(stats_infer_int_float, "type", &["1", "1.2"], "Float");
-stats_tests!(stats_infer_float_int, "type", &["1.2", "1"], "Float");
+stats_tests!(stats_infer_unicode, "type", &["a"], "string");
+stats_tests!(stats_infer_int, "type", &["1"], "int");
+stats_tests!(stats_infer_float, "type", &["1.2"], "float");
+stats_tests!(stats_infer_null, "type", &[""], "empty");
+stats_tests!(stats_infer_unicode_null, "type", &["a", ""], "string");
+stats_tests!(stats_infer_int_null, "type", &["1", ""], "int");
+stats_tests!(stats_infer_float_null, "type", &["1.2", ""], "float");
+stats_tests!(stats_infer_null_unicode, "type", &["", "a"], "string");
+stats_tests!(stats_infer_null_int, "type", &["", "1"], "int");
+stats_tests!(stats_infer_null_float, "type", &["", "1.2"], "float");
+stats_tests!(stats_infer_int_unicode, "type", &["1", "a"], "string");
+stats_tests!(stats_infer_unicode_int, "type", &["a", "1"], "string");
+stats_tests!(stats_infer_int_float, "type", &["1", "1.2"], "float");
+stats_tests!(stats_infer_float_int, "type", &["1.2", "1"], "float");
 stats_tests!(
     stats_infer_null_int_float_unicode,
     "type",
     &["", "1", "1.2", "a"],
-    "Unicode"
+    "string"
 );
 
 stats_tests!(stats_no_mean, "mean", &["a"], "");
 stats_tests!(stats_no_stddev, "stddev", &["a"], "");
 stats_tests!(stats_no_median, "median", &["a"], "");
-stats_tests!(stats_no_mode, "mode", &["a", "b"], "N/A");
 
 stats_tests!(stats_null_mean, "mean", &[""], "");
 stats_tests!(stats_null_stddev, "stddev", &[""], "");
 stats_tests!(stats_null_median, "median", &[""], "");
-stats_tests!(stats_null_mode, "mode", &[""], "N/A");
 
 stats_tests!(stats_includenulls_null_mean, "mean", &[""], "", true);
 stats_tests!(stats_includenulls_null_stddev, "stddev", &[""], "", true);
 stats_tests!(stats_includenulls_null_median, "median", &[""], "", true);
-stats_tests!(stats_includenulls_null_mode, "mode", &[""], "N/A", true);
 
 stats_tests!(
     stats_includenulls_mean,
@@ -190,7 +187,13 @@ stats_tests!(stats_sum_nulls2, "sum", &["", "1", "2"], "3");
 stats_tests!(stats_min, "min", &["2", "1.1"], "1.1");
 stats_tests!(stats_max, "max", &["2", "1.1"], "2");
 stats_tests!(stats_min_mix, "min", &["2", "a", "1.1"], "1.1");
-stats_tests!(stats_max_mix, "max", &["2", "a", "1.1"], "a");
+stats_tests!(stats_lex_last_mix, "lex_last", &["2", "a", "1.1"], "a");
+stats_tests!(
+    stats_lex_first_mix,
+    "lex_first",
+    &["2", "a", "1.1", "1"],
+    "1"
+);
 stats_tests!(stats_min_null, "min", &["", "2", "1.1"], "1.1");
 stats_tests!(stats_max_null, "max", &["2", "1.1", ""], "2");
 

@@ -412,22 +412,6 @@ impl Selection {
         m
     }
 
-    pub fn normal(&self) -> NormalSelection {
-        let Selection(inds) = self;
-        if inds.is_empty() {
-            return NormalSelection(vec![]);
-        }
-
-        let mut normal = inds.clone();
-        normal.sort();
-        normal.dedup();
-        let mut set: Vec<_> = repeat(false).take(normal[normal.len() - 1] + 1).collect();
-        for i in normal.into_iter() {
-            set[i] = true;
-        }
-        NormalSelection(set)
-    }
-
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -441,40 +425,6 @@ impl ops::Deref for Selection {
     type Target = [usize];
 
     fn deref(&self) -> &[usize] {
-        &self.0
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct NormalSelection(Vec<bool>);
-
-impl NormalSelection {
-    pub fn select<'a, 'b, T, I>(&'a self, row: I) -> impl Iterator<Item = &'b T>
-    where
-        I: Iterator<Item = &'b T>,
-        T: 'b + ?Sized,
-        'a: 'b,
-    {
-        let set = &self.0;
-
-        row.enumerate().filter_map(move |(i, v)| {
-            if i < set.len() && set[i] {
-                Some(v)
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn len(&self) -> usize {
-        self.iter().filter(|b| **b).count()
-    }
-}
-
-impl ops::Deref for NormalSelection {
-    type Target = [bool];
-
-    fn deref(&self) -> &[bool] {
         &self.0
     }
 }

@@ -21,6 +21,9 @@ and --threshold respectively.
 Since this computes an exact frequency table, memory proportional to the
 cardinality of each column is required.
 
+To compute custom aggregations per group beyond counting, please be sure to
+check the `xsv groupby` command instead.
+
 Usage:
     xan frequency [options] [<input>]
 
@@ -122,7 +125,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         sel.select(&headers).map(|h| h.to_vec()).collect()
     };
 
-    for (counter, name) in fields.into_iter().zip(field_names.into_iter()) {
+    for (name, counter) in field_names.into_iter().zip(fields.into_iter()) {
         let mut items = counter.into_iter().collect::<Vec<_>>();
 
         if args.flag_reverse {

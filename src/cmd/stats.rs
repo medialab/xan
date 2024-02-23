@@ -88,8 +88,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    let headers = rdr.byte_headers()?;
-    let sel = rconf.selection(headers)?;
+    let headers = rdr.byte_headers()?.clone();
+    let sel = rconf.selection(&headers)?;
 
     // Nothing was selected
     if sel.len() == 0 {
@@ -108,6 +108,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
             stats.process(cell);
         }
+    }
+
+    let field_names: Vec<Vec<u8>> = if args.flag_no_headers {
+        sel.indices()
+            .map(|i| i.to_string().as_bytes().to_vec())
+            .collect()
+    } else {
+        sel.select(&headers).map(|h| h.to_vec()).collect()
+    };
+
+    for (name, stats) in field_names.into_iter().zip(fields.into_iter()) {
+        wtr.write_byte_record(&stats.results(&name))?;
     }
 
     Ok(wtr.flush()?)

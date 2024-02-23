@@ -1570,6 +1570,11 @@ impl GroupAggregationProgram {
     }
 }
 
+fn map_to_field<T: ToString>(opt: Option<T>) -> Vec<u8> {
+    opt.map(|m| m.to_string().as_bytes().to_vec())
+        .unwrap_or(b"".to_vec())
+}
+
 #[derive(Debug)]
 pub struct Stats {
     nulls: bool,
@@ -1616,14 +1621,26 @@ impl Stats {
         let mut headers = ByteRecord::new();
 
         headers.push_field(b"field");
+        headers.push_field(b"count");
         headers.push_field(b"type");
         headers.push_field(b"types");
         headers.push_field(b"sum");
         headers.push_field(b"mean");
+
+        if self.numbers.is_some() {
+            headers.push_field(b"median");
+        }
+
         headers.push_field(b"variance");
         headers.push_field(b"stddev");
         headers.push_field(b"min");
         headers.push_field(b"max");
+
+        if self.frequencies.is_some() {
+            headers.push_field(b"cardinality");
+            headers.push_field(b"mode");
+        }
+
         headers.push_field(b"lex_first");
         headers.push_field(b"lex_last");
         headers.push_field(b"min_length");
@@ -1636,12 +1653,35 @@ impl Stats {
         let mut record = ByteRecord::new();
 
         record.push_field(name);
+        record.push_field(self.count.get().to_string().as_bytes());
         record.push_field(
             self.types
                 .most_likely_type()
                 .map(|t| t.as_bytes())
                 .unwrap_or(b""),
         );
+        record.push_field(self.types.sorted_types().join("|").as_bytes());
+        record.push_field(self.sum.get().to_string().as_bytes());
+        record.push_field(&map_to_field(self.welford.mean()));
+
+        if let Some(numbers) = self.numbers.as_ref() {
+            record.push_field(&map_to_field(numbers.median(&MedianType::Interpolation)));
+        }
+
+        record.push_field(&map_to_field(self.welford.variance()));
+        record.push_field(&map_to_field(self.welford.stdev()));
+        record.push_field(&map_to_field(self.extent.min()));
+        record.push_field(&map_to_field(self.extent.max()));
+
+        if let Some(frequencies) = self.frequencies.as_ref() {
+            record.push_field(frequencies.cardinality().to_string().as_bytes());
+            record.push_field(&map_to_field(frequencies.mode()));
+        }
+
+        record.push_field(&map_to_field(self.lexicograhic_extent.first()));
+        record.push_field(&map_to_field(self.lexicograhic_extent.last()));
+        record.push_field(&map_to_field(self.length_extent.min()));
+        record.push_field(&map_to_field(self.length_extent.max()));
 
         record
     }
@@ -1655,6 +1695,10 @@ impl Stats {
 
             if self.nulls {
                 self.welford.add(0.0);
+
+                if let Some(numbers) = self.numbers.as_mut() {
+                    numbers.add(DynamicNumber::Float(0.0));
+                }
             }
 
             return;
