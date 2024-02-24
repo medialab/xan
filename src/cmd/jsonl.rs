@@ -34,79 +34,10 @@ struct Args {
     flag_output: Option<String>,
 }
 
-fn recurse_to_infer_headers(value: &Value, headers: &mut Vec<Vec<String>>, path: Vec<String>) {
-    match value {
-        Value::Object(map) => {
-            for (key, value) in map.iter() {
-                match value {
-                    Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                        let mut full_path = path.clone();
-                        full_path.push(key.to_string());
+const SAMPLE_SIZE: usize = 64;
 
-                        headers.push(full_path);
-                    }
-                    Value::Object(_) => {
-                        let mut new_path = path.clone();
-                        new_path.push(key.to_string());
-
-                        recurse_to_infer_headers(value, headers, new_path);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        _ => {
-            headers.push(vec![String::from("value")]);
-        }
-    }
-}
-
-fn infer_headers(value: &Value) -> Option<Vec<Vec<String>>> {
-    let mut headers: Vec<Vec<String>> = Vec::new();
-
-    recurse_to_infer_headers(value, &mut headers, Vec::new());
-
-    Some(headers)
-}
-
-fn get_value_at_path(value: &Value, path: &[String]) -> Option<Value> {
-    let mut current = value;
-
-    for key in path.iter() {
-        match current.get(key) {
-            Some(new_value) => {
-                current = new_value;
-            }
-            None => {
-                return None;
-            }
-        }
-    }
-
-    Some(current.to_owned())
-}
-
-fn json_line_to_csv_record(value: &Value, headers: &Vec<Vec<String>>) -> csv::StringRecord {
-    let mut record = csv::StringRecord::new();
-
-    for path in headers {
-        let value = get_value_at_path(value, path);
-
-        if let Some(value) = value {
-            record.push_field(&match value {
-                Value::Bool(v) => Cow::Borrowed(if v { "true" } else { "false" }),
-                Value::Number(v) => Cow::Owned(v.to_string()),
-                Value::String(v) => Cow::Owned(v),
-                _ => Cow::Borrowed(""),
-            });
-        } else {
-            record.push_field("");
-        }
-    }
-
-    record
-}
-
+// TODO: option to consider lists as scalars or as paths
+// TODO: configurable sample size
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -116,28 +47,197 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some(p) => Box::new(BufReader::new(fs::File::open(p)?)),
     };
 
-    let mut headers: Vec<Vec<String>> = Vec::new();
+    let mut sampled_records: Vec<Value> = Vec::new();
+    let mut possible_stacks: Vec<TraversalStack> = Vec::new();
     let mut headers_emitted: bool = false;
+    let mut output_record = csv::StringRecord::new();
+    let mut best_stack = TraversalStack::new();
 
-    for line in rdr.lines() {
+    for (i, line) in rdr.lines().enumerate() {
         let value: Value = serde_json::from_str(&line?).expect("Could not parse line as JSON!");
 
-        if !headers_emitted {
-            if let Some(h) = infer_headers(&value) {
-                headers = h;
+        if i < SAMPLE_SIZE {
+            let mut stack = TraversalStack::new();
+            traverse_to_build_stack(&value, &mut stack, 0);
+            sampled_records.push(value);
+            possible_stacks.push(stack);
+        } else if !headers_emitted {
+            best_stack = possible_stacks
+                .iter()
+                .max_by_key(|s| s.len())
+                .unwrap()
+                .to_vec();
 
-                let headers_formatted =
-                    headers.iter().map(|v| v.join(".")).collect::<Vec<String>>();
-                let headers_record = csv::StringRecord::from(headers_formatted);
-                wtr.write_record(&headers_record)?;
+            wtr.write_record(&headers_from_stack(&best_stack))?;
+
+            for sample in sampled_records.iter() {
+                fill_record(sample, &mut output_record, &best_stack);
+                wtr.write_record(&output_record)?;
             }
 
             headers_emitted = true;
-        }
+            sampled_records.clear();
 
-        let record = json_line_to_csv_record(&value, &headers);
-        wtr.write_record(&record)?;
+            fill_record(&value, &mut output_record, &best_stack);
+            wtr.write_record(&output_record)?;
+        } else {
+            fill_record(&value, &mut output_record, &best_stack);
+            wtr.write_record(&output_record)?;
+        }
     }
 
-    Ok(())
+    // Sample was larger than the file
+    if !sampled_records.is_empty() {
+        best_stack = possible_stacks
+            .iter()
+            .max_by_key(|s| s.len())
+            .unwrap()
+            .to_vec();
+
+        wtr.write_record(&headers_from_stack(&best_stack))?;
+
+        for sample in sampled_records.iter() {
+            fill_record(sample, &mut output_record, &best_stack);
+            wtr.write_record(&output_record)?;
+        }
+    }
+
+    Ok(wtr.flush()?)
+}
+
+fn fill_record(value: &Value, record: &mut csv::StringRecord, stack: &TraversalStack) {
+    record.clear();
+
+    traverse_with_stack(value, &stack, |v| {
+        record.push_field(&serialize_value_to_csv(v));
+    });
+}
+
+// NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys fast
+#[derive(Debug, Clone)]
+enum TraversalState {
+    Delve(String, usize),
+    Emit,
+    Pop(usize),
+}
+
+type TraversalStack = Vec<TraversalState>;
+
+fn traverse_to_build_stack(value: &Value, stack: &mut TraversalStack, depth: usize) {
+    match value {
+        Value::Object(map) => {
+            let mut items = map.iter().collect::<Vec<_>>();
+
+            // NOTE: we put scalar values first, then nested ones and we also sort by key
+            items.sort_by_key(|i| {
+                (
+                    if matches!(i.1, Value::Object(_)) {
+                        1
+                    } else {
+                        0
+                    },
+                    i.0,
+                )
+            });
+
+            for (k, v) in items {
+                stack.push(TraversalState::Delve(k.to_string(), depth));
+
+                traverse_to_build_stack(v, stack, depth + 1);
+
+                stack.push(TraversalState::Pop(depth));
+            }
+        }
+        _ => stack.push(TraversalState::Emit),
+    };
+}
+
+fn headers_from_stack(stack: &TraversalStack) -> csv::StringRecord {
+    let mut record = csv::StringRecord::new();
+
+    // Single scalar early return
+    if stack.len() == 1 {
+        record.push_field("value");
+        return record;
+    }
+
+    let mut path: Vec<&str> = Vec::new();
+
+    for state in stack {
+        match state {
+            TraversalState::Delve(key, _) => {
+                path.push(key.as_str());
+            }
+            TraversalState::Emit => {
+                record.push_field(&path.join("."));
+            }
+            TraversalState::Pop(_) => {
+                path.pop();
+            }
+        }
+    }
+
+    record
+}
+
+fn traverse_with_stack<F>(value: &Value, stack: &TraversalStack, mut callback: F)
+where
+    F: FnMut(&Value) -> (),
+{
+    let mut working_stack: Vec<&Value> = vec![];
+    let mut current_value: &Value = value;
+
+    let mut i: usize = 0;
+
+    'outer: while i < stack.len() {
+        let state = &stack[i];
+
+        match state {
+            TraversalState::Delve(key, depth) => {
+                working_stack.push(current_value);
+
+                match current_value.as_object().and_then(|o| o.get(key)) {
+                    None => {
+                        i += 1;
+
+                        while i < stack.len() {
+                            let next_state = &stack[i];
+
+                            match next_state {
+                                TraversalState::Emit => callback(&Value::Null),
+                                TraversalState::Pop(target_depth) if target_depth == depth => {
+                                    continue 'outer;
+                                }
+                                _ => (),
+                            };
+
+                            i += 1;
+                        }
+                    }
+                    Some(next_value) => {
+                        current_value = next_value;
+                    }
+                }
+            }
+            TraversalState::Pop(_) => {
+                current_value = working_stack.pop().expect("cannot pop");
+            }
+            TraversalState::Emit => {
+                callback(current_value);
+            }
+        }
+
+        i += 1;
+    }
+}
+
+fn serialize_value_to_csv(value: &Value) -> Cow<str> {
+    match value {
+        Value::Null => Cow::Borrowed(""),
+        Value::Bool(b) => Cow::Borrowed(if *b { "true" } else { "false" }),
+        Value::String(s) => Cow::Borrowed(s.as_str()),
+        Value::Number(n) => Cow::Owned(n.to_string()),
+        Value::Array(l) => Cow::Owned(serde_json::to_string(l).unwrap()),
+        Value::Object(o) => Cow::Owned(serde_json::to_string(o).unwrap()),
+    }
 }

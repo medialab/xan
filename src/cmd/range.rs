@@ -66,6 +66,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         record.clear();
         record.push_field((i).to_string().as_bytes());
         wtr.write_byte_record(&record)?;
+        wtr.flush()?;
 
         i += args.flag_step;
     }
