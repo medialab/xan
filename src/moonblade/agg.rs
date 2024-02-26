@@ -570,6 +570,27 @@ impl Frequencies {
         max.map(|(_, key)| key.to_string())
     }
 
+    fn modes(&self) -> Option<Vec<String>> {
+        let mut max: Option<(u64, Vec<&String>)> = None;
+
+        for (key, count) in self.counter.iter() {
+            match max.as_mut() {
+                None => {
+                    max = Some((*count, vec![key]));
+                }
+                Some(entry) => {
+                    if *count > entry.0 {
+                        max = Some((*count, vec![key]));
+                    } else if *count == entry.0 {
+                        entry.1.push(key);
+                    }
+                }
+            };
+        }
+
+        max.map(|(_, keys)| keys.into_iter().cloned().collect())
+    }
+
     fn cardinality(&self) -> usize {
         self.counter.len()
     }
@@ -934,6 +955,9 @@ impl Aggregator {
             (Self::Frequencies(inner), ConcreteAggregationMethod::Mode) => {
                 DynamicValue::from(inner.mode())
             }
+            (Self::Frequencies(inner), ConcreteAggregationMethod::Modes(separator)) => {
+                DynamicValue::from(inner.modes().map(|m| m.join(separator)))
+            }
             (Self::Sum(inner), ConcreteAggregationMethod::Sum) => DynamicValue::from(inner.get()),
             (Self::Welford(inner), ConcreteAggregationMethod::VarPop) => {
                 DynamicValue::from(inner.variance())
@@ -1078,6 +1102,7 @@ impl CompositeAggregator {
                 upsert_aggregator!(Numbers)
             }
             ConcreteAggregationMethod::Mode
+            | ConcreteAggregationMethod::Modes(_)
             | ConcreteAggregationMethod::Cardinality
             | ConcreteAggregationMethod::DistinctValues(_) => {
                 upsert_aggregator!(Frequencies)
@@ -1233,7 +1258,7 @@ fn validate_aggregation_function_arity(
                 ));
             }
         }
-        "values" | "distinct_values" | "argmin" | "argmax" => {
+        "values" | "distinct_values" | "argmin" | "argmax" | "modes" => {
             if !(1..=2).contains(&arity) {
                 return Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.func_name.clone(),
@@ -1284,6 +1309,7 @@ enum ConcreteAggregationMethod {
     Mean,
     Median(MedianType),
     Mode,
+    Modes(String),
     Quartile(usize),
     Quantile(f64),
     Sum,
@@ -1322,6 +1348,10 @@ impl ConcreteAggregationMethod {
             "median_high" => Self::Median(MedianType::High),
             "median_low" => Self::Median(MedianType::Low),
             "mode" => Self::Mode,
+            "modes" => Self::Modes(match get_separator_from_optional_first_argument(args) {
+                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                Some(separator) => separator,
+            }),
             "quantile" => match args.first().unwrap() {
                 ConcreteExpr::Value(v) => match v.try_as_f64() {
                     Ok(p) => Self::Quantile(p),
@@ -1735,6 +1765,7 @@ impl Stats {
         if self.frequencies.is_some() {
             headers.push_field(b"cardinality");
             headers.push_field(b"mode");
+            headers.push_field(b"tied_for_mode");
         }
 
         headers.push_field(b"lex_first");
@@ -1782,7 +1813,11 @@ impl Stats {
 
         if let Some(frequencies) = self.frequencies.as_ref() {
             record.push_field(frequencies.cardinality().to_string().as_bytes());
-            record.push_field(&map_to_field(frequencies.mode()));
+
+            let modes = frequencies.modes();
+
+            record.push_field(&map_to_field(modes.as_ref().map(|m| m[0].clone())));
+            record.push_field(&map_to_field(modes.map(|m| m.len())));
         }
 
         record.push_field(&map_to_field(self.lexicograhic_extent.first()));

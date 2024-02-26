@@ -19,25 +19,26 @@ sure to check the `xan agg` command instead.
 
 Here is what the CSV output will look like:
 
-field       (default) - Name of the described column
-count       (default) - Number of non-empty values contained by the column
-type        (default) - Most likely type of the column
-types       (default) - Pipe-separated list of all types witnessed in the column
-sum         (default) - Sum of numerical values
-mean        (default) - Mean of numerical values
-q1          (-q)      - First quartile of numerical values
-median      (-q)      - Second quartile, i.e. median, of numerical values
-q3          (-q)      - Third quartile of numerical values
-variance    (default) - Population variance of numerical values
-stddev      (default) - Population standard deviation of numerical values
-min         (default) - Minimum numerical value
-max         (default) - Maximum numerical value
-cardinality (-c)      - Number of distinct string values
-mode        (-c)      - Most frequent string value (tie breaking is arbitrary & random!)
-lex_first   (default) - First string in lexical order
-lex_last    (default) - Last string in lexical order
-min_length  (default) - Minimum string length
-max_length  (default) - Maximum string length
+field         (default) - Name of the described column
+count         (default) - Number of non-empty values contained by the column
+type          (default) - Most likely type of the column
+types         (default) - Pipe-separated list of all types witnessed in the column
+sum           (default) - Sum of numerical values
+mean          (default) - Mean of numerical values
+q1            (-q)      - First quartile of numerical values
+median        (-q)      - Second quartile, i.e. median, of numerical values
+q3            (-q)      - Third quartile of numerical values
+variance      (default) - Population variance of numerical values
+stddev        (default) - Population standard deviation of numerical values
+min           (default) - Minimum numerical value
+max           (default) - Maximum numerical value
+cardinality   (-c)      - Number of distinct string values
+mode          (-c)      - Most frequent string value (tie breaking is arbitrary & random!)
+tied_for_mode (-c)      - Number of values tied for mode
+lex_first     (default) - First string in lexical order
+lex_last      (default) - Last string in lexical order
+min_length    (default) - Minimum string length
+max_length    (default) - Maximum string length
 
 Usage:
     xan stats [options] [<input>]
