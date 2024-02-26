@@ -1,14 +1,17 @@
+use std::num::NonZeroUsize;
 use std::{
     fs,
-    io::{self, Read},
+    io::{self, BufRead, BufReader, Cursor, Read},
     path::Path,
 };
 
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
 use csv;
 use serde::de::{Deserialize, Deserializer, Error};
+use serde_json::Value;
 
 use config::Config;
+use json::for_each_json_value_as_csv_record;
 use util;
 use CliError;
 use CliResult;
@@ -16,16 +19,18 @@ use CliResult;
 #[derive(Debug, Clone, Copy)]
 enum SupportedFormat {
     Xls,
-    Ndjson,
+    NdJSON,
+    JSONArray,
 }
 
 impl SupportedFormat {
     fn parse(string: &str) -> Option<Self> {
-        match string {
-            "xls" | "xlsx" | "xlsb" | "ods" => Some(Self::Xls),
-            "jsonl" | "ndjson" => Some(Self::Ndjson),
-            _ => None,
-        }
+        Some(match string {
+            "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
+            "jsonl" | "ndjson" => Self::NdJSON,
+            "json" | "json-array" => Self::JSONArray,
+            _ => return None,
+        })
     }
 
     fn infer_from_extension(path: &str) -> Option<Self> {
@@ -55,10 +60,15 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods
-    xls
-    xlsb
-    xlsx
+    ods   - OpenOffice spreadsheet
+    xls   - Excel spreasheet
+    xlsb  - Excel spreasheet
+    xlsx  - Excel spreasheet
+
+    json       - JSON array
+    json-array - JSON array
+    ndjson     - Newline-delimited JSON
+    jsonl      - Newline-delimited JSON
 
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
@@ -67,6 +77,10 @@ from options:
 
 Excel/OpenOffice-related options:
     -s, --sheet <name>     Name of the sheet to convert. [default: Sheet1]
+
+JSON options:
+    --sample-size <n>      Number of records to sample before emitting headers.
+                           [default: 64]
 
 Common options:
     -h, --help             Display this message
@@ -79,9 +93,8 @@ struct Args {
     flag_sheet: String,
     flag_format: Option<SupportedFormat>,
     flag_output: Option<String>,
+    flag_sample_size: NonZeroUsize,
 }
-
-trait ReadSeekClone: io::Read + io::Seek + Clone {}
 
 impl Args {
     fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write>>> {
@@ -89,7 +102,7 @@ impl Args {
     }
 
     fn convert_xls(&self) -> CliResult<()> {
-        let reader = io::Cursor::new(match self.arg_input.as_ref() {
+        let reader = Cursor::new(match self.arg_input.as_ref() {
             None => {
                 let mut contents = Vec::<u8>::new();
                 io::stdin().read_to_end(&mut contents)?;
@@ -145,6 +158,28 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_ndjson(&self) -> CliResult<()> {
+        let mut wtr = self.writer()?;
+
+        let rdr: Box<dyn io::BufRead> = match self.arg_input.as_ref() {
+            None => Box::new(BufReader::new(io::stdin())),
+            Some(p) => Box::new(BufReader::new(fs::File::open(p)?)),
+        };
+
+        for_each_json_value_as_csv_record(
+            rdr.lines().map(|line| -> Result<Value, CliError> {
+                serde_json::from_str(&line?).map_err(|err| CliError::Other(err.to_string()))
+            }),
+            self.flag_sample_size,
+            |record| -> CliResult<()> {
+                wtr.write_record(record)?;
+                Ok(())
+            },
+        )?;
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -174,6 +209,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     match target_format {
         SupportedFormat::Xls => args.convert_xls(),
-        SupportedFormat::Ndjson => unimplemented!(),
+        SupportedFormat::NdJSON => args.convert_ndjson(),
+        SupportedFormat::JSONArray => unimplemented!(),
     }
 }

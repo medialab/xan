@@ -24,7 +24,6 @@ pub mod implode;
 pub mod index;
 pub mod input;
 pub mod join;
-pub mod jsonl;
 pub mod kway;
 pub mod map;
 mod moonblade;

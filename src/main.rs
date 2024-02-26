@@ -104,7 +104,6 @@ macro_rules! command_list {
     index       Create CSV index for faster access
     input       Read CSV data with special quoting rules
     join        Join CSV files
-    jsonl       Convert newline-delimited JSON files to CSV
     kway        Merge multiple similar already sorted CSV files
     map         Create a new column by evaluating an expression on each CSV row
     partition   Partition CSV data based on a column value
@@ -129,6 +128,7 @@ macro_rules! command_list {
 mod cmd;
 mod config;
 mod index;
+mod json;
 mod moonblade;
 mod select;
 mod util;
@@ -228,7 +228,6 @@ enum Command {
     Index,
     Input,
     Join,
-    Jsonl,
     Kway,
     Map,
     Partition,
@@ -295,7 +294,6 @@ impl Command {
             Command::Index => cmd::index::run(argv),
             Command::Input => cmd::input::run(argv),
             Command::Join => cmd::join::run(argv),
-            Command::Jsonl => cmd::jsonl::run(argv),
             Command::Kway => cmd::kway::run(argv),
             Command::Map => cmd::map::run(argv),
             Command::Partition => cmd::partition::run(argv),
