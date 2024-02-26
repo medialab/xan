@@ -458,6 +458,37 @@ impl Numbers {
         Some(median)
     }
 
+    // NOTE: using the inclusive method from https://github.com/python/cpython/blob/3.12/Lib/statistics.py
+    fn quantiles(&self, n: usize) -> Option<Vec<DynamicNumber>> {
+        let l = self.numbers.len();
+
+        if l < 2 {
+            return None;
+        }
+
+        let mut result: Vec<DynamicNumber> = Vec::new();
+
+        let m = l - 1;
+
+        for i in 1..n {
+            let c = i * m;
+            let j = c.div_euclid(n);
+            let delta = c.rem_euclid(n);
+
+            let interpolated = (self.numbers[j] * DynamicNumber::Integer((n - delta) as i64)
+                + self.numbers[j + 1] * DynamicNumber::Integer(delta as i64))
+                / DynamicNumber::Integer(n as i64);
+
+            result.push(interpolated);
+        }
+
+        Some(result)
+    }
+
+    fn quartiles(&self) -> Option<Vec<DynamicNumber>> {
+        self.quantiles(4)
+    }
+
     fn merge(&mut self, other: Self) {
         self.numbers.extend(other.numbers);
     }
@@ -1636,7 +1667,9 @@ impl Stats {
         headers.push_field(b"mean");
 
         if self.numbers.is_some() {
+            headers.push_field(b"q1");
             headers.push_field(b"median");
+            headers.push_field(b"q3");
         }
 
         headers.push_field(b"variance");
@@ -1673,7 +1706,18 @@ impl Stats {
         record.push_field(&map_to_field(self.welford.mean()));
 
         if let Some(numbers) = self.numbers.as_ref() {
-            record.push_field(&map_to_field(numbers.median(&MedianType::Interpolation)));
+            match numbers.quartiles() {
+                Some(quartiles) => {
+                    for quartile in quartiles {
+                        record.push_field(quartile.to_string().as_bytes());
+                    }
+                }
+                None => {
+                    for _ in 0..3 {
+                        record.push_field(b"");
+                    }
+                }
+            }
         }
 
         record.push_field(&map_to_field(self.welford.variance()));
@@ -1823,6 +1867,24 @@ mod tests {
         assert_eq!(
             even_numbers.median(&MedianType::Interpolation),
             Some(DynamicNumber::Float(4.0))
+        );
+
+        // Quartiles
+        assert_eq!(
+            even_numbers.quartiles(),
+            Some(vec![
+                DynamicNumber::Float(1.75),
+                DynamicNumber::Float(4.0),
+                DynamicNumber::Float(6.25)
+            ])
+        );
+        assert_eq!(
+            odd_numbers.quartiles(),
+            Some(vec![
+                DynamicNumber::Float(2.0),
+                DynamicNumber::Float(3.0),
+                DynamicNumber::Float(4.0)
+            ])
         );
     }
 

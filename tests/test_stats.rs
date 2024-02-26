@@ -110,7 +110,7 @@ where
 
 fn get_field_value(wrk: &Workdir, cmd: &mut process::Command, field: &str) -> String {
     if field == "median" {
-        cmd.arg("--quantiles");
+        cmd.arg("--quartiles");
     }
     if field == "cardinality" {
         cmd.arg("--cardinality");
