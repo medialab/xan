@@ -94,6 +94,7 @@ macro_rules! command_list {
     fmt         Format CSV output (change field delimiter)
     foreach     Loop over a CSV file to execute bash commands
     frequency   Show frequency tables
+    from        Convert a variety of formats to CSV
     glob        Create a CSV file with paths matching a glob pattern
     groupby     Aggregate data by groups of a CSV file
     headers     Show header names
@@ -121,7 +122,6 @@ macro_rules! command_list {
     transform   Transform a column by evaluating an expression on each CSV row
     transpose   Transpose CSV file
     view        Preview a CSV file in a human-friendly way
-    xls         Convert Excel/OpenOffice spreadsheets to CSV
 "
     };
 }
@@ -218,6 +218,7 @@ enum Command {
     Flatten,
     Fmt,
     Frequency,
+    From,
     Glob,
     Groupby,
     Headers,
@@ -245,7 +246,6 @@ enum Command {
     Transform,
     Transpose,
     View,
-    Xls,
 }
 
 impl Command {
@@ -282,6 +282,7 @@ impl Command {
                 "The foreach command does not work on windows, sorry :'(".to_string(),
             )),
             Command::Frequency => cmd::frequency::run(argv),
+            Command::From => cmd::from::run(argv),
             Command::Glob => cmd::glob::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
             Command::Headers => cmd::headers::run(argv),
@@ -312,7 +313,6 @@ impl Command {
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose => cmd::transpose::run(argv),
             Command::View => cmd::view::run(argv),
-            Command::Xls => cmd::xls::run(argv),
         }
     }
 }

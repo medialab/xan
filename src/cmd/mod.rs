@@ -15,6 +15,7 @@ pub mod fmt;
 #[cfg(not(windows))]
 pub mod foreach;
 pub mod frequency;
+pub mod from;
 pub mod glob;
 pub mod groupby;
 pub mod headers;
@@ -42,4 +43,3 @@ pub mod stats;
 pub mod transform;
 pub mod transpose;
 pub mod view;
-pub mod xls;

@@ -39,12 +39,12 @@ cargo install xan
 * `xan flatmap`
 * `xan filter`
 * `xan foreach`
+* `xan from`
 * `xan glob`
 * `xan groupby`
 * `xan hist`
 * `xan implode`
 * `xan join --prefix-left/--prefix-right`
-* `xan jsonl`
 * `xan kway`
 * `xan map`
 * `xan range`
@@ -57,7 +57,6 @@ cargo install xan
 * `xan transform`
 * `xan transpose`
 * `xan view`
-* `xan xls`
 
 ### Available commands
 
@@ -82,6 +81,7 @@ given separator.
 * **foreach** - Loop over a CSV file to execute bash commands.
 * **frequency** - Build frequency tables of each column in CSV data. (Uses
   parallelism to go faster if an index is present.)
+* **from** - Convert a variety of formats to CSV.
 * **glob** - Create a CSV file with paths matching a glob pattern.
 * **groupby** - Aggregate data by groups of a CSV file.
 * **headers** - Show the headers of CSV data. Or show the intersection of all
@@ -90,7 +90,6 @@ given separator.
 * **index** - Create an index for a CSV file. This is very quick and provides
   constant time indexing into the CSV file.
 * **input** - Read CSV data with exotic quoting/escaping rules.
-* **jsonl** - Convert newline-delimited JSON to CSV.
 * **join** - Inner, outer and cross joins. Uses a simple hash index to make it
   fast.
 * **kway** - Merge multiple similar already sorted CSV files.
@@ -117,4 +116,3 @@ given separator.
 * **transform** - Transform a column by evaluating an expression on each CSV row.
 * **transpose** - Transpose CSV file
 * **view** - Preview a CSV file in a human-friendly way.
-* **xls** - Convert Excel/OpenOffice spreadsheets to CSV.
