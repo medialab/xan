@@ -16,6 +16,8 @@ use util;
 use CliError;
 use CliResult;
 
+// TODO: support json array value as paths or serialize them with a separator
+
 #[derive(Debug, Clone, Copy)]
 enum SupportedFormat {
     Xls,
@@ -73,7 +75,8 @@ Supported formats:
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading
-                           from stdin, obviously.
+                           from stdin, since we don't have a file extension to
+                           work with.
 
 Excel/OpenOffice-related options:
     -s, --sheet <name>     Name of the sheet to convert. [default: Sheet1]

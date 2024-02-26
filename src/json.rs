@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use csv::StringRecord;
 use serde_json::Value;
 
-// NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys fast
+// NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys efficiently
 #[derive(Debug, Clone)]
 enum JSONTraversalState {
     Delve(String, usize),
@@ -141,7 +141,20 @@ fn fill_record(value: &Value, record: &mut StringRecord, stack: &JSONTraversalSt
     });
 }
 
-// TODO: merge samples rather than taking the longest stack
+fn merge(a: &mut Value, b: &Value) {
+    if let Value::Object(a) = a {
+        if let Value::Object(b) = b {
+            for (k, v) in b {
+                merge(a.entry(k).or_insert(Value::Null), v);
+            }
+
+            return;
+        }
+    }
+
+    *a = b.clone();
+}
+
 pub fn for_each_json_value_as_csv_record<I, F, E>(
     values: I,
     sample_size: NonZeroUsize,
@@ -151,57 +164,49 @@ where
     I: Iterator<Item = Result<Value, E>>,
     F: FnMut(&StringRecord) -> Result<(), E>,
 {
+    let mut merged_value_from_sample = Value::Null;
     let mut sampled_records: Vec<Value> = Vec::new();
-    let mut possible_stacks: Vec<JSONTraversalStack> = Vec::new();
     let mut headers_emitted: bool = false;
     let mut output_record = StringRecord::new();
-    let mut best_stack = JSONTraversalStack::new();
+    let mut stack = JSONTraversalStack::new();
+
+    let sample_size: usize = sample_size.into();
 
     for (i, result) in values.enumerate() {
         let value = result?;
 
-        if i < sample_size.into() {
-            let mut stack = JSONTraversalStack::new();
-            traverse_to_build_stack(&value, &mut stack, 0);
+        // Reading sample
+        if i < sample_size {
+            merge(&mut merged_value_from_sample, &value);
             sampled_records.push(value);
-            possible_stacks.push(stack);
-        } else if !headers_emitted {
-            best_stack = possible_stacks
-                .iter()
-                .max_by_key(|s| s.len())
-                .unwrap()
-                .to_vec();
+            continue;
+        }
 
-            callback(&headers_from_stack(&best_stack))?;
+        // Emitting headers
+        if !headers_emitted {
+            traverse_to_build_stack(&merged_value_from_sample, &mut stack, 0);
+            callback(&headers_from_stack(&stack))?;
 
             for sample in sampled_records.iter() {
-                fill_record(sample, &mut output_record, &best_stack);
+                fill_record(sample, &mut output_record, &stack);
                 callback(&output_record)?;
             }
 
             headers_emitted = true;
             sampled_records.clear();
-
-            fill_record(&value, &mut output_record, &best_stack);
-            callback(&output_record)?;
-        } else {
-            fill_record(&value, &mut output_record, &best_stack);
-            callback(&output_record)?;
         }
+
+        fill_record(&value, &mut output_record, &stack);
+        callback(&output_record)?;
     }
 
     // Sample was larger than the file
     if !sampled_records.is_empty() {
-        best_stack = possible_stacks
-            .iter()
-            .max_by_key(|s| s.len())
-            .unwrap()
-            .to_vec();
-
-        callback(&headers_from_stack(&best_stack))?;
+        traverse_to_build_stack(&merged_value_from_sample, &mut stack, 0);
+        callback(&headers_from_stack(&stack))?;
 
         for sample in sampled_records.iter() {
-            fill_record(sample, &mut output_record, &best_stack);
+            fill_record(sample, &mut output_record, &stack);
             callback(&output_record)?;
         }
     }
