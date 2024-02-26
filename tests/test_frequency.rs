@@ -102,3 +102,51 @@ fn frequency_select() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn frequency_stability() {
+    let wrk = Workdir::new("frequency_stability");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a"],
+            svec!["x"],
+            svec!["x"],
+            svec!["y"],
+            svec!["y"],
+            svec!["z"],
+            svec!["z"],
+        ],
+    );
+
+    let mut cmd = wrk.command("frequency");
+    cmd.arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["field", "value", "count"],
+        svec!["a", "x", "2"],
+        svec!["a", "y", "2"],
+        svec!["a", "z", "2"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("frequency");
+    cmd.arg("data.csv").args(&["-l", "0"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["field", "value", "count"],
+        svec!["a", "x", "2"],
+        svec!["a", "y", "2"],
+        svec!["a", "z", "2"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("frequency");
+    cmd.arg("data.csv").args(&["-l", "1"]).arg("-N");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["field", "value", "count"], svec!["a", "x", "2"]];
+    assert_eq!(got, expected);
+}

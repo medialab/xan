@@ -1,6 +1,10 @@
-use std::collections::{BinaryHeap, HashMap};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
+};
 
 use csv::{self, ByteRecord};
+use rayon::prelude::*;
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
@@ -42,6 +46,8 @@ frequency options:
     -t, --threshold <arg>  If set, won't return items having a count less than
                            this given threshold. It is combined with -l/--limit.
     -N, --no-extra         Don't include empty cells & remaining counts.
+    -p, --parallel         Allow sorting to be done in parallel. This is only
+                           useful with -l/--limit set to 0, i.e. no limit.
 
 Common options:
     -h, --help             Display this message
@@ -64,6 +70,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_parallel: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -124,55 +131,71 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         sel.select(&headers).map(|h| h.to_vec()).collect()
     };
 
-    // TODO: we probably need to make this stable
     for (name, counter) in field_names.into_iter().zip(fields.into_iter()) {
+        let mut total: u64 = 0;
+
         // NOTE: if the limit is less than half of the dataset, we fallback to a heap
         let items = if args.flag_limit != 0
-            && args.flag_limit < (counter.len() as f64 / 2.0) as usize
+            && args.flag_limit < (counter.len() as f64 / 2.0).floor() as usize
         {
-            let mut heap: BinaryHeap<(u64, Vec<u8>)> = BinaryHeap::with_capacity(args.flag_limit);
+            let mut heap: BinaryHeap<(Reverse<u64>, Vec<u8>)> =
+                BinaryHeap::with_capacity(args.flag_limit);
 
             for (value, count) in counter {
-                if heap.len() < heap.capacity() {
-                    heap.push((count, value));
-                } else {
-                    let current = heap.peek().unwrap();
+                total += count;
 
-                    if current.0 < count {
+                if heap.len() < heap.capacity() {
+                    heap.push((Reverse(count), value));
+                } else {
+                    let current = &heap.peek().unwrap();
+
+                    if count > current.0 .0 || (count == current.0 .0 && value < current.1) {
                         heap.pop();
-                        heap.push((count, value));
+                        heap.push((Reverse(count), value));
                     }
                 }
             }
 
-            heap.into_iter()
-                .map(|(count, value)| (value, count))
-                .collect()
-        } else {
-            let mut items = counter.into_iter().collect::<Vec<_>>();
+            let mut items = Vec::with_capacity(heap.len());
 
-            items.sort_unstable_by(|a, b| a.1.cmp(&b.1).reverse());
+            while let Some((count, value)) = heap.pop() {
+                items.push((value, count.0));
+            }
+
+            items.reverse();
+
+            items
+        } else {
+            let mut items = counter
+                .into_iter()
+                .inspect(|(_, c)| total += c)
+                .collect::<Vec<_>>();
+
+            if args.flag_parallel {
+                items.par_sort_unstable_by(|a, b| {
+                    a.1.cmp(&b.1).reverse().then_with(|| a.0.cmp(&b.0))
+                });
+            } else {
+                items.sort_unstable_by(|a, b| a.1.cmp(&b.1).reverse().then_with(|| a.0.cmp(&b.0)));
+            }
+
+            if args.flag_limit != 0 {
+                items.truncate(args.flag_limit);
+            }
 
             items
         };
 
-        let mut remaining: u64 = 0;
+        let mut emitted: u64 = 0;
 
-        for (i, (value, count)) in items.into_iter().enumerate() {
-            if args.flag_limit != 0 && i >= args.flag_limit {
-                if args.flag_no_extra {
-                    break;
-                }
-
-                remaining += count;
-                continue;
-            }
-
+        for (value, count) in items {
             if let Some(threshold) = args.flag_threshold {
                 if count < threshold {
                     break;
                 }
             }
+
+            emitted += count;
 
             record.clear();
             record.push_field(&name);
@@ -180,6 +203,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             record.push_field(count.to_string().as_bytes());
             wtr.write_byte_record(&record)?;
         }
+
+        let remaining = total - emitted;
 
         if !args.flag_no_extra && remaining > 0 {
             record.clear();
