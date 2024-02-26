@@ -162,7 +162,7 @@ impl Args {
     fn convert_ndjson(&self) -> CliResult<()> {
         let mut wtr = self.writer()?;
 
-        let rdr: Box<dyn io::BufRead> = match self.arg_input.as_ref() {
+        let rdr: Box<dyn BufRead> = match self.arg_input.as_ref() {
             None => Box::new(BufReader::new(io::stdin())),
             Some(p) => Box::new(BufReader::new(fs::File::open(p)?)),
         };
@@ -179,6 +179,38 @@ impl Args {
         )?;
 
         Ok(wtr.flush()?)
+    }
+
+    fn convert_json_array(&self) -> CliResult<()> {
+        let mut rdr: Box<dyn Read> = match self.arg_input.as_ref() {
+            None => Box::new(io::stdin()),
+            Some(p) => Box::new(fs::File::open(p)?),
+        };
+
+        let mut contents = String::new();
+        rdr.read_to_string(&mut contents)?;
+
+        let value =
+            serde_json::from_str(&contents).map_err(|err| CliError::Other(err.to_string()))?;
+
+        if let Value::Array(array) = value {
+            let mut wtr = self.writer()?;
+
+            for_each_json_value_as_csv_record(
+                array.into_iter().map(|v| Ok(v)),
+                self.flag_sample_size,
+                |record| -> CliResult<()> {
+                    wtr.write_record(record)?;
+                    Ok(())
+                },
+            )?;
+
+            Ok(wtr.flush()?)
+        } else {
+            Err(CliError::Other(
+                "target JSON does not contain an array".to_string(),
+            ))
+        }
     }
 }
 
@@ -210,6 +242,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match target_format {
         SupportedFormat::Xls => args.convert_xls(),
         SupportedFormat::NdJSON => args.convert_ndjson(),
-        SupportedFormat::JSONArray => unimplemented!(),
+        SupportedFormat::JSONArray => args.convert_json_array(),
     }
 }
