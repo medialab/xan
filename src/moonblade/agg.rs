@@ -489,6 +489,36 @@ impl Numbers {
         self.quantiles(4)
     }
 
+    // NOTE: from https://github.com/simple-statistics/simple-statistics/blob/main/src/quantile_sorted.js
+    fn quantile(&self, p: f64) -> Option<DynamicNumber> {
+        let n = &self.numbers;
+        let l = n.len();
+
+        if l == 0 {
+            None
+        } else if p < 0.0 || p > 1.0 {
+            None
+        } else if p == 1.0 {
+            Some(n[l - 1].clone())
+        } else if p == 0.0 {
+            Some(n[0].clone())
+        } else {
+            let idx = (l as f64) * p;
+
+            if idx.fract() != 0.0 {
+                Some(n[idx.ceil() as usize - 1].clone())
+            } else {
+                let idx = idx.floor() as usize;
+
+                if l % 2 == 0 {
+                    Some((n[idx - 1] + n[idx]) / DynamicNumber::Integer(2))
+                } else {
+                    Some(n[idx].clone())
+                }
+            }
+        }
+    }
+
     fn merge(&mut self, other: Self) {
         self.numbers.extend(other.numbers);
     }
@@ -879,6 +909,12 @@ impl Aggregator {
             (Self::Numbers(inner), ConcreteAggregationMethod::Median(median_type)) => {
                 DynamicValue::from(inner.median(median_type))
             }
+            (Self::Numbers(inner), ConcreteAggregationMethod::Quantile(p)) => {
+                DynamicValue::from(inner.quantile(*p))
+            }
+            (Self::Numbers(inner), ConcreteAggregationMethod::Quartile(idx)) => {
+                DynamicValue::from(inner.quartiles().map(|q| q[*idx]))
+            }
             (Self::Extent(inner), ConcreteAggregationMethod::Max) => {
                 DynamicValue::from(inner.max())
             }
@@ -1036,7 +1072,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
                 upsert_aggregator!(LexicographicExtent)
             }
-            ConcreteAggregationMethod::Median(_) => {
+            ConcreteAggregationMethod::Median(_)
+            | ConcreteAggregationMethod::Quantile(_)
+            | ConcreteAggregationMethod::Quartile(_) => {
                 upsert_aggregator!(Numbers)
             }
             ConcreteAggregationMethod::Mode
@@ -1179,38 +1217,43 @@ fn validate_aggregation_function_arity(
     match aggregation.func_name.as_str() {
         "count" => {
             if !(0..=1).contains(&arity) {
-                Err(ConcretizationError::from_invalid_range_arity(
+                return Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.func_name.clone(),
                     0..=1,
                     arity,
-                ))
-            } else {
-                Ok(())
+                ));
+            }
+        }
+        "quantile" => {
+            if arity != 2 {
+                return Err(ConcretizationError::from_invalid_arity(
+                    aggregation.func_name.clone(),
+                    2,
+                    arity,
+                ));
             }
         }
         "values" | "distinct_values" | "argmin" | "argmax" => {
             if !(1..=2).contains(&arity) {
-                Err(ConcretizationError::from_invalid_range_arity(
+                return Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.func_name.clone(),
                     1..=2,
                     arity,
-                ))
-            } else {
-                Ok(())
+                ));
             }
         }
         _ => {
             if arity != 1 {
-                Err(ConcretizationError::from_invalid_arity(
+                return Err(ConcretizationError::from_invalid_arity(
                     aggregation.func_name.clone(),
                     1,
                     arity,
-                ))
-            } else {
-                Ok(())
+                ));
             }
         }
     }
+
+    Ok(())
 }
 
 fn get_separator_from_optional_first_argument(args: Vec<ConcreteExpr>) -> Option<String> {
@@ -1241,6 +1284,8 @@ enum ConcreteAggregationMethod {
     Mean,
     Median(MedianType),
     Mode,
+    Quartile(usize),
+    Quantile(f64),
     Sum,
     Values(String),
     VarPop,
@@ -1277,6 +1322,16 @@ impl ConcreteAggregationMethod {
             "median_high" => Self::Median(MedianType::High),
             "median_low" => Self::Median(MedianType::Low),
             "mode" => Self::Mode,
+            "quantile" => match args.first().unwrap() {
+                ConcreteExpr::Value(v) => match v.try_as_f64() {
+                    Ok(p) => Self::Quantile(p),
+                    Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+            },
+            "q1" => Self::Quartile(0),
+            "q2" => Self::Quartile(1),
+            "q3" => Self::Quartile(2),
             "values" => Self::Values(match get_separator_from_optional_first_argument(args) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
@@ -1870,6 +1925,14 @@ mod tests {
         );
 
         // Quartiles
+        fn manual_quartiles(n: &Numbers) -> Option<Vec<DynamicNumber>> {
+            Some(vec![
+                n.quantile(0.25).unwrap(),
+                n.quantile(0.5).unwrap(),
+                n.quantile(0.75).unwrap(),
+            ])
+        }
+
         assert_eq!(
             even_numbers.quartiles(),
             Some(vec![
@@ -1879,11 +1942,28 @@ mod tests {
             ])
         );
         assert_eq!(
+            manual_quartiles(&even_numbers),
+            Some(vec![
+                DynamicNumber::Float(1.5),
+                DynamicNumber::Float(4.0),
+                DynamicNumber::Float(6.5)
+            ])
+        );
+
+        assert_eq!(
             odd_numbers.quartiles(),
             Some(vec![
                 DynamicNumber::Float(2.0),
                 DynamicNumber::Float(3.0),
                 DynamicNumber::Float(4.0)
+            ])
+        );
+        assert_eq!(
+            manual_quartiles(&odd_numbers),
+            Some(vec![
+                DynamicNumber::Integer(1),
+                DynamicNumber::Integer(3),
+                DynamicNumber::Integer(5)
             ])
         );
     }

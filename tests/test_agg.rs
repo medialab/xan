@@ -24,6 +24,10 @@ fn agg() {
     test_single_agg_function(&wrk, "min(n) as min", "min", "1");
     test_single_agg_function(&wrk, "max(n) as max", "max", "4");
     test_single_agg_function(&wrk, "median(n) as median", "median", "2.5");
+    test_single_agg_function(&wrk, "q2(n) as q2", "q2", "2.5");
+    test_single_agg_function(&wrk, "quantile(n, 0.5) as q2", "q2", "2.5");
+    test_single_agg_function(&wrk, "q1(n) as q1", "q1", "1.75");
+    test_single_agg_function(&wrk, "q3(n) as q3", "q3", "3.25");
     test_single_agg_function(&wrk, "median_low(n) as median", "median", "2");
     test_single_agg_function(&wrk, "median_high(n) as median", "median", "3");
     test_single_agg_function(&wrk, "var(n) as variance", "variance", "1.25");

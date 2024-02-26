@@ -424,9 +424,21 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - median_low(<expr>) -> number
         Median of numerical values, returning lower value on even counts.
 
-    - mode(<expr>) - string
+    - mode(<expr>) -> string
         Value appearing the most, breaking ties arbitrarily in favor of the
         first value in lexicographical order.
+
+    - quantile(<expr>, p) -> number
+        Return the desired quantile of numerical values.
+
+    - q1(<expr>) -> number
+        Return the first quartile of numerical values.
+
+    - q2(<expr>) -> number
+        Return the second quartile of numerical values. Alias for median.
+
+    - q3(<expr>) -> number
+        Return the third quartile of numerical values.
 
     - stddev(<expr>) -> number
         Population standard deviation. Same as `stddev_pop`.
