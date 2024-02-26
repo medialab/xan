@@ -16,9 +16,9 @@ Compute a frequency table on CSV data.
 
 The resulting frequency table will look like this:
 
-field (default) - Name of the column
-value (default) - Some distinct value of the column
-count (default) - Number of rows containing this value
+field - Name of the column
+value - Some distinct value of the column
+count - Number of rows containing this value
 
 By default, there is a row for the N most frequent values for each field in the
 data. The number of values can be tweaked with --limit and --threshold flags
