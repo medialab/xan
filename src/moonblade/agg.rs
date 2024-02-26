@@ -880,41 +880,41 @@ impl Aggregator {
         method: &ConcreteAggregationMethod,
         context: &EvaluationContext,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        Ok(match (self, method) {
-            (Self::AllAny(inner), ConcreteAggregationMethod::All) => {
+        Ok(match (method, self) {
+            (ConcreteAggregationMethod::All, Self::AllAny(inner)) => {
                 DynamicValue::from(inner.all())
             }
-            (Self::AllAny(inner), ConcreteAggregationMethod::Any) => {
+            (ConcreteAggregationMethod::Any, Self::AllAny(inner)) => {
                 DynamicValue::from(inner.any())
             }
-            (Self::Frequencies(inner), ConcreteAggregationMethod::Cardinality) => {
+            (ConcreteAggregationMethod::Cardinality, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.cardinality())
             }
-            (Self::Count(inner), ConcreteAggregationMethod::Count) => {
+            (ConcreteAggregationMethod::Count, Self::Count(inner)) => {
                 DynamicValue::from(inner.get())
             }
-            (Self::Frequencies(inner), ConcreteAggregationMethod::DistinctValues(separator)) => {
+            (ConcreteAggregationMethod::DistinctValues(separator), Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.join(separator))
             }
-            (Self::First(inner), ConcreteAggregationMethod::First) => {
+            (ConcreteAggregationMethod::First, Self::First(inner)) => {
                 DynamicValue::from(inner.first())
             }
-            (Self::Last(inner), ConcreteAggregationMethod::Last) => {
+            (ConcreteAggregationMethod::Last, Self::Last(inner)) => {
                 DynamicValue::from(inner.last())
             }
-            (Self::LexicographicExtent(inner), ConcreteAggregationMethod::LexFirst) => {
+            (ConcreteAggregationMethod::LexFirst, Self::LexicographicExtent(inner)) => {
                 DynamicValue::from(inner.first())
             }
-            (Self::LexicographicExtent(inner), ConcreteAggregationMethod::LexLast) => {
+            (ConcreteAggregationMethod::LexLast, Self::LexicographicExtent(inner)) => {
                 DynamicValue::from(inner.last())
             }
-            (Self::Extent(inner), ConcreteAggregationMethod::Min) => {
+            (ConcreteAggregationMethod::Min, Self::Extent(inner)) => {
                 DynamicValue::from(inner.min())
             }
-            (Self::ArgExtent(inner), ConcreteAggregationMethod::Min) => {
+            (ConcreteAggregationMethod::Min, Self::ArgExtent(inner)) => {
                 DynamicValue::from(inner.min())
             }
-            (Self::ArgExtent(inner), ConcreteAggregationMethod::ArgMin(expr_opt)) => {
+            (ConcreteAggregationMethod::ArgMin(expr_opt), Self::ArgExtent(inner)) => {
                 if let Some((index, record)) = inner.argmin() {
                     match expr_opt {
                         None => DynamicValue::from(*index),
@@ -924,25 +924,25 @@ impl Aggregator {
                     DynamicValue::None
                 }
             }
-            (Self::Welford(inner), ConcreteAggregationMethod::Mean) => {
+            (ConcreteAggregationMethod::Mean, Self::Welford(inner)) => {
                 DynamicValue::from(inner.mean())
             }
-            (Self::Numbers(inner), ConcreteAggregationMethod::Median(median_type)) => {
+            (ConcreteAggregationMethod::Median(median_type), Self::Numbers(inner)) => {
                 DynamicValue::from(inner.median(median_type))
             }
-            (Self::Numbers(inner), ConcreteAggregationMethod::Quantile(p)) => {
+            (ConcreteAggregationMethod::Quantile(p), Self::Numbers(inner)) => {
                 DynamicValue::from(inner.quantile(*p))
             }
-            (Self::Numbers(inner), ConcreteAggregationMethod::Quartile(idx)) => {
+            (ConcreteAggregationMethod::Quartile(idx), Self::Numbers(inner)) => {
                 DynamicValue::from(inner.quartiles().map(|q| q[*idx]))
             }
-            (Self::Extent(inner), ConcreteAggregationMethod::Max) => {
+            (ConcreteAggregationMethod::Max, Self::Extent(inner)) => {
                 DynamicValue::from(inner.max())
             }
-            (Self::ArgExtent(inner), ConcreteAggregationMethod::Max) => {
+            (ConcreteAggregationMethod::Max, Self::ArgExtent(inner)) => {
                 DynamicValue::from(inner.max())
             }
-            (Self::ArgExtent(inner), ConcreteAggregationMethod::ArgMax(expr_opt)) => {
+            (ConcreteAggregationMethod::ArgMax(expr_opt), Self::ArgExtent(inner)) => {
                 if let Some((index, record)) = inner.argmax() {
                     match expr_opt {
                         None => DynamicValue::from(*index),
@@ -952,32 +952,32 @@ impl Aggregator {
                     DynamicValue::None
                 }
             }
-            (Self::Frequencies(inner), ConcreteAggregationMethod::Mode) => {
+            (ConcreteAggregationMethod::Mode, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.mode())
             }
-            (Self::Frequencies(inner), ConcreteAggregationMethod::Modes(separator)) => {
+            (ConcreteAggregationMethod::Modes(separator), Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.modes().map(|m| m.join(separator)))
             }
-            (Self::Sum(inner), ConcreteAggregationMethod::Sum) => DynamicValue::from(inner.get()),
-            (Self::Welford(inner), ConcreteAggregationMethod::VarPop) => {
+            (ConcreteAggregationMethod::Sum, Self::Sum(inner)) => DynamicValue::from(inner.get()),
+            (ConcreteAggregationMethod::VarPop, Self::Welford(inner)) => {
                 DynamicValue::from(inner.variance())
             }
-            (Self::Welford(inner), ConcreteAggregationMethod::VarSample) => {
+            (ConcreteAggregationMethod::VarSample, Self::Welford(inner)) => {
                 DynamicValue::from(inner.sample_variance())
             }
-            (Self::Welford(inner), ConcreteAggregationMethod::StddevPop) => {
+            (ConcreteAggregationMethod::StddevPop, Self::Welford(inner)) => {
                 DynamicValue::from(inner.stdev())
             }
-            (Self::Welford(inner), ConcreteAggregationMethod::StddevSample) => {
+            (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
                 DynamicValue::from(inner.sample_stdev())
             }
-            (Self::Types(inner), ConcreteAggregationMethod::Types) => {
+            (ConcreteAggregationMethod::Types, Self::Types(inner)) => {
                 DynamicValue::from(inner.sorted_types().join("|"))
             }
-            (Self::Types(inner), ConcreteAggregationMethod::Type) => {
+            (ConcreteAggregationMethod::Type, Self::Types(inner)) => {
                 DynamicValue::from(inner.most_likely_type())
             }
-            (Self::Values(inner), ConcreteAggregationMethod::Values(separator)) => {
+            (ConcreteAggregationMethod::Values(separator), Self::Values(inner)) => {
                 DynamicValue::from(inner.join(separator))
             }
             _ => unreachable!(),
