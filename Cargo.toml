@@ -64,11 +64,6 @@ pariter = "0.5.1"
 pest = "2.7.7"
 pest_derive = "2.7.7"
 pratt = "0.4.0"
-unidecode = "0.3.0"
-unicode-bidi = "0.3.13"
-unicode-segmentation = "1.10.1"
-unicode-width = "0.1.11"
-uuid = { version = "0.8.1", features = ["v4"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 rand_seeder = "0.2.3"
@@ -78,9 +73,14 @@ serde = "1"
 serde_derive = "1"
 serde_json = "1.0"
 termsize = "0.1"
-textwrap = "0.16.0"
+textwrap = "0.16.1"
 threadpool = "1.3"
-thread_local = "1.1.7"
+thread_local = "1.1.8"
+unidecode = "0.3.0"
+unicode-bidi = "0.3.13"
+unicode-segmentation = "1.10.1"
+unicode-width = "0.1.11"
+uuid = { version = "0.8.2", features = ["v4"] }
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
