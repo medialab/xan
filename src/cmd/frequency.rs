@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap};
 
 use csv::{self, ByteRecord};
 
@@ -10,18 +10,20 @@ use CliResult;
 static USAGE: &str = "
 Compute a frequency table on CSV data.
 
-The frequency table is formatted as CSV data:
+The resulting frequency table will look like this:
 
-    field,value,count
+field (default) - Name of the column
+value (default) - Some distinct value of the column
+count (default) - Number of rows containing this value
 
 By default, there is a row for the N most frequent values for each field in the
-data. The order and number of values can be tweaked with --reverse, --limit
-and --threshold respectively.
+data. The number of values can be tweaked with --limit and --threshold flags
+respectively.
 
 Since this computes an exact frequency table, memory proportional to the
-cardinality of each column is required.
+cardinality of each selected column is required.
 
-To compute custom aggregations per group beyond counting, please be sure to
+To compute custom aggregations per group, beyond just counting, please be sure to
 check the `xsv groupby` command instead.
 
 Usage:
@@ -39,8 +41,6 @@ frequency options:
                            [default: 10]
     -t, --threshold <arg>  If set, won't return items having a count less than
                            this given threshold. It is combined with -l/--limit.
-    -R, --reverse          Sort the frequency tables in ascending order by
-                           count. The default is descending order.
     -N, --no-extra         Don't include empty cells & remaining counts.
 
 Common options:
@@ -60,7 +60,6 @@ struct Args {
     flag_select: SelectColumns,
     flag_limit: usize,
     flag_threshold: Option<u64>,
-    flag_reverse: bool,
     flag_no_extra: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -125,14 +124,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         sel.select(&headers).map(|h| h.to_vec()).collect()
     };
 
+    // TODO: we probably need to make this stable
     for (name, counter) in field_names.into_iter().zip(fields.into_iter()) {
-        let mut items = counter.into_iter().collect::<Vec<_>>();
+        // NOTE: if the limit is less than half of the dataset, we fallback to a heap
+        let items = if args.flag_limit != 0
+            && args.flag_limit < (counter.len() as f64 / 2.0) as usize
+        {
+            let mut heap: BinaryHeap<(u64, Vec<u8>)> = BinaryHeap::with_capacity(args.flag_limit);
 
-        if args.flag_reverse {
-            items.sort_by(|a, b| a.1.cmp(&b.1));
+            for (value, count) in counter {
+                if heap.len() < heap.capacity() {
+                    heap.push((count, value));
+                } else {
+                    let current = heap.peek().unwrap();
+
+                    if current.0 < count {
+                        heap.pop();
+                        heap.push((count, value));
+                    }
+                }
+            }
+
+            heap.into_iter()
+                .map(|(count, value)| (value, count))
+                .collect()
         } else {
-            items.sort_by(|a, b| a.1.cmp(&b.1).reverse());
-        }
+            let mut items = counter.into_iter().collect::<Vec<_>>();
+
+            items.sort_unstable_by(|a, b| a.1.cmp(&b.1).reverse());
+
+            items
+        };
 
         let mut remaining: u64 = 0;
 

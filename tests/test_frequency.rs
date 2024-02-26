@@ -89,20 +89,6 @@ fn frequency_limit() {
 }
 
 #[test]
-fn frequency_reverse() {
-    let (wrk, mut cmd) = setup("frequency_reverse");
-    cmd.args(["--limit", "1"])
-        .args(["--select", "h2"])
-        .arg("--reverse")
-        .arg("--no-extra");
-
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got.sort();
-    let expected = vec![svec!["field", "value", "count"], svec!["h2", "y", "2"]];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn frequency_select() {
     let (wrk, mut cmd) = setup("frequency_select");
     cmd.args(["--limit", "0"]).args(["--select", "h2"]);
