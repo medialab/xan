@@ -73,7 +73,7 @@ fn headers_from_stack(stack: &JSONTraversalStack) -> csv::StringRecord {
 
 fn traverse_with_stack<F>(value: &Value, stack: &JSONTraversalStack, mut callback: F)
 where
-    F: FnMut(&Value) -> (),
+    F: FnMut(&Value),
 {
     let mut working_stack: Vec<&Value> = vec![];
     let mut current_value: &Value = value;
@@ -136,7 +136,7 @@ fn serialize_json_value_to_csv_field(value: &Value) -> Cow<str> {
 fn fill_record(value: &Value, record: &mut StringRecord, stack: &JSONTraversalStack) {
     record.clear();
 
-    traverse_with_stack(value, &stack, |v| {
+    traverse_with_stack(value, stack, |v| {
         record.push_field(&serialize_json_value_to_csv_field(v));
     });
 }

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use csv::ByteRecord;
@@ -494,26 +495,24 @@ impl Numbers {
         let n = &self.numbers;
         let l = n.len();
 
-        if l == 0 {
-            None
-        } else if p < 0.0 || p > 1.0 {
+        if !(0.0..=1.0).contains(&p) {
             None
         } else if p == 1.0 {
-            Some(n[l - 1].clone())
+            Some(n[l - 1])
         } else if p == 0.0 {
-            Some(n[0].clone())
+            Some(n[0])
         } else {
             let idx = (l as f64) * p;
 
             if idx.fract() != 0.0 {
-                Some(n[idx.ceil() as usize - 1].clone())
+                Some(n[idx.ceil() as usize - 1])
             } else {
                 let idx = idx.floor() as usize;
 
                 if l % 2 == 0 {
                     Some((n[idx - 1] + n[idx]) / DynamicNumber::Integer(2))
                 } else {
-                    Some(n[idx].clone())
+                    Some(n[idx])
                 }
             }
         }
@@ -578,13 +577,15 @@ impl Frequencies {
                 None => {
                     max = Some((*count, vec![key]));
                 }
-                Some(entry) => {
-                    if *count > entry.0 {
+                Some(entry) => match count.cmp(&entry.0) {
+                    Ordering::Greater => {
                         max = Some((*count, vec![key]));
-                    } else if *count == entry.0 {
+                    }
+                    Ordering::Equal => {
                         entry.1.push(key);
                     }
-                }
+                    _ => (),
+                },
             };
         }
 

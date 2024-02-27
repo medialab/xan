@@ -200,7 +200,7 @@ impl Args {
             let mut wtr = self.writer()?;
 
             for_each_json_value_as_csv_record(
-                array.into_iter().map(|v| Ok(v)),
+                array.into_iter().map(Ok),
                 self.flag_sample_size,
                 |record| -> CliResult<()> {
                     wtr.write_record(record)?;
@@ -223,22 +223,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let target_format = {
         if let Some(format) = args.flag_format {
             format
-        } else {
-            if let Some(p) = args.arg_input.as_ref() {
-                match SupportedFormat::infer_from_extension(p) {
-                    Some(format) => format,
-                    None => {
-                        return Err(CliError::Other(
-                            "could not infer format from extension.".to_string(),
-                        ));
-                    }
+        } else if let Some(p) = args.arg_input.as_ref() {
+            match SupportedFormat::infer_from_extension(p) {
+                Some(format) => format,
+                None => {
+                    return Err(CliError::Other(
+                        "could not infer format from extension.".to_string(),
+                    ));
                 }
-            } else {
-                return Err(CliError::Other(
-                    "cannot infer format from stdin. Please provide the -f/--format flag."
-                        .to_string(),
-                ));
             }
+        } else {
+            return Err(CliError::Other(
+                "cannot infer format from stdin. Please provide the -f/--format flag.".to_string(),
+            ));
         }
     };
 
