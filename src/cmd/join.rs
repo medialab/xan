@@ -1,6 +1,5 @@
 use std::collections::hash_map::{Entry, HashMap};
 use std::fmt;
-use std::fs;
 use std::io;
 use std::iter::repeat;
 use std::str;
@@ -9,7 +8,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 use csv;
 use pariter::IteratorExt;
 
-use config::{Config, Delimiter};
+use config::{Config, Delimiter, SeekRead};
 use index::Indexed;
 use select::{SelectColumns, Selection};
 use util;
@@ -24,20 +23,23 @@ intersection of rows on the keys specified.
 By default, joins are done case sensitively, but this can be disabled using
 the --ignore-case flag.
 
-The columns arguments specify the columns to join for each input. Columns can
-be referenced by name or index, starting at 1. Specify multiple columns by
-separating them with a comma. Specify a range of columns with `-`. Both
-columns1 and columns2 must specify exactly the same number of columns.
-(See 'xan select --help' for the full syntax.)
+The column arguments specify the columns to join for each input. Columns can
+selected using the same syntax as the 'xsv select' command. Both selections
+must return a same number of columns in proper order.
 
-The command can also perform a 'regex' join, matching efficiently a CSV file containing
+Note that this command is able to consume streams such as stdin (in which case
+the file name must be '-' to indicate which file will be read from stdin) and
+gzipped files out of the box, but be aware that those file will be entirely
+buffered into memory so the join operation can be done.
+
+Note that when performing an 'inner' join (the default), it's the second file that
+will be indexed into memory. And when performing an 'outer' join, it will be the file
+that is on the other side of --left/--right.
+
+Finally, the command can also perform a 'regex' join, matching efficiently a CSV file containing
 a column of regex patterns with another file. But if you only need to filter out a file
 based on a set of regex patterns and don't need the auxilliary columns to be concatenated
 to the joined result, please be sure to check out the search command --input flag before.
-
-Note that when performing an 'inner' join (the default), it's the second file that
-will be indexed into memory. And when performing an 'outer' join, it will naturally
-be the file that is on the other side of --left/--right.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
@@ -448,7 +450,7 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
 }
 
 impl Args {
-    fn new_io_state(&self) -> CliResult<IoState<fs::File, Box<dyn io::Write + 'static>>> {
+    fn new_io_state(&self) -> CliResult<IoState<Box<dyn SeekRead>, Box<dyn io::Write + 'static>>> {
         let rconf1 = Config::new(&Some(self.arg_input1.clone()))
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)

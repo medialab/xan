@@ -290,14 +290,9 @@ impl Config {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
-    pub fn reader_file(&self) -> io::Result<csv::Reader<fs::File>> {
-        match self.path {
-            None => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Cannot use <stdin> here",
-            )),
-            Some(ref p) => fs::File::open(p).map(|f| self.csv_reader_from_reader(f)),
-        }
+    pub fn reader_file(&self) -> io::Result<csv::Reader<Box<dyn SeekRead>>> {
+        self.io_reader_for_random_access_with_cursor_fallback()
+            .map(|f| self.csv_reader_from_reader(f))
     }
 
     pub fn index_files(&self) -> io::Result<Option<(csv::Reader<fs::File>, fs::File)>> {
@@ -380,6 +375,32 @@ impl Config {
                     Ok(_) => Ok(Box::new(x)),
                     Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
                 },
+                Err(err) => {
+                    let msg = format!("failed to open {}: {}", p.display(), err);
+                    Err(io::Error::new(io::ErrorKind::NotFound, msg))
+                }
+            },
+        }
+    }
+
+    pub fn io_reader_for_random_access_with_cursor_fallback(
+        &self,
+    ) -> io::Result<Box<dyn SeekRead + 'static>> {
+        match self.path {
+            None => Ok(Box::new(util::bytes_cursor_from_read(&mut io::stdin())?)),
+            Some(ref p) => match fs::File::open(p) {
+                Ok(mut x) => {
+                    if p.to_string_lossy().ends_with(".gz") {
+                        Ok(Box::new(util::bytes_cursor_from_read(
+                            &mut GzDecoder::new(x),
+                        )?))
+                    } else {
+                        match x.borrow().stream_position() {
+                            Ok(_) => Ok(Box::new(x)),
+                            Err(_) => Ok(Box::new(util::bytes_cursor_from_read(&mut x)?)),
+                        }
+                    }
+                }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
                     Err(io::Error::new(io::ErrorKind::NotFound, msg))

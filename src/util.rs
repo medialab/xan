@@ -690,6 +690,12 @@ impl<T: Iterator> ChunksIteratorExt for T {
     }
 }
 
+pub fn bytes_cursor_from_read<R: io::Read>(source: &mut R) -> io::Result<io::Cursor<Vec<u8>>> {
+    let mut bytes = Vec::<u8>::new();
+    source.read_to_end(&mut bytes)?;
+    Ok(io::Cursor::new(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
