@@ -52,7 +52,7 @@ where
 }
 
 static USAGE: &str = "
-Explodes a row into multiple ones by splitting column values by using the
+Explode CSV rows into multiple ones by splitting column values by using the
 provided separator.
 
 This is the reverse of the 'implode' command.

@@ -2,14 +2,14 @@ use csv;
 
 use config::{Config, Delimiter};
 use select::SelectColumns;
-use util::{self, ImmutableRecordHelpers};
+use util;
 use CliResult;
 
 static USAGE: &str = "
-Implodes a CSV file by collapsing multiple consecutive rows into a single one
-where the values of a column are joined using the given separator.
+Implode a CSV file by collapsing multiple consecutive rows into a single one
+where the values of some columns are joined using the given separator.
 
-This is the reverse of the explode command.
+This is the reverse of the 'explode' command.
 
 For instance the following CSV:
 
@@ -18,14 +18,14 @@ John,blue
 John,yellow
 Mary,red
 
-Can be imploded on the \"color\" <column> using the \"|\" <separator> to produce:
+Can be imploded on the \"color\" column using the \"|\" <separator> to produce:
 
 name,color
 John,blue|yellow
 Mary,red
 
 Usage:
-    xan implode [options] <column> <separator> [<input>]
+    xan implode [options] <columns> <separator> [<input>]
     xan implode --help
 
 implode options:
@@ -42,7 +42,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_columns: SelectColumns,
     arg_separator: String,
     arg_input: Option<String>,
     flag_rename: Option<String>,
@@ -51,16 +51,16 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
-fn compare_but_for_col(first: &csv::ByteRecord, second: &csv::ByteRecord, except: usize) -> bool {
-    first.iter().zip(second.iter()).enumerate().all(
-        |(i, (a, b))| {
-            if i == except {
-                true
-            } else {
-                a == b
-            }
-        },
-    )
+fn compare_but_for_sel(
+    first: &csv::ByteRecord,
+    second: &csv::ByteRecord,
+    except: &[Option<usize>],
+) -> bool {
+    first
+        .iter()
+        .zip(second.iter())
+        .zip(except.iter())
+        .all(|((a, b), mask)| if mask.is_some() { true } else { a == b })
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -68,50 +68,94 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column);
+        .select(args.arg_columns);
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    let headers = rdr.byte_headers()?.clone();
-    let column_index = rconfig.single_selection(&headers)?;
+    let mut headers = rdr.byte_headers()?.clone();
+    let sel = rconfig.selection(&headers)?;
 
-    let mut headers = rdr.headers()?.clone();
+    // NOTE: the mask deduplicates
+    let sel_mask = sel.indexed_mask(headers.len());
 
-    if let Some(new_name) = args.flag_rename {
-        headers = headers.replace_at(column_index, &new_name);
+    if let Some(new_names) = args.flag_rename {
+        let new_names = util::str_to_csv_byte_record(&new_names);
+
+        if new_names.len() != sel.len() {
+            return fail!(format!(
+                "Renamed columns alignement error. Expected {} names and got {}.",
+                sel.len(),
+                new_names.len(),
+            ));
+        }
+
+        headers = headers
+            .iter()
+            .zip(sel_mask.iter())
+            .map(|(h, rh)| if let Some(i) = rh { &new_names[*i] } else { h })
+            .collect();
     }
 
     if !rconfig.no_headers {
-        wtr.write_record(&headers)?;
+        wtr.write_byte_record(&headers)?;
     }
 
-    let sep = args.arg_separator;
+    let sep = args.arg_separator.as_bytes();
     let mut previous: Option<csv::ByteRecord> = None;
-    let mut accumulator: Vec<Vec<u8>> = Vec::new();
+    let mut accumulator: Vec<Vec<Vec<u8>>> = Vec::with_capacity(sel.len());
 
     for result in rdr.into_byte_records() {
         let record = result?;
 
-        if let Some(previous_record) = previous.as_ref() {
-            if !compare_but_for_col(&record, previous_record, column_index) {
+        if let Some(previous_record) = previous {
+            if !compare_but_for_sel(&record, &previous_record, &sel_mask) {
                 // Flushing
-                let value = accumulator.join(sep.as_bytes());
-                let imploded_record = previous_record.replace_at(column_index, &value);
+                let imploded_record: csv::ByteRecord = previous_record
+                    .iter()
+                    .zip(sel_mask.iter())
+                    .map(|(cell, mask)| {
+                        if let Some(i) = mask {
+                            accumulator
+                                .iter()
+                                .map(|acc| acc[*i].clone())
+                                .collect::<Vec<_>>()
+                                .join(sep)
+                        } else {
+                            cell.to_vec()
+                        }
+                    })
+                    .collect();
+
                 wtr.write_byte_record(&imploded_record)?;
 
                 accumulator.clear();
             }
         }
 
-        accumulator.push(record[column_index].to_vec());
+        accumulator.push(sel.select(&record).map(|c| c.to_vec()).collect());
         previous = Some(record);
     }
 
     // Flushing last instance
     if !accumulator.is_empty() {
-        let value = accumulator.join(sep.as_bytes());
-        let imploded_record = previous.unwrap().replace_at(column_index, &value);
+        let imploded_record: csv::ByteRecord = previous
+            .unwrap()
+            .iter()
+            .zip(sel_mask)
+            .map(|(cell, mask)| {
+                if let Some(i) = mask {
+                    accumulator
+                        .iter()
+                        .map(|acc| acc[i].clone())
+                        .collect::<Vec<_>>()
+                        .join(sep)
+                } else {
+                    cell.to_vec()
+                }
+            })
+            .collect();
+
         wtr.write_byte_record(&imploded_record)?;
     }
 

@@ -78,3 +78,58 @@ fn implode_no_headers() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn implode_multiple_columns() {
+    let wrk = Workdir::new("implode_multiple_columns");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color", "letter"],
+            svec!["Mary", "yellow", "a"],
+            svec!["John", "blue", "b"],
+            svec!["John", "orange", "c"],
+            svec!["Jack", "", "d"],
+        ],
+    );
+    let mut cmd = wrk.command("implode");
+    cmd.arg("color,letter").arg("|").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "color", "letter"],
+        svec!["Mary", "yellow", "a"],
+        svec!["John", "blue|orange", "b|c"],
+        svec!["Jack", "", "d"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn implode_multiple_columns_rename() {
+    let wrk = Workdir::new("implode_multiple_columns_rename");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color", "letter"],
+            svec!["Mary", "yellow", "a"],
+            svec!["John", "blue", "b"],
+            svec!["John", "orange", "c"],
+            svec!["Jack", "", "d"],
+        ],
+    );
+    let mut cmd = wrk.command("implode");
+    cmd.arg("color,letter")
+        .arg("|")
+        .args(["-r", "colors,letters"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "colors", "letters"],
+        svec!["Mary", "yellow", "a"],
+        svec!["John", "blue|orange", "b|c"],
+        svec!["Jack", "", "d"],
+    ];
+    assert_eq!(got, expected);
+}
