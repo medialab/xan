@@ -24,7 +24,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 
 ![hist.png](./docs/img/hist.png)
 
-### How to install
+## How to install
 
 `xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
 
@@ -32,11 +32,11 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 cargo install xan
 ```
 
-### Quick tour
+## Quick tour
 
 WIP...
 
-### Available commands
+## Available commands
 
 - **agg** - Aggregate data from CSV file
 - **behead** - Drop header from CSV file
