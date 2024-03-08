@@ -58,7 +58,6 @@ WIP...
 - **glob** - Create a CSV file with paths matching a glob pattern
 - **groupby** - Aggregate data by groups of a CSV file
 - **headers** - Show header names
-- **help** - Show this usage message.
 - **hist** - Print a histogram with rows of CSV file as bars
 - **implode** - Collapse consecutive identical rows based on a diverging column
 - **index** - Create CSV index for faster access
