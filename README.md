@@ -1,118 +1,69 @@
 # xan
 
-**Warning**: this repository stores [SciencesPo's médialab](https://medialab.sciencespo.fr/en/) fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv) command line tool.
+`xan` is a command line tool that can be used to process CSV files directly from the shell.
 
-Feel free to use it, if you feel its added [features](#new-features) are useful to your own workflows.
+It has been written in Rust to be as performant as possible and can easily handle very large CSV files (Gigabytes). It is also able to leverage parallelism (through multithreading) to make some tasks complete as fast as your computer can allow.
 
-## Presentation
+It can easily preview, filter, slice, aggregate, join CSV files, and exposes a large collection of composable commands that can be chained together to perform a wide variety of typical tasks.
 
-`xan` is a command line program for indexing, slicing, analyzing, splitting
-and joining CSV files. Commands should be simple, fast and composable:
+`xan` also exposes its own expression language so you can perform complex tasks that cannot be done by relying on the simplest commands. This minimalistic language has been tailored for CSV data and is faster than evaluating typical dynamically-typed languages such as Python, Lua, JavaScript etc.
 
-1. Simple tasks should be easy.
-2. Performance trade offs should be exposed in the CLI interface.
-3. Composition should not come at the expense of performance.
-
-This README contains information on how to
-[install `xan`](#installation), in addition to
-a quick tour of several commands.
-
-Dual-licensed under MIT or the [UNLICENSE](https://unlicense.org).
+Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences.
 
 ### How to install
 
-`xan` can be installed using cargo:
+`xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
 
 ```
 cargo install xan
 ```
 
-<strong id="new-features">New Features</strong>
+### Quick tour
 
-* `xan agg`
-* `xan behead`
-* `xan bins`
-* `xan datefmt`
-* `xan dedup`
-* `xan enum`
-* `xan explode`
-* `xan flatmap`
-* `xan filter`
-* `xan foreach`
-* `xan from`
-* `xan glob`
-* `xan groupby`
-* `xan hist`
-* `xan implode`
-* `xan join --prefix-left/--prefix-right`
-* `xan kway`
-* `xan map`
-* `xan range`
-* `xan rename`
-* `xan reverse --in-memory`
-* `xan search --exact`
-* `xan search --flag col`
-* `xan shuffle`
-* `xan sort -u`
-* `xan transform`
-* `xan transpose`
-* `xan view`
+WIP...
 
 ### Available commands
 
-* **agg** - Aggregate data from CSV file.
-* **behead** - Drop headers from CSV file.
-* **bins** - Dispatch numeric columns into bins.
-* **cat** - Concatenate CSV files by row or by column.
-* **count** - Count the rows in a CSV file. (Instantaneous with an index.)
-* **datefmt** - Add a column with the date from a CSV column in a specified format and timezone.
-* **dedup** - Deduplicate a CSV file.
-* **enum** - Enumerate CSV file by preprending an index column.
-* **explode** - Explode rows into multiple ones by splitting a column value based on the
-given separator.
-* **filter** - Only keep some CSV rows based on an evaluated expression.
-* **fixlengths** - Force a CSV file to have same-length records by either
-  padding or truncating them.
-* **flatmap** - Emit one row per value yielded by an expression evaluated for each CSV row.
-* **flatten** - A flattened view of CSV records. Useful for viewing one record
-  at a time. e.g., `xan slice -i 5 data.csv | xan flatten`.
-* **fmt** - Reformat CSV data with different delimiters, record terminators
-  or quoting rules. (Supports ASCII delimited data.)
-* **foreach** - Loop over a CSV file to execute bash commands.
-* **frequency** - Build frequency tables of each column in CSV data. (Uses
-  parallelism to go faster if an index is present.)
-* **from** - Convert a variety of formats to CSV.
-* **glob** - Create a CSV file with paths matching a glob pattern.
-* **groupby** - Aggregate data by groups of a CSV file.
-* **headers** - Show the headers of CSV data. Or show the intersection of all
-  headers between many CSV files.
-* **implode** - Collapse consecutive identical rows based on a diverging column.
-* **index** - Create an index for a CSV file. This is very quick and provides
-  constant time indexing into the CSV file.
-* **input** - Read CSV data with exotic quoting/escaping rules.
-* **join** - Inner, outer and cross joins. Uses a simple hash index to make it
-  fast.
-* **kway** - Merge multiple similar already sorted CSV files.
-* **lang**, *optional* - Add a column with the language detected in a given CSV column.
-* **map** - Create a new column by evaluating an expression on each CSV row.
-* **partition** - Partition CSV data based on a column value.
-* **pseudo** - Pseudonymise the value of the given column by replacing them by an incremental identifier.
-* **sample** - Randomly draw rows from CSV data using reservoir sampling (i.e.,
-  use memory proportional to the size of the sample).
-* **range** - Create a CSV file from a numerical range.
-* **rename** - Rename columns of a CSV file.
-* **reverse** - Reverse order of rows in CSV data.
-* **search** - Run a regex over CSV data. Applies the regex to each field
-  individually and shows only matching rows.
-* **select** - Select or re-order columns from CSV data.
-* **shuffle** - Shuffle rows of a CSV file.
-* **slice** - Slice rows from any part of a CSV file. When an index is present,
-  this only has to parse the rows in the slice (instead of all rows leading up
-  to the start of the slice).
-* **sort** - Sort CSV data.
-* **split** - Split one CSV file into many CSV files of N chunks.
-* **stats** - Show basic types and statistics of each column in the CSV file.
-  (i.e., mean, standard deviation, median, range, etc.)
-* **transform** - Transform a column by evaluating an expression on each CSV row.
-* **transpose** - Transpose CSV file
-* **view** - Preview a CSV file in a human-friendly way.
+- **agg** - Aggregate data from CSV file
+- **behead** - Drop header from CSV file
+- **bins** - Dispatch numeric columns into bins
+- **cat** - Concatenate by row or column
+- [**count**](./docs/cmd/count.md) - Count records
+- **datefmt** - Format a recognized date column to a specified format and timezone
+- **dedup** - Deduplicate a CSV file
+- **enum** - Enumerate CSV file by preprending an index column
+- **explode** - Explode rows based on some column separator
+- **filter** - Only keep some CSV rows based on an evaluated expression
+- **fixlengths** - Makes all records have same length
+- **flatmap** - Emit one row per value yielded by an expression evaluated for each CSV row
+- **flatten** - Show one field per line
+- **fmt** - Format CSV output (change field delimiter)
+- **foreach** - Loop over a CSV file to execute bash commands
+- **frequency** - Show frequency tables
+- **from** - Convert a variety of formats to CSV
+- **glob** - Create a CSV file with paths matching a glob pattern
+- **groupby** - Aggregate data by groups of a CSV file
+- **headers** - Show header names
+- **help** - Show this usage message.
+- **hist** - Print a histogram with rows of CSV file as bars
+- **implode** - Collapse consecutive identical rows based on a diverging column
+- **index** - Create CSV index for faster access
+- **input** - Read CSV data with special quoting rules
+- **join** - Join CSV files
+- **kway** - Merge multiple similar already sorted CSV files
+- **map** - Create a new column by evaluating an expression on each CSV row
+- **partition** - Partition CSV data based on a column value
+- **range** - Create a CSV file from a numerical range
+- **rename** - Rename columns of a CSV file
+- **reverse** - Reverse rows of CSV data
+- **sample** - Randomly sample CSV data
+- **search** - Search CSV data with regexes
+- **select** - Select columns from CSV
+- **shuffle** - Shuffle CSV data
+- **slice** - Slice records from CSV
+- **sort** - Sort CSV data
+- **split** - Split CSV data into many files
+- **stats** - Compute basic statistics
+- **transform** - Transform a column by evaluating an expression on each CSV row
+- **transpose** - Transpose CSV file
+- **view** - Preview a CSV file in a human-friendly way
