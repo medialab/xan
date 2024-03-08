@@ -10,6 +10,20 @@ It can easily preview, filter, slice, aggregate, join CSV files, and exposes a l
 
 Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences.
 
+Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations.
+
+*Displaying a CSV file in the terminal using `xan view`*
+
+![view.png](./docs/img/view.png)
+
+*Showing a flattened view of CSV records using `xan flatten`*
+
+![flatten.png](./docs/img/flatten.png)
+
+*Drawing a histogram of values using `xan hist`*
+
+![hist.png](./docs/img/hist.png)
+
 ### How to install
 
 `xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
