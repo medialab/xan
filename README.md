@@ -81,3 +81,5 @@ WIP...
 - **transform** - Transform a column by evaluating an expression on each CSV row
 - **transpose** - Transpose CSV file
 - **view** - Preview a CSV file in a human-friendly way
+
+If you ever feel lost, each command has a `-h/--help` flag that will print the related documentation.
