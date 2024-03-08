@@ -1,8 +1,8 @@
 # xan count
 
-The `count` command is quite straightforward and can be used to count the number of rows of a CSV file.
+The `count` returns the number of rows of a CSV file.
 
-It will of course not include the header row in the returned count, unless you provide the `-n/--no-headers` flag, indicating to `xan` your CSV file has no actually no header (or if you are a devious individual and actually want to include the header in the count).
+It will not include the header row in the returned count, unless you provide the `-n/--no-headers` flag.
 
 So, given this particular file:
 
