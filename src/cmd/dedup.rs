@@ -14,6 +14,9 @@ the distinct number of row identities.
 If your file is already sorted on the deduplication selection, use the -S/--sorted flag
 to run in O(1) memory instead.
 
+Note that it will be the first row having a specific identity that will be emitted in
+the output and not any subsequent one.
+
 Usage:
     xan dedup [options] [<input>]
     xan dedup --help
