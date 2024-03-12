@@ -17,6 +17,7 @@ extern crate ext_sort;
 extern crate filetime;
 extern crate flate2;
 extern crate glob;
+extern crate indicatif;
 extern crate rand_chacha;
 extern crate rand_seeder;
 #[macro_use]
@@ -107,6 +108,7 @@ macro_rules! command_list {
     map         Create a new column by evaluating an expression on each CSV row
     merge       Merge multiple similar already sorted CSV files
     partition   Partition CSV data based on a column value
+    progress    Display a progress bar while reading CSV data
     range       Create a CSV file from a numerical range
     rename      Rename columns of a CSV file
     reverse     Reverse rows of CSV data
@@ -231,6 +233,7 @@ enum Command {
     Map,
     Merge,
     Partition,
+    Progress,
     Range,
     Rename,
     Reverse,
@@ -297,6 +300,7 @@ impl Command {
             Command::Map => cmd::map::run(argv),
             Command::Merge => cmd::merge::run(argv),
             Command::Partition => cmd::partition::run(argv),
+            Command::Progress => cmd::progress::run(argv),
             Command::Range => cmd::range::run(argv),
             Command::Rename => cmd::rename::run(argv),
             Command::Reverse => cmd::reverse::run(argv),

@@ -66,6 +66,7 @@ WIP...
 - **map** - Create a new column by evaluating an expression on each CSV row
 - **kway** - Merge multiple similar already sorted CSV files
 - **partition** - Partition CSV data based on a column value
+- **progress** - Display a progress bar while reading CSV data
 - **range** - Create a CSV file from a numerical range
 - **rename** - Rename columns of a CSV file
 - **reverse** - Reverse rows of CSV data
