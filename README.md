@@ -39,7 +39,7 @@ WIP...
 ## Available commands
 
 - **agg** - Aggregate data from CSV file
-- **behead** - Drop header from CSV file
+- [**behead**](./docs/cmd/behead.md) - Drop header from CSV file
 - **bins** - Dispatch numeric columns into bins
 - **cat** - Concatenate by row or column
 - [**count**](./docs/cmd/count.md) - Count records
