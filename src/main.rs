@@ -104,8 +104,8 @@ macro_rules! command_list {
     index       Create CSV index for faster access
     input       Read CSV data with special quoting rules
     join        Join CSV files
-    kway        Merge multiple similar already sorted CSV files
     map         Create a new column by evaluating an expression on each CSV row
+    merge       Merge multiple similar already sorted CSV files
     partition   Partition CSV data based on a column value
     range       Create a CSV file from a numerical range
     rename      Rename columns of a CSV file
@@ -228,8 +228,8 @@ enum Command {
     Index,
     Input,
     Join,
-    Kway,
     Map,
+    Merge,
     Partition,
     Range,
     Rename,
@@ -294,8 +294,8 @@ impl Command {
             Command::Index => cmd::index::run(argv),
             Command::Input => cmd::input::run(argv),
             Command::Join => cmd::join::run(argv),
-            Command::Kway => cmd::kway::run(argv),
             Command::Map => cmd::map::run(argv),
+            Command::Merge => cmd::merge::run(argv),
             Command::Partition => cmd::partition::run(argv),
             Command::Range => cmd::range::run(argv),
             Command::Rename => cmd::rename::run(argv),

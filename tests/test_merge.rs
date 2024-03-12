@@ -1,8 +1,8 @@
 use workdir::Workdir;
 
 #[test]
-fn kway() {
-    let wrk = Workdir::new("kway");
+fn merge() {
+    let wrk = Workdir::new("merge");
     wrk.create(
         "a.csv",
         vec![svec!["name"], svec!["bautista"], svec!["caroline"]],
@@ -11,7 +11,7 @@ fn kway() {
         "b.csv",
         vec![svec!["name"], svec!["anna"], svec!["delphine"]],
     );
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv").arg("b.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -26,11 +26,11 @@ fn kway() {
 }
 
 #[test]
-fn kway_no_headers() {
-    let wrk = Workdir::new("kway");
+fn merge_no_headers() {
+    let wrk = Workdir::new("merge");
     wrk.create("a.csv", vec![svec!["bautista"], svec!["caroline"]]);
     wrk.create("b.csv", vec![svec!["anna"], svec!["delphine"]]);
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv").arg("b.csv").arg("--no-headers");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -44,8 +44,8 @@ fn kway_no_headers() {
 }
 
 #[test]
-fn kway_padding() {
-    let wrk = Workdir::new("kway");
+fn merge_padding() {
+    let wrk = Workdir::new("merge");
     wrk.create(
         "a.csv",
         vec![svec!["name"], svec!["bautista"], svec!["caroline"]],
@@ -60,7 +60,7 @@ fn kway_padding() {
             svec!["farid"],
         ],
     );
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv").arg("b.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -77,8 +77,8 @@ fn kway_padding() {
 }
 
 #[test]
-fn kway_reverse() {
-    let wrk = Workdir::new("kway");
+fn merge_reverse() {
+    let wrk = Workdir::new("merge");
     wrk.create(
         "a.csv",
         vec![svec!["name"], svec!["caroline"], svec!["bautista"]],
@@ -87,7 +87,7 @@ fn kway_reverse() {
         "b.csv",
         vec![svec!["name"], svec!["delphine"], svec!["anna"]],
     );
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv").arg("b.csv").arg("--reverse");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -102,11 +102,11 @@ fn kway_reverse() {
 }
 
 #[test]
-fn kway_numeric() {
-    let wrk = Workdir::new("kway");
+fn merge_numeric() {
+    let wrk = Workdir::new("merge");
     wrk.create("a.csv", vec![svec!["n"], svec!["1"], svec!["3"]]);
     wrk.create("b.csv", vec![svec!["n"], svec!["2"], svec!["4"]]);
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv").arg("b.csv").arg("--numeric");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -115,11 +115,11 @@ fn kway_numeric() {
 }
 
 #[test]
-fn kway_numeric_reverse() {
-    let wrk = Workdir::new("kway");
+fn merge_numeric_reverse() {
+    let wrk = Workdir::new("merge");
     wrk.create("a.csv", vec![svec!["n"], svec!["3"], svec!["1"]]);
     wrk.create("b.csv", vec![svec!["n"], svec!["4"], svec!["2"]]);
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv")
         .arg("b.csv")
         .arg("--numeric")
@@ -131,8 +131,8 @@ fn kway_numeric_reverse() {
 }
 
 #[test]
-fn kway_select() {
-    let wrk = Workdir::new("kway");
+fn merge_select() {
+    let wrk = Workdir::new("merge");
     wrk.create(
         "a.csv",
         vec![
@@ -149,7 +149,7 @@ fn kway_select() {
             svec!["delphine", "18"],
         ],
     );
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("a.csv").arg("b.csv").args(["-s", "name"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -164,8 +164,8 @@ fn kway_select() {
 }
 
 #[test]
-fn kway_uniq() {
-    let wrk = Workdir::new("kway");
+fn merge_uniq() {
+    let wrk = Workdir::new("merge");
     wrk.create(
         "a.csv",
         vec![
@@ -186,7 +186,7 @@ fn kway_uniq() {
             svec!["4", "2"],
         ],
     );
-    let mut cmd = wrk.command("kway");
+    let mut cmd = wrk.command("merge");
     cmd.arg("b.csv")
         .arg("a.csv")
         .arg("--numeric")

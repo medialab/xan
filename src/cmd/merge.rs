@@ -8,20 +8,20 @@ use util;
 use CliResult;
 
 static USAGE: &str = "
-Perform k-way merge of multiple already sorted CSV files. Those files MUST:
+Merge multiple CSV files already sorted the same way. Those files MUST:
 
 1. have the same columns (they don't have to be in the same order, though)
 2. have the same row order wrt -s/--select, -R/--reverse & -N/--numeric
 
-If those conditions are not met, the result will be in some arbitrary order.
+If those conditions are not met, the result will be in arbitrary order.
 
 This command consumes memory proportional to one CSV row per file.
 
 Usage:
-    xan kway [options] [<input>...]
-    xan kway --help
+    xan merge [options] [<input>...]
+    xan merge --help
 
-kway options:
+merge options:
     -s, --select <arg>     Select a subset of columns to sort.
                            See 'xan select --help' for the format details.
     -N, --numeric          Compare according to string numerical value
