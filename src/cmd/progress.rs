@@ -11,23 +11,39 @@ use config::{Config, Delimiter};
 use util;
 use CliResult;
 
-fn get_progress_style_template(total: u64, color: &str) -> String {
-    let padding = HumanCount(total).to_string().len();
-
+fn get_progress_style_template(total: u64, color: &str, bytes: bool) -> String {
     let mut f = String::new();
-    f.push_str("{prefix} {bar:40.");
-    f.push_str(color);
-    f.push_str("/white.dim} {human_pos:>");
-    f.push_str(&padding.to_string());
-    f.push_str("}/{human_len} rows {spinner} [{percent:>3}%] in {elapsed} ({per_sec}, eta: {eta})");
+
+    if bytes {
+        f.push_str("{prefix} {bar:40.");
+        f.push_str(color);
+        f.push_str(
+            "/white.dim} {decimal_bytes}/{decimal_total_bytes} {spinner} [{percent:>3}%] in {elapsed} ({decimal_bytes_per_sec}, eta: {eta})",
+        );
+    } else {
+        let padding = HumanCount(total).to_string().len();
+
+        f.push_str("{prefix} {bar:40.");
+        f.push_str(color);
+        f.push_str("/white.dim} {human_pos:>");
+        f.push_str(&padding.to_string());
+        f.push_str(
+            "}/{human_len} rows {spinner} [{percent:>3}%] in {elapsed} ({per_sec}, eta: {eta})",
+        );
+    }
 
     f
 }
 
-fn get_progress_style(total: &Option<u64>, color: &str) -> ProgressStyle {
+fn get_progress_style(total: &Option<u64>, color: &str, bytes: bool) -> ProgressStyle {
     ProgressStyle::with_template(&match total {
-        Some(count) => get_progress_style_template(*count, color),
-        None => "{prefix} {human_pos} rows {spinner} in {elapsed} ({per_sec})".to_string(),
+        Some(count) => get_progress_style_template(*count, color, bytes),
+        None => (if bytes {
+            "{prefix} {decimal_bytes} {spinner} in {elapsed} ({decimal_bytes_per_sec})"
+        } else {
+            "{prefix} {human_pos} rows {spinner} in {elapsed} ({per_sec})"
+        })
+        .to_string(),
     })
     .unwrap()
     .progress_chars("━╸━")
@@ -37,16 +53,17 @@ fn get_progress_style(total: &Option<u64>, color: &str) -> ProgressStyle {
 #[derive(Debug, Clone)]
 struct EnhancedProgressBar {
     inner: ProgressBar,
+    bytes: bool,
 }
 
 impl EnhancedProgressBar {
-    fn new(total: Option<u64>, title: Option<String>) -> Self {
+    fn new(total: Option<u64>, title: Option<String>, bytes: bool) -> Self {
         let bar = match total {
             None => ProgressBar::new_spinner(),
             Some(count) => ProgressBar::new(count),
         };
 
-        bar.set_style(get_progress_style(&total, "blue"));
+        bar.set_style(get_progress_style(&total, "blue", bytes));
 
         if let Some(string) = title {
             bar.set_prefix(string);
@@ -54,7 +71,18 @@ impl EnhancedProgressBar {
 
         bar.enable_steady_tick(Duration::from_millis(100));
 
-        Self { inner: bar }
+        let enhanced_bar = Self { inner: bar, bytes };
+
+        // NOTE: dealing with voluntary interruptions
+        let handle = enhanced_bar.clone();
+
+        ctrlc::set_handler(move || {
+            handle.interrupt();
+            std::process::exit(1);
+        })
+        .expect("Could not setup ctrl+c handler!");
+
+        enhanced_bar
     }
 
     fn inc(&self, delta: u64) {
@@ -63,7 +91,7 @@ impl EnhancedProgressBar {
 
     fn change_color(&self, color: &str) {
         self.inner
-            .set_style(get_progress_style(&self.inner.length(), color));
+            .set_style(get_progress_style(&self.inner.length(), color, self.bytes));
     }
 
     fn interrupt(&self) {
@@ -98,7 +126,7 @@ progress options:
     -S, --smooth         Flush output buffer each time one row is written.
                          This makes the progress bar smoother, but might be
                          less performant.
-    -B, --bytes          Work on the file bytes, rather than parsing CSV lines.
+    -B, --bytes          Display progress on file bytes, rather than parsing CSV lines.
     --prebuffer <n>      Number of megabytes of the file to prebuffer to attempt
                          knowing the progress bar total automatically.
                          [default: 64]
@@ -130,23 +158,36 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    console::set_colors_enabled(true);
+
     if args.flag_bytes {
-        let (total, file) = match args.arg_input {
-            None => unimplemented!(),
+        let (total, file): (Option<u64>, Box<dyn io::Read>) = match args.arg_input {
+            None => (None, Box::new(io::stdin())),
             Some(p) => {
                 let p = PathBuf::from(p);
 
                 let bytes = p.metadata()?.len();
                 let f = File::open(p)?;
 
-                (bytes, f)
+                (Some(bytes), Box::new(f))
             }
         };
 
-        let mut wrapper = ProgressBar::new(total).wrap_read(file);
+        let bar = EnhancedProgressBar::new(total.or(args.flag_total), args.flag_title, true);
+
+        let mut wrapper = bar.inner.wrap_read(file);
         let mut wtr = Config::new(&args.flag_output).io_writer()?;
 
-        io::copy(&mut wrapper, &mut wtr)?;
+        io::copy(&mut wrapper, &mut wtr).map_err(|err| {
+            if err.kind() == BrokenPipe {
+                bar.fail();
+                err
+            } else {
+                err
+            }
+        })?;
+
+        bar.succeed();
 
         return Ok(());
     }
@@ -154,8 +195,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
-
-    console::set_colors_enabled(true);
 
     let mut rdr = conf.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -185,16 +224,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let bar = EnhancedProgressBar::new(total, args.flag_title);
-
-    // NOTE: dealing with voluntary interruptions
-    let bar_handle = bar.clone();
-
-    ctrlc::set_handler(move || {
-        bar_handle.interrupt();
-        std::process::exit(1);
-    })
-    .unwrap();
+    let bar = EnhancedProgressBar::new(total, args.flag_title, false);
 
     macro_rules! handle_row {
         ($record:ident) => {
