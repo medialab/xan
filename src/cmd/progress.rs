@@ -32,6 +32,55 @@ fn get_progress_style(total: &Option<u64>, color: &str) -> ProgressStyle {
     .tick_chars("⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈⣿")
 }
 
+#[derive(Debug, Clone)]
+struct EnhancedProgressBar {
+    inner: ProgressBar,
+}
+
+impl EnhancedProgressBar {
+    fn new(total: Option<u64>, title: Option<String>) -> Self {
+        let bar = match total {
+            None => ProgressBar::new_spinner(),
+            Some(count) => ProgressBar::new(count),
+        };
+
+        bar.set_style(get_progress_style(&total, "blue"));
+
+        if let Some(string) = title {
+            bar.set_prefix(string);
+        }
+
+        bar.enable_steady_tick(Duration::from_millis(100));
+
+        Self { inner: bar }
+    }
+
+    fn inc(&self, delta: u64) {
+        self.inner.inc(delta);
+    }
+
+    fn change_color(&self, color: &str) {
+        self.inner
+            .set_style(get_progress_style(&self.inner.length(), color));
+    }
+
+    fn interrupt(&self) {
+        eprint!("\x1b[1A");
+        self.change_color("yellow");
+        self.inner.abandon();
+    }
+
+    fn fail(&self) {
+        self.change_color("red");
+        self.inner.abandon();
+    }
+
+    fn succeed(&self) {
+        self.change_color("green");
+        self.inner.abandon();
+    }
+}
+
 static USAGE: &str = "
 Display a progress bar while reading the rows of a CSV file.
 
@@ -110,38 +159,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let bar = match total {
-        Some(t) => ProgressBar::new(t),
-        None => ProgressBar::new_spinner(),
-    };
+    let bar = EnhancedProgressBar::new(total, args.flag_title);
 
     // NOTE: dealing with voluntary interruptions
     let bar_handle = bar.clone();
-    let interrupt_total_handle = total;
-    let broken_pipe_total_handle = total;
 
     ctrlc::set_handler(move || {
-        eprint!("\x1b[1A");
-        bar_handle.set_style(get_progress_style(&interrupt_total_handle, "yellow"));
-        bar_handle.abandon();
+        bar_handle.interrupt();
         std::process::exit(1);
     })
     .unwrap();
-
-    bar.set_style(get_progress_style(&total, "blue"));
-    bar.enable_steady_tick(Duration::from_millis(100));
-
-    if let Some(title) = args.flag_title {
-        bar.set_prefix(title);
-    }
 
     macro_rules! handle_row {
         ($record:ident) => {
             wtr.write_byte_record(&$record)
                 .map_err(|err| match err.kind() {
                     csv::ErrorKind::Io(inner_err) if inner_err.kind() == BrokenPipe => {
-                        bar.set_style(get_progress_style(&broken_pipe_total_handle, "red"));
-                        bar.abandon();
+                        bar.fail();
 
                         err
                     }
@@ -152,8 +186,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if args.flag_smooth {
                 wtr.flush().map_err(|err| {
                     if err.kind() == BrokenPipe {
-                        bar.set_style(get_progress_style(&broken_pipe_total_handle, "red"));
-                        bar.abandon();
+                        bar.fail();
                     }
 
                     err
@@ -172,8 +205,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         handle_row!(record);
     }
 
-    bar.set_style(get_progress_style(&total, "green"));
-    bar.abandon();
+    bar.succeed();
 
     Ok(wtr.flush()?)
 }
