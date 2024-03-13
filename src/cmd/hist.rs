@@ -180,19 +180,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
 
-            if !args.flag_simple {
-                if args.flag_rainbow {
-                    bar_as_chars = util::colorize(
-                        &util::colorizer_by_rainbow(i, &bar_as_chars),
-                        &bar_as_chars,
-                    );
-                } else {
-                    if odd {
-                        bar_as_chars = bar_as_chars.dimmed();
-                    }
-
-                    odd = !odd;
+            if args.flag_rainbow {
+                bar_as_chars =
+                    util::colorize(&util::colorizer_by_rainbow(i, &bar_as_chars), &bar_as_chars);
+            } else if !args.flag_simple {
+                if odd {
+                    bar_as_chars = bar_as_chars.dimmed();
                 }
+
+                odd = !odd;
             }
 
             let label = util::unicode_aware_rpad_with_ellipsis(&bar.label, label_cols, " ");
