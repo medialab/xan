@@ -10,6 +10,7 @@ extern crate console;
 extern crate crossbeam_channel as channel;
 extern crate csv;
 extern crate csv_index;
+extern crate ctrlc;
 extern crate dateparser;
 extern crate docopt;
 extern crate emojis;

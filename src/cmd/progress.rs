@@ -85,6 +85,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         None => ProgressBar::new_spinner(),
     };
 
+    // NOTE: dealing with voluntary interruptions
+    let bar_handle = bar.clone();
+    let total_handle = args.flag_total.clone();
+
+    ctrlc::set_handler(move || {
+        eprint!("\x1b[1A");
+        bar_handle.set_style(get_progress_style(total_handle, "yellow"));
+        bar_handle.abandon();
+    })
+    .unwrap();
+
     bar.set_style(get_progress_style(args.flag_total, "blue"));
     bar.enable_steady_tick(Duration::from_millis(100));
 
