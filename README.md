@@ -80,6 +80,7 @@ WIP...
 - **stats** - Compute basic statistics
 - **transform** - Transform a column by evaluating an expression on each CSV row
 - **transpose** - Transpose CSV file
+- **union-find** - Apply the union-find algorithm on a CSV edge list
 - **view** - Preview a CSV file in a human-friendly way
 
 If you ever feel lost, each command has a `-h/--help` flag that will print the related documentation.
