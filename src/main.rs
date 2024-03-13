@@ -6,6 +6,7 @@ extern crate calamine;
 extern crate chrono;
 extern crate chrono_tz;
 extern crate colored;
+extern crate console;
 extern crate crossbeam_channel as channel;
 extern crate csv;
 extern crate csv_index;

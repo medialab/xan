@@ -1749,6 +1749,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "colored",
+ "console",
  "crossbeam-channel 0.2.6",
  "csv",
  "csv-index",
