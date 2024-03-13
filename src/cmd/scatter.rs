@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use colored::{ColoredString, Colorize};
+
 use ratatui::backend::TestBackend;
+use ratatui::buffer::Cell;
 use ratatui::layout::Rect;
-use ratatui::style::{Style, Stylize};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols;
 use ratatui::text::Span;
 use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType};
@@ -105,16 +108,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Drawing
-    let rows = util::acquire_term_rows().unwrap_or(20) as u16;
+    let rows = util::acquire_term_rows().unwrap_or(20).saturating_sub(2) as u16;
     let cols = util::acquire_term_cols(&args.flag_cols) as u16;
 
     let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
     terminal.clear()?;
 
     terminal.draw(|frame| {
-        let area = Rect::new(0, 0, cols, rows.saturating_sub(1));
-        // Create the datasets to fill the chart with
+        let area = Rect::new(0, 0, cols, rows);
 
+        // Create the datasets to fill the chart with
         let points = x_series
             .values
             .iter()
@@ -156,10 +159,52 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut i: usize = 0;
 
+    fn group_cells_by_color(cells: &[Cell]) -> Vec<Vec<Cell>> {
+        let mut groups: Vec<Vec<Cell>> = Vec::new();
+        let mut current_run: Vec<Cell> = Vec::new();
+
+        for cell in cells {
+            if current_run.is_empty() || current_run[0].fg == cell.fg {
+                current_run.push(cell.clone());
+                continue;
+            }
+
+            groups.push(current_run);
+
+            current_run = Vec::new();
+            current_run.push(cell.clone());
+        }
+
+        if !current_run.is_empty() {
+            groups.push(current_run);
+        }
+
+        groups
+    }
+
+    fn colorize(string: &str, color: Color) -> ColoredString {
+        match color {
+            Color::Reset | Color::White => Colorize::normal(string),
+            Color::Red => Colorize::red(string),
+            Color::Blue => Colorize::blue(string),
+            Color::Cyan => Colorize::cyan(string),
+            _ => {
+                dbg!(&color);
+                unimplemented!();
+            }
+        }
+    }
+
     while i < contents.len() {
-        let line = contents[i..(i + cols as usize)]
+        let line = group_cells_by_color(&contents[i..(i + cols as usize)])
             .iter()
-            .map(|cell| cell.symbol())
+            .map(|cells| {
+                colorize(
+                    &cells.iter().map(|cell| cell.symbol()).collect::<String>(),
+                    cells[0].fg,
+                )
+                .to_string()
+            })
             .collect::<String>();
 
         println!("{}", line);
