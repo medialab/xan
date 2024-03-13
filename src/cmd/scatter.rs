@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use std::io;
 
-use ratatui::backend::CrosstermBackend;
+use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
@@ -17,7 +16,7 @@ static USAGE: &str = "
 TODO...
 
 Usage:
-    xsv scatter [options] <x-column> <y-column> [<input>]
+    xsv scatter [options] <x> <y> [<input>]
     xsv scatter --help
 
 scatter options:
@@ -38,8 +37,8 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_x_column: String,
-    arg_y_column: String,
+    arg_x: String,
+    arg_y: String,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_cols: Option<usize>,
@@ -57,22 +56,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?;
 
     let x_column_index = headers
-        .find_column_index(args.arg_x_column.as_bytes())
-        .ok_or_else(|| {
-            format!(
-                "cannot find column containing x values \"{}\"",
-                args.arg_x_column
-            )
-        })?;
+        .find_column_index(args.arg_x.as_bytes())
+        .ok_or_else(|| format!("cannot find column containing x values \"{}\"", args.arg_x))?;
 
     let y_column_index = headers
-        .find_column_index(args.arg_y_column.as_bytes())
-        .ok_or_else(|| {
-            format!(
-                "cannot find column containing y values \"{}\"",
-                args.arg_y_column
-            )
-        })?;
+        .find_column_index(args.arg_y.as_bytes())
+        .ok_or_else(|| format!("cannot find column containing y values \"{}\"", args.arg_y))?;
 
     let color_column_index = args
         .flag_color
@@ -119,7 +108,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rows = util::acquire_term_rows().unwrap_or(20) as u16;
     let cols = util::acquire_term_cols(&args.flag_cols) as u16;
 
-    let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+    let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
     terminal.clear()?;
 
     terminal.draw(|frame| {
@@ -142,14 +131,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Create the X axis and define its properties
         let x_axis = Axis::default()
-            .title(args.arg_x_column.red())
+            .title(args.arg_x.red())
             .style(Style::default().white())
             .bounds(x_series.domain().unwrap())
             .labels(x_series.graduations().unwrap());
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
-            .title(args.arg_y_column.red())
+            .title(args.arg_y.red())
             .style(Style::default().white())
             .bounds(y_series.domain().unwrap())
             .labels(y_series.graduations().unwrap());
@@ -162,6 +151,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         frame.render_widget(chart, area);
     })?;
+
+    let contents = &terminal.backend().buffer().content;
+
+    let mut i: usize = 0;
+
+    while i < contents.len() {
+        let line = contents[i..(i + cols as usize)]
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+
+        println!("{}", line);
+
+        i += cols as usize;
+    }
 
     Ok(())
 }
