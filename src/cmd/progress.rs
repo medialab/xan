@@ -1,36 +1,13 @@
 use std::io::ErrorKind::BrokenPipe;
 use std::time::Duration;
 
-use console::set_colors_enabled;
+use bytesize::MB;
 use csv;
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
 use config::{Config, Delimiter};
 use util;
 use CliResult;
-
-static USAGE: &str = "
-Display a progress bar while reading the rows of a CSV file.
-
-Usage:
-    xan progress [options] [<input>]
-    xan progress --help
-
-progress options:
-    -S, --smooth      Flush output buffer each time one row is written.
-                      This makes the progress bar smoother, but might be
-                      less performant.
-    --title <string>  Title of the loading bar.
-    --total <n>       Total number of rows of given CSV file.
-
-Common options:
-    -h, --help             Display this message
-    -n, --no-headers       When set, the first row will be included in
-                           the progress bar total.
-    -o, --output <file>    Write output to <file> instead of stdout.
-    -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
-";
 
 fn get_progress_style_template(total: u64, color: &str) -> String {
     let padding = HumanCount(total).to_string().len();
@@ -55,10 +32,41 @@ fn get_progress_style(total: &Option<u64>, color: &str) -> ProgressStyle {
     .tick_chars("⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈⣿")
 }
 
+static USAGE: &str = "
+Display a progress bar while reading the rows of a CSV file.
+
+The command will try and buffer some of the ingested file to find
+the total number of rows automatically. If you know the total
+beforehand, you can also use the --total flag.
+
+Usage:
+    xan progress [options] [<input>]
+    xan progress --help
+
+progress options:
+    -S, --smooth         Flush output buffer each time one row is written.
+                         This makes the progress bar smoother, but might be
+                         less performant.
+    -B, --prebuffer <n>  Number of megabytes of the file to prebuffer to attempt
+                         knowing the progress bar total automatically.
+                         [default: 64]
+    --title <string>     Title of the loading bar.
+    --total <n>          Total number of rows of given CSV file.
+
+Common options:
+    -h, --help             Display this message
+    -n, --no-headers       When set, the first row will be included in
+                           the progress bar total.
+    -o, --output <file>    Write output to <file> instead of stdout.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
+                           Must be a single character. [default: ,]
+";
+
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
     flag_title: Option<String>,
+    flag_prebuffer: u64,
     flag_total: Option<u64>,
     flag_smooth: bool,
     flag_delimiter: Option<Delimiter>,
@@ -72,7 +80,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    set_colors_enabled(true);
+    console::set_colors_enabled(true);
 
     let mut rdr = conf.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -80,61 +88,91 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     conf.write_headers(&mut rdr, &mut wtr)?;
 
     let mut record = csv::ByteRecord::new();
+    let mut total = args.flag_total;
 
-    let bar = match args.flag_total {
-        Some(total) => ProgressBar::new(total),
+    let mut buffer: Vec<csv::ByteRecord> = Vec::new();
+
+    if total.is_none() {
+        let upper_bound = args.flag_prebuffer * MB;
+        let mut read_all = true;
+
+        while rdr.read_byte_record(&mut record)? {
+            buffer.push(record.clone());
+
+            if record.position().unwrap().byte() >= upper_bound {
+                read_all = false;
+                break;
+            }
+        }
+
+        if read_all {
+            total = Some(buffer.len() as u64);
+        }
+    }
+
+    let bar = match total {
+        Some(t) => ProgressBar::new(t),
         None => ProgressBar::new_spinner(),
     };
 
     // NOTE: dealing with voluntary interruptions
     let bar_handle = bar.clone();
-    let total_handle = args.flag_total;
-    let other_total_handle = args.flag_total;
+    let interrupt_total_handle = total;
+    let broken_pipe_total_handle = total;
 
     ctrlc::set_handler(move || {
         eprint!("\x1b[1A");
-        bar_handle.set_style(get_progress_style(&total_handle, "yellow"));
+        bar_handle.set_style(get_progress_style(&interrupt_total_handle, "yellow"));
         bar_handle.abandon();
         std::process::exit(1);
     })
     .unwrap();
 
-    bar.set_style(get_progress_style(&args.flag_total, "blue"));
+    bar.set_style(get_progress_style(&total, "blue"));
     bar.enable_steady_tick(Duration::from_millis(100));
 
     if let Some(title) = args.flag_title {
         bar.set_prefix(title);
     }
 
-    while rdr.read_byte_record(&mut record)? {
-        // NOTE: dealing with downstream error (broken pipes)
-        wtr.write_byte_record(&record)
-            .map_err(|err| match err.kind() {
-                csv::ErrorKind::Io(inner_err) if inner_err.kind() == BrokenPipe => {
-                    bar.set_style(get_progress_style(&other_total_handle, "red"));
-                    bar.abandon();
+    macro_rules! handle_row {
+        ($record:ident) => {
+            wtr.write_byte_record(&$record)
+                .map_err(|err| match err.kind() {
+                    csv::ErrorKind::Io(inner_err) if inner_err.kind() == BrokenPipe => {
+                        bar.set_style(get_progress_style(&broken_pipe_total_handle, "red"));
+                        bar.abandon();
+
+                        err
+                    }
+
+                    _ => err,
+                })?;
+
+            if args.flag_smooth {
+                wtr.flush().map_err(|err| {
+                    if err.kind() == BrokenPipe {
+                        bar.set_style(get_progress_style(&broken_pipe_total_handle, "red"));
+                        bar.abandon();
+                    }
 
                     err
-                }
+                })?;
+            }
 
-                _ => err,
-            })?;
-
-        if args.flag_smooth {
-            wtr.flush().map_err(|err| {
-                if err.kind() == BrokenPipe {
-                    bar.set_style(get_progress_style(&other_total_handle, "red"));
-                    bar.abandon();
-                }
-
-                err
-            })?;
-        }
-
-        bar.inc(1);
+            bar.inc(1);
+        };
     }
 
-    bar.set_style(get_progress_style(&args.flag_total, "green"));
+    for buffered_record in buffer {
+        handle_row!(buffered_record);
+    }
+
+    while rdr.read_byte_record(&mut record)? {
+        handle_row!(record);
+    }
+
+    bar.set_style(get_progress_style(&total, "green"));
     bar.abandon();
 
     Ok(wtr.flush()?)
