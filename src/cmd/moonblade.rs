@@ -181,6 +181,9 @@ use the operators in the previous section.
     - sub(x, y, *n) -> number
         Subtract two or more numbers.
 
+    - trunc(x) -> number
+        Truncate the number by removing its decimal part.
+
 ## Boolean operations & branching
 
     - and(a, b, *x) -> bool

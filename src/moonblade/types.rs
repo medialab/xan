@@ -299,6 +299,10 @@ impl DynamicNumber {
         self.map_float_to_int(|n| n.ceil())
     }
 
+    pub fn trunc(self) -> Self {
+        self.map_float_to_int(|n| n.trunc())
+    }
+
     pub fn round(self) -> Self {
         self.map_float_to_int(|n| n.round())
     }

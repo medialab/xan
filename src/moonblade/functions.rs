@@ -143,6 +143,10 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             Arity::Strict(2),
         ),
         "trim" => (trim, Arity::Range(1..=2)),
+        "trunc" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::trunc),
+            Arity::Strict(1),
+        ),
         "typeof" => (type_of, Arity::Strict(1)),
         "unidecode" => (apply_unidecode, Arity::Strict(1)),
         "upper" => (upper, Arity::Strict(1)),
