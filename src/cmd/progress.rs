@@ -1,4 +1,6 @@
-use std::io::ErrorKind::BrokenPipe;
+use std::fs::File;
+use std::io::{self, ErrorKind::BrokenPipe};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use bytesize::MB;
@@ -96,7 +98,8 @@ progress options:
     -S, --smooth         Flush output buffer each time one row is written.
                          This makes the progress bar smoother, but might be
                          less performant.
-    -B, --prebuffer <n>  Number of megabytes of the file to prebuffer to attempt
+    -B, --bytes          Work on the file bytes, rather than parsing CSV lines.
+    --prebuffer <n>      Number of megabytes of the file to prebuffer to attempt
                          knowing the progress bar total automatically.
                          [default: 64]
     --title <string>     Title of the loading bar.
@@ -115,6 +118,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_title: Option<String>,
+    flag_bytes: bool,
     flag_prebuffer: u64,
     flag_total: Option<u64>,
     flag_smooth: bool,
@@ -125,6 +129,28 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_bytes {
+        let (total, file) = match args.arg_input {
+            None => unimplemented!(),
+            Some(p) => {
+                let p = PathBuf::from(p);
+
+                let bytes = p.metadata()?.len();
+                let f = File::open(p)?;
+
+                (bytes, f)
+            }
+        };
+
+        let mut wrapper = ProgressBar::new(total).wrap_read(file);
+        let mut wtr = Config::new(&args.flag_output).io_writer()?;
+
+        io::copy(&mut wrapper, &mut wtr)?;
+
+        return Ok(());
+    }
+
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
