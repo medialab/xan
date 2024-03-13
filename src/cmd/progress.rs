@@ -1,3 +1,4 @@
+use std::io::ErrorKind::BrokenPipe;
 use std::time::Duration;
 
 use console::set_colors_enabled;
@@ -44,9 +45,9 @@ fn get_progress_style_template(total: u64, color: &str) -> String {
     f
 }
 
-fn get_progress_style(total: Option<u64>, color: &str) -> ProgressStyle {
+fn get_progress_style(total: &Option<u64>, color: &str) -> ProgressStyle {
     ProgressStyle::with_template(&match total {
-        Some(count) => get_progress_style_template(count, color),
+        Some(count) => get_progress_style_template(*count, color),
         None => "{prefix} {human_pos} rows {spinner} in {elapsed} ({per_sec})".to_string(),
     })
     .unwrap()
@@ -87,16 +88,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // NOTE: dealing with voluntary interruptions
     let bar_handle = bar.clone();
-    let total_handle = args.flag_total.clone();
+    let total_handle = args.flag_total;
+    let other_total_handle = args.flag_total;
 
     ctrlc::set_handler(move || {
         eprint!("\x1b[1A");
-        bar_handle.set_style(get_progress_style(total_handle, "yellow"));
+        bar_handle.set_style(get_progress_style(&total_handle, "yellow"));
         bar_handle.abandon();
+        std::process::exit(1);
     })
     .unwrap();
 
-    bar.set_style(get_progress_style(args.flag_total, "blue"));
+    bar.set_style(get_progress_style(&args.flag_total, "blue"));
     bar.enable_steady_tick(Duration::from_millis(100));
 
     if let Some(title) = args.flag_title {
@@ -104,16 +107,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     while rdr.read_byte_record(&mut record)? {
-        wtr.write_byte_record(&record)?;
+        // NOTE: dealing with downstream error (broken pipes)
+        wtr.write_byte_record(&record)
+            .map_err(|err| match err.kind() {
+                csv::ErrorKind::Io(inner_err) if inner_err.kind() == BrokenPipe => {
+                    bar.set_style(get_progress_style(&other_total_handle, "red"));
+                    bar.abandon();
+
+                    err
+                }
+
+                _ => err,
+            })?;
 
         if args.flag_smooth {
-            wtr.flush()?;
+            wtr.flush().map_err(|err| {
+                if err.kind() == BrokenPipe {
+                    bar.set_style(get_progress_style(&other_total_handle, "red"));
+                    bar.abandon();
+                }
+
+                err
+            })?;
         }
 
         bar.inc(1);
     }
 
-    bar.set_style(get_progress_style(args.flag_total, "green"));
+    bar.set_style(get_progress_style(&args.flag_total, "green"));
     bar.abandon();
 
     Ok(wtr.flush()?)
