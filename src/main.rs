@@ -249,6 +249,8 @@ enum Command {
     Stats,
     Transform,
     Transpose,
+    #[serde(rename = "union-find")]
+    UnionFind,
     View,
 }
 
@@ -258,7 +260,7 @@ impl Command {
         let argv: Vec<_> = argv.iter().map(|s| &**s).collect();
         let argv = &*argv;
 
-        if !argv[1].chars().all(char::is_lowercase) {
+        if !argv[1].chars().all(|c| char::is_lowercase(c) || c == '-') {
             return Err(CliError::Other(format!(
                 "xan expects commands in lowercase. Did you mean '{}'?",
                 argv[1].to_lowercase()
@@ -316,6 +318,7 @@ impl Command {
             Command::Stats => cmd::stats::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose => cmd::transpose::run(argv),
+            Command::UnionFind => cmd::union_find::run(argv),
             Command::View => cmd::view::run(argv),
         }
     }

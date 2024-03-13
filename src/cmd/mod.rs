@@ -42,4 +42,5 @@ pub mod split;
 pub mod stats;
 pub mod transform;
 pub mod transpose;
+pub mod union_find;
 pub mod view;
