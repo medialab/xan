@@ -138,13 +138,17 @@ impl Config {
             None => (None, b','),
             Some(ref s) if s.deref() == "-" => (None, b','),
             Some(ref s) => {
-                let path = PathBuf::from(s);
-                let delim = if path.extension().map_or(false, |v| v == "tsv" || v == "tab") {
+                let delim = if s.ends_with(".tsv")
+                    || s.ends_with(".tab")
+                    || s.ends_with(".tsv.gz")
+                    || s.ends_with(".tab.gz")
+                {
                     b'\t'
                 } else {
                     b','
                 };
-                (Some(path), delim)
+
+                (Some(PathBuf::from(s)), delim)
             }
         };
         Config {
