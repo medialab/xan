@@ -39,7 +39,7 @@ Common options:
                            as headers. When set, the name of each field
                            will be its index.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
+                           Must be a single character.
 ";
 
 #[derive(Deserialize)]

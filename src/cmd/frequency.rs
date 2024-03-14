@@ -57,7 +57,7 @@ Common options:
                            column will be 1-based indices instead of header
                            names.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
+                           Must be a single character.
 ";
 
 #[derive(Clone, Deserialize)]

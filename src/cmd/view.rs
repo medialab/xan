@@ -55,7 +55,7 @@ Common options:
     -n, --no-headers       When set, the first row will not considered as being
                            the file header.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
+                           Must be a single character.
 ";
 
 #[derive(Deserialize)]

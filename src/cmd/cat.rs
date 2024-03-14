@@ -43,7 +43,7 @@ Common options:
                            as column names. Note that this has no effect when
                            concatenating columns.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
+                           Must be a single character.
 ";
 
 #[derive(Deserialize)]

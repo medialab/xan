@@ -21,7 +21,7 @@ Common options:
                            the file header.
     -o, --output <file>    Write output to <file> instead of stdout.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
+                           Must be a single character.
 ";
 
 #[derive(Deserialize)]
