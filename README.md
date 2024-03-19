@@ -57,7 +57,7 @@ WIP...
 - **from** - Convert a variety of formats to CSV
 - **glob** - Create a CSV file with paths matching a glob pattern
 - **groupby** - Aggregate data by groups of a CSV file
-- **headers** - Show header names
+- [**headers**](./docs/cmd/headers.md) - Show header names
 - **hist** - Print a histogram with rows of CSV file as bars
 - **implode** - Collapse consecutive identical rows based on a diverging column
 - **index** - Create CSV index for faster access
@@ -84,3 +84,5 @@ WIP...
 - **view** - Preview a CSV file in a human-friendly way
 
 If you ever feel lost, each command has a `-h/--help` flag that will print the related documentation.
+
+<!-- TODO: -d, -n, -, -o -->

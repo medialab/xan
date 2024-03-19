@@ -50,7 +50,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for conf in configs.into_iter() {
         let mut rdr = conf.reader()?;
         for header in rdr.headers()?.iter() {
-            if !args.flag_intersect || !headers.iter().any(|h| &**h == header) {
+            if !args.flag_intersect || !headers.iter().any(|h| h == header) {
                 headers.push(header.to_string());
             }
         }
