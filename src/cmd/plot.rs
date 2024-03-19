@@ -8,15 +8,31 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols;
 use ratatui::text::Span;
-use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType};
+use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType, LegendPosition};
 use ratatui::Terminal;
 
 use config::{Config, Delimiter};
 use util::{self, ImmutableRecordHelpers};
 use CliResult;
 
+fn get_series_color(i: usize) -> Style {
+    match i {
+        0 => Style::default().cyan(),
+        1 => Style::default().red(),
+        2 => Style::default().green(),
+        3 => Style::default().yellow(),
+        4 => Style::default().blue(),
+        5 => Style::default().magenta(),
+        _ => Style::default().dim(),
+    }
+}
+
+fn graduations_from_domain<'a>(min: f64, max: f64) -> Vec<Span<'a>> {
+    vec![Span::from(min.to_string()), Span::from(max.to_string())]
+}
+
 static USAGE: &str = "
-TODO...
+Draw a scatter plot or a line plot based on 2-dimensional data.
 
 Usage:
     xsv plot [options] <x> <y> [<input>]
@@ -80,12 +96,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
+    let showing_multiple_series = color_column_index.is_some();
+
     let mut record = csv::ByteRecord::new();
 
-    let mut x_series = Series::new();
-    let mut y_series = Series::new();
+    let mut main_series = Series::new();
 
-    let mut grouped_series: HashMap<Vec<u8>, (Series, Series)> = HashMap::new();
+    let mut grouped_series: HashMap<Vec<u8>, Series> = HashMap::new();
 
     while rdr.read_byte_record(&mut record)? {
         let x = String::from_utf8_lossy(&record[x_column_index])
@@ -100,14 +117,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             grouped_series
                 .entry(color_value)
-                .and_modify(|(xs, ys)| {
-                    xs.add(x);
-                    ys.add(x);
+                .and_modify(|series| {
+                    series.add(x, y);
                 })
-                .or_insert_with(|| (Series::of(x), Series::of(y)));
+                .or_insert_with(|| Series::of(x, y));
         } else {
-            x_series.add(x);
-            y_series.add(y);
+            main_series.add(x, y);
         }
     }
 
@@ -125,40 +140,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let area = Rect::new(0, 0, cols, rows);
 
         // Create the datasets to fill the chart with
-        let points = x_series
-            .values
-            .iter()
-            .copied()
-            .zip(y_series.values.iter().copied())
-            .collect::<Vec<_>>();
-
-        let datasets = vec![Dataset::default()
-            .name("csv")
-            .marker(symbols::Marker::Braille)
-            .graph_type(GraphType::Scatter)
-            .style(Style::default().cyan())
-            .data(&points)];
+        let datasets = if showing_multiple_series {
+            grouped_series
+                .into_iter()
+                .enumerate()
+                .map(|(i, (name, _))| {
+                    Dataset::default()
+                        .name(String::from_utf8(name).unwrap())
+                        .marker(symbols::Marker::Braille)
+                        .graph_type(GraphType::Scatter)
+                        .style(get_series_color(i))
+                })
+                .collect()
+        } else {
+            vec![Dataset::default()
+                .name("csv")
+                .marker(symbols::Marker::Braille)
+                .graph_type(GraphType::Scatter)
+                .style(Style::default().cyan())
+                .data(&main_series.points)]
+        };
 
         // Create the X axis and define its properties
         let x_axis = Axis::default()
             .title(args.arg_x.red())
             .style(Style::default().white())
-            .bounds(x_series.domain().unwrap())
-            .labels(x_series.graduations().unwrap());
+            .bounds(main_series.x_domain().unwrap())
+            .labels(main_series.x_graduations().unwrap());
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
             .title(args.arg_y.red())
             .style(Style::default().white())
-            .bounds(y_series.domain().unwrap())
-            .labels(y_series.graduations().unwrap());
+            .bounds(main_series.y_domain().unwrap())
+            .labels(main_series.y_graduations().unwrap());
 
         // Create the chart and link all the parts together
         let chart = Chart::new(datasets)
             .block(Block::default())
             .x_axis(x_axis)
             .y_axis(y_axis)
-            .legend_position(None);
+            .legend_position(if showing_multiple_series {
+                Some(LegendPosition::TopRight)
+            } else {
+                None
+            });
 
         frame.render_widget(chart, area);
     })?;
@@ -224,49 +250,63 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 struct Series {
-    values: Vec<f64>,
-    extent: Option<(f64, f64)>,
+    points: Vec<(f64, f64)>,
+    extent: Option<((f64, f64), (f64, f64))>,
 }
 
 impl Series {
     fn new() -> Self {
         Self {
-            values: Vec::new(),
+            points: Vec::new(),
             extent: None,
         }
     }
 
-    fn of(value: f64) -> Self {
+    fn of(x: f64, y: f64) -> Self {
         Self {
-            values: vec![value],
-            extent: Some((value, value)),
+            points: vec![(x, y)],
+            extent: Some(((x, x), (y, y))),
         }
     }
 
-    fn add(&mut self, value: f64) {
-        self.values.push(value);
+    fn add(&mut self, x: f64, y: f64) {
+        self.points.push((x, y));
 
-        self.extent = match self.extent {
-            None => Some((value, value)),
-            Some((mut min, mut max)) => {
-                if value < min {
-                    min = value;
+        match self.extent.as_mut() {
+            None => self.extent = Some(((x, x), (y, y))),
+            Some(((x_min, x_max), (y_min, y_max))) => {
+                if x < *x_min {
+                    *x_min = x;
                 }
-                if value > max {
-                    max = value;
+                if x > *x_max {
+                    *x_max = x;
                 }
 
-                Some((min, max))
+                if y < *y_min {
+                    *y_min = y;
+                }
+                if y > *y_max {
+                    *y_max = y;
+                }
             }
-        }
+        };
     }
 
-    fn domain(&self) -> Option<[f64; 2]> {
-        self.extent.map(|(min, max)| [min, max])
+    fn x_domain(&self) -> Option<[f64; 2]> {
+        self.extent.map(|((min, max), _)| [min, max])
     }
 
-    fn graduations(&self) -> Option<Vec<Span>> {
+    fn y_domain(&self) -> Option<[f64; 2]> {
+        self.extent.map(|(_, (min, max))| [min, max])
+    }
+
+    fn x_graduations(&self) -> Option<Vec<Span>> {
         self.extent
-            .map(|(min, max)| vec![Span::from(min.to_string()), Span::from(max.to_string())])
+            .map(|((min, max), _)| graduations_from_domain(min, max))
+    }
+
+    fn y_graduations(&self) -> Option<Vec<Span>> {
+        self.extent
+            .map(|(_, (min, max))| graduations_from_domain(min, max))
     }
 }
