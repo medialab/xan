@@ -4,11 +4,11 @@ use colored::{ColoredString, Colorize};
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Cell;
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols;
 use ratatui::text::Span;
-use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType, LegendPosition};
+use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
 use config::{Config, Delimiter};
@@ -27,8 +27,26 @@ fn get_series_color(i: usize) -> Style {
     }
 }
 
-fn graduations_from_domain<'a>(min: f64, max: f64) -> Vec<Span<'a>> {
-    vec![Span::from(min.to_string()), Span::from(max.to_string())]
+fn graduations_from_domain<'a>(domain: (f64, f64)) -> Vec<Span<'a>> {
+    vec![
+        Span::from(domain.0.to_string()),
+        Span::from(domain.1.to_string()),
+    ]
+}
+
+fn merge_domains(mut domains: impl Iterator<Item = (f64, f64)>) -> (f64, f64) {
+    let mut domain = domains.next().unwrap();
+
+    for other in domains {
+        if other.0 < domain.0 {
+            domain.0 = other.0;
+        }
+        if other.1 > domain.1 {
+            domain.1 = other.1;
+        }
+    }
+
+    domain
 }
 
 static USAGE: &str = "
@@ -140,51 +158,69 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let area = Rect::new(0, 0, cols, rows);
 
         // Create the datasets to fill the chart with
-        let datasets = if showing_multiple_series {
-            grouped_series
-                .into_iter()
-                .enumerate()
-                .map(|(i, (name, _))| {
-                    Dataset::default()
-                        .name(String::from_utf8(name).unwrap())
-                        .marker(symbols::Marker::Braille)
-                        .graph_type(GraphType::Scatter)
-                        .style(get_series_color(i))
-                })
-                .collect()
+        let (x_domain, y_domain, datasets) = if showing_multiple_series {
+            (
+                merge_domains(
+                    grouped_series
+                        .values()
+                        .map(|series| series.x_domain().unwrap()),
+                ),
+                merge_domains(
+                    grouped_series
+                        .values()
+                        .map(|series| series.y_domain().unwrap()),
+                ),
+                grouped_series
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (name, series))| {
+                        Dataset::default()
+                            .name(String::from_utf8(name.to_vec()).unwrap())
+                            .marker(symbols::Marker::Braille)
+                            .graph_type(GraphType::Scatter)
+                            .style(get_series_color(i))
+                            .data(&series.points)
+                    })
+                    .collect(),
+            )
         } else {
-            vec![Dataset::default()
-                .name("csv")
-                .marker(symbols::Marker::Braille)
-                .graph_type(GraphType::Scatter)
-                .style(Style::default().cyan())
-                .data(&main_series.points)]
+            (
+                main_series.x_domain().unwrap(),
+                main_series.y_domain().unwrap(),
+                vec![Dataset::default()
+                    .name("csv")
+                    .marker(symbols::Marker::Braille)
+                    .graph_type(GraphType::Scatter)
+                    .style(Style::default().cyan())
+                    .data(&main_series.points)],
+            )
         };
 
         // Create the X axis and define its properties
         let x_axis = Axis::default()
             .title(args.arg_x.red())
             .style(Style::default().white())
-            .bounds(main_series.x_domain().unwrap())
-            .labels(main_series.x_graduations().unwrap());
+            .bounds([x_domain.0, x_domain.1])
+            .labels(graduations_from_domain(x_domain));
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
             .title(args.arg_y.red())
             .style(Style::default().white())
-            .bounds(main_series.y_domain().unwrap())
-            .labels(main_series.y_graduations().unwrap());
+            .bounds([y_domain.0, y_domain.1])
+            .labels(graduations_from_domain(y_domain));
 
         // Create the chart and link all the parts together
-        let chart = Chart::new(datasets)
+        let mut chart = Chart::new(datasets)
             .block(Block::default())
             .x_axis(x_axis)
-            .y_axis(y_axis)
-            .legend_position(if showing_multiple_series {
-                Some(LegendPosition::TopRight)
-            } else {
-                None
-            });
+            .y_axis(y_axis);
+
+        if !showing_multiple_series {
+            chart = chart.legend_position(None);
+        } else {
+            chart = chart.hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0)));
+        }
 
         frame.render_widget(chart, area);
     })?;
@@ -222,6 +258,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Color::Red => Colorize::red(string),
             Color::Blue => Colorize::blue(string),
             Color::Cyan => Colorize::cyan(string),
+            Color::Green => Colorize::green(string),
+            Color::Yellow => Colorize::yellow(string),
+            Color::Magenta => Colorize::magenta(string),
             _ => {
                 dbg!(&color);
                 unimplemented!();
@@ -292,21 +331,11 @@ impl Series {
         };
     }
 
-    fn x_domain(&self) -> Option<[f64; 2]> {
-        self.extent.map(|((min, max), _)| [min, max])
+    fn x_domain(&self) -> Option<(f64, f64)> {
+        self.extent.map(|(x, _)| x)
     }
 
-    fn y_domain(&self) -> Option<[f64; 2]> {
-        self.extent.map(|(_, (min, max))| [min, max])
-    }
-
-    fn x_graduations(&self) -> Option<Vec<Span>> {
-        self.extent
-            .map(|((min, max), _)| graduations_from_domain(min, max))
-    }
-
-    fn y_graduations(&self) -> Option<Vec<Span>> {
-        self.extent
-            .map(|(_, (min, max))| graduations_from_domain(min, max))
+    fn y_domain(&self) -> Option<(f64, f64)> {
+        self.extent.map(|(_, y)| y)
     }
 }
