@@ -64,7 +64,7 @@ WIP...
 - **input** - Read CSV data with special quoting rules
 - **join** - Join CSV files
 - **map** - Create a new column by evaluating an expression on each CSV row
-- **kway** - Merge multiple similar already sorted CSV files
+- **merge** - Merge multiple similar already sorted CSV files
 - **partition** - Partition CSV data based on a column value
 - **progress** - Display a progress bar while reading CSV data
 - **range** - Create a CSV file from a numerical range
