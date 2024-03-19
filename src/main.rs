@@ -22,6 +22,7 @@ extern crate glob;
 extern crate indicatif;
 extern crate rand_chacha;
 extern crate rand_seeder;
+extern crate ratatui;
 #[macro_use]
 extern crate lazy_static;
 extern crate num_cpus;
@@ -110,6 +111,7 @@ macro_rules! command_list {
     map         Create a new column by evaluating an expression on each CSV row
     merge       Merge multiple similar already sorted CSV files
     partition   Partition CSV data based on a column value
+    plot        Draw a scatter plot or line chart
     progress    Display a progress bar while reading CSV data
     range       Create a CSV file from a numerical range
     rename      Rename columns of a CSV file
@@ -236,6 +238,7 @@ enum Command {
     Map,
     Merge,
     Partition,
+    Plot,
     Progress,
     Range,
     Rename,
@@ -305,6 +308,7 @@ impl Command {
             Command::Map => cmd::map::run(argv),
             Command::Merge => cmd::merge::run(argv),
             Command::Partition => cmd::partition::run(argv),
+            Command::Plot => cmd::plot::run(argv),
             Command::Progress => cmd::progress::run(argv),
             Command::Range => cmd::range::run(argv),
             Command::Rename => cmd::rename::run(argv),

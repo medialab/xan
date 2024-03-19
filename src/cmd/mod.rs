@@ -28,6 +28,7 @@ pub mod map;
 pub mod merge;
 mod moonblade;
 pub mod partition;
+pub mod plot;
 pub mod progress;
 pub mod range;
 pub mod rename;
