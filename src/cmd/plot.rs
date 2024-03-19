@@ -5,10 +5,10 @@ use colored::{ColoredString, Colorize};
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Cell;
 use ratatui::layout::{Constraint, Rect};
-use ratatui::style::{Color, Style, Stylize};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
 use ratatui::text::Span;
-use ratatui::widgets::{Axis, Block, Chart, Dataset, GraphType};
+use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Padding};
 use ratatui::Terminal;
 
 use config::{Config, Delimiter};
@@ -212,7 +212,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Create the chart and link all the parts together
         let mut chart = Chart::new(datasets)
-            .block(Block::default())
+            // .block(
+            //     Block::default()
+            //         .border_style(Style::default().dim())
+            //         .borders(Borders::ALL)
+            //         .padding(Padding::symmetric(2, 1)),
+            // )
             .x_axis(x_axis)
             .y_axis(y_axis);
 
@@ -234,7 +239,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut current_run: Vec<Cell> = Vec::new();
 
         for cell in cells {
-            if current_run.is_empty() || current_run[0].fg == cell.fg {
+            if current_run.is_empty()
+                || (current_run[0].fg == cell.fg && current_run[0].modifier == cell.modifier)
+            {
                 current_run.push(cell.clone());
                 continue;
             }
@@ -252,8 +259,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         groups
     }
 
-    fn colorize(string: &str, color: Color) -> ColoredString {
-        match color {
+    fn colorize(string: &str, color: Color, modifer: Modifier) -> ColoredString {
+        let string = match color {
             Color::Reset | Color::White => Colorize::normal(string),
             Color::Red => Colorize::red(string),
             Color::Blue => Colorize::blue(string),
@@ -265,7 +272,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 dbg!(&color);
                 unimplemented!();
             }
+        };
+
+        if modifer.is_empty() {
+            return string;
         }
+
+        let string = match modifer {
+            Modifier::DIM => Colorize::dimmed(string),
+            _ => {
+                dbg!(&modifer);
+                unimplemented!();
+            }
+        };
+
+        string
     }
 
     while i < contents.len() {
@@ -275,6 +296,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 colorize(
                     &cells.iter().map(|cell| cell.symbol()).collect::<String>(),
                     cells[0].fg,
+                    cells[0].modifier,
                 )
                 .to_string()
             })
