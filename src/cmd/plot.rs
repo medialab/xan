@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use colored::{ColoredString, Colorize};
+use serde::de::{Deserialize, Deserializer, Error};
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Cell;
@@ -50,6 +51,30 @@ fn merge_domains(mut domains: impl Iterator<Item = (f64, f64)>) -> (f64, f64) {
     domain
 }
 
+#[derive(Clone, Copy)]
+struct Marker(symbols::Marker);
+
+impl Marker {
+    fn into_inner(self) -> symbols::Marker {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for Marker {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(Marker(match raw.as_str() {
+            "dot" => symbols::Marker::Dot,
+            "braille" => symbols::Marker::Braille,
+            "halfblock" => symbols::Marker::HalfBlock,
+            "block" => symbols::Marker::Block,
+            "bar" => symbols::Marker::Bar,
+            _ => return Err(D::Error::custom(format!("invalid marker type \"{}\"", raw))),
+        }))
+    }
+}
+
 static USAGE: &str = "
 Draw a scatter plot or a line plot based on 2-dimensional data.
 
@@ -67,6 +92,9 @@ plot options:
     --rows <num>      Height of the graph in terminal rows, i.e. characters.
                       Defaults to using all your terminal's height minus 2 or 30 if
                       terminal size cannot be found (i.e. when piping to file).
+    --marker <name>   Marker to use. Can be one of (by order of size): 'braille', 'dot',
+                      'halfblock', 'bar', 'block'.
+                      [default: braille]
 
 Common options:
     -h, --help             Display this message
@@ -87,6 +115,7 @@ struct Args {
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
     flag_color: Option<String>,
+    flag_marker: Marker,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -188,7 +217,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .map(|(i, (name, series))| {
                         Dataset::default()
                             .name(String::from_utf8(name.to_vec()).unwrap())
-                            .marker(symbols::Marker::Braille)
+                            .marker(args.flag_marker.into_inner())
                             .graph_type(if args.flag_line {
                                 GraphType::Line
                             } else {
@@ -205,7 +234,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 main_series.y_domain().unwrap(),
                 vec![Dataset::default()
                     .name("csv")
-                    .marker(symbols::Marker::Braille)
+                    .marker(args.flag_marker.into_inner())
                     .graph_type(if args.flag_line {
                         GraphType::Line
                     } else {
@@ -259,9 +288,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut current_run: Vec<Cell> = Vec::new();
 
         for cell in cells {
-            if current_run.is_empty()
-                || (current_run[0].fg == cell.fg && current_run[0].modifier == cell.modifier)
-            {
+            if current_run.is_empty() || (current_run[0].style() == cell.style()) {
                 current_run.push(cell.clone());
                 continue;
             }

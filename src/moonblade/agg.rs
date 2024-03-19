@@ -734,7 +734,7 @@ struct Types {
 
 impl Types {
     fn new() -> Self {
-        Types { bitset: 0 }
+        Self { bitset: 0 }
     }
 
     fn set(&mut self, pos: u8) {

@@ -15,14 +15,14 @@ pub struct SelectColumns {
 }
 
 impl SelectColumns {
-    pub fn parse(mut s: &str) -> Result<SelectColumns, String> {
+    pub fn parse(mut s: &str) -> Result<Self, String> {
         let invert = if !s.is_empty() && s.as_bytes()[0] == b'!' {
             s = &s[1..];
             true
         } else {
             false
         };
-        Ok(SelectColumns {
+        Ok(Self {
             selectors: SelectorParser::new(s).parse()?,
             invert,
         })
@@ -77,9 +77,9 @@ impl fmt::Debug for SelectColumns {
 }
 
 impl<'de> Deserialize<'de> for SelectColumns {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<SelectColumns, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(d)?;
-        SelectColumns::parse(&raw).map_err(D::Error::custom)
+        Self::parse(&raw).map_err(D::Error::custom)
     }
 }
 
