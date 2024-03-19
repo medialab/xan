@@ -8,7 +8,8 @@ use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
 use ratatui::text::Span;
-use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Padding};
+// use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Padding};
+use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
 use config::{Config, Delimiter};
@@ -57,6 +58,7 @@ Usage:
     xsv plot --help
 
 plot options:
+    --line            Whether to draw a line plot instead of a scatter plot.
     --color <column>  Name of the categorical column that will be used to
                       color the different points.
     --cols <num>      Width of the graph in terminal columns, i.e. characters.
@@ -81,6 +83,7 @@ struct Args {
     arg_y: String,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_line: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
     flag_color: Option<String>,
@@ -144,6 +147,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    // NOTE: we sort on x if we want a line plot
+    if args.flag_line {
+        main_series.sort();
+
+        for series in grouped_series.values_mut() {
+            series.sort();
+        }
+    }
+
     // Drawing
     let rows = args
         .flag_rows
@@ -177,7 +189,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         Dataset::default()
                             .name(String::from_utf8(name.to_vec()).unwrap())
                             .marker(symbols::Marker::Braille)
-                            .graph_type(GraphType::Scatter)
+                            .graph_type(if args.flag_line {
+                                GraphType::Line
+                            } else {
+                                GraphType::Scatter
+                            })
                             .style(get_series_color(i))
                             .data(&series.points)
                     })
@@ -190,7 +206,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 vec![Dataset::default()
                     .name("csv")
                     .marker(symbols::Marker::Braille)
-                    .graph_type(GraphType::Scatter)
+                    .graph_type(if args.flag_line {
+                        GraphType::Line
+                    } else {
+                        GraphType::Scatter
+                    })
                     .style(Style::default().cyan())
                     .data(&main_series.points)],
             )
@@ -359,5 +379,9 @@ impl Series {
 
     fn y_domain(&self) -> Option<(f64, f64)> {
         self.extent.map(|(_, y)| y)
+    }
+
+    fn sort(&mut self) {
+        self.points.sort_by(|a, b| a.0.total_cmp(&b.0))
     }
 }
