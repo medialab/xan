@@ -170,16 +170,12 @@ impl ConcreteSpecialFunctionCall {
         record: &ByteRecord,
         context: &'a EvaluationContext,
     ) -> EvaluationResult<'a> {
+        // NOTE: we don't need to validate arity here because it was already done
+        // when concretizing.
+
         match self.kind {
             SpecialFunction::If(reverse) => {
                 let arity = self.args.len();
-
-                if !(2..=3).contains(&arity) {
-                    return Err(SpecifiedEvaluationError {
-                        function_name: self.kind.name().to_string(),
-                        reason: EvaluationError::from_invalid_range_arity(2..=3, arity),
-                    });
-                }
 
                 let condition = &self.args[0];
                 let result = condition.evaluate(index, record, context)?;
@@ -205,15 +201,6 @@ impl ConcreteSpecialFunctionCall {
             }
 
             SpecialFunction::Col => {
-                let arity = self.args.len();
-
-                if !(1..=2).contains(&arity) {
-                    return Err(SpecifiedEvaluationError {
-                        function_name: self.kind.name().to_string(),
-                        reason: EvaluationError::from_invalid_range_arity(1..=2, arity),
-                    });
-                }
-
                 let name_or_pos = self
                     .args
                     .first()
