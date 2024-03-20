@@ -150,9 +150,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
 
-    let mut main_series = Series::new();
-
-    let mut grouped_series: HashMap<Vec<u8>, Series> = HashMap::new();
+    let mut grouped_series = if showing_multiple_series {
+        GroupedSeries::with_groups()
+    } else {
+        GroupedSeries::default()
+    };
 
     while rdr.read_byte_record(&mut record)? {
         let x = String::from_utf8_lossy(&record[x_column_index])
@@ -163,24 +165,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .expect("could not parse number");
 
         if let Some(i) = color_column_index {
-            let color_value = record[i].to_vec();
-
-            grouped_series
-                .entry(color_value)
-                .and_modify(|series| {
-                    series.add(x, y);
-                })
-                .or_insert_with(|| Series::of(x, y));
+            grouped_series.add_with_name(&record[i], x, y)
         } else {
-            main_series.add(x, y);
+            grouped_series.add(x, y);
         }
     }
 
+    let mut finalized_series = grouped_series.finalize();
+
     // NOTE: we sort on x if we want a line plot
     if args.flag_line {
-        main_series.sort();
-
-        for series in grouped_series.values_mut() {
+        for (_, series) in finalized_series.iter_mut() {
             series.sort();
         }
     }
@@ -199,62 +194,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let area = Rect::new(0, 0, cols, rows);
 
         // Create the datasets to fill the chart with
-        let (x_domain, y_domain, datasets) = if showing_multiple_series {
-            (
-                merge_domains(
-                    grouped_series
-                        .values()
-                        .map(|series| series.x_domain().unwrap()),
-                ),
-                merge_domains(
-                    grouped_series
-                        .values()
-                        .map(|series| series.y_domain().unwrap()),
-                ),
-                grouped_series
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (name, series))| {
-                        Dataset::default()
-                            .name(String::from_utf8(name.to_vec()).unwrap())
-                            .marker(args.flag_marker.into_inner())
-                            .graph_type(if args.flag_line {
-                                GraphType::Line
-                            } else {
-                                GraphType::Scatter
-                            })
-                            .style(get_series_color(i))
-                            .data(&series.points)
-                    })
-                    .collect(),
-            )
-        } else {
-            (
-                main_series.x_domain().unwrap(),
-                main_series.y_domain().unwrap(),
-                vec![Dataset::default()
-                    .name("csv")
+
+        let x_domain = merge_domains(
+            finalized_series
+                .iter()
+                .map(|(_, series)| series.x_domain().unwrap()),
+        );
+
+        let y_domain = merge_domains(
+            finalized_series
+                .iter()
+                .map(|(_, series)| series.y_domain().unwrap()),
+        );
+
+        let datasets = finalized_series
+            .iter()
+            .enumerate()
+            .map(|(i, (name_opt, series))| {
+                let mut dataset = Dataset::default()
                     .marker(args.flag_marker.into_inner())
                     .graph_type(if args.flag_line {
                         GraphType::Line
                     } else {
                         GraphType::Scatter
                     })
-                    .style(Style::default().cyan())
-                    .data(&main_series.points)],
-            )
-        };
+                    .style(get_series_color(i))
+                    .data(&series.points);
+
+                if let Some(name) = name_opt {
+                    dataset = dataset.name(name.clone());
+                }
+
+                dataset
+            })
+            .collect();
 
         // Create the X axis and define its properties
         let x_axis = Axis::default()
-            .title(args.arg_x.red())
+            .title(args.arg_x.dim())
             .style(Style::default().white())
             .bounds([x_domain.0, x_domain.1])
             .labels(graduations_from_domain(x_domain));
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
-            .title(args.arg_y.red())
+            .title(args.arg_y.dim())
             .style(Style::default().white())
             .bounds([y_domain.0, y_domain.1])
             .labels(graduations_from_domain(y_domain));
@@ -410,5 +394,61 @@ impl Series {
 
     fn sort(&mut self) {
         self.points.sort_by(|a, b| a.0.total_cmp(&b.0))
+    }
+}
+
+struct GroupedSeries {
+    mapping: Option<HashMap<Vec<u8>, (usize, Series)>>,
+    default: Option<Series>,
+}
+
+impl Default for GroupedSeries {
+    fn default() -> Self {
+        Self {
+            mapping: None,
+            default: Some(Series::new()),
+        }
+    }
+}
+
+impl GroupedSeries {
+    fn with_groups() -> Self {
+        Self {
+            mapping: Some(HashMap::new()),
+            default: None,
+        }
+    }
+
+    fn add(&mut self, x: f64, y: f64) {
+        self.default.as_mut().unwrap().add(x, y);
+    }
+
+    fn add_with_name(&mut self, name: &[u8], x: f64, y: f64) {
+        let mapping = self.mapping.as_mut().unwrap();
+        let current_len = mapping.len();
+
+        mapping
+            .entry(name.to_vec())
+            .and_modify(|(_, series)| {
+                series.add(x, y);
+            })
+            .or_insert_with(|| (current_len, Series::of(x, y)));
+    }
+
+    fn finalize(self) -> Vec<(Option<String>, Series)> {
+        let mut output = Vec::new();
+
+        if let Some(default_series) = self.default {
+            output.push((None, default_series));
+        } else if let Some(mapping) = self.mapping {
+            let mut items = mapping.into_iter().collect::<Vec<_>>();
+            items.sort_by(|a, b| a.1 .0.cmp(&b.1 .0));
+
+            for (name, (_, series)) in items {
+                output.push((Some(String::from_utf8(name).unwrap()), series));
+            }
+        }
+
+        output
     }
 }
