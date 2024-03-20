@@ -279,8 +279,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             groups.push(current_run);
 
-            current_run = Vec::new();
-            current_run.push(cell.clone());
+            current_run = vec![cell.clone()];
         }
 
         if !current_run.is_empty() {
@@ -309,15 +308,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             return string;
         }
 
-        let string = match modifer {
+        match modifer {
             Modifier::DIM => Colorize::dimmed(string),
             _ => {
                 dbg!(&modifer);
                 unimplemented!();
             }
-        };
-
-        string
+        }
     }
 
     while i < contents.len() {

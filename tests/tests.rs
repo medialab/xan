@@ -46,6 +46,7 @@ mod test_partition;
 mod test_range;
 mod test_rename;
 mod test_reverse;
+mod test_sample;
 mod test_search;
 mod test_select;
 mod test_shuffle;

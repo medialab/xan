@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::io;
 
 use csv;
@@ -6,7 +8,9 @@ use rand::Rng;
 
 use config::{Config, Delimiter};
 use index::Indexed;
+use select::SelectColumns;
 use util;
+use CliError;
 use CliResult;
 
 static USAGE: &str = "
@@ -24,12 +28,16 @@ once, which is necessary to provide a uniform random sample. If you wish to
 limit the number of records visited, use the 'xan slice' command to pipe into
 'xan sample'.
 
+The command can also extract a biased sample based on a numeric column representing
+row weights, using the --weight flag.
+
 Usage:
     xan sample [options] <sample-size> [<input>]
     xan sample --help
 
 sample options:
     --seed <number>        RNG seed.
+    -w, --weight <column>      Column containing weights to bias the sample.
 
 Common options:
     -h, --help             Display this message
@@ -50,19 +58,37 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_seed: Option<usize>,
+    flag_weight: Option<SelectColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    let rconfig = Config::new(&args.arg_input)
+    let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+
+    if let Some(weight_column_selection) = args.flag_weight.clone() {
+        rconfig = rconfig.select(weight_column_selection);
+    }
+
     let sample_size = args.arg_sample_size;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let sampled = match rconfig.indexed()? {
         Some(mut idx) => {
-            if do_random_access(sample_size, idx.count()) {
+            if args.flag_weight.is_some() {
+                let mut rdr = rconfig.reader()?;
+                rconfig.write_headers(&mut rdr, &mut wtr)?;
+
+                let weight_column_index = rconfig.single_selection(rdr.byte_headers()?)?;
+
+                sample_weighted_reservoir(
+                    &mut rdr,
+                    sample_size,
+                    args.flag_seed,
+                    weight_column_index,
+                )?
+            } else if do_random_access(sample_size, idx.count()) {
                 rconfig.write_headers(&mut *idx, &mut wtr)?;
                 sample_random_access(&mut idx, sample_size)?
             } else {
@@ -74,7 +100,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => {
             let mut rdr = rconfig.reader()?;
             rconfig.write_headers(&mut rdr, &mut wtr)?;
-            sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
+
+            if args.flag_weight.is_some() {
+                let weight_column_index = rconfig.single_selection(rdr.byte_headers()?)?;
+
+                sample_weighted_reservoir(
+                    &mut rdr,
+                    sample_size,
+                    args.flag_seed,
+                    weight_column_index,
+                )?
+            } else {
+                sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
+            }
         }
     };
     for row in sampled.into_iter() {
@@ -127,6 +165,64 @@ fn sample_reservoir<R: io::Read>(
         }
     }
     Ok(reservoir)
+}
+
+#[derive(PartialEq)]
+struct WeightedRow(f64, csv::ByteRecord);
+
+impl WeightedRow {
+    fn row(self) -> csv::ByteRecord {
+        self.1
+    }
+}
+
+impl Eq for WeightedRow {}
+
+impl PartialOrd for WeightedRow {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WeightedRow {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.partial_cmp(&other.0).unwrap().reverse()
+    }
+}
+
+fn sample_weighted_reservoir<R: io::Read>(
+    rdr: &mut csv::Reader<R>,
+    sample_size: u64,
+    seed: Option<usize>,
+    weight_column_index: usize,
+) -> CliResult<Vec<csv::ByteRecord>> {
+    // Seeding rng
+    let mut rng = util::acquire_rng(seed);
+
+    // Using algorithm "A-Res" from:
+    // 1. Pavlos S. Efraimidis, Paul G. Spirakis. "Weighted random sampling with a reservoir."
+    // 2. Pavlos S. Efraimidis. "Weighted Random Sampling over Data Streams."
+    let mut reservoir: BinaryHeap<WeightedRow> = BinaryHeap::with_capacity(sample_size as usize);
+
+    for result in rdr.byte_records() {
+        let record = result?;
+
+        let weight: f64 = String::from_utf8_lossy(&record[weight_column_index])
+            .parse()
+            .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
+
+        let score = rng.gen::<f64>().powf(1.0 / weight);
+        let weighted_row = WeightedRow(score, record);
+
+        if reservoir.len() < reservoir.capacity() {
+            reservoir.push(weighted_row);
+        } else if &weighted_row < reservoir.peek().unwrap() {
+            reservoir.pop();
+            reservoir.push(weighted_row);
+        }
+    }
+
+    Ok(reservoir.into_iter().map(|record| record.row()).collect())
 }
 
 fn do_random_access(sample_size: u64, total: u64) -> bool {
