@@ -136,6 +136,8 @@ pub enum EvaluationError {
     NotImplemented(String),
     CannotOpenFile(String),
     CannotReadFile(String),
+    CannotCreateDir(String),
+    CannotWriteFile(String),
     Cast((String, String)),
     Custom(String),
     UnsupportedEncoding(String),
@@ -177,7 +179,9 @@ impl Display for EvaluationError {
             Self::CannotOpenFile(path) => {
                 write!(f, "cannot open file {}", path)
             }
+            Self::CannotCreateDir(path) => write!(f, "cannot create directory {}", path),
             Self::CannotReadFile(path) => write!(f, "cannot read file {}", path),
+            Self::CannotWriteFile(path) => write!(f, "cannot write file {}", path),
             Self::Custom(msg) => write!(f, "{}", msg),
             Self::Cast((from_type, to_type)) => write!(
                 f,

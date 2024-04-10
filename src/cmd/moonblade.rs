@@ -342,6 +342,11 @@ use the operators in the previous section.
         Default error handling policy is \"replace\", and can be
         one of \"replace\", \"ignore\" or \"strict\".
 
+    - write(string, path) -> string
+        Write string to path as utf-8 text. Will create necessary
+        directories recursively before actually writing the file.
+        Return the path that was written.
+
 ## Random
 
     - md5(string) -> string

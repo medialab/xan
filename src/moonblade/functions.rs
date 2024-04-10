@@ -152,6 +152,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "upper" => (upper, Arity::Strict(1)),
         "uuid" => (uuid, Arity::Strict(0)),
         "val" => (val, Arity::Strict(1)),
+        "write" => (write, Arity::Strict(2)),
         _ => return None,
     })
 }
@@ -748,6 +749,24 @@ fn read(args: BoundArguments) -> FunctionResult {
     };
 
     Ok(DynamicValue::from(contents))
+}
+
+fn write(args: BoundArguments) -> FunctionResult {
+    let data = args.get(0).unwrap().try_as_str()?;
+    let path = PathBuf::from(args.get(1).unwrap().try_as_str()?.as_ref());
+
+    // mkdir -p
+    if let Some(dir) = path.parent() {
+        // NOTE: fs::create_dir_all is threadsafe
+        fs::create_dir_all(dir)
+            .map_err(|_| EvaluationError::CannotCreateDir(path.to_string_lossy().to_string()))?;
+    }
+
+    // TODO: this is not threadsafe
+    fs::write(&path, data.as_bytes())
+        .map_err(|_| EvaluationError::CannotWriteFile(path.to_string_lossy().to_string()))?;
+
+    Ok(DynamicValue::from(path.to_string_lossy()))
 }
 
 fn filesize(args: BoundArguments) -> FunctionResult {
