@@ -394,19 +394,22 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Number of distinct values returned by given expression.
 
     - count(<expr>?) -> number
-        Count the numbers of row. Works like in SQL in that `count(<expr>)`
-        will count all non-null values returned by given expression, while
+        Count the number of row. Works like in SQL in that `count(<expr>)`
+        will count all non-empy values returned by given expression, while
         `count()` without any expression will count every matching row.
+
+    - count_empty(<expr>) -> number
+        Count the number of empty values returned by given expression.
 
     - distinct_values(<expr>, separator?) -> string
         List of sorted distinct values joined by a pipe character ('|') by default or by
         the provided separator.
 
     - first(<expr>) -> string
-        Return first seen non nullish element of the values returned by the given expression.
+        Return first seen non empty element of the values returned by the given expression.
 
     - last(<expr>) -> string
-        Return last seen non nullish element of the values returned by the given expression.
+        Return last seen non empty element of the values returned by the given expression.
 
     - lex_first(<expr>) -> string
         Return first string in lexicographical order.

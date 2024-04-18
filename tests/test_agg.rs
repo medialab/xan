@@ -18,6 +18,7 @@ fn agg() {
     );
 
     test_single_agg_function(&wrk, "count() as count", "count", "4");
+    test_single_agg_function(&wrk, "count_empty(n) as count", "count", "0");
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
     test_single_agg_function(&wrk, "avg(n) as mean", "mean", "2.5");
@@ -114,13 +115,15 @@ fn agg_sqlish_count() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("count() as count_with_nulls, count(n) as count_without_nulls")
-        .arg("data.csv");
+    cmd.arg(
+        "count() as total_count, count(n) as count_without_nulls, count_empty(n) as count_nulls",
+    )
+    .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["count_with_nulls", "count_without_nulls"],
-        svec!["4", "3"],
+        svec!["total_count", "count_without_nulls", "count_nulls"],
+        svec!["4", "3", "1"],
     ];
     assert_eq!(got, expected);
 }

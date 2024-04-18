@@ -21,6 +21,7 @@ Here is what the CSV output will look like:
 
 field         (default) - Name of the described column
 count         (default) - Number of non-empty values contained by the column
+count_empty   (default) - Number of empty values contained by the column
 type          (default) - Most likely type of the column
 types         (default) - Pipe-separated list of all types witnessed in the column
 sum           (default) - Sum of numerical values
