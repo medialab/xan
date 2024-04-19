@@ -17,7 +17,7 @@ readme = "README.md"
 keywords = ["csv", "tsv", "cli"]
 license = "Unlicense OR MIT"
 autotests = false
-edition = "2018"
+edition = "2021"
 include = [
   "Cargo.toml",
   "README.md",

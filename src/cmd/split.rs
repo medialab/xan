@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crate::channel;
+use crossbeam_channel as channel;
 use csv;
 use threadpool::ThreadPool;
 
