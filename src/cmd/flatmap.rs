@@ -1,4 +1,6 @@
-use crate::cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode};
+use crate::cmd::moonblade::{
+    run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode,
+};
 use crate::config::Delimiter;
 use crate::util;
 use crate::CliResult;

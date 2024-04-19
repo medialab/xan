@@ -7,11 +7,11 @@ use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, External
 use rayon::slice::ParallelSliceMut;
 
 use crate::config::{Config, Delimiter};
-use csv;
 use crate::select::{SelectColumns, Selection};
-use std::str::from_utf8;
 use crate::util;
 use crate::CliResult;
+use csv;
+use std::str::from_utf8;
 
 use self::Number::{Float, Int};
 

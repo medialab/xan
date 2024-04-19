@@ -10,10 +10,8 @@ use std::io::{self, Read, SeekFrom};
 use std::ops::Deref;
 use std::path::PathBuf;
 
-use atty;
-use csv;
-use flate2::read::GzDecoder;
 use crate::index::Indexed;
+use flate2::read::GzDecoder;
 use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::select::{SelectColumns, Selection};

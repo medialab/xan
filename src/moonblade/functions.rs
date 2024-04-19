@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
-use regex;
 use unidecode::unidecode;
 use uuid::Uuid;
 

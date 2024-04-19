@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::sync::Arc;
 
-use csv;
 use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 

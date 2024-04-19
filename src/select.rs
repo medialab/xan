@@ -5,7 +5,6 @@ use std::iter::repeat;
 use std::ops;
 use std::str::FromStr;
 
-use csv;
 use serde::de::{Deserialize, Deserializer, Error};
 
 #[derive(Clone)]

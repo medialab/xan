@@ -1,7 +1,6 @@
 use std::io;
 use std::ops;
 
-use csv;
 use csv_index::RandomAccessSimple;
 
 use crate::CliResult;

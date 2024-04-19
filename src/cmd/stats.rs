@@ -1,8 +1,8 @@
 use crate::config::{Config, Delimiter};
-use csv;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
+use csv;
 
 use crate::moonblade::Stats;
 

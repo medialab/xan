@@ -11,7 +11,6 @@ use std::time;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use colored::{Color, ColoredString, Colorize, Styles};
-use csv;
 use dateparser::parse_with_timezone;
 use docopt::Docopt;
 use numfmt::{Formatter, Numeric, Precision};
