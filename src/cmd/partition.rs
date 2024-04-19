@@ -7,10 +7,10 @@ use std::path::Path;
 use csv;
 use regex::Regex;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util::{self, FilenameTemplate, ImmutableRecordHelpers};
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util::{self, FilenameTemplate, ImmutableRecordHelpers};
+use crate::CliResult;
 
 static USAGE: &str = "
 Partitions the given CSV data into chunks based on the value of a column

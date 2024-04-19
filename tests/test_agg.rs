@@ -1,4 +1,4 @@
-use workdir::Workdir;
+use crate::workdir::Workdir;
 
 fn test_single_agg_function(wrk: &Workdir, expr: &str, name: &str, value: &str) {
     let mut cmd = wrk.command("agg");

@@ -2,9 +2,9 @@ use csv;
 use rand::seq::SliceRandom;
 use std::io::SeekFrom;
 
-use config::{Config, Delimiter};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Shuffle the given CSV file. Requires memory proportional to the

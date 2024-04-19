@@ -2,14 +2,14 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use channel;
+use crate::channel;
 use csv;
 use threadpool::ThreadPool;
 
-use config::{Config, Delimiter};
-use index::Indexed;
-use util::{self, FilenameTemplate};
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::index::Indexed;
+use crate::util::{self, FilenameTemplate};
+use crate::CliResult;
 
 static USAGE: &str = "
 Splits the given CSV data into chunks.
@@ -141,7 +141,7 @@ impl Args {
 
     fn njobs(&self) -> usize {
         if self.flag_jobs == 0 {
-            util::num_cpus()
+            num_cpus::get()
         } else {
             self.flag_jobs
         }

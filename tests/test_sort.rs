@@ -1,6 +1,6 @@
 use std::cmp;
 
-use workdir::Workdir;
+use crate::workdir::Workdir;
 
 #[test]
 fn sort_select() {

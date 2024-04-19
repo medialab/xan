@@ -6,12 +6,12 @@ use bytesize::MB;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
 
-use config::{Config, Delimiter};
+use crate::config::{Config, Delimiter};
 use csv;
-use select::{SelectColumns, Selection};
+use crate::select::{SelectColumns, Selection};
 use std::str::from_utf8;
-use util;
-use CliResult;
+use crate::util;
+use crate::CliResult;
 
 use self::Number::{Float, Int};
 

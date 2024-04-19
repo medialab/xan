@@ -6,12 +6,12 @@ use csv;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
-use config::{Config, Delimiter};
-use index::Indexed;
-use select::SelectColumns;
-use util;
-use CliError;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::index::Indexed;
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliError;
+use crate::CliResult;
 
 static USAGE: &str = "
 Randomly samples CSV data uniformly using memory proportional to the size of

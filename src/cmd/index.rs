@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use csv_index::RandomAccessSimple;
 
-use config::{Config, Delimiter};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Creates an index of the given CSV data, which can make other operations like

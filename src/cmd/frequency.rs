@@ -6,10 +6,10 @@ use std::{
 use csv::{self, ByteRecord};
 use rayon::prelude::*;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Compute a frequency table on CSV data.

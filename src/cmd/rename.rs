@@ -1,9 +1,9 @@
 use csv;
 
-use config::{Config, Delimiter};
-use select::{SelectColumns, Selection};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::{SelectColumns, Selection};
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Rename columns of a CSV file. Can also be used to add headers to a headless

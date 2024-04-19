@@ -1,10 +1,10 @@
 use csv;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliError;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliError;
+use crate::CliResult;
 
 // NOTE: shamelessly stolen from:
 // https://stackoverflow.com/questions/38821671/how-can-slices-be-split-using-another-slice-as-a-delimiter

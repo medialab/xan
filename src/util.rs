@@ -14,7 +14,6 @@ use colored::{Color, ColoredString, Colorize, Styles};
 use csv;
 use dateparser::parse_with_timezone;
 use docopt::Docopt;
-use num_cpus;
 use numfmt::{Formatter, Numeric, Precision};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
@@ -23,13 +22,9 @@ use serde::de::{Deserialize, DeserializeOwned, Deserializer, Error};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use CliResult;
-
-pub fn num_cpus() -> usize {
-    num_cpus::get()
-}
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::CliResult;
 
 pub fn version() -> String {
     let (maj, min, pat, pre) = (

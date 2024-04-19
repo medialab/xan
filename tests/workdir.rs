@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use csv;
 
-use Csv;
+use crate::Csv;
 
 static XSV_INTEGRATION_TEST_DIR: &str = "xit";
 

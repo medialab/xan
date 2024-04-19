@@ -2,15 +2,15 @@ use std::io::Write;
 
 use csv;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
-use moonblade::AggregationProgram;
-use moonblade::GroupAggregationProgram;
+use crate::moonblade::AggregationProgram;
+use crate::moonblade::GroupAggregationProgram;
 
-use cmd::moonblade::{
+use crate::cmd::moonblade::{
     get_moonblade_aggregations_function_help, get_moonblade_cheatsheet,
     get_moonblade_functions_help, MoonbladeErrorPolicy,
 };

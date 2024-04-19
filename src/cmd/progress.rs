@@ -7,9 +7,9 @@ use bytesize::MB;
 use csv;
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
-use config::{Config, Delimiter};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util;
+use crate::CliResult;
 
 fn get_progress_style_template(total: u64, color: &str, bytes: bool) -> String {
     let mut f = String::new();

@@ -2,10 +2,10 @@ use std::collections::HashSet;
 
 use csv;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Deduplicate the rows of a CSV file. Runs in O(n) time, consuming O(c) memory, c being

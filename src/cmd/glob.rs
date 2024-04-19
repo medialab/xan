@@ -1,9 +1,9 @@
 use csv;
 use glob::glob;
 
-use config::Config;
-use util;
-use CliResult;
+use crate::config::Config;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Create a CSV file from the matches of a glob pattern. Matches will

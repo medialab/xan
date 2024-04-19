@@ -1,8 +1,8 @@
 use csv;
 
-use config::{Config, Delimiter};
-use util::{self, ImmutableRecordHelpers};
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util::{self, ImmutableRecordHelpers};
+use crate::CliResult;
 
 static USAGE: &str = "
 Enumerate a CSV file by preprending an index column to each row.

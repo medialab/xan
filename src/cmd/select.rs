@@ -1,13 +1,13 @@
 use csv;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
-use moonblade::SelectionProgram;
+use crate::moonblade::SelectionProgram;
 
-use cmd::moonblade::{
+use crate::cmd::moonblade::{
     get_moonblade_cheatsheet, get_moonblade_functions_help, MoonbladeErrorPolicy,
 };
 

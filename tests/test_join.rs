@@ -1,4 +1,4 @@
-use workdir::Workdir;
+use crate::workdir::Workdir;
 
 // This macro takes *two* identifiers: one for the test with headers
 // and another for the test without headers.
@@ -8,7 +8,7 @@ macro_rules! join_test {
             use std::process;
 
             use super::{make_rows, setup};
-            use workdir::Workdir;
+            use crate::workdir::Workdir;
 
             #[test]
             fn headers() {

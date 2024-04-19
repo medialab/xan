@@ -10,11 +10,11 @@ use csv;
 use serde::de::{Deserialize, Deserializer, Error};
 use serde_json::Value;
 
-use config::Config;
-use json::for_each_json_value_as_csv_record;
-use util;
-use CliError;
-use CliResult;
+use crate::config::Config;
+use crate::json::for_each_json_value_as_csv_record;
+use crate::util;
+use crate::CliError;
+use crate::CliResult;
 
 // TODO: support json array value as paths or serialize them with a separator
 

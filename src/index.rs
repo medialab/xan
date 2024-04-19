@@ -4,7 +4,7 @@ use std::ops;
 use csv;
 use csv_index::RandomAccessSimple;
 
-use CliResult;
+use crate::CliResult;
 
 /// Indexed composes a CSV reader with a simple random access index.
 pub struct Indexed<R, I> {

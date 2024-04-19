@@ -1,9 +1,9 @@
 use colored;
 use colored::Colorize;
-use config::{Config, Delimiter};
+use crate::config::{Config, Delimiter};
 use unicode_width::UnicodeWidthStr;
-use util;
-use CliResult;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Prints flattened records such that fields are labeled separated by a new line.

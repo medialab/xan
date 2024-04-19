@@ -6,10 +6,10 @@ use std::io::BufReader;
 use std::os::unix::ffi::OsStrExt;
 use std::process::{Command, Stdio};
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Execute a bash command once per line in given CSV file.

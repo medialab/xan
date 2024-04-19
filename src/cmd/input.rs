@@ -1,8 +1,8 @@
 use csv;
 
-use config::{Config, Delimiter};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Read CSV data with special quoting rules.

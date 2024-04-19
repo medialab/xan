@@ -8,11 +8,11 @@ use byteorder::{BigEndian, WriteBytesExt};
 use csv;
 use pariter::IteratorExt;
 
-use config::{Config, Delimiter, SeekRead};
-use index::Indexed;
-use select::{SelectColumns, Selection};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter, SeekRead};
+use crate::index::Indexed;
+use crate::select::{SelectColumns, Selection};
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Joins two sets of CSV data on the specified columns.

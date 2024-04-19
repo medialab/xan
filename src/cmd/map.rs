@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
 
-use cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode};
-use config::Delimiter;
-use util;
-use CliResult;
+use crate::cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode};
+use crate::config::Delimiter;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = r#"
 The map command evaluates an expression for each row of the given CSV file and

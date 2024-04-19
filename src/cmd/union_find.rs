@@ -2,10 +2,10 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use csv;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 #[derive(Debug)]
 struct UnionFindEntry {

@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use colored::Colorize;
 
-use config::Delimiter;
-use util;
-use CliResult;
+use crate::config::Delimiter;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Prints the fields of the first row in the CSV data.

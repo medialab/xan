@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use csv;
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Concatenates CSV data by column or by row.

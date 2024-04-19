@@ -7,12 +7,12 @@ use csv;
 use pariter::IteratorExt;
 use thread_local::ThreadLocal;
 
-use config::{Config, Delimiter};
-use moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
-use select::SelectColumns;
-use util::ImmutableRecordHelpers;
-use CliError;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
+use crate::select::SelectColumns;
+use crate::util::ImmutableRecordHelpers;
+use crate::CliError;
+use crate::CliResult;
 
 pub fn get_moonblade_cheatsheet() -> &'static str {
     "

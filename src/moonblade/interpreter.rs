@@ -1,4 +1,4 @@
-use fmt;
+use crate::fmt;
 use std::borrow::Cow;
 
 use csv::ByteRecord;

@@ -6,13 +6,13 @@ use csv;
 use rayon::prelude::*;
 use thread_local::ThreadLocal;
 
-use config::{Config, Delimiter};
-use util::{self, ChunksIteratorExt};
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util::{self, ChunksIteratorExt};
+use crate::CliResult;
 
-use moonblade::AggregationProgram;
+use crate::moonblade::AggregationProgram;
 
-use cmd::moonblade::{
+use crate::cmd::moonblade::{
     get_moonblade_aggregations_function_help, get_moonblade_cheatsheet,
     get_moonblade_functions_help, MoonbladeErrorPolicy,
 };

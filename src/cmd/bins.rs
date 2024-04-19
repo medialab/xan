@@ -1,10 +1,10 @@
 use csv;
 
-use config::{Config, Delimiter};
+use crate::config::{Config, Delimiter};
 use rayon::slice::ParallelSliceMut;
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Discretize selection of columns containing continuous data into bins.

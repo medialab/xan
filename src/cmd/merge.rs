@@ -1,11 +1,11 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
-use cmd::sort::{ComparableByteRecord, NumericallyComparableByteRecord};
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::cmd::sort::{ComparableByteRecord, NumericallyComparableByteRecord};
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Merge multiple CSV files already sorted the same way. Those files MUST:

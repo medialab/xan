@@ -6,9 +6,9 @@ use csv;
 use numfmt::Formatter;
 use unicode_width::UnicodeWidthStr;
 
-use config::{Config, Delimiter};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util;
+use crate::CliResult;
 
 const SIMPLE_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
 const COMPLEX_BAR_CHARS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];

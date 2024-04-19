@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use csv;
 use regex::bytes::{RegexBuilder, RegexSetBuilder};
 
-use config::{Config, Delimiter};
-use select::SelectColumns;
-use util;
-use CliError;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliError;
+use crate::CliResult;
 
 fn lowercase(cell: &[u8]) -> String {
     std::str::from_utf8(cell).unwrap().to_lowercase()

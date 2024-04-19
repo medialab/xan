@@ -1,4 +1,4 @@
-use workdir::Workdir;
+use crate::workdir::Workdir;
 
 fn sort_output_on_n_first(data: Vec<Vec<String>>, n: usize) -> Vec<Vec<String>> {
     let mut output = Vec::new();

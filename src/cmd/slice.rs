@@ -1,9 +1,9 @@
 use std::fs;
 
-use config::{Config, Delimiter};
-use index::Indexed;
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::index::Indexed;
+use crate::util;
+use crate::CliResult;
 
 static USAGE: &str = "
 Returns the rows in the range specified (starting at 0, half-open interval).

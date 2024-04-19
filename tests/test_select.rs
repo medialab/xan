@@ -1,11 +1,11 @@
-use workdir::Workdir;
+use crate::workdir::Workdir;
 
 macro_rules! select_test {
     ($name:ident, $select:expr, $select_no_headers:expr,
      $expected_headers:expr, $expected_rows:expr) => {
         mod $name {
             use super::data;
-            use workdir::Workdir;
+            use crate::workdir::Workdir;
 
             #[test]
             fn headers() {

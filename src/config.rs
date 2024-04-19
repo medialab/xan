@@ -13,12 +13,12 @@ use std::path::PathBuf;
 use atty;
 use csv;
 use flate2::read::GzDecoder;
-use index::Indexed;
+use crate::index::Indexed;
 use serde::de::{Deserialize, Deserializer, Error};
 
-use select::{SelectColumns, Selection};
-use util;
-use CliResult;
+use crate::select::{SelectColumns, Selection};
+use crate::util;
+use crate::CliResult;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Delimiter(pub u8);

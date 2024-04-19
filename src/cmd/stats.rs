@@ -1,10 +1,10 @@
-use config::{Config, Delimiter};
+use crate::config::{Config, Delimiter};
 use csv;
-use select::SelectColumns;
-use util;
-use CliResult;
+use crate::select::SelectColumns;
+use crate::util;
+use crate::CliResult;
 
-use moonblade::Stats;
+use crate::moonblade::Stats;
 
 static USAGE: &str = "
 Computes descriptive statistics on CSV data.

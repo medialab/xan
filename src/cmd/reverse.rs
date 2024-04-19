@@ -1,8 +1,8 @@
 use std::io;
 
-use config::{Config, Delimiter};
-use util;
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util;
+use crate::CliResult;
 
 use crate::CliError;
 

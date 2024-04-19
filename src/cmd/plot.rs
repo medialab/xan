@@ -13,9 +13,9 @@ use ratatui::text::Span;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
-use config::{Config, Delimiter};
-use util::{self, ImmutableRecordHelpers};
-use CliResult;
+use crate::config::{Config, Delimiter};
+use crate::util::{self, ImmutableRecordHelpers};
+use crate::CliResult;
 
 fn get_series_color(i: usize) -> Style {
     match i {
