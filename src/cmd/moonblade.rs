@@ -327,6 +327,9 @@ use the operators in the previous section.
     - bytesize(integer) -> string
         Return a number of bytes in human-readable format (KB, MB, GB, etc.).
 
+    - ext(path) -> string?
+        Return the path's extension, if any.
+
     - filesize(string) -> int
         Return the size of given file in bytes.
 

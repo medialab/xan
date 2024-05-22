@@ -66,6 +66,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "endswith" => (endswith, Arity::Strict(2)),
         "err" => (err, Arity::Strict(1)),
         "escape_regex" => (escape_regex, Arity::Strict(1)),
+        "ext" => (ext, Arity::Strict(1)),
         "filesize" => (filesize, Arity::Strict(1)),
         "first" => (first, Arity::Strict(1)),
         "floor" => (
@@ -766,6 +767,14 @@ fn write(args: BoundArguments) -> FunctionResult {
         .map_err(|_| EvaluationError::CannotWriteFile(path.to_string_lossy().to_string()))?;
 
     Ok(DynamicValue::from(path.to_string_lossy()))
+}
+
+fn ext(args: BoundArguments) -> FunctionResult {
+    let path = PathBuf::from(args.get1_str()?.as_ref());
+
+    Ok(DynamicValue::from(
+        path.extension().and_then(|e| e.to_str()),
+    ))
 }
 
 fn filesize(args: BoundArguments) -> FunctionResult {
