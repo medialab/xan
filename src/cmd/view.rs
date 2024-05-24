@@ -87,20 +87,6 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_pager {
-        #[cfg(not(windows))]
-        {
-            pager::Pager::with_pager("less -SR").setup();
-        }
-
-        #[cfg(windows)]
-        {
-            return Err(CliError::Other(
-                "The -p/--pager flag does not work on windows, sorry :'(".to_string(),
-            ));
-        }
-    }
-
     if args.infer_force_colors() {
         colored::control::set_override(true);
     }
@@ -204,6 +190,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     );
 
     let all_columns_shown = displayed_columns.len() == headers.len();
+
+    // NOTE: we setup the pager when everything has been read and process and no error
+    // occurred along the way, so that we don't get to read a paged error
+    if args.flag_pager {
+        #[cfg(not(windows))]
+        {
+            pager::Pager::with_pager("less -SR").setup();
+        }
+
+        #[cfg(windows)]
+        {
+            return Err(CliError::Other(
+                "The -p/--pager flag does not work on windows, sorry :'(".to_string(),
+            ));
+        }
+    }
 
     let mut formatter = util::acquire_number_formatter();
 
