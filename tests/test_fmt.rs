@@ -69,3 +69,17 @@ fn fmt_quote_always() {
 \"mnopqr\",\"stuvwx\"";
     assert_eq!(got, expected.to_string());
 }
+
+#[test]
+fn fmt_quote_never() {
+    let (wrk, mut cmd) = setup("fmt_quote_never");
+    cmd.arg("--quote-never");
+    cmd.args(["-t", "a"]);
+
+    let got: String = wrk.stdout(&mut cmd);
+    let expected = "\
+h1ah2
+abcdefaghijkl
+mnopqrastuvwx";
+    assert_eq!(got, expected.to_string());
+}
