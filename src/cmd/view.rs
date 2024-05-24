@@ -114,7 +114,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     for (i, header) in potential_headers.iter().enumerate() {
         let header = match rconfig.no_headers {
-            true => i.to_string(),
+            true => {
+                if i == 0 {
+                    header.to_string()
+                } else {
+                    (i - 1).to_string()
+                }
+            }
             false => header.to_string(),
         };
         headers.push(header);
