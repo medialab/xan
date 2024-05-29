@@ -24,6 +24,14 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 
 ![hist.png](./docs/img/hist.png)
 
+*Drawing a scatterplot using `xan plot`*
+
+![scatter.png](./docs/img/scatter.png)
+
+*Drawing a time series using `xan plot`*
+
+![line.png](./docs/img/line.png)
+
 ## How to install
 
 `xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
