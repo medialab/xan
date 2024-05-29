@@ -22,15 +22,21 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 
 *Drawing a histogram of values using `xan hist`*
 
-![hist.png](./docs/img/hist.png)
+<p align="center">
+  <img alt="hist.png" src="./docs/img/hist.png" height="100">
+</p>
 
 *Drawing a scatterplot using `xan plot`*
 
-![scatter.png](./docs/img/scatter.png)
+<p align="center">
+  <img alt="scatter.png" src="./docs/img/scatter.png" height="400">
+</p>
 
 *Drawing a time series using `xan plot`*
 
-![line.png](./docs/img/line.png)
+<p align="center">
+  <img alt="line.png" src="./docs/img/line.png" height="300">
+</p>
 
 ## How to install
 
