@@ -38,6 +38,13 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   <img alt="line.png" src="./docs/img/line.png" height="300">
 </p>
 
+## Summary
+
+* [How to install](#how-to-install)
+* [Quick tour](#quick-tour)
+* [Available commands](#available-commands)
+* [General flags and IO model](#general-flags-and-io-model)
+
 ## How to install
 
 `xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
@@ -50,12 +57,12 @@ cargo install xan
 
 Let's learn about the most commonly used `xan` commands by exploring a corpus of French medias:
 
-*Downloading the corpus*
+### Downloading the corpus
 
 ```bash
 curl -LO https://github.com/medialab/corpora/raw/master/polarisation/medias.csv
 ```
-*Displaying the file's headers*
+### Displaying the file's headers*
 
 ```bash
 xan headers medias.csv
@@ -82,6 +89,266 @@ xan headers medias.csv
 17  wheel_subcategory
 18  has_paywall
 19  inactive
+```
+
+### Counting the number of rows
+
+```bash
+xan count medias.csv
+```
+
+```txt
+478
+```
+
+### Previewing the file in the terminal
+
+```bash
+xan view medias.csv
+```
+
+```txt
+Displaying 5/20 cols from 10 first rows of medias.csv
+┌───┬───────────────┬───────────────┬────────────┬───┬─────────────┬──────────┐
+│ - │ name          │ prefixes      │ home_page  │ … │ has_paywall │ inactive │
+├───┼───────────────┼───────────────┼────────────┼───┼─────────────┼──────────┤
+│ 0 │ Acrimed.org   │ http://acrim… │ http://ww… │ … │ false       │ <empty>  │
+│ 1 │ 24matins.fr   │ http://24mat… │ https://w… │ … │ false       │ <empty>  │
+│ 2 │ Actumag.info  │ http://actum… │ https://a… │ … │ false       │ <empty>  │
+│ 3 │ 2012un-Nouve… │ http://2012u… │ http://ww… │ … │ false       │ <empty>  │
+│ 4 │ 24heuresactu… │ http://24heu… │ http://24… │ … │ false       │ <empty>  │
+│ 5 │ AgoraVox      │ http://agora… │ http://ww… │ … │ false       │ <empty>  │
+│ 6 │ Al-Kanz.org   │ http://al-ka… │ https://w… │ … │ false       │ <empty>  │
+│ 7 │ Alalumieredu… │ http://alalu… │ http://al… │ … │ false       │ <empty>  │
+│ 8 │ Allodocteurs… │ http://allod… │ https://w… │ … │ false       │ <empty>  │
+│ 9 │ Alterinfo.net │ http://alter… │ http://ww… │ … │ <empty>     │ true     │
+│ … │ …             │ …             │ …          │ … │ …           │ …        │
+└───┴───────────────┴───────────────┴────────────┴───┴─────────────┴──────────┘
+```
+
+On unix, don't hesitate to use the `-p` flag to automagically forward the full output to an appropriate pager and skim through all the columns.
+
+### Reading a flattened representation of the first row
+
+```bash
+# NOTE: drop -c to avoid truncating the values
+xan slice -l 1 medias.csv | xan flatten -c
+```
+
+```txt
+Row n°0
+───────────────────────────────────────────────────────────────────────────────
+webentity_id                      1
+name                              Acrimed.org
+prefixes                          http://acrimed.org|http://acrimed69.blogspot…
+home_page                         http://www.acrimed.org
+start_pages                       http://acrimed.org|http://acrimed69.blogspot…
+indegree                          61
+hyphe_creation_timestamp          1560347020330
+hyphe_last_modification_timestamp 1560526005389
+outreach                          nationale
+foundation_year                   2002
+batch                             1
+edito                             media
+parody                            false
+origin                            france
+digital_native                    true
+mediacloud_ids                    258269
+wheel_category                    Opinion Journalism
+wheel_subcategory                 Left Wing
+has_paywall                       false
+inactive                          <empty>
+```
+
+### Searching for rows
+
+```bash
+# Counting rows related to "Le Monde"
+xan search -i -s name lemonde medias.csv | xan count
+```
+
+```txt
+1
+```
+
+### Selecting some columns
+
+```bash
+xan select foundation_year,name medias.csv | xan view
+```
+
+```txt
+Displaying 2 cols from 10 first rows of <stdin>
+┌───┬─────────────────┬───────────────────────────────────────┐
+│ - │ foundation_year │ name                                  │
+├───┼─────────────────┼───────────────────────────────────────┤
+│ 0 │ 2002            │ Acrimed.org                           │
+│ 1 │ 2006            │ 24matins.fr                           │
+│ 2 │ 2013            │ Actumag.info                          │
+│ 3 │ 2012            │ 2012un-Nouveau-Paradigme.com          │
+│ 4 │ 2010            │ 24heuresactu.com                      │
+│ 5 │ 2005            │ AgoraVox                              │
+│ 6 │ 2008            │ Al-Kanz.org                           │
+│ 7 │ 2012            │ Alalumieredunouveaumonde.blogspot.com │
+│ 8 │ 2005            │ Allodocteurs.fr                       │
+│ 9 │ 2005            │ Alterinfo.net                         │
+│ … │ …               │ …                                     │
+└───┴─────────────────┴───────────────────────────────────────┘
+```
+
+### Sorting the file
+
+```bash
+xan sort -s foundation_year medias.csv | xan select name,foundation_year | xan view -l 10
+```
+
+```txt
+Displaying 2 cols from 10 first rows of <stdin>
+┌───┬────────────────────────────────────┬─────────────────┐
+│ - │ name                               │ foundation_year │
+├───┼────────────────────────────────────┼─────────────────┤
+│ 0 │ Le Monde Numérique (Ouest France)  │ <empty>         │
+│ 1 │ Le Figaro                          │ 1826            │
+│ 2 │ Le journal de Saône-et-Loire       │ 1826            │
+│ 3 │ L'Indépendant                      │ 1846            │
+│ 4 │ Le Progrès                         │ 1859            │
+│ 5 │ La Dépêche du Midi                 │ 1870            │
+│ 6 │ Le Pélerin                         │ 1873            │
+│ 7 │ Dernières Nouvelles d'Alsace (DNA) │ 1877            │
+│ 8 │ La Croix                           │ 1883            │
+│ 9 │ Le Chasseur Francais               │ 1885            │
+│ … │ …                                  │ …               │
+└───┴────────────────────────────────────┴─────────────────┘
+```
+
+### Computing frequency tables
+
+```bash
+xan frequency -s edito medias.csv | xan view
+```
+
+```txt
+Displaying 3 cols from 5 rows of <stdin>
+┌───┬───────┬────────────┬───────┐
+│ - │ field │ value      │ count │
+├───┼───────┼────────────┼───────┤
+│ 0 │ edito │ media      │ 423   │
+│ 1 │ edito │ individu   │ 30    │
+│ 2 │ edito │ plateforme │ 14    │
+│ 3 │ edito │ agrégateur │ 10    │
+│ 4 │ edito │ agence     │ 1     │
+└───┴───────┴────────────┴───────┘
+```
+
+### Printing a histogram
+
+```bash
+xan frequency -s edito medias.csv | xan hist
+```
+
+```txt
+Histogram for edito (bars: 5, sum: 478, max: 423):
+
+media      |423  88.49%|━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━|
+individu   | 30   6.28%|━━━╸                                                  |
+plateforme | 14   2.93%|━╸                                                    |
+agrégateur | 10   2.09%|━╸                                                    |
+agence     |  1   0.21%|╸                                                     |
+```
+
+### Computing descriptive statistics
+
+```bash
+xan stats -s indegree,edito medias.csv | xan transpose | xan view -I
+```
+
+```txt
+Displaying 2 cols from 14 rows of <stdin>
+┌─────────────┬───────────────────┬────────────┐
+│ field       │ indegree          │ edito      │
+├─────────────┼───────────────────┼────────────┤
+│ count       │ 463               │ 478        │
+│ count_empty │ 15                │ 0          │
+│ type        │ int               │ string     │
+│ types       │ int|empty         │ string     │
+│ sum         │ 25987             │ <empty>    │
+│ mean        │ 56.12742980561554 │ <empty>    │
+│ variance    │ 4234.530197929737 │ <empty>    │
+│ stddev      │ 65.07326792108829 │ <empty>    │
+│ min         │ 0                 │ <empty>    │
+│ max         │ 424               │ <empty>    │
+│ lex_first   │ 0                 │ agence     │
+│ lex_last    │ 99                │ plateforme │
+│ min_length  │ 0                 │ 5          │
+│ max_length  │ 3                 │ 11         │
+└─────────────┴───────────────────┴────────────┘
+```
+
+### Using evaluated expressions to filter a file
+
+```bash
+# Finding all medias founded after 2000
+# NOTE: some rows have no "foundation_year" so -E ignore makes
+# sure we won't crash on those
+xan filter -E ignore 'foundation_year > 2000' medias.csv | xan count
+```
+
+```txt
+268
+```
+
+### Creating a new column based on other ones
+
+```bash
+xan map 'fmt("{} ({})", name, foundation_year)' key medias.csv | xan select key | xan slice -l 10
+```
+
+```txt
+key
+Acrimed.org (2002)
+24matins.fr (2006)
+Actumag.info (2013)
+2012un-Nouveau-Paradigme.com (2012)
+24heuresactu.com (2010)
+AgoraVox (2005)
+Al-Kanz.org (2008)
+Alalumieredunouveaumonde.blogspot.com (2012)
+Allodocteurs.fr (2005)
+Alterinfo.net (2005)
+```
+
+### Performing custom aggregation
+
+```bash
+xan agg 'sum(indegree) as total_indegree, mean(indegree) as mean_indegree' medias.csv | xan view -I
+```
+
+```txt
+Displaying 1 col from 1 rows of <stdin>
+┌────────────────┬───────────────────┐
+│ total_indegree │ mean_indegree     │
+├────────────────┼───────────────────┤
+│ 25987          │ 56.12742980561554 │
+└────────────────┴───────────────────┘
+```
+
+### Grouping rows and performing per-group aggregation
+
+```bash
+xan groupby edito 'sum(indegree) as indegree' medias.csv | xan view -I
+```
+
+```txt
+Displaying 1 col from 5 rows of <stdin>
+┌────────────┬──────────┐
+│ edito      │ indegree │
+├────────────┼──────────┤
+│ agence     │ 50       │
+│ agrégateur │ 459      │
+│ plateforme │ 658      │
+│ media      │ 24161    │
+│ individu   │ 659      │
+└────────────┴──────────┘
 ```
 
 ## Available commands
