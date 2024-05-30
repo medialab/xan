@@ -48,7 +48,41 @@ cargo install xan
 
 ## Quick tour
 
-WIP...
+Let's learn about the most commonly used `xan` commands by exploring a corpus of French medias:
+
+*Downloading the corpus*
+
+```bash
+curl -LO https://github.com/medialab/corpora/raw/master/polarisation/medias.csv
+```
+*Displaying the file's headers*
+
+```bash
+xan headers medias.csv
+```
+
+```txt
+0   webentity_id
+1   name
+2   prefixes
+3   home_page
+4   start_pages
+5   indegree
+6   hyphe_creation_timestamp
+7   hyphe_last_modification_timestamp
+8   outreach
+9   foundation_year
+10  batch
+11  edito
+12  parody
+13  origin
+14  digital_native
+15  mediacloud_ids
+16  wheel_category
+17  wheel_subcategory
+18  has_paywall
+19  inactive
+```
 
 ## Available commands
 
@@ -98,6 +132,41 @@ WIP...
 - **union-find** - Apply the union-find algorithm on a CSV edge list
 - **view** - Preview a CSV file in a human-friendly way
 
+## General flags and IO model
+
+### Getting help
+
 If you ever feel lost, each command has a `-h/--help` flag that will print the related documentation.
 
-<!-- TODO: -d, -n, -, -o -->
+### Specifying the file's delimiter
+
+All `xan` commands accept a `-d/--delimiter` flag (defaulting to the standard `,`) to indicate what is the file's delimiter character.
+
+Note that `xan` is perfectly able to infer the delimiter from typical file extensions such as `.tsv` or `.tab`.
+
+### Working with headless CSV file
+
+Even if this is good practice to name your columns, some CSV file simply don't have headers. Most commands are able to deal with those file if you give the `-n/--no-headers` flag.
+
+Note that this flag always relates to the input, not the output. If for some reason you want to drop a CSV output's header row, use the `xan behead` command.
+
+### Regarding stdin
+
+By default, all commands will try to read from stdin when the file path is not specified. This makes piping easy and comfortable as it respects typical unix standards. Some commands may have multiple inputs (`xan join`, for instance), in which case stdin is usually specifiable using the `-` character:
+
+```bash
+# First file from stdin
+cat file1.csv | xan join col1 - col2 file2.csv
+```
+
+Note that the command will also warn you when stdin cannot be read, in case you forgot to indicate the file's path.
+
+### Regarding stdout
+
+By default, all commands will print their output to stdout (note that this output is usually buffered for performance reasons).
+
+In addition, all commands expose a `-o/--output` flag that can be use to specify where to write the output. This can be useful if you do not want to or cannot use `>` (typically in some Windows shells). In which case, `-` as a output path will mean forwarding to stdout also. This can be useful when scripting sometimes.
+
+### Gzipped files
+
+`xan` is able to read gzipped files (having a `.gz` extension) out of the box.
