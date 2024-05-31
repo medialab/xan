@@ -22,6 +22,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::fixed_termsize;
 use crate::select::SelectColumns;
 use crate::CliResult;
 
@@ -300,7 +301,7 @@ pub fn acquire_stty_size() -> Option<termsize::Size> {
 
 pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
     match cols_override {
-        None => match termsize::get() {
+        None => match fixed_termsize::get() {
             None => match acquire_stty_size() {
                 None => 80,
                 Some(size) => size.cols as usize,
@@ -312,7 +313,7 @@ pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
 }
 
 pub fn acquire_term_rows() -> Option<usize> {
-    termsize::get().map(|size| size.rows as usize)
+    fixed_termsize::get().map(|size| size.rows as usize)
 }
 
 pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {
