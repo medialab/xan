@@ -1,4 +1,4 @@
-# xan
+# xan, the CSV magician
 
 `xan` is a command line tool that can be used to process CSV files directly from the shell.
 
@@ -8,7 +8,7 @@ It can easily preview, filter, slice, aggregate, join CSV files, and exposes a l
 
 `xan` also leverages its own expression language so you can perform complex tasks that cannot be done by relying on the simplest commands. This minimalistic language has been tailored for CSV data and is faster than evaluating typical dynamically-typed languages such as Python, Lua, JavaScript etc.
 
-Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences.
+Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences (you might think CSV is outdated by now, but read our [love letter](./docs/LOVE_LETTER.md) to the format before judging too quickly).
 
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations.
 
@@ -38,12 +38,23 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   <img alt="line.png" src="./docs/img/line.png" height="300">
 </p>
 
+*Displaying a progress bar using `xan progress`*
+
+<p align="center">
+  <img alt="progress.gif" src="./docs/img/progress.gif" width="90%">
+</p>
+
 ## Summary
 
 * [How to install](#how-to-install)
 * [Quick tour](#quick-tour)
 * [Available commands](#available-commands)
 * [General flags and IO model](#general-flags-and-io-model)
+* [Expression language reference](#expression-language-reference)
+  * [Syntax](#syntax)
+  * [Functions & Operators](#functions--operators)
+  * [Aggregation functions](#aggregation-functions)
+* [Advanced use-cases](#advanced-use-cases)
 
 ## How to install
 
@@ -62,13 +73,14 @@ Let's learn about the most commonly used `xan` commands by exploring a corpus of
 ```bash
 curl -LO https://github.com/medialab/corpora/raw/master/polarisation/medias.csv
 ```
-### Displaying the file's headers*
+
+### Displaying the file's headers
 
 ```bash
 xan headers medias.csv
 ```
 
-```txt
+```
 0   webentity_id
 1   name
 2   prefixes
@@ -97,7 +109,7 @@ xan headers medias.csv
 xan count medias.csv
 ```
 
-```txt
+```
 478
 ```
 
@@ -107,7 +119,7 @@ xan count medias.csv
 xan view medias.csv
 ```
 
-```txt
+```
 Displaying 5/20 cols from 10 first rows of medias.csv
 ┌───┬───────────────┬───────────────┬────────────┬───┬─────────────┬──────────┐
 │ - │ name          │ prefixes      │ home_page  │ … │ has_paywall │ inactive │
@@ -135,7 +147,7 @@ On unix, don't hesitate to use the `-p` flag to automagically forward the full o
 xan slice -l 1 medias.csv | xan flatten -c
 ```
 
-```txt
+```
 Row n°0
 ───────────────────────────────────────────────────────────────────────────────
 webentity_id                      1
@@ -163,12 +175,26 @@ inactive                          <empty>
 ### Searching for rows
 
 ```bash
-# Counting rows related to "Le Monde"
-xan search -i -s name lemonde medias.csv | xan count
+xan search -s outreach internationale medias.csv | xan view
 ```
 
-```txt
-1
+```
+Displaying 4/20 cols from 10 first rows of <stdin>
+┌───┬──────────────┬────────────────────┬───┬─────────────┬──────────┐
+│ - │ webentity_id │ name               │ … │ has_paywall │ inactive │
+├───┼──────────────┼────────────────────┼───┼─────────────┼──────────┤
+│ 0 │ 25           │ Businessinsider.fr │ … │ false       │ <empty>  │
+│ 1 │ 59           │ Europe-Israel.org  │ … │ false       │ <empty>  │
+│ 2 │ 66           │ France 24          │ … │ false       │ <empty>  │
+│ 3 │ 220          │ RFI                │ … │ false       │ <empty>  │
+│ 4 │ 231          │ fr.Sott.net        │ … │ false       │ <empty>  │
+│ 5 │ 246          │ Voltairenet.org    │ … │ true        │ <empty>  │
+│ 6 │ 254          │ Afp.com /fr        │ … │ false       │ <empty>  │
+│ 7 │ 265          │ Euronews FR        │ … │ false       │ <empty>  │
+│ 8 │ 333          │ Arte.tv            │ … │ false       │ <empty>  │
+│ 9 │ 341          │ I24News.tv         │ … │ false       │ <empty>  │
+│ … │ …            │ …                  │ … │ …           │ …        │
+└───┴──────────────┴────────────────────┴───┴─────────────┴──────────┘
 ```
 
 ### Selecting some columns
@@ -177,7 +203,7 @@ xan search -i -s name lemonde medias.csv | xan count
 xan select foundation_year,name medias.csv | xan view
 ```
 
-```txt
+```
 Displaying 2 cols from 10 first rows of <stdin>
 ┌───┬─────────────────┬───────────────────────────────────────┐
 │ - │ foundation_year │ name                                  │
@@ -202,7 +228,7 @@ Displaying 2 cols from 10 first rows of <stdin>
 xan sort -s foundation_year medias.csv | xan select name,foundation_year | xan view -l 10
 ```
 
-```txt
+```
 Displaying 2 cols from 10 first rows of <stdin>
 ┌───┬────────────────────────────────────┬─────────────────┐
 │ - │ name                               │ foundation_year │
@@ -221,13 +247,31 @@ Displaying 2 cols from 10 first rows of <stdin>
 └───┴────────────────────────────────────┴─────────────────┘
 ```
 
+### Deduplicating the file on some column
+
+```bash
+# Some medias of our corpus have the same ids on mediacloud.org
+xan dedup -s mediacloud_ids medias.csv | xan count && xan count medias.csv
+```
+
+```
+457
+478
+```
+
+Deduplicating can also be done while sorting:
+
+```bash
+xan sort -s mediacloud_ids -u medias.csv
+```
+
 ### Computing frequency tables
 
 ```bash
 xan frequency -s edito medias.csv | xan view
 ```
 
-```txt
+```
 Displaying 3 cols from 5 rows of <stdin>
 ┌───┬───────┬────────────┬───────┐
 │ - │ field │ value      │ count │
@@ -246,7 +290,7 @@ Displaying 3 cols from 5 rows of <stdin>
 xan frequency -s edito medias.csv | xan hist
 ```
 
-```txt
+```
 Histogram for edito (bars: 5, sum: 478, max: 423):
 
 media      |423  88.49%|━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━|
@@ -262,7 +306,7 @@ agence     |  1   0.21%|╸                                                     
 xan stats -s indegree,edito medias.csv | xan transpose | xan view -I
 ```
 
-```txt
+```
 Displaying 2 cols from 14 rows of <stdin>
 ┌─────────────┬───────────────────┬────────────┐
 │ field       │ indegree          │ edito      │
@@ -284,26 +328,25 @@ Displaying 2 cols from 14 rows of <stdin>
 └─────────────┴───────────────────┴────────────┘
 ```
 
-### Using evaluated expressions to filter a file
+### Evaluating an expression to filter a file
 
 ```bash
-# Finding all medias founded after 2000
-# NOTE: some rows have no "foundation_year" so -E ignore makes
-# sure we won't crash on those
-xan filter -E ignore 'foundation_year > 2000' medias.csv | xan count
+xan filter 'batch > 1' medias.csv | xan count
 ```
 
-```txt
-268
+```
+130
 ```
 
-### Creating a new column based on other ones
+To access the expression language's [cheatsheet](#syntax), run `xan filter --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan filter --functions`.
+
+### Evaluating an expression to create a new column based on other ones
 
 ```bash
 xan map 'fmt("{} ({})", name, foundation_year)' key medias.csv | xan select key | xan slice -l 10
 ```
 
-```txt
+```
 key
 Acrimed.org (2002)
 24matins.fr (2006)
@@ -317,13 +360,37 @@ Allodocteurs.fr (2005)
 Alterinfo.net (2005)
 ```
 
+To access the expression language's [cheatsheet](#syntax), run `xan map --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan map --functions`.
+
+### Transform a column by evaluating an expression
+
+```bash
+xan transform name 'split(name, ".") | first | upper' medias.csv | xan select name | xan slice -l 10
+```
+
+```
+name
+ACRIMED
+24MATINS
+ACTUMAG
+2012UN-NOUVEAU-PARADIGME
+24HEURESACTU
+AGORAVOX
+AL-KANZ
+ALALUMIEREDUNOUVEAUMONDE
+ALLODOCTEURS
+ALTERINFO
+```
+
+To access the expression language's [cheatsheet](#syntax), run `xan transform --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan transform --functions`.
+
 ### Performing custom aggregation
 
 ```bash
 xan agg 'sum(indegree) as total_indegree, mean(indegree) as mean_indegree' medias.csv | xan view -I
 ```
 
-```txt
+```
 Displaying 1 col from 1 rows of <stdin>
 ┌────────────────┬───────────────────┐
 │ total_indegree │ mean_indegree     │
@@ -332,13 +399,15 @@ Displaying 1 col from 1 rows of <stdin>
 └────────────────┴───────────────────┘
 ```
 
+To access the expression language's [cheatsheet](#syntax), run `xan agg --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan agg --functions`. Finally, to display the list of available [aggregation functions](#aggregation-functions), run `xan agg --aggs`.
+
 ### Grouping rows and performing per-group aggregation
 
 ```bash
 xan groupby edito 'sum(indegree) as indegree' medias.csv | xan view -I
 ```
 
-```txt
+```
 Displaying 1 col from 5 rows of <stdin>
 ┌────────────┬──────────┐
 │ edito      │ indegree │
@@ -351,7 +420,11 @@ Displaying 1 col from 5 rows of <stdin>
 └────────────┴──────────┘
 ```
 
+To access the expression language's [cheatsheet](#syntax), run `xan groupby --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan groupby --functions`. Finally, to display the list of available [aggregation functions](#aggregation-functions), run `xan groupby --aggs`.
+
 ## Available commands
+
+*All commands are not fully documented on this README yet, but all the necessary information can be found directly from the command line. Just run `xan command -h` for help*
 
 - **agg** - Aggregate data from CSV file
 - [**behead**](./docs/cmd/behead.md) - Drop header from CSV file
@@ -422,7 +495,7 @@ Note that this flag always relates to the input, not the output. If for some rea
 By default, all commands will try to read from stdin when the file path is not specified. This makes piping easy and comfortable as it respects typical unix standards. Some commands may have multiple inputs (`xan join`, for instance), in which case stdin is usually specifiable using the `-` character:
 
 ```bash
-# First file from stdin
+# First file given to join will be read from stdin
 cat file1.csv | xan join col1 - col2 file2.csv
 ```
 
@@ -437,3 +510,485 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 ### Gzipped files
 
 `xan` is able to read gzipped files (having a `.gz` extension) out of the box.
+
+## Expression language reference
+
+### Syntax
+
+This help can be found in the terminal by executing `xan map --cheatsheet`.
+
+```
+xan script language cheatsheet (use --functions for comprehensive list of
+available functions & operators):
+
+  . Indexing a column by name:
+        'name'
+
+  . Indexing column with forbidden characters (e.g. spaces, commas etc.):
+        'col("Name of film")'
+
+  . Indexing column by index (0-based):
+        'col(2)'
+
+  . Indexing a column by name and 0-based nth (for duplicate headers):
+        'col("col", 1)'
+
+  . Applying functions:
+        'trim(name)'
+        'trim(concat(name, " ", surname))'
+
+  . Using operators (unary & binary):
+        '-nb1'
+        'nb1 + nb2'
+        '(nb1 > 1) || nb2'
+
+  . Integer literals:
+        '1'
+
+  . Float literals:
+        '0.5'
+
+  . Boolean literals:
+        'true'
+        'false'
+
+  . Null literals:
+        'null'
+
+  . String literals (can use single or double quotes):
+        '"hello"'
+        "'hello'"
+
+  . Regex literals:
+        '/john/'
+        '/john/i' (case-insensitive)
+
+  . Nesting function calls:
+        'add(sub(col1, col2), mul(col3, col4))'
+```
+
+### Functions & Operators
+
+This help can be found in the terminal by executing `xan map --functions`.
+
+```
+# Available functions & operators
+
+(use --cheatsheet for a reminder of the expression language's basics)
+
+## Operators
+
+### Unary operators
+
+    !x - boolean negation
+    -x - numerical negation,
+
+### Numerical comparison
+
+Warning: those operators will always consider operands as numbers and will
+try to cast them around as such. For string/sequence comparison, use the
+operators in the next section.
+
+    x == y - numerical equality
+    x != y - numerical inequality
+    x <  y - numerical less than
+    x <= y - numerical less than or equal
+    x >  y - numerical greater than
+    x >= y - numerical greater than or equal
+
+### String/sequence comparison
+
+Warning: those operators will always consider operands as strings or
+sequences and will try to cast them around as such. For numerical comparison,
+use the operators in the previous section.
+
+    x eq y - string equality
+    x ne y - string inequality
+    x lt y - string less than
+    x le y - string less than or equal
+    x gt y - string greater than
+    x ge y - string greater than or equal
+
+### Arithmetic operators
+
+    x + y  - numerical addition
+    x - y  - numerical subtraction
+    x * y  - numerical multiplication
+    x / y  - numerical division
+    x % y  - numerical remainder
+
+    x // y - numerical integer division
+    x ** y - numerical exponentiation
+
+## String operators
+
+    x . y - string concatenation
+
+## Logical operators
+
+    x &&  y - logical and
+    x and y
+    x ||  y - logical or
+    x or  y
+
+    x in y
+    x not in y
+
+## Pipeline operator (using "_" for left-hand size substitution)
+
+    'trim(name) | len(_)'         - Same as len(trim(name))
+    'trim(name) | len'            - Supports elision for unary functions
+    'trim(name) | add(1, len(_))' - Can be nested
+    'add(trim(name) | len, 2)'    - Can be used anywhere
+
+## Arithmetics
+
+    - abs(x) -> number
+        Return absolute value of number.
+
+    - add(x, y, *n) -> number
+        Add two or more numbers.
+
+    - ceil(x) -> number
+        Return the smallest integer greater than or equal to x.
+
+    - div(x, y, *n) -> number
+        Divide two or more numbers.
+
+    - floor(x) -> number
+        Return the smallest integer lower than or equal to x.
+
+    - idiv(x, y) -> number
+        Integer division of two numbers.
+
+    - log(x) -> number
+        Return the natural logarithm of x.
+
+    - mod(x, y) -> number
+        Return the remainder of x divided by y.
+
+    - mul(x, y, *n) -> number
+        Multiply two or more numbers.
+
+    - neg(x) -> number
+        Return -x.
+
+    - pow(x, y) -> number
+        Raise x to the power of y.
+
+    - round(x) -> number
+        Return x rounded to the nearest integer.
+
+    - sqrt(x) -> number
+        Return the square root of x.
+
+    - sub(x, y, *n) -> number
+        Subtract two or more numbers.
+
+    - trunc(x) -> number
+        Truncate the number by removing its decimal part.
+
+## Boolean operations & branching
+
+    - and(a, b, *x) -> bool
+        Perform boolean AND operation on two or more values.
+
+    - if(cond, then, else?) -> T
+        Evaluate condition and switch to correct branch.
+
+    - unless(cond, then, else?) -> T
+        Shorthand for `if(not(cond), then, else?)`.
+
+    - not(a) -> bool
+        Perform boolean NOT operation.
+
+    - or(a, b, *x) -> bool
+        Perform boolean OR operation on two or more values.
+
+## Comparison
+
+    - eq(s1, s2) -> bool
+        Test string or sequence equality.
+
+    - ne(s1, s2) -> bool
+        Test string or sequence inequality.
+
+    - gt(s1, s2) -> bool
+        Test that string or sequence s1 > s2.
+
+    - ge(s1, s2) -> bool
+        Test that string or sequence s1 >= s2.
+
+    - lt(s1, s2) -> bool
+        Test that string or sequence s1 < s2.
+
+    - ge(s1, s2) -> bool
+        Test that string or sequence s1 <= s2.
+
+## String & sequence helpers
+
+    - compact(list) -> list
+        Drop all falsey values from given list.
+
+    - concat(string, *strings) -> string
+        Concatenate given strings into a single one.
+
+    - contains(seq, subseq) -> bool
+        Find if subseq can be found in seq. Subseq can
+        be a regular expression.
+
+    - count(seq, pattern) -> int
+        Count number of times pattern appear in seq. Pattern
+        can be a regular expression.
+
+    - endswith(string, pattern) -> bool
+        Test if string ends with pattern.
+
+    - escape_regex(string) -> string
+        Escape a string so it can be used safely in a regular expression.
+
+    - first(seq) -> T
+        Get first element of sequence.
+
+    - fmt(string, *replacements):
+        Format a string by replacing "{}" occurrences by subsequent
+        arguments.
+
+        Example: `fmt("Hello {} {}", name, surname)` will replace
+        the first "{}" by the value of the name column, then the
+        second one by the value of the surname column.
+
+    - get(seq, index) -> T
+        Get nth element of sequence (can use negative indexing).
+
+    - join(seq, sep) -> string
+        Join sequence by separator.
+
+    - last(seq) -> T
+        Get last element of sequence.
+
+    - len(seq) -> int
+        Get length of sequence.
+
+    - ltrim(string, pattern?) -> string
+        Trim string of leading whitespace or
+        provided characters.
+
+    - lower(string) -> string
+        Lowercase string.
+
+    - replace(string, pattern, replacement) -> string
+        Replace pattern in string. Can use a regex.
+
+    - rtrim(string, pattern?) -> string
+        Trim string of trailing whitespace or
+        provided characters.
+
+    - slice(seq, start, end?) -> seq
+        Return slice of sequence.
+
+    - split(string, sep, max?) -> list
+        Split a string by separator.
+
+    - startswith(string, pattern) -> bool
+        Test if string starts with pattern.
+
+    - trim(string, pattern?) -> string
+        Trim string of leading & trailing whitespace or
+        provided characters.
+
+    - unidecode(string) -> string
+        Convert string to ascii as well as possible.
+
+    - upper(string) -> string
+        Uppercase string.
+
+## Utils
+
+    - coalesce(*args) -> T
+        Return first truthy value.
+
+    - col(name_or_pos, nth?) -> string
+        Return value of cell for given column, by name, by position or by
+        name & nth, in case of duplicate header names.
+
+    - err(msg) -> error
+        Make the expression return a custom error.
+
+    - index() -> integer?
+        Return the row's index, if applicable.
+
+    - typeof(value) -> string
+        Return type of value.
+
+    - val(value) -> T
+        Return a value as-is. Useful to return constants.
+
+## IO & path wrangling
+
+    - abspath(string) -> string
+        Return absolute & canonicalized path.
+
+    - bytesize(integer) -> string
+        Return a number of bytes in human-readable format (KB, MB, GB, etc.).
+
+    - ext(path) -> string?
+        Return the path's extension, if any.
+
+    - filesize(string) -> int
+        Return the size of given file in bytes.
+
+    - isfile(string) -> bool
+        Return whether the given path is an existing file on disk.
+
+    - pathjoin(string, *strings) -> string
+        Join multiple paths correctly.
+
+    - read(path, encoding?, errors?) -> string
+        Read file at path. Default encoding is "utf-8".
+        Default error handling policy is "replace", and can be
+        one of "replace", "ignore" or "strict".
+
+    - write(string, path) -> string
+        Write string to path as utf-8 text. Will create necessary
+        directories recursively before actually writing the file.
+        Return the path that was written.
+
+## Random
+
+    - md5(string) -> string
+        Return the md5 hash of string in hexadecimal representation.
+
+    - uuid() -> string
+        Return a uuid v4.
+```
+
+### Aggregation functions
+
+This help can be found in the terminal by executing `xan agg --aggs`.
+
+```
+# Available aggregation functions
+
+(use --cheatsheet for a reminder of how the scripting language works)
+
+Note that most functions ignore null values (empty strings), but that functions
+operating on numbers will yield an error if encountering a string that cannot
+be safely parsed as a number.
+
+You can always use `coalesce` to nudge values around and force aggregation functions to
+consider null values or make them avoid non-numerical values altogether.
+
+Example: considering null values when computing a mean => 'mean(coalesce(number, 0))'
+
+    - all(<expr>) -> bool
+        Returns true if all elements returned by given expression are truthy.
+
+    - any(<expr>) -> bool
+        Returns true if one of the elements returned by given expression is truthy.
+
+    - argmin(<expr>, <expr>?) -> any
+        Return the index of the row where the first expression is minimized, or
+        the result of the second expression where the first expression is minimized.
+
+    - argmax(<expr>, <expr>?) -> any
+        Return the index of the row where the first expression is maximized, or
+        the result of the second expression where the first expression is maximized.
+
+    - avg(<expr>) -> number
+        Average of numerical values. Same as `mean`.
+
+    - cardinality(<expr>) -> number
+        Number of distinct values returned by given expression.
+
+    - count(<expr>?) -> number
+        Count the number of row. Works like in SQL in that `count(<expr>)`
+        will count all non-empy values returned by given expression, while
+        `count()` without any expression will count every matching row.
+
+    - count_empty(<expr>) -> number
+        Count the number of empty values returned by given expression.
+
+    - distinct_values(<expr>, separator?) -> string
+        List of sorted distinct values joined by a pipe character ('|') by default or by
+        the provided separator.
+
+    - first(<expr>) -> string
+        Return first seen non empty element of the values returned by the given expression.
+
+    - last(<expr>) -> string
+        Return last seen non empty element of the values returned by the given expression.
+
+    - lex_first(<expr>) -> string
+        Return first string in lexicographical order.
+
+    - lex_last(<expr>) -> string
+        Return last string in lexicographical order.
+
+    - min(<expr>) -> number | string
+        Minimum numerical value.
+
+    - max(<expr>) -> number | string
+        Maximum numerical value.
+
+    - mean(<expr>) -> number
+        Mean of numerical values. Same as `avg`.
+
+    - median(<expr>) -> number
+        Median of numerical values, interpolating on even counts.
+
+    - median_high(<expr>) -> number
+        Median of numerical values, returning higher value on even counts.
+
+    - median_low(<expr>) -> number
+        Median of numerical values, returning lower value on even counts.
+
+    - mode(<expr>) -> string
+        Value appearing the most, breaking ties arbitrarily in favor of the
+        first value in lexicographical order.
+
+    - quantile(<expr>, p) -> number
+        Return the desired quantile of numerical values.
+
+    - q1(<expr>) -> number
+        Return the first quartile of numerical values.
+
+    - q2(<expr>) -> number
+        Return the second quartile of numerical values. Alias for median.
+
+    - q3(<expr>) -> number
+        Return the third quartile of numerical values.
+
+    - stddev(<expr>) -> number
+        Population standard deviation. Same as `stddev_pop`.
+
+    - stddev_pop(<expr>) -> number
+        Population standard deviation. Same as `stddev`.
+
+    - stddev_sample(<expr>) -> number
+        Sample standard deviation (i.e. using Bessel's correction).
+
+    - sum(<expr>) -> number
+        Sum of numerical values.
+
+    - type(<expr>) -> string
+        Best type description for seen values.
+
+    - types(<expr>) -> string
+        Sorted list, pipe-separated, of all the types seen in the values.
+
+    - values(<expr>, separator?) -> string
+        List of values joined by a pipe character ('|') by default or by
+        the provided separator.
+
+    - var(<expr>) -> number
+        Population variance. Same as `var_pop`.
+
+    - var_pop(<expr>) -> number
+        Population variance. Same as `var`.
+
+    - var_sample(<expr>) -> number
+        Sample variance (i.e. using Bessel's correction).
+```
+
+## Advanced use-cases

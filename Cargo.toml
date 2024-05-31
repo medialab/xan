@@ -9,7 +9,7 @@ authors = [
   "César Pichon <cesar.pichon@sciencespo.fr>",
   "Anna Charles <anna.charles@sciencespo.fr>",
 ]
-description = "The CSV command line magician."
+description = "The CSV magician"
 documentation = "https://github.com/medialab/xan#readme"
 homepage = "https://github.com/medialab/xan"
 repository = "https://github.com/medialab/xan"
