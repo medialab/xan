@@ -55,6 +55,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Functions & Operators](#functions--operators)
   * [Aggregation functions](#aggregation-functions)
 * [Advanced use-cases](#advanced-use-cases)
+* [Frequently Asked Questions](#frequently-asked-questions)
 
 ## How to install
 
@@ -1024,3 +1025,9 @@ xan behead | \
 xan fmt --quote-never | \
 xargs -I rm {};
 ```
+
+## Frequently Asked Questions
+
+### How to display a vertical bar chart?
+
+Rotate your screen ;\)
