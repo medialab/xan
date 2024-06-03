@@ -1023,7 +1023,7 @@ Let's say you want to delete all files whose path can be found in a column of CS
 xan select path files.csv | \
 xan behead | \
 xan fmt --quote-never | \
-xargs -I rm {};
+xargs -I {} rm {};
 ```
 
 ## Frequently Asked Questions
