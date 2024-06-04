@@ -479,11 +479,15 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 If you ever feel lost, each command has a `-h/--help` flag that will print the related documentation.
 
-### Specifying the file's delimiter
+### Regarding input & output formats
 
-All `xan` commands accept a `-d/--delimiter` flag (defaulting to the standard `,`) to indicate what is the file's delimiter character.
+All `xan` commands expect a "standard" CSV file, e.g. comma-delimited, with proper double-quote escaping. This said, `xan` is also perfectly able to infer the delimiter from typical file extensions such as `.tsv` or `.tab`.
 
-Note that `xan` is perfectly able to infer the delimiter from typical file extensions such as `.tsv` or `.tab`.
+If you need to process a file with a custom delimiter, you can either use the `xan input` command or use the `-d/--delimiter` flag available with all commands.
+
+If you need to output a custom CSV dialect (e.g. using `;` delimiters), feel free to use the `xan fmt` command.
+
+Finally, even if most `xan` commands won't even need to decode the file's bytes, some might still need to. In this case, `xan` will expect correctly formatted UTF-8 text. Please use `iconv` or other utils if you need to process other encodings such as `latin1` ahead of `xan`.
 
 ### Working with headless CSV file
 
