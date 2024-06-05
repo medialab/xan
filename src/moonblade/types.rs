@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::collections::btree_map::Entry;
-use std::collections::BTreeMap;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::convert::From;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 use std::str::FromStr;

@@ -30,7 +30,7 @@ fn fixed_nix_get() -> Option<Size> {
         x: 0,
         y: 0,
     };
-    let r = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ.into(), &mut us) };
+    let r = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut us) };
     if r == 0 {
         Some(Size {
             rows: us.rows,
