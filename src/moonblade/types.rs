@@ -473,7 +473,7 @@ pub enum DynamicValue {
     Float(f64),
     Integer(i64),
     Boolean(bool),
-    Regex(Regex),
+    Regex(Box<Regex>),
     None,
 }
 
@@ -814,7 +814,7 @@ impl From<char> for DynamicValue {
 
 impl From<Regex> for DynamicValue {
     fn from(value: Regex) -> Self {
-        DynamicValue::Regex(value)
+        DynamicValue::Regex(Box::new(value))
     }
 }
 

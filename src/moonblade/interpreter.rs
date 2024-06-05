@@ -341,7 +341,7 @@ pub fn concretize_expression(
             .case_insensitive(case_insensitive)
             .build()
         {
-            Ok(regex) => ConcreteExpr::Value(DynamicValue::Regex(regex)),
+            Ok(regex) => ConcreteExpr::Value(DynamicValue::Regex(Box::new(regex))),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Expr::Func(call) => concretize_call(call, headers)?,
