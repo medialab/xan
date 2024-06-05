@@ -468,6 +468,7 @@ impl FromStr for DynamicNumber {
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
     List(Vec<DynamicValue>),
+    Map(BTreeMap<String, DynamicValue>),
     String(String),
     Float(f64),
     Integer(i64),
@@ -486,6 +487,7 @@ impl DynamicValue {
     pub fn type_of(&self) -> &str {
         match self {
             Self::List(_) => "list",
+            Self::Map(_) => "map",
             Self::String(_) => "string",
             Self::Float(_) => "float",
             Self::Integer(_) => "integer",
@@ -520,6 +522,10 @@ impl DynamicValue {
 
                 Cow::Owned(bytes)
             }
+            Self::Map(_) => {
+                // TODO: serialize as JSON
+                unimplemented!()
+            }
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Integer(value) => Cow::Owned(value.to_string().into_bytes()),
@@ -544,6 +550,12 @@ impl DynamicValue {
             Self::List(_) => {
                 return Err(EvaluationError::Cast((
                     "list".to_string(),
+                    "string".to_string(),
+                )))
+            }
+            Self::Map(_) => {
+                return Err(EvaluationError::Cast((
+                    "map".to_string(),
                     "string".to_string(),
                 )))
             }
@@ -721,6 +733,7 @@ impl DynamicValue {
     pub fn is_truthy(&self) -> bool {
         match self {
             Self::List(value) => !value.is_empty(),
+            Self::Map(value) => !value.is_empty(),
             Self::String(value) => !value.is_empty(),
             Self::Float(value) => value == &0.0,
             Self::Integer(value) => value != &0,
