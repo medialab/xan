@@ -887,6 +887,35 @@ where
     }
 }
 
+impl From<serde_json::Value> for DynamicValue {
+    fn from(value: serde_json::Value) -> Self {
+        match value {
+            serde_json::Value::Null => Self::None,
+            serde_json::Value::Bool(v) => Self::Boolean(v),
+            serde_json::Value::String(s) => Self::String(s),
+            serde_json::Value::Number(n) => match n.as_i64() {
+                Some(i) => Self::Integer(i),
+                None => match n.as_f64() {
+                    Some(f) => Self::Float(f),
+                    None => panic!("illegal json numerical value over 53 bits!"),
+                },
+            },
+            serde_json::Value::Array(l) => {
+                DynamicValue::List(l.into_iter().map(DynamicValue::from).collect())
+            }
+            serde_json::Value::Object(m) => {
+                let mut fm = BTreeMap::new();
+
+                for (k, v) in m {
+                    fm.insert(k, DynamicValue::from(v));
+                }
+
+                DynamicValue::Map(fm)
+            }
+        }
+    }
+}
+
 impl PartialEq for DynamicValue {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

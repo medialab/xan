@@ -830,4 +830,12 @@ mod tests {
         );
         assert_eq!(eval_code("bytesize(0)"), Ok(DynamicValue::from("0 B")));
     }
+
+    #[test]
+    fn test_json() {
+        assert_eq!(
+            eval_code("json_parse('[1, 2, 3]') | get(_, 1)"),
+            Ok(DynamicValue::from(2))
+        );
+    }
 }

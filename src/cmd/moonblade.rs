@@ -313,6 +313,9 @@ use the operators in the previous section.
     - index() -> integer?
         Return the row's index, if applicable.
 
+    - json_parse(string) -> T
+        Parse the given string as JSON.
+
     - typeof(value) -> string
         Return type of value.
 

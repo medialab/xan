@@ -146,6 +146,7 @@ pub enum EvaluationError {
     ColumnNotFound(ColumIndexationBy),
     ColumnOutOfRange(usize),
     UnicodeDecodeError,
+    JSONParseError,
 }
 
 impl EvaluationError {
@@ -203,6 +204,7 @@ impl Display for EvaluationError {
             Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
             Self::ColumnOutOfRange(idx) => write!(f, "column \"{}\" is out of range", idx),
             Self::UnicodeDecodeError => write!(f, "unicode decode error"),
+            Self::JSONParseError => write!(f, "json parse error"),
         }
     }
 }

@@ -81,6 +81,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "isfile" => (isfile, Arity::Strict(1)),
         "join" => (join, Arity::Strict(2)),
+        "json_parse" => (json_parse, Arity::Strict(1)),
         "last" => (last, Arity::Strict(1)),
         "len" => (len, Arity::Strict(1)),
         "log" => (
@@ -818,4 +819,13 @@ fn err(args: BoundArguments) -> FunctionResult {
 fn val(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
     Ok(arg.into_owned())
+}
+
+fn json_parse(args: BoundArguments) -> FunctionResult {
+    let arg = args.get1_str()?;
+
+    match serde_json::from_str::<serde_json::Value>(arg.as_ref()) {
+        Ok(value) => Ok(DynamicValue::from(value)),
+        Err(_) => Err(EvaluationError::JSONParseError),
+    }
 }
