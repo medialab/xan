@@ -1,5 +1,7 @@
 // En tant que chef, je m'engage à ce que nous ne nous
 // fassions pas *tous* tuer.
+use std::collections::BTreeMap;
+
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
@@ -125,7 +127,9 @@ enum TokenTree<'a> {
 impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
     fn from(pair: Pair<'a, Rule>) -> Self {
         match pair.as_rule() {
-            Rule::string
+            Rule::map
+            | Rule::list
+            | Rule::string
             | Rule::regex
             | Rule::int
             | Rule::float
@@ -266,6 +270,8 @@ pub enum Expr {
     Float(f64),
     Identifier(String),
     Str(String),
+    List(Vec<Expr>),
+    Map(BTreeMap<String, Expr>),
     Regex(String, bool),
     Bool(bool),
     Underscore,
@@ -337,6 +343,39 @@ where
     fn primary(&mut self, tree: TokenTree) -> Result<Expr, Self::Error> {
         let expr = match tree {
             TokenTree::Primary(token) => match token.as_rule() {
+                Rule::list => Expr::List(
+                    token
+                        .into_inner()
+                        .map(|t| self.parse(&mut vec![TokenTree::from(t)].into_iter()))
+                        .collect::<Result<_, _>>()
+                        .map_err(|err| match err {
+                            PrattError::UserError(inner) => inner,
+                            _ => unreachable!(),
+                        })?,
+                ),
+                Rule::map => {
+                    let mut map = BTreeMap::new();
+
+                    for entry in token.into_inner() {
+                        let mut sub = entry.into_inner();
+                        let key_pair = sub.next().unwrap();
+                        let key = match key_pair.as_rule() {
+                            Rule::string => build_string(key_pair),
+                            Rule::ident => key_pair.as_str().to_string(),
+                            _ => unreachable!(),
+                        };
+                        let value = self
+                            .parse(&mut vec![TokenTree::from(sub.next().unwrap())].into_iter())
+                            .map_err(|err| match err {
+                                PrattError::UserError(inner) => inner,
+                                _ => unreachable!(),
+                            })?;
+
+                        map.insert(key, value);
+                    }
+
+                    Expr::Map(map)
+                }
                 Rule::int => {
                     let n = token
                         .as_str()
@@ -638,6 +677,30 @@ mod tests {
         Regex(string.to_string(), true)
     }
 
+    macro_rules! list {
+        ( $( $x:expr ),* ) => {
+            {
+                let mut v = Vec::new();
+                $(
+                    v.push($x);
+                )*
+                List(v)
+            }
+        };
+    }
+
+    macro_rules! map {
+        ( $( ($k:expr, $v:expr) ),* ) => {
+            {
+                let mut m = BTreeMap::<String, Expr>::new();
+                $(
+                    m.insert($k.to_string(), $v);
+                )*
+                Map(m)
+            }
+        };
+    }
+
     #[test]
     fn test_booleans() {
         assert_eq!(parse_expression("true"), Ok(Bool(true)));
@@ -749,6 +812,32 @@ mod tests {
                 "not",
                 vec![func("add", vec![func("add", vec![Int(1), Int(2)]), Int(4)])]
             ))
+        );
+    }
+
+    #[test]
+    fn test_containers() {
+        assert_eq!(
+            parse_expression("[1, 2, 3]"),
+            Ok(list![Int(1), Int(2), Int(3)])
+        );
+
+        assert_eq!(
+            parse_expression("[1, [2.5, 'test'], 3]"),
+            Ok(list![Int(1), list![Float(2.5), s("test")], Int(3)])
+        );
+
+        assert_eq!(
+            parse_expression("{one: 1, 'two': '5'}"),
+            Ok(map![("one", Int(1)), ("two", s("5"))])
+        );
+
+        assert_eq!(
+            parse_expression("{leaf: 1, nested: [2, {other_leaf: 3}]}"),
+            Ok(map![
+                ("leaf", Int(1)),
+                ("nested", list![Int(2), map!(("other_leaf", Int(3)))])
+            ])
         );
     }
 

@@ -60,6 +60,14 @@ available functions & operators):
         '/john/'
         '/john/i' (case-insensitive)
 
+  . List literals:
+        '[1, 2, 3]'
+        '[\"one\", \"two\"]
+
+  . Map literals:
+        '{one: 1, two: 2}'
+        '{leaf: \"hello\", \"nested\": [1, 2, 3]}'
+
   . Nesting function calls:
         'add(sub(col1, col2), mul(col3, col4))'
 "

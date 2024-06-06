@@ -1,5 +1,6 @@
-use crate::fmt;
 use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::fmt;
 
 use csv::ByteRecord;
 use regex::RegexBuilder;
@@ -345,6 +346,31 @@ pub fn concretize_expression(
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Expr::Func(call) => concretize_call(call, headers)?,
+        Expr::List(list) => ConcreteExpr::Value(DynamicValue::List(
+            list.into_iter()
+                .map(|item| {
+                    concretize_expression(item, headers).map(|concrete_expr| match concrete_expr {
+                        ConcreteExpr::Value(inner_value) => inner_value,
+                        _ => unreachable!(),
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+        )),
+        Expr::Map(map) => {
+            let mut concrete_map = BTreeMap::new();
+
+            for (k, v) in map {
+                concrete_map.insert(
+                    k,
+                    match concretize_expression(v, headers)? {
+                        ConcreteExpr::Value(inner_value) => inner_value,
+                        _ => unreachable!(),
+                    },
+                );
+            }
+
+            ConcreteExpr::Value(DynamicValue::Map(concrete_map))
+        }
     })
 }
 

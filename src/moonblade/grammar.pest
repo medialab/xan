@@ -109,6 +109,14 @@ neg            =  { "-" }
 // Functions
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
+// Lists & Maps
+literal   = _{ bool | null | string | regex | float | int | list | map }
+list_body = _{ literal ~ ("," ~ literal)* }
+list      =  { "[" ~ list_body* ~ "]" }
+map_entry =  { (string | ident) ~ ":" ~ literal }
+map_body  = _{ map_entry ~ ("," ~ map_entry)* }
+map       =  { "{" ~ map_body* ~ "}" }
+
 // Expressions
 expr =  { unary_operator* ~ term ~ (binary_operator ~ term)* }
 term = _{
@@ -121,6 +129,8 @@ term = _{
   | int
   | ident
   | underscore
+  | list
+  | map
   | "(" ~ expr ~ ")"
 }
 
