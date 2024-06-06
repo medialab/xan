@@ -479,6 +479,7 @@ pub enum DynamicValue {
     Integer(i64),
     Boolean(bool),
     Regex(Box<Regex>),
+    Ref(Box<DynamicValue>),
     None,
 }
 
@@ -501,6 +502,7 @@ impl Serialize for DynamicValue {
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
+            Self::Ref(v) => v.serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -620,6 +622,7 @@ impl DynamicValue {
             Self::Boolean(_) => "boolean",
             Self::Regex(_) => "regex",
             Self::None => "none",
+            Self::Ref(r) => r.type_of(),
         }
     }
 
@@ -660,6 +663,7 @@ impl DynamicValue {
                 }
             }
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
+            Self::Ref(r) => r.serialize_as_bytes_with_options(plural_separator),
             Self::None => Cow::Borrowed(b""),
         }
     }
@@ -693,6 +697,7 @@ impl DynamicValue {
                 }
             }
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
+            Self::Ref(r) => return r.try_as_str(),
             Self::None => Cow::Borrowed(""),
         })
     }
@@ -862,6 +867,7 @@ impl DynamicValue {
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
+            Self::Ref(r) => r.is_truthy(),
             Self::None => false,
         }
     }
