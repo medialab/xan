@@ -9,6 +9,7 @@ use std::str::FromStr;
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::Regex;
+use serde::{Serialize, Serializer};
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::parser::Expr;
@@ -483,6 +484,24 @@ impl Default for DynamicValue {
     }
 }
 
+impl Serialize for DynamicValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Float(v) => v.serialize(serializer),
+            Self::Integer(v) => v.serialize(serializer),
+            Self::Boolean(v) => v.serialize(serializer),
+            Self::String(v) => v.serialize(serializer),
+            Self::List(v) => v.serialize(serializer),
+            Self::Map(v) => v.serialize(serializer),
+            Self::Regex(v) => v.to_string().serialize(serializer),
+            Self::None => serializer.serialize_none(),
+        }
+    }
+}
+
 impl DynamicValue {
     pub fn type_of(&self) -> &str {
         match self {
@@ -522,10 +541,7 @@ impl DynamicValue {
 
                 Cow::Owned(bytes)
             }
-            Self::Map(_) => {
-                // TODO: serialize as JSON
-                unimplemented!()
-            }
+            Self::Map(_) => Cow::Owned(serde_json::to_string(self).unwrap().into_bytes()),
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Integer(value) => Cow::Owned(value.to_string().into_bytes()),
