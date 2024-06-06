@@ -863,5 +863,10 @@ mod tests {
             eval_code("json_parse('[1, 2, 3]') | get(_, 1)"),
             Ok(DynamicValue::from(2))
         );
+
+        assert_eq!(
+            eval_code("json_parse('{\"one\": 34}') | get(_, 'one')"),
+            Ok(DynamicValue::from(34))
+        );
     }
 }

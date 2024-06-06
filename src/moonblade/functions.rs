@@ -408,11 +408,12 @@ fn last(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn get(args: BoundArguments) -> FunctionResult {
-    let (target, index) = args.get2();
-    let mut index = index.try_as_i64()?;
+    let (target, key) = args.get2();
 
     Ok(match target.as_ref() {
         DynamicValue::String(value) => {
+            let mut index = key.try_as_i64()?;
+
             if index < 0 {
                 index += value.len() as i64;
             }
@@ -424,6 +425,8 @@ fn get(args: BoundArguments) -> FunctionResult {
             }
         }
         DynamicValue::List(list) => {
+            let mut index = key.try_as_i64()?;
+
             if index < 0 {
                 index += list.len() as i64;
             }
@@ -435,6 +438,14 @@ fn get(args: BoundArguments) -> FunctionResult {
                     None => DynamicValue::None,
                     Some(value) => value.clone(),
                 }
+            }
+        }
+        DynamicValue::Map(map) => {
+            let key = key.try_as_str()?;
+
+            match map.get(key.as_ref()) {
+                None => DynamicValue::None,
+                Some(value) => value.clone(),
             }
         }
         value => {
