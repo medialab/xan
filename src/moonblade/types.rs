@@ -3,13 +3,17 @@ use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, VecDeque};
 use std::convert::From;
+use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 use std::str::FromStr;
 
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::Regex;
-use serde::{Serialize, Serializer};
+use serde::{
+    de::{MapAccess, SeqAccess, Visitor},
+    Deserialize, Serialize, Serializer,
+};
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::parser::Expr;
@@ -502,6 +506,109 @@ impl Serialize for DynamicValue {
     }
 }
 
+impl<'de> Deserialize<'de> for DynamicValue {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<DynamicValue, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ValueVisitor;
+
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = DynamicValue;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("any valid JSON value")
+            }
+
+            #[inline]
+            fn visit_bool<E>(self, value: bool) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::Boolean(value))
+            }
+
+            #[inline]
+            fn visit_i64<E>(self, value: i64) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::Integer(value))
+            }
+
+            #[inline]
+            fn visit_u64<E>(self, value: u64) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::Integer(value as i64))
+            }
+
+            #[inline]
+            fn visit_f64<E>(self, value: f64) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::Float(value))
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<DynamicValue, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_string(String::from(value))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::String(value))
+            }
+
+            #[inline]
+            fn visit_none<E>(self) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::None)
+            }
+
+            #[inline]
+            fn visit_some<D>(self, deserializer: D) -> Result<DynamicValue, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                Deserialize::deserialize(deserializer)
+            }
+
+            #[inline]
+            fn visit_unit<E>(self) -> Result<DynamicValue, E> {
+                Ok(DynamicValue::None)
+            }
+
+            #[inline]
+            fn visit_seq<V>(self, mut visitor: V) -> Result<DynamicValue, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let mut vec = Vec::new();
+
+                while let Ok(Some(elem)) = visitor.next_element() {
+                    vec.push(elem);
+                }
+
+                Ok(DynamicValue::List(vec))
+            }
+
+            fn visit_map<V>(self, mut visitor: V) -> Result<DynamicValue, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                match visitor.next_key::<String>() {
+                    Ok(Some(first_key)) => {
+                        let mut map = BTreeMap::<String, DynamicValue>::new();
+                        map.insert(first_key, visitor.next_value()?);
+
+                        while let Ok(Some((key, value))) = visitor.next_entry() {
+                            map.insert(key, value);
+                        }
+
+                        Ok(DynamicValue::Map(map))
+                    }
+                    _ => Ok(DynamicValue::Map(BTreeMap::new())),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(ValueVisitor)
+    }
+}
+
 impl DynamicValue {
     pub fn type_of(&self) -> &str {
         match self {
@@ -899,35 +1006,6 @@ where
         match option {
             None => DynamicValue::None,
             Some(value) => value.into(),
-        }
-    }
-}
-
-impl From<serde_json::Value> for DynamicValue {
-    fn from(value: serde_json::Value) -> Self {
-        match value {
-            serde_json::Value::Null => Self::None,
-            serde_json::Value::Bool(v) => Self::Boolean(v),
-            serde_json::Value::String(s) => Self::String(s),
-            serde_json::Value::Number(n) => match n.as_i64() {
-                Some(i) => Self::Integer(i),
-                None => match n.as_f64() {
-                    Some(f) => Self::Float(f),
-                    None => panic!("illegal json numerical value over 53 bits!"),
-                },
-            },
-            serde_json::Value::Array(l) => {
-                DynamicValue::List(l.into_iter().map(DynamicValue::from).collect())
-            }
-            serde_json::Value::Object(m) => {
-                let mut fm = BTreeMap::new();
-
-                for (k, v) in m {
-                    fm.insert(k, DynamicValue::from(v));
-                }
-
-                DynamicValue::Map(fm)
-            }
         }
     }
 }

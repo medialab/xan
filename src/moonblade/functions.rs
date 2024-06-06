@@ -824,8 +824,5 @@ fn val(mut args: BoundArguments) -> FunctionResult {
 fn json_parse(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
-    match serde_json::from_str::<serde_json::Value>(arg.as_ref()) {
-        Ok(value) => Ok(DynamicValue::from(value)),
-        Err(_) => Err(EvaluationError::JSONParseError),
-    }
+    serde_json::from_str(arg.as_ref()).map_err(|_| EvaluationError::JSONParseError)
 }
