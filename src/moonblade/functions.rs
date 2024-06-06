@@ -74,7 +74,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             Arity::Strict(1),
         ),
         "fmt" => (fmt, Arity::Min(1)),
-        "get" => (get, Arity::Strict(2)),
+        "get" => (get, Arity::Range(2..=3)),
         "idiv" => (
             |args| arithmetic_op(args, DynamicNumber::idiv),
             Arity::Strict(2),
@@ -410,6 +410,12 @@ fn last(mut args: BoundArguments) -> FunctionResult {
 fn get(args: BoundArguments) -> FunctionResult {
     let (target, key) = args.get2();
 
+    let default = || {
+        args.get(2)
+            .map(|v| v.as_ref().clone())
+            .unwrap_or_else(|| DynamicValue::None)
+    };
+
     Ok(match target.as_ref() {
         DynamicValue::String(value) => {
             let mut index = key.try_as_i64()?;
@@ -419,9 +425,12 @@ fn get(args: BoundArguments) -> FunctionResult {
             }
 
             if index < 0 {
-                DynamicValue::None
+                default()
             } else {
-                DynamicValue::from(value.chars().nth(index as usize))
+                match value.chars().nth(index as usize) {
+                    Some(c) => DynamicValue::from(c),
+                    None => default(),
+                }
             }
         }
         DynamicValue::List(list) => {
@@ -432,10 +441,10 @@ fn get(args: BoundArguments) -> FunctionResult {
             }
 
             if index < 0 {
-                DynamicValue::None
+                default()
             } else {
                 match list.get(index as usize) {
-                    None => DynamicValue::None,
+                    None => default(),
                     Some(value) => value.clone(),
                 }
             }
@@ -444,7 +453,7 @@ fn get(args: BoundArguments) -> FunctionResult {
             let key = key.try_as_str()?;
 
             match map.get(key.as_ref()) {
-                None => DynamicValue::None,
+                None => default(),
                 Some(value) => value.clone(),
             }
         }

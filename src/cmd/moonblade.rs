@@ -261,8 +261,10 @@ use the operators in the previous section.
         the first \"{}\" by the value of the name column, then the
         second one by the value of the surname column.
 
-    - get(target, index_or_key) -> T
+    - get(target, index_or_key, default?) -> T
         Get nth element of sequence (can use negative indexing), or key of mapping.
+        Returns nothing if index or key is not found or alternatively the provided
+        default value.
 
     - join(seq, sep) -> string
         Join sequence by separator.

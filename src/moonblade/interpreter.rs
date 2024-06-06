@@ -572,6 +572,12 @@ mod tests {
     }
 
     #[test]
+    fn test_get() {
+        assert_eq!(eval_code("get('test', 0)"), Ok(DynamicValue::from("t")));
+        assert_eq!(eval_code("get('test', 7, 4)"), Ok(DynamicValue::from(4)));
+    }
+
+    #[test]
     fn test_slice() {
         assert_eq!(
             eval_code("slice('abcde', 2)"),
