@@ -15,7 +15,7 @@ fn get_progress_style_template(total: u64, color: &str, bytes: bool) -> String {
     let mut f = String::new();
 
     if bytes {
-        f.push_str("{prefix} {bar:40.");
+        f.push_str("{prefix}{bar:40.");
         f.push_str(color);
         f.push_str(
             "/white.dim} {decimal_bytes}/{decimal_total_bytes} {spinner} [{percent:>3}%] in {elapsed} ({decimal_bytes_per_sec}, eta: {eta})",
@@ -23,7 +23,7 @@ fn get_progress_style_template(total: u64, color: &str, bytes: bool) -> String {
     } else {
         let padding = HumanCount(total).to_string().len();
 
-        f.push_str("{prefix} {bar:40.");
+        f.push_str("{prefix}{bar:40.");
         f.push_str(color);
         f.push_str("/white.dim} {human_pos:>");
         f.push_str(&padding.to_string());
@@ -39,9 +39,9 @@ fn get_progress_style(total: &Option<u64>, color: &str, bytes: bool) -> Progress
     ProgressStyle::with_template(&match total {
         Some(count) => get_progress_style_template(*count, color, bytes),
         None => (if bytes {
-            "{prefix} {decimal_bytes} {spinner} in {elapsed} ({decimal_bytes_per_sec})"
+            "{prefix}{decimal_bytes} {spinner} in {elapsed} ({decimal_bytes_per_sec})"
         } else {
-            "{prefix} {human_pos} rows {spinner} in {elapsed} ({per_sec})"
+            "{prefix}{human_pos} rows {spinner} in {elapsed} ({per_sec})"
         })
         .to_string(),
     })
@@ -66,7 +66,7 @@ impl EnhancedProgressBar {
         bar.set_style(get_progress_style(&total, "blue", bytes));
 
         if let Some(string) = title {
-            bar.set_prefix(string);
+            bar.set_prefix([string, " ".to_string()].concat());
         }
 
         bar.enable_steady_tick(Duration::from_millis(100));
