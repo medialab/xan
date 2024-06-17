@@ -885,5 +885,26 @@ mod tests {
             eval_code("argmin([1, 2, -5, 4])"),
             Ok(DynamicValue::from(2))
         );
+        assert_eq!(
+            eval_code("argmin([1, 2, -5, 4], ['a', 'b', 'c', 'd'])"),
+            Ok(DynamicValue::from("c"))
+        );
+        assert_eq!(
+            eval_code("argmin([1, 2, -5, 4], ['a'])"),
+            Ok(DynamicValue::None)
+        );
+
+        assert_eq!(
+            eval_code("argmax([1, 2, -5, 4])"),
+            Ok(DynamicValue::from(3))
+        );
+        assert_eq!(
+            eval_code("argmax([1, 2, -5, 4], ['a', 'b', 'c', 'd'])"),
+            Ok(DynamicValue::from("d"))
+        );
+        assert_eq!(
+            eval_code("argmax([1, 2, -5, 4], ['a'])"),
+            Ok(DynamicValue::None)
+        );
     }
 }

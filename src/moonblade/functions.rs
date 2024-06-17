@@ -52,7 +52,14 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "abspath" => (abspath, Arity::Strict(1)),
         "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
         "and" => (and, Arity::Min(2)),
-        "argmin" => (argmin, Arity::Range(1..=2)),
+        "argmax" => (
+            |args| argcompare(args, Ordering::is_gt),
+            Arity::Range(1..=2),
+        ),
+        "argmin" => (
+            |args| argcompare(args, Ordering::is_lt),
+            Arity::Range(1..=2),
+        ),
         "bytesize" => (bytesize, Arity::Strict(1)),
         "ceil" => (
             |args| unary_arithmetic_op(args, DynamicNumber::ceil),
@@ -661,8 +668,12 @@ fn variadic_max(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(max_value))
 }
 
-fn argmin(args: BoundArguments) -> FunctionResult {
+fn argcompare<F>(args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: Fn(Ordering) -> bool,
+{
     let values = args.get(0).unwrap().try_as_list()?;
+    let labels = args.get(1).map(|arg| arg.try_as_list()).transpose()?;
     let mut min_item: Option<(DynamicNumber, DynamicValue)> = None;
 
     for (i, value) in values.iter().enumerate() {
@@ -670,11 +681,29 @@ fn argmin(args: BoundArguments) -> FunctionResult {
 
         match min_item {
             None => {
-                min_item = Some((n, DynamicValue::from(i)));
+                min_item = Some((
+                    n,
+                    match labels {
+                        None => DynamicValue::from(i),
+                        Some(l) => l
+                            .get(i)
+                            .map(|v| v.clone())
+                            .unwrap_or_else(|| DynamicValue::None),
+                    },
+                ));
             }
             Some((current, _)) => {
-                if n < current {
-                    min_item = Some((n, DynamicValue::from(i)));
+                if validate(n.partial_cmp(&current).unwrap()) {
+                    min_item = Some((
+                        n,
+                        match labels {
+                            None => DynamicValue::from(i),
+                            Some(l) => l
+                                .get(i)
+                                .map(|v| v.clone())
+                                .unwrap_or_else(|| DynamicValue::None),
+                        },
+                    ));
                 }
             }
         }

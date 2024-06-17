@@ -152,6 +152,12 @@ use the operators in the previous section.
     - add(x, y, *n) -> number
         Add two or more numbers.
 
+    - argmax(numbers, labels?) -> any
+        Return the index or label of the largest number in the list.
+
+    - argmin(numbers, labels?) -> any
+        Return the index or label of the smallest number in the list.
+
     - ceil(x) -> number
         Return the smallest integer greater than or equal to x.
 
