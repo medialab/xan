@@ -875,4 +875,10 @@ mod tests {
             Ok(DynamicValue::from(34))
         );
     }
+
+    #[test]
+    fn test_minmax() {
+        assert_eq!(eval_code("min(1, 2, -5, 4)"), Ok(DynamicValue::from(-5)));
+        assert_eq!(eval_code("max(1, 2, -5, 4)"), Ok(DynamicValue::from(4)));
+    }
 }

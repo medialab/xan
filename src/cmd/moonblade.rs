@@ -167,6 +167,12 @@ use the operators in the previous section.
     - log(x) -> number
         Return the natural logarithm of x.
 
+    - max(x, y, *n) -> number
+        Return the maximum number.
+
+    - min(x, y, *n) -> number
+        Return the minimum number.
+
     - mod(x, y) -> number
         Return the remainder of x divided by y.
 

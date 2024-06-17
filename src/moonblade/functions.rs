@@ -90,7 +90,9 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "ltrim" => (ltrim, Arity::Range(1..=2)),
         "lower" => (lower, Arity::Strict(1)),
+        "max" => (variadic_max, Arity::Min(2)),
         "md5" => (md5, Arity::Strict(1)),
+        "min" => (variadic_min, Arity::Min(2)),
         "mod" => (
             |args| binary_arithmetic_op(args, Rem::rem),
             Arity::Strict(2),
@@ -626,6 +628,36 @@ where
     let (n1, n2) = args.get2_number()?;
 
     Ok(DynamicValue::from(op(n1, n2)))
+}
+
+fn variadic_min(args: BoundArguments) -> FunctionResult {
+    let mut args_iter = args.into_iter();
+    let mut min_value = args_iter.next().unwrap().try_as_number()?;
+
+    for arg in args_iter {
+        let other_value = arg.try_as_number()?;
+
+        if other_value < min_value {
+            min_value = other_value;
+        }
+    }
+
+    Ok(DynamicValue::from(min_value))
+}
+
+fn variadic_max(args: BoundArguments) -> FunctionResult {
+    let mut args_iter = args.into_iter();
+    let mut max_value = args_iter.next().unwrap().try_as_number()?;
+
+    for arg in args_iter {
+        let other_value = arg.try_as_number()?;
+
+        if other_value > max_value {
+            max_value = other_value;
+        }
+    }
+
+    Ok(DynamicValue::from(max_value))
 }
 
 // Utilities
