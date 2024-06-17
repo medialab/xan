@@ -134,7 +134,6 @@ macro_rules! command_list {
 
 mod cmd;
 mod config;
-mod fixed_termsize;
 mod index;
 mod json;
 mod moonblade;
