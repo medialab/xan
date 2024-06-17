@@ -42,6 +42,17 @@ pub enum ConcreteExpr {
 // NOTE: the bind/evaluate distinction is still useful to propagate the calling
 // function context when constructing specified errors.
 impl ConcreteExpr {
+    fn is_value(&self) -> bool {
+        matches!(self, Self::Value(_))
+    }
+
+    fn unwrap(self) -> DynamicValue {
+        match self {
+            Self::Value(v) => v,
+            _ => panic!("cannot unwrap"),
+        }
+    }
+
     fn bind<'a>(&'a self, record: &ByteRecord) -> Result<BoundArgument<'a>, EvaluationError> {
         Ok(match self {
             Self::Value(value) => Cow::Borrowed(value),
@@ -373,22 +384,37 @@ pub fn concretize_expression(
         },
         Expr::Func(call) => concretize_call(call, headers)?,
         Expr::List(list) => {
-            // TODO: here, if every concretized item is a leaf value, we can optimize it
-            // as a static ConcreteExpr::Value
-            ConcreteExpr::List(
-                list.into_iter()
-                    .map(|item| concretize_expression(item, headers))
-                    .collect::<Result<_, _>>()?,
-            )
+            let concrete_list = list
+                .into_iter()
+                .map(|item| concretize_expression(item, headers))
+                .collect::<Result<Vec<ConcreteExpr>, _>>()?;
+
+            // NOTE: here we can collapse to a literal value
+            if concrete_list.iter().all(|e| e.is_value()) {
+                ConcreteExpr::Value(DynamicValue::List(
+                    concrete_list.into_iter().map(|e| e.unwrap()).collect(),
+                ))
+            } else {
+                ConcreteExpr::List(concrete_list)
+            }
         }
         Expr::Map(map) => {
-            // TODO: here, if every concretized item is a leaf value, we can optimize it
-            // as a static ConcreteExpr::Value
-            ConcreteExpr::Map(
-                map.into_iter()
-                    .map(|(k, v)| concretize_expression(v, headers).map(|e| (k, e)))
-                    .collect::<Result<_, _>>()?,
-            )
+            let concrete_map = map
+                .into_iter()
+                .map(|(k, v)| concretize_expression(v, headers).map(|e| (k, e)))
+                .collect::<Result<Vec<(String, ConcreteExpr)>, _>>()?;
+
+            // NOTE: here we can collapse to a literal value
+            if concrete_map.iter().all(|(_, e)| e.is_value()) {
+                ConcreteExpr::Value(DynamicValue::Map(
+                    concrete_map
+                        .into_iter()
+                        .map(|(k, e)| (k, e.unwrap()))
+                        .collect(),
+                ))
+            } else {
+                ConcreteExpr::Map(concrete_map)
+            }
         }
     })
 }
