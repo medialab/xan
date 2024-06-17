@@ -109,16 +109,6 @@ neg            =  { "-" }
 // Functions
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
-// Lists & Maps
-int_literal   = @{ "-"? ~ int }
-float_literal = @{ "-"? ~ float }
-literal       = _{ bool | null | string | regex | float_literal | int_literal | list | map }
-list_body     = _{ literal ~ ("," ~ literal)* }
-list          =  { "[" ~ list_body* ~ "]" }
-map_entry     =  { (string | ident) ~ ":" ~ literal }
-map_body      = _{ map_entry ~ ("," ~ map_entry)* }
-map           =  { "{" ~ map_body* ~ "}" }
-
 // Expressions
 expr =  { unary_operator* ~ term ~ (binary_operator ~ term)* }
 term = _{
@@ -135,6 +125,13 @@ term = _{
   | map
   | "(" ~ expr ~ ")"
 }
+
+// Lists & Maps
+list_body     = _{ expr ~ ("," ~ expr)* }
+list          =  { "[" ~ list_body* ~ "]" }
+map_entry     =  { (string | ident) ~ ":" ~ expr }
+map_body      = _{ map_entry ~ ("," ~ map_entry)* }
+map           =  { "{" ~ map_body* ~ "}" }
 
 // End-chain parsers
 full_expr = _{ SOI ~ expr ~ EOI }

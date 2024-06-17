@@ -33,6 +33,8 @@ impl EvaluationContext {
 pub enum ConcreteExpr {
     Column(usize),
     Value(DynamicValue),
+    List(Vec<ConcreteExpr>),
+    // Map(Vec<(String, ConcreteExpr)>),
     Call(ConcreteFunctionCall),
     SpecialCall(ConcreteSpecialFunctionCall),
 }
@@ -50,7 +52,7 @@ impl ConcreteExpr {
                     Ok(value) => Cow::Owned(DynamicValue::from(value)),
                 },
             },
-            Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
+            Self::List(_) | Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
         })
     }
 
@@ -63,6 +65,15 @@ impl ConcreteExpr {
         match self {
             Self::Call(function_call) => function_call.run(index, record, context),
             Self::SpecialCall(function_call) => function_call.run(index, record, context),
+            Self::List(items) => {
+                let mut bound = Vec::with_capacity(items.len());
+
+                for item in items {
+                    bound.push(item.evaluate(index, record, context)?.into_owned());
+                }
+
+                Ok(Cow::Owned(DynamicValue::List(bound)))
+            }
             _ => self.bind(record).map_err(|err| SpecifiedEvaluationError {
                 function_name: "<expr>".to_string(),
                 reason: err,
@@ -95,6 +106,7 @@ impl ConcreteFunctionCall {
                 ConcreteExpr::SpecialCall(sub_function_call) => {
                     bound_args.push(sub_function_call.run(index, record, context)?);
                 }
+                ConcreteExpr::List(_) => bound_args.push(arg.evaluate(index, record, context)?),
                 _ => bound_args.push(arg.bind(record).map_err(|err| SpecifiedEvaluationError {
                     function_name: self.name.to_string(),
                     reason: err,
@@ -346,16 +358,15 @@ pub fn concretize_expression(
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
         Expr::Func(call) => concretize_call(call, headers)?,
-        Expr::List(list) => ConcreteExpr::Value(DynamicValue::List(
-            list.into_iter()
-                .map(|item| {
-                    concretize_expression(item, headers).map(|concrete_expr| match concrete_expr {
-                        ConcreteExpr::Value(inner_value) => inner_value,
-                        _ => unreachable!(),
-                    })
-                })
-                .collect::<Result<_, _>>()?,
-        )),
+        Expr::List(list) => {
+            // TODO: here, if every concretized item is a leaf value, we can optimize it
+            // as a static ConcreteExpr::Value
+            ConcreteExpr::List(
+                list.into_iter()
+                    .map(|item| concretize_expression(item, headers))
+                    .collect::<Result<_, _>>()?,
+            )
+        }
         Expr::Map(map) => {
             let mut concrete_map = BTreeMap::new();
 
@@ -893,6 +904,7 @@ mod tests {
             eval_code("argmin([1, 2, -5, 4], ['a'])"),
             Ok(DynamicValue::None)
         );
+        assert_eq!(eval_code("argmin([a, b])"), Ok(DynamicValue::from(0)));
 
         assert_eq!(
             eval_code("argmax([1, 2, -5, 4])"),
@@ -906,5 +918,6 @@ mod tests {
             eval_code("argmax([1, 2, -5, 4], ['a'])"),
             Ok(DynamicValue::None)
         );
+        assert_eq!(eval_code("argmax([a, b])"), Ok(DynamicValue::from(1)));
     }
 }
