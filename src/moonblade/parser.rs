@@ -271,7 +271,7 @@ pub enum Expr {
     Identifier(String),
     Str(String),
     List(Vec<Expr>),
-    Map(BTreeMap<String, Expr>),
+    Map(BTreeMap<String, Expr>), // NOTE: using a map here for deduplication of the literals
     Regex(String, bool),
     Bool(bool),
     Underscore,
