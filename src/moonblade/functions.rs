@@ -52,6 +52,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "abspath" => (abspath, Arity::Strict(1)),
         "add" => (|args| variadic_arithmetic_op(args, Add::add), Arity::Min(2)),
         "and" => (and, Arity::Min(2)),
+        "argmin" => (argmin, Arity::Range(1..=2)),
         "bytesize" => (bytesize, Arity::Strict(1)),
         "ceil" => (
             |args| unary_arithmetic_op(args, DynamicNumber::ceil),
@@ -658,6 +659,28 @@ fn variadic_max(args: BoundArguments) -> FunctionResult {
     }
 
     Ok(DynamicValue::from(max_value))
+}
+
+fn argmin(args: BoundArguments) -> FunctionResult {
+    let values = args.get(0).unwrap().try_as_list()?;
+    let mut min_item: Option<(DynamicNumber, DynamicValue)> = None;
+
+    for (i, value) in values.iter().enumerate() {
+        let n = value.try_as_number()?;
+
+        match min_item {
+            None => {
+                min_item = Some((n, DynamicValue::from(i)));
+            }
+            Some((current, _)) => {
+                if n < current {
+                    min_item = Some((n, DynamicValue::from(i)));
+                }
+            }
+        }
+    }
+
+    Ok(DynamicValue::from(min_item.map(|t| t.1)))
 }
 
 // Utilities

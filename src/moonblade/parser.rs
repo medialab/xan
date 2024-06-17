@@ -132,7 +132,9 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             | Rule::string
             | Rule::regex
             | Rule::int
+            | Rule::int_literal
             | Rule::float
+            | Rule::float_literal
             | Rule::ident
             | Rule::underscore
             | Rule::true_lit
@@ -376,7 +378,7 @@ where
 
                     Expr::Map(map)
                 }
-                Rule::int => {
+                Rule::int | Rule::int_literal => {
                     let n = token
                         .as_str()
                         .replace('_', "")
@@ -385,7 +387,7 @@ where
 
                     Expr::Int(n)
                 }
-                Rule::float => {
+                Rule::float | Rule::float_literal => {
                     let n = token
                         .as_str()
                         .replace('_', "")

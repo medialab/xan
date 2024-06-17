@@ -880,5 +880,10 @@ mod tests {
     fn test_minmax() {
         assert_eq!(eval_code("min(1, 2, -5, 4)"), Ok(DynamicValue::from(-5)));
         assert_eq!(eval_code("max(1, 2, -5, 4)"), Ok(DynamicValue::from(4)));
+
+        assert_eq!(
+            eval_code("argmin([1, 2, -5, 4])"),
+            Ok(DynamicValue::from(2))
+        );
     }
 }

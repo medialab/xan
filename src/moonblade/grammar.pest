@@ -110,12 +110,14 @@ neg            =  { "-" }
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Lists & Maps
-literal   = _{ bool | null | string | regex | float | int | list | map }
-list_body = _{ literal ~ ("," ~ literal)* }
-list      =  { "[" ~ list_body* ~ "]" }
-map_entry =  { (string | ident) ~ ":" ~ literal }
-map_body  = _{ map_entry ~ ("," ~ map_entry)* }
-map       =  { "{" ~ map_body* ~ "}" }
+int_literal   = @{ "-"? ~ int }
+float_literal = @{ "-"? ~ float }
+literal       = _{ bool | null | string | regex | float_literal | int_literal | list | map }
+list_body     = _{ literal ~ ("," ~ literal)* }
+list          =  { "[" ~ list_body* ~ "]" }
+map_entry     =  { (string | ident) ~ ":" ~ literal }
+map_body      = _{ map_entry ~ ("," ~ map_entry)* }
+map           =  { "{" ~ map_body* ~ "}" }
 
 // Expressions
 expr =  { unary_operator* ~ term ~ (binary_operator ~ term)* }
