@@ -308,6 +308,17 @@ fn concretize_call(
                 };
             }
         }
+        "cols" => {
+            if arity != 2 {
+                return Err(ConcretizationError::from_invalid_arity(
+                    function_name,
+                    2,
+                    arity,
+                ));
+            }
+
+            unimplemented!();
+        }
         "if" | "unless" if !(2..=3).contains(&arity) => {
             return Err(ConcretizationError::from_invalid_range_arity(
                 function_name,
