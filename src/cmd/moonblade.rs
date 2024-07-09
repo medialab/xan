@@ -205,7 +205,7 @@ use the operators in the previous section.
 
 ## Boolean operations & branching
 
-    - and(a, b, *x) -> bool
+    - and(a, b, *x) -> T
         Perform boolean AND operation on two or more values.
 
     - if(cond, then, else?) -> T
@@ -217,7 +217,7 @@ use the operators in the previous section.
     - not(a) -> bool
         Perform boolean NOT operation.
 
-    - or(a, b, *x) -> bool
+    - or(a, b, *x) -> T
         Perform boolean OR operation on two or more values.
 
 ## Comparison

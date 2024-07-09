@@ -729,12 +729,41 @@ fn not(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn and(args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.into_iter().all(|v| v.is_truthy())))
+    let mut last: Option<Cow<DynamicValue>> = None;
+
+    for arg in args {
+        if arg.is_falsey() {
+            return Ok(arg.into_owned());
+        }
+
+        last = Some(arg);
+    }
+
+    Ok(last.unwrap().into_owned())
 }
 
 fn or(args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.into_iter().any(|v| v.is_truthy())))
+    let mut last: Option<Cow<DynamicValue>> = None;
+
+    for arg in args {
+        if arg.is_truthy() {
+            return Ok(arg.into_owned());
+        }
+
+        last = Some(arg);
+    }
+
+    Ok(last.unwrap().into_owned())
 }
+
+// TODO: rewrap those to take lists instead, since the variadic usage is mostly moot
+// fn all(args: BoundArguments) -> FunctionResult {
+//     Ok(DynamicValue::from(args.into_iter().all(|v| v.is_truthy())))
+// }
+
+// fn any(args: BoundArguments) -> FunctionResult {
+//     Ok(DynamicValue::from(args.into_iter().any(|v| v.is_truthy())))
+// }
 
 // Comparison
 fn number_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
