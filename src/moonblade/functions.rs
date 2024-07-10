@@ -727,10 +727,7 @@ where
                     n,
                     match labels {
                         None => DynamicValue::from(i),
-                        Some(l) => l
-                            .get(i)
-                            .map(|v| v.clone())
-                            .unwrap_or_else(|| DynamicValue::None),
+                        Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
                     },
                 ));
             }
@@ -740,10 +737,7 @@ where
                         n,
                         match labels {
                             None => DynamicValue::from(i),
-                            Some(l) => l
-                                .get(i)
-                                .map(|v| v.clone())
-                                .unwrap_or_else(|| DynamicValue::None),
+                            Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
                         },
                     ));
                 }
