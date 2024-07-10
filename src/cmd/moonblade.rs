@@ -338,6 +338,12 @@ use the operators in the previous section.
     - err(msg) -> error
         Make the expression return a custom error.
 
+    - headers(from_name_or_pos?, to_name_or_pos?) -> list
+        Return list of header names from the given colum by name or position
+        to another given column by name or position, inclusive.
+        Can also be called with a single argument to take a slice from the
+        given column to the end, or no argument at all to return all headers.
+
     - index() -> integer?
         Return the row's index, if applicable.
 

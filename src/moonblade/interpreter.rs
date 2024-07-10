@@ -308,7 +308,7 @@ fn concretize_call(
                 };
             }
         }
-        "cols" => {
+        "cols" | "headers" => {
             if !(0..=2).contains(&arity) {
                 return Err(ConcretizationError::from_invalid_range_arity(
                     function_name,
@@ -317,10 +317,18 @@ fn concretize_call(
                 ));
             }
 
+            let map = |i| {
+                if function_name.as_str() == "cols" {
+                    ConcreteExpr::Column(i)
+                } else {
+                    ConcreteExpr::Value(DynamicValue::String(
+                        std::str::from_utf8(&headers[i]).unwrap().to_string(),
+                    ))
+                }
+            };
+
             if call.args.is_empty() {
-                return Ok(ConcreteExpr::List(
-                    (0..headers.len()).map(ConcreteExpr::Column).collect(),
-                ));
+                return Ok(ConcreteExpr::List((0..headers.len()).map(map).collect()));
             }
 
             match ColumIndexationBy::from_argument(&call.args[0]) {
@@ -330,9 +338,7 @@ fn concretize_call(
                         Some(first_index) => {
                             if call.args.len() < 2 {
                                 return Ok(ConcreteExpr::List(
-                                    (first_index..headers.len())
-                                        .map(ConcreteExpr::Column)
-                                        .collect(),
+                                    (first_index..headers.len()).map(map).collect(),
                                 ));
                             } else {
                                 match ColumIndexationBy::from_argument(&call.args[1]) {
@@ -344,13 +350,11 @@ fn concretize_call(
                                             Some(second_index) => {
                                                 let range: Vec<_> = if first_index > second_index {
                                                     (second_index..=first_index)
-                                                        .map(ConcreteExpr::Column)
+                                                        .map(map)
                                                         .rev()
                                                         .collect()
                                                 } else {
-                                                    (first_index..=second_index)
-                                                        .map(ConcreteExpr::Column)
-                                                        .collect()
+                                                    (first_index..=second_index).map(map).collect()
                                                 };
 
                                                 return Ok(ConcreteExpr::List(range));
