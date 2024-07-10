@@ -1046,6 +1046,10 @@ impl<'a> BoundArguments<'a> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.stack.len()
+    }
+
     // TODO: validate less than 8 arguments when parsing or concretizing
     pub fn push(&mut self, arg: BoundArgument<'a>) {
         self.stack.push(arg);

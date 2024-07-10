@@ -174,9 +174,11 @@ use the operators in the previous section.
         Return the natural logarithm of x.
 
     - max(x, y, *n) -> number
+    - max(list_of_numbers) -> number
         Return the maximum number.
 
     - min(x, y, *n) -> number
+    - min(list_of_numbers) -> number
         Return the minimum number.
 
     - mod(x, y) -> number
