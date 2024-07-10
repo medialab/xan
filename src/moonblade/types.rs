@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::convert::From;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
+use std::slice;
 use std::str::FromStr;
 
 use arrayvec::ArrayVec;
@@ -49,6 +50,10 @@ impl ColumIndexationBy {
         } else {
             None
         }
+    }
+
+    pub fn from_argument(argument: &Expr) -> Option<Self> {
+        Self::from_arguments(slice::from_ref(argument))
     }
 
     pub fn from_bound_arguments(
