@@ -309,11 +309,17 @@ fn concretize_call(
             }
         }
         "cols" => {
-            if arity != 2 {
-                return Err(ConcretizationError::from_invalid_arity(
+            if !(0..=2).contains(&arity) {
+                return Err(ConcretizationError::from_invalid_range_arity(
                     function_name,
-                    2,
+                    0..=2,
                     arity,
+                ));
+            }
+
+            if call.args.is_empty() {
+                return Ok(ConcreteExpr::List(
+                    (0..headers.len()).map(ConcreteExpr::Column).collect(),
                 ));
             }
 
@@ -322,30 +328,38 @@ fn concretize_call(
                 Some(first_column_indexation) => {
                     match first_column_indexation.find_column_index(headers) {
                         Some(first_index) => {
-                            match ColumIndexationBy::from_argument(&call.args[1]) {
-                                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                                Some(second_column_indexation) => {
-                                    match second_column_indexation.find_column_index(headers) {
-                                        Some(second_index) => {
-                                            // TODO: handle no second_index
+                            if call.args.len() < 2 {
+                                return Ok(ConcreteExpr::List(
+                                    (first_index..headers.len())
+                                        .map(ConcreteExpr::Column)
+                                        .collect(),
+                                ));
+                            } else {
+                                match ColumIndexationBy::from_argument(&call.args[1]) {
+                                    None => {
+                                        return Err(ConcretizationError::NotStaticallyAnalyzable)
+                                    }
+                                    Some(second_column_indexation) => {
+                                        match second_column_indexation.find_column_index(headers) {
+                                            Some(second_index) => {
+                                                let range: Vec<_> = if first_index > second_index {
+                                                    (second_index..=first_index)
+                                                        .map(ConcreteExpr::Column)
+                                                        .rev()
+                                                        .collect()
+                                                } else {
+                                                    (first_index..=second_index)
+                                                        .map(ConcreteExpr::Column)
+                                                        .collect()
+                                                };
 
-                                            let range: Vec<_> = if first_index > second_index {
-                                                (second_index..=first_index)
-                                                    .map(ConcreteExpr::Column)
-                                                    .rev()
-                                                    .collect()
-                                            } else {
-                                                (first_index..=second_index)
-                                                    .map(ConcreteExpr::Column)
-                                                    .collect()
-                                            };
-
-                                            return Ok(ConcreteExpr::List(range));
-                                        }
-                                        None => {
-                                            return Err(ConcretizationError::ColumnNotFound(
-                                                second_column_indexation,
-                                            ));
+                                                return Ok(ConcreteExpr::List(range));
+                                            }
+                                            None => {
+                                                return Err(ConcretizationError::ColumnNotFound(
+                                                    second_column_indexation,
+                                                ));
+                                            }
                                         }
                                     }
                                 }

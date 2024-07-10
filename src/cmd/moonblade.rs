@@ -329,9 +329,11 @@ use the operators in the previous section.
         Return value of cell for given column, by name, by position or by
         name & nth, in case of duplicate header names.
 
-    - cols(from_name_or_pos, to_name_or_pos?) -> list
+    - cols(from_name_or_pos?, to_name_or_pos?) -> list
         Return list of cell values from the given colum by name or position
         to another given column by name or position, inclusive.
+        Can also be called with a single argument to take a slice from the
+        given column to the end, or no argument at all to take all columns.
 
     - err(msg) -> error
         Make the expression return a custom error.
