@@ -8,7 +8,7 @@ use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 use unicode_width::UnicodeWidthStr;
 #[cfg(windows)]
-use CliError;
+use crate::CliError;
 
 const TRAILING_COLS: usize = 8;
 const PER_CELL_PADDING_COLS: usize = 3;
