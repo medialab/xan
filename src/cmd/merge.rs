@@ -42,60 +42,6 @@ Common options:
 #[derive(PartialEq, PartialOrd, Ord, Eq)]
 struct Forward<T>(T);
 
-macro_rules! kway {
-    ($wtr:ident, $iters:ident, $sels:ident, $wrapper:ident, $record:ident, $unique:expr) => {
-        let mut heap: BinaryHeap<($wrapper<$record>, usize)> =
-            BinaryHeap::with_capacity($iters.len());
-
-        for (i, (iter, sel)) in $iters.iter_mut().zip($sels.iter()).enumerate() {
-            match iter.next() {
-                None => continue,
-                Some(record) => {
-                    let record = $wrapper($record::new(record?, sel));
-                    heap.push((record, i));
-                }
-            }
-        }
-
-        let mut last_record: Option<$wrapper<$record>> = None;
-
-        while !heap.is_empty() {
-            match heap.pop() {
-                None => break,
-                Some(entry) => {
-                    let (comparable_record, i) = entry;
-
-                    if $unique {
-                        match last_record {
-                            None => {
-                                $wtr.write_byte_record(comparable_record.0.as_byte_record())?;
-                                last_record = Some(comparable_record);
-                            }
-                            Some(ref r) => match r.cmp(&comparable_record) {
-                                Ordering::Equal => (),
-                                _ => {
-                                    $wtr.write_byte_record(comparable_record.0.as_byte_record())?;
-                                    last_record = Some(comparable_record);
-                                }
-                            },
-                        }
-                    } else {
-                        $wtr.write_byte_record(comparable_record.0.as_byte_record())?;
-                    }
-
-                    match $iters[i].next() {
-                        None => continue,
-                        Some(record) => {
-                            let record = $wrapper($record::new(record?, &$sels[i]));
-                            heap.push((record, i));
-                        }
-                    }
-                }
-            }
-        }
-    };
-}
-
 #[derive(Deserialize)]
 struct Args {
     arg_input: Vec<String>,
@@ -144,46 +90,78 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|rdr| rdr.into_byte_records())
         .collect::<Vec<_>>();
 
+    macro_rules! kway {
+        ($wrapper:ident, $record:ident) => {
+            let mut heap: BinaryHeap<($wrapper<$record>, usize)> =
+                BinaryHeap::with_capacity(record_iterators.len());
+
+            for (i, (iter, sel)) in record_iterators
+                .iter_mut()
+                .zip(selections.iter())
+                .enumerate()
+            {
+                match iter.next() {
+                    None => continue,
+                    Some(record) => {
+                        let record = $wrapper($record::new(record?, sel));
+                        heap.push((record, i));
+                    }
+                }
+            }
+
+            let mut last_record: Option<$wrapper<$record>> = None;
+
+            while !heap.is_empty() {
+                match heap.pop() {
+                    None => break,
+                    Some(entry) => {
+                        let (comparable_record, i) = entry;
+
+                        if args.flag_uniq {
+                            match last_record {
+                                None => {
+                                    wtr.write_byte_record(comparable_record.0.as_byte_record())?;
+                                    last_record = Some(comparable_record);
+                                }
+                                Some(ref r) => match r.cmp(&comparable_record) {
+                                    Ordering::Equal => (),
+                                    _ => {
+                                        wtr.write_byte_record(
+                                            comparable_record.0.as_byte_record(),
+                                        )?;
+                                        last_record = Some(comparable_record);
+                                    }
+                                },
+                            }
+                        } else {
+                            wtr.write_byte_record(comparable_record.0.as_byte_record())?;
+                        }
+
+                        match record_iterators[i].next() {
+                            None => continue,
+                            Some(record) => {
+                                let record = $wrapper($record::new(record?, &selections[i]));
+                                heap.push((record, i));
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+
     match (args.flag_numeric, args.flag_reverse) {
         (false, false) => {
-            kway!(
-                wtr,
-                record_iterators,
-                selections,
-                Reverse,
-                ComparableByteRecord,
-                args.flag_uniq
-            );
+            kway!(Reverse, ComparableByteRecord);
         }
         (true, false) => {
-            kway!(
-                wtr,
-                record_iterators,
-                selections,
-                Reverse,
-                NumericallyComparableByteRecord,
-                args.flag_uniq
-            );
+            kway!(Reverse, NumericallyComparableByteRecord);
         }
         (false, true) => {
-            kway!(
-                wtr,
-                record_iterators,
-                selections,
-                Forward,
-                ComparableByteRecord,
-                args.flag_uniq
-            );
+            kway!(Forward, ComparableByteRecord);
         }
         (true, true) => {
-            kway!(
-                wtr,
-                record_iterators,
-                selections,
-                Forward,
-                NumericallyComparableByteRecord,
-                args.flag_uniq
-            );
+            kway!(Forward, NumericallyComparableByteRecord);
         }
     };
 
