@@ -654,6 +654,12 @@ use the operators in the previous section.
     - add(x, y, *n) -> number
         Add two or more numbers.
 
+    - argmax(numbers, labels?) -> any
+        Return the index or label of the largest number in the list.
+
+    - argmin(numbers, labels?) -> any
+        Return the index or label of the smallest number in the list.
+
     - ceil(x) -> number
         Return the smallest integer greater than or equal to x.
 
@@ -668,6 +674,14 @@ use the operators in the previous section.
 
     - log(x) -> number
         Return the natural logarithm of x.
+
+    - max(x, y, *n) -> number
+    - max(list_of_numbers) -> number
+        Return the maximum number.
+
+    - min(x, y, *n) -> number
+    - min(list_of_numbers) -> number
+        Return the minimum number.
 
     - mod(x, y) -> number
         Return the remainder of x divided by y.
@@ -695,7 +709,7 @@ use the operators in the previous section.
 
 ## Boolean operations & branching
 
-    - and(a, b, *x) -> bool
+    - and(a, b, *x) -> T
         Perform boolean AND operation on two or more values.
 
     - if(cond, then, else?) -> T
@@ -707,7 +721,7 @@ use the operators in the previous section.
     - not(a) -> bool
         Perform boolean NOT operation.
 
-    - or(a, b, *x) -> bool
+    - or(a, b, *x) -> T
         Perform boolean OR operation on two or more values.
 
 ## Comparison
@@ -763,8 +777,10 @@ use the operators in the previous section.
         the first "{}" by the value of the name column, then the
         second one by the value of the surname column.
 
-    - get(seq, index) -> T
-        Get nth element of sequence (can use negative indexing).
+    - get(target, index_or_key, default?) -> T
+        Get nth element of sequence (can use negative indexing), or key of mapping.
+        Returns nothing if index or key is not found or alternatively the provided
+        default value.
 
     - join(seq, sep) -> string
         Join sequence by separator.
@@ -817,11 +833,26 @@ use the operators in the previous section.
         Return value of cell for given column, by name, by position or by
         name & nth, in case of duplicate header names.
 
+    - cols(from_name_or_pos?, to_name_or_pos?) -> list
+        Return list of cell values from the given colum by name or position
+        to another given column by name or position, inclusive.
+        Can also be called with a single argument to take a slice from the
+        given column to the end, or no argument at all to take all columns.
+
     - err(msg) -> error
         Make the expression return a custom error.
 
+    - headers(from_name_or_pos?, to_name_or_pos?) -> list
+        Return list of header names from the given colum by name or position
+        to another given column by name or position, inclusive.
+        Can also be called with a single argument to take a slice from the
+        given column to the end, or no argument at all to return all headers.
+
     - index() -> integer?
         Return the row's index, if applicable.
+
+    - json_parse(string) -> T
+        Parse the given string as JSON.
 
     - typeof(value) -> string
         Return type of value.
