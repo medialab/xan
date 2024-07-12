@@ -54,6 +54,42 @@ fn cat_rows_headers() {
 }
 
 #[test]
+fn cat_rows_input() {
+    let wrk = Workdir::new("cat");
+    wrk.create("a.csv", vec![svec!["name"], svec!["John"]]);
+    wrk.create("b.csv", vec![svec!["name"], svec!["Suzy"]]);
+    wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows").arg("path").args(["--input", "p.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn cat_rows_source_column() {
+    let wrk = Workdir::new("cat");
+    wrk.create("a.csv", vec![svec!["name"], svec!["John"]]);
+    wrk.create("b.csv", vec![svec!["name"], svec!["Suzy"]]);
+
+    let mut cmd = wrk.command("cat");
+    cmd.arg("rows")
+        .args(["--source-column", "source"])
+        .arg("a.csv")
+        .arg("b.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["source", "name"],
+        svec!["a.csv", "John"],
+        svec!["b.csv", "Suzy"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn cat_cols_headers() {
     let rows1 = vec![svec!["h1", "h2"], svec!["a", "b"]];
     let rows2 = vec![svec!["h3", "h4"], svec!["y", "z"]];
@@ -80,20 +116,5 @@ fn cat_cols_pad() {
 
     let expected = vec![svec!["a", "b", "y", "z"], svec!["", "", "y", "z"]];
     let got: Vec<Vec<String>> = run_cat("cat_cols_headers", "columns", rows1, rows2, pad);
-    assert_eq!(got, expected);
-}
-
-#[test]
-fn cat_input() {
-    let wrk = Workdir::new("cat");
-    wrk.create("a.csv", vec![svec!["name"], svec!["John"]]);
-    wrk.create("b.csv", vec![svec!["name"], svec!["Suzy"]]);
-    wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);
-
-    let mut cmd = wrk.command("cat");
-    cmd.arg("rows").arg("path").args(["--input", "p.csv"]);
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
     assert_eq!(got, expected);
 }

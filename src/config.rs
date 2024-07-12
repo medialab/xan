@@ -116,7 +116,7 @@ impl<T: Seek + Read> SeekRead for T {}
 
 #[derive(Debug)]
 pub struct Config {
-    path: Option<PathBuf>, // None implies <stdin>
+    pub path: Option<PathBuf>, // None implies <stdin>
     idx_path: Option<PathBuf>,
     select_columns: Option<SelectColumns>,
     delimiter: u8,

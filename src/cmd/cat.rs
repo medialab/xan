@@ -28,13 +28,15 @@ Usage:
     xan cat --help
 
 cat options:
-    -p, --pad              When concatenating columns, this flag will cause
-                           all records to appear. It will pad each row if
-                           other CSV data isn't long enough.
-    --input <input>        When concatenating rows, path to a CSV file containing
-                           a column of paths to other CSV files to concatenate.
-    -I, --input-dir <dir>  When concatenating rows, root directory to resolve
-                           relative paths contained in the -i/--input file column.
+    -p, --pad                   When concatenating columns, this flag will cause
+                                all records to appear. It will pad each row if
+                                other CSV data isn't long enough.
+    --input <input>             When concatenating rows, path to a CSV file containing
+                                a column of paths to other CSV files to concatenate.
+    -I, --input-dir <dir>       When concatenating rows, root directory to resolve
+                                relative paths contained in the -i/--input file column.
+    -S, --source-column <name>  Name of a column to prepend in the output of \"cat rows\"
+                                indicating the path to source file.
 
 Common options:
     -h, --help             Display this message
@@ -58,6 +60,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_source_column: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -92,17 +95,38 @@ impl Args {
         let mut wtr = Config::new(&self.flag_output).writer()?;
         for (i, conf) in self.configs()?.into_iter().enumerate() {
             let mut rdr = conf.reader()?;
-            if i == 0 {
-                conf.write_headers(&mut rdr, &mut wtr)?;
-            }
-            while rdr.read_byte_record(&mut row)? {
-                wtr.write_byte_record(&row)?;
+
+            match &self.flag_source_column {
+                None => {
+                    if i == 0 {
+                        conf.write_headers(&mut rdr, &mut wtr)?;
+                    }
+                    while rdr.read_byte_record(&mut row)? {
+                        wtr.write_byte_record(&row)?;
+                    }
+                }
+                Some(name) => {
+                    if i == 0 {
+                        let headers = rdr.byte_headers()?;
+                        wtr.write_record([name.as_bytes()].into_iter().chain(headers))?;
+                    }
+
+                    let source = conf
+                        .path
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or("<stdin>".to_string());
+
+                    while rdr.read_byte_record(&mut row)? {
+                        wtr.write_record([source.as_bytes()].into_iter().chain(&row))?;
+                    }
+                }
             }
         }
         wtr.flush().map_err(From::from)
     }
 
     fn cat_rows_with_input(&self) -> CliResult<()> {
+        // TODO: handle --source-column
         let rconf = Config::new(&self.flag_input)
             .delimiter(self.flag_delimiter)
             .select(self.arg_column.clone().unwrap());
