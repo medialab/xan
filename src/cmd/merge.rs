@@ -22,12 +22,14 @@ Usage:
     xan merge --help
 
 merge options:
-    -s, --select <arg>     Select a subset of columns to sort.
-                           See 'xan select --help' for the format details.
-    -N, --numeric          Compare according to string numerical value
-    -R, --reverse          Reverse order
-    -u, --uniq             When set, identical consecutive lines will be dropped
-                           to keep only one line per sorted value.
+    -s, --select <arg>          Select a subset of columns to sort.
+                                See 'xan select --help' for the format details.
+    -N, --numeric               Compare according to string numerical value
+    -R, --reverse               Reverse order
+    -u, --uniq                  When set, identical consecutive lines will be dropped
+                                to keep only one line per sorted value.
+    -S, --source-column <name>  Name of a column to prepend in the output of the command
+                                indicating the path to source file.
 
 Common options:
     -h, --help             Display this message
@@ -52,6 +54,7 @@ struct Args {
     flag_numeric: bool,
     flag_reverse: bool,
     flag_uniq: bool,
+    flag_source_column: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -60,6 +63,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     let confs = args.configs()?.into_iter().collect::<Vec<Config>>();
+    let paths = confs
+        .iter()
+        .map(|c| {
+            c.path
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or("<stdin>".to_string())
+        })
+        .collect::<Vec<_>>();
 
     let mut readers = confs
         .iter()
@@ -76,7 +88,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             return fail!("all given files should have identical headers!");
         }
 
-        wtr.write_byte_record(headers[0])?;
+        if let Some(name) = &args.flag_source_column {
+            wtr.write_record([name.as_bytes()].into_iter().chain(headers[0]))?;
+        } else {
+            wtr.write_byte_record(headers[0])?;
+        }
     }
 
     let selections = confs
@@ -89,6 +105,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .into_iter()
         .map(|rdr| rdr.into_byte_records())
         .collect::<Vec<_>>();
+
+    macro_rules! write_record {
+        ($i:ident, $record:expr) => {
+            if args.flag_source_column.is_some() {
+                wtr.write_record([paths[$i].as_bytes()].into_iter().chain($record))
+            } else {
+                wtr.write_byte_record($record)
+            }
+        };
+    }
 
     macro_rules! kway {
         ($wrapper:ident, $record:ident) => {
@@ -120,21 +146,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         if args.flag_uniq {
                             match last_record {
                                 None => {
-                                    wtr.write_byte_record(comparable_record.0.as_byte_record())?;
+                                    write_record!(i, comparable_record.0.as_byte_record())?;
                                     last_record = Some(comparable_record);
                                 }
                                 Some(ref r) => match r.cmp(&comparable_record) {
                                     Ordering::Equal => (),
                                     _ => {
-                                        wtr.write_byte_record(
-                                            comparable_record.0.as_byte_record(),
-                                        )?;
+                                        write_record!(i, comparable_record.0.as_byte_record())?;
                                         last_record = Some(comparable_record);
                                     }
                                 },
                             }
                         } else {
-                            wtr.write_byte_record(comparable_record.0.as_byte_record())?;
+                            write_record!(i, comparable_record.0.as_byte_record())?;
                         }
 
                         match record_iterators[i].next() {

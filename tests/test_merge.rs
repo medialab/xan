@@ -203,3 +203,30 @@ fn merge_uniq() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn merge_source_column() {
+    let wrk = Workdir::new("merge_source_column");
+    wrk.create(
+        "a.csv",
+        vec![svec!["name"], svec!["bautista"], svec!["caroline"]],
+    );
+    wrk.create(
+        "b.csv",
+        vec![svec!["name"], svec!["anna"], svec!["delphine"]],
+    );
+    let mut cmd = wrk.command("merge");
+    cmd.arg("a.csv")
+        .arg("b.csv")
+        .args(["--source-column", "source"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["source", "name"],
+        svec!["b.csv", "anna"],
+        svec!["a.csv", "bautista"],
+        svec!["a.csv", "caroline"],
+        svec!["b.csv", "delphine"],
+    ];
+    assert_eq!(got, expected);
+}
