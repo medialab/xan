@@ -105,10 +105,10 @@ impl Args {
                         wtr.write_byte_record(&row)?;
                     }
                 }
-                Some(name) => {
+                Some(source_column) => {
                     if i == 0 {
                         let headers = rdr.byte_headers()?;
-                        wtr.write_record([name.as_bytes()].into_iter().chain(headers))?;
+                        wtr.write_record([source_column.as_bytes()].into_iter().chain(headers))?;
                     }
 
                     let source = conf
@@ -126,7 +126,6 @@ impl Args {
     }
 
     fn cat_rows_with_input(&self) -> CliResult<()> {
-        // TODO: handle --source-column
         let rconf = Config::new(&self.flag_input)
             .delimiter(self.flag_delimiter)
             .select(self.arg_column.clone().unwrap());
@@ -144,13 +143,15 @@ impl Args {
         let mut headers_written = self.flag_no_headers;
 
         while rdr.read_record(&mut record)? {
-            let mut path = record[column_index].to_string();
+            let original_path = record[column_index].to_string();
 
-            if let Some(root_dir) = &self.flag_input_dir {
+            let path = if let Some(root_dir) = &self.flag_input_dir {
                 let mut buf = root_dir.clone();
-                buf.push(path);
-                path = buf.to_string_lossy().into_owned();
-            }
+                buf.push(&original_path);
+                buf.to_string_lossy().into_owned()
+            } else {
+                original_path.clone()
+            };
 
             let sub_rconf = Config::new(&Some(path))
                 .delimiter(self.flag_delimiter)
@@ -158,14 +159,33 @@ impl Args {
 
             let mut sub_rdr = sub_rconf.reader()?;
 
-            if !headers_written {
-                let headers = sub_rdr.byte_headers()?;
-                headers_written = true;
-                wtr.write_byte_record(headers)?;
-            }
+            match &self.flag_source_column {
+                None => {
+                    if !headers_written {
+                        let headers = sub_rdr.byte_headers()?;
+                        wtr.write_byte_record(headers)?;
+                        headers_written = true;
+                    }
 
-            while sub_rdr.read_byte_record(&mut sub_record)? {
-                wtr.write_byte_record(&sub_record)?;
+                    while sub_rdr.read_byte_record(&mut sub_record)? {
+                        wtr.write_byte_record(&sub_record)?;
+                    }
+                }
+                Some(source_column) => {
+                    if !headers_written {
+                        let headers = sub_rdr.byte_headers()?;
+                        wtr.write_record(
+                            [source_column.as_bytes()].into_iter().chain(headers.iter()),
+                        )?;
+                        headers_written = true;
+                    }
+
+                    while sub_rdr.read_byte_record(&mut sub_record)? {
+                        wtr.write_record(
+                            [original_path.as_bytes()].into_iter().chain(&sub_record),
+                        )?;
+                    }
+                }
             }
         }
 
