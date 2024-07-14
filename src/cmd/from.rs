@@ -8,7 +8,7 @@ use std::{
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
 use csv;
 use serde::de::{Deserialize, Deserializer, Error};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::config::Config;
 use crate::json::for_each_json_value_as_csv_record;
@@ -30,7 +30,7 @@ impl SupportedFormat {
         Some(match string {
             "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
             "jsonl" | "ndjson" => Self::NdJSON,
-            "json" | "json-array" => Self::JSONArray,
+            "json" => Self::JSONArray,
             _ => return None,
         })
     }
@@ -67,10 +67,9 @@ Supported formats:
     xlsb  - Excel spreasheet
     xlsx  - Excel spreasheet
 
-    json       - JSON array
-    json-array - JSON array
-    ndjson     - Newline-delimited JSON
-    jsonl      - Newline-delimited JSON
+    json    - JSON array or object
+    ndjson  - Newline-delimited JSON
+    jsonl   - Newline-delimited JSON
 
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
@@ -84,6 +83,10 @@ Excel/OpenOffice-related options:
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.
                            [default: 64]
+    --key-column <name>    Name for the key column when parsing a JSON map.
+                           [default: key]
+    --value-column <name>  Name for the value column when parsing a JSON map.
+                           [default: value]
 
 Common options:
     -h, --help             Display this message
@@ -97,6 +100,8 @@ struct Args {
     flag_format: Option<SupportedFormat>,
     flag_output: Option<String>,
     flag_sample_size: NonZeroUsize,
+    flag_key_column: String,
+    flag_value_column: String,
 }
 
 impl Args {
@@ -193,8 +198,22 @@ impl Args {
         let mut contents = String::new();
         rdr.read_to_string(&mut contents)?;
 
-        let value =
+        let mut value =
             serde_json::from_str(&contents).map_err(|err| CliError::Other(err.to_string()))?;
+
+        // NOTE: recombobulating objects as collections
+        if let Value::Object(object) = value {
+            let mut items = Vec::with_capacity(object.len());
+
+            for (k, v) in object {
+                items.push(Value::Object(Map::from_iter([
+                    (self.flag_key_column.clone(), Value::String(k)),
+                    (self.flag_value_column.clone(), v),
+                ])));
+            }
+
+            value = Value::Array(items);
+        }
 
         if let Value::Array(array) = value {
             let mut wtr = self.writer()?;
@@ -211,7 +230,7 @@ impl Args {
             Ok(wtr.flush()?)
         } else {
             Err(CliError::Other(
-                "target JSON does not contain an array".to_string(),
+                "target JSON does not contain an array nor an object".to_string(),
             ))
         }
     }
