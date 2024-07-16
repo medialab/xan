@@ -355,9 +355,6 @@ use the operators in the previous section.
     - typeof(value) -> string
         Return type of value.
 
-    - val(value) -> T
-        Return a value as-is. Useful to return constants.
-
 ## IO & path wrangling
 
     - abspath(string) -> string

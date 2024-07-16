@@ -163,7 +163,6 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "unidecode" => (apply_unidecode, Arity::Strict(1)),
         "upper" => (upper, Arity::Strict(1)),
         "uuid" => (uuid, Arity::Strict(0)),
-        "val" => (val, Arity::Strict(1)),
         "write" => (write, Arity::Strict(2)),
         _ => return None,
     })
@@ -1001,11 +1000,6 @@ fn err(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
     Err(EvaluationError::Custom(arg.to_string()))
-}
-
-fn val(mut args: BoundArguments) -> FunctionResult {
-    let arg = args.pop1();
-    Ok(arg.into_owned())
 }
 
 fn json_parse(args: BoundArguments) -> FunctionResult {
