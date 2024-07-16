@@ -553,7 +553,17 @@ fn contains(args: BoundArguments) -> FunctionResult {
                 Ok(DynamicValue::from(text.contains(&*pattern)))
             }
         },
-        DynamicValue::List(_) => Err(EvaluationError::NotImplemented("list".to_string())),
+        DynamicValue::List(list) => {
+            let needle = arg2.try_as_str()?;
+
+            for item in list {
+                if needle == item.try_as_str()? {
+                    return Ok(DynamicValue::from(true));
+                }
+            }
+
+            return Ok(DynamicValue::from(false));
+        }
         value => {
             return Err(EvaluationError::Cast((
                 value.type_of().to_string(),

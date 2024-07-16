@@ -950,6 +950,18 @@ mod tests {
             eval_code("'h' not in 'hello'"),
             Ok(DynamicValue::from(false))
         );
+        assert_eq!(eval_code("3 in [1, 2, 3]"), Ok(DynamicValue::from(true)));
+        assert_eq!(
+            eval_code("'3' in ['1', '2', '3']"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code("3 in ['1', '2', '3']"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(eval_code("'3' in [1, 2, 3]"), Ok(DynamicValue::from(true)));
+        assert_eq!(eval_code("4 in [1, 2, 3]"), Ok(DynamicValue::from(false)));
+        assert_eq!(eval_code("'4' in [1, 2, 3]"), Ok(DynamicValue::from(false)));
 
         assert_eq!(eval_code("!true"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("!!!true"), Ok(DynamicValue::from(false)));
