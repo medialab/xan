@@ -890,6 +890,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "namedlock"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00080bed36de1de35105737807ffe79cebdaf3b4c47f8335be7297df82e19a2b"
+
+[[package]]
 name = "nix"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1886,6 +1892,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "md5",
+ "namedlock",
  "num_cpus",
  "numfmt",
  "pager",

@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
+use namedlock::{AutoCleanup, LockSpace};
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -562,7 +563,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
                 }
             }
 
-            return Ok(DynamicValue::from(false));
+            Ok(DynamicValue::from(false))
         }
         value => {
             return Err(EvaluationError::Cast((
@@ -931,6 +932,10 @@ fn read(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(contents))
 }
 
+lazy_static! {
+    static ref WRITE_FILE_LOCKS: LockSpace<PathBuf, ()> = LockSpace::new(AutoCleanup);
+}
+
 fn write(args: BoundArguments) -> FunctionResult {
     let data = args.get(0).unwrap().try_as_str()?;
     let path = PathBuf::from(args.get(1).unwrap().try_as_str()?.as_ref());
@@ -942,7 +947,10 @@ fn write(args: BoundArguments) -> FunctionResult {
             .map_err(|_| EvaluationError::CannotCreateDir(path.to_string_lossy().to_string()))?;
     }
 
-    // TODO: this is not threadsafe
+    WRITE_FILE_LOCKS
+        .lock(path.clone(), || ())
+        .map_err(|_| EvaluationError::Custom("write file lock is poisoned".to_string()))?;
+
     fs::write(&path, data.as_bytes())
         .map_err(|_| EvaluationError::CannotWriteFile(path.to_string_lossy().to_string()))?;
 
