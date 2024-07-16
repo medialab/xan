@@ -1077,6 +1077,21 @@ impl<'a> BoundArguments<'a> {
         self.stack.pop().unwrap()
     }
 
+    pub fn pop2(&mut self) -> (BoundArgument, BoundArgument) {
+        let second = self.stack.pop().unwrap();
+        let first = self.stack.pop().unwrap();
+
+        (first, second)
+    }
+
+    pub fn pop3(&mut self) -> (BoundArgument, BoundArgument, BoundArgument) {
+        let third = self.stack.pop().unwrap();
+        let second = self.stack.pop().unwrap();
+        let first = self.stack.pop().unwrap();
+
+        (first, second, third)
+    }
+
     pub fn get2(&self) -> (&BoundArgument, &BoundArgument) {
         (&self.stack[0], &self.stack[1])
     }

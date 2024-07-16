@@ -417,16 +417,11 @@ fn last(mut args: BoundArguments) -> FunctionResult {
     })
 }
 
-fn get(args: BoundArguments) -> FunctionResult {
-    let (target, key) = args.get2();
-
-    let default = || {
-        args.get(2)
-            .map(|v| v.as_ref().clone())
-            .unwrap_or_else(|| DynamicValue::None)
-    };
-
-    Ok(match target.as_ref() {
+fn get_subroutine(
+    target: &DynamicValue,
+    key: &DynamicValue,
+) -> Result<Option<DynamicValue>, EvaluationError> {
+    Ok(match target {
         DynamicValue::String(value) => {
             let mut index = key.try_as_i64()?;
 
@@ -435,12 +430,9 @@ fn get(args: BoundArguments) -> FunctionResult {
             }
 
             if index < 0 {
-                default()
+                None
             } else {
-                match value.chars().nth(index as usize) {
-                    Some(c) => DynamicValue::from(c),
-                    None => default(),
-                }
+                value.chars().nth(index as usize).map(DynamicValue::from)
             }
         }
         DynamicValue::List(list) => {
@@ -451,21 +443,15 @@ fn get(args: BoundArguments) -> FunctionResult {
             }
 
             if index < 0 {
-                default()
+                None
             } else {
-                match list.get(index as usize) {
-                    None => default(),
-                    Some(value) => value.clone(),
-                }
+                list.get(index as usize).cloned()
             }
         }
         DynamicValue::Map(map) => {
             let key = key.try_as_str()?;
 
-            match map.get(key.as_ref()) {
-                None => default(),
-                Some(value) => value.clone(),
-            }
+            map.get(key.as_ref()).cloned()
         }
         value => {
             return Err(EvaluationError::Cast((
@@ -474,6 +460,26 @@ fn get(args: BoundArguments) -> FunctionResult {
             )))
         }
     })
+}
+
+fn get(mut args: BoundArguments) -> FunctionResult {
+    let (target, key, default) = if args.len() == 3 {
+        let (target, key, default) = args.pop3();
+
+        (target, key, Some(default))
+    } else {
+        let (target, key) = args.pop2();
+
+        (target, key, None)
+    };
+
+    Ok(
+        get_subroutine(target.as_ref(), key.as_ref())?.unwrap_or_else(|| {
+            default
+                .map(|value| value.into_owned())
+                .unwrap_or_else(|| DynamicValue::None)
+        }),
+    )
 }
 
 fn slice(args: BoundArguments) -> FunctionResult {
