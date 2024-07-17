@@ -95,7 +95,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         no_headers: args.flag_no_headers,
         delimiter: args.flag_delimiter,
         parallelization,
-        error_policy: MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?,
+        error_policy: MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
         error_column_name: None,
         mode: MoonbladeMode::Filter(args.flag_invert_match),
     };

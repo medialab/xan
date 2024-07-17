@@ -441,7 +441,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - **flatmap** - Emit one row per value yielded by an expression evaluated for each CSV row
 - **flatten** - Show one field per line
 - **fmt** - Format CSV output (change field delimiter)
-- **foreach** - Loop over a CSV file to execute bash commands
+- **foreach** - Loop over a CSV file to perform side effects
 - **frequency** - Show frequency tables
 - **from** - Convert a variety of formats to CSV
 - **glob** - Create a CSV file with paths matching a glob pattern

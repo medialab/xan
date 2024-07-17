@@ -96,7 +96,7 @@ macro_rules! command_list {
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
     flatten     Show one field per line
     fmt         Format CSV output (change field delimiter)
-    foreach     Loop over a CSV file to execute bash commands
+    foreach     Loop over a CSV file to perform side effects
     frequency   Show frequency tables
     from        Convert a variety of formats to CSV
     glob        Create a CSV file with paths matching a glob pattern
@@ -285,12 +285,7 @@ impl Command {
             Command::Flatmap => cmd::flatmap::run(argv),
             Command::Flatten => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
-            #[cfg(not(windows))]
             Command::ForEach => cmd::foreach::run(argv),
-            #[cfg(windows)]
-            Command::ForEach => Err(CliError::Other(
-                "The foreach command does not work on windows, sorry :'(".to_string(),
-            )),
             Command::Frequency => cmd::frequency::run(argv),
             Command::From => cmd::from::run(argv),
             Command::Glob => cmd::glob::run(argv),

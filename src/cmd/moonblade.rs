@@ -532,6 +532,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
 pub enum MoonbladeMode {
     Map,
+    Foreach,
     Filter(bool),
     Transform,
     Flatmap,
@@ -551,7 +552,7 @@ impl MoonbladeMode {
     }
 
     fn cannot_report(&self) -> bool {
-        matches!(self, Self::Filter(_) | Self::Flatmap)
+        matches!(self, Self::Filter(_) | Self::Flatmap | Self::Foreach)
     }
 }
 
@@ -563,7 +564,7 @@ pub enum MoonbladeErrorPolicy {
 }
 
 impl MoonbladeErrorPolicy {
-    pub fn from_restricted(value: &str) -> Result<Self, CliError> {
+    pub fn try_from_restricted(value: &str) -> Result<Self, CliError> {
         Ok(match value {
             "panic" => Self::Panic,
             "ignore" => Self::Ignore,
@@ -682,6 +683,7 @@ pub fn handle_eval_result<'b>(
 
                 records_to_emit.push(Cow::Borrowed(record));
             }
+            MoonbladeMode::Foreach => {}
             MoonbladeMode::Transform => {
                 let mut record = record.replace_at(replace.unwrap(), &value.serialize_as_bytes());
 

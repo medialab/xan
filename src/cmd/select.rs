@@ -141,7 +141,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(sel.iter().map(|&i| &record[i]))?;
         }
     } else {
-        let error_policy = MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?;
+        let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
         let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
 

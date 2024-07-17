@@ -113,7 +113,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    let error_policy = MoonbladeErrorPolicy::from_restricted(&args.flag_errors)?;
+    let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
