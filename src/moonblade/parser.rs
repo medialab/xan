@@ -123,7 +123,7 @@ impl Operator {
 
 #[derive(Debug, PartialEq)]
 enum TokenTree<'a> {
-    Infix(Operator),
+    Operator(Operator),
     Primary(Pair<'a, Rule>),
     Expr(Vec<TokenTree<'a>>),
     Func(String, Vec<TokenTree<'a>>),
@@ -144,35 +144,35 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             | Rule::false_lit
             | Rule::null => TokenTree::Primary(pair),
 
-            Rule::num_eq => TokenTree::Infix(Operator::NumEq),
-            Rule::num_ne => TokenTree::Infix(Operator::NumNe),
-            Rule::num_lt => TokenTree::Infix(Operator::NumLt),
-            Rule::num_le => TokenTree::Infix(Operator::NumLe),
-            Rule::num_gt => TokenTree::Infix(Operator::NumGt),
-            Rule::num_ge => TokenTree::Infix(Operator::NumGe),
-            Rule::str_eq => TokenTree::Infix(Operator::StrEq),
-            Rule::str_ne => TokenTree::Infix(Operator::StrNe),
-            Rule::str_lt => TokenTree::Infix(Operator::StrLt),
-            Rule::str_le => TokenTree::Infix(Operator::StrLe),
-            Rule::str_gt => TokenTree::Infix(Operator::StrGt),
-            Rule::str_ge => TokenTree::Infix(Operator::StrGe),
-            Rule::add => TokenTree::Infix(Operator::Add),
-            Rule::sub => TokenTree::Infix(Operator::Sub),
-            Rule::mul => TokenTree::Infix(Operator::Mul),
-            Rule::div => TokenTree::Infix(Operator::Div),
-            Rule::idiv => TokenTree::Infix(Operator::IDiv),
-            Rule::rem => TokenTree::Infix(Operator::Mod),
-            Rule::pow => TokenTree::Infix(Operator::Pow),
-            Rule::concat => TokenTree::Infix(Operator::Concat),
-            Rule::and => TokenTree::Infix(Operator::And),
-            Rule::or => TokenTree::Infix(Operator::Or),
-            Rule::in_op => TokenTree::Infix(Operator::In),
-            Rule::not_in => TokenTree::Infix(Operator::NotIn),
-            Rule::pipe => TokenTree::Infix(Operator::Pipe),
-            Rule::open_indexing => TokenTree::Infix(Operator::Indexing),
+            Rule::num_eq => TokenTree::Operator(Operator::NumEq),
+            Rule::num_ne => TokenTree::Operator(Operator::NumNe),
+            Rule::num_lt => TokenTree::Operator(Operator::NumLt),
+            Rule::num_le => TokenTree::Operator(Operator::NumLe),
+            Rule::num_gt => TokenTree::Operator(Operator::NumGt),
+            Rule::num_ge => TokenTree::Operator(Operator::NumGe),
+            Rule::str_eq => TokenTree::Operator(Operator::StrEq),
+            Rule::str_ne => TokenTree::Operator(Operator::StrNe),
+            Rule::str_lt => TokenTree::Operator(Operator::StrLt),
+            Rule::str_le => TokenTree::Operator(Operator::StrLe),
+            Rule::str_gt => TokenTree::Operator(Operator::StrGt),
+            Rule::str_ge => TokenTree::Operator(Operator::StrGe),
+            Rule::add => TokenTree::Operator(Operator::Add),
+            Rule::sub => TokenTree::Operator(Operator::Sub),
+            Rule::mul => TokenTree::Operator(Operator::Mul),
+            Rule::div => TokenTree::Operator(Operator::Div),
+            Rule::idiv => TokenTree::Operator(Operator::IDiv),
+            Rule::rem => TokenTree::Operator(Operator::Mod),
+            Rule::pow => TokenTree::Operator(Operator::Pow),
+            Rule::concat => TokenTree::Operator(Operator::Concat),
+            Rule::and => TokenTree::Operator(Operator::And),
+            Rule::or => TokenTree::Operator(Operator::Or),
+            Rule::in_op => TokenTree::Operator(Operator::In),
+            Rule::not_in => TokenTree::Operator(Operator::NotIn),
+            Rule::pipe => TokenTree::Operator(Operator::Pipe),
+            Rule::open_indexing => TokenTree::Operator(Operator::Indexing),
 
-            Rule::not => TokenTree::Infix(Operator::Not),
-            Rule::neg => TokenTree::Infix(Operator::Neg),
+            Rule::not => TokenTree::Operator(Operator::Not),
+            Rule::neg => TokenTree::Operator(Operator::Neg),
 
             Rule::expr => {
                 let mut pairs = pair.into_inner();
@@ -337,7 +337,7 @@ where
 
     fn query(&mut self, tree: &TokenTree) -> Result<Affix, Self::Error> {
         let affix = match tree {
-            TokenTree::Infix(op) => op.precedence(),
+            TokenTree::Operator(op) => op.precedence(),
             TokenTree::Expr(_) => Affix::Nilfix,
             TokenTree::Func(_, _) => Affix::Nilfix,
             TokenTree::Primary(_) => Affix::Nilfix,
@@ -442,7 +442,7 @@ where
 
     fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
         Ok(match tree {
-            TokenTree::Infix(op) => {
+            TokenTree::Operator(op) => {
                 match op {
                     // Swapping operands
                     Operator::In => Expr::Func(FunctionCall {
@@ -490,7 +490,7 @@ where
         let args = vec![rhs];
 
         Ok(match tree {
-            TokenTree::Infix(op) => Expr::Func(FunctionCall {
+            TokenTree::Operator(op) => Expr::Func(FunctionCall {
                 name: op.to_fn_string(),
                 args,
             }),
