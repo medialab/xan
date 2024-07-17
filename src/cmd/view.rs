@@ -2,13 +2,13 @@ use std::io::{self, Write};
 
 use colored::{self, Colorize};
 use csv;
+use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::util::{self, ImmutableRecordHelpers};
-use crate::CliResult;
-use unicode_width::UnicodeWidthStr;
 #[cfg(windows)]
 use crate::CliError;
+use crate::CliResult;
 
 const TRAILING_COLS: usize = 8;
 const PER_CELL_PADDING_COLS: usize = 3;

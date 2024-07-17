@@ -40,7 +40,6 @@ extern crate thread_local;
 extern crate serde_derive;
 extern crate pest;
 extern crate pest_derive;
-extern crate pratt;
 extern crate serde_json;
 extern crate termsize;
 extern crate textwrap;

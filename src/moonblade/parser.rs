@@ -1,9 +1,11 @@
 // En tant que chef, je m'engage à ce que nous ne nous
 // fassions pas *tous* tuer.
-use pest::iterators::Pair;
-use pest::Parser;
+use pest::{
+    iterators::{Pair, Pairs},
+    pratt_parser::{Assoc, Op, PrattParser},
+    Parser,
+};
 use pest_derive::Parser;
-use pratt::{Affix, Associativity, PrattError, PrattParser, Precedence};
 
 use super::functions::get_function;
 use super::utils::downgrade_float;
@@ -12,188 +14,210 @@ use super::utils::downgrade_float;
 #[grammar = "moonblade/grammar.pest"]
 pub struct MoonbladePestParser;
 
-#[derive(Debug, PartialEq)]
-enum Operator {
-    NumEq,
-    NumNe,
-    NumLt,
-    NumLe,
-    NumGt,
-    NumGe,
-    StrEq,
-    StrNe,
-    StrLt,
-    StrLe,
-    StrGt,
-    StrGe,
-    Add,
-    Sub,
-    Mul,
-    Div,
-    IDiv,
-    Mod,
-    Pow,
-    Concat,
-    And,
-    Or,
-    In,
-    NotIn,
-    Not,
-    Neg,
-    Pipe,
-    Indexing,
-}
-
-impl Operator {
-    fn as_fn_str(&self) -> &'static str {
+impl Rule {
+    fn as_fn_op_str(&self) -> &'static str {
         match self {
-            Self::NumEq => "__num_eq",
-            Self::NumNe => "__num_ne",
-            Self::NumLt => "__num_lt",
-            Self::NumLe => "__num_le",
-            Self::NumGt => "__num_gt",
-            Self::NumGe => "__num_ge",
-            Self::StrEq => "eq",
-            Self::StrNe => "ne",
-            Self::StrLt => "lt",
-            Self::StrLe => "le",
-            Self::StrGt => "gt",
-            Self::StrGe => "ge",
-            Self::Add => "add",
-            Self::Sub => "sub",
-            Self::Mul => "mul",
-            Self::Div => "div",
-            Self::IDiv => "idiv",
-            Self::Pow => "pow",
-            Self::Mod => "mod",
-            Self::Concat => "concat",
-            Self::And => "and",
-            Self::Or => "or",
-            Self::Not => "not",
-            Self::Neg => "neg",
-            Self::Indexing => "get",
+            Self::num_eq => "__num_eq",
+            Self::num_ne => "__num_ne",
+            Self::num_lt => "__num_lt",
+            Self::num_le => "__num_le",
+            Self::num_gt => "__num_gt",
+            Self::num_ge => "__num_ge",
+            Self::str_eq => "eq",
+            Self::str_ne => "ne",
+            Self::str_lt => "lt",
+            Self::str_le => "le",
+            Self::str_gt => "gt",
+            Self::str_ge => "ge",
+            Self::add => "add",
+            Self::sub => "sub",
+            Self::mul => "mul",
+            Self::div => "div",
+            Self::idiv => "idiv",
+            Self::pow => "pow",
+            Self::rem => "mod",
+            Self::concat => "concat",
+            Self::and => "and",
+            Self::or => "or",
+            Self::not => "not",
+            Self::neg => "neg",
+            Self::open_indexing => "get",
 
-            // NOTE: `Pipe`, `In` and `NotIn` are not covered by this match
+            // NOTE: `pipe`, `in_op` and `not_in` are not covered by this match
             // because lhs and rhs are reversed.
             _ => unreachable!(),
         }
     }
+}
 
-    fn to_fn_string(&self) -> String {
-        self.as_fn_str().to_string()
-    }
-
+lazy_static! {
     // NOTE: precedence taken from JavaScript and/or Python
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence#table
     // https://docs.python.org/3/reference/expressions.html
-    fn precedence(&self) -> Affix {
-        match self {
-            // NOTE: indexing is supposed to be postfix, but I am cheating with
-            // open_indexing here to pretend it's an infix operator.
-            Self::Indexing => Affix::Infix(Precedence(17), Associativity::Left),
-            Self::Not | Self::Neg => Affix::Prefix(Precedence(14)),
-            Self::Pow => Affix::Infix(Precedence(13), Associativity::Right),
-            Self::Mul | Self::Div | Self::IDiv | Self::Mod => {
-                Affix::Infix(Precedence(12), Associativity::Left)
-            }
-            Self::Add | Self::Sub | Self::Concat => {
-                Affix::Infix(Precedence(11), Associativity::Left)
-            }
-            Self::In
-            | Self::NotIn
-            | Self::NumLt
-            | Self::NumLe
-            | Self::NumGt
-            | Self::NumGe
-            | Self::StrLt
-            | Self::StrLe
-            | Self::StrGt
-            | Self::StrGe => Affix::Infix(Precedence(9), Associativity::Left),
-            Self::NumEq | Self::NumNe | Self::StrEq | Self::StrNe => {
-                Affix::Infix(Precedence(8), Associativity::Left)
-            }
-            Self::And => Affix::Infix(Precedence(4), Associativity::Left),
-            Self::Or => Affix::Infix(Precedence(3), Associativity::Left),
-            Self::Pipe => Affix::Infix(Precedence(2), Associativity::Left),
-        }
-    }
+
+    // NOTE: indexing is supposed to be postfix, but I am cheating with
+    // open_indexing here to pretend it's an infix operator.
+    static ref PRATT_PARSER: PrattParser<Rule> = PrattParser::new()
+        .op(Op::infix(Rule::pipe, Assoc::Left))
+        .op(Op::infix(Rule::or, Assoc::Left))
+        .op(Op::infix(Rule::and, Assoc::Left))
+        .op(Op::infix(Rule::num_eq, Assoc::Left) |
+            Op::infix(Rule::num_ne, Assoc::Left) |
+            Op::infix(Rule::str_eq, Assoc::Left) |
+            Op::infix(Rule::str_ne, Assoc::Left))
+        .op(Op::infix(Rule::in_op, Assoc::Left) |
+            Op::infix(Rule::not_in, Assoc::Left) |
+            Op::infix(Rule::num_lt, Assoc::Left) |
+            Op::infix(Rule::num_le, Assoc::Left) |
+            Op::infix(Rule::num_gt, Assoc::Left) |
+            Op::infix(Rule::num_ge, Assoc::Left) |
+            Op::infix(Rule::str_lt, Assoc::Left) |
+            Op::infix(Rule::str_le, Assoc::Left) |
+            Op::infix(Rule::str_gt, Assoc::Left) |
+            Op::infix(Rule::str_ge, Assoc::Left))
+        .op(Op::infix(Rule::add, Assoc::Left) |
+            Op::infix(Rule::sub, Assoc::Left) |
+            Op::infix(Rule::concat, Assoc::Left))
+        .op(Op::infix(Rule::mul, Assoc::Left) |
+            Op::infix(Rule::div, Assoc::Left) |
+            Op::infix(Rule::idiv, Assoc::Left) |
+            Op::infix(Rule::rem, Assoc::Left))
+        .op(Op::infix(Rule::pow, Assoc::Right))
+        .op(Op::prefix(Rule::not) |
+            Op::prefix(Rule::neg))
+        .op(Op::infix(Rule::open_indexing, Assoc::Left));
 }
 
-#[derive(Debug, PartialEq)]
-enum TokenTree<'a> {
-    Operator(Operator),
-    Primary(Pair<'a, Rule>),
-    Expr(Vec<TokenTree<'a>>),
-    Func(String, Vec<TokenTree<'a>>),
-}
+fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
+    PRATT_PARSER
+        .map_primary(|primary| -> Result<Expr, String> {
+            let expr = match primary.as_rule() {
+                Rule::list => Expr::List(
+                    primary
+                        .into_inner()
+                        .map(|t| pratt_parse(Pairs::single(t)))
+                        .collect::<Result<_, _>>()?,
+                ),
+                Rule::map => {
+                    // NOTE: we don't deduplicate keys
+                    let mut map = Vec::new();
 
-impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
-    fn from(pair: Pair<'a, Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::map
-            | Rule::list
-            | Rule::string
-            | Rule::regex
-            | Rule::int
-            | Rule::float
-            | Rule::ident
-            | Rule::underscore
-            | Rule::true_lit
-            | Rule::false_lit
-            | Rule::null => TokenTree::Primary(pair),
+                    for entry in primary.into_inner() {
+                        let mut sub = entry.into_inner();
+                        let key_pair = sub.next().unwrap();
+                        let key = match key_pair.as_rule() {
+                            Rule::string => build_string(key_pair),
+                            Rule::ident => key_pair.as_str().to_string(),
+                            _ => unreachable!(),
+                        };
+                        let value = pratt_parse(Pairs::single(sub.next().unwrap()))?;
 
-            Rule::num_eq => TokenTree::Operator(Operator::NumEq),
-            Rule::num_ne => TokenTree::Operator(Operator::NumNe),
-            Rule::num_lt => TokenTree::Operator(Operator::NumLt),
-            Rule::num_le => TokenTree::Operator(Operator::NumLe),
-            Rule::num_gt => TokenTree::Operator(Operator::NumGt),
-            Rule::num_ge => TokenTree::Operator(Operator::NumGe),
-            Rule::str_eq => TokenTree::Operator(Operator::StrEq),
-            Rule::str_ne => TokenTree::Operator(Operator::StrNe),
-            Rule::str_lt => TokenTree::Operator(Operator::StrLt),
-            Rule::str_le => TokenTree::Operator(Operator::StrLe),
-            Rule::str_gt => TokenTree::Operator(Operator::StrGt),
-            Rule::str_ge => TokenTree::Operator(Operator::StrGe),
-            Rule::add => TokenTree::Operator(Operator::Add),
-            Rule::sub => TokenTree::Operator(Operator::Sub),
-            Rule::mul => TokenTree::Operator(Operator::Mul),
-            Rule::div => TokenTree::Operator(Operator::Div),
-            Rule::idiv => TokenTree::Operator(Operator::IDiv),
-            Rule::rem => TokenTree::Operator(Operator::Mod),
-            Rule::pow => TokenTree::Operator(Operator::Pow),
-            Rule::concat => TokenTree::Operator(Operator::Concat),
-            Rule::and => TokenTree::Operator(Operator::And),
-            Rule::or => TokenTree::Operator(Operator::Or),
-            Rule::in_op => TokenTree::Operator(Operator::In),
-            Rule::not_in => TokenTree::Operator(Operator::NotIn),
-            Rule::pipe => TokenTree::Operator(Operator::Pipe),
-            Rule::open_indexing => TokenTree::Operator(Operator::Indexing),
+                        map.push((key, value));
+                    }
 
-            Rule::not => TokenTree::Operator(Operator::Not),
-            Rule::neg => TokenTree::Operator(Operator::Neg),
-
-            Rule::expr => {
-                let mut pairs = pair.into_inner();
-
-                if pairs.len() == 1 {
-                    Self::from(pairs.next().unwrap())
-                } else {
-                    TokenTree::Expr(pairs.map(Self::from).collect())
+                    Expr::Map(map)
                 }
-            }
+                Rule::int => {
+                    let n = primary
+                        .as_str()
+                        .replace('_', "")
+                        .parse::<i64>()
+                        .or(Err("could not parse int"))?;
 
-            Rule::func => {
-                let mut pairs = pair.into_inner();
-                let func_name = pairs.next().unwrap().as_str().to_lowercase();
+                    Expr::Int(n)
+                }
+                Rule::float => {
+                    let n = primary
+                        .as_str()
+                        .replace('_', "")
+                        .parse::<f64>()
+                        .or(Err("could not parse float"))?;
 
-                TokenTree::Func(func_name, pairs.map(Self::from).collect())
-            }
+                    Expr::Float(n)
+                }
+                Rule::string => Expr::Str(build_string(primary)),
+                Rule::regex => {
+                    let case_insensitive =
+                        primary.clone().into_inner().any(|t| match t.as_rule() {
+                            Rule::regex_flag => primary.as_str().contains('i'),
+                            _ => false,
+                        });
 
-            _ => {
-                unreachable!();
-            }
-        }
-    }
+                    Expr::Regex(build_string(primary), case_insensitive)
+                }
+                Rule::underscore => Expr::Underscore,
+                Rule::ident => Expr::Identifier(primary.as_str().to_string()),
+                Rule::true_lit => Expr::Bool(true),
+                Rule::false_lit => Expr::Bool(false),
+                Rule::null => Expr::Null,
+                Rule::expr => pratt_parse(primary.into_inner())?,
+                Rule::func => {
+                    let mut pairs = primary.into_inner();
+                    let func_name = pairs.next().unwrap().as_str().to_lowercase();
+
+                    Expr::Func(FunctionCall {
+                        name: func_name,
+                        args: pairs
+                            .map(|t| pratt_parse(Pairs::single(t)))
+                            .collect::<Result<_, _>>()?,
+                    })
+                }
+                _ => unreachable!(),
+            };
+
+            Ok(expr)
+        })
+        .map_prefix(|op, rhs| {
+            Ok(Expr::Func(FunctionCall {
+                name: op.as_rule().as_fn_op_str().to_string(),
+                args: vec![rhs?],
+            }))
+        })
+        .map_infix(|lhs, op, rhs| {
+            Ok(match op.as_rule() {
+                // Swapping operands
+                Rule::in_op => Expr::Func(FunctionCall {
+                    name: "contains".to_string(),
+                    args: vec![rhs?, lhs?],
+                }),
+                Rule::not_in => Expr::Func(FunctionCall {
+                    name: "not".to_string(),
+                    args: vec![Expr::Func(FunctionCall {
+                        name: "contains".to_string(),
+                        args: vec![rhs?, lhs?],
+                    })],
+                }),
+
+                // Pipe threading
+                Rule::pipe => match rhs? {
+                    Expr::Func(mut call) => {
+                        call.fill_underscore(&lhs?);
+                        Expr::Func(call)
+                    }
+                    Expr::Identifier(name) => match get_function(&name) {
+                        None => Expr::Identifier(name),
+                        Some(_) => Expr::Func({
+                            FunctionCall {
+                                name,
+                                args: vec![lhs?],
+                            }
+                        }),
+                    },
+                    rest => rest,
+                },
+
+                // General case
+                rule => Expr::Func(FunctionCall {
+                    name: rule.as_fn_op_str().to_string(),
+                    args: vec![lhs?, rhs?],
+                }),
+            })
+        })
+        .parse(pairs)
+        .map(|mut expr| {
+            expr.simplify();
+            expr
+        })
 }
 
 fn build_string(pair: Pair<Rule>) -> String {
@@ -275,7 +299,7 @@ pub enum Expr {
     Identifier(String),
     Str(String),
     List(Vec<Expr>),
-    Map(Vec<(String, Expr)>), // NOTE: using a map here for deduplication of the literals
+    Map(Vec<(String, Expr)>),
     Regex(String, bool),
     Bool(bool),
     Underscore,
@@ -323,219 +347,34 @@ impl Expr {
     }
 }
 
-struct MoonbladePrattParser;
-
-impl<'a, I> PrattParser<I> for MoonbladePrattParser
-where
-    I: Iterator<Item = TokenTree<'a>>,
-{
-    type Error = String;
-    type Input = TokenTree<'a>;
-    type Output = Expr;
-
-    fn query(&mut self, tree: &TokenTree) -> Result<Affix, Self::Error> {
-        let affix = match tree {
-            TokenTree::Operator(op) => op.precedence(),
-            TokenTree::Expr(_) | TokenTree::Func(_, _) | TokenTree::Primary(_) => Affix::Nilfix,
-        };
-
-        Ok(affix)
-    }
-
-    fn primary(&mut self, tree: TokenTree) -> Result<Expr, Self::Error> {
-        let expr = match tree {
-            TokenTree::Primary(token) => match token.as_rule() {
-                Rule::list => Expr::List(
-                    token
-                        .into_inner()
-                        .map(|t| self.parse(&mut vec![TokenTree::from(t)].into_iter()))
-                        .collect::<Result<_, _>>()
-                        .map_err(|err| match err {
-                            PrattError::UserError(inner) => inner,
-                            _ => unreachable!(),
-                        })?,
-                ),
-                Rule::map => {
-                    // NOTE: we don't deduplicate keys
-                    let mut map = Vec::new();
-
-                    for entry in token.into_inner() {
-                        let mut sub = entry.into_inner();
-                        let key_pair = sub.next().unwrap();
-                        let key = match key_pair.as_rule() {
-                            Rule::string => build_string(key_pair),
-                            Rule::ident => key_pair.as_str().to_string(),
-                            _ => unreachable!(),
-                        };
-                        let value = self
-                            .parse(&mut vec![TokenTree::from(sub.next().unwrap())].into_iter())
-                            .map_err(|err| match err {
-                                PrattError::UserError(inner) => inner,
-                                _ => unreachable!(),
-                            })?;
-
-                        map.push((key, value));
-                    }
-
-                    Expr::Map(map)
-                }
-                Rule::int => {
-                    let n = token
-                        .as_str()
-                        .replace('_', "")
-                        .parse::<i64>()
-                        .or(Err("could not parse int"))?;
-
-                    Expr::Int(n)
-                }
-                Rule::float => {
-                    let n = token
-                        .as_str()
-                        .replace('_', "")
-                        .parse::<f64>()
-                        .or(Err("could not parse float"))?;
-
-                    Expr::Float(n)
-                }
-                Rule::string => Expr::Str(build_string(token)),
-                Rule::regex => {
-                    let case_insensitive = token.clone().into_inner().any(|t| match t.as_rule() {
-                        Rule::regex_flag => token.as_str().contains('i'),
-                        _ => false,
-                    });
-
-                    Expr::Regex(build_string(token), case_insensitive)
-                }
-                Rule::underscore => Expr::Underscore,
-                Rule::ident => Expr::Identifier(token.as_str().to_string()),
-                Rule::true_lit => Expr::Bool(true),
-                Rule::false_lit => Expr::Bool(false),
-                Rule::null => Expr::Null,
-                _ => unreachable!(),
-            },
-            TokenTree::Expr(group) => {
-                self.parse(&mut group.into_iter())
-                    .map_err(|err| match err {
-                        PrattError::UserError(inner) => inner,
-                        _ => unreachable!(),
-                    })?
-            }
-            TokenTree::Func(name, group) => Expr::Func(FunctionCall {
-                name,
-                args: group
-                    .into_iter()
-                    .map(|g| self.parse(&mut vec![g].into_iter()))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|err| match err {
-                        PrattError::UserError(inner) => inner,
-                        _ => unreachable!(),
-                    })?,
-            }),
-            _ => unreachable!(),
-        };
-
-        Ok(expr)
-    }
-
-    fn infix(&mut self, lhs: Expr, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
-        Ok(match tree {
-            TokenTree::Operator(op) => {
-                match op {
-                    // Swapping operands
-                    Operator::In => Expr::Func(FunctionCall {
-                        name: "contains".to_string(),
-                        args: vec![rhs, lhs],
-                    }),
-                    Operator::NotIn => Expr::Func(FunctionCall {
-                        name: "not".to_string(),
-                        args: vec![Expr::Func(FunctionCall {
-                            name: "contains".to_string(),
-                            args: vec![rhs, lhs],
-                        })],
-                    }),
-
-                    // Pipe threading
-                    Operator::Pipe => match rhs {
-                        Expr::Func(mut call) => {
-                            call.fill_underscore(&lhs);
-                            Expr::Func(call)
-                        }
-                        Expr::Identifier(name) => match get_function(&name) {
-                            None => Expr::Identifier(name),
-                            Some(_) => Expr::Func({
-                                FunctionCall {
-                                    name,
-                                    args: vec![lhs],
-                                }
-                            }),
-                        },
-                        _ => rhs,
-                    },
-
-                    // General case
-                    _ => Expr::Func(FunctionCall {
-                        name: op.to_fn_string(),
-                        args: vec![lhs, rhs],
-                    }),
-                }
-            }
-            _ => unreachable!(),
-        })
-    }
-
-    fn prefix(&mut self, tree: TokenTree, rhs: Expr) -> Result<Expr, Self::Error> {
-        let args = vec![rhs];
-
-        Ok(match tree {
-            TokenTree::Operator(op) => Expr::Func(FunctionCall {
-                name: op.to_fn_string(),
-                args,
-            }),
-            _ => unreachable!(),
-        })
-    }
-
-    fn postfix(&mut self, _lhs: Expr, _tree: TokenTree) -> Result<Expr, Self::Error> {
-        unreachable!()
-    }
-}
-
 #[derive(PartialEq, Debug)]
 pub enum ParseError {
-    PestError(Box<pest::error::Error<Rule>>),
-    PrattError(String),
+    Pest(Box<pest::error::Error<Rule>>),
+    Custom(String),
 }
 
-impl ParseError {
-    fn from_pest_error(error: pest::error::Error<Rule>) -> Self {
-        Self::PestError(Box::new(error))
+impl From<pest::error::Error<Rule>> for ParseError {
+    fn from(value: pest::error::Error<Rule>) -> Self {
+        Self::Pest(Box::new(value))
     }
 }
 
-fn apply_pratt_parser(token_tree: TokenTree) -> Result<Expr, ParseError> {
-    match MoonbladePrattParser.parse(&mut vec![token_tree].into_iter()) {
-        Err(err) => Err(ParseError::PrattError(err.to_string())),
-        Ok(mut expr) => {
-            expr.simplify();
-            Ok(expr)
-        }
+impl From<String> for ParseError {
+    fn from(value: String) -> Self {
+        Self::Custom(value)
     }
 }
 
 pub fn parse_expression(input: &str) -> Result<Expr, ParseError> {
-    let mut pairs =
-        MoonbladePestParser::parse(Rule::full_expr, input).map_err(ParseError::from_pest_error)?;
+    let mut pairs = MoonbladePestParser::parse(Rule::full_expr, input)?;
 
     let first_pair = pairs.next().unwrap();
 
-    let token_tree = TokenTree::from(first_pair);
-
-    apply_pratt_parser(token_tree)
+    Ok(pratt_parse(Pairs::single(first_pair))?)
 }
 
 pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, ParseError> {
-    let pairs = MoonbladePestParser::parse(Rule::named_exprs, input)
-        .map_err(ParseError::from_pest_error)?;
+    let pairs = MoonbladePestParser::parse(Rule::named_exprs, input)?;
 
     pairs
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
@@ -565,8 +404,7 @@ pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, Parse
                 _ => unreachable!(),
             };
 
-            let token_tree = TokenTree::from(p);
-            let expr = apply_pratt_parser(token_tree)?;
+            let expr = pratt_parse(Pairs::single(p))?;
 
             Ok((expr, name))
         })
@@ -584,8 +422,7 @@ pub struct Aggregation {
 pub type Aggregations = Vec<Aggregation>;
 
 pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
-    let pairs =
-        MoonbladePestParser::parse(Rule::named_aggs, input).map_err(ParseError::from_pest_error)?;
+    let pairs = MoonbladePestParser::parse(Rule::named_aggs, input)?;
 
     pairs
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
@@ -635,9 +472,7 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                 _ => unreachable!(),
             };
 
-            let token_tree = TokenTree::from(p);
-
-            let expr = apply_pratt_parser(token_tree)?;
+            let expr = pratt_parse(Pairs::single(p))?;
 
             match expr {
                 Expr::Func(call) => Ok(Aggregation {
