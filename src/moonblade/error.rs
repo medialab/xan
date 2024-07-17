@@ -134,12 +134,8 @@ pub enum EvaluationError {
     InvalidArity(InvalidArity),
     InvalidPath,
     NotImplemented(String),
-    CannotOpenFile(String),
-    CannotReadFile(String),
-    CannotCreateDir(String),
-    CannotWriteFile(String),
-    CannotMoveFile(String, String),
-    Cast((String, String)),
+    IO(String),
+    Cast(String, String),
     Custom(String),
     UnsupportedEncoding(String),
     UnsupportedDecoderTrap(String),
@@ -178,17 +174,9 @@ impl Display for EvaluationError {
         match self {
             Self::InvalidPath => write!(f, "invalid posix path"),
             Self::InvalidArity(arity) => arity.fmt(f),
-            Self::CannotOpenFile(path) => {
-                write!(f, "cannot open file {}", path)
-            }
-            Self::CannotCreateDir(path) => write!(f, "cannot create directory {}", path),
-            Self::CannotReadFile(path) => write!(f, "cannot read file {}", path),
-            Self::CannotWriteFile(path) => write!(f, "cannot write file {}", path),
-            Self::CannotMoveFile(source, target) => {
-                write!(f, "cannot move file from {} to {}", source, target)
-            }
+            Self::IO(msg) => write!(f, "{}", msg),
             Self::Custom(msg) => write!(f, "{}", msg),
-            Self::Cast((from_type, to_type)) => write!(
+            Self::Cast(from_type, to_type) => write!(
                 f,
                 "cannot safely cast from type \"{}\" to type \"{}\"",
                 from_type, to_type

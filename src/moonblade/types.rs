@@ -676,16 +676,16 @@ impl DynamicValue {
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::List(_) => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     "list".to_string(),
                     "string".to_string(),
-                )))
+                ))
             }
             Self::Map(_) => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     "map".to_string(),
                     "string".to_string(),
-                )))
+                ))
             }
             Self::String(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string()),
@@ -705,30 +705,30 @@ impl DynamicValue {
     pub fn try_as_regex(&self) -> Result<&Regex, EvaluationError> {
         match self {
             Self::Regex(regex) => Ok(regex),
-            value => Err(EvaluationError::Cast((
+            value => Err(EvaluationError::Cast(
                 value.type_of().to_string(),
                 "regex".to_string(),
-            ))),
+            )),
         }
     }
 
     pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
-            value => Err(EvaluationError::Cast((
+            value => Err(EvaluationError::Cast(
                 value.type_of().to_string(),
                 "list".to_string(),
-            ))),
+            )),
         }
     }
 
     pub fn try_into_list(self) -> Result<Vec<DynamicValue>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
-            value => Err(EvaluationError::Cast((
+            value => Err(EvaluationError::Cast(
                 value.type_of().to_string(),
                 "list".to_string(),
-            ))),
+            )),
         }
     }
 
@@ -736,10 +736,10 @@ impl DynamicValue {
         Ok(match self {
             Self::String(string) => match string.parse::<DynamicNumber>() {
                 Err(_) => {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "string".to_string(),
                         "number".to_string(),
-                    )))
+                    ))
                 }
                 Ok(number) => number,
             },
@@ -747,10 +747,10 @@ impl DynamicValue {
             Self::Float(value) => DynamicNumber::Float(*value),
             Self::Boolean(value) => DynamicNumber::Integer(*value as i64),
             value => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "number".to_string(),
-                )))
+                ))
             }
         })
     }
@@ -759,10 +759,10 @@ impl DynamicValue {
         Ok(match self {
             Self::String(string) => match string.parse::<usize>() {
                 Err(_) => {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "string".to_string(),
                         "unsigned_number".to_string(),
-                    )))
+                    ))
                 }
                 Ok(value) => value,
             },
@@ -771,35 +771,35 @@ impl DynamicValue {
                     if safe_downgraded_value >= 0 {
                         safe_downgraded_value as usize
                     } else {
-                        return Err(EvaluationError::Cast((
+                        return Err(EvaluationError::Cast(
                             "float".to_string(),
                             "unsigned_number".to_string(),
-                        )));
+                        ));
                     }
                 }
                 None => {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "float".to_string(),
                         "unsigned_number".to_string(),
-                    )))
+                    ))
                 }
             },
             Self::Integer(value) => {
                 if value >= &0 {
                     (*value) as usize
                 } else {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "integer".to_string(),
                         "unsigned_number".to_string(),
-                    )));
+                    ));
                 }
             }
             Self::Boolean(value) => (*value) as usize,
             _ => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     "boolean".to_string(),
                     "unsigned_number".to_string(),
-                )))
+                ))
             }
         })
     }
@@ -808,29 +808,29 @@ impl DynamicValue {
         Ok(match self {
             Self::String(string) => match string.parse::<i64>() {
                 Err(_) => {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "string".to_string(),
                         "integer".to_string(),
-                    )))
+                    ))
                 }
                 Ok(value) => value,
             },
             Self::Float(value) => match downgrade_float(*value) {
                 Some(safe_downgraded_value) => safe_downgraded_value,
                 None => {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "float".to_string(),
                         "integer".to_string(),
-                    )))
+                    ))
                 }
             },
             Self::Integer(value) => *value,
             Self::Boolean(value) => (*value) as i64,
             value => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "integer".to_string(),
-                )))
+                ))
             }
         })
     }
@@ -839,10 +839,10 @@ impl DynamicValue {
         Ok(match self {
             Self::String(string) => match string.parse::<f64>() {
                 Err(_) => {
-                    return Err(EvaluationError::Cast((
+                    return Err(EvaluationError::Cast(
                         "string".to_string(),
                         "float".to_string(),
-                    )))
+                    ))
                 }
                 Ok(value) => value,
             },
@@ -850,10 +850,10 @@ impl DynamicValue {
             Self::Integer(value) => *value as f64,
             Self::Boolean(value) => *value as usize as f64,
             value => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "float".to_string(),
-                )))
+                ))
             }
         })
     }

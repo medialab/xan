@@ -360,10 +360,10 @@ fn first(mut args: BoundArguments) -> FunctionResult {
                 Some(value) => value.clone(),
             },
             _ => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "sequence".to_string(),
-                )))
+                ))
             }
         },
         Cow::Owned(value) => match value {
@@ -376,10 +376,10 @@ fn first(mut args: BoundArguments) -> FunctionResult {
                 }
             }
             _ => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "sequence".to_string(),
-                )))
+                ))
             }
         },
     })
@@ -396,10 +396,10 @@ fn last(mut args: BoundArguments) -> FunctionResult {
                 Some(value) => value.clone(),
             },
             _ => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "sequence".to_string(),
-                )))
+                ))
             }
         },
         Cow::Owned(value) => match value {
@@ -409,10 +409,10 @@ fn last(mut args: BoundArguments) -> FunctionResult {
                 Some(value) => value,
             },
             _ => {
-                return Err(EvaluationError::Cast((
+                return Err(EvaluationError::Cast(
                     value.type_of().to_string(),
                     "sequence".to_string(),
-                )))
+                ))
             }
         },
     })
@@ -455,10 +455,10 @@ fn get_subroutine(
             map.get(key.as_ref()).cloned()
         }
         value => {
-            return Err(EvaluationError::Cast((
+            return Err(EvaluationError::Cast(
                 value.type_of().to_string(),
                 "sequence".to_string(),
-            )))
+            ))
         }
     })
 }
@@ -526,10 +526,10 @@ fn slice(args: BoundArguments) -> FunctionResult {
         }
         DynamicValue::List(_) => Err(EvaluationError::NotImplemented("list".to_string())),
         value => {
-            return Err(EvaluationError::Cast((
+            return Err(EvaluationError::Cast(
                 value.type_of().to_string(),
                 "sequence".to_string(),
-            )))
+            ))
         }
     }
 }
@@ -572,10 +572,10 @@ fn contains(args: BoundArguments) -> FunctionResult {
             Ok(DynamicValue::from(false))
         }
         value => {
-            return Err(EvaluationError::Cast((
+            return Err(EvaluationError::Cast(
                 value.type_of().to_string(),
                 "sequence".to_string(),
-            )))
+            ))
         }
     }
 }
@@ -888,7 +888,7 @@ fn read(args: BoundArguments) -> FunctionResult {
 
     // TODO: handle encoding
     let mut file = match File::open(path.as_ref()) {
-        Err(_) => return Err(EvaluationError::CannotOpenFile(path.into_owned())),
+        Err(_) => return Err(EvaluationError::IO(format!("cannot read file {}", path))),
         Ok(f) => f,
     };
 
@@ -909,10 +909,10 @@ fn read(args: BoundArguments) -> FunctionResult {
             if path.ends_with(".gz") {
                 let mut gz = GzDecoder::new(file);
                 gz.read_to_end(&mut buffer)
-                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
             } else {
                 file.read_to_end(&mut buffer)
-                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
             }
 
             encoding
@@ -925,10 +925,10 @@ fn read(args: BoundArguments) -> FunctionResult {
             if path.ends_with(".gz") {
                 let mut gz = GzDecoder::new(file);
                 gz.read_to_string(&mut buffer)
-                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
             } else {
                 file.read_to_string(&mut buffer)
-                    .map_err(|_| EvaluationError::CannotReadFile(path.into_owned()))?;
+                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
             }
 
             buffer
@@ -949,16 +949,18 @@ fn write(args: BoundArguments) -> FunctionResult {
     // mkdir -p
     if let Some(dir) = path.parent() {
         // NOTE: fs::create_dir_all is threadsafe
-        fs::create_dir_all(dir)
-            .map_err(|_| EvaluationError::CannotCreateDir(path.to_string_lossy().to_string()))?;
+        fs::create_dir_all(dir).map_err(|_| {
+            EvaluationError::IO(format!("cannot create dir {}", dir.to_string_lossy()))
+        })?;
     }
 
     WRITE_FILE_LOCKS
         .lock(path.clone(), || ())
         .map_err(|_| EvaluationError::Custom("write file lock is poisoned".to_string()))?;
 
-    fs::write(&path, data.as_bytes())
-        .map_err(|_| EvaluationError::CannotWriteFile(path.to_string_lossy().to_string()))?;
+    fs::write(&path, data.as_bytes()).map_err(|_| {
+        EvaluationError::IO(format!("cannot write file {}", path.to_string_lossy()))
+    })?;
 
     Ok(DynamicValue::from(path.to_string_lossy()))
 }
@@ -973,15 +975,16 @@ fn move_file(args: BoundArguments) -> FunctionResult {
     if let Some(dir) = target_path.parent() {
         // NOTE: fs::create_dir_all is threadsafe
         fs::create_dir_all(dir).map_err(|_| {
-            EvaluationError::CannotCreateDir(target_path.to_string_lossy().to_string())
+            EvaluationError::IO(format!("cannot create dir {}", dir.to_string_lossy()))
         })?;
     }
 
     fs::rename(&source_path, &target_path).map_err(|_| {
-        EvaluationError::CannotMoveFile(
-            source_path.to_string_lossy().to_string(),
-            target_path.to_string_lossy().to_string(),
-        )
+        EvaluationError::IO(format!(
+            "cannot move from {} to {}",
+            source_path.to_string_lossy(),
+            target_path.to_string_lossy()
+        ))
     })?;
 
     Ok(DynamicValue::from(target_path.to_string_lossy()))
@@ -1000,7 +1003,10 @@ fn filesize(args: BoundArguments) -> FunctionResult {
 
     match fs::metadata(path.as_ref()) {
         Ok(size) => Ok(DynamicValue::from(size.len() as i64)),
-        Err(_) => Err(EvaluationError::CannotOpenFile(path.into_owned())),
+        Err(_) => Err(EvaluationError::IO(format!(
+            "cannot access file metadata for {}",
+            path
+        ))),
     }
 }
 
