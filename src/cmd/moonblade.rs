@@ -372,6 +372,10 @@ use the operators in the previous section.
     - isfile(string) -> bool
         Return whether the given path is an existing file on disk.
 
+    - move(source_path, target_path) -> string
+        Move a source path to the target path. Will create necessary
+        directories on the way. Returns target path as a convenience.
+
     - pathjoin(string, *strings) -> string
         Join multiple paths correctly.
 

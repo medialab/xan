@@ -106,6 +106,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
             |args| binary_arithmetic_op(args, Rem::rem),
             Arity::Strict(2),
         ),
+        "move" => (move_file, Arity::Strict(2)),
         "mul" => (|args| variadic_arithmetic_op(args, Mul::mul), Arity::Min(2)),
         "neg" => (|args| unary_arithmetic_op(args, Neg::neg), Arity::Strict(1)),
         "not" => (not, Arity::Strict(1)),
@@ -960,6 +961,30 @@ fn write(args: BoundArguments) -> FunctionResult {
         .map_err(|_| EvaluationError::CannotWriteFile(path.to_string_lossy().to_string()))?;
 
     Ok(DynamicValue::from(path.to_string_lossy()))
+}
+
+fn move_file(args: BoundArguments) -> FunctionResult {
+    let (source, target) = args.get2_str()?;
+
+    let source_path = PathBuf::from(source.as_ref());
+    let target_path = PathBuf::from(target.as_ref());
+
+    // mkdir -p
+    if let Some(dir) = target_path.parent() {
+        // NOTE: fs::create_dir_all is threadsafe
+        fs::create_dir_all(dir).map_err(|_| {
+            EvaluationError::CannotCreateDir(target_path.to_string_lossy().to_string())
+        })?;
+    }
+
+    fs::rename(&source_path, &target_path).map_err(|_| {
+        EvaluationError::CannotMoveFile(
+            source_path.to_string_lossy().to_string(),
+            target_path.to_string_lossy().to_string(),
+        )
+    })?;
+
+    Ok(DynamicValue::from(target_path.to_string_lossy()))
 }
 
 fn ext(args: BoundArguments) -> FunctionResult {

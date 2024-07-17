@@ -138,6 +138,7 @@ pub enum EvaluationError {
     CannotReadFile(String),
     CannotCreateDir(String),
     CannotWriteFile(String),
+    CannotMoveFile(String, String),
     Cast((String, String)),
     Custom(String),
     UnsupportedEncoding(String),
@@ -183,6 +184,9 @@ impl Display for EvaluationError {
             Self::CannotCreateDir(path) => write!(f, "cannot create directory {}", path),
             Self::CannotReadFile(path) => write!(f, "cannot read file {}", path),
             Self::CannotWriteFile(path) => write!(f, "cannot write file {}", path),
+            Self::CannotMoveFile(source, target) => {
+                write!(f, "cannot move file from {} to {}", source, target)
+            }
             Self::Custom(msg) => write!(f, "{}", msg),
             Self::Cast((from_type, to_type)) => write!(
                 f,
