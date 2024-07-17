@@ -70,6 +70,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "compact" => (compact, Arity::Strict(1)),
         "concat" => (concat, Arity::Min(1)),
         "contains" => (contains, Arity::Strict(2)),
+        "copy" => (copy_file, Arity::Strict(2)),
         "count" => (count, Arity::Strict(2)),
         "div" => (|args| variadic_arithmetic_op(args, Div::div), Arity::Min(2)),
         "endswith" => (endswith, Arity::Strict(2)),
@@ -982,6 +983,31 @@ fn move_file(args: BoundArguments) -> FunctionResult {
     fs::rename(&source_path, &target_path).map_err(|_| {
         EvaluationError::IO(format!(
             "cannot move from {} to {}",
+            source_path.to_string_lossy(),
+            target_path.to_string_lossy()
+        ))
+    })?;
+
+    Ok(DynamicValue::from(target_path.to_string_lossy()))
+}
+
+fn copy_file(args: BoundArguments) -> FunctionResult {
+    let (source, target) = args.get2_str()?;
+
+    let source_path = PathBuf::from(source.as_ref());
+    let target_path = PathBuf::from(target.as_ref());
+
+    // mkdir -p
+    if let Some(dir) = target_path.parent() {
+        // NOTE: fs::create_dir_all is threadsafe
+        fs::create_dir_all(dir).map_err(|_| {
+            EvaluationError::IO(format!("cannot create dir {}", dir.to_string_lossy()))
+        })?;
+    }
+
+    fs::copy(&source_path, &target_path).map_err(|_| {
+        EvaluationError::IO(format!(
+            "cannot copy {} to {}",
             source_path.to_string_lossy(),
             target_path.to_string_lossy()
         ))

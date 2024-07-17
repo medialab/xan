@@ -363,6 +363,10 @@ use the operators in the previous section.
     - bytesize(integer) -> string
         Return a number of bytes in human-readable format (KB, MB, GB, etc.).
 
+    - copy(source_path, target_path) -> string
+        Copy a source to target path. Will create necessary directories
+        on the way. Returns target path as a convenience.
+
     - ext(path) -> string?
         Return the path's extension, if any.
 
@@ -373,8 +377,8 @@ use the operators in the previous section.
         Return whether the given path is an existing file on disk.
 
     - move(source_path, target_path) -> string
-        Move a source path to the target path. Will create necessary
-        directories on the way. Returns target path as a convenience.
+        Move a source to target path. Will create necessary directories
+        on the way. Returns target path as a convenience.
 
     - pathjoin(string, *strings) -> string
         Join multiple paths correctly.
