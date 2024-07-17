@@ -1,7 +1,5 @@
 // En tant que chef, je m'engage à ce que nous ne nous
 // fassions pas *tous* tuer.
-use std::collections::BTreeMap;
-
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
@@ -277,7 +275,7 @@ pub enum Expr {
     Identifier(String),
     Str(String),
     List(Vec<Expr>),
-    Map(BTreeMap<String, Expr>), // NOTE: using a map here for deduplication of the literals
+    Map(Vec<(String, Expr)>), // NOTE: using a map here for deduplication of the literals
     Regex(String, bool),
     Bool(bool),
     Underscore,
@@ -358,7 +356,8 @@ where
                         })?,
                 ),
                 Rule::map => {
-                    let mut map = BTreeMap::new();
+                    // NOTE: we don't deduplicate keys
+                    let mut map = Vec::new();
 
                     for entry in token.into_inner() {
                         let mut sub = entry.into_inner();
@@ -375,7 +374,7 @@ where
                                 _ => unreachable!(),
                             })?;
 
-                        map.insert(key, value);
+                        map.push((key, value));
                     }
 
                     Expr::Map(map)
@@ -696,9 +695,9 @@ mod tests {
     macro_rules! map {
         ( $( ($k:expr, $v:expr) ),* ) => {
             {
-                let mut m = BTreeMap::<String, Expr>::new();
+                let mut m = Vec::<(String, Expr)>::new();
                 $(
-                    m.insert($k.to_string(), $v);
+                    m.push(($k.to_string(), $v));
                 )*
                 Map(m)
             }
