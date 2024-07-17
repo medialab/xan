@@ -43,6 +43,7 @@ enum Operator {
     Not,
     Neg,
     Pipe,
+    Indexing,
 }
 
 impl Operator {
@@ -72,6 +73,7 @@ impl Operator {
             Self::Or => "or",
             Self::Not => "not",
             Self::Neg => "neg",
+            Self::Indexing => "get",
 
             // NOTE: `Pipe`, `In` and `NotIn` are not covered by this match
             // because lhs and rhs are reversed.
@@ -88,6 +90,9 @@ impl Operator {
     // https://docs.python.org/3/reference/expressions.html
     fn precedence(&self) -> Affix {
         match self {
+            // NOTE: indexing is supposed to be postfix, but I am cheating with
+            // open_indexing here to pretend it's an infix operator.
+            Self::Indexing => Affix::Infix(Precedence(17), Associativity::Left),
             Self::Not | Self::Neg => Affix::Prefix(Precedence(14)),
             Self::Pow => Affix::Infix(Precedence(13), Associativity::Right),
             Self::Mul | Self::Div | Self::IDiv | Self::Mod => {
@@ -164,6 +169,7 @@ impl<'a> From<Pair<'a, Rule>> for TokenTree<'a> {
             Rule::in_op => TokenTree::Infix(Operator::In),
             Rule::not_in => TokenTree::Infix(Operator::NotIn),
             Rule::pipe => TokenTree::Infix(Operator::Pipe),
+            Rule::open_indexing => TokenTree::Infix(Operator::Indexing),
 
             Rule::not => TokenTree::Infix(Operator::Not),
             Rule::neg => TokenTree::Infix(Operator::Neg),

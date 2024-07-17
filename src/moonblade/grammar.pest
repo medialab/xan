@@ -106,11 +106,13 @@ unary_operator = _{ not | neg }
 not            =  { "!" }
 neg            =  { "-" }
 
+open_indexing = { "[" }
+
 // Functions
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Expressions
-expr =  { unary_operator* ~ term ~ (binary_operator ~ term)* }
+expr =  { unary_operator* ~ term ~ (binary_operator ~ term | open_indexing ~ term ~ "]")* }
 term = _{
     func
   | bool
@@ -127,11 +129,11 @@ term = _{
 }
 
 // Lists & Maps
-list_body     = _{ expr ~ ("," ~ expr)* }
-list          =  { "[" ~ list_body* ~ "]" }
-map_entry     =  { (string | ident) ~ ":" ~ expr }
-map_body      = _{ map_entry ~ ("," ~ map_entry)* }
-map           =  { "{" ~ map_body* ~ "}" }
+list_body = _{ expr ~ ("," ~ expr)* }
+list      =  { "[" ~ list_body* ~ "]" }
+map_entry =  { (string | ident) ~ ":" ~ expr }
+map_body  = _{ map_entry ~ ("," ~ map_entry)* }
+map       =  { "{" ~ map_body* ~ "}" }
 
 // End-chain parsers
 full_expr = _{ SOI ~ expr ~ EOI }

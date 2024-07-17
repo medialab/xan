@@ -137,6 +137,10 @@ use the operators in the previous section.
     x in y
     x not in y
 
+## Indexing operators
+
+    x[y] - get y from x (string or list index, map key)
+
 ## Pipeline operator (using \"_\" for left-hand size substitution)
 
     'trim(name) | len(_)'         - Same as len(trim(name))

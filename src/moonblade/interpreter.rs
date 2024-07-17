@@ -690,6 +690,7 @@ mod tests {
     fn test_get() {
         assert_eq!(eval_code("get('test', 0)"), Ok(DynamicValue::from("t")));
         assert_eq!(eval_code("get('test', 7, 4)"), Ok(DynamicValue::from(4)));
+        assert_eq!(eval_code("'test'[1]"), Ok(DynamicValue::from("e")));
     }
 
     #[test]
