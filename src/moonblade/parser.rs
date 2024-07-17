@@ -338,9 +338,7 @@ where
     fn query(&mut self, tree: &TokenTree) -> Result<Affix, Self::Error> {
         let affix = match tree {
             TokenTree::Operator(op) => op.precedence(),
-            TokenTree::Expr(_) => Affix::Nilfix,
-            TokenTree::Func(_, _) => Affix::Nilfix,
-            TokenTree::Primary(_) => Affix::Nilfix,
+            TokenTree::Expr(_) | TokenTree::Func(_, _) | TokenTree::Primary(_) => Affix::Nilfix,
         };
 
         Ok(affix)
