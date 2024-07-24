@@ -666,7 +666,7 @@ fn variadic_min(args: BoundArguments) -> FunctionResult {
         let mut values_iter = values.iter();
         let mut min_value = values_iter.next().unwrap().try_as_number()?;
 
-        for value in values {
+        for value in values_iter {
             let other = value.try_as_number()?;
 
             if other < min_value {
@@ -702,7 +702,7 @@ fn variadic_max(args: BoundArguments) -> FunctionResult {
         let mut values_iter = values.iter();
         let mut max_value = values_iter.next().unwrap().try_as_number()?;
 
-        for value in values {
+        for value in values_iter {
             let other = value.try_as_number()?;
 
             if other > max_value {
