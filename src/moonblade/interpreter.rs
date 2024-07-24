@@ -83,7 +83,7 @@ impl ConcreteExpr {
                     bound.push(item.evaluate(index, record, context)?.into_owned());
                 }
 
-                Ok(Cow::Owned(DynamicValue::List(bound)))
+                Ok(Cow::Owned(DynamicValue::from(bound)))
             }
             Self::Map(pairs) => {
                 let mut bound = BTreeMap::new();
@@ -95,7 +95,7 @@ impl ConcreteExpr {
                     );
                 }
 
-                Ok(Cow::Owned(DynamicValue::Map(bound)))
+                Ok(Cow::Owned(DynamicValue::from(bound)))
             }
             _ => self.bind(record).map_err(|err| SpecifiedEvaluationError {
                 function_name: "<expr>".to_string(),
@@ -461,8 +461,11 @@ pub fn concretize_expression(
 
             // NOTE: here we can collapse to a literal value
             if concrete_list.iter().all(|e| e.is_value()) {
-                ConcreteExpr::Value(DynamicValue::List(
-                    concrete_list.into_iter().map(|e| e.unwrap()).collect(),
+                ConcreteExpr::Value(DynamicValue::from(
+                    concrete_list
+                        .into_iter()
+                        .map(|e| e.unwrap())
+                        .collect::<Vec<_>>(),
                 ))
             } else {
                 ConcreteExpr::List(concrete_list)
@@ -476,11 +479,11 @@ pub fn concretize_expression(
 
             // NOTE: here we can collapse to a literal value
             if concrete_map.iter().all(|(_, e)| e.is_value()) {
-                ConcreteExpr::Value(DynamicValue::Map(
+                ConcreteExpr::Value(DynamicValue::from(
                     concrete_map
                         .into_iter()
                         .map(|(k, e)| (k, e.unwrap()))
-                        .collect(),
+                        .collect::<BTreeMap<_, _>>(),
                 ))
             } else {
                 ConcreteExpr::Map(concrete_map)
@@ -582,7 +585,7 @@ mod tests {
     fn test_split_join() {
         assert_eq!(
             eval_code("split(name, 'o')"),
-            Ok(DynamicValue::List(vec![
+            Ok(DynamicValue::from(vec![
                 DynamicValue::from("j"),
                 DynamicValue::from("hn"),
             ]))
@@ -590,7 +593,7 @@ mod tests {
 
         assert_eq!(
             eval_code("split(name, 'o', 1)"),
-            Ok(DynamicValue::List(vec![
+            Ok(DynamicValue::from(vec![
                 DynamicValue::from("j"),
                 DynamicValue::from("hn"),
             ]))

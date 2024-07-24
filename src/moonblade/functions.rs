@@ -290,13 +290,13 @@ fn concat(args: BoundArguments) -> FunctionResult {
 
     match first.as_ref() {
         DynamicValue::List(list) => {
-            let mut result: Vec<DynamicValue> = list.clone();
+            let mut result = Vec::clone(list);
 
             for arg in args_iter {
                 result.push(arg.as_ref().clone());
             }
 
-            Ok(DynamicValue::List(result))
+            Ok(DynamicValue::from(result))
         }
         value => {
             let mut result = String::new();
@@ -353,69 +353,36 @@ fn fmt(args: BoundArguments) -> FunctionResult {
 fn first(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(match arg {
-        Cow::Borrowed(value) => match value {
-            DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
-            DynamicValue::List(list) => match list.first() {
-                None => DynamicValue::None,
-                Some(value) => value.clone(),
-            },
-            _ => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "sequence".to_string(),
-                ))
-            }
+    Ok(match arg.as_ref() {
+        DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
+        DynamicValue::List(list) => match list.first() {
+            None => DynamicValue::None,
+            Some(value) => value.clone(),
         },
-        Cow::Owned(value) => match value {
-            DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
-            DynamicValue::List(mut list) => {
-                if list.is_empty() {
-                    DynamicValue::None
-                } else {
-                    list.swap_remove(0)
-                }
-            }
-            _ => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "sequence".to_string(),
-                ))
-            }
-        },
+        _ => {
+            return Err(EvaluationError::Cast(
+                arg.type_of().to_string(),
+                "sequence".to_string(),
+            ))
+        }
     })
 }
 
 fn last(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(match arg {
-        Cow::Borrowed(value) => match value {
-            DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
-            DynamicValue::List(list) => match list.last() {
-                None => DynamicValue::None,
-                Some(value) => value.clone(),
-            },
-            _ => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "sequence".to_string(),
-                ))
-            }
+    Ok(match arg.as_ref() {
+        DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
+        DynamicValue::List(list) => match list.last() {
+            None => DynamicValue::None,
+            Some(value) => value.clone(),
         },
-        Cow::Owned(value) => match value {
-            DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
-            DynamicValue::List(mut list) => match list.pop() {
-                None => DynamicValue::None,
-                Some(value) => value,
-            },
-            _ => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "sequence".to_string(),
-                ))
-            }
-        },
+        _ => {
+            return Err(EvaluationError::Cast(
+                arg.type_of().to_string(),
+                "sequence".to_string(),
+            ))
+        }
     })
 }
 
@@ -542,7 +509,7 @@ fn join(args: BoundArguments) -> FunctionResult {
 
     let mut string_list: Vec<Cow<str>> = Vec::new();
 
-    for value in list {
+    for value in list.iter() {
         string_list.push(value.try_as_str()?);
     }
 
@@ -563,7 +530,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
         DynamicValue::List(list) => {
             let needle = arg2.try_as_str()?;
 
-            for item in list {
+            for item in list.iter() {
                 if needle == item.try_as_str()? {
                     return Ok(DynamicValue::from(true));
                 }
@@ -601,17 +568,14 @@ fn replace(args: BoundArguments) -> FunctionResult {
 fn compact(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1_list()?;
 
-    Ok(DynamicValue::List(match arg {
-        Cow::Borrowed(list) => list
-            .iter()
+    // TODO: if Arc, we can try_unwrap to mutate?
+
+    Ok(DynamicValue::from(
+        arg.iter()
             .filter(|value| value.is_truthy())
             .cloned()
-            .collect(),
-        Cow::Owned(mut list) => {
-            list.retain(|value| value.is_truthy());
-            list
-        }
-    }))
+            .collect::<Vec<_>>(),
+    ))
 }
 
 // Arithmetics

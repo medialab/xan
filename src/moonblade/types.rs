@@ -7,6 +7,7 @@ use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 use std::slice;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
@@ -477,8 +478,8 @@ impl FromStr for DynamicNumber {
 
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
-    List(Vec<DynamicValue>),
-    Map(BTreeMap<String, DynamicValue>),
+    List(Arc<Vec<DynamicValue>>),
+    Map(Arc<BTreeMap<String, DynamicValue>>),
     String(String),
     Float(f64),
     Integer(i64),
@@ -587,7 +588,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
                     vec.push(elem);
                 }
 
-                Ok(DynamicValue::List(vec))
+                Ok(DynamicValue::List(Arc::new(vec)))
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<DynamicValue, V::Error>
@@ -603,9 +604,9 @@ impl<'de> Deserialize<'de> for DynamicValue {
                             map.insert(key, value);
                         }
 
-                        Ok(DynamicValue::Map(map))
+                        Ok(DynamicValue::Map(Arc::new(map)))
                     }
-                    _ => Ok(DynamicValue::Map(BTreeMap::new())),
+                    _ => Ok(DynamicValue::Map(Arc::new(BTreeMap::new()))),
                 }
             }
         }
@@ -712,7 +713,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
+    pub fn try_as_list(&self) -> Result<&Arc<Vec<DynamicValue>>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
             value => Err(EvaluationError::Cast(
@@ -722,7 +723,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn try_into_list(self) -> Result<Vec<DynamicValue>, EvaluationError> {
+    pub fn try_into_list(self) -> Result<Arc<Vec<DynamicValue>>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
             value => Err(EvaluationError::Cast(
@@ -960,7 +961,25 @@ impl From<Regex> for DynamicValue {
 
 impl From<Vec<DynamicValue>> for DynamicValue {
     fn from(value: Vec<DynamicValue>) -> Self {
+        DynamicValue::List(Arc::new(value))
+    }
+}
+
+impl From<Arc<Vec<DynamicValue>>> for DynamicValue {
+    fn from(value: Arc<Vec<DynamicValue>>) -> Self {
         DynamicValue::List(value)
+    }
+}
+
+impl From<BTreeMap<String, DynamicValue>> for DynamicValue {
+    fn from(value: BTreeMap<String, DynamicValue>) -> Self {
+        DynamicValue::Map(Arc::new(value))
+    }
+}
+
+impl From<Arc<BTreeMap<String, DynamicValue>>> for DynamicValue {
+    fn from(value: Arc<BTreeMap<String, DynamicValue>>) -> Self {
+        DynamicValue::Map(value)
     }
 }
 
@@ -1104,7 +1123,7 @@ impl<'a> BoundArguments<'a> {
         self.get1().try_as_str()
     }
 
-    pub fn pop1_list(&mut self) -> Result<Cow<Vec<DynamicValue>>, EvaluationError> {
+    pub fn pop1_list(&mut self) -> Result<Cow<Arc<Vec<DynamicValue>>>, EvaluationError> {
         Ok(match self.pop1() {
             Cow::Owned(v) => Cow::Owned(v.try_into_list()?),
             Cow::Borrowed(v) => Cow::Borrowed(v.try_as_list()?),
@@ -1162,12 +1181,20 @@ mod tests {
         let integer = DynamicValue::Integer(3);
         let float = DynamicValue::Float(3.5);
         let string = DynamicValue::String("test".to_string());
-        let list = DynamicValue::List(vec![DynamicValue::Integer(1), DynamicValue::Integer(2)]);
-        let recursive = DynamicValue::List(vec![
-            DynamicValue::List(vec![DynamicValue::Integer(1), DynamicValue::Integer(2)]),
+        let list = DynamicValue::List(Arc::new(vec![
+            DynamicValue::Integer(1),
+            DynamicValue::Integer(2),
+        ]));
+        let recursive = DynamicValue::List(Arc::new(vec![
+            DynamicValue::List(Arc::new(vec![
+                DynamicValue::Integer(1),
+                DynamicValue::Integer(2),
+            ])),
             DynamicValue::Integer(3),
-            DynamicValue::List(vec![DynamicValue::List(vec![DynamicValue::Integer(4)])]),
-        ]);
+            DynamicValue::List(Arc::new(vec![DynamicValue::List(Arc::new(vec![
+                DynamicValue::Integer(4),
+            ]))])),
+        ]));
 
         assert_eq!(integer.flat_iter().collect::<Vec<_>>(), vec![&integer]);
         assert_eq!(float.flat_iter().collect::<Vec<_>>(), vec![&float]);
