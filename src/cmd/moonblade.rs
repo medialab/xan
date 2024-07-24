@@ -1,10 +1,7 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::sync::Arc;
 
 use pariter::IteratorExt;
-use thread_local::ThreadLocal;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
@@ -839,12 +836,6 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     }
 
     if let Some(threads) = args.parallelization {
-        // NOTE: this could be a OnceCell but it is very new in rust
-        let local: Arc<ThreadLocal<RefCell<Program>>> = Arc::new(match threads {
-            None => ThreadLocal::new(),
-            Some(count) => ThreadLocal::with_capacity(count),
-        });
-
         rdr.into_byte_records()
             .enumerate()
             .parallel_map_custom(
@@ -862,9 +853,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                 )> {
                     let record = record?;
 
-                    let local_program = local.get_or(|| RefCell::new(program.clone())).borrow_mut();
-
-                    let eval_result = local_program.run_with_record(i, &record);
+                    let eval_result = program.run_with_record(i, &record);
 
                     Ok((i, record, eval_result))
                 },
