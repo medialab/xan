@@ -442,13 +442,31 @@ fn get(mut args: BoundArguments) -> FunctionResult {
         (target, key, None)
     };
 
-    Ok(
-        get_subroutine(target.as_ref(), key.as_ref())?.unwrap_or_else(|| {
-            default
-                .map(|v| v.into_owned())
-                .unwrap_or_else(|| DynamicValue::None)
-        }),
-    )
+    match key.as_ref() {
+        DynamicValue::List(path) => {
+            let mut current = target.into_owned();
+
+            for step in path.iter() {
+                match get_subroutine(&current, step)? {
+                    None => {
+                        return Ok(default
+                            .map(|v| v.into_owned())
+                            .unwrap_or_else(|| DynamicValue::None))
+                    }
+                    Some(next) => current = next,
+                }
+            }
+
+            Ok(current)
+        }
+        _ => Ok(
+            get_subroutine(target.as_ref(), key.as_ref())?.unwrap_or_else(|| {
+                default
+                    .map(|v| v.into_owned())
+                    .unwrap_or_else(|| DynamicValue::None)
+            }),
+        ),
+    }
 }
 
 fn slice(args: BoundArguments) -> FunctionResult {
