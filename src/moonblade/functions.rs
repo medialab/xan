@@ -6,6 +6,7 @@ use std::io::Read;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
@@ -288,15 +289,26 @@ fn concat(args: BoundArguments) -> FunctionResult {
     let first = args_iter.next().unwrap();
 
     match first {
-        DynamicValue::List(list) => {
-            let mut result = Vec::clone(&list);
+        // NOTE: if the list's arc has a single reference, we can safely
+        // mutate it because it belongs to the pipeline
+        DynamicValue::List(list) => match Arc::try_unwrap(list) {
+            Ok(mut owned_list) => {
+                for arg in args_iter {
+                    owned_list.push(arg);
+                }
 
-            for arg in args_iter {
-                result.push(arg);
+                Ok(DynamicValue::from(owned_list))
             }
+            Err(borrowed_list) => {
+                let mut result = Vec::clone(&borrowed_list);
 
-            Ok(DynamicValue::from(result))
-        }
+                for arg in args_iter {
+                    result.push(arg);
+                }
+
+                Ok(DynamicValue::from(result))
+            }
+        },
         value => {
             let mut result = String::new();
             result.push_str(&value.try_as_str()?);
