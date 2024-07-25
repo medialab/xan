@@ -476,6 +476,9 @@ impl FromStr for DynamicNumber {
     }
 }
 
+// NOTE: a DynamicValue should always be:
+//   1. cheap to clone (notice the Arcs)
+//   2. 24 bytes large max
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),

@@ -389,7 +389,7 @@ fn last(mut args: BoundArguments) -> FunctionResult {
 fn get_subroutine<'a>(
     target: &'a DynamicValue,
     key: &'a DynamicValue,
-) -> Result<Option<Cow<'a, DynamicValue>>, EvaluationError> {
+) -> Result<Option<DynamicValue>, EvaluationError> {
     Ok(match target {
         DynamicValue::String(value) => {
             let mut index = key.try_as_i64()?;
@@ -401,10 +401,7 @@ fn get_subroutine<'a>(
             if index < 0 {
                 None
             } else {
-                value
-                    .chars()
-                    .nth(index as usize)
-                    .map(|c| Cow::Owned(DynamicValue::from(c)))
+                value.chars().nth(index as usize).map(DynamicValue::from)
             }
         }
         DynamicValue::List(list) => {
@@ -417,13 +414,13 @@ fn get_subroutine<'a>(
             if index < 0 {
                 None
             } else {
-                list.get(index as usize).map(Cow::Borrowed)
+                list.get(index as usize).cloned()
             }
         }
         DynamicValue::Map(map) => {
             let key = key.try_as_str()?;
 
-            map.get(key.as_ref()).map(Cow::Borrowed)
+            map.get(key.as_ref()).cloned()
         }
         value => {
             return Err(EvaluationError::Cast(
@@ -445,9 +442,13 @@ fn get(mut args: BoundArguments) -> FunctionResult {
         (target, key, None)
     };
 
-    Ok(get_subroutine(target.as_ref(), key.as_ref())?
-        .unwrap_or_else(|| default.unwrap_or_else(|| Cow::Owned(DynamicValue::None)))
-        .into_owned())
+    Ok(
+        get_subroutine(target.as_ref(), key.as_ref())?.unwrap_or_else(|| {
+            default
+                .map(|v| v.into_owned())
+                .unwrap_or_else(|| DynamicValue::None)
+        }),
+    )
 }
 
 fn slice(args: BoundArguments) -> FunctionResult {
