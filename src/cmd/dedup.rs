@@ -26,6 +26,8 @@ dedup options:
                         See 'xan select --help' for the format details.
     -S, --sorted        Use if you know your file is already sorted on the deduplication
                         selection to avoid storing unique values in memory.
+    -l, --keep-last     Keep the last row having a specific identiy, rather than
+                        the first one.
 
 Common options:
     -h, --help               Display this message
@@ -44,6 +46,7 @@ struct Args {
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_sorted: bool,
+    flag_keep_last: bool,
 }
 
 type DeduplicationKey = Vec<Vec<u8>>;
@@ -63,9 +66,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
-    let mut record = csv::ByteRecord::new();
-
     if !args.flag_sorted {
+        let mut record = csv::ByteRecord::new();
         let mut already_seen = HashSet::<DeduplicationKey>::new();
 
         while rdr.read_byte_record(&mut record)? {
@@ -75,7 +77,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 wtr.write_byte_record(&record)?;
             }
         }
+    } else if args.flag_keep_last {
+        let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
+
+        for result in rdr.byte_records() {
+            let record = result?;
+            let key = sel.collect(&record);
+
+            match current {
+                Some((current_key, record_to_flush)) if current_key != key => {
+                    wtr.write_byte_record(&record_to_flush)?;
+                }
+                _ => (),
+            }
+
+            current = Some((key, record));
+        }
+
+        if let Some((_, record_to_flush)) = current {
+            wtr.write_byte_record(&record_to_flush)?;
+        }
     } else {
+        let mut record = csv::ByteRecord::new();
         let mut current: Option<DeduplicationKey> = None;
 
         while rdr.read_byte_record(&mut record)? {

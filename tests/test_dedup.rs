@@ -94,6 +94,33 @@ fn dedup_sorted() {
 }
 
 #[test]
+fn dedup_sorted_keep_last() {
+    let wrk = Workdir::new("dedup_sorted_keep_last");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "i"],
+            svec!["1", "1"],
+            svec!["2", "2"],
+            svec!["2", "3"],
+            svec!["3", "4"],
+            svec!["3", "5"],
+        ],
+    );
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").arg("-S").args(["-s", "a"]).arg("-l");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "i"],
+        svec!["1", "1"],
+        svec!["2", "3"],
+        svec!["3", "5"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn dedup_sorted_no_headers() {
     let wrk = Workdir::new("dedup_sorted_no_headers");
     wrk.create(
