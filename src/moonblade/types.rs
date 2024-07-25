@@ -58,8 +58,8 @@ impl ColumIndexationBy {
     }
 
     pub fn from_bound_arguments(
-        name_or_pos: BoundArgument,
-        pos: Option<BoundArgument>,
+        name_or_pos: DynamicValue,
+        pos: Option<DynamicValue>,
     ) -> Option<Self> {
         if let Some(pos_value) = pos {
             match pos_value.try_as_usize() {
@@ -716,17 +716,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn try_as_list(&self) -> Result<&Arc<Vec<DynamicValue>>, EvaluationError> {
-        match self {
-            Self::List(list) => Ok(list),
-            value => Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "list".to_string(),
-            )),
-        }
-    }
-
-    pub fn try_into_list(self) -> Result<Arc<Vec<DynamicValue>>, EvaluationError> {
+    pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
             value => Err(EvaluationError::Cast(
@@ -1052,16 +1042,15 @@ impl PartialEq for DynamicValue {
     }
 }
 
-pub type BoundArgument<'a> = Cow<'a, DynamicValue>;
-pub type EvaluationResult<'a> = Result<BoundArgument<'a>, SpecifiedEvaluationError>;
+pub type EvaluationResult = Result<DynamicValue, SpecifiedEvaluationError>;
 
 const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
-pub struct BoundArguments<'a> {
-    stack: ArrayVec<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
+pub struct BoundArguments {
+    stack: ArrayVec<DynamicValue, BOUND_ARGUMENTS_CAPACITY>,
 }
 
-impl<'a> BoundArguments<'a> {
+impl BoundArguments {
     pub fn new() -> Self {
         Self {
             stack: ArrayVec::new(),
@@ -1073,16 +1062,16 @@ impl<'a> BoundArguments<'a> {
     }
 
     // TODO: validate less than 8 arguments when parsing or concretizing
-    pub fn push(&mut self, arg: BoundArgument<'a>) {
+    pub fn push(&mut self, arg: DynamicValue) {
         self.stack.push(arg);
     }
 
-    pub fn get(&'a self, i: usize) -> Option<&'a BoundArgument> {
+    pub fn get(&self, i: usize) -> Option<&DynamicValue> {
         self.stack.get(i)
     }
 
-    pub fn getn_opt(&'a self, n: usize) -> Vec<Option<&'a BoundArgument>> {
-        let mut selection: Vec<Option<&BoundArgument>> = Vec::new();
+    pub fn getn_opt(&self, n: usize) -> Vec<Option<&DynamicValue>> {
+        let mut selection: Vec<Option<&DynamicValue>> = Vec::new();
 
         for i in 0..n {
             selection.push(self.stack.get(i));
@@ -1091,22 +1080,22 @@ impl<'a> BoundArguments<'a> {
         selection
     }
 
-    pub fn get1(&'a self) -> &'a BoundArgument {
+    pub fn get1(&self) -> &DynamicValue {
         &self.stack[0]
     }
 
-    pub fn pop1(&mut self) -> BoundArgument {
+    pub fn pop1(&mut self) -> DynamicValue {
         self.stack.pop().unwrap()
     }
 
-    pub fn pop2(&mut self) -> (BoundArgument, BoundArgument) {
+    pub fn pop2(&mut self) -> (DynamicValue, DynamicValue) {
         let second = self.stack.pop().unwrap();
         let first = self.stack.pop().unwrap();
 
         (first, second)
     }
 
-    pub fn pop3(&mut self) -> (BoundArgument, BoundArgument, BoundArgument) {
+    pub fn pop3(&mut self) -> (DynamicValue, DynamicValue, DynamicValue) {
         let third = self.stack.pop().unwrap();
         let second = self.stack.pop().unwrap();
         let first = self.stack.pop().unwrap();
@@ -1114,23 +1103,16 @@ impl<'a> BoundArguments<'a> {
         (first, second, third)
     }
 
-    pub fn get2(&self) -> (&BoundArgument, &BoundArgument) {
+    pub fn get2(&self) -> (&DynamicValue, &DynamicValue) {
         (&self.stack[0], &self.stack[1])
     }
 
-    pub fn get3(&self) -> (&BoundArgument, &BoundArgument, &BoundArgument) {
+    pub fn get3(&self) -> (&DynamicValue, &DynamicValue, &DynamicValue) {
         (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 
-    pub fn get1_str(&'a self) -> Result<Cow<'a, str>, EvaluationError> {
+    pub fn get1_str(&self) -> Result<Cow<str>, EvaluationError> {
         self.get1().try_as_str()
-    }
-
-    pub fn pop1_list(&mut self) -> Result<Cow<Arc<Vec<DynamicValue>>>, EvaluationError> {
-        Ok(match self.pop1() {
-            Cow::Owned(v) => Cow::Owned(v.try_into_list()?),
-            Cow::Borrowed(v) => Cow::Borrowed(v.try_as_list()?),
-        })
     }
 
     pub fn pop1_bool(&mut self) -> bool {
@@ -1154,21 +1136,19 @@ impl<'a> BoundArguments<'a> {
     }
 }
 
-pub struct BoundArgumentsIntoIterator<'a>(
-    arrayvec::IntoIter<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
-);
+pub struct BoundArgumentsIntoIterator(arrayvec::IntoIter<DynamicValue, BOUND_ARGUMENTS_CAPACITY>);
 
-impl<'a> Iterator for BoundArgumentsIntoIterator<'a> {
-    type Item = BoundArgument<'a>;
+impl Iterator for BoundArgumentsIntoIterator {
+    type Item = DynamicValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
     }
 }
 
-impl<'a> IntoIterator for BoundArguments<'a> {
-    type Item = BoundArgument<'a>;
-    type IntoIter = BoundArgumentsIntoIterator<'a>;
+impl IntoIterator for BoundArguments {
+    type Item = DynamicValue;
+    type IntoIter = BoundArgumentsIntoIterator;
 
     fn into_iter(self) -> Self::IntoIter {
         BoundArgumentsIntoIterator(self.stack.into_iter())

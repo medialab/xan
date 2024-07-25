@@ -251,7 +251,7 @@ fn upper(args: BoundArguments) -> FunctionResult {
 fn len(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(DynamicValue::from(match arg.as_ref() {
+    Ok(DynamicValue::from(match arg {
         DynamicValue::List(list) => list.len(),
         _ => arg.try_as_str()?.len(),
     }))
@@ -288,12 +288,12 @@ fn concat(args: BoundArguments) -> FunctionResult {
     let mut args_iter = args.into_iter();
     let first = args_iter.next().unwrap();
 
-    match first.as_ref() {
+    match first {
         DynamicValue::List(list) => {
-            let mut result = Vec::clone(list);
+            let mut result = Vec::clone(&list);
 
             for arg in args_iter {
-                result.push(arg.as_ref().clone());
+                result.push(arg);
             }
 
             Ok(DynamicValue::from(result))
@@ -353,7 +353,7 @@ fn fmt(args: BoundArguments) -> FunctionResult {
 fn first(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(match arg.as_ref() {
+    Ok(match arg {
         DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
         DynamicValue::List(list) => match list.first() {
             None => DynamicValue::None,
@@ -371,7 +371,7 @@ fn first(mut args: BoundArguments) -> FunctionResult {
 fn last(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(match arg.as_ref() {
+    Ok(match arg {
         DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
         DynamicValue::List(list) => match list.last() {
             None => DynamicValue::None,
@@ -442,30 +442,21 @@ fn get(mut args: BoundArguments) -> FunctionResult {
         (target, key, None)
     };
 
-    match key.as_ref() {
+    match key {
         DynamicValue::List(path) => {
-            let mut current = target.into_owned();
+            let mut current = target;
 
             for step in path.iter() {
                 match get_subroutine(&current, step)? {
-                    None => {
-                        return Ok(default
-                            .map(|v| v.into_owned())
-                            .unwrap_or_else(|| DynamicValue::None))
-                    }
+                    None => return Ok(default.unwrap_or_else(|| DynamicValue::None)),
                     Some(next) => current = next,
                 }
             }
 
             Ok(current)
         }
-        _ => Ok(
-            get_subroutine(target.as_ref(), key.as_ref())?.unwrap_or_else(|| {
-                default
-                    .map(|v| v.into_owned())
-                    .unwrap_or_else(|| DynamicValue::None)
-            }),
-        ),
+        _ => Ok(get_subroutine(&target, &key)?
+            .unwrap_or_else(|| default.unwrap_or_else(|| DynamicValue::None))),
     }
 }
 
@@ -474,7 +465,7 @@ fn slice(args: BoundArguments) -> FunctionResult {
 
     let target = args[0].unwrap();
 
-    match target.as_ref() {
+    match target {
         DynamicValue::String(string) => {
             let mut lo = args[1].unwrap().try_as_i64()?;
             let opt_hi = args[2];
@@ -538,8 +529,8 @@ fn join(args: BoundArguments) -> FunctionResult {
 fn contains(args: BoundArguments) -> FunctionResult {
     let (arg1, arg2) = args.get2();
 
-    match arg1.as_ref() {
-        DynamicValue::String(text) => match arg2.as_ref() {
+    match arg1 {
+        DynamicValue::String(text) => match arg2 {
             DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(text))),
             _ => {
                 let pattern = arg2.try_as_str()?;
@@ -585,12 +576,13 @@ fn replace(args: BoundArguments) -> FunctionResult {
 }
 
 fn compact(mut args: BoundArguments) -> FunctionResult {
-    let arg = args.pop1_list()?;
+    let arg = args.pop1();
+    let list = arg.try_as_list()?;
 
     // TODO: if Arc, we can try_unwrap to mutate?
 
     Ok(DynamicValue::from(
-        arg.iter()
+        list.iter()
             .filter(|value| value.is_truthy())
             .cloned()
             .collect::<Vec<_>>(),
@@ -752,7 +744,7 @@ where
 fn coalesce(args: BoundArguments) -> FunctionResult {
     for arg in args {
         if arg.is_truthy() {
-            return Ok(arg.into_owned());
+            return Ok(arg);
         }
     }
 
@@ -765,31 +757,31 @@ fn not(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn and(args: BoundArguments) -> FunctionResult {
-    let mut last: Option<Cow<DynamicValue>> = None;
+    let mut last: Option<DynamicValue> = None;
 
     for arg in args {
         if arg.is_falsey() {
-            return Ok(arg.into_owned());
+            return Ok(arg);
         }
 
         last = Some(arg);
     }
 
-    Ok(last.unwrap().into_owned())
+    Ok(last.unwrap())
 }
 
 fn or(args: BoundArguments) -> FunctionResult {
-    let mut last: Option<Cow<DynamicValue>> = None;
+    let mut last: Option<DynamicValue> = None;
 
     for arg in args {
         if arg.is_truthy() {
-            return Ok(arg.into_owned());
+            return Ok(arg);
         }
 
         last = Some(arg);
     }
 
-    Ok(last.unwrap().into_owned())
+    Ok(last.unwrap())
 }
 
 // TODO: rewrap those to take lists instead, since the variadic usage is mostly moot

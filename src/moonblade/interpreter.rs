@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -9,7 +8,7 @@ use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationErro
 use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
 use super::types::{
-    BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
+    BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
 };
 
 #[derive(Debug, Clone)]
@@ -53,14 +52,14 @@ impl ConcreteExpr {
         }
     }
 
-    fn bind<'a>(&'a self, record: &ByteRecord) -> Result<BoundArgument<'a>, EvaluationError> {
+    fn bind(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
         Ok(match self {
-            Self::Value(value) => Cow::Borrowed(value),
+            Self::Value(value) => value.clone(),
             Self::Column(index) => match record.get(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
                 Some(cell) => match std::str::from_utf8(cell) {
                     Err(_) => return Err(EvaluationError::UnicodeDecodeError),
-                    Ok(value) => Cow::Owned(DynamicValue::from(value)),
+                    Ok(value) => DynamicValue::from(value),
                 },
             },
             Self::List(_) | Self::Map(_) | Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
@@ -72,7 +71,7 @@ impl ConcreteExpr {
         index: Option<usize>,
         record: &ByteRecord,
         context: &'a EvaluationContext,
-    ) -> EvaluationResult<'a> {
+    ) -> EvaluationResult {
         match self {
             Self::Call(function_call) => function_call.run(index, record, context),
             Self::SpecialCall(function_call) => function_call.run(index, record, context),
@@ -80,22 +79,19 @@ impl ConcreteExpr {
                 let mut bound = Vec::with_capacity(items.len());
 
                 for item in items {
-                    bound.push(item.evaluate(index, record, context)?.into_owned());
+                    bound.push(item.evaluate(index, record, context)?);
                 }
 
-                Ok(Cow::Owned(DynamicValue::from(bound)))
+                Ok(DynamicValue::from(bound))
             }
             Self::Map(pairs) => {
                 let mut bound = BTreeMap::new();
 
                 for (k, v) in pairs {
-                    bound.insert(
-                        k.to_string(),
-                        v.evaluate(index, record, context)?.into_owned(),
-                    );
+                    bound.insert(k.to_string(), v.evaluate(index, record, context)?);
                 }
 
-                Ok(Cow::Owned(DynamicValue::from(bound)))
+                Ok(DynamicValue::from(bound))
             }
             _ => self.bind(record).map_err(|err| SpecifiedEvaluationError {
                 function_name: "<expr>".to_string(),
@@ -118,7 +114,7 @@ impl ConcreteFunctionCall {
         index: Option<usize>,
         record: &ByteRecord,
         context: &'a EvaluationContext,
-    ) -> EvaluationResult<'a> {
+    ) -> EvaluationResult {
         let mut bound_args = BoundArguments::new();
 
         for arg in self.args.iter() {
@@ -140,7 +136,7 @@ impl ConcreteFunctionCall {
         }
 
         match (self.function)(bound_args) {
-            Ok(value) => Ok(Cow::Owned(value)),
+            Ok(value) => Ok(value),
             Err(err) => Err(SpecifiedEvaluationError {
                 function_name: self.name.clone(),
                 reason: err,
@@ -207,7 +203,7 @@ impl ConcreteSpecialFunctionCall {
         index: Option<usize>,
         record: &ByteRecord,
         context: &'a EvaluationContext,
-    ) -> EvaluationResult<'a> {
+    ) -> EvaluationResult {
         // NOTE: we don't need to validate arity here because it was already done
         // when concretizing.
 
@@ -233,7 +229,7 @@ impl ConcreteSpecialFunctionCall {
                 }
 
                 match branch {
-                    None => Ok(Cow::Owned(DynamicValue::None)),
+                    None => Ok(DynamicValue::None),
                     Some(arg) => arg.evaluate(index, record, context),
                 }
             }
@@ -264,16 +260,16 @@ impl ConcreteSpecialFunctionCall {
                                 function_name: self.kind.name().to_string(),
                                 reason: EvaluationError::UnicodeDecodeError,
                             }),
-                            Ok(value) => Ok(Cow::Owned(DynamicValue::from(value))),
+                            Ok(value) => Ok(DynamicValue::from(value)),
                         },
                     },
                 }
             }
 
-            SpecialFunction::Index => Ok(Cow::Owned(match index {
+            SpecialFunction::Index => Ok(match index {
                 None => DynamicValue::None,
                 Some(index) => DynamicValue::from(index),
-            })),
+            }),
         }
     }
 }
@@ -499,7 +495,6 @@ pub fn eval_expression(
     context: &EvaluationContext,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
     expr.evaluate(index, record, context)
-        .map(|value| value.into_owned())
 }
 
 #[derive(Clone)]
