@@ -310,8 +310,10 @@ fn concat(args: BoundArguments) -> FunctionResult {
             }
         },
         value => {
-            let mut result = String::new();
-            result.push_str(&value.try_as_str()?);
+            let first_part = value.try_as_str()?;
+
+            let mut result = String::with_capacity(first_part.len());
+            result.push_str(&first_part);
 
             for arg in args_iter {
                 result.push_str(&arg.try_as_str()?);
@@ -472,14 +474,12 @@ fn get(mut args: BoundArguments) -> FunctionResult {
 }
 
 fn slice(args: BoundArguments) -> FunctionResult {
-    let args = args.getn_opt(3);
-
-    let target = args[0].unwrap();
+    let target = args.get(0).unwrap();
 
     match target {
         DynamicValue::String(string) => {
-            let mut lo = args[1].unwrap().try_as_i64()?;
-            let opt_hi = args[2];
+            let mut lo = args.get(1).unwrap().try_as_i64()?;
+            let opt_hi = args.get(2);
 
             let chars = string.chars();
 
@@ -528,7 +528,7 @@ fn join(args: BoundArguments) -> FunctionResult {
     let list = arg1.try_as_list()?;
     let joiner = arg2.try_as_str()?;
 
-    let mut string_list: Vec<Cow<str>> = Vec::new();
+    let mut string_list: Vec<Cow<str>> = Vec::with_capacity(list.len());
 
     for value in list.iter() {
         string_list.push(value.try_as_str()?);
@@ -545,7 +545,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
             DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(text))),
             _ => {
                 let pattern = arg2.try_as_str()?;
-                Ok(DynamicValue::from(text.contains(&*pattern)))
+                Ok(DynamicValue::from(text.contains(pattern.as_ref())))
             }
         },
         DynamicValue::List(list) => {
@@ -588,16 +588,21 @@ fn replace(args: BoundArguments) -> FunctionResult {
 
 fn compact(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
-    let list = arg.try_as_list()?;
+    let list = arg.try_into_arc_list()?;
 
-    // TODO: if Arc, we can try_unwrap to mutate?
-
-    Ok(DynamicValue::from(
-        list.iter()
-            .filter(|value| value.is_truthy())
-            .cloned()
-            .collect::<Vec<_>>(),
-    ))
+    Ok(match Arc::try_unwrap(list) {
+        Err(borrowed_list) => DynamicValue::from(
+            borrowed_list
+                .iter()
+                .filter(|value| value.is_truthy())
+                .cloned()
+                .collect::<Vec<_>>(),
+        ),
+        Ok(mut owned_list) => {
+            owned_list.retain(|v| v.is_truthy());
+            DynamicValue::from(owned_list)
+        }
+    })
 }
 
 // Arithmetics

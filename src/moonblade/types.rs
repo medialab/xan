@@ -633,10 +633,7 @@ impl DynamicValue {
     }
 
     fn is_scalar(&self) -> bool {
-        match self {
-            Self::List(_) | Self::Map(_) => false,
-            _ => true,
-        }
+        matches!(self, Self::List(_) | Self::Map(_))
     }
 
     pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<[u8]> {
@@ -728,6 +725,16 @@ impl DynamicValue {
     }
 
     pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
+        match self {
+            Self::List(list) => Ok(list),
+            value => Err(EvaluationError::Cast(
+                value.type_of().to_string(),
+                "list".to_string(),
+            )),
+        }
+    }
+
+    pub fn try_into_arc_list(self) -> Result<Arc<Vec<DynamicValue>>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
             value => Err(EvaluationError::Cast(
@@ -1079,16 +1086,6 @@ impl BoundArguments {
 
     pub fn get(&self, i: usize) -> Option<&DynamicValue> {
         self.stack.get(i)
-    }
-
-    pub fn getn_opt(&self, n: usize) -> Vec<Option<&DynamicValue>> {
-        let mut selection: Vec<Option<&DynamicValue>> = Vec::new();
-
-        for i in 0..n {
-            selection.push(self.stack.get(i));
-        }
-
-        selection
     }
 
     pub fn get1(&self) -> &DynamicValue {
