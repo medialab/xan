@@ -112,8 +112,12 @@ open_indexing = { "[" }
 func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
 
 // Expressions
-expr =  { unary_operator* ~ term ~ (binary_operator ~ term | open_indexing ~ term ~ "]")* }
-term = _{
+full_slice  =  { term ~ ":" ~ term }
+start_slice =  { term ~ ":" }
+end_slice   =  { ":" ~ term }
+slice       = _{ full_slice | start_slice | end_slice }
+expr        =  { unary_operator* ~ term ~ (binary_operator ~ term | open_indexing ~ (slice | term) ~ "]")* }
+term        = _{
     func
   | bool
   | null

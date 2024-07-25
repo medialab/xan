@@ -485,6 +485,7 @@ pub fn concretize_expression(
                 ConcreteExpr::Map(concrete_map)
             }
         }
+        Expr::Slice(_) => unreachable!(),
     })
 }
 
@@ -702,6 +703,7 @@ mod tests {
             eval_code("slice('abcde', 2)"),
             Ok(DynamicValue::from("cde"))
         );
+        assert_eq!(eval_code("'abcde'[2:]"), Ok(DynamicValue::from("cde")));
         assert_eq!(
             eval_code("slice('abcde', -2)"),
             Ok(DynamicValue::from("de"))
@@ -718,6 +720,7 @@ mod tests {
             eval_code("slice('abcde', 1, 3)"),
             Ok(DynamicValue::from("bc"))
         );
+        assert_eq!(eval_code("'abcde'[1:3]"), Ok(DynamicValue::from("bc")));
         assert_eq!(
             eval_code("slice('abcde', 1, -2)"),
             Ok(DynamicValue::from("bc"))

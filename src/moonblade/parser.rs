@@ -41,7 +41,6 @@ impl Rule {
             Self::or => "or",
             Self::not => "not",
             Self::neg => "neg",
-            Self::open_indexing => "get",
 
             // NOTE: `pipe`, `in_op` and `not_in` are not covered by this match
             // because lhs and rhs are reversed.
@@ -88,6 +87,13 @@ lazy_static! {
         .op(Op::infix(Rule::open_indexing, Assoc::Left));
 }
 
+fn parse_int(pair: Pair<Rule>) -> Result<i64, &str> {
+    pair.as_str()
+        .replace('_', "")
+        .parse::<i64>()
+        .or(Err("could not parse int"))
+}
+
 fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
     PRATT_PARSER
         .map_primary(|primary| -> Result<Expr, String> {
@@ -117,15 +123,7 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
 
                     Expr::Map(map)
                 }
-                Rule::int => {
-                    let n = primary
-                        .as_str()
-                        .replace('_', "")
-                        .parse::<i64>()
-                        .or(Err("could not parse int"))?;
-
-                    Expr::Int(n)
-                }
+                Rule::int => Expr::Int(parse_int(primary)?),
                 Rule::float => {
                     let n = primary
                         .as_str()
@@ -134,6 +132,25 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                         .or(Err("could not parse float"))?;
 
                     Expr::Float(n)
+                }
+                Rule::full_slice => {
+                    let mut pairs = primary.into_inner();
+                    let start = parse_int(pairs.next().unwrap())?;
+                    let end = parse_int(pairs.next().unwrap())?;
+
+                    Expr::Slice(Slice::Full(start, end))
+                }
+                Rule::start_slice => {
+                    let mut pairs = primary.into_inner();
+                    let start = parse_int(pairs.next().unwrap())?;
+
+                    Expr::Slice(Slice::Start(start))
+                }
+                Rule::end_slice => {
+                    let mut pairs = primary.into_inner();
+                    let end = parse_int(pairs.next().unwrap())?;
+
+                    Expr::Slice(Slice::End(end))
                 }
                 Rule::string => Expr::Str(build_string(primary)),
                 Rule::regex => {
@@ -188,6 +205,22 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     })],
                 }),
 
+                // Indexing & slicing
+                Rule::open_indexing => match rhs? {
+                    Expr::Slice(slice) => Expr::Func(FunctionCall {
+                        name: "slice".to_string(),
+                        args: match slice {
+                            Slice::Full(start, end) => vec![lhs?, Expr::Int(start), Expr::Int(end)],
+                            Slice::Start(start) => vec![lhs?, Expr::Int(start)],
+                            Slice::End(end) => vec![lhs?, Expr::Int(0), Expr::Int(end)],
+                        },
+                    }),
+                    rhs_res => Expr::Func(FunctionCall {
+                        name: "get".to_string(),
+                        args: vec![lhs?, rhs_res],
+                    }),
+                },
+
                 // Pipe threading
                 Rule::pipe => match rhs? {
                     Expr::Func(mut call) => {
@@ -196,11 +229,9 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     }
                     Expr::Identifier(name) => match get_function(&name) {
                         None => Expr::Identifier(name),
-                        Some(_) => Expr::Func({
-                            FunctionCall {
-                                name,
-                                args: vec![lhs?],
-                            }
+                        Some(_) => Expr::Func(FunctionCall {
+                            name,
+                            args: vec![lhs?],
                         }),
                     },
                     rest => rest,
@@ -292,6 +323,13 @@ impl FunctionCall {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Slice {
+    Full(i64, i64),
+    Start(i64),
+    End(i64),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Func(FunctionCall),
     Int(i64),
@@ -301,6 +339,7 @@ pub enum Expr {
     List(Vec<Expr>),
     Map(Vec<(String, Expr)>),
     Regex(String, bool),
+    Slice(Slice),
     Bool(bool),
     Underscore,
     Null,

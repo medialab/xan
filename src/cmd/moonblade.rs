@@ -134,9 +134,15 @@ use the operators in the previous section.
     x in y
     x not in y
 
-## Indexing operators
+## Indexing & slicing operators
 
     x[y] - get y from x (string or list index, map key)
+    x[start:end] - slice x from start index to end index
+    x[:end] - slice x from start to end index
+    x[start:] - slice x from start index to end
+
+    Negative indices are accepted and mean the same thing as with
+    the Python language.
 
 ## Pipeline operator (using \"_\" for left-hand size substitution)
 

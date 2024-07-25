@@ -512,7 +512,43 @@ fn slice(args: BoundArguments) -> FunctionResult {
 
             Ok(DynamicValue::from(substring))
         }
-        DynamicValue::List(_) => Err(EvaluationError::NotImplemented("list".to_string())),
+        DynamicValue::List(list) => {
+            // TODO: can be implemented through Arc::try_unwrap
+            let mut lo = args.get(1).unwrap().try_as_i64()?;
+            let opt_hi = args.get(2);
+
+            let sublist: Vec<DynamicValue> = match opt_hi {
+                None => {
+                    if lo < 0 {
+                        let l = list.len();
+                        lo = max(0, l as i64 + lo);
+
+                        list[..lo as usize].iter().cloned().collect()
+                    } else {
+                        list[..lo as usize].iter().cloned().collect()
+                    }
+                }
+                Some(hi_value) => {
+                    let mut hi = hi_value.try_as_i64()?;
+
+                    if lo < 0 {
+                        Vec::new()
+                    } else {
+                        if hi < 0 {
+                            let l = list.len();
+                            hi = max(0, l as i64 + hi);
+                        }
+
+                        list[lo as usize..(hi - lo) as usize]
+                            .iter()
+                            .cloned()
+                            .collect()
+                    }
+                }
+            };
+
+            Ok(DynamicValue::from(sublist))
+        }
         value => {
             return Err(EvaluationError::Cast(
                 value.type_of().to_string(),
