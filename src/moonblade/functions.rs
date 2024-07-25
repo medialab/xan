@@ -523,9 +523,9 @@ fn slice(args: BoundArguments) -> FunctionResult {
                         let l = list.len();
                         lo = max(0, l as i64 + lo);
 
-                        list[..lo as usize].iter().cloned().collect()
+                        list[..lo as usize].to_vec()
                     } else {
-                        list[..lo as usize].iter().cloned().collect()
+                        list[..lo as usize].to_vec()
                     }
                 }
                 Some(hi_value) => {
@@ -539,10 +539,7 @@ fn slice(args: BoundArguments) -> FunctionResult {
                             hi = max(0, l as i64 + hi);
                         }
 
-                        list[lo as usize..(hi - lo) as usize]
-                            .iter()
-                            .cloned()
-                            .collect()
+                        list[lo as usize..(hi - lo) as usize].to_vec()
                     }
                 }
             };
