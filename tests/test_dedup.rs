@@ -22,6 +22,35 @@ fn dedup() {
 }
 
 #[test]
+fn dedup_keep_last() {
+    let wrk = Workdir::new("dedup_keep_last");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "i"],
+            svec!["3", "1"],
+            svec!["2", "2"],
+            svec!["2", "3"],
+            svec!["1", "4"],
+            svec!["3", "5"],
+            svec!["2", "6"],
+            svec!["1", "7"],
+        ],
+    );
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").args(["-s", "a"]).arg("-l");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "i"],
+        svec!["3", "5"],
+        svec!["2", "6"],
+        svec!["1", "7"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn dedup_no_headers() {
     let wrk = Workdir::new("dedup_no_headers");
     wrk.create(

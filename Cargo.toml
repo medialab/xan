@@ -87,6 +87,7 @@ unicode-bidi = "0.3.13"
 unicode-segmentation = "1.10.1"
 unicode-width = "0.1.11"
 uuid = { version = "0.8.2", features = ["v4"] }
+dlv-list = "0.5.2"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]

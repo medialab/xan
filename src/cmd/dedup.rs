@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use csv;
+use dlv_list::{Index, VecList};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -27,7 +28,9 @@ dedup options:
     -S, --sorted        Use if you know your file is already sorted on the deduplication
                         selection to avoid storing unique values in memory.
     -l, --keep-last     Keep the last row having a specific identiy, rather than
-                        the first one.
+                        the first one. Note that it will cost more memory and that
+                        no rows will be flushed before the whole file has been read
+                        if -S/--sorted is not used.
 
 Common options:
     -h, --help               Display this message
@@ -66,57 +69,113 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
-    if !args.flag_sorted {
-        let mut record = csv::ByteRecord::new();
-        let mut already_seen = HashSet::<DeduplicationKey>::new();
+    match (args.flag_sorted, args.flag_keep_last) {
+        // Unsorted, keep first
+        (false, false) => {
+            let mut record = csv::ByteRecord::new();
+            let mut already_seen = HashSet::<DeduplicationKey>::new();
 
-        while rdr.read_byte_record(&mut record)? {
-            let key = sel.collect(&record);
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
 
-            if already_seen.insert(key) {
+                if already_seen.insert(key) {
+                    wtr.write_byte_record(&record)?;
+                }
+            }
+        }
+
+        // Unsorted, keep last
+        (false, true) => {
+            let mut set = KeepLastSet::new();
+
+            for result in rdr.byte_records() {
+                let record = result?;
+                let key = sel.collect(&record);
+                set.push(key, record);
+            }
+
+            for record in set.into_iter() {
                 wtr.write_byte_record(&record)?;
             }
         }
-    } else if args.flag_keep_last {
-        let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
 
-        for result in rdr.byte_records() {
-            let record = result?;
-            let key = sel.collect(&record);
+        // Sorted, keep first
+        (true, false) => {
+            let mut record = csv::ByteRecord::new();
+            let mut current: Option<DeduplicationKey> = None;
 
-            match current {
-                Some((current_key, record_to_flush)) if current_key != key => {
-                    wtr.write_byte_record(&record_to_flush)?;
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
+
+                match current {
+                    None => {
+                        wtr.write_byte_record(&record)?;
+                        current = Some(key);
+                    }
+                    Some(current_key) if current_key != key => {
+                        wtr.write_byte_record(&record)?;
+                        current = Some(key);
+                    }
+                    _ => (),
+                };
+            }
+        }
+
+        // Sorted, keep last
+        (true, true) => {
+            let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
+
+            for result in rdr.byte_records() {
+                let record = result?;
+                let key = sel.collect(&record);
+
+                match current {
+                    Some((current_key, record_to_flush)) if current_key != key => {
+                        wtr.write_byte_record(&record_to_flush)?;
+                    }
+                    _ => (),
                 }
-                _ => (),
+
+                current = Some((key, record));
             }
 
-            current = Some((key, record));
-        }
-
-        if let Some((_, record_to_flush)) = current {
-            wtr.write_byte_record(&record_to_flush)?;
-        }
-    } else {
-        let mut record = csv::ByteRecord::new();
-        let mut current: Option<DeduplicationKey> = None;
-
-        while rdr.read_byte_record(&mut record)? {
-            let key = sel.collect(&record);
-
-            match current {
-                None => {
-                    wtr.write_byte_record(&record)?;
-                    current = Some(key);
-                }
-                Some(current_key) if current_key != key => {
-                    wtr.write_byte_record(&record)?;
-                    current = Some(key);
-                }
-                _ => (),
-            };
+            if let Some((_, record_to_flush)) = current {
+                wtr.write_byte_record(&record_to_flush)?;
+            }
         }
     }
 
     Ok(wtr.flush()?)
+}
+
+struct KeepLastSet {
+    map: HashMap<DeduplicationKey, Index<csv::ByteRecord>>,
+    list: VecList<csv::ByteRecord>,
+}
+
+impl KeepLastSet {
+    fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+            list: VecList::new(),
+        }
+    }
+
+    fn push(&mut self, key: DeduplicationKey, record: csv::ByteRecord) {
+        match self.map.entry(key) {
+            Entry::Occupied(mut entry) => {
+                let current_index = entry.get_mut();
+
+                self.list.remove(*current_index);
+                *current_index = self.list.push_back(record);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(self.list.push_back(record));
+            }
+        };
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = csv::ByteRecord> {
+        self.list.into_iter()
+    }
 }
