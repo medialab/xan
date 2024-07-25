@@ -632,11 +632,22 @@ impl DynamicValue {
         }
     }
 
+    fn is_scalar(&self) -> bool {
+        match self {
+            Self::List(_) | Self::Map(_) => false,
+            _ => true,
+        }
+    }
+
     pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<[u8]> {
         match self {
             Self::List(list) => {
                 if list.is_empty() {
                     return Cow::Borrowed(b"");
+                }
+
+                if list.iter().any(|v| !v.is_scalar()) {
+                    return Cow::Owned(serde_json::to_string(self).unwrap().into_bytes());
                 }
 
                 if list.len() == 1 {
