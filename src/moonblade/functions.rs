@@ -173,12 +173,12 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
 // Strings
 fn trim(args: BoundArguments) -> FunctionResult {
     let string = args.get(0).unwrap().try_as_str()?;
-    let arg2 = args.get(1);
+    let chars_opt = args.get(1);
 
-    Ok(match arg2 {
+    Ok(match chars_opt {
         None => DynamicValue::from(string.trim()),
-        Some(arg) => {
-            let pattern = arg.try_as_str()?.chars().collect::<Vec<char>>();
+        Some(chars) => {
+            let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
             DynamicValue::from(string.trim_matches(|c| pattern.contains(&c)))
         }
     })
@@ -186,12 +186,12 @@ fn trim(args: BoundArguments) -> FunctionResult {
 
 fn ltrim(args: BoundArguments) -> FunctionResult {
     let string = args.get(0).unwrap().try_as_str()?;
-    let arg2 = args.get(1);
+    let chars_opt = args.get(1);
 
-    Ok(match arg2 {
+    Ok(match chars_opt {
         None => DynamicValue::from(string.trim_start()),
-        Some(arg) => {
-            let pattern = arg.try_as_str()?.chars().collect::<Vec<char>>();
+        Some(chars) => {
+            let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
             DynamicValue::from(string.trim_start_matches(|c| pattern.contains(&c)))
         }
     })
@@ -199,12 +199,12 @@ fn ltrim(args: BoundArguments) -> FunctionResult {
 
 fn rtrim(args: BoundArguments) -> FunctionResult {
     let string = args.get(0).unwrap().try_as_str()?;
-    let arg2 = args.get(1);
+    let chars_opt = args.get(1);
 
-    Ok(match arg2 {
+    Ok(match chars_opt {
         None => DynamicValue::from(string.trim_end()),
-        Some(arg) => {
-            let pattern = arg.try_as_str()?.chars().collect::<Vec<char>>();
+        Some(chars) => {
+            let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
             DynamicValue::from(string.trim_end_matches(|c| pattern.contains(&c)))
         }
     })
