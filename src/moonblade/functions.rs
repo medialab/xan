@@ -222,15 +222,13 @@ fn md5(args: BoundArguments) -> FunctionResult {
 }
 
 fn split(args: BoundArguments) -> FunctionResult {
-    let args = args.getn_opt(3);
-
-    let to_split = args[0].unwrap().try_as_str()?;
-    let pattern = args[1].unwrap().try_as_str()?;
-    let count = args[2];
+    let to_split = args.get(0).unwrap().try_as_str()?;
+    let pattern = args.get(1).unwrap().try_as_str()?;
+    let count = args.get(2);
 
     let splitted: Vec<DynamicValue> = if let Some(c) = count {
         to_split
-            .splitn(c.try_as_usize()? + 1, &*pattern)
+            .splitn(c.try_as_usize()? + 1, pattern.as_ref())
             .map(DynamicValue::from)
             .collect()
     } else {
@@ -253,6 +251,7 @@ fn len(mut args: BoundArguments) -> FunctionResult {
 
     Ok(DynamicValue::from(match arg {
         DynamicValue::List(list) => list.len(),
+        DynamicValue::Map(map) => map.len(),
         _ => arg.try_as_str()?.len(),
     }))
 }
@@ -275,13 +274,13 @@ fn count(args: BoundArguments) -> FunctionResult {
 fn startswith(args: BoundArguments) -> FunctionResult {
     let (string, pattern) = args.get2_str()?;
 
-    Ok(DynamicValue::from(string.starts_with(&*pattern)))
+    Ok(DynamicValue::from(string.starts_with(pattern.as_ref())))
 }
 
 fn endswith(args: BoundArguments) -> FunctionResult {
     let (string, pattern) = args.get2_str()?;
 
-    Ok(DynamicValue::from(string.ends_with(&*pattern)))
+    Ok(DynamicValue::from(string.ends_with(pattern.as_ref())))
 }
 
 fn concat(args: BoundArguments) -> FunctionResult {
