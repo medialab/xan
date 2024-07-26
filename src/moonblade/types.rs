@@ -687,18 +687,6 @@ impl DynamicValue {
 
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
-            Self::List(_) => {
-                return Err(EvaluationError::Cast(
-                    "list".to_string(),
-                    "string".to_string(),
-                ))
-            }
-            Self::Map(_) => {
-                return Err(EvaluationError::Cast(
-                    "map".to_string(),
-                    "string".to_string(),
-                ))
-            }
             Self::String(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string()),
             Self::Integer(value) => Cow::Owned(value.to_string()),
@@ -711,71 +699,48 @@ impl DynamicValue {
             }
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
             Self::None => Cow::Borrowed(""),
+            _ => return Err(EvaluationError::from_cast(self, "string")),
         })
     }
 
     pub fn try_as_regex(&self) -> Result<&Regex, EvaluationError> {
         match self {
             Self::Regex(regex) => Ok(regex),
-            value => Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "regex".to_string(),
-            )),
+            _ => Err(EvaluationError::from_cast(self, "regex")),
         }
     }
 
     pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
-            value => Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "list".to_string(),
-            )),
+            _ => Err(EvaluationError::from_cast(self, "list")),
         }
     }
 
     pub fn try_into_arc_list(self) -> Result<Arc<Vec<DynamicValue>>, EvaluationError> {
         match self {
             Self::List(list) => Ok(list),
-            value => Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "list".to_string(),
-            )),
+            _ => Err(EvaluationError::from_cast(&self, "list")),
         }
     }
 
     pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<DynamicNumber>() {
-                Err(_) => {
-                    return Err(EvaluationError::Cast(
-                        "string".to_string(),
-                        "number".to_string(),
-                    ))
-                }
+                Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
             Self::Integer(value) => DynamicNumber::Integer(*value),
             Self::Float(value) => DynamicNumber::Float(*value),
             Self::Boolean(value) => DynamicNumber::Integer(*value as i64),
-            value => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "number".to_string(),
-                ))
-            }
+            _ => return Err(EvaluationError::from_cast(self, "number")),
         })
     }
 
     pub fn try_as_usize(&self) -> Result<usize, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<usize>() {
-                Err(_) => {
-                    return Err(EvaluationError::Cast(
-                        "string".to_string(),
-                        "unsigned_number".to_string(),
-                    ))
-                }
+                Err(_) => return Err(EvaluationError::from_cast(self, "unsigned_number")),
                 Ok(value) => value,
             },
             Self::Float(value) => match downgrade_float(*value) {
@@ -783,90 +748,49 @@ impl DynamicValue {
                     if safe_downgraded_value >= 0 {
                         safe_downgraded_value as usize
                     } else {
-                        return Err(EvaluationError::Cast(
-                            "float".to_string(),
-                            "unsigned_number".to_string(),
-                        ));
+                        return Err(EvaluationError::from_cast(self, "unsigned_number"));
                     }
                 }
-                None => {
-                    return Err(EvaluationError::Cast(
-                        "float".to_string(),
-                        "unsigned_number".to_string(),
-                    ))
-                }
+                None => return Err(EvaluationError::from_cast(self, "unsigned_number")),
             },
             Self::Integer(value) => {
                 if value >= &0 {
                     (*value) as usize
                 } else {
-                    return Err(EvaluationError::Cast(
-                        "integer".to_string(),
-                        "unsigned_number".to_string(),
-                    ));
+                    return Err(EvaluationError::from_cast(self, "unsigned_number"));
                 }
             }
             Self::Boolean(value) => (*value) as usize,
-            _ => {
-                return Err(EvaluationError::Cast(
-                    "boolean".to_string(),
-                    "unsigned_number".to_string(),
-                ))
-            }
+            _ => return Err(EvaluationError::from_cast(self, "unsigned_number")),
         })
     }
 
     pub fn try_as_i64(&self) -> Result<i64, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<i64>() {
-                Err(_) => {
-                    return Err(EvaluationError::Cast(
-                        "string".to_string(),
-                        "integer".to_string(),
-                    ))
-                }
+                Err(_) => return Err(EvaluationError::from_cast(self, "integer")),
                 Ok(value) => value,
             },
             Self::Float(value) => match downgrade_float(*value) {
                 Some(safe_downgraded_value) => safe_downgraded_value,
-                None => {
-                    return Err(EvaluationError::Cast(
-                        "float".to_string(),
-                        "integer".to_string(),
-                    ))
-                }
+                None => return Err(EvaluationError::from_cast(self, "integer")),
             },
             Self::Integer(value) => *value,
             Self::Boolean(value) => (*value) as i64,
-            value => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "integer".to_string(),
-                ))
-            }
+            _ => return Err(EvaluationError::from_cast(self, "integer")),
         })
     }
 
     pub fn try_as_f64(&self) -> Result<f64, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<f64>() {
-                Err(_) => {
-                    return Err(EvaluationError::Cast(
-                        "string".to_string(),
-                        "float".to_string(),
-                    ))
-                }
+                Err(_) => return Err(EvaluationError::from_cast(self, "float")),
                 Ok(value) => value,
             },
             Self::Float(value) => *value,
             Self::Integer(value) => *value as f64,
             Self::Boolean(value) => *value as usize as f64,
-            value => {
-                return Err(EvaluationError::Cast(
-                    value.type_of().to_string(),
-                    "float".to_string(),
-                ))
-            }
+            _ => return Err(EvaluationError::from_cast(self, "float")),
         })
     }
 

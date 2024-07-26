@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::ops::RangeInclusive;
 
-use super::types::{Arity, ColumIndexationBy};
+use super::types::{Arity, ColumIndexationBy, DynamicValue};
 
 fn format_column_indexation_error(
     f: &mut std::fmt::Formatter,
@@ -166,6 +166,10 @@ impl EvaluationError {
             expected: Arity::Range(range),
             got,
         })
+    }
+
+    pub fn from_cast(from_value: &DynamicValue, expected: &str) -> Self {
+        Self::Cast(from_value.type_of().to_string(), expected.to_string())
     }
 }
 

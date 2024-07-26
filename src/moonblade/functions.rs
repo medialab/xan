@@ -372,12 +372,7 @@ fn first(mut args: BoundArguments) -> FunctionResult {
             None => DynamicValue::None,
             Some(value) => value.clone(),
         },
-        _ => {
-            return Err(EvaluationError::Cast(
-                arg.type_of().to_string(),
-                "sequence".to_string(),
-            ))
-        }
+        _ => return Err(EvaluationError::from_cast(&arg, "sequence")),
     })
 }
 
@@ -390,12 +385,7 @@ fn last(mut args: BoundArguments) -> FunctionResult {
             None => DynamicValue::None,
             Some(value) => value.clone(),
         },
-        _ => {
-            return Err(EvaluationError::Cast(
-                arg.type_of().to_string(),
-                "sequence".to_string(),
-            ))
-        }
+        _ => return Err(EvaluationError::from_cast(&arg, "sequence")),
     })
 }
 
@@ -435,12 +425,7 @@ fn get_subroutine<'a>(
 
             map.get(key.as_ref()).cloned()
         }
-        value => {
-            return Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "sequence".to_string(),
-            ))
-        }
+        value => return Err(EvaluationError::from_cast(value, "sequence")),
     })
 }
 
@@ -546,12 +531,7 @@ fn slice(args: BoundArguments) -> FunctionResult {
 
             Ok(DynamicValue::from(sublist))
         }
-        value => {
-            return Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "sequence".to_string(),
-            ))
-        }
+        value => Err(EvaluationError::from_cast(value, "sequence")),
     }
 }
 
@@ -592,12 +572,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
 
             Ok(DynamicValue::from(false))
         }
-        value => {
-            return Err(EvaluationError::Cast(
-                value.type_of().to_string(),
-                "sequence".to_string(),
-            ))
-        }
+        value => Err(EvaluationError::from_cast(value, "sequence")),
     }
 }
 
