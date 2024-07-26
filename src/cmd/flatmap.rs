@@ -67,7 +67,7 @@ Usage:
     xan flatmap --help
 
 flatmap options:
-    -r, --replace <column>     Name of a column to replaced with the mapped value.
+    -r, --replace <column>     Name of the column that will be replaced by the mapped values.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to
