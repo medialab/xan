@@ -101,6 +101,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         ),
         "ltrim" => (ltrim, Arity::Range(1..=2)),
         "lower" => (lower, Arity::Strict(1)),
+        "match" => (regex_match, Arity::Range(2..=3)),
         "max" => (variadic_max, Arity::Min(1)),
         "md5" => (md5, Arity::Strict(1)),
         "min" => (variadic_min, Arity::Min(1)),
@@ -573,6 +574,22 @@ fn contains(args: BoundArguments) -> FunctionResult {
             Ok(DynamicValue::from(false))
         }
         value => Err(EvaluationError::from_cast(value, "sequence")),
+    }
+}
+
+fn regex_match(args: BoundArguments) -> FunctionResult {
+    let haystack = args.get(0).unwrap().try_as_str()?;
+    let pattern = args.get(1).unwrap().try_as_regex()?;
+    let group = args
+        .get(2)
+        .map(|v| v.try_as_usize())
+        .transpose()?
+        .unwrap_or(0);
+
+    if let Some(caps) = pattern.captures(haystack.as_ref()) {
+        Ok(DynamicValue::from(caps.get(group).map(|g| g.as_str())))
+    } else {
+        Ok(DynamicValue::None)
     }
 }
 

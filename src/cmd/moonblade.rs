@@ -303,6 +303,9 @@ use the operators in the previous section.
     - lower(string) -> string
         Lowercase string.
 
+    - match(string, pattern, group?) -> string
+        Return a regex pattern match on the string.
+
     - replace(string, pattern, replacement) -> string
         Replace pattern in string. Can use a regex.
 
