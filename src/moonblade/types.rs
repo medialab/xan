@@ -183,6 +183,14 @@ pub enum Arity {
 }
 
 impl Arity {
+    pub fn unary() -> Self {
+        Self::Strict(1)
+    }
+
+    pub fn binary() -> Self {
+        Self::Strict(2)
+    }
+
     pub fn validate(&self, name: &str, got: usize) -> Result<(), ConcretizationError> {
         match self {
             Self::Strict(expected) => {
