@@ -332,6 +332,14 @@ use the operators in the previous section.
     - upper(string) -> string
         Uppercase string.
 
+## Map functions
+
+    - keys(map) -> [string]
+        Return a list of the map's keys.
+
+    - values(map) -> [T]
+        Return a list of the map's values.
+
 ## Utils
 
     - coalesce(*args) -> T

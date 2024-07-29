@@ -724,6 +724,13 @@ impl DynamicValue {
         }
     }
 
+    pub fn try_as_map(&self) -> Result<&BTreeMap<String, DynamicValue>, EvaluationError> {
+        match self {
+            Self::Map(map) => Ok(map),
+            _ => Err(EvaluationError::from_cast(self, "map")),
+        }
+    }
+
     pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<DynamicNumber>() {

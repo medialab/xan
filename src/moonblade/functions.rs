@@ -93,6 +93,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "isfile" => (isfile, Arity::Strict(1)),
         "join" => (join, Arity::Strict(2)),
         "json_parse" => (json_parse, Arity::Strict(1)),
+        "keys" => (keys, Arity::Strict(1)),
         "last" => (last, Arity::Strict(1)),
         "len" => (len, Arity::Strict(1)),
         "log" => (
@@ -167,6 +168,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "unidecode" => (apply_unidecode, Arity::Strict(1)),
         "upper" => (upper, Arity::Strict(1)),
         "uuid" => (uuid, Arity::Strict(0)),
+        "values" => (values, Arity::Strict(1)),
         "write" => (write, Arity::Strict(2)),
         _ => return None,
     })
@@ -628,6 +630,25 @@ fn compact(mut args: BoundArguments) -> FunctionResult {
             DynamicValue::from(owned_list)
         }
     })
+}
+
+// Maps
+fn keys(args: BoundArguments) -> FunctionResult {
+    let map = args.get1().try_as_map()?;
+
+    Ok(DynamicValue::from(
+        map.keys()
+            .map(|k| DynamicValue::from(k.as_str()))
+            .collect::<Vec<_>>(),
+    ))
+}
+
+fn values(args: BoundArguments) -> FunctionResult {
+    let map = args.get1().try_as_map()?;
+
+    Ok(DynamicValue::from(
+        map.values().cloned().collect::<Vec<_>>(),
+    ))
 }
 
 // Arithmetics
