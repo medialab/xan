@@ -340,6 +340,11 @@ use the operators in the previous section.
     - values(map) -> [T]
         Return a list of the map's values.
 
+## List aggregation functions
+
+    - mean(numbers) -> number?
+        Return the means of the given numbers.
+
 ## Utils
 
     - coalesce(*args) -> T

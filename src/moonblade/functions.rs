@@ -15,6 +15,7 @@ use namedlock::{AutoCleanup, LockSpace};
 use unidecode::unidecode;
 use uuid::Uuid;
 
+use super::agg::Welford;
 use super::error::EvaluationError;
 use super::types::{Arity, BoundArguments, DynamicNumber, DynamicValue};
 
@@ -105,6 +106,7 @@ pub fn get_function(name: &str) -> Option<(Function, Arity)> {
         "match" => (regex_match, Arity::Range(2..=3)),
         "max" => (variadic_max, Arity::Min(1)),
         "md5" => (md5, Arity::unary()),
+        "mean" => (mean, Arity::unary()),
         "min" => (variadic_min, Arity::Min(1)),
         "mod" => (|args| binary_arithmetic_op(args, Rem::rem), Arity::binary()),
         "move" => (move_file, Arity::binary()),
@@ -876,6 +878,19 @@ where
         Some(ordering) => validate(ordering),
         None => false,
     }))
+}
+
+// Aggregation
+fn mean(args: BoundArguments) -> FunctionResult {
+    let items = args.get1().try_as_list()?;
+    let mut welford = Welford::new();
+
+    for item in items {
+        let n = item.try_as_f64()?;
+        welford.add(n);
+    }
+
+    Ok(DynamicValue::from(welford.mean()))
 }
 
 // IO

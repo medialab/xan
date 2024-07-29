@@ -640,14 +640,14 @@ impl Frequencies {
 // Ref: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
 // Ref: https://en.wikipedia.org/wiki/Standard_deviation
 #[derive(Debug, Clone)]
-struct Welford {
+pub struct Welford {
     count: usize,
     mean: f64,
     m2: f64,
 }
 
 impl Welford {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             count: 0,
             mean: 0.0,
@@ -661,7 +661,7 @@ impl Welford {
         self.m2 = 0.0;
     }
 
-    fn add(&mut self, value: f64) {
+    pub fn add(&mut self, value: f64) {
         let (mut count, mut mean, mut m2) = (self.count, self.mean, self.m2);
         count += 1;
         let delta = value - mean;
@@ -674,7 +674,7 @@ impl Welford {
         self.m2 = m2;
     }
 
-    fn mean(&self) -> Option<f64> {
+    pub fn mean(&self) -> Option<f64> {
         if self.count == 0 {
             return None;
         }
