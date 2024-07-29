@@ -123,6 +123,7 @@ macro_rules! command_list {
     sort        Sort CSV data
     split       Split CSV data into many files
     stats       Compute basic statistics
+    tokenize    Tokenize a text column
     transform   Transform a column by evaluating an expression on each CSV row
     transpose   Transpose CSV file
     union-find  Apply the union-find algorithm on a CSV edge list
@@ -251,6 +252,7 @@ enum Command {
     Sort,
     Split,
     Stats,
+    Tokenize,
     Transform,
     Transpose,
     #[serde(rename = "union-find")]
@@ -317,6 +319,7 @@ impl Command {
             Command::Sort => cmd::sort::run(argv),
             Command::Split => cmd::split::run(argv),
             Command::Stats => cmd::stats::run(argv),
+            Command::Tokenize => cmd::tokenize::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose => cmd::transpose::run(argv),
             Command::UnionFind => cmd::union_find::run(argv),

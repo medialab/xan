@@ -341,9 +341,8 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
                     "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
                         ColorOrStyles::Color(Color::Cyan)
                     }
-                    "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "<empty>" => {
-                        ColorOrStyles::Styles(Styles::Dimmed)
-                    }
+                    "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "<empty>" | "<null>"
+                    | "<rest>" => ColorOrStyles::Styles(Styles::Dimmed),
                     _ => ColorOrStyles::Color(Color::Green),
                 }
             }

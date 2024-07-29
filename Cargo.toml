@@ -52,6 +52,7 @@ csv = "1.2.2"
 csv-index = "0.1.6"
 ctrlc = "3.4.4"
 dateparser = "0.2.1"
+dlv-list = "0.5.2"
 docopt = "1"
 emojis = "0.6.1"
 encoding = "0.2.33"
@@ -66,6 +67,7 @@ md5 = "0.7.0"
 namedlock = "0.7.0"
 numfmt = "1.1.1"
 num_cpus = "1.4"
+paltoquet = "0.2.2"
 pariter = "0.5.1"
 pest = "2.7.11"
 pest_derive = "2.7.11"
@@ -87,7 +89,6 @@ unicode-bidi = "0.3.13"
 unicode-segmentation = "1.10.1"
 unicode-width = "0.1.11"
 uuid = { version = "0.8.2", features = ["v4"] }
-dlv-list = "0.5.2"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
