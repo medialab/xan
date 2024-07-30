@@ -6,11 +6,40 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: stoplist
+// TODO: --sep with -T
 
 static USAGE: &str = "
-Tokenize the given text column and emit one row per token in a new column
-at the end, all while dropping the original text column.
+Tokenize the given text column by splitting it into word pieces (think
+words, numbers, hashtags etc.). This command will therefore emit one row
+per token written in a new column added at the end, all while dropping
+the original text column unless --sep or --keep-text is passed.
+
+For instance, given the following input:
+
+id,text
+1,one cat eats 2 mice! 😎
+2,hello
+
+The following command:
+    $ xan tokenize text -T type file.csv
+
+Will produce the following result:
+
+id,token,type
+1,one,word
+1,cat,word
+1,eats,word
+1,2,number
+1,mice,word
+1,!,punct
+1,😎,emoji
+2,hello,word
+
+You can easily pipe the command into \"xan frequency\" to create a vocabulary:
+    $ xan tokenize text file.csv | xan frequency -s token -l 0 > vocab.csv
+
+You can easily keep the tokens in a separate file using the \"tee\" command:
+    $ xan tokenize text file.csv | tee tokens.csv | xan frequency -s token -l 0 > vocab.csv
 
 This tokenizer is able to distinguish between the following types of tokens:
     - word
@@ -29,22 +58,24 @@ Usage:
 tokenize options:
     -c, --column <name>      Name for the token column. Will default to \"token\" or \"tokens\"
                              if --sep is given.
-    -T, --token-type <name>  Name for the token type column to append.
+    -T, --token-type <name>  Name of a column to add containing the type of the tokens.
     -p, --parallel           Whether to use parallelization to speed up computations.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
                              indicate the number of threads yourself.
-    -D, --drop <kinds>       Kinds of tokens to drop from the results, separated by comma,
+    -D, --drop <types>       Types of tokens to drop from the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -k, --keep.
-    -K, --keep <kinds>       Kinds of tokens to keep in the results, separated by comma,
+                             See the list of recognized types above.
+    -K, --keep <types>       Types of tokens to keep in the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -d, --drop.
+                             See the list of recognized types above.
     -m, --min-token-len <n>  Minimum length of a token to be included in the output.
     -M, --max-token-len <n>  Maximum length of a token to be included in the output.
     --stoplist <path>        Path to a .txt stoplist containing one word per line.
     --sep <char>             If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
-    --keep-text              Force keeping the text column in output. Moot if --sep is given.
+    --keep-text              Force keeping the text column in output.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
