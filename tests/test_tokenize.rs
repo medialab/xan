@@ -53,6 +53,33 @@ fn tokenize_sep() {
 }
 
 #[test]
+fn tokenize_keep_text() {
+    let wrk = Workdir::new("tokenize_keep_text");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n", "text"],
+            svec!["1", "le chat mange"],
+            svec!["2", "la souris"],
+            svec!["3", ""],
+        ],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text").arg("--keep-text").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "text", "token"],
+        svec!["1", "le chat mange", "le"],
+        svec!["1", "le chat mange", "chat"],
+        svec!["1", "le chat mange", "mange"],
+        svec!["2", "la souris", "la"],
+        svec!["2", "la souris", "souris"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn tokenize_column() {
     let wrk = Workdir::new("tokenize_column");
     wrk.create(

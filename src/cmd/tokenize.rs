@@ -6,7 +6,7 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: all kind of min/max len, stoplist, --keep-text
+// TODO: all kind of min/max len, stoplist
 
 static USAGE: &str = "
 Tokenize the given text column and emit one row per token in a new column
@@ -41,6 +41,7 @@ tokenize options:
     --sep <char>             If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
+    --keep-text              Force keeping the text column in output. Moot if --sep is given.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
@@ -67,12 +68,7 @@ struct Args {
     flag_drop: Option<String>,
     flag_keep: Option<String>,
     flag_sep: Option<String>,
-}
-
-impl Args {
-    fn keep_text_column(&self) -> bool {
-        self.flag_sep.is_some()
-    }
+    flag_keep_text: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -100,7 +96,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if !args.flag_no_headers {
-        if !args.keep_text_column() {
+        if !args.flag_sep.is_some() && !args.flag_keep_text {
             headers = headers.remove(col_index);
         }
         headers.push_field(token_column_name.as_bytes());
@@ -152,7 +148,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 wtr.write_byte_record(&$record)?;
             } else {
                 for token in $tokens {
-                    let mut record_to_write = $record.remove(col_index);
+                    let mut record_to_write = if args.flag_keep_text {
+                        $record.clone()
+                    } else {
+                        $record.remove(col_index)
+                    };
+
                     record_to_write.push_field(token.text.as_bytes());
 
                     if args.flag_token_type.is_some() {
