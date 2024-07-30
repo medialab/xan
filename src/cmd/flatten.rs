@@ -7,9 +7,7 @@ use unicode_width::UnicodeWidthStr;
 
 static USAGE: &str = "
 Prints flattened records such that fields are labeled separated by a new line.
-This mode is particularly useful for viewing one record at a time. Each
-record is separated by a special '#' character (on a line by itself), which
-can be changed with the --separator flag.
+This mode is particularly useful for viewing one record at a time.
 
 There is also a condensed view (-c or --condense) that will shorten the
 contents of each field to provide a summary view.
