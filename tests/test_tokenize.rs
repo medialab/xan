@@ -221,3 +221,27 @@ fn tokenize_max_token_len() {
     let expected = vec![svec!["n", "token"], svec!["1", "le"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn tokenize_stoplist() {
+    let wrk = Workdir::new("tokenize_stoplist");
+    wrk.create("stoplist.txt", vec![svec!["le"], svec!["la"]]);
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chaton mange la souris"]],
+    );
+
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--stoplist", "stoplist.txt"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "token"],
+        svec!["1", "chaton"],
+        svec!["1", "mange"],
+        svec!["1", "souris"],
+    ];
+    assert_eq!(got, expected);
+}

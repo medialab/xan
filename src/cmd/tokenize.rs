@@ -40,6 +40,7 @@ tokenize options:
                              e.g. \"word,number\". Cannot work with -d, --drop.
     -m, --min-token-len <n>  Minimum length of a token to be included in the output.
     -M, --max-token-len <n>  Maximum length of a token to be included in the output.
+    --stoplist <path>        Path to a .txt stoplist containing one word per line.
     --sep <char>             If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
@@ -73,6 +74,7 @@ struct Args {
     flag_keep_text: bool,
     flag_min_token_len: Option<usize>,
     flag_max_token_len: Option<usize>,
+    flag_stoplist: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -142,6 +144,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(max) = args.flag_max_token_len {
         tokenizer_builder = tokenizer_builder.max_token_len(max);
+    }
+
+    if let Some(path) = args.flag_stoplist {
+        let mut contents = String::new();
+
+        Config::new(&Some(path))
+            .io_reader()?
+            .read_to_string(&mut contents)?;
+
+        for word in contents.lines() {
+            tokenizer_builder.insert_stopword(word);
+        }
     }
 
     let tokenizer = tokenizer_builder.build();
