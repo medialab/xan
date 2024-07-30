@@ -187,3 +187,37 @@ fn tokenize_keep() {
     let expected = vec![svec!["n", "token"], svec!["1", "1"], svec!["1", "😎"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn tokenize_min_token_len() {
+    let wrk = Workdir::new("tokenize_min_token_len");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chaton"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--min-token-len", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "token"], svec!["1", "chaton"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_max_token_len() {
+    let wrk = Workdir::new("tokenize_max_token_len");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chaton"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--max-token-len", "3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "token"], svec!["1", "le"]];
+    assert_eq!(got, expected);
+}

@@ -6,7 +6,7 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: all kind of min/max len, stoplist
+// TODO: stoplist
 
 static USAGE: &str = "
 Tokenize the given text column and emit one row per token in a new column
@@ -38,6 +38,8 @@ tokenize options:
                              e.g. \"word,number\". Cannot work with -k, --keep.
     -K, --keep <kinds>       Kinds of tokens to keep in the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -d, --drop.
+    -m, --min-token-len <n>  Minimum length of a token to be included in the output.
+    -M, --max-token-len <n>  Maximum length of a token to be included in the output.
     --sep <char>             If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
@@ -69,6 +71,8 @@ struct Args {
     flag_keep: Option<String>,
     flag_sep: Option<String>,
     flag_keep_text: bool,
+    flag_min_token_len: Option<usize>,
+    flag_max_token_len: Option<usize>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -130,6 +134,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .map(|name| name.parse())
                 .collect::<Result<Vec<WordTokenKind>, _>>()?,
         );
+    }
+
+    if let Some(min) = args.flag_min_token_len {
+        tokenizer_builder = tokenizer_builder.min_token_len(min);
+    }
+
+    if let Some(max) = args.flag_max_token_len {
+        tokenizer_builder = tokenizer_builder.max_token_len(max);
     }
 
     let tokenizer = tokenizer_builder.build();
