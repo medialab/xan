@@ -6,7 +6,7 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: --sep with -T
+// TODO: simple tokenizer
 
 static USAGE: &str = "
 Tokenize the given text column by splitting it into word pieces (think
@@ -194,14 +194,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! write_tokens {
         ($record:ident, $tokens:expr) => {{
             if let Some(sep) = &args.flag_sep {
+                let mut types = Vec::new();
+
                 let joined_tokens = $tokens
-                    .into_iter()
-                    .map(|t| t.text)
+                    .map(|t| {
+                        if args.flag_token_type.is_some() {
+                            types.push(t.kind.as_str());
+                        }
+                        t.text
+                    })
                     .collect::<Vec<_>>()
                     .join(sep);
 
                 // NOTE: if not -p, we are mutating the working record
                 $record.push_field(joined_tokens.as_bytes());
+
+                if args.flag_token_type.is_some() {
+                    $record.push_field(types.join(sep).as_bytes());
+                }
+
                 wtr.write_byte_record(&$record)?;
             } else {
                 for token in $tokens {
