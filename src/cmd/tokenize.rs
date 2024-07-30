@@ -1,4 +1,4 @@
-use paltoquet::{Tokenize, WordTokenKind};
+use paltoquet::{WordToken, WordTokenKind, WordTokenizerBuilder};
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
@@ -6,11 +6,11 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: all kind of filters, --separator
+// TODO: all kind of filters, --separator, drop column and move token to end
 
 static USAGE: &str = "
-Tokenize the given text column and emit one row per token, replacing
-the text column by a token one.
+Tokenize the given text column and emit one row per token in a new column
+at the end, all while dropping the original text column.
 
 Usage:
     xan tokenize [options] <column> [<input>]
@@ -62,7 +62,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let col_index = rconfig.single_selection(&headers)?;
 
     if !args.flag_no_headers {
-        let mut renamed_headers = headers.replace_at(col_index, args.flag_column.as_bytes());
+        let mut renamed_headers = headers.remove(col_index);
+        renamed_headers.push_field(args.flag_column.as_bytes());
 
         if let Some(name) = &args.flag_token_type {
             renamed_headers.push_field(name.as_bytes());
@@ -77,6 +78,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
+    let tokenizer = WordTokenizerBuilder::new().build();
+
+    macro_rules! write_tokens {
+        ($record:ident, $tokens:expr) => {
+            for token in $tokens {
+                let mut record_to_write = $record.remove(col_index);
+                record_to_write.push_field(token.text);
+
+                if args.flag_token_type.is_some() {
+                    record_to_write.push_field(token.kind.as_str());
+                }
+
+                wtr.write_record(&record_to_write)?;
+            }
+        };
+    }
+
     if let Some(threads) = parallelization {
         rdr.into_records()
             .parallel_map_custom(
@@ -90,8 +108,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 move |result| -> CliResult<(csv::StringRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;
 
-                    let tokens = record[col_index]
-                        .words()
+                    let tokens = tokenizer
+                        .tokenize(&record[col_index])
                         .map(|token| (token.text.to_string(), token.kind))
                         .collect();
 
@@ -101,15 +119,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .try_for_each(|result| -> CliResult<()> {
                 let (record, tokens) = result?;
 
-                for (text, kind) in tokens {
-                    let mut record_to_write = record.replace_at(col_index, &text);
-
-                    if args.flag_token_type.is_some() {
-                        record_to_write.push_field(kind.as_str());
-                    }
-
-                    wtr.write_record(&record_to_write)?;
-                }
+                write_tokens!(
+                    record,
+                    tokens
+                        .iter()
+                        .map(|(text, kind)| WordToken { text, kind: *kind })
+                );
 
                 Ok(())
             })?;
@@ -119,15 +134,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_record(&mut record)? {
             let text = &record[col_index];
 
-            for token in text.words() {
-                let mut record_to_write = record.replace_at(col_index, token.text);
-
-                if args.flag_token_type.is_some() {
-                    record_to_write.push_field(token.kind.as_str());
-                }
-
-                wtr.write_record(&record_to_write)?;
-            }
+            write_tokens!(record, tokenizer.tokenize(text))
         }
     }
 
