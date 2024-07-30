@@ -6,8 +6,6 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: simple tokenizer
-
 static USAGE: &str = "
 Tokenize the given text column by splitting it into word pieces (think
 words, numbers, hashtags etc.). This command will therefore emit one row
@@ -59,10 +57,8 @@ tokenize options:
     -c, --column <name>      Name for the token column. Will default to \"token\" or \"tokens\"
                              if --sep is given.
     -T, --token-type <name>  Name of a column to add containing the type of the tokens.
-    -p, --parallel           Whether to use parallelization to speed up computations.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
+    -S, --simple             Use a simpler, more performant variant of the tokenizer but unable
+                             to infer token types, nor handle subtle cases.
     -D, --drop <types>       Types of tokens to drop from the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -k, --keep.
                              See the list of recognized types above.
@@ -76,6 +72,10 @@ tokenize options:
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
     --keep-text              Force keeping the text column in output.
+    -p, --parallel           Whether to use parallelization to speed up computations.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
@@ -106,6 +106,7 @@ struct Args {
     flag_min_token_len: Option<usize>,
     flag_max_token_len: Option<usize>,
     flag_stoplist: Option<String>,
+    flag_simple: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -250,10 +251,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let text =
                         std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
 
-                    let tokens = tokenizer
-                        .tokenize(text)
-                        .map(|token| (token.text.to_string(), token.kind))
-                        .collect();
+                    let tokens = if args.flag_simple {
+                        tokenizer
+                            .simple_tokenize(text)
+                            .map(|token| (token.text.to_string(), token.kind))
+                            .collect()
+                    } else {
+                        tokenizer
+                            .tokenize(text)
+                            .map(|token| (token.text.to_string(), token.kind))
+                            .collect()
+                    };
 
                     Ok((record, tokens))
                 },
@@ -276,7 +284,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_byte_record(&mut record)? {
             let text = std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
 
-            write_tokens!(record, tokenizer.tokenize(text))
+            if args.flag_simple {
+                write_tokens!(record, tokenizer.simple_tokenize(text))
+            } else {
+                write_tokens!(record, tokenizer.tokenize(text))
+            }
         }
     }
 

@@ -28,6 +28,25 @@ fn tokenize() {
 }
 
 #[test]
+fn tokenize_simple() {
+    let wrk = Workdir::new("tokenize_simple");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "aujourd'hui"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text").arg("-S").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "token"],
+        svec!["1", "aujourd"],
+        svec!["1", "hui"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn tokenize_sep() {
     let wrk = Workdir::new("tokenize_sep");
     wrk.create(
