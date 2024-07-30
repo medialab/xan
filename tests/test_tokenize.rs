@@ -101,3 +101,37 @@ fn tokenize_parallel() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn tokenize_drop() {
+    let wrk = Workdir::new("tokenize_drop");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "1 chat 😎"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--drop", "number,emoji"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "token"], svec!["1", "chat"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_keep() {
+    let wrk = Workdir::new("tokenize_keep");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "1 chat 😎"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--keep", "number,emoji"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "token"], svec!["1", "1"], svec!["1", "😎"]];
+    assert_eq!(got, expected);
+}
