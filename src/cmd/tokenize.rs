@@ -6,7 +6,7 @@ use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
-// TODO: all kind of min/max len, stoplist, --separator, --keep-text
+// TODO: all kind of min/max len, stoplist, --keep-text
 
 static USAGE: &str = "
 Tokenize the given text column and emit one row per token in a new column
@@ -27,7 +27,8 @@ Usage:
     xan tokenize --help
 
 tokenize options:
-    -c, --column <name>      Name for the token column [default: token].
+    -c, --column <name>      Name for the token column. Will default to \"token\" or \"tokens\"
+                             if --sep is given.
     -T, --token-type <name>  Name for the token type column to append.
     -p, --parallel           Whether to use parallelization to speed up computations.
                              Will automatically select a suitable number of threads to use
@@ -37,6 +38,9 @@ tokenize options:
                              e.g. \"word,number\". Cannot work with -k, --keep.
     -K, --keep <kinds>       Kinds of tokens to keep in the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -d, --drop.
+    --sep <char>             If given, the command will output exactly one row per input row,
+                             keep the text column and join the tokens using the provided character.
+                             We recommend using \"§\" as a separator.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
@@ -53,7 +57,7 @@ Common options:
 struct Args {
     arg_column: SelectColumns,
     arg_input: Option<String>,
-    flag_column: String,
+    flag_column: Option<String>,
     flag_token_type: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -62,6 +66,13 @@ struct Args {
     flag_threads: Option<usize>,
     flag_drop: Option<String>,
     flag_keep: Option<String>,
+    flag_sep: Option<String>,
+}
+
+impl Args {
+    fn keep_text_column(&self) -> bool {
+        self.flag_sep.is_some()
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -69,23 +80,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column);
+        .select(args.arg_column.clone());
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    let headers = rdr.byte_headers()?.clone();
+    let mut headers = rdr.byte_headers()?.clone();
     let col_index = rconfig.single_selection(&headers)?;
 
+    let token_column_name = match &args.flag_column {
+        Some(name) => name,
+        None => {
+            if args.flag_sep.is_some() {
+                "tokens"
+            } else {
+                "token"
+            }
+        }
+    };
+
     if !args.flag_no_headers {
-        let mut renamed_headers = headers.remove(col_index);
-        renamed_headers.push_field(args.flag_column.as_bytes());
+        if !args.keep_text_column() {
+            headers = headers.remove(col_index);
+        }
+        headers.push_field(token_column_name.as_bytes());
 
         if let Some(name) = &args.flag_token_type {
-            renamed_headers.push_field(name.as_bytes());
+            headers.push_field(name.as_bytes());
         }
 
-        wtr.write_byte_record(&renamed_headers)?;
+        wtr.write_byte_record(&headers)?;
     }
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
@@ -100,7 +124,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         tokenizer_builder = tokenizer_builder.token_kind_blacklist(
             kinds
                 .split(',')
-                .into_iter()
                 .map(|name| name.parse())
                 .collect::<Result<Vec<WordTokenKind>, _>>()?,
         );
@@ -108,7 +131,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         tokenizer_builder = tokenizer_builder.token_kind_whitelist(
             kinds
                 .split(',')
-                .into_iter()
                 .map(|name| name.parse())
                 .collect::<Result<Vec<WordTokenKind>, _>>()?,
         );
@@ -117,18 +139,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let tokenizer = tokenizer_builder.build();
 
     macro_rules! write_tokens {
-        ($record:ident, $tokens:expr) => {
-            for token in $tokens {
-                let mut record_to_write = $record.remove(col_index);
-                record_to_write.push_field(token.text.as_bytes());
+        ($record:ident, $tokens:expr) => {{
+            if let Some(sep) = &args.flag_sep {
+                let joined_tokens = $tokens
+                    .into_iter()
+                    .map(|t| t.text)
+                    .collect::<Vec<_>>()
+                    .join(sep);
 
-                if args.flag_token_type.is_some() {
-                    record_to_write.push_field(token.kind.as_str().as_bytes());
+                // NOTE: if not -p, we are mutating the working record
+                $record.push_field(joined_tokens.as_bytes());
+                wtr.write_byte_record(&$record)?;
+            } else {
+                for token in $tokens {
+                    let mut record_to_write = $record.remove(col_index);
+                    record_to_write.push_field(token.text.as_bytes());
+
+                    if args.flag_token_type.is_some() {
+                        record_to_write.push_field(token.kind.as_str().as_bytes());
+                    }
+
+                    wtr.write_record(&record_to_write)?;
                 }
-
-                wtr.write_record(&record_to_write)?;
             }
-        };
+        }};
     }
 
     if let Some(threads) = parallelization {
@@ -156,7 +190,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
-                let (record, tokens) = result?;
+                let (mut record, tokens) = result?;
 
                 write_tokens!(
                     record,
