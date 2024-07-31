@@ -1,8 +1,10 @@
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
 
 use csv::ByteRecord;
 use rayon::prelude::*;
+
+use crate::structures::FixedReverseHeap;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
@@ -619,6 +621,32 @@ impl Frequencies {
         max.map(|(_, keys)| keys.into_iter().cloned().collect())
     }
 
+    fn top_values(&self, k: usize) -> Vec<String> {
+        let mut heap = FixedReverseHeap::<(u64, Reverse<&String>)>::with_capacity(k);
+
+        for (key, count) in self.counter.iter() {
+            heap.push((*count, Reverse(key)));
+        }
+
+        heap.into_sorted_vec()
+            .into_iter()
+            .map(|(_, Reverse(value))| value.clone())
+            .collect()
+    }
+
+    fn top_counts(&self, k: usize) -> Vec<u64> {
+        let mut heap = FixedReverseHeap::<(u64, Reverse<&String>)>::with_capacity(k);
+
+        for (key, count) in self.counter.iter() {
+            heap.push((*count, Reverse(key)));
+        }
+
+        heap.into_sorted_vec()
+            .into_iter()
+            .map(|(count, _)| count)
+            .collect()
+    }
+
     fn cardinality(&self) -> usize {
         self.counter.len()
     }
@@ -999,6 +1027,19 @@ impl Aggregator {
             (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
                 DynamicValue::from(inner.sample_stdev())
             }
+            (ConcreteAggregationMethod::TopCounts(k, separator), Self::Frequencies(inner)) => {
+                DynamicValue::from(
+                    inner
+                        .top_counts(*k)
+                        .into_iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(separator),
+                )
+            }
+            (ConcreteAggregationMethod::TopValues(k, separator), Self::Frequencies(inner)) => {
+                DynamicValue::from(inner.top_values(*k).join(separator))
+            }
             (ConcreteAggregationMethod::Types, Self::Types(inner)) => {
                 DynamicValue::from(inner.sorted_types().join("|"))
             }
@@ -1132,7 +1173,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Mode
             | ConcreteAggregationMethod::Modes(_)
             | ConcreteAggregationMethod::Cardinality
-            | ConcreteAggregationMethod::DistinctValues(_) => {
+            | ConcreteAggregationMethod::DistinctValues(_)
+            | ConcreteAggregationMethod::TopCounts(_, _)
+            | ConcreteAggregationMethod::TopValues(_, _) => {
                 upsert_aggregator!(Frequencies)
             }
             ConcreteAggregationMethod::Sum => {
@@ -1297,6 +1340,15 @@ fn validate_aggregation_function_arity(
                 ));
             }
         }
+        "top" | "top_counts" => {
+            if !(2..=3).contains(&arity) {
+                return Err(ConcretizationError::from_invalid_range_arity(
+                    aggregation.func_name.clone(),
+                    2..=3,
+                    arity,
+                ));
+            }
+        }
         _ => {
             if arity != 1 {
                 return Err(ConcretizationError::from_invalid_arity(
@@ -1311,8 +1363,8 @@ fn validate_aggregation_function_arity(
     Ok(())
 }
 
-fn get_separator_from_optional_first_argument(args: Vec<ConcreteExpr>) -> Option<String> {
-    Some(match args.first() {
+fn get_separator_from_argument(args: Vec<ConcreteExpr>, pos: usize) -> Option<String> {
+    Some(match args.get(pos) {
         None => "|".to_string(),
         Some(arg) => match arg {
             ConcreteExpr::Value(separator) => separator.try_as_str().expect("").into_owned(),
@@ -1348,6 +1400,8 @@ enum ConcreteAggregationMethod {
     VarSample,
     StddevPop,
     StddevSample,
+    TopValues(usize, String),
+    TopCounts(usize, String),
     Type,
     Types,
 }
@@ -1362,12 +1416,10 @@ impl ConcreteAggregationMethod {
             "cardinality" => Self::Cardinality,
             "count" => Self::Count(CountType::NonEmpty),
             "count_empty" => Self::Count(CountType::Empty),
-            "distinct_values" => {
-                Self::DistinctValues(match get_separator_from_optional_first_argument(args) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                })
-            }
+            "distinct_values" => Self::DistinctValues(match get_separator_from_argument(args, 0) {
+                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                Some(separator) => separator,
+            }),
             "first" => Self::First,
             "last" => Self::Last,
             "lex_first" => Self::LexFirst,
@@ -1379,7 +1431,7 @@ impl ConcreteAggregationMethod {
             "median_high" => Self::Median(MedianType::High),
             "median_low" => Self::Median(MedianType::Low),
             "mode" => Self::Mode,
-            "modes" => Self::Modes(match get_separator_from_optional_first_argument(args) {
+            "modes" => Self::Modes(match get_separator_from_argument(args, 0) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
             }),
@@ -1393,7 +1445,33 @@ impl ConcreteAggregationMethod {
             "q1" => Self::Quartile(0),
             "q2" => Self::Quartile(1),
             "q3" => Self::Quartile(2),
-            "values" => Self::Values(match get_separator_from_optional_first_argument(args) {
+            "top" => Self::TopValues(
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                match get_separator_from_argument(args, 1) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                },
+            ),
+            "top_counts" => Self::TopCounts(
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                match get_separator_from_argument(args, 1) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                },
+            ),
+            "values" => Self::Values(match get_separator_from_argument(args, 0) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
             }),

@@ -272,3 +272,33 @@ fn groupby_complex_selection() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn groupby_top() {
+    let wrk = Workdir::new("groupby_top");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color"],
+            svec!["john", "blue"],
+            svec!["mary", "orange"],
+            svec!["mary", "orange"],
+            svec!["john", "yellow"],
+            svec!["john", "blue"],
+            svec!["john", "purple"],
+        ],
+    );
+
+    let mut cmd = wrk.command("groupby");
+    cmd.arg("name")
+        .arg("top(color, 2) as top, top_counts(color, 2) as counts")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = sort_output_on_n_first(wrk.read_stdout(&mut cmd), 1);
+    let expected = vec![
+        svec!["name", "top", "counts"],
+        svec!["john", "blue|purple", "2|1"],
+        svec!["mary", "orange", "2"],
+    ];
+    assert_eq!(got, expected);
+}

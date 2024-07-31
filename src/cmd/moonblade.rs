@@ -532,6 +532,14 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - sum(<expr>) -> number
         Sum of numerical values.
 
+    - top(<expr>, k, separator?)
+        List of top k most common values returned by expression joined
+        by a pipe character ('|') by default or by the provided separator.
+
+    - top_counts(<expr>, k, separator?)
+        List of top k most common values' counts returned by expression joined
+        by a pipe character ('|') by default or by the provided separator.
+
     - type(<expr>) -> string
         Best type description for seen values.
 
