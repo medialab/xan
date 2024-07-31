@@ -134,7 +134,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if !args.flag_no_headers {
-        if !args.flag_sep.is_some() && !args.flag_keep_text {
+        if args.flag_sep.is_none() && !args.flag_keep_text {
             headers = headers.remove(col_index);
         }
         headers.push_field(token_column_name.as_bytes());

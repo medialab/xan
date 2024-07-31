@@ -138,6 +138,7 @@ mod index;
 mod json;
 mod moonblade;
 mod select;
+mod structures;
 mod util;
 
 static USAGE: &str = concat!(

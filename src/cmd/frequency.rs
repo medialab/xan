@@ -1,13 +1,11 @@
-use std::{
-    cmp::Reverse,
-    collections::{BinaryHeap, HashMap},
-};
+use std::{cmp::Reverse, collections::HashMap};
 
 use csv::{self, ByteRecord};
 use rayon::prelude::*;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
+use crate::structures::FixedReverseHeap;
 use crate::util;
 use crate::CliResult;
 
@@ -138,33 +136,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let items = if args.flag_limit != 0
             && args.flag_limit < (counter.len() as f64 / 2.0).floor() as usize
         {
-            let mut heap: BinaryHeap<(Reverse<u64>, Vec<u8>)> =
-                BinaryHeap::with_capacity(args.flag_limit);
+            let mut heap: FixedReverseHeap<(u64, Reverse<Vec<u8>>)> =
+                FixedReverseHeap::with_capacity(args.flag_limit);
 
             for (value, count) in counter {
                 total += count;
 
-                if heap.len() < heap.capacity() {
-                    heap.push((Reverse(count), value));
-                } else {
-                    let current = &heap.peek().unwrap();
-
-                    if count > current.0 .0 || (count == current.0 .0 && value < current.1) {
-                        heap.pop();
-                        heap.push((Reverse(count), value));
-                    }
-                }
+                heap.push((count, Reverse(value)));
             }
 
-            let mut items = Vec::with_capacity(heap.len());
-
-            while let Some((count, value)) = heap.pop() {
-                items.push((value, count.0));
-            }
-
-            items.reverse();
-
-            items
+            heap.into_sorted_vec()
+                .into_iter()
+                .map(|(count, Reverse(value))| (value, count))
+                .collect()
         } else {
             let mut items = counter
                 .into_iter()
