@@ -243,9 +243,7 @@ fn tokenize_min_token_len() {
         vec![svec!["n", "text"], svec!["1", "le chaton"]],
     );
     let mut cmd = wrk.command("tokenize");
-    cmd.arg("text")
-        .args(["--min-token-len", "3"])
-        .arg("data.csv");
+    cmd.arg("text").args(["--min-token", "3"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n", "token"], svec!["1", "chaton"]];
@@ -260,9 +258,7 @@ fn tokenize_max_token_len() {
         vec![svec!["n", "text"], svec!["1", "le chaton"]],
     );
     let mut cmd = wrk.command("tokenize");
-    cmd.arg("text")
-        .args(["--max-token-len", "3"])
-        .arg("data.csv");
+    cmd.arg("text").args(["--max-token", "3"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n", "token"], svec!["1", "le"]];

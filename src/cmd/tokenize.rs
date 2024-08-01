@@ -71,8 +71,8 @@ tokenize options:
     -K, --keep <types>       Types of tokens to keep in the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -d, --drop.
                              See the list of recognized types above.
-    -m, --min-token-len <n>  Minimum length of a token to be included in the output.
-    -M, --max-token-len <n>  Maximum length of a token to be included in the output.
+    -m, --min-token <n>      Minimum characters count of a token to be included in the output.
+    -M, --max-token <n>      Maximum characters count of a token to be included in the output.
     --stoplist <path>        Path to a .txt stoplist containing one word per line.
     --sep <char>             If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
@@ -111,8 +111,8 @@ struct Args {
     flag_keep: Option<String>,
     flag_sep: Option<String>,
     flag_keep_text: bool,
-    flag_min_token_len: Option<usize>,
-    flag_max_token_len: Option<usize>,
+    flag_min_token: Option<usize>,
+    flag_max_token: Option<usize>,
     flag_stoplist: Option<String>,
     flag_simple: bool,
     flag_ngrams: Option<String>,
@@ -199,12 +199,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
     }
 
-    if let Some(min) = args.flag_min_token_len {
-        tokenizer_builder = tokenizer_builder.min_token_len(min);
+    if let Some(min) = args.flag_min_token {
+        tokenizer_builder = tokenizer_builder.min_token_char_count(min);
     }
 
-    if let Some(max) = args.flag_max_token_len {
-        tokenizer_builder = tokenizer_builder.max_token_len(max);
+    if let Some(max) = args.flag_max_token {
+        tokenizer_builder = tokenizer_builder.max_token_char_count(max);
     }
 
     if let Some(path) = args.flag_stoplist {
