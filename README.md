@@ -473,6 +473,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - **transpose** - Transpose CSV file
 - **union-find** - Apply the union-find algorithm on a CSV edge list
 - **view** - Preview a CSV file in a human-friendly way
+- **vocab** - Build a vocabulary over tokenized documents
 
 ## General flags and IO model
 

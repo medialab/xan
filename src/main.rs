@@ -128,6 +128,7 @@ macro_rules! command_list {
     transpose   Transpose CSV file
     union-find  Apply the union-find algorithm on a CSV edge list
     view        Preview a CSV file in a human-friendly way
+    vocab       Build a vocabulary over tokenized documents
 "
     };
 }
@@ -259,6 +260,7 @@ enum Command {
     #[serde(rename = "union-find")]
     UnionFind,
     View,
+    Vocab,
 }
 
 impl Command {
@@ -325,6 +327,7 @@ impl Command {
             Command::Transpose => cmd::transpose::run(argv),
             Command::UnionFind => cmd::union_find::run(argv),
             Command::View => cmd::view::run(argv),
+            Command::Vocab => cmd::vocab::run(argv),
         }
     }
 }
