@@ -65,7 +65,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    wtr.write_record(["id", "token", "tf", "df"])?;
+    wtr.write_record(["id", "token", "tf", "df", "idf"])?;
 
     vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
 
@@ -79,6 +79,12 @@ type Token = Vec<u8>;
 struct TokenStats {
     tf: u64,
     df: u64,
+}
+
+impl TokenStats {
+    fn idf(&self, n: u64) -> f64 {
+        (n as f64 / self.df as f64).ln()
+    }
 }
 
 #[derive(Debug)]
@@ -122,6 +128,10 @@ impl Vocabulary {
         Self::default()
     }
 
+    fn doc_count(&self) -> u64 {
+        self.documents.len() as u64
+    }
+
     fn add(&mut self, document: Document, token: Token) {
         let token_was_added = match self.documents.entry(document) {
             Entry::Vacant(entry) => {
@@ -151,6 +161,7 @@ impl Vocabulary {
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
         let mut record = csv::ByteRecord::new();
+        let n = self.doc_count();
 
         for (i, (token, stats)) in self.tokens.into_iter().enumerate() {
             record.clear();
@@ -158,6 +169,7 @@ impl Vocabulary {
             record.push_field(&token);
             record.push_field(stats.tf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
+            record.push_field(stats.idf(n).to_string().as_bytes());
 
             callback(&record)?;
         }
