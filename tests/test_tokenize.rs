@@ -292,3 +292,109 @@ fn tokenize_stoplist() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn tokenize_ngrams() {
+    let wrk = Workdir::new("tokenize_ngrams");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chat mange"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text").args(["--ngrams", "2"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "token"],
+        svec!["1", "le|chat"],
+        svec!["1", "chat|mange"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_ngrams_sep() {
+    let wrk = Workdir::new("tokenize_ngrams_sep");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chat mange"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--ngrams", "2"])
+        .args(["--ngrams-sep", ", "])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "token"],
+        svec!["1", "le, chat"],
+        svec!["1", "chat, mange"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_ngrams_range() {
+    let wrk = Workdir::new("tokenize_ngrams_range");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chat mange"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text").args(["--ngrams", "1,2"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "token"],
+        svec!["1", "le"],
+        svec!["1", "chat"],
+        svec!["1", "le|chat"],
+        svec!["1", "mange"],
+        svec!["1", "chat|mange"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_ngrams_parallel() {
+    let wrk = Workdir::new("tokenize_ngrams_parallel");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chat mange"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--ngrams", "2"])
+        .arg("-p")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "token"],
+        svec!["1", "le|chat"],
+        svec!["1", "chat|mange"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_sep_ngrams() {
+    let wrk = Workdir::new("tokenize_sep_ngrams");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "le chat mange"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text")
+        .args(["--ngrams", "2"])
+        .args(["--sep", "§"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "text", "tokens"],
+        svec!["1", "le chat mange", "le|chat§chat|mange"],
+    ];
+    assert_eq!(got, expected);
+}

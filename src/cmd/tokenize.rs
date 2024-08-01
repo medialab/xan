@@ -1,4 +1,6 @@
-use paltoquet::{WordToken, WordTokenKind, WordTokenizerBuilder};
+use std::ops::RangeInclusive;
+
+use paltoquet::{NgramsIteratorExt, WordToken, WordTokenKind, WordTokenizerBuilder};
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
@@ -56,7 +58,11 @@ Usage:
 tokenize options:
     -c, --column <name>      Name for the token column. Will default to \"token\" or \"tokens\"
                              if --sep is given.
+    -N, --ngrams <n>         If given, will output token ngrams using the given n or the given
+                             range of n values using a comma as separator e.g. \"1,3\".
+                             This cannot be used with -T, --token-type.
     -T, --token-type <name>  Name of a column to add containing the type of the tokens.
+                             This cannot be used with -N, --ngrams.
     -S, --simple             Use a simpler, more performant variant of the tokenizer but unable
                              to infer token types, nor handle subtle cases.
     -D, --drop <types>       Types of tokens to drop from the results, separated by comma,
@@ -71,6 +77,8 @@ tokenize options:
     --sep <char>             If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
+    --ngrams-sep <char>      Separator to be use to join ngrams tokens.
+                             [default: |]
     --keep-text              Force keeping the text column in output.
     -p, --parallel           Whether to use parallelization to speed up computations.
                              Will automatically select a suitable number of threads to use
@@ -107,14 +115,35 @@ struct Args {
     flag_max_token_len: Option<usize>,
     flag_stoplist: Option<String>,
     flag_simple: bool,
+    flag_ngrams: Option<String>,
+    flag_ngrams_sep: String,
+}
+
+impl Args {
+    fn validate(&self) -> Result<(), &str> {
+        if self.flag_ngrams.is_some() && self.flag_token_type.is_some() {
+            return Err("--ngrams cannot be used with -T,--token-type");
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    args.validate()?;
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.arg_column.clone());
+
+    let ngrams = args
+        .flag_ngrams
+        .as_ref()
+        .map(|text| parse_range(text))
+        .transpose()?;
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -195,41 +224,68 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! write_tokens {
         ($record:ident, $tokens:expr) => {{
             if let Some(sep) = &args.flag_sep {
-                let mut types = Vec::new();
+                if let Some(range) = &ngrams {
+                    let joined_tokens = $tokens
+                        .map(|t| t.text)
+                        .ngrams_range(range.clone())
+                        .map(|gram| gram.join(&args.flag_ngrams_sep))
+                        .collect::<Vec<_>>()
+                        .join(sep);
 
-                let joined_tokens = $tokens
-                    .map(|t| {
-                        if args.flag_token_type.is_some() {
-                            types.push(t.kind.as_str());
-                        }
-                        t.text
-                    })
-                    .collect::<Vec<_>>()
-                    .join(sep);
+                    // NOTE: if not -p, we are mutating the working record
+                    $record.push_field(joined_tokens.as_bytes());
 
-                // NOTE: if not -p, we are mutating the working record
-                $record.push_field(joined_tokens.as_bytes());
+                    wtr.write_byte_record(&$record)?;
+                } else {
+                    let mut types = Vec::new();
 
-                if args.flag_token_type.is_some() {
-                    $record.push_field(types.join(sep).as_bytes());
-                }
+                    let joined_tokens = $tokens
+                        .map(|t| {
+                            if args.flag_token_type.is_some() {
+                                types.push(t.kind.as_str());
+                            }
+                            t.text
+                        })
+                        .collect::<Vec<_>>()
+                        .join(sep);
 
-                wtr.write_byte_record(&$record)?;
-            } else {
-                for token in $tokens {
-                    let mut record_to_write = if args.flag_keep_text {
-                        $record.clone()
-                    } else {
-                        $record.remove(col_index)
-                    };
-
-                    record_to_write.push_field(token.text.as_bytes());
+                    // NOTE: if not -p, we are mutating the working record
+                    $record.push_field(joined_tokens.as_bytes());
 
                     if args.flag_token_type.is_some() {
-                        record_to_write.push_field(token.kind.as_str().as_bytes());
+                        $record.push_field(types.join(sep).as_bytes());
                     }
 
-                    wtr.write_record(&record_to_write)?;
+                    wtr.write_byte_record(&$record)?;
+                }
+            } else {
+                if let Some(range) = &ngrams {
+                    for gram in $tokens.map(|t| t.text).ngrams_range(range.clone()) {
+                        let mut record_to_write = if args.flag_keep_text {
+                            $record.clone()
+                        } else {
+                            $record.remove(col_index)
+                        };
+
+                        record_to_write.push_field(gram.join(&args.flag_ngrams_sep).as_bytes());
+                        wtr.write_byte_record(&record_to_write)?;
+                    }
+                } else {
+                    for token in $tokens {
+                        let mut record_to_write = if args.flag_keep_text {
+                            $record.clone()
+                        } else {
+                            $record.remove(col_index)
+                        };
+
+                        record_to_write.push_field(token.text.as_bytes());
+
+                        if args.flag_token_type.is_some() {
+                            record_to_write.push_field(token.kind.as_str().as_bytes());
+                        }
+
+                        wtr.write_record(&record_to_write)?;
+                    }
                 }
             }
         }};
@@ -293,4 +349,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     Ok(wtr.flush()?)
+}
+
+fn parse_range(text: &str) -> Result<RangeInclusive<usize>, &str> {
+    let split: Vec<&str> = text.split(',').collect();
+
+    let error_msg = "Could not parse --ngram!";
+
+    if split.len() == 1 {
+        let n: usize = split[0].parse().map_err(|_| error_msg)?;
+        Ok(n..=n)
+    } else if split.len() == 2 {
+        let s: usize = split[0].parse().map_err(|_| error_msg)?;
+        let e: usize = split[1].parse().map_err(|_| error_msg)?;
+
+        Ok(s..=e)
+    } else {
+        Err(error_msg)
+    }
 }
