@@ -358,9 +358,18 @@ impl PartialEq for DynamicNumber {
     }
 }
 
+impl Eq for DynamicNumber {}
+
 impl PartialOrd for DynamicNumber {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DynamicNumber {
+    // TODO: NaN is gonna bite us in the buttocks at one point I'm sure..
+    fn cmp(&self, other: &Self) -> Ordering {
+        (match self {
             Self::Float(self_value) => match other {
                 Self::Float(other_value) => self_value.partial_cmp(other_value),
                 Self::Integer(other_value) => self_value.partial_cmp(&(*other_value as f64)),
@@ -369,7 +378,8 @@ impl PartialOrd for DynamicNumber {
                 Self::Float(other_value) => (*self_value as f64).partial_cmp(other_value),
                 Self::Integer(other_value) => Some(self_value.cmp(other_value)),
             },
-        }
+        })
+        .unwrap()
     }
 }
 

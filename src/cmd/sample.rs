@@ -150,7 +150,7 @@ fn sample_reservoir<R: io::Read>(
     // https://en.wikipedia.org/wiki/Reservoir_sampling
     let mut reservoir = Vec::with_capacity(sample_size as usize);
     let mut records = rdr.byte_records().enumerate();
-    for (_, row) in records.by_ref().take(reservoir.capacity()) {
+    for (_, row) in records.by_ref().take(sample_size as usize) {
         reservoir.push(row?);
     }
 
@@ -214,7 +214,7 @@ fn sample_weighted_reservoir<R: io::Read>(
         let score = rng.gen::<f64>().powf(1.0 / weight);
         let weighted_row = WeightedRow(score, record);
 
-        if reservoir.len() < reservoir.capacity() {
+        if reservoir.len() < sample_size as usize {
             reservoir.push(weighted_row);
         } else if &weighted_row < reservoir.peek().unwrap() {
             reservoir.pop();

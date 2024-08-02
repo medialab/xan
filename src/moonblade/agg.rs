@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use csv::ByteRecord;
 use rayon::prelude::*;
 
-use crate::structures::FixedReverseHeap;
+use crate::structures::{FixedReverseHeap, FixedReverseHeapMap};
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
@@ -352,6 +352,47 @@ impl ArgExtent {
                     }
                 }
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ArgTop {
+    heap: FixedReverseHeapMap<(DynamicNumber, Reverse<usize>), ByteRecord>,
+}
+
+impl ArgTop {
+    fn new(k: usize) -> Self {
+        Self {
+            heap: FixedReverseHeapMap::with_capacity(k),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.heap.clear();
+    }
+
+    fn add(&mut self, index: usize, value: DynamicNumber, arg: &ByteRecord) {
+        self.heap.push_with((value, Reverse(index)), || arg.clone());
+    }
+
+    fn top_indices(&self) -> impl Iterator<Item = usize> {
+        self.heap
+            .to_sorted_vec()
+            .into_iter()
+            .map(|((_, Reverse(i)), _)| i)
+    }
+
+    fn top(&self) -> impl Iterator<Item = (usize, ByteRecord)> {
+        self.heap
+            .to_sorted_vec()
+            .into_iter()
+            .map(|((_, Reverse(i)), r)| (i, r))
+    }
+
+    fn merge(&mut self, other: Self) {
+        for (k, v) in other.heap.into_unordered_iter() {
+            self.heap.push_with(k, || v);
         }
     }
 }
@@ -917,6 +958,7 @@ macro_rules! build_aggregation_method_enum {
 build_aggregation_method_enum!(
     AllAny,
     ArgExtent,
+    ArgTop,
     Count,
     Extent,
     First,
@@ -942,6 +984,34 @@ impl Aggregator {
             }
             (ConcreteAggregationMethod::Any, Self::AllAny(inner)) => {
                 DynamicValue::from(inner.any())
+            }
+            (ConcreteAggregationMethod::ArgTop(_, expr_opt, separator), Self::ArgTop(inner)) => {
+                DynamicValue::from(match expr_opt {
+                    None => inner
+                        .top_indices()
+                        .map(|i| i.to_string())
+                        .collect::<Vec<_>>()
+                        .join(separator),
+                    Some(expr) => {
+                        let mut strings = Vec::new();
+
+                        for (index, record) in inner.top() {
+                            let value = eval_expression(expr, Some(index), &record, context)?;
+
+                            strings.push(
+                                value
+                                    .try_as_str()
+                                    .map_err(|err| SpecifiedEvaluationError {
+                                        function_name: "argtop".to_string(),
+                                        reason: err,
+                                    })?
+                                    .into_owned(),
+                            );
+                        }
+
+                        strings.join(separator)
+                    }
+                })
             }
             (ConcreteAggregationMethod::Cardinality, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.cardinality())
@@ -1156,6 +1226,11 @@ impl CompositeAggregator {
                     }
                 }
             }
+            ConcreteAggregationMethod::ArgTop(k, _, _) => {
+                let idx = self.methods.len();
+                self.methods.push(Aggregator::ArgTop(ArgTop::new(*k)));
+                idx
+            }
             ConcreteAggregationMethod::First => {
                 upsert_aggregator!(First)
             }
@@ -1224,6 +1299,11 @@ impl CompositeAggregator {
                     Aggregator::ArgExtent(extent) => {
                         if !value.is_nullish() {
                             extent.add(index, value.try_as_number()?, record);
+                        }
+                    }
+                    Aggregator::ArgTop(top) => {
+                        if !value.is_nullish() {
+                            top.add(index, value.try_as_number()?, record);
                         }
                     }
                     Aggregator::First(first) => {
@@ -1312,52 +1392,21 @@ fn validate_aggregation_function_arity(
 ) -> Result<(), ConcretizationError> {
     let arity = aggregation.args.len();
 
-    match aggregation.func_name.as_str() {
-        "count" => {
-            if !(0..=1).contains(&arity) {
-                return Err(ConcretizationError::from_invalid_range_arity(
-                    aggregation.func_name.clone(),
-                    0..=1,
-                    arity,
-                ));
-            }
-        }
-        "quantile" => {
-            if arity != 2 {
-                return Err(ConcretizationError::from_invalid_arity(
-                    aggregation.func_name.clone(),
-                    2,
-                    arity,
-                ));
-            }
-        }
-        "values" | "distinct_values" | "argmin" | "argmax" | "modes" => {
-            if !(1..=2).contains(&arity) {
-                return Err(ConcretizationError::from_invalid_range_arity(
-                    aggregation.func_name.clone(),
-                    1..=2,
-                    arity,
-                ));
-            }
-        }
-        "top" | "top_counts" => {
-            if !(1..=3).contains(&arity) {
-                return Err(ConcretizationError::from_invalid_range_arity(
-                    aggregation.func_name.clone(),
-                    1..=3,
-                    arity,
-                ));
-            }
-        }
-        _ => {
-            if arity != 1 {
-                return Err(ConcretizationError::from_invalid_arity(
-                    aggregation.func_name.clone(),
-                    1,
-                    arity,
-                ));
-            }
-        }
+    let range = match aggregation.func_name.as_str() {
+        "count" => 0..=1,
+        "quantile" => 2..=2,
+        "values" | "distinct_values" | "argmin" | "argmax" | "modes" => 1..=2,
+        "top" | "top_counts" => 1..=3,
+        "argtop" => 1..=4,
+        _ => 1..=1,
+    };
+
+    if !range.contains(&arity) {
+        return Err(ConcretizationError::from_invalid_range_arity(
+            aggregation.func_name.clone(),
+            range,
+            arity,
+        ));
     }
 
     Ok(())
@@ -1379,6 +1428,7 @@ enum ConcreteAggregationMethod {
     Any,
     ArgMin(Option<ConcreteExpr>),
     ArgMax(Option<ConcreteExpr>),
+    ArgTop(usize, Option<ConcreteExpr>, String),
     Cardinality,
     Count(CountType),
     DistinctValues(String),
@@ -1413,6 +1463,20 @@ impl ConcreteAggregationMethod {
             "any" => Self::Any,
             "argmin" => Self::ArgMin(args.pop()),
             "argmax" => Self::ArgMax(args.pop()),
+            "argtop" => Self::ArgTop(
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                args.get(1).cloned(),
+                match get_separator_from_argument(args, 2) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                },
+            ),
             "cardinality" => Self::Cardinality,
             "count" => Self::Count(CountType::NonEmpty),
             "count_empty" => Self::Count(CountType::Empty),
@@ -1446,15 +1510,12 @@ impl ConcreteAggregationMethod {
             "q2" => Self::Quartile(1),
             "q3" => Self::Quartile(2),
             "top" => Self::TopValues(
-                match args.first() {
-                    None => 10,
-                    Some(arg) => match arg {
-                        ConcreteExpr::Value(v) => match v.try_as_usize() {
-                            Ok(k) => k,
-                            Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                        },
-                        _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
                     },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 },
                 match get_separator_from_argument(args, 1) {
                     None => return Err(ConcretizationError::NotStaticallyAnalyzable),
@@ -1462,15 +1523,12 @@ impl ConcreteAggregationMethod {
                 },
             ),
             "top_counts" => Self::TopCounts(
-                match args.first() {
-                    None => 10,
-                    Some(arg) => match arg {
-                        ConcreteExpr::Value(v) => match v.try_as_usize() {
-                            Ok(k) => k,
-                            Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                        },
-                        _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
                     },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 },
                 match get_separator_from_argument(args, 1) {
                     None => return Err(ConcretizationError::NotStaticallyAnalyzable),
@@ -1510,8 +1568,12 @@ fn concretize_aggregations(
 ) -> Result<ConcreteAggregations, ConcretizationError> {
     let mut concrete_aggregations = ConcreteAggregations::new();
 
-    for aggregation in aggregations {
+    for mut aggregation in aggregations {
         validate_aggregation_function_arity(&aggregation)?;
+
+        if ["top", "top_counts", "argtop"].contains(&aggregation.func_name.as_str()) {
+            aggregation.args.swap(0, 1);
+        }
 
         let expr = aggregation
             .args

@@ -53,10 +53,16 @@ impl ConcretizationError {
         range: RangeInclusive<usize>,
         got: usize,
     ) -> Self {
+        let count = range.clone().count();
+
         Self::InvalidArity((
             name,
             InvalidArity {
-                expected: Arity::Range(range),
+                expected: if count == 1 {
+                    Arity::Strict(*range.start())
+                } else {
+                    Arity::Range(range)
+                },
                 got,
             },
         ))

@@ -451,10 +451,18 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - argmin(<expr>, <expr>?) -> any
         Return the index of the row where the first expression is minimized, or
         the result of the second expression where the first expression is minimized.
+        Ties will be broken by original row index.
 
     - argmax(<expr>, <expr>?) -> any
         Return the index of the row where the first expression is maximized, or
         the result of the second expression where the first expression is maximized.
+        Ties will be broken by original row index.
+
+    - argtop(k, <expr>, <expr>?, separator?)
+        Find the top k values returned by the first expression and either
+        return the indices of matching rows or the result of the second
+        expression, joined by a pipe character ('|') or by the provided separator.
+        Ties will be broken by original row index.
 
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
@@ -532,12 +540,13 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - sum(<expr>) -> number
         Sum of numerical values.
 
-    - top(<expr>, k?, separator?)
-        List of top k (10 by default) most common values returned by expression
+    - top(K, <expr>, separator?)
+        List of top k most common values returned by expression
         joined by a pipe character ('|') or by the provided separator.
+        Ties will be broken by lexicographical order.
 
-    - top_counts(<expr>, k?, separator?)
-        List of top k (10 by default) most common counts returned by expression
+    - top_counts(k, <expr>, separator?)
+        List of top k most common counts returned by expression
         joined by a pipe character ('|') or by the provided separator.
 
     - type(<expr>) -> string

@@ -291,7 +291,7 @@ fn groupby_top() {
 
     let mut cmd = wrk.command("groupby");
     cmd.arg("name")
-        .arg("top(color, 2) as top, top_counts(color, 2) as counts")
+        .arg("top(2, color) as top, top_counts(2, color) as counts")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = sort_output_on_n_first(wrk.read_stdout(&mut cmd), 1);
