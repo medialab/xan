@@ -8,7 +8,6 @@ use crate::CliResult;
 // TODO: --sorted if sorted on document to speed up and avoid lookups,
 // or rely on caching last key instead
 // TODO: filters on df because with --doc you cannot filter on this?
-// TODO: hashmap with reference or id reference for token to avoid cloning?
 
 static USAGE: &str = "
 Build a vocabulary over tokenized documents.
@@ -95,16 +94,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
 type Document = Vec<Vec<u8>>;
 type Token = Vec<u8>;
+type TokenID = usize;
 
 #[derive(Debug)]
 struct TokenStats {
     tf: u64,
     df: u64,
+    text: Token,
 }
 
 impl TokenStats {
     fn idf(&self, n: u64) -> f64 {
         (n as f64 / self.df as f64).ln()
+    }
+}
+
+impl From<Token> for TokenStats {
+    fn from(value: Token) -> Self {
+        TokenStats {
+            tf: 0,
+            df: 0,
+            text: value,
+        }
     }
 }
 
@@ -121,7 +132,7 @@ impl DocumentTokenStats {
 
 #[derive(Default, Debug)]
 struct DocumentStats {
-    tokens: HashMap<Token, DocumentTokenStats>,
+    tokens: HashMap<TokenID, DocumentTokenStats>,
 }
 
 impl DocumentStats {
@@ -129,8 +140,8 @@ impl DocumentStats {
         Self::default()
     }
 
-    fn add(&mut self, token: Token) -> bool {
-        match self.tokens.entry(token) {
+    fn add(&mut self, token_id: TokenID) -> bool {
+        match self.tokens.entry(token_id) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().tf += 1;
                 false
@@ -145,11 +156,11 @@ impl DocumentStats {
 
 #[derive(Default, Debug)]
 struct Vocabulary {
-    tokens: HashMap<Token, TokenStats>,
+    token_ids: HashMap<Token, TokenID>,
+    tokens: Vec<TokenStats>,
     documents: HashMap<Document, DocumentStats>,
 }
 
-// TODO: don't clone token and make the tokens hashmap store references?
 impl Vocabulary {
     fn new() -> Self {
         Self::default()
@@ -160,27 +171,36 @@ impl Vocabulary {
     }
 
     fn add(&mut self, document: Document, token: Token) {
-        let token_was_added = match self.documents.entry(document) {
+        let next_id = self.token_ids.len();
+
+        let token_id = match self.token_ids.entry(token.clone()) {
+            Entry::Vacant(entry) => {
+                entry.insert(next_id);
+                self.tokens.push(TokenStats::from(token));
+
+                next_id
+            }
+            Entry::Occupied(entry) => *entry.get(),
+        };
+
+        let token_stats = &mut self.tokens[token_id];
+        token_stats.tf += 1;
+
+        let token_was_added_to_doc = match self.documents.entry(document) {
             Entry::Vacant(entry) => {
                 let mut stats = DocumentStats::new();
-                let added = stats.add(token.clone());
+                let added = stats.add(token_id);
 
                 entry.insert(stats);
 
                 added
             }
-            Entry::Occupied(mut entry) => entry.get_mut().add(token.clone()),
+            Entry::Occupied(mut entry) => entry.get_mut().add(token_id),
         };
 
-        self.tokens
-            .entry(token)
-            .and_modify(|stats| {
-                if token_was_added {
-                    stats.df += 1;
-                }
-                stats.tf += 1;
-            })
-            .or_insert(TokenStats { tf: 1, df: 1 });
+        if token_was_added_to_doc {
+            token_stats.df += 1;
+        }
     }
 
     fn for_each_token_level_record<F, E>(self, mut callback: F) -> Result<(), E>
@@ -190,9 +210,11 @@ impl Vocabulary {
         let mut record = csv::ByteRecord::new();
         let n = self.doc_count();
 
-        for (i, (token, stats)) in self.tokens.into_iter().enumerate() {
+        for (token, token_id) in self.token_ids.into_iter() {
+            let stats = &self.tokens[token_id];
+
             record.clear();
-            record.push_field(i.to_string().as_bytes());
+            record.push_field(token_id.to_string().as_bytes());
             record.push_field(&token);
             record.push_field(stats.tf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
@@ -212,18 +234,20 @@ impl Vocabulary {
         let n = self.doc_count();
 
         for (doc, doc_stats) in self.documents.into_iter() {
-            for (token, token_stats) in doc_stats.tokens {
+            for (token_id, doc_token_stats) in doc_stats.tokens {
                 record.clear();
 
-                let idf = self.tokens.get(&token).unwrap().idf(n);
+                let token_stats = &self.tokens[token_id];
+
+                let idf = token_stats.idf(n);
 
                 for cell in doc.iter() {
                     record.push_field(cell);
                 }
 
-                record.push_field(&token);
+                record.push_field(&token_stats.text);
 
-                record.push_field(token_stats.tfidf(idf).to_string().as_bytes());
+                record.push_field(doc_token_stats.tfidf(idf).to_string().as_bytes());
 
                 callback(&record)?;
             }
