@@ -10,7 +10,7 @@ use crate::CliResult;
 // if sorted!
 // TODO: filters on df because with --doc you cannot filter on this?
 // TODO: maybe option to explode for perf reasons?
-// TODO: add bm25, chi2
+// TODO: add chi2
 // TODO: unit test vocab
 
 static USAGE: &str = "
@@ -20,10 +20,13 @@ TODO...
 
 Usage:
     xan vocab <doc-columns> <token-column> [options] [<input>]
+    xan vocab --help
 
 vocab options:
     -D, --doc              Compute doc-level statistics for tokens instead
                            of token-level statistics.
+    --k1-value <value>     \"k1\" factor for BM25 computation. [default: 1.2]
+    --b-value <value>      \"b\" factor for BM25 computation. [default: 0.75]
 
 Common options:
     -h, --help             Display this message
@@ -42,6 +45,8 @@ struct Args {
     arg_doc_columns: SelectColumns,
     arg_token_column: SelectColumns,
     flag_doc: bool,
+    flag_k1_value: f64,
+    flag_b_value: f64,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -89,9 +94,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output_headers.push_field(&headers[token_pos]);
         output_headers.push_field(b"tf");
         output_headers.push_field(b"tfidf");
+        output_headers.push_field(b"bm25");
 
         wtr.write_byte_record(&output_headers)?;
-        vocab.for_each_doc_token_level_record(|r| wtr.write_byte_record(r))?;
+        vocab.for_each_doc_token_level_record(args.flag_k1_value, args.flag_b_value, |r| {
+            wtr.write_byte_record(r)
+        })?;
     }
 
     Ok(wtr.flush()?)
@@ -133,6 +141,21 @@ impl DocumentTokenStats {
     fn tfidf(&self, idf: f64) -> f64 {
         self.tf as f64 * idf
     }
+
+    // NOTE: fancy idf log(1 + (N - tf + 0.5) / (tf + 0.5)) is the same as log(N / tf)
+    // References:
+    //   - https://fr.wikipedia.org/wiki/Okapi_BM25
+    //   - https://kmwllc.com/index.php/2020/03/20/understanding-tf-idf-and-bm-25/
+    fn bm25(&self, idf: f64, dl: usize, adl: f64, k1: f64, b: f64) -> f64 {
+        let tf = self.tf as f64;
+
+        // NOTE: Lucene does not multiply by (k1 + 1) because it
+        // does not affect order when scoring.
+        let numerator = tf * (k1 + 1.0);
+        let denominator = (tf + k1) * (1.0 - b + (b * (dl as f64 / adl)));
+
+        idf * (numerator / denominator)
+    }
 }
 
 #[derive(Default, Debug)]
@@ -156,6 +179,10 @@ impl DocumentStats {
                 true
             }
         }
+    }
+
+    fn doc_len(&self) -> usize {
+        self.tokens.len()
     }
 }
 
@@ -212,8 +239,13 @@ impl Vocabulary {
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
-        let mut record = csv::ByteRecord::new();
         let n = self.doc_count();
+
+        if n == 0 {
+            return Ok(());
+        }
+
+        let mut record = csv::ByteRecord::new();
 
         for (token, token_id) in self.token_ids.into_iter() {
             let stats = &self.tokens[token_id];
@@ -231,14 +263,30 @@ impl Vocabulary {
         Ok(())
     }
 
-    fn for_each_doc_token_level_record<F, E>(self, mut callback: F) -> Result<(), E>
+    fn for_each_doc_token_level_record<F, E>(
+        self,
+        k1: f64,
+        b: f64,
+        mut callback: F,
+    ) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
-        let mut record = csv::ByteRecord::new();
         let n = self.doc_count();
 
-        for (doc, doc_stats) in self.documents.into_iter() {
+        if n == 0 {
+            return Ok(());
+        }
+
+        // Aggregating average doc lengths for BM25
+        let doc_len_sum: usize = self.documents.values().map(|s| s.doc_len()).sum();
+        let average_doc_len = doc_len_sum as f64 / n as f64;
+
+        let mut record = csv::ByteRecord::new();
+
+        for (doc, doc_stats) in self.documents {
+            let doc_len = doc_stats.doc_len();
+
             for (token_id, doc_token_stats) in doc_stats.tokens {
                 record.clear();
 
@@ -253,6 +301,12 @@ impl Vocabulary {
                 record.push_field(&token_stats.text);
                 record.push_field(doc_token_stats.tf.to_string().as_bytes());
                 record.push_field(doc_token_stats.tfidf(idf).to_string().as_bytes());
+                record.push_field(
+                    doc_token_stats
+                        .bm25(idf, doc_len, average_doc_len, k1, b)
+                        .to_string()
+                        .as_bytes(),
+                );
 
                 callback(&record)?;
             }
