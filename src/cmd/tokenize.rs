@@ -35,11 +35,11 @@ id,token,type
 1,😎,emoji
 2,hello,word
 
-You can easily pipe the command into \"xan frequency\" to create a vocabulary:
-    $ xan tokenize text file.csv | xan frequency -s token -l 0 > vocab.csv
+You can easily pipe the command into \"xan vocab\" to create a vocabulary:
+    $ xan tokenize text file.csv | xan vocab id token > vocab.csv
 
 You can easily keep the tokens in a separate file using the \"tee\" command:
-    $ xan tokenize text file.csv | tee tokens.csv | xan frequency -s token -l 0 > vocab.csv
+    $ xan tokenize text file.csv | tee tokens.csv | xan vocab id token > vocab.csv
 
 This tokenizer is able to distinguish between the following types of tokens:
     - word

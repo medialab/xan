@@ -11,6 +11,7 @@ use crate::CliResult;
 // TODO: filters on df because with --doc you cannot filter on this?
 // TODO: maybe option to explode for perf reasons?
 // TODO: add bm25, chi2
+// TODO: unit test vocab
 
 static USAGE: &str = "
 Build a vocabulary over tokenized documents.
