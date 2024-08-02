@@ -6,7 +6,8 @@ use crate::util;
 use crate::CliResult;
 
 // TODO: --sorted if sorted on document to speed up and avoid lookups,
-// or rely on caching last key instead
+// or rely on caching last key instead, but we can avoid the doc hashmap
+// if sorted!
 // TODO: filters on df because with --doc you cannot filter on this?
 
 static USAGE: &str = "
@@ -83,6 +84,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         output_headers.push_field(&headers[token_pos]);
+        output_headers.push_field(b"tf");
         output_headers.push_field(b"tfidf");
 
         wtr.write_byte_record(&output_headers)?;
@@ -246,7 +248,7 @@ impl Vocabulary {
                 }
 
                 record.push_field(&token_stats.text);
-
+                record.push_field(doc_token_stats.tf.to_string().as_bytes());
                 record.push_field(doc_token_stats.tfidf(idf).to_string().as_bytes());
 
                 callback(&record)?;
