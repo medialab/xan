@@ -9,6 +9,8 @@ use crate::CliResult;
 // or rely on caching last key instead, but we can avoid the doc hashmap
 // if sorted!
 // TODO: filters on df because with --doc you cannot filter on this?
+// TODO: maybe option to explode for perf reasons?
+// TODO: add bm25, chi2
 
 static USAGE: &str = "
 Build a vocabulary over tokenized documents.
