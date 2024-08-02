@@ -1341,10 +1341,10 @@ fn validate_aggregation_function_arity(
             }
         }
         "top" | "top_counts" => {
-            if !(2..=3).contains(&arity) {
+            if !(1..=3).contains(&arity) {
                 return Err(ConcretizationError::from_invalid_range_arity(
                     aggregation.func_name.clone(),
-                    2..=3,
+                    1..=3,
                     arity,
                 ));
             }
@@ -1446,12 +1446,15 @@ impl ConcreteAggregationMethod {
             "q2" => Self::Quartile(1),
             "q3" => Self::Quartile(2),
             "top" => Self::TopValues(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                match args.first() {
+                    None => 10,
+                    Some(arg) => match arg {
+                        ConcreteExpr::Value(v) => match v.try_as_usize() {
+                            Ok(k) => k,
+                            Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                        },
+                        _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
                     },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 },
                 match get_separator_from_argument(args, 1) {
                     None => return Err(ConcretizationError::NotStaticallyAnalyzable),
@@ -1459,12 +1462,15 @@ impl ConcreteAggregationMethod {
                 },
             ),
             "top_counts" => Self::TopCounts(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                match args.first() {
+                    None => 10,
+                    Some(arg) => match arg {
+                        ConcreteExpr::Value(v) => match v.try_as_usize() {
+                            Ok(k) => k,
+                            Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                        },
+                        _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
                     },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 },
                 match get_separator_from_argument(args, 1) {
                     None => return Err(ConcretizationError::NotStaticallyAnalyzable),
