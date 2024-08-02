@@ -82,7 +82,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     if !args.flag_doc {
-        wtr.write_record([b"id", &headers[token_pos], b"tf", b"df", b"idf"])?;
+        wtr.write_record([&headers[token_pos], b"tf", b"df", b"idf"])?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
     } else {
         let mut output_headers = csv::ByteRecord::new();
@@ -251,7 +251,6 @@ impl Vocabulary {
             let stats = &self.tokens[token_id];
 
             record.clear();
-            record.push_field(token_id.to_string().as_bytes());
             record.push_field(&token);
             record.push_field(stats.tf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
