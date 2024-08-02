@@ -152,7 +152,7 @@ impl DocumentTokenStats {
         // NOTE: Lucene does not multiply by (k1 + 1) because it
         // does not affect order when scoring.
         let numerator = tf * (k1 + 1.0);
-        let denominator = (tf + k1) * (1.0 - b + (b * (dl as f64 / adl)));
+        let denominator = tf + k1 * (1.0 - b + (b * (dl as f64 / adl)));
 
         idf * (numerator / denominator)
     }
