@@ -182,6 +182,10 @@ pub enum Argument {
 }
 
 impl Argument {
+    pub fn with_name(name: &str) -> Self {
+        Self::Named(name.to_string())
+    }
+
     pub fn is_optional(&self) -> bool {
         matches!(self, Self::Named(_) | Self::Optional)
     }
@@ -243,6 +247,13 @@ impl FunctionArguments {
         Self {
             variadic: false,
             arguments: args,
+        }
+    }
+
+    pub fn complex(arguments: Vec<Argument>) -> Self {
+        Self {
+            variadic: false,
+            arguments,
         }
     }
 
@@ -1156,6 +1167,15 @@ impl BoundArguments {
 
     pub fn get(&self, i: usize) -> Option<&DynamicValue> {
         self.stack.get(i)
+    }
+
+    pub fn get_not_none(&self, i: usize) -> Option<&DynamicValue> {
+        let value = self.stack.get(i)?;
+
+        match value {
+            DynamicValue::None => None,
+            _ => Some(value),
+        }
     }
 
     pub fn get1(&self) -> &DynamicValue {

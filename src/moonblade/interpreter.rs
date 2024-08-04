@@ -232,8 +232,14 @@ fn concretize_call(
             let concrete_args = call
                 .args
                 .into_iter()
-                .map(|(_, expr)| concretize_expression(expr, headers))
+                .map(|(name, expr)| concretize_expression(expr, headers).map(|r| (name, r)))
                 .collect::<Result<Vec<_>, _>>()?;
+
+            let concrete_args = arguments
+                .reorder(concrete_args)?
+                .into_iter()
+                .map(|opt| opt.unwrap_or(ConcreteExpr::Value(DynamicValue::None)))
+                .collect();
 
             ConcreteExpr::Call(ConcreteFunctionCall {
                 name: function_name.clone(),

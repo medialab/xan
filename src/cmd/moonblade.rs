@@ -31,6 +31,9 @@ available functions & operators):
         'trim(name)'
         'trim(concat(name, \" \", surname))'
 
+  . Named function arguments:
+        'read(path, encoding=\"utf-8\")'
+
   . Using operators (unary & binary):
         '-nb1'
         'nb1 + nb2'
@@ -64,9 +67,6 @@ available functions & operators):
   . Map literals:
         '{one: 1, two: 2}'
         '{leaf: \"hello\", \"nested\": [1, 2, 3]}'
-
-  . Nesting function calls:
-        'add(sub(col1, col2), mul(col3, col4))'
 "
 }
 
@@ -406,7 +406,7 @@ use the operators in the previous section.
     - pathjoin(string, *strings) -> string
         Join multiple paths correctly.
 
-    - read(path, encoding?, errors?) -> string
+    - read(path, encoding=?, errors=?) -> string
         Read file at path. Default encoding is \"utf-8\".
         Default error handling policy is \"replace\", and can be
         one of \"replace\", \"ignore\" or \"strict\".

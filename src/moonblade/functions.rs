@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use super::agg::Welford;
 use super::error::EvaluationError;
-use super::types::{BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
+use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
 type FunctionResult = Result<DynamicValue, EvaluationError>;
 pub type Function = fn(BoundArguments) -> FunctionResult;
@@ -134,7 +134,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
             FunctionArguments::binary(),
         ),
-        "read" => (read, FunctionArguments::with_range(1..=3)),
+        "read" => (
+            read,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("encoding"),
+                Argument::with_name("errors"),
+            ]),
+        ),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
             |args| unary_arithmetic_op(args, DynamicNumber::round),
@@ -959,14 +966,14 @@ fn read(args: BoundArguments) -> FunctionResult {
         Ok(f) => f,
     };
 
-    let contents = match args.get(1) {
+    let contents = match args.get_not_none(1) {
         Some(encoding_value) => {
             let encoding_name = encoding_value.try_as_str()?.replace('_', "-");
             let encoding = encoding_from_whatwg_label(&encoding_name);
             let encoding = encoding
                 .ok_or_else(|| EvaluationError::UnsupportedEncoding(encoding_name.to_string()))?;
 
-            let decoder_trap = match args.get(2) {
+            let decoder_trap = match args.get_not_none(2) {
                 Some(trap) => decoder_trap_from_str(&trap.try_as_str()?)?,
                 None => DecoderTrap::Replace,
             };
