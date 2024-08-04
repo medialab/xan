@@ -94,6 +94,70 @@ fn parse_int(pair: Pair<Rule>) -> Result<i64, &str> {
         .or(Err("could not parse int"))
 }
 
+fn build_string(pair: Pair<Rule>) -> String {
+    let mut string = String::new();
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::raw_double_quoted_string
+            | Rule::raw_single_quoted_string
+            | Rule::raw_regex_string => {
+                string.push_str(inner.as_str());
+            }
+            Rule::regex_flag => break,
+            Rule::escape => {
+                let inner = inner.into_inner().next().unwrap();
+
+                match inner.as_rule() {
+                    Rule::predefined => {
+                        string.push(match inner.as_str() {
+                            "n" => '\n',
+                            "r" => '\r',
+                            "t" => '\t',
+                            "\\" => '\\',
+                            "\"" => '"',
+                            "'" => '\'',
+                            _ => unreachable!(),
+                        });
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Rule::escape_regex => {
+                string.push_str(match inner.as_str() {
+                    r"\n" => "\n",
+                    r"\r" => "\r",
+                    r"\t" => "\t",
+                    r"\\" => "\\",
+                    r"\/" => "/",
+                    rest => rest,
+                });
+            }
+            _ => {
+                dbg!(inner);
+                unreachable!()
+            }
+        }
+    }
+
+    string
+}
+
+fn build_function_argument(pair: Pair<Rule>) -> (Option<String>, Pair<Rule>) {
+    match pair.as_rule() {
+        Rule::func_arg => {
+            let mut inner = pair.into_inner();
+            let first = inner.next().unwrap();
+
+            match first.as_rule() {
+                Rule::ident => (Some(first.as_str().to_string()), inner.next().unwrap()),
+                _ => (None, first),
+            }
+        }
+        _ => unreachable!(),
+    }
+}
+
 fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
     PRATT_PARSER
         .map_primary(|primary| -> Result<Expr, String> {
@@ -172,10 +236,11 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     let mut pairs = primary.into_inner();
                     let func_name = pairs.next().unwrap().as_str().to_lowercase();
 
-                    Expr::Func(FunctionCall::new(
+                    Expr::Func(FunctionCall::with_named_args(
                         &func_name,
                         pairs
-                            .map(|t| pratt_parse(Pairs::single(t)))
+                            .map(|p| build_function_argument(p))
+                            .map(|(name, p)| pratt_parse(Pairs::single(p)).map(|r| (name, r)))
                             .collect::<Result<_, _>>()?,
                     ))
                 }
@@ -236,55 +301,6 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
         })
 }
 
-fn build_string(pair: Pair<Rule>) -> String {
-    let mut string = String::new();
-
-    for inner in pair.into_inner() {
-        match inner.as_rule() {
-            Rule::raw_double_quoted_string
-            | Rule::raw_single_quoted_string
-            | Rule::raw_regex_string => {
-                string.push_str(inner.as_str());
-            }
-            Rule::regex_flag => break,
-            Rule::escape => {
-                let inner = inner.into_inner().next().unwrap();
-
-                match inner.as_rule() {
-                    Rule::predefined => {
-                        string.push(match inner.as_str() {
-                            "n" => '\n',
-                            "r" => '\r',
-                            "t" => '\t',
-                            "\\" => '\\',
-                            "\"" => '"',
-                            "'" => '\'',
-                            _ => unreachable!(),
-                        });
-                    }
-                    _ => unreachable!(),
-                }
-            }
-            Rule::escape_regex => {
-                string.push_str(match inner.as_str() {
-                    r"\n" => "\n",
-                    r"\r" => "\r",
-                    r"\t" => "\t",
-                    r"\\" => "\\",
-                    r"\/" => "/",
-                    rest => rest,
-                });
-            }
-            _ => {
-                dbg!(inner);
-                unreachable!()
-            }
-        }
-    }
-
-    string
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCall {
     pub name: String,
@@ -296,6 +312,13 @@ impl FunctionCall {
         Self {
             name: name.to_string(),
             args: args.into_iter().map(|arg| (None, arg)).collect(),
+        }
+    }
+
+    fn with_named_args(name: &str, args: Vec<(Option<String>, Expr)>) -> Self {
+        Self {
+            name: name.to_string(),
+            args,
         }
     }
 
@@ -535,6 +558,15 @@ mod tests {
         Func(FunctionCall::new(name, args))
     }
 
+    fn nfunc(name: &str, args: Vec<(Option<&str>, Expr)>) -> Expr {
+        Func(FunctionCall::with_named_args(
+            name,
+            args.into_iter()
+                .map(|(name, expr)| (name.map(|s| s.to_string()), expr))
+                .collect(),
+        ))
+    }
+
     fn s(string: &str) -> Expr {
         Str(string.to_string())
     }
@@ -768,6 +800,14 @@ mod tests {
         assert_eq!(
             parse_expression("trim(a) | add(a, b) | trim | add(a, b) | len"),
             Ok(func("len", vec![func("add", vec![id("a"), id("b")])]))
+        );
+    }
+
+    #[test]
+    fn test_named_arguments() {
+        assert_eq!(
+            parse_expression("add(45, plus=5)"),
+            Ok(nfunc("add", vec![(None, Int(45)), (Some("plus"), Int(5))]))
         );
     }
 
