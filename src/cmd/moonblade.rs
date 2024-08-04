@@ -540,7 +540,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - sum(<expr>) -> number
         Sum of numerical values.
 
-    - top(K, <expr>, separator?)
+    - top(k, <expr>, separator?)
         List of top k most common values returned by expression
         joined by a pipe character ('|') or by the provided separator.
         Ties will be broken by lexicographical order.
