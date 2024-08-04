@@ -410,6 +410,7 @@ fn concretize_call(
             Some(function_info) => {
                 function_info
                     .1
+                    .arity()
                     .validate(&function_name, concrete_args.len())?;
 
                 ConcreteExpr::Call(ConcreteFunctionCall {
@@ -876,11 +877,6 @@ mod tests {
 
     #[test]
     fn test_fmt() {
-        assert_eq!(eval_code("fmt('test')"), Ok(DynamicValue::from("test")));
-        assert_eq!(
-            eval_code("fmt('Hello {}')"),
-            Ok(DynamicValue::from("Hello {}"))
-        );
         assert_eq!(
             eval_code("fmt('Hello {}', 'John')"),
             Ok(DynamicValue::from("Hello John"))

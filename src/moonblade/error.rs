@@ -24,6 +24,7 @@ pub enum ConcretizationError {
     UnknownFunction(String),
     InvalidArity((String, InvalidArity)),
     TooManyArguments(usize),
+    UnknownArgumentName(String),
     NotStaticallyAnalyzable,
 }
 
@@ -74,6 +75,7 @@ impl Display for ConcretizationError {
         match self {
             Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
             Self::UnknownFunction(name) => write!(f, "unknown function \"{}\"", name),
+            Self::UnknownArgumentName(arg_name) => write!(f, "unknown argument \"{}\"", arg_name),
             Self::ParseError(expr) => write!(f, "could not parse expression: {}", expr),
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
             Self::InvalidArity((name, arity)) => write!(f, "{}: {}", name, arity),
