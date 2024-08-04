@@ -109,7 +109,7 @@ neg            =  { "-" }
 open_indexing = { "[" }
 
 // Functions
-func = { ident ~ "(" ~ (expr ~ ","?)* ~ ")" }
+func = { ident ~ "(" ~ ((ident ~ "=")? ~ expr ~ ","?)* ~ ")" }
 
 // Expressions
 full_slice  =  { term ~ ":" ~ term }

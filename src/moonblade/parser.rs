@@ -172,12 +172,12 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     let mut pairs = primary.into_inner();
                     let func_name = pairs.next().unwrap().as_str().to_lowercase();
 
-                    Expr::Func(FunctionCall {
-                        name: func_name,
-                        args: pairs
+                    Expr::Func(FunctionCall::new(
+                        &func_name,
+                        pairs
                             .map(|t| pratt_parse(Pairs::single(t)))
                             .collect::<Result<_, _>>()?,
-                    })
+                    ))
                 }
                 _ => unreachable!(),
             };
@@ -185,40 +185,31 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
             Ok(expr)
         })
         .map_prefix(|op, rhs| {
-            Ok(Expr::Func(FunctionCall {
-                name: op.as_rule().as_fn_op_str().to_string(),
-                args: vec![rhs?],
-            }))
+            Ok(Expr::Func(FunctionCall::new(
+                op.as_rule().as_fn_op_str(),
+                vec![rhs?],
+            )))
         })
         .map_infix(|lhs, op, rhs| {
             Ok(match op.as_rule() {
                 // Swapping operands
-                Rule::in_op => Expr::Func(FunctionCall {
-                    name: "contains".to_string(),
-                    args: vec![rhs?, lhs?],
-                }),
-                Rule::not_in => Expr::Func(FunctionCall {
-                    name: "not".to_string(),
-                    args: vec![Expr::Func(FunctionCall {
-                        name: "contains".to_string(),
-                        args: vec![rhs?, lhs?],
-                    })],
-                }),
+                Rule::in_op => Expr::Func(FunctionCall::new("contains", vec![rhs?, lhs?])),
+                Rule::not_in => Expr::Func(FunctionCall::new(
+                    "not",
+                    vec![Expr::Func(FunctionCall::new("contains", vec![rhs?, lhs?]))],
+                )),
 
                 // Indexing & slicing
                 Rule::open_indexing => match rhs? {
-                    Expr::Slice(slice) => Expr::Func(FunctionCall {
-                        name: "slice".to_string(),
-                        args: match slice {
+                    Expr::Slice(slice) => Expr::Func(FunctionCall::new(
+                        "slice",
+                        match slice {
                             Slice::Full(start, end) => vec![lhs?, Expr::Int(start), Expr::Int(end)],
                             Slice::Start(start) => vec![lhs?, Expr::Int(start)],
                             Slice::End(end) => vec![lhs?, Expr::Int(0), Expr::Int(end)],
                         },
-                    }),
-                    rhs_res => Expr::Func(FunctionCall {
-                        name: "get".to_string(),
-                        args: vec![lhs?, rhs_res],
-                    }),
+                    )),
+                    rhs_res => Expr::Func(FunctionCall::new("get", vec![lhs?, rhs_res])),
                 },
 
                 // Pipe threading
@@ -229,19 +220,13 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     }
                     Expr::Identifier(name) => match get_function(&name) {
                         None => Expr::Identifier(name),
-                        Some(_) => Expr::Func(FunctionCall {
-                            name,
-                            args: vec![lhs?],
-                        }),
+                        Some(_) => Expr::Func(FunctionCall::new(&name, vec![lhs?])),
                     },
                     rest => rest,
                 },
 
                 // General case
-                rule => Expr::Func(FunctionCall {
-                    name: rule.as_fn_op_str().to_string(),
-                    args: vec![lhs?, rhs?],
-                }),
+                rule => Expr::Func(FunctionCall::new(rule.as_fn_op_str(), vec![lhs?, rhs?])),
             })
         })
         .parse(pairs)
@@ -307,6 +292,13 @@ pub struct FunctionCall {
 }
 
 impl FunctionCall {
+    fn new(name: &str, args: Vec<Expr>) -> Self {
+        Self {
+            name: name.to_string(),
+            args,
+        }
+    }
+
     fn fill_underscore(&mut self, with: &Expr) {
         for arg in self.args.iter_mut() {
             match arg {
@@ -536,10 +528,7 @@ mod tests {
     }
 
     fn func(name: &str, args: Vec<Expr>) -> Expr {
-        Func(FunctionCall {
-            name: name.to_string(),
-            args,
-        })
+        Func(FunctionCall::new(name, args))
     }
 
     fn s(string: &str) -> Expr {
