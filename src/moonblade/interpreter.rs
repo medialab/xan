@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt;
 
 use csv::ByteRecord;
@@ -87,7 +87,7 @@ impl ConcreteExpr {
                 Ok(DynamicValue::from(bound))
             }
             Self::Map(pairs) => {
-                let mut bound = BTreeMap::new();
+                let mut bound = HashMap::with_capacity(pairs.len());
 
                 for (k, v) in pairs {
                     bound.insert(k.to_string(), v.evaluate(index, record, context)?);
@@ -307,7 +307,7 @@ pub fn concretize_expression(
                     concrete_map
                         .into_iter()
                         .map(|(k, e)| (k, e.unwrap()))
-                        .collect::<BTreeMap<_, _>>(),
+                        .collect::<HashMap<_, _>>(),
                 ))
             } else {
                 ConcreteExpr::Map(concrete_map)

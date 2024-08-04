@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
-use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{btree_map::Entry, BTreeMap, HashMap, VecDeque};
 use std::convert::From;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
@@ -632,7 +631,7 @@ impl FromStr for DynamicNumber {
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
-    Map(Arc<BTreeMap<String, DynamicValue>>),
+    Map(Arc<HashMap<String, DynamicValue>>),
     String(String),
     Float(f64),
     Integer(i64),
@@ -750,7 +749,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
             {
                 match visitor.next_key::<String>() {
                     Ok(Some(first_key)) => {
-                        let mut map = BTreeMap::<String, DynamicValue>::new();
+                        let mut map = HashMap::<String, DynamicValue>::new();
                         map.insert(first_key, visitor.next_value()?);
 
                         while let Ok(Some((key, value))) = visitor.next_entry() {
@@ -759,7 +758,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
 
                         Ok(DynamicValue::Map(Arc::new(map)))
                     }
-                    _ => Ok(DynamicValue::Map(Arc::new(BTreeMap::new()))),
+                    _ => Ok(DynamicValue::Map(Arc::new(HashMap::new()))),
                 }
             }
         }
@@ -874,7 +873,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn try_as_map(&self) -> Result<&BTreeMap<String, DynamicValue>, EvaluationError> {
+    pub fn try_as_map(&self) -> Result<&HashMap<String, DynamicValue>, EvaluationError> {
         match self {
             Self::Map(map) => Ok(map),
             _ => Err(EvaluationError::from_cast(self, "map")),
@@ -1063,14 +1062,14 @@ impl From<Arc<Vec<DynamicValue>>> for DynamicValue {
     }
 }
 
-impl From<BTreeMap<String, DynamicValue>> for DynamicValue {
-    fn from(value: BTreeMap<String, DynamicValue>) -> Self {
+impl From<HashMap<String, DynamicValue>> for DynamicValue {
+    fn from(value: HashMap<String, DynamicValue>) -> Self {
         DynamicValue::Map(Arc::new(value))
     }
 }
 
-impl From<Arc<BTreeMap<String, DynamicValue>>> for DynamicValue {
-    fn from(value: Arc<BTreeMap<String, DynamicValue>>) -> Self {
+impl From<Arc<HashMap<String, DynamicValue>>> for DynamicValue {
+    fn from(value: Arc<HashMap<String, DynamicValue>>) -> Self {
         DynamicValue::Map(value)
     }
 }
