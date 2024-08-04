@@ -7,8 +7,10 @@ use regex::RegexBuilder;
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
+use super::special_functions::{get_special_function, RuntimeFunction as SpecialFunction};
 use super::types::{
     BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
+    BOUND_ARGUMENTS_CAPACITY,
 };
 
 #[derive(Debug, Clone)]
@@ -66,7 +68,7 @@ impl ConcreteExpr {
         })
     }
 
-    fn evaluate<'a>(
+    pub fn evaluate<'a>(
         &'a self,
         index: Option<usize>,
         record: &ByteRecord,
@@ -159,41 +161,8 @@ impl fmt::Debug for ConcreteFunctionCall {
 }
 
 #[derive(Debug, Clone)]
-enum SpecialFunction {
-    If(bool),
-    Col,
-    Index,
-}
-
-impl SpecialFunction {
-    fn parse(name: &str) -> Option<Self> {
-        Some(match name {
-            "if" => Self::If(false),
-            "unless" => Self::If(true),
-            "col" => Self::Col,
-            "index" => Self::Index,
-            _ => return None,
-        })
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            Self::If(reverse) => {
-                if *reverse {
-                    "unless"
-                } else {
-                    "if"
-                }
-            }
-            Self::Col => "col",
-            Self::Index => "index",
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct ConcreteSpecialFunctionCall {
-    kind: SpecialFunction,
+    function: SpecialFunction,
     args: Vec<ConcreteExpr>,
 }
 
@@ -204,73 +173,7 @@ impl ConcreteSpecialFunctionCall {
         record: &ByteRecord,
         context: &'a EvaluationContext,
     ) -> EvaluationResult {
-        // NOTE: we don't need to validate arity here because it was already done
-        // when concretizing.
-
-        match self.kind {
-            SpecialFunction::If(reverse) => {
-                let arity = self.args.len();
-
-                let condition = &self.args[0];
-                let result = condition.evaluate(index, record, context)?;
-
-                let mut branch: Option<&ConcreteExpr> = None;
-
-                let mut go_left = result.is_truthy();
-
-                if reverse {
-                    go_left = !go_left;
-                }
-
-                if go_left {
-                    branch = Some(&self.args[1]);
-                } else if arity == 3 {
-                    branch = Some(&self.args[2]);
-                }
-
-                match branch {
-                    None => Ok(DynamicValue::None),
-                    Some(arg) => arg.evaluate(index, record, context),
-                }
-            }
-
-            SpecialFunction::Col => {
-                let name_or_pos = self
-                    .args
-                    .first()
-                    .unwrap()
-                    .evaluate(index, record, context)?;
-                let pos = match self.args.get(1) {
-                    Some(p) => Some(p.evaluate(index, record, context)?),
-                    None => None,
-                };
-
-                match ColumIndexationBy::from_bound_arguments(name_or_pos, pos) {
-                    None => Err(SpecifiedEvaluationError {
-                        function_name: self.kind.name().to_string(),
-                        reason: EvaluationError::Custom("invalid arguments".to_string()),
-                    }),
-                    Some(indexation) => match context.get_column_index(&indexation) {
-                        None => Err(SpecifiedEvaluationError {
-                            function_name: self.kind.name().to_string(),
-                            reason: EvaluationError::ColumnNotFound(indexation),
-                        }),
-                        Some(index) => match std::str::from_utf8(&record[index]) {
-                            Err(_) => Err(SpecifiedEvaluationError {
-                                function_name: self.kind.name().to_string(),
-                                reason: EvaluationError::UnicodeDecodeError,
-                            }),
-                            Ok(value) => Ok(DynamicValue::from(value)),
-                        },
-                    },
-                }
-            }
-
-            SpecialFunction::Index => Ok(match index {
-                None => DynamicValue::None,
-                Some(index) => DynamicValue::from(index),
-            }),
-        }
+        (self.function)(index, record, context, &self.args)
     }
 }
 
@@ -278,147 +181,65 @@ fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
 ) -> Result<ConcreteExpr, ConcretizationError> {
-    let function_name = call.name;
-    let arity = call.args.len();
+    let function_name = &call.name;
+    let actual_arity = call.args.len();
 
-    if arity > 8 {
-        return Err(ConcretizationError::TooManyArguments(arity));
+    if actual_arity > BOUND_ARGUMENTS_CAPACITY {
+        return Err(ConcretizationError::TooManyArguments(actual_arity));
     }
 
-    // Validating special function arities
-    match function_name.as_str() {
-        "col" => {
-            if !(1..=2).contains(&arity) {
-                return Err(ConcretizationError::from_invalid_range_arity(
-                    function_name,
-                    1..=2,
-                    arity,
-                ));
-            }
+    // Dealing with special functions
+    if let Some((comptime_function, runtime_function, arguments)) =
+        get_special_function(function_name)
+    {
+        arguments
+            .validate_arity(actual_arity)
+            .map_err(|invalid_arity| {
+                ConcretizationError::InvalidArity(function_name.clone(), invalid_arity)
+            })?;
 
-            // Statically analyzable col() function call
-            if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.args) {
-                match column_indexation.find_column_index(headers) {
-                    Some(index) => return Ok(ConcreteExpr::Column(index)),
-                    None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
-                };
+        // Some function can be evaluated when concretizing if they
+        // are statically analyzable.
+        if let Some(function) = comptime_function {
+            // NOTE: some function must be statically analyzable and will
+            // yell if they don't have a runtime counterpart.
+            if let Some(concrete_expr) = function(&call, headers)? {
+                return Ok(concrete_expr);
             }
         }
-        "cols" | "headers" => {
-            if !(0..=2).contains(&arity) {
-                return Err(ConcretizationError::from_invalid_range_arity(
-                    function_name,
-                    0..=2,
-                    arity,
-                ));
-            }
 
-            let map = |i| {
-                if function_name.as_str() == "cols" {
-                    ConcreteExpr::Column(i)
-                } else {
-                    ConcreteExpr::Value(DynamicValue::String(
-                        std::str::from_utf8(&headers[i]).unwrap().to_string(),
-                    ))
-                }
-            };
-
-            if call.args.is_empty() {
-                return Ok(ConcreteExpr::List((0..headers.len()).map(map).collect()));
-            }
-
-            match ColumIndexationBy::from_argument(&call.args[0]) {
-                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                Some(first_column_indexation) => {
-                    match first_column_indexation.find_column_index(headers) {
-                        Some(first_index) => {
-                            if call.args.len() < 2 {
-                                return Ok(ConcreteExpr::List(
-                                    (first_index..headers.len()).map(map).collect(),
-                                ));
-                            } else {
-                                match ColumIndexationBy::from_argument(&call.args[1]) {
-                                    None => {
-                                        return Err(ConcretizationError::NotStaticallyAnalyzable)
-                                    }
-                                    Some(second_column_indexation) => {
-                                        match second_column_indexation.find_column_index(headers) {
-                                            Some(second_index) => {
-                                                let range: Vec<_> = if first_index > second_index {
-                                                    (second_index..=first_index)
-                                                        .map(map)
-                                                        .rev()
-                                                        .collect()
-                                                } else {
-                                                    (first_index..=second_index).map(map).collect()
-                                                };
-
-                                                return Ok(ConcreteExpr::List(range));
-                                            }
-                                            None => {
-                                                return Err(ConcretizationError::ColumnNotFound(
-                                                    second_column_indexation,
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        None => {
-                            return Err(ConcretizationError::ColumnNotFound(
-                                first_column_indexation,
-                            ))
-                        }
-                    }
-                }
-            }
-        }
-        "if" | "unless" if !(2..=3).contains(&arity) => {
-            return Err(ConcretizationError::from_invalid_range_arity(
-                function_name,
-                2..=3,
-                arity,
-            ));
-        }
-        "index" => {
-            if arity != 0 {
-                return Err(ConcretizationError::from_invalid_arity(
-                    function_name,
-                    1,
-                    arity,
-                ));
-            }
-        }
-        _ => (),
+        // NOTE: no support for named arguments here
+        return Ok(ConcreteExpr::SpecialCall(ConcreteSpecialFunctionCall {
+            function: runtime_function.expect("missing special function runtime"),
+            args: call
+                .args
+                .into_iter()
+                .map(|(_, expr)| concretize_expression(expr, headers))
+                .collect::<Result<Vec<_>, _>>()?,
+        }));
     }
 
-    let mut concrete_args = Vec::new();
+    Ok(match get_function(function_name) {
+        None => return Err(ConcretizationError::UnknownFunction(function_name.clone())),
+        Some((function, arguments)) => {
+            arguments
+                .validate_arity(actual_arity)
+                .map_err(|invalid_arity| {
+                    ConcretizationError::InvalidArity(function_name.clone(), invalid_arity)
+                })?;
 
-    for arg in call.args {
-        concrete_args.push(concretize_expression(arg, headers)?);
-    }
+            // TODO: add support for named arguments here by reordering
+            let concrete_args = call
+                .args
+                .into_iter()
+                .map(|(_, expr)| concretize_expression(expr, headers))
+                .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(if let Some(kind) = SpecialFunction::parse(&function_name) {
-        ConcreteExpr::SpecialCall(ConcreteSpecialFunctionCall {
-            kind,
-            args: concrete_args,
-        })
-    } else {
-        match get_function(&function_name) {
-            None => return Err(ConcretizationError::UnknownFunction(function_name.clone())),
-            Some(function_info) => {
-                function_info
-                    .1
-                    .arity()
-                    .validate(&function_name, concrete_args.len())?;
-
-                ConcreteExpr::Call(ConcreteFunctionCall {
-                    name: function_name.clone(),
-                    function: function_info.0,
-                    args: concrete_args,
-                })
-            }
+            ConcreteExpr::Call(ConcreteFunctionCall {
+                name: function_name.clone(),
+                function,
+                args: concrete_args,
+            })
         }
     })
 }

@@ -4,6 +4,7 @@ mod functions;
 mod interpreter;
 mod parser;
 mod select;
+mod special_functions;
 mod types;
 mod utils;
 

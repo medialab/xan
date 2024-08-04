@@ -6,10 +6,10 @@ use rayon::prelude::*;
 
 use crate::structures::{FixedReverseHeap, FixedReverseHeapMap};
 
-use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
+use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
 use super::parser::{parse_aggregations, Aggregation, Aggregations};
-use super::types::{DynamicNumber, DynamicValue};
+use super::types::{Arity, DynamicNumber, DynamicValue};
 
 #[derive(Debug, Clone)]
 enum CountType {
@@ -1402,10 +1402,9 @@ fn validate_aggregation_function_arity(
     };
 
     if !range.contains(&arity) {
-        return Err(ConcretizationError::from_invalid_range_arity(
+        return Err(ConcretizationError::InvalidArity(
             aggregation.func_name.clone(),
-            range,
-            arity,
+            InvalidArity::from_arity(Arity::Range(range), arity),
         ));
     }
 

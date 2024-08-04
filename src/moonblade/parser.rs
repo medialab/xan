@@ -288,19 +288,23 @@ fn build_string(pair: Pair<Rule>) -> String {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCall {
     pub name: String,
-    pub args: Vec<Expr>,
+    pub args: Vec<(Option<String>, Expr)>,
 }
 
 impl FunctionCall {
     fn new(name: &str, args: Vec<Expr>) -> Self {
         Self {
             name: name.to_string(),
-            args,
+            args: args.into_iter().map(|arg| (None, arg)).collect(),
         }
     }
 
+    pub fn raw_args_as_ref(&self) -> Vec<&Expr> {
+        self.args.iter().map(|(_, arg)| arg).collect()
+    }
+
     fn fill_underscore(&mut self, with: &Expr) {
-        for arg in self.args.iter_mut() {
+        for (_, arg) in self.args.iter_mut() {
             match arg {
                 Expr::Func(sub) => {
                     sub.fill_underscore(with);
@@ -341,13 +345,13 @@ impl Expr {
     pub fn simplify(&mut self) {
         if let Self::Func(call) = self {
             if call.name == "neg" && call.args.len() == 1 {
-                match call.args[0] {
+                match call.args[0].1 {
                     Self::Int(n) => *self = Self::Int(-n),
                     Self::Float(n) => *self = Self::Float(-n),
                     _ => (),
                 }
             } else {
-                for arg in call.args.iter_mut() {
+                for (_, arg) in call.args.iter_mut() {
                     arg.simplify();
                 }
             }
@@ -508,7 +512,7 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
             match expr {
                 Expr::Func(call) => Ok(Aggregation {
                     agg_name,
-                    args: call.args,
+                    args: call.args.into_iter().map(|(_, arg)| arg).collect(),
                     func_name: call.name,
                     expr_key,
                 }),

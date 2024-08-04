@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use std::ops::RangeInclusive;
 
 use super::types::{Arity, ColumIndexationBy, DynamicValue};
 
@@ -22,52 +21,10 @@ pub enum ConcretizationError {
     ColumnNotFound(ColumIndexationBy),
     InvalidRegex(String),
     UnknownFunction(String),
-    InvalidArity((String, InvalidArity)),
+    InvalidArity(String, InvalidArity),
     TooManyArguments(usize),
     UnknownArgumentName(String),
     NotStaticallyAnalyzable,
-}
-
-impl ConcretizationError {
-    pub fn from_invalid_arity(name: String, expected: usize, got: usize) -> Self {
-        Self::InvalidArity((
-            name,
-            InvalidArity {
-                expected: Arity::Strict(expected),
-                got,
-            },
-        ))
-    }
-
-    pub fn from_invalid_min_arity(name: String, min_expected: usize, got: usize) -> Self {
-        Self::InvalidArity((
-            name,
-            InvalidArity {
-                expected: Arity::Min(min_expected),
-                got,
-            },
-        ))
-    }
-
-    pub fn from_invalid_range_arity(
-        name: String,
-        range: RangeInclusive<usize>,
-        got: usize,
-    ) -> Self {
-        let count = range.clone().count();
-
-        Self::InvalidArity((
-            name,
-            InvalidArity {
-                expected: if count == 1 {
-                    Arity::Strict(*range.start())
-                } else {
-                    Arity::Range(range)
-                },
-                got,
-            },
-        ))
-    }
 }
 
 impl Display for ConcretizationError {
@@ -78,7 +35,7 @@ impl Display for ConcretizationError {
             Self::UnknownArgumentName(arg_name) => write!(f, "unknown argument \"{}\"", arg_name),
             Self::ParseError(expr) => write!(f, "could not parse expression: {}", expr),
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
-            Self::InvalidArity((name, arity)) => write!(f, "{}: {}", name, arity),
+            Self::InvalidArity(name, arity) => write!(f, "{}: {}", name, arity),
             Self::TooManyArguments(actual) => {
                 write!(f, "got {} arguments. Cannot exceed 8.", actual)
             }
@@ -91,6 +48,15 @@ impl Display for ConcretizationError {
 pub struct InvalidArity {
     expected: Arity,
     got: usize,
+}
+
+impl InvalidArity {
+    pub fn from_arity(arity: Arity, got: usize) -> Self {
+        Self {
+            expected: arity,
+            got,
+        }
+    }
 }
 
 impl Display for InvalidArity {
@@ -127,6 +93,15 @@ pub struct SpecifiedEvaluationError {
     pub reason: EvaluationError,
 }
 
+impl SpecifiedEvaluationError {
+    pub fn new(name: &str, reason: EvaluationError) -> Self {
+        Self {
+            function_name: name.to_string(),
+            reason,
+        }
+    }
+}
+
 impl Display for SpecifiedEvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -155,27 +130,6 @@ pub enum EvaluationError {
 }
 
 impl EvaluationError {
-    pub fn from_invalid_arity(expected: usize, got: usize) -> Self {
-        Self::InvalidArity(InvalidArity {
-            expected: Arity::Strict(expected),
-            got,
-        })
-    }
-
-    pub fn from_invalid_min_arity(min_expected: usize, got: usize) -> Self {
-        Self::InvalidArity(InvalidArity {
-            expected: Arity::Min(min_expected),
-            got,
-        })
-    }
-
-    pub fn from_invalid_range_arity(range: RangeInclusive<usize>, got: usize) -> Self {
-        Self::InvalidArity(InvalidArity {
-            expected: Arity::Range(range),
-            got,
-        })
-    }
-
     pub fn from_cast(from_value: &DynamicValue, expected: &str) -> Self {
         Self::Cast(from_value.type_of().to_string(), expected.to_string())
     }

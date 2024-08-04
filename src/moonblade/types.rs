@@ -5,7 +5,6 @@ use std::collections::{BTreeMap, VecDeque};
 use std::convert::From;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
-use std::slice;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -17,7 +16,7 @@ use serde::{
     Deserialize, Serialize, Serializer,
 };
 
-use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
+use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
 use super::parser::Expr;
 use super::utils::downgrade_float;
 
@@ -29,7 +28,7 @@ pub enum ColumIndexationBy {
 }
 
 impl ColumIndexationBy {
-    pub fn from_arguments(arguments: &[Expr]) -> Option<Self> {
+    pub fn from_arguments(arguments: &[&Expr]) -> Option<Self> {
         if arguments.len() == 1 {
             let first_arg = arguments.first().unwrap();
             match first_arg {
@@ -54,7 +53,7 @@ impl ColumIndexationBy {
     }
 
     pub fn from_argument(argument: &Expr) -> Option<Self> {
-        Self::from_arguments(slice::from_ref(argument))
+        Self::from_arguments(&[argument])
     }
 
     pub fn from_bound_arguments(
@@ -271,6 +270,10 @@ impl FunctionArguments {
         }
     }
 
+    pub fn validate_arity(&self, got: usize) -> Result<(), InvalidArity> {
+        self.arity().validate(got)
+    }
+
     fn find_named_arg_index(&self, name: &str) -> Option<usize> {
         self.arguments
             .iter()
@@ -321,37 +324,25 @@ pub enum Arity {
 }
 
 impl Arity {
-    pub fn validate(&self, name: &str, got: usize) -> Result<(), ConcretizationError> {
-        match self {
+    pub fn validate(self, got: usize) -> Result<(), InvalidArity> {
+        match &self {
             Self::Strict(expected) => {
                 if *expected != got {
-                    Err(ConcretizationError::from_invalid_arity(
-                        name.to_string(),
-                        *expected,
-                        got,
-                    ))
+                    Err(InvalidArity::from_arity(self, got))
                 } else {
                     Ok(())
                 }
             }
             Self::Min(expected_min) => {
                 if got < *expected_min {
-                    Err(ConcretizationError::from_invalid_min_arity(
-                        name.to_string(),
-                        *expected_min,
-                        got,
-                    ))
+                    Err(InvalidArity::from_arity(self, got))
                 } else {
                     Ok(())
                 }
             }
             Self::Range(range) => {
                 if !range.contains(&got) {
-                    Err(ConcretizationError::from_invalid_range_arity(
-                        name.to_string(),
-                        range.clone(),
-                        got,
-                    ))
+                    Err(InvalidArity::from_arity(self, got))
                 } else {
                     Ok(())
                 }
@@ -1141,7 +1132,7 @@ impl PartialEq for DynamicValue {
 
 pub type EvaluationResult = Result<DynamicValue, SpecifiedEvaluationError>;
 
-const BOUND_ARGUMENTS_CAPACITY: usize = 8;
+pub const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
 pub struct BoundArguments {
     stack: ArrayVec<DynamicValue, BOUND_ARGUMENTS_CAPACITY>,
