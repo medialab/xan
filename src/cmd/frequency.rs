@@ -30,6 +30,7 @@ check the `xsv groupby` command instead.
 
 Usage:
     xan frequency [options] [<input>]
+    xan freq [options] [<input>]
 
 frequency options:
     -s, --select <arg>     Select a subset of columns to compute frequencies
