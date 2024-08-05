@@ -38,6 +38,7 @@ This command can compute 4 kinds of differents vocabulary statistics:
     - df: document frequency of the token
     - idf: inverse document frequency of the token
     - gfidf: global frequency * idf for the token
+    - pigeonhole: ratio between df and expected df in random distribution
 
 3. doc-level statistics (using the \"doc\" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -117,7 +118,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     if args.cmd_token {
-        wtr.write_record([&headers[token_pos], b"gf", b"df", b"idf", b"gfidf"])?;
+        wtr.write_record([
+            &headers[token_pos],
+            b"gf",
+            b"df",
+            b"idf",
+            b"gfidf",
+            b"pigeonhole",
+        ])?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_doc_token {
         let mut output_headers = csv::ByteRecord::new();
@@ -168,6 +176,14 @@ impl TokenStats {
 
     fn gfidf(&self, n: usize) -> f64 {
         self.gf as f64 * self.idf(n)
+    }
+
+    fn pigeonhole(&self, n: usize) -> f64 {
+        let n = n as f64;
+
+        let expected = n - (n * ((n - 1.0) / n).powf(self.gf as f64));
+
+        self.df as f64 / expected
     }
 }
 
@@ -317,6 +333,7 @@ impl Vocabulary {
             record.push_field(stats.df.to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
             record.push_field(stats.gfidf(n).to_string().as_bytes());
+            record.push_field(stats.pigeonhole(n).to_string().as_bytes());
 
             callback(&record)?;
         }
