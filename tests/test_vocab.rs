@@ -24,3 +24,46 @@ fn vocab_corpus() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn vocab_token() {
+    let wrk = Workdir::new("vocab_token");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["doc", "token"],
+            svec!["1", "cat"],
+            svec!["1", "dog"],
+            svec!["1", "cat"],
+            svec!["2", "cat"],
+            svec!["2", "rabbit"],
+        ],
+    );
+    let mut cmd = wrk.command("vocab");
+    cmd.arg("token").arg("doc").arg("token").arg("data.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort();
+
+    let expected = vec![
+        svec!["token", "gf", "df", "idf", "gfidf", "pigeonhole"],
+        svec!["cat", "3", "2", "0", "0", "1.1428571428571428"],
+        svec![
+            "dog",
+            "1",
+            "1",
+            "0.6931471805599453",
+            "0.6931471805599453",
+            "1"
+        ],
+        svec![
+            "rabbit",
+            "1",
+            "1",
+            "0.6931471805599453",
+            "0.6931471805599453",
+            "1"
+        ],
+    ];
+    assert_eq!(got, expected);
+}
