@@ -8,10 +8,9 @@ use crate::CliResult;
 // TODO: --sorted if sorted on document to speed up and avoid lookups,
 // or rely on caching last key instead, but we can avoid the doc hashmap
 // if sorted!
-// TODO: filters on df because with --doc you cannot filter on this?
+// TODO: filters on df because with some stats you cannot filter on this?
 // TODO: maybe option to explode for perf reasons?
 // TODO: add chi2
-// TODO: unit test vocab
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents. Those documents
@@ -42,6 +41,8 @@ This command can compute 4 kinds of differents vocabulary statistics:
 
 3. doc-level statistics (using the \"doc\" subcommand):
     - (*doc): columns representing the document (named like the input)
+    - token_count: total number of tokens in document
+    - distinct_token_count: number of distinct tokens in document
 
 4. doc-token-level statistics (using the \"doc-token\" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -144,7 +145,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(r)
         })?;
     } else if args.cmd_doc {
-        unimplemented!();
+        let mut output_headers = csv::ByteRecord::new();
+
+        for col_name in sel.select(&headers) {
+            output_headers.push_field(col_name);
+        }
+        output_headers.push_field(b"token_count");
+        output_headers.push_field(b"distinct_token_count");
+
+        wtr.write_byte_record(&output_headers)?;
+
+        vocab.for_each_doc_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_corpus {
         let headers: [&[u8]; 3] = [b"doc_count", b"token_count", b"average_doc_len"];
         wtr.write_record(headers)?;
@@ -310,6 +321,28 @@ impl Vocabulary {
         if token_was_added_to_doc {
             token_stats.df += 1;
         }
+    }
+
+    fn for_each_doc_level_record<F, E>(self, mut callback: F) -> Result<(), E>
+    where
+        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+    {
+        let mut record = csv::ByteRecord::new();
+
+        for (doc, doc_stats) in self.documents {
+            record.clear();
+
+            for cell in doc {
+                record.push_field(&cell);
+            }
+
+            record.push_field(doc_stats.doc_len().to_string().as_bytes());
+            record.push_field(doc_stats.tokens.len().to_string().as_bytes());
+
+            callback(&record)?;
+        }
+
+        Ok(())
     }
 
     fn for_each_token_level_record<F, E>(self, mut callback: F) -> Result<(), E>
