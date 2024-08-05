@@ -274,8 +274,8 @@ fn groupby_complex_selection() {
 }
 
 #[test]
-fn groupby_top() {
-    let wrk = Workdir::new("groupby_top");
+fn groupby_most_common() {
+    let wrk = Workdir::new("groupby_most_common");
     wrk.create(
         "data.csv",
         vec![
@@ -291,7 +291,7 @@ fn groupby_top() {
 
     let mut cmd = wrk.command("groupby");
     cmd.arg("name")
-        .arg("top(2, color) as top, top_counts(2, color) as counts")
+        .arg("most_common(2, color) as top, most_common_counts(2, color) as counts")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = sort_output_on_n_first(wrk.read_stdout(&mut cmd), 1);

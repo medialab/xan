@@ -662,7 +662,7 @@ impl Frequencies {
         max.map(|(_, keys)| keys.into_iter().cloned().collect())
     }
 
-    fn top_values(&self, k: usize) -> Vec<String> {
+    fn most_common(&self, k: usize) -> Vec<String> {
         let mut heap = FixedReverseHeap::<(u64, Reverse<&String>)>::with_capacity(k);
 
         for (key, count) in self.counter.iter() {
@@ -675,7 +675,7 @@ impl Frequencies {
             .collect()
     }
 
-    fn top_counts(&self, k: usize) -> Vec<u64> {
+    fn most_common_counts(&self, k: usize) -> Vec<u64> {
         let mut heap = FixedReverseHeap::<(u64, Reverse<&String>)>::with_capacity(k);
 
         for (key, count) in self.counter.iter() {
@@ -1097,19 +1097,21 @@ impl Aggregator {
             (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
                 DynamicValue::from(inner.sample_stdev())
             }
-            (ConcreteAggregationMethod::TopCounts(k, separator), Self::Frequencies(inner)) => {
-                DynamicValue::from(
-                    inner
-                        .top_counts(*k)
-                        .into_iter()
-                        .map(|n| n.to_string())
-                        .collect::<Vec<_>>()
-                        .join(separator),
-                )
-            }
-            (ConcreteAggregationMethod::TopValues(k, separator), Self::Frequencies(inner)) => {
-                DynamicValue::from(inner.top_values(*k).join(separator))
-            }
+            (
+                ConcreteAggregationMethod::MostCommonCounts(k, separator),
+                Self::Frequencies(inner),
+            ) => DynamicValue::from(
+                inner
+                    .most_common_counts(*k)
+                    .into_iter()
+                    .map(|n| n.to_string())
+                    .collect::<Vec<_>>()
+                    .join(separator),
+            ),
+            (
+                ConcreteAggregationMethod::MostCommonValues(k, separator),
+                Self::Frequencies(inner),
+            ) => DynamicValue::from(inner.most_common(*k).join(separator)),
             (ConcreteAggregationMethod::Types, Self::Types(inner)) => {
                 DynamicValue::from(inner.sorted_types().join("|"))
             }
@@ -1249,8 +1251,8 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::Modes(_)
             | ConcreteAggregationMethod::Cardinality
             | ConcreteAggregationMethod::DistinctValues(_)
-            | ConcreteAggregationMethod::TopCounts(_, _)
-            | ConcreteAggregationMethod::TopValues(_, _) => {
+            | ConcreteAggregationMethod::MostCommonCounts(_, _)
+            | ConcreteAggregationMethod::MostCommonValues(_, _) => {
                 upsert_aggregator!(Frequencies)
             }
             ConcreteAggregationMethod::Sum => {
@@ -1396,7 +1398,7 @@ fn validate_aggregation_function_arity(
         "count" => 0..=1,
         "quantile" => 2..=2,
         "values" | "distinct_values" | "argmin" | "argmax" | "modes" => 1..=2,
-        "top" | "top_counts" => 1..=3,
+        "most_common" | "most_common_counts" => 1..=3,
         "argtop" => 1..=4,
         _ => 1..=1,
     };
@@ -1441,6 +1443,8 @@ enum ConcreteAggregationMethod {
     Median(MedianType),
     Mode,
     Modes(String),
+    MostCommonValues(usize, String),
+    MostCommonCounts(usize, String),
     Quartile(usize),
     Quantile(f64),
     Sum,
@@ -1449,8 +1453,6 @@ enum ConcreteAggregationMethod {
     VarSample,
     StddevPop,
     StddevSample,
-    TopValues(usize, String),
-    TopCounts(usize, String),
     Type,
     Types,
 }
@@ -1498,6 +1500,32 @@ impl ConcreteAggregationMethod {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
             }),
+            "most_common" => Self::MostCommonValues(
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                match get_separator_from_argument(args, 1) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                },
+            ),
+            "most_common_counts" => Self::MostCommonCounts(
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                match get_separator_from_argument(args, 1) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                },
+            ),
             "quantile" => match args.first().unwrap() {
                 ConcreteExpr::Value(v) => match v.try_as_f64() {
                     Ok(p) => Self::Quantile(p),
@@ -1508,32 +1536,6 @@ impl ConcreteAggregationMethod {
             "q1" => Self::Quartile(0),
             "q2" => Self::Quartile(1),
             "q3" => Self::Quartile(2),
-            "top" => Self::TopValues(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                match get_separator_from_argument(args, 1) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                },
-            ),
-            "top_counts" => Self::TopCounts(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                match get_separator_from_argument(args, 1) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                },
-            ),
             "values" => Self::Values(match get_separator_from_argument(args, 0) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
@@ -1570,7 +1572,9 @@ fn concretize_aggregations(
     for mut aggregation in aggregations {
         validate_aggregation_function_arity(&aggregation)?;
 
-        if ["top", "top_counts", "argtop"].contains(&aggregation.func_name.as_str()) {
+        if ["most_common", "most_common_counts", "top", "argtop"]
+            .contains(&aggregation.func_name.as_str())
+        {
             aggregation.args.swap(0, 1);
         }
 

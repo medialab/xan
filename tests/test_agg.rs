@@ -383,8 +383,8 @@ fn agg_arg_extent() {
 }
 
 #[test]
-fn agg_top() {
-    let wrk = Workdir::new("agg_top");
+fn agg_most_common() {
+    let wrk = Workdir::new("agg_most_common");
     wrk.create(
         "data.csv",
         vec![
@@ -400,7 +400,7 @@ fn agg_top() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("top(3, color) as top, top_counts(3, color) as top_counts")
+    cmd.arg("most_common(3, color) as top, most_common_counts(3, color) as top_counts")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -412,7 +412,7 @@ fn agg_top() {
 
     // Custom separator
     let mut cmd = wrk.command("agg");
-    cmd.arg("top(3, color, '§') as top, top_counts(3, color, '§') as top_counts")
+    cmd.arg("most_common(3, color, '§') as top, most_common_counts(3, color, '§') as top_counts")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

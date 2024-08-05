@@ -516,6 +516,15 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Value appearing the most, breaking ties arbitrarily in favor of the
         first value in lexicographical order.
 
+    - most_common(k, <expr>, separator?)
+        List of top k most common values returned by expression
+        joined by a pipe character ('|') or by the provided separator.
+        Ties will be broken by lexicographical order.
+
+    - most_common_counts(k, <expr>, separator?)
+        List of top k most common counts returned by expression
+        joined by a pipe character ('|') or by the provided separator.
+
     - quantile(<expr>, p) -> number
         Return the desired quantile of numerical values.
 
@@ -539,15 +548,6 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
     - sum(<expr>) -> number
         Sum of numerical values.
-
-    - top(k, <expr>, separator?)
-        List of top k most common values returned by expression
-        joined by a pipe character ('|') or by the provided separator.
-        Ties will be broken by lexicographical order.
-
-    - top_counts(k, <expr>, separator?)
-        List of top k most common counts returned by expression
-        joined by a pipe character ('|') or by the provided separator.
 
     - type(<expr>) -> string
         Best type description for seen values.
