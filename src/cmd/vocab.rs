@@ -14,17 +14,18 @@ use crate::CliResult;
 // TODO: unit test vocab
 
 static USAGE: &str = "
-Build a vocabulary over tokenized documents.
+Compute vocabulary statistics over tokenized documents.
 
 TODO...
 
 Usage:
-    xan vocab <doc-columns> <token-column> [options] [<input>]
+    xan vocab token <doc-cols> <token-col> [options] [<input>]
+    xan vocab doc <doc-cols> <token-col> [options] [<input>]
+    xan vocab doc-token <doc-cols> <token-col> [options] [<input>]
+    xan vocab corpus <doc-cols> <token-col> [options] [<input>]
     xan vocab --help
 
-vocab options:
-    -D, --doc              Compute doc-level statistics for tokens instead
-                           of token-level statistics.
+vocab doc-token options:
     --k1-value <value>     \"k1\" factor for BM25 computation. [default: 1.2]
     --b-value <value>      \"b\" factor for BM25 computation. [default: 0.75]
 
@@ -41,10 +42,13 @@ Common options:
 
 #[derive(Clone, Deserialize)]
 struct Args {
+    cmd_token: bool,
+    cmd_doc: bool,
+    cmd_doc_token: bool,
+    cmd_corpus: bool,
     arg_input: Option<String>,
-    arg_doc_columns: SelectColumns,
-    arg_token_column: SelectColumns,
-    flag_doc: bool,
+    arg_doc_cols: SelectColumns,
+    arg_token_col: SelectColumns,
     flag_k1_value: f64,
     flag_b_value: f64,
     flag_output: Option<String>,
@@ -58,14 +62,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_doc_columns);
+        .select(args.arg_doc_cols);
 
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let sel = rconf.selection(&headers)?;
     let token_pos = Config::new(&None)
-        .select(args.arg_token_column)
+        .select(args.arg_token_col)
         .single_selection(&headers)?;
 
     let mut vocab = Vocabulary::new();
@@ -81,10 +85,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    if !args.flag_doc {
-        wtr.write_record([&headers[token_pos], b"tf", b"df", b"idf"])?;
+    if args.cmd_token {
+        wtr.write_record([&headers[token_pos], b"gf", b"df", b"idf"])?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
-    } else {
+    } else if args.cmd_doc_token {
         let mut output_headers = csv::ByteRecord::new();
 
         for col_name in sel.select(&headers) {
@@ -100,6 +104,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         vocab.for_each_doc_token_level_record(args.flag_k1_value, args.flag_b_value, |r| {
             wtr.write_byte_record(r)
         })?;
+    } else if args.cmd_doc {
+        unimplemented!();
+    } else if args.cmd_corpus {
+        let headers: [&[u8]; 2] = [b"doc_count", b"token_count"];
+        wtr.write_record(headers)?;
+        wtr.write_record([
+            vocab.doc_count().to_string().as_bytes(),
+            vocab.token_count().to_string().as_bytes(),
+        ])?;
     }
 
     Ok(wtr.flush()?)
@@ -111,13 +124,13 @@ type TokenID = usize;
 
 #[derive(Debug)]
 struct TokenStats {
-    tf: u64,
+    gf: u64,
     df: u64,
     text: Token,
 }
 
 impl TokenStats {
-    fn idf(&self, n: u64) -> f64 {
+    fn idf(&self, n: usize) -> f64 {
         (n as f64 / self.df as f64).ln()
     }
 }
@@ -125,7 +138,7 @@ impl TokenStats {
 impl From<Token> for TokenStats {
     fn from(value: Token) -> Self {
         TokenStats {
-            tf: 0,
+            gf: 0,
             df: 0,
             text: value,
         }
@@ -198,8 +211,12 @@ impl Vocabulary {
         Self::default()
     }
 
-    fn doc_count(&self) -> u64 {
-        self.documents.len() as u64
+    fn doc_count(&self) -> usize {
+        self.documents.len()
+    }
+
+    fn token_count(&self) -> usize {
+        self.tokens.len()
     }
 
     fn add(&mut self, document: Document, token: Token) {
@@ -216,7 +233,7 @@ impl Vocabulary {
         };
 
         let token_stats = &mut self.tokens[token_id];
-        token_stats.tf += 1;
+        token_stats.gf += 1;
 
         let token_was_added_to_doc = match self.documents.entry(document) {
             Entry::Vacant(entry) => {
@@ -252,7 +269,7 @@ impl Vocabulary {
 
             record.clear();
             record.push_field(&token);
-            record.push_field(stats.tf.to_string().as_bytes());
+            record.push_field(stats.gf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
 

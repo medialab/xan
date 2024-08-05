@@ -55,6 +55,7 @@ mod test_split;
 mod test_stats;
 mod test_tokenize;
 mod test_transform;
+mod test_vocab;
 
 pub type CsvVecs = Vec<Vec<String>>;
 
