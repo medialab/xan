@@ -549,6 +549,11 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - sum(<expr>) -> number
         Sum of numerical values.
 
+    - top(k, <expr>, separator?)
+        Find the top k values returned by the expression and join
+        them by a pipe character ('|') or by the provided separator.
+        Ties will be broken by original row index.
+
     - type(<expr>) -> string
         Best type description for seen values.
 

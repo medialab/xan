@@ -368,6 +368,10 @@ impl ArgTop {
         }
     }
 
+    fn capacity(&self) -> usize {
+        self.heap.capacity()
+    }
+
     fn clear(&mut self) {
         self.heap.clear();
     }
@@ -383,11 +387,15 @@ impl ArgTop {
             .map(|((_, Reverse(i)), _)| i)
     }
 
-    fn top(&self) -> impl Iterator<Item = (usize, ByteRecord)> {
+    fn top_records(&self) -> impl Iterator<Item = (usize, ByteRecord)> {
         self.heap
             .to_sorted_vec()
             .into_iter()
             .map(|((_, Reverse(i)), r)| (i, r))
+    }
+
+    fn top_values(&self) -> impl Iterator<Item = DynamicNumber> {
+        self.heap.to_sorted_vec().into_iter().map(|((v, _), _)| v)
     }
 
     fn merge(&mut self, other: Self) {
@@ -995,7 +1003,7 @@ impl Aggregator {
                     Some(expr) => {
                         let mut strings = Vec::new();
 
-                        for (index, record) in inner.top() {
+                        for (index, record) in inner.top_records() {
                             let value = eval_expression(expr, Some(index), &record, context)?;
 
                             strings.push(
@@ -1084,19 +1092,6 @@ impl Aggregator {
             (ConcreteAggregationMethod::Modes(separator), Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.modes().map(|m| m.join(separator)))
             }
-            (ConcreteAggregationMethod::Sum, Self::Sum(inner)) => DynamicValue::from(inner.get()),
-            (ConcreteAggregationMethod::VarPop, Self::Welford(inner)) => {
-                DynamicValue::from(inner.variance())
-            }
-            (ConcreteAggregationMethod::VarSample, Self::Welford(inner)) => {
-                DynamicValue::from(inner.sample_variance())
-            }
-            (ConcreteAggregationMethod::StddevPop, Self::Welford(inner)) => {
-                DynamicValue::from(inner.stdev())
-            }
-            (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
-                DynamicValue::from(inner.sample_stdev())
-            }
             (
                 ConcreteAggregationMethod::MostCommonCounts(k, separator),
                 Self::Frequencies(inner),
@@ -1112,6 +1107,28 @@ impl Aggregator {
                 ConcreteAggregationMethod::MostCommonValues(k, separator),
                 Self::Frequencies(inner),
             ) => DynamicValue::from(inner.most_common(*k).join(separator)),
+            (ConcreteAggregationMethod::Sum, Self::Sum(inner)) => DynamicValue::from(inner.get()),
+            (ConcreteAggregationMethod::VarPop, Self::Welford(inner)) => {
+                DynamicValue::from(inner.variance())
+            }
+            (ConcreteAggregationMethod::VarSample, Self::Welford(inner)) => {
+                DynamicValue::from(inner.sample_variance())
+            }
+            (ConcreteAggregationMethod::StddevPop, Self::Welford(inner)) => {
+                DynamicValue::from(inner.stdev())
+            }
+            (ConcreteAggregationMethod::StddevSample, Self::Welford(inner)) => {
+                DynamicValue::from(inner.sample_stdev())
+            }
+            (ConcreteAggregationMethod::Top(_, separator), Self::ArgTop(inner)) => {
+                DynamicValue::from(
+                    inner
+                        .top_values()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>()
+                        .join(separator),
+                )
+            }
             (ConcreteAggregationMethod::Types, Self::Types(inner)) => {
                 DynamicValue::from(inner.sorted_types().join("|"))
             }
@@ -1228,10 +1245,17 @@ impl CompositeAggregator {
                     }
                 }
             }
-            ConcreteAggregationMethod::ArgTop(k, _, _) => {
-                let idx = self.methods.len();
-                self.methods.push(Aggregator::ArgTop(ArgTop::new(*k)));
-                idx
+            ConcreteAggregationMethod::ArgTop(k, _, _) | ConcreteAggregationMethod::Top(k, _) => {
+                match self.methods.iter().position(
+                    |item| matches!(item, Aggregator::ArgTop(inner) if inner.capacity() == *k),
+                ) {
+                    None => {
+                        let idx = self.methods.len();
+                        self.methods.push(Aggregator::ArgTop(ArgTop::new(*k)));
+                        idx
+                    }
+                    Some(idx) => idx,
+                }
             }
             ConcreteAggregationMethod::First => {
                 upsert_aggregator!(First)
@@ -1398,7 +1422,7 @@ fn validate_aggregation_function_arity(
         "count" => 0..=1,
         "quantile" => 2..=2,
         "values" | "distinct_values" | "argmin" | "argmax" | "modes" => 1..=2,
-        "most_common" | "most_common_counts" => 1..=3,
+        "most_common" | "most_common_counts" | "top" => 1..=3,
         "argtop" => 1..=4,
         _ => 1..=1,
     };
@@ -1453,6 +1477,7 @@ enum ConcreteAggregationMethod {
     VarSample,
     StddevPop,
     StddevSample,
+    Top(usize, String),
     Type,
     Types,
 }
@@ -1545,6 +1570,19 @@ impl ConcreteAggregationMethod {
             "stddev" | "stddev_pop" => Self::StddevPop,
             "stddev_sample" => Self::StddevSample,
             "sum" => Self::Sum,
+            "top" => Self::Top(
+                match args.first().unwrap() {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(k) => k,
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                match get_separator_from_argument(args, 1) {
+                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    Some(separator) => separator,
+                },
+            ),
             "type" => Self::Type,
             "types" => Self::Types,
             _ => return Err(ConcretizationError::UnknownFunction(name.to_string())),

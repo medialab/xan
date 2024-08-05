@@ -424,6 +424,39 @@ fn agg_most_common() {
 }
 
 #[test]
+fn agg_top() {
+    let wrk = Workdir::new("agg_top");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["score", "color"],
+            svec!["1", "blue"],
+            svec!["3", "red"],
+            svec!["2", "yellow"],
+            svec!["2", "purple"],
+            svec!["4", "ochre"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("top(3, score) as top, argtop(3, score, color) as argtop")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["top", "argtop"], svec!["4|3|2", "ochre|red|yellow"]];
+    assert_eq!(got, expected);
+
+    // Custom separator
+    let mut cmd = wrk.command("agg");
+    cmd.arg("top(3, score, ',') as top, argtop(3, score, color, ',') as argtop")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["top", "argtop"], svec!["4,3,2", "ochre,red,yellow"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn agg_argtop() {
     let wrk = Workdir::new("agg_argtop");
     wrk.create(

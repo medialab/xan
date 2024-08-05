@@ -109,6 +109,10 @@ impl<T: Ord, V> FixedReverseHeapMap<T, V> {
         }
     }
 
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
     pub fn clear(&mut self) {
         self.heap.clear();
     }
