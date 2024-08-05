@@ -9,8 +9,8 @@ use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
 use super::special_functions::{get_special_function, RuntimeFunction as SpecialFunction};
 use super::types::{
-    BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, HeadersIndex,
-    BOUND_ARGUMENTS_CAPACITY,
+    BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments,
+    HeadersIndex, BOUND_ARGUMENTS_CAPACITY,
 };
 
 #[derive(Debug, Clone)]
@@ -177,6 +177,23 @@ impl ConcreteSpecialFunctionCall {
     }
 }
 
+fn concretize_arguments(
+    function_arguments: &FunctionArguments,
+    parsed_args: Vec<(Option<String>, Expr)>,
+    headers: &ByteRecord,
+) -> Result<Vec<ConcreteExpr>, ConcretizationError> {
+    let concrete_args = parsed_args
+        .into_iter()
+        .map(|(name, expr)| concretize_expression(expr, headers).map(|r| (name, r)))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(function_arguments
+        .reorder(concrete_args)?
+        .into_iter()
+        .map(|opt| opt.unwrap_or(ConcreteExpr::Value(DynamicValue::None)))
+        .collect())
+}
+
 fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
@@ -208,14 +225,9 @@ fn concretize_call(
             }
         }
 
-        // NOTE: no support for named arguments here
         return Ok(ConcreteExpr::SpecialCall(ConcreteSpecialFunctionCall {
             function: runtime_function.expect("missing special function runtime"),
-            args: call
-                .args
-                .into_iter()
-                .map(|(_, expr)| concretize_expression(expr, headers))
-                .collect::<Result<Vec<_>, _>>()?,
+            args: concretize_arguments(&arguments, call.args, headers)?,
         }));
     }
 
@@ -228,23 +240,10 @@ fn concretize_call(
                     ConcretizationError::InvalidArity(function_name.clone(), invalid_arity)
                 })?;
 
-            // TODO: add support for named arguments here by reordering
-            let concrete_args = call
-                .args
-                .into_iter()
-                .map(|(name, expr)| concretize_expression(expr, headers).map(|r| (name, r)))
-                .collect::<Result<Vec<_>, _>>()?;
-
-            let concrete_args = arguments
-                .reorder(concrete_args)?
-                .into_iter()
-                .map(|opt| opt.unwrap_or(ConcreteExpr::Value(DynamicValue::None)))
-                .collect();
-
             ConcreteExpr::Call(ConcreteFunctionCall {
                 name: function_name.clone(),
                 function,
-                args: concrete_args,
+                args: concretize_arguments(&arguments, call.args, headers)?,
             })
         }
     })
