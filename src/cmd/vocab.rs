@@ -14,15 +14,45 @@ use crate::CliResult;
 // TODO: unit test vocab
 
 static USAGE: &str = "
-Compute vocabulary statistics over tokenized documents.
+Compute vocabulary statistics over tokenized documents. Those documents
+must be given as a CSV with one or more column representing a document key
+and a column containing single tokens like so (typically an output from
+the \"tokenize\" command):
 
-TODO...
+doc,token
+1,the
+1,cat
+1,eats
+2,hello
+
+This command can compute 4 kinds of differents vocabulary statistics:
+
+1. corpus-level statistics (using the \"corpus\" subcommand):
+    - doc_count: number of documents in the corpus
+    - token_count: number of distinct tokens in the corpus
+    - average_doc_len: average number of tokens per document
+
+2. token-level statistics (using the \"token\" subcommand):
+    - (token): some distinct token (the column will be named like the input)
+    - gf: global frequency of the token across corpus
+    - df: document frequency of the token
+    - idf: inverse document frequency of the token
+
+3. doc-level statistics (using the \"doc\" subcommand):
+    - (*doc): columns representing the document (named like the input)
+
+4. doc-token-level statistics (using the \"doc-token\" subcommand):
+    - (*doc): columns representing the document (named like the input)
+    - (token): some distinct documnet token (the column will be named like the input)
+    - tf: term frequency for the token in the document
+    - tfidf: term frequency * idf for the token in the document
+    - bm25: BM25 score for the token in the document
 
 Usage:
+    xan vocab corpus <doc-cols> <token-col> [options] [<input>]
     xan vocab token <doc-cols> <token-col> [options] [<input>]
     xan vocab doc <doc-cols> <token-col> [options] [<input>]
     xan vocab doc-token <doc-cols> <token-col> [options] [<input>]
-    xan vocab corpus <doc-cols> <token-col> [options] [<input>]
     xan vocab --help
 
 vocab doc-token options:
