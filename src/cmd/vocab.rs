@@ -107,11 +107,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.cmd_doc {
         unimplemented!();
     } else if args.cmd_corpus {
-        let headers: [&[u8]; 2] = [b"doc_count", b"token_count"];
+        let headers: [&[u8]; 3] = [b"doc_count", b"token_count", b"average_doc_len"];
         wtr.write_record(headers)?;
         wtr.write_record([
             vocab.doc_count().to_string().as_bytes(),
             vocab.token_count().to_string().as_bytes(),
+            vocab.average_doc_len().to_string().as_bytes(),
         ])?;
     }
 
@@ -174,6 +175,7 @@ impl DocumentTokenStats {
 #[derive(Default, Debug)]
 struct DocumentStats {
     tokens: HashMap<TokenID, DocumentTokenStats>,
+    len: usize,
 }
 
 impl DocumentStats {
@@ -182,6 +184,8 @@ impl DocumentStats {
     }
 
     fn add(&mut self, token_id: TokenID) -> bool {
+        self.len += 1;
+
         match self.tokens.entry(token_id) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().tf += 1;
@@ -195,7 +199,7 @@ impl DocumentStats {
     }
 
     fn doc_len(&self) -> usize {
-        self.tokens.len()
+        self.len
     }
 }
 
@@ -217,6 +221,11 @@ impl Vocabulary {
 
     fn token_count(&self) -> usize {
         self.tokens.len()
+    }
+
+    fn average_doc_len(&self) -> f64 {
+        let doc_len_sum: usize = self.documents.values().map(|s| s.doc_len()).sum();
+        doc_len_sum as f64 / self.doc_count() as f64
     }
 
     fn add(&mut self, document: Document, token: Token) {
@@ -295,8 +304,7 @@ impl Vocabulary {
         }
 
         // Aggregating average doc lengths for BM25
-        let doc_len_sum: usize = self.documents.values().map(|s| s.doc_len()).sum();
-        let average_doc_len = doc_len_sum as f64 / n as f64;
+        let average_doc_len = self.average_doc_len();
 
         let mut record = csv::ByteRecord::new();
 
