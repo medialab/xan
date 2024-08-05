@@ -38,6 +38,8 @@ frequency options:
                            details. This is provided here because piping 'xan
                            select' into 'xan frequency' will disable the use
                            of indexing.
+    -g, --groupby <cols>   If given, will compute frequency tables per group
+                           as defined by the given columns.
     -l, --limit <arg>      Limit the frequency table to the N most common
                            items. Set to <=0 to disable a limit. It is combined
                            with -t/--threshold.
@@ -70,6 +72,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
+    flag_groupby: Option<SelectColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {

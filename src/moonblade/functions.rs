@@ -599,6 +599,11 @@ fn contains(args: BoundArguments) -> FunctionResult {
 
             Ok(DynamicValue::from(false))
         }
+        DynamicValue::Map(map) => {
+            let needle = arg2.try_as_str()?;
+
+            return Ok(DynamicValue::from(map.contains_key(needle.as_ref())));
+        }
         value => Err(EvaluationError::from_cast(value, "sequence")),
     }
 }
