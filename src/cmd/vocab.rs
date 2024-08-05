@@ -37,6 +37,7 @@ This command can compute 4 kinds of differents vocabulary statistics:
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
     - idf: inverse document frequency of the token
+    - gfidf: global frequency * idf for the token
 
 3. doc-level statistics (using the \"doc\" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -116,7 +117,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     if args.cmd_token {
-        wtr.write_record([&headers[token_pos], b"gf", b"df", b"idf"])?;
+        wtr.write_record([&headers[token_pos], b"gf", b"df", b"idf", b"gfidf"])?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_doc_token {
         let mut output_headers = csv::ByteRecord::new();
@@ -163,6 +164,10 @@ struct TokenStats {
 impl TokenStats {
     fn idf(&self, n: usize) -> f64 {
         (n as f64 / self.df as f64).ln()
+    }
+
+    fn gfidf(&self, n: usize) -> f64 {
+        self.gf as f64 * self.idf(n)
     }
 }
 
@@ -311,6 +316,7 @@ impl Vocabulary {
             record.push_field(stats.gf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
+            record.push_field(stats.gfidf(n).to_string().as_bytes());
 
             callback(&record)?;
         }
