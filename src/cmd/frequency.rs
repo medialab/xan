@@ -5,7 +5,7 @@ use rayon::prelude::*;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::structures::FixedReverseHeap;
+use crate::structures::{FixedReverseHeap, SortedInsertHashmap};
 use crate::util;
 use crate::CliResult;
 
@@ -112,8 +112,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if let Some(groupby_sel) = groupby_sel_opt {
-        let mut groups_to_fields_to_counter: HashMap<GroupKey, Vec<HashMap<ValueKey, u64>>> =
-            HashMap::new();
+        let mut groups_to_fields_to_counter: SortedInsertHashmap<
+            GroupKey,
+            Vec<HashMap<ValueKey, u64>>,
+        > = SortedInsertHashmap::new();
 
         let output_headers = {
             let mut r = ByteRecord::new();
@@ -148,15 +150,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     continue;
                 }
 
-                groups_to_fields_to_counter
-                    .entry(group.clone())
-                    .and_modify(|list| {
-                        list[i]
-                            .entry(cell.to_vec())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                    })
-                    .or_insert_with(|| {
+                groups_to_fields_to_counter.insert_with_or_else(
+                    group.clone(),
+                    || {
                         let mut list = Vec::with_capacity(sel.len());
 
                         for _ in 0..sel.len() {
@@ -169,7 +165,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             .or_insert(1);
 
                         list
-                    });
+                    },
+                    |mut list| {
+                        list[i]
+                            .entry(cell.to_vec())
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
+                    },
+                );
             }
         }
 

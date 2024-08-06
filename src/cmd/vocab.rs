@@ -2,12 +2,10 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
+use crate::structures::SortedInsertHashmap;
 use crate::util;
 use crate::CliResult;
 
-// TODO: --sorted if sorted on document to speed up and avoid lookups,
-// or rely on caching last key instead, but we can avoid the doc hashmap
-// if sorted!
 // TODO: filters on df because with some stats you cannot filter on this?
 // TODO: maybe option to explode for perf reasons?
 // TODO: add chi2
@@ -269,7 +267,7 @@ impl DocumentStats {
 struct Vocabulary {
     token_ids: HashMap<Token, TokenID>,
     tokens: Vec<TokenStats>,
-    documents: HashMap<Document, DocumentStats>,
+    documents: SortedInsertHashmap<Document, DocumentStats>,
 }
 
 impl Vocabulary {
@@ -306,19 +304,21 @@ impl Vocabulary {
         let token_stats = &mut self.tokens[token_id];
         token_stats.gf += 1;
 
-        let token_was_added_to_doc = match self.documents.entry(document) {
-            Entry::Vacant(entry) => {
-                let mut stats = DocumentStats::new();
-                let added = stats.add(token_id);
+        let mut token_was_added = false;
 
-                entry.insert(stats);
+        let doc_was_inserted = self.documents.insert_with_or_else(
+            document,
+            || {
+                let mut doc_stats = DocumentStats::new();
+                doc_stats.add(token_id);
+                doc_stats
+            },
+            |mut doc_stats| {
+                token_was_added = doc_stats.add(token_id);
+            },
+        );
 
-                added
-            }
-            Entry::Occupied(mut entry) => entry.get_mut().add(token_id),
-        };
-
-        if token_was_added_to_doc {
+        if token_was_added || doc_was_inserted {
             token_stats.df += 1;
         }
     }
@@ -329,7 +329,7 @@ impl Vocabulary {
     {
         let mut record = csv::ByteRecord::new();
 
-        for (doc, doc_stats) in self.documents {
+        for (doc, doc_stats) in self.documents.into_iter() {
             record.clear();
 
             for cell in doc {
@@ -394,7 +394,7 @@ impl Vocabulary {
 
         let mut record = csv::ByteRecord::new();
 
-        for (doc, doc_stats) in self.documents {
+        for (doc, doc_stats) in self.documents.into_iter() {
             let doc_len = doc_stats.doc_len();
 
             for (token_id, doc_token_stats) in doc_stats.tokens {
