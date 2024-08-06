@@ -173,13 +173,52 @@ fn frequency_groubby() {
         .args(["-g", "name"])
         .arg("data.csv");
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|row| row[1].to_string());
+
     let expected = vec![
         svec!["field", "name", "value", "count"],
         svec!["color", "john", "blue", "2"],
         svec!["color", "john", "yellow", "1"],
         svec!["color", "mary", "red", "3"],
         svec!["color", "mary", "purple", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    // With limit
+    let mut cmd = wrk.command("frequency");
+    cmd.args(["-s", "color"])
+        .args(["-g", "name"])
+        .args(["-l", "1"])
+        .arg("data.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|row| row[1].to_string());
+
+    let expected = vec![
+        svec!["field", "name", "value", "count"],
+        svec!["color", "john", "blue", "2"],
+        svec!["color", "john", "<rest>", "1"],
+        svec!["color", "mary", "red", "3"],
+        svec!["color", "mary", "<rest>", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    // With limit, without extras
+    let mut cmd = wrk.command("frequency");
+    cmd.args(["-s", "color"])
+        .args(["-g", "name"])
+        .args(["-l", "1"])
+        .arg("--no-extra")
+        .arg("data.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|row| row[1].to_string());
+
+    let expected = vec![
+        svec!["field", "name", "value", "count"],
+        svec!["color", "john", "blue", "2"],
+        svec!["color", "mary", "red", "3"],
     ];
     assert_eq!(got, expected);
 }
