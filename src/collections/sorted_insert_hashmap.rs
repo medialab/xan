@@ -84,4 +84,10 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
             )
         })
     }
+
+    pub fn into_values(self) -> impl Iterator<Item = V> {
+        self.map
+            .into_iter()
+            .map(|(_, v)| Rc::into_inner(v).unwrap().into_inner())
+    }
 }

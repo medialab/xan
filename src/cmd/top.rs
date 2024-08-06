@@ -1,10 +1,9 @@
 use std::cmp::Reverse;
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
 
-use crate::collections::FixedReverseHeapMap;
+use crate::collections::{FixedReverseHeapMap, SortedInsertHashmap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -12,8 +11,8 @@ use crate::CliResult;
 
 type GroupKey = Vec<Vec<u8>>;
 
-// TODO: add rank column? add way to sort groups
-// TODO: use SortedInsertHashmap
+// TODO: add rank column?
+// TODO: add way to sort group?
 
 static USAGE: &str = "
 Find top k CSV rows according to some column values.
@@ -105,10 +104,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! run_groupby {
         ($type:ident, $sel:ident) => {{
             let mut record = csv::ByteRecord::new();
-            let mut groups: HashMap<
+            let mut groups: SortedInsertHashmap<
                 GroupKey,
                 FixedReverseHeapMap<($type<NotNan<f64>>, usize), csv::ByteRecord>,
-            > = HashMap::new();
+            > = SortedInsertHashmap::new();
 
             let mut i: usize = 0;
 
@@ -122,17 +121,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .map(|cell| cell.to_vec())
                         .collect::<Vec<_>>();
 
-                    groups
-                        .entry(group)
-                        .and_modify(|heap| {
-                            heap.push_with(($type(score), i), || record.clone());
-                        })
-                        .or_insert_with(|| {
+                    groups.insert_with_or_else(
+                        group,
+                        || {
                             let mut heap =
                                 FixedReverseHeapMap::with_capacity(usize::from(args.flag_limit));
                             heap.push_with(($type(score), i), || record.clone());
                             heap
-                        });
+                        },
+                        |mut heap| {
+                            heap.push_with(($type(score), i), || record.clone());
+                        },
+                    );
                 }
 
                 i += 1;
