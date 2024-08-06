@@ -12,6 +12,7 @@ fn top() {
             svec!["Mary", "29"],
         ],
     );
+
     let mut cmd = wrk.command("top");
     cmd.arg("age").arg("data.csv");
 
@@ -48,6 +49,7 @@ fn top_reverse() {
             svec!["Mary", "29"],
         ],
     );
+
     let mut cmd = wrk.command("top");
     cmd.arg("age").arg("-R").arg("data.csv");
 
@@ -68,6 +70,53 @@ fn top_reverse() {
         svec!["name", "age"],
         svec!["Harold", "12"],
         svec!["Mary", "29"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn top_groubpy() {
+    let wrk = Workdir::new("top_groubpy");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color", "score"],
+            svec!["red", "1"],
+            svec!["yellow", "2"],
+            svec!["red", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("score")
+        .args(["-g", "color"])
+        .args(["-l", "1"])
+        .arg("data.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|row| row[0].to_string());
+
+    let expected = vec![
+        svec!["color", "score"],
+        svec!["red", "2"],
+        svec!["yellow", "2"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("score")
+        .args(["-g", "color"])
+        .args(["-l", "1"])
+        .arg("-R")
+        .arg("data.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|row| row[0].to_string());
+
+    let expected = vec![
+        svec!["color", "score"],
+        svec!["red", "1"],
+        svec!["yellow", "2"],
     ];
     assert_eq!(got, expected);
 }

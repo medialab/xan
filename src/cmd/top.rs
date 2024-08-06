@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
@@ -9,10 +10,15 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
+type GroupKey = Vec<Vec<u8>>;
+
+// TODO: add rank column? add way to sort groups
+// TODO: use SortedInsertHashmap
+
 static USAGE: &str = "
 Find top k CSV rows according to some column values.
 
-Run in O(n log k) time, consuming only O(k) memory.
+Runs in O(N * log k) time, consuming only O(k) memory.
 
 Usage:
     xan top <column> [options] [<input>]
@@ -58,7 +64,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.arg_column);
 
     let mut rdr = rconf.reader()?;
-    let score_col = rconf.single_selection(rdr.byte_headers()?)?;
+    let headers = rdr.byte_headers()?;
+    let score_col = rconf.single_selection(headers)?;
+
+    let groupby_sel_opt = args
+        .flag_groupby
+        .map(|cols| Config::new(&None).select(cols).selection(headers))
+        .transpose()?;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
@@ -90,11 +102,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }};
     }
 
-    if args.flag_reverse {
-        run!(Reverse);
-    } else {
-        run!(Forward);
-    };
+    macro_rules! run_groupby {
+        ($type:ident, $sel:ident) => {{
+            let mut record = csv::ByteRecord::new();
+            let mut groups: HashMap<
+                GroupKey,
+                FixedReverseHeapMap<($type<NotNan<f64>>, usize), csv::ByteRecord>,
+            > = HashMap::new();
+
+            let mut i: usize = 0;
+
+            while rdr.read_byte_record(&mut record)? {
+                if let Ok(score) = std::str::from_utf8(&record[score_col])
+                    .unwrap_or("")
+                    .parse::<NotNan<f64>>()
+                {
+                    let group = $sel
+                        .select(&record)
+                        .map(|cell| cell.to_vec())
+                        .collect::<Vec<_>>();
+
+                    groups
+                        .entry(group)
+                        .and_modify(|heap| {
+                            heap.push_with(($type(score), i), || record.clone());
+                        })
+                        .or_insert_with(|| {
+                            let mut heap =
+                                FixedReverseHeapMap::with_capacity(usize::from(args.flag_limit));
+                            heap.push_with(($type(score), i), || record.clone());
+                            heap
+                        });
+                }
+
+                i += 1;
+            }
+
+            for heap in groups.into_values() {
+                for (_, record) in heap.into_sorted_vec() {
+                    wtr.write_byte_record(&record)?;
+                }
+            }
+        }};
+    }
+
+    match (args.flag_reverse, groupby_sel_opt) {
+        (true, None) => run!(Reverse),
+        (false, None) => run!(Forward),
+        (true, Some(sel)) => run_groupby!(Reverse, sel),
+        (false, Some(sel)) => run_groupby!(Forward, sel),
+    }
 
     Ok(wtr.flush()?)
 }
