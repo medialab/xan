@@ -84,6 +84,7 @@ macro_rules! command_list {
     agg         Aggregate data from CSV file
     behead      Drop header from CSV file
     bins        Dispatch numeric columns into bins
+    blank       Blank down a CSV file
     cat         Concatenate by row or column
     count       Count records
     datefmt     Format a recognized date column to a specified format and timezone
@@ -215,6 +216,7 @@ enum Command {
     Agg,
     Behead,
     Bins,
+    Blank,
     Cat,
     Count,
     Datefmt,
@@ -282,6 +284,7 @@ impl Command {
             Command::Agg => cmd::agg::run(argv),
             Command::Behead => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
+            Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Datefmt => cmd::datefmt::run(argv),
