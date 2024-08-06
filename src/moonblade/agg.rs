@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use csv::ByteRecord;
 use rayon::prelude::*;
 
-use crate::structures::{FixedReverseHeap, FixedReverseHeapMap};
+use crate::collections::{FixedReverseHeap, FixedReverseHeapMap};
 
 use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};

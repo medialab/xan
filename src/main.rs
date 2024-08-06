@@ -124,6 +124,7 @@ macro_rules! command_list {
     split       Split CSV data into many files
     stats       Compute basic statistics
     tokenize    Tokenize a text column
+    top         Find top rows of a CSV file according to some column
     transform   Transform a column by evaluating an expression on each CSV row
     transpose   Transpose CSV file
     union-find  Apply the union-find algorithm on a CSV edge list
@@ -134,12 +135,12 @@ macro_rules! command_list {
 }
 
 mod cmd;
+mod collections;
 mod config;
 mod index;
 mod json;
 mod moonblade;
 mod select;
-mod structures;
 mod util;
 
 static USAGE: &str = concat!(
@@ -256,6 +257,7 @@ enum Command {
     Split,
     Stats,
     Tokenize,
+    Top,
     Transform,
     Transpose,
     #[serde(rename = "union-find")]
@@ -324,6 +326,7 @@ impl Command {
             Command::Split => cmd::split::run(argv),
             Command::Stats => cmd::stats::run(argv),
             Command::Tokenize => cmd::tokenize::run(argv),
+            Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose => cmd::transpose::run(argv),
             Command::UnionFind => cmd::union_find::run(argv),

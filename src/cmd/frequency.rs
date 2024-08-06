@@ -3,9 +3,9 @@ use std::{cmp::Reverse, collections::HashMap};
 use csv::{self, ByteRecord};
 use rayon::prelude::*;
 
+use crate::collections::{FixedReverseHeap, SortedInsertHashmap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::structures::{FixedReverseHeap, SortedInsertHashmap};
 use crate::util;
 use crate::CliResult;
 

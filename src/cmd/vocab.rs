@@ -1,8 +1,8 @@
 use std::collections::{hash_map::Entry, HashMap};
 
+use crate::collections::SortedInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::structures::SortedInsertHashmap;
 use crate::util;
 use crate::CliResult;
 
