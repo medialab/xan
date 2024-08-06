@@ -150,3 +150,36 @@ fn frequency_stability() {
     let expected = vec![svec!["field", "value", "count"], svec!["a", "x", "2"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn frequency_groubby() {
+    let wrk = Workdir::new("frequency_groubby");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color"],
+            svec!["john", "blue"],
+            svec!["mary", "red"],
+            svec!["mary", "red"],
+            svec!["mary", "red"],
+            svec!["mary", "purple"],
+            svec!["john", "yellow"],
+            svec!["john", "blue"],
+        ],
+    );
+
+    let mut cmd = wrk.command("frequency");
+    cmd.args(["-s", "color"])
+        .args(["-g", "name"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["field", "name", "value", "count"],
+        svec!["color", "john", "blue", "2"],
+        svec!["color", "john", "yellow", "1"],
+        svec!["color", "mary", "red", "3"],
+        svec!["color", "mary", "purple", "1"],
+    ];
+    assert_eq!(got, expected);
+}
