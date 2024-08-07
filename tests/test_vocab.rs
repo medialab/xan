@@ -42,8 +42,7 @@ fn vocab_doc() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("doc").arg("doc").arg("token").arg("data.csv");
 
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort();
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
         svec!["doc", "token_count", "distinct_token_count"],

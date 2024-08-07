@@ -1,21 +1,5 @@
 use crate::workdir::Workdir;
 
-fn sort_output_on_n_first(data: Vec<Vec<String>>, n: usize) -> Vec<Vec<String>> {
-    let mut output = Vec::new();
-    output.push(data[0].clone());
-
-    let mut rows = data.into_iter().skip(1).collect::<Vec<Vec<String>>>();
-    rows.sort_by(|a, b| a[0..n].cmp(&b[0..n]));
-
-    output.extend(rows);
-
-    output
-}
-
-fn sort_output(data: Vec<Vec<String>>) -> Vec<Vec<String>> {
-    sort_output_on_n_first(data, 1)
-}
-
 #[test]
 fn groupby() {
     let wrk = Workdir::new("groupby");
@@ -35,7 +19,7 @@ fn groupby() {
     let mut cmd = wrk.command("groupby");
     cmd.arg("id").arg("sum(value_A) as sumA").arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output(wrk.read_stdout(&mut cmd));
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "sumA"],
         svec!["x", "1"],
@@ -64,7 +48,7 @@ fn groupby_count() {
     let mut cmd = wrk.command("groupby");
     cmd.arg("id").arg("count()").arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output(wrk.read_stdout(&mut cmd));
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "count()"],
         svec!["x", "1"],
@@ -95,7 +79,7 @@ fn groupby_sum() {
         .arg("sum(add(value_A,add(value_B,value_C))) as sum")
         .arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output(wrk.read_stdout(&mut cmd));
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "sum"],
         svec!["x", "6"],
@@ -124,7 +108,7 @@ fn groupby_mean() {
     let mut cmd = wrk.command("groupby");
     cmd.arg("id").arg("mean(value_A) as meanA").arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output(wrk.read_stdout(&mut cmd));
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "meanA"],
         svec!["x", "1"],
@@ -155,7 +139,7 @@ fn groupby_max() {
         .arg("max(value_A) as maxA, max(value_B) as maxB,max(value_C) as maxC")
         .arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output(wrk.read_stdout(&mut cmd));
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "maxA", "maxB", "maxC"],
         svec!["x", "1", "2", "3"],
@@ -263,12 +247,12 @@ fn groupby_complex_selection() {
         .arg("sum(count) as sum")
         .arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output_on_n_first(wrk.read_stdout(&mut cmd), 2);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["name", "color", "sum"],
         svec!["john", "blue", "3"],
-        svec!["john", "yellow", "9"],
         svec!["mary", "orange", "5"],
+        svec!["john", "yellow", "9"],
     ];
     assert_eq!(got, expected);
 }
@@ -294,7 +278,7 @@ fn groupby_most_common() {
         .arg("most_common(2, color) as top, most_common_counts(2, color) as counts")
         .arg("data.csv");
 
-    let got: Vec<Vec<String>> = sort_output_on_n_first(wrk.read_stdout(&mut cmd), 1);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["name", "top", "counts"],
         svec!["john", "blue|purple", "2|1"],

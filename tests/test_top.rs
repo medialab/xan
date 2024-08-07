@@ -93,8 +93,7 @@ fn top_groubpy() {
         .args(["-l", "1"])
         .arg("data.csv");
 
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort_by_key(|row| row[0].to_string());
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
         svec!["color", "score"],
@@ -110,8 +109,7 @@ fn top_groubpy() {
         .arg("-R")
         .arg("data.csv");
 
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort_by_key(|row| row[0].to_string());
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
         svec!["color", "score"],

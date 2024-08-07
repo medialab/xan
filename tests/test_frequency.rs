@@ -173,8 +173,7 @@ fn frequency_groubby() {
         .args(["-g", "name"])
         .arg("data.csv");
 
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort_by_key(|row| row[1].to_string());
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
         svec!["field", "name", "value", "count"],
@@ -192,8 +191,7 @@ fn frequency_groubby() {
         .args(["-l", "1"])
         .arg("data.csv");
 
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort_by_key(|row| row[1].to_string());
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
         svec!["field", "name", "value", "count"],
@@ -212,8 +210,7 @@ fn frequency_groubby() {
         .arg("--no-extra")
         .arg("data.csv");
 
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort_by_key(|row| row[1].to_string());
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
         svec!["field", "name", "value", "count"],

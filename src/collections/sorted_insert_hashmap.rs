@@ -1,14 +1,18 @@
 // A hashmap variant caching its last inserted key to minimize lookups
 // when inserting sorted keys.
+// What's more it is able to iterate over its components in insertion
+// order by relying on an auxilliary Vec. It cannot be made to support
+// deletions efficiently but it was not designed for this anyway.
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{hash_map::Entry, HashMap};
 use std::hash::Hash;
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SortedInsertHashmap<K, V> {
     map: HashMap<Rc<K>, Rc<RefCell<V>>>,
     last_entry: Option<(Rc<K>, Rc<RefCell<V>>)>,
+    order: Vec<(Rc<K>, Rc<RefCell<V>>)>,
 }
 
 impl<K, V> Default for SortedInsertHashmap<K, V> {
@@ -16,6 +20,7 @@ impl<K, V> Default for SortedInsertHashmap<K, V> {
         Self {
             map: HashMap::new(),
             last_entry: None,
+            order: Vec::new(),
         }
     }
 }
@@ -59,6 +64,7 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
                 key_was_inserted = true;
                 let cell = Rc::new(RefCell::new(callback_insert()));
                 entry.insert(cell.clone());
+                self.order.push((key.clone(), cell.clone()));
                 cell
             }
         };
@@ -68,16 +74,26 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
         key_was_inserted
     }
 
+    pub fn insert_with<F>(&mut self, key: K, callback: F) -> RefMut<V>
+    where
+        F: Fn() -> V,
+    {
+        self.insert_with_or_else(key, callback, |_| {});
+        self.last_entry.as_mut().unwrap().1.borrow_mut()
+    }
+
     pub fn values(&self) -> impl Iterator<Item = Ref<V>> {
-        self.map.values().map(|cell| cell.borrow())
+        self.order.iter().map(|(_, cell)| cell.borrow())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, Ref<V>)> {
-        self.map.iter().map(|(k, cell)| (k.as_ref(), cell.borrow()))
+        self.order
+            .iter()
+            .map(|(k, cell)| (k.as_ref(), cell.borrow()))
     }
 
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
-        self.map.into_iter().map(|(k, v)| {
+        self.order.into_iter().map(|(k, v)| {
             (
                 Rc::into_inner(k).unwrap(),
                 Rc::into_inner(v).unwrap().into_inner(),
@@ -86,7 +102,7 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
     }
 
     pub fn into_values(self) -> impl Iterator<Item = V> {
-        self.map
+        self.order
             .into_iter()
             .map(|(_, v)| Rc::into_inner(v).unwrap().into_inner())
     }

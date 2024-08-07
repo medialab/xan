@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use csv::ByteRecord;
 use rayon::prelude::*;
 
-use crate::collections::{FixedReverseHeap, FixedReverseHeapMap};
+use crate::collections::{FixedReverseHeap, FixedReverseHeapMap, SortedInsertHashmap};
 
 use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
@@ -1851,7 +1851,7 @@ type GroupKey = Vec<Vec<u8>>;
 #[derive(Debug, Clone)]
 pub struct GroupAggregationProgram {
     planner: ConcreteAggregationPlanner,
-    groups: HashMap<GroupKey, Vec<CompositeAggregator>>,
+    groups: SortedInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
     context: EvaluationContext,
 }
 
@@ -1862,7 +1862,7 @@ impl GroupAggregationProgram {
 
         Ok(Self {
             planner,
-            groups: HashMap::new(),
+            groups: SortedInsertHashmap::new(),
             context: EvaluationContext::new(headers),
         })
     }
@@ -1875,12 +1875,17 @@ impl GroupAggregationProgram {
     ) -> Result<(), SpecifiedEvaluationError> {
         let planner = &self.planner;
 
-        let aggregators = self
+        let mut aggregators = self
             .groups
-            .entry(group)
-            .or_insert_with(|| planner.instantiate_aggregators());
+            .insert_with(group, || planner.instantiate_aggregators());
 
-        run_with_record_on_aggregators(&self.planner, aggregators, index, record, &self.context)
+        run_with_record_on_aggregators(
+            &self.planner,
+            &mut aggregators,
+            index,
+            record,
+            &self.context,
+        )
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
