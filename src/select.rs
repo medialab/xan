@@ -380,7 +380,23 @@ impl Selection {
         Self((0..len).collect())
     }
 
+    pub fn offset_by(&mut self, by: usize) {
+        for i in self.0.iter_mut() {
+            *i += by;
+        }
+    }
+
     pub fn select<'a, 'b>(&'a self, row: &'b csv::ByteRecord) -> impl Iterator<Item = &'b [u8]>
+    where
+        'a: 'b,
+    {
+        self.iter().map(move |i| &row[*i])
+    }
+
+    pub fn select_string_record<'a, 'b>(
+        &'a self,
+        row: &'b csv::StringRecord,
+    ) -> impl Iterator<Item = &'b str>
     where
         'a: 'b,
     {
@@ -417,6 +433,10 @@ impl Selection {
 
     pub fn indices(&self) -> impl Iterator<Item = usize> + '_ {
         self.0.iter().copied()
+    }
+
+    pub fn contains(&self, i: usize) -> bool {
+        self.0.iter().any(|j| i == *j)
     }
 }
 

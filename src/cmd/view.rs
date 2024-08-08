@@ -5,6 +5,7 @@ use csv;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 #[cfg(windows)]
 use crate::CliError;
@@ -49,6 +50,8 @@ view options:
                            a pager such as \"less\", with no with constraints.
     -E, --sanitize-emojis  Replace emojis by their shortcode to avoid formatting issues.
     -I, --hide-index       Hide the row index on the left.
+    -g, --groupby <cols>   Isolate and emphasize groups of rows, represented by consecutive
+                           rows with identical values in selected columns.
 
 Common options:
     -h, --help             Display this message
@@ -71,6 +74,7 @@ struct Args {
     flag_expand: bool,
     flag_sanitize_emojis: bool,
     flag_hide_index: bool,
+    flag_groupby: Option<SelectColumns>,
 }
 
 impl Args {
@@ -103,6 +107,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
 
     let mut rdr = rconfig.reader()?;
+    let byte_headers = rdr.byte_headers()?;
+
+    let mut groupby_sel_opt = args
+        .flag_groupby
+        .clone()
+        .map(|cols| Config::new(&None).select(cols).selection(byte_headers))
+        .transpose()?;
+
+    if let (Some(groupby_sel), false) = (&mut groupby_sel_opt, args.flag_hide_index) {
+        groupby_sel.offset_by(1);
+    }
 
     let mut potential_headers = rdr.headers()?.clone();
 
@@ -356,12 +371,45 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     write_info()?;
     write_headers(true)?;
 
+    let mut last_group: Option<Vec<String>> = None;
+
     for record in records.iter() {
+        let (need_to_draw_hr, need_to_erase_sel) = if let Some(groupby_sel) = &groupby_sel_opt {
+            let current_key = groupby_sel
+                .select_string_record(record)
+                .map(|cell| cell.to_string())
+                .collect::<Vec<_>>();
+
+            match &last_group {
+                None => {
+                    last_group = Some(current_key);
+                    (false, false)
+                }
+                Some(last_key) if last_key != &current_key => {
+                    last_group = Some(current_key);
+                    (true, false)
+                }
+                _ => (false, true),
+            }
+        } else {
+            (false, false)
+        };
+
+        if need_to_draw_hr {
+            write_horizontal_ruler(HRPosition::Middle)?;
+        }
+
         let row: Vec<colored::ColoredString> = displayed_columns
             .iter()
             .map(|col| (col, &record[col.index]))
             .enumerate()
             .map(|(i, (col, cell))| {
+                if let Some(groupby_sel) = &groupby_sel_opt {
+                    if need_to_erase_sel && groupby_sel.contains(i) {
+                        return " ".repeat(col.allowed_width).normal();
+                    }
+                }
+
                 let cell = match cell.trim() {
                     "" => "<empty>",
                     _ => cell,
