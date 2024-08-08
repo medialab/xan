@@ -6,13 +6,10 @@ use ordered_float::NotNan;
 use crate::collections::{FixedReverseHeapMap, SortedInsertHashmap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::util;
+use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
 type GroupKey = Vec<Vec<u8>>;
-
-// TODO: add rank column?
-// TODO: add way to sort group?
 
 static USAGE: &str = "
 Find top k CSV rows according to some column values.
@@ -29,6 +26,7 @@ dedup options:
     -R, --reverse         Reverse order.
     -g, --groupby <cols>  Return top n values per group, represented
                           by the values in given columns.
+    -r, --rank <col>      Name of a rank column to prepend.
 
 Common options:
     -h, --help               Display this message
@@ -52,6 +50,7 @@ struct Args {
     flag_limit: NonZeroUsize,
     flag_reverse: bool,
     flag_groupby: Option<SelectColumns>,
+    flag_rank: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -73,7 +72,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+    if !args.flag_no_headers {
+        if let Some(name) = &args.flag_rank {
+            wtr.write_byte_record(&headers.prepend(name.as_bytes()))?;
+        } else {
+            wtr.write_byte_record(headers)?;
+        }
+    }
 
     macro_rules! run {
         ($type:ident) => {{
@@ -95,8 +100,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            for (_, record) in heap.into_sorted_vec() {
-                wtr.write_byte_record(&record)?;
+            for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
+                if args.flag_rank.is_some() {
+                    wtr.write_byte_record(&record.prepend((i + 1).to_string().as_bytes()))?;
+                } else {
+                    wtr.write_byte_record(&record)?;
+                }
             }
         }};
     }
@@ -139,8 +148,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             for heap in groups.into_values() {
-                for (_, record) in heap.into_sorted_vec() {
-                    wtr.write_byte_record(&record)?;
+                for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
+                    if args.flag_rank.is_some() {
+                        wtr.write_byte_record(&record.prepend((i + 1).to_string().as_bytes()))?;
+                    } else {
+                        wtr.write_byte_record(&record)?;
+                    }
                 }
             }
         }};

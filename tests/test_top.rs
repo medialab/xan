@@ -38,6 +38,32 @@ fn top() {
 }
 
 #[test]
+fn top_rank() {
+    let wrk = Workdir::new("top_rank");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "age"],
+            svec!["Sven", "34"],
+            svec!["Harold", "12"],
+            svec!["Mary", "29"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("age").args(["--rank", "rank"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["rank", "name", "age"],
+        svec!["1", "Sven", "34"],
+        svec!["2", "Mary", "29"],
+        svec!["3", "Harold", "12"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn top_reverse() {
     let wrk = Workdir::new("top_reverse");
     wrk.create(
@@ -115,6 +141,36 @@ fn top_groubpy() {
         svec!["color", "score"],
         svec!["red", "1"],
         svec!["yellow", "2"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn top_groubpy_rank() {
+    let wrk = Workdir::new("top_groubpy_rank");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color", "score"],
+            svec!["red", "1"],
+            svec!["yellow", "2"],
+            svec!["red", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("score")
+        .args(["-g", "color"])
+        .args(["--rank", "rank"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let expected = vec![
+        svec!["rank", "color", "score"],
+        svec!["1", "red", "2"],
+        svec!["2", "red", "1"],
+        svec!["1", "yellow", "2"],
     ];
     assert_eq!(got, expected);
 }
