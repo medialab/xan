@@ -1,5 +1,7 @@
 const LARGE_EPSILON: f64 = f64::EPSILON * 2.0;
 
+// NOTE: this is not equivalent to casting since it will return None
+// if the float is not near enough to a valid integer.
 pub fn downgrade_float(f: f64) -> Option<i64> {
     let dust = f.fract();
 
