@@ -313,7 +313,7 @@ impl Vocabulary {
                 doc_stats.add(token_id);
                 doc_stats
             },
-            |mut doc_stats| {
+            |doc_stats| {
                 token_was_added = doc_stats.add(token_id);
             },
         );

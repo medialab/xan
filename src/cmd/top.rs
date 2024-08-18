@@ -138,7 +138,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             heap.push_with(($type(score), i), || record.clone());
                             heap
                         },
-                        |mut heap| {
+                        |heap| {
                             heap.push_with(($type(score), i), || record.clone());
                         },
                     );

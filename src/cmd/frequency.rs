@@ -166,7 +166,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         list
                     },
-                    |mut list| {
+                    |list| {
                         list[i]
                             .entry(cell.to_vec())
                             .and_modify(|count| *count += 1)

@@ -1875,17 +1875,11 @@ impl GroupAggregationProgram {
     ) -> Result<(), SpecifiedEvaluationError> {
         let planner = &self.planner;
 
-        let mut aggregators = self
+        let aggregators = self
             .groups
             .insert_with(group, || planner.instantiate_aggregators());
 
-        run_with_record_on_aggregators(
-            &self.planner,
-            &mut aggregators,
-            index,
-            record,
-            &self.context,
-        )
+        run_with_record_on_aggregators(&self.planner, aggregators, index, record, &self.context)
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
