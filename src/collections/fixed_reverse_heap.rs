@@ -2,23 +2,23 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
 #[derive(Clone, Debug)]
-pub struct Constant<T>(pub T);
+pub struct Arbitrary<T>(pub T);
 
-impl<T> PartialEq for Constant<T> {
+impl<T> PartialEq for Arbitrary<T> {
     fn eq(&self, _other: &Self) -> bool {
         true
     }
 }
 
-impl<T> Eq for Constant<T> {}
+impl<T> Eq for Arbitrary<T> {}
 
-impl<T> PartialOrd for Constant<T> {
+impl<T> PartialOrd for Arbitrary<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T> Ord for Constant<T> {
+impl<T> Ord for Arbitrary<T> {
     fn cmp(&self, _other: &Self) -> Ordering {
         Ordering::Equal
     }
@@ -98,7 +98,7 @@ impl<T: Ord> Extend<T> for FixedReverseHeap<T> {
 #[derive(Clone, Debug)]
 pub struct FixedReverseHeapMap<T, V> {
     capacity: usize,
-    heap: BinaryHeap<(Reverse<T>, Constant<V>)>,
+    heap: BinaryHeap<(Reverse<T>, Arbitrary<V>)>,
 }
 
 impl<T: Ord, V> FixedReverseHeapMap<T, V> {
@@ -120,7 +120,7 @@ impl<T: Ord, V> FixedReverseHeapMap<T, V> {
     pub fn into_unordered_iter(self) -> impl Iterator<Item = (T, V)> {
         self.heap
             .into_iter()
-            .map(|(Reverse(k), Constant(v))| (k, v))
+            .map(|(Reverse(k), Arbitrary(v))| (k, v))
     }
 
     pub fn push_with<F>(&mut self, item: T, callback: F) -> bool
@@ -130,7 +130,7 @@ impl<T: Ord, V> FixedReverseHeapMap<T, V> {
         let heap = &mut self.heap;
 
         if heap.len() < self.capacity {
-            heap.push((Reverse(item), Constant(callback())));
+            heap.push((Reverse(item), Arbitrary(callback())));
 
             return true;
         } else {
@@ -138,7 +138,7 @@ impl<T: Ord, V> FixedReverseHeapMap<T, V> {
 
             if item > worst_item.0 .0 {
                 heap.pop();
-                heap.push((Reverse(item), Constant(callback())));
+                heap.push((Reverse(item), Arbitrary(callback())));
                 return true;
             }
         }
@@ -154,7 +154,7 @@ impl<T: Ord, V> FixedReverseHeapMap<T, V> {
 
         let mut i: usize = l;
 
-        while let Some((Reverse(item), Constant(value))) = self.heap.pop() {
+        while let Some((Reverse(item), Arbitrary(value))) = self.heap.pop() {
             i -= 1;
             uninit[i].write((item, value));
         }
