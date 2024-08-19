@@ -142,6 +142,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("errors"),
             ]),
         ),
+        "read_json" => (read_json, FunctionArguments::unary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
             |args| unary_arithmetic_op(args, DynamicNumber::round),
@@ -1026,6 +1027,11 @@ fn read(args: BoundArguments) -> FunctionResult {
         args.get_not_none(1),
         args.get_not_none(2),
     )?))
+}
+
+fn read_json(args: BoundArguments) -> FunctionResult {
+    let contents = abstract_read(args.get(0).unwrap(), None, None)?;
+    serde_json::from_str(&contents).map_err(|_| EvaluationError::JSONParseError)
 }
 
 lazy_static! {

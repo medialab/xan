@@ -67,6 +67,15 @@ available functions & operators):
   . Map literals:
         '{one: 1, two: 2}'
         '{leaf: \"hello\", \"nested\": [1, 2, 3]}'
+
+Note that constant expressions will never be evaluated more than once
+when parsing the program.
+
+This means that when evaluating the following:
+    'get(read_json(\"config.json\"), name)'
+
+The \"config.json\" file will never be read/parsed more than once and will not
+be read/parsed once per row.
 "
 }
 
@@ -372,7 +381,7 @@ use the operators in the previous section.
     - index() -> integer?
         Return the row's index, if applicable.
 
-    - json_parse(string) -> T
+    - json_parse(string) -> any
         Parse the given string as JSON.
 
     - typeof(value) -> string
@@ -410,6 +419,9 @@ use the operators in the previous section.
         Read file at path. Default encoding is \"utf-8\".
         Default error handling policy is \"replace\", and can be
         one of \"replace\", \"ignore\" or \"strict\".
+
+    - read_json(path) -> any
+        Read and parse JSON file at path.
 
     - write(string, path) -> string
         Write string to path as utf-8 text. Will create necessary
