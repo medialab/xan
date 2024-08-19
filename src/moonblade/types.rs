@@ -118,7 +118,7 @@ impl ColumIndexationBy {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct HeadersIndex {
     mapping: BTreeMap<String, Vec<usize>>,
 }

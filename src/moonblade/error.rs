@@ -24,7 +24,7 @@ pub enum ConcretizationError {
     InvalidArity(String, InvalidArity),
     TooManyArguments(usize),
     UnknownArgumentName(String),
-    StaticEvaluationError(EvaluationError),
+    StaticEvaluationError(SpecifiedEvaluationError),
     NotStaticallyAnalyzable,
 }
 

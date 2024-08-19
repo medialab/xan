@@ -13,7 +13,7 @@ use super::types::{
     HeadersIndex, BOUND_ARGUMENTS_CAPACITY,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EvaluationContext {
     headers_index: HeadersIndex,
 }
@@ -30,7 +30,7 @@ impl EvaluationContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConcreteExpr {
     Column(usize),
     Value(DynamicValue),
@@ -103,7 +103,7 @@ impl ConcreteExpr {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ConcreteFunctionCall {
     name: String,
     function: Function,
@@ -111,6 +111,17 @@ pub struct ConcreteFunctionCall {
 }
 
 impl ConcreteFunctionCall {
+    fn is_statically_evaluable(&self) -> bool {
+        // NOTE: nullary functions such as index() or uuid() usually
+        // rely on some external implicit state and cannot be statically
+        // evaluated.
+        !self.args.is_empty() && self.args.iter().all(|arg| arg.is_value())
+    }
+
+    fn static_run(&self) -> EvaluationResult {
+        self.run(None, &ByteRecord::new(), &EvaluationContext::default())
+    }
+
     fn run<'a>(
         &'a self,
         index: Option<usize>,
@@ -160,7 +171,7 @@ impl fmt::Debug for ConcreteFunctionCall {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConcreteSpecialFunctionCall {
     function: SpecialFunction,
     args: Vec<ConcreteExpr>,
@@ -240,11 +251,22 @@ fn concretize_call(
                     ConcretizationError::InvalidArity(function_name.clone(), invalid_arity)
                 })?;
 
-            ConcreteExpr::Call(ConcreteFunctionCall {
+            let concrete_call = ConcreteFunctionCall {
                 name: function_name.clone(),
                 function,
                 args: concretize_arguments(&arguments, call.args, headers)?,
-            })
+            };
+
+            if concrete_call.is_statically_evaluable() {
+                match concrete_call.static_run() {
+                    Err(evaluation_error) => {
+                        return Err(ConcretizationError::StaticEvaluationError(evaluation_error))
+                    }
+                    Ok(value) => return Ok(ConcreteExpr::Value(value)),
+                };
+            }
+
+            ConcreteExpr::Call(concrete_call)
         }
     })
 }
@@ -337,7 +359,7 @@ pub fn eval_expression(
 
 #[derive(Clone)]
 pub struct Program {
-    expr: ConcreteExpr,
+    pub expr: ConcreteExpr,
     context: EvaluationContext,
 }
 
@@ -370,6 +392,18 @@ mod tests {
 
     type TestResult = Result<DynamicValue, RunError>;
 
+    fn concretize_code(code: &str) -> Result<ConcreteExpr, ConcretizationError> {
+        let mut headers = ByteRecord::new();
+        headers.push_field(b"name");
+        headers.push_field(b"surname");
+        headers.push_field(b"a");
+        headers.push_field(b"b");
+
+        let program = Program::parse(code, &headers)?;
+
+        Ok(program.expr)
+    }
+
     fn eval_code(code: &str) -> TestResult {
         let mut headers = ByteRecord::new();
         headers.push_field(b"name");
@@ -388,6 +422,26 @@ mod tests {
         program
             .run_with_record(2, &record)
             .map_err(RunError::Evaluation)
+    }
+
+    #[test]
+    fn test_static_evaluation() {
+        assert_eq!(
+            concretize_code("1 + name"),
+            Ok(ConcreteExpr::Call(ConcreteFunctionCall {
+                name: "add".to_string(),
+                function: get_function("add").unwrap().0,
+                args: vec![
+                    ConcreteExpr::Value(DynamicValue::Integer(1)),
+                    ConcreteExpr::Column(0)
+                ]
+            }))
+        );
+
+        assert_eq!(
+            concretize_code("1 + 2 * 4"),
+            Ok(ConcreteExpr::Value(DynamicValue::Integer(9)))
+        );
     }
 
     #[test]

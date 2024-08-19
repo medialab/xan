@@ -10,8 +10,13 @@ static USAGE: &str = "
 Debug command that can be used to evaluate a moonblade expression.
 
 Usage:
-    xan eval <expr>
+    xan eval [options] <expr>
     xan eval --help
+
+eval options:
+    -e, --explain          Print concrete expression plan.
+    -H, --headers <names>  Pretend headers, separated by commas, to consider.
+    -R, --row <values>     Pretend row with comma-separated cells.
 
 Common options:
     -h, --help  Display this message
@@ -20,16 +25,38 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_expr: String,
+    flag_explain: bool,
+    flag_headers: Option<String>,
+    flag_row: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let dummy_record = csv::ByteRecord::new();
+    let mut dummy_headers = csv::ByteRecord::new();
 
-    let program = Program::parse(&args.arg_expr, &dummy_record)?;
+    if let Some(headers) = args.flag_headers {
+        for h in headers.split(',') {
+            dummy_headers.push_field(h.as_bytes());
+        }
+    }
 
-    let value = program.run_with_record(0, &dummy_record)?;
+    let program = Program::parse(&args.arg_expr, &dummy_headers)?;
+
+    if args.flag_explain {
+        println!("{}", "concrete plan".cyan());
+        println!("{:?}\n", program.expr);
+    }
+
+    let mut dummy_row = csv::ByteRecord::new();
+
+    if let Some(cells) = args.flag_row {
+        for c in cells.split(',') {
+            dummy_row.push_field(c.as_bytes());
+        }
+    }
+
+    let value = program.run_with_record(0, &dummy_row)?;
 
     print!("{} ", "result".cyan());
     io::stdout().write_all(&value.serialize_as_bytes())?;
