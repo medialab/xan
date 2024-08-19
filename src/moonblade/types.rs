@@ -782,7 +782,7 @@ impl DynamicValue {
     }
 
     fn is_scalar(&self) -> bool {
-        matches!(self, Self::List(_) | Self::Map(_))
+        !matches!(self, Self::List(_) | Self::Map(_))
     }
 
     pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<[u8]> {

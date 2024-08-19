@@ -420,6 +420,10 @@ use the operators in the previous section.
         Default error handling policy is \"replace\", and can be
         one of \"replace\", \"ignore\" or \"strict\".
 
+    - read_csv(path) -> list[map]
+        Read and parse CSV file at path, returning its rows as
+        a list of maps with headers as keys.
+
     - read_json(path) -> any
         Read and parse JSON file at path.
 

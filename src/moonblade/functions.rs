@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cmp::max;
 use std::cmp::{Ordering, PartialOrd};
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
@@ -142,6 +143,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("errors"),
             ]),
         ),
+        "read_csv" => (read_csv, FunctionArguments::unary()),
         "read_json" => (read_json, FunctionArguments::unary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
@@ -1023,15 +1025,53 @@ fn abstract_read(
 
 fn read(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(abstract_read(
-        args.get(0).unwrap(),
+        args.get1(),
         args.get_not_none(1),
         args.get_not_none(2),
     )?))
 }
 
 fn read_json(args: BoundArguments) -> FunctionResult {
-    let contents = abstract_read(args.get(0).unwrap(), None, None)?;
+    let contents = abstract_read(args.get1(), None, None)?;
     serde_json::from_str(&contents).map_err(|_| EvaluationError::JSONParseError)
+}
+
+fn read_csv(args: BoundArguments) -> FunctionResult {
+    let contents = abstract_read(args.get1(), None, None)?;
+
+    let mut reader = csv::Reader::from_reader(contents.as_bytes());
+    let headers = reader
+        .headers()
+        .map_err(|_| EvaluationError::IO("error while reading CSV header row".to_string()))?
+        .clone();
+
+    let mut record = csv::StringRecord::new();
+    let mut rows: Vec<DynamicValue> = Vec::new();
+
+    loop {
+        match reader.read_record(&mut record) {
+            Err(_) => {
+                return Err(EvaluationError::IO(
+                    "error while reading CSV row".to_string(),
+                ))
+            }
+            Ok(has_row) => {
+                if !has_row {
+                    break;
+                }
+
+                let mut map: HashMap<String, DynamicValue> = HashMap::with_capacity(headers.len());
+
+                for (cell, header) in record.iter().zip(headers.iter()) {
+                    map.insert(header.to_string(), DynamicValue::from(cell));
+                }
+
+                rows.push(DynamicValue::from(map));
+            }
+        }
+    }
+
+    Ok(DynamicValue::from(rows))
 }
 
 lazy_static! {

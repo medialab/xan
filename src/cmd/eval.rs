@@ -14,6 +14,7 @@ Usage:
     xan eval --help
 
 eval options:
+    -s, --serialize        Serialize the value in CSV.
     -e, --explain          Print concrete expression plan.
     -H, --headers <names>  Pretend headers, separated by commas, to consider.
     -R, --row <values>     Pretend row with comma-separated cells.
@@ -25,6 +26,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_expr: String,
+    flag_serialize: bool,
     flag_explain: bool,
     flag_headers: Option<String>,
     flag_row: Option<String>,
@@ -62,10 +64,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let value = program.run_with_record(0, &dummy_row)?;
 
-    print!("{} ", "result".cyan());
-    io::stdout().write_all(&value.serialize_as_bytes())?;
-    println!();
-    println!("{}   {}", "type".cyan(), value.type_of());
+    if args.flag_serialize {
+        print!("{} ", "result".cyan());
+        io::stdout().write_all(&value.serialize_as_bytes())?;
+        println!();
+        println!("{}   {}", "type".cyan(), value.type_of());
+    } else {
+        println!("{} ", "result".cyan());
+        println!("{:?}", value);
+    }
 
     Ok(())
 }
