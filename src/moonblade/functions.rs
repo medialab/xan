@@ -962,23 +962,26 @@ fn isfile(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::Boolean(path.is_file()))
 }
 
-fn read(args: BoundArguments) -> FunctionResult {
-    let path = args.get(0).unwrap().try_as_str()?;
+fn abstract_read(
+    path: &DynamicValue,
+    encoding: Option<&DynamicValue>,
+    errors: Option<&DynamicValue>,
+) -> Result<String, EvaluationError> {
+    let path = path.try_as_str()?;
 
-    // TODO: handle encoding
     let mut file = match File::open(path.as_ref()) {
         Err(_) => return Err(EvaluationError::IO(format!("cannot read file {}", path))),
         Ok(f) => f,
     };
 
-    let contents = match args.get_not_none(1) {
+    let contents = match encoding {
         Some(encoding_value) => {
             let encoding_name = encoding_value.try_as_str()?.replace('_', "-");
             let encoding = encoding_from_whatwg_label(&encoding_name);
             let encoding = encoding
                 .ok_or_else(|| EvaluationError::UnsupportedEncoding(encoding_name.to_string()))?;
 
-            let decoder_trap = match args.get_not_none(2) {
+            let decoder_trap = match errors {
                 Some(trap) => decoder_trap_from_str(&trap.try_as_str()?)?,
                 None => DecoderTrap::Replace,
             };
@@ -1014,7 +1017,15 @@ fn read(args: BoundArguments) -> FunctionResult {
         }
     };
 
-    Ok(DynamicValue::from(contents))
+    Ok(contents)
+}
+
+fn read(args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(abstract_read(
+        args.get(0).unwrap(),
+        args.get_not_none(1),
+        args.get_not_none(2),
+    )?))
 }
 
 lazy_static! {
