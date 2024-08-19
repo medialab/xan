@@ -35,7 +35,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut dummy_headers = csv::ByteRecord::new();
 
-    if let Some(headers) = args.flag_headers {
+    if let Some(headers) = &args.flag_headers {
         for h in headers.split(',') {
             dummy_headers.push_field(h.as_bytes());
         }
@@ -53,6 +53,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(cells) = args.flag_row {
         for c in cells.split(',') {
             dummy_row.push_field(c.as_bytes());
+        }
+    } else if let Some(headers) = args.flag_headers {
+        for _ in headers.split(',') {
+            dummy_row.push_field(b"");
         }
     }
 

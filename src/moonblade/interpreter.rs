@@ -165,19 +165,33 @@ impl fmt::Debug for ConcreteFunctionCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConcreteFunctionCall")
             .field("name", &self.name)
-            .field("function", &"<function>")
             .field("args", &self.args)
             .finish()
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct ConcreteSpecialFunctionCall {
+    name: String,
     function: SpecialFunction,
     args: Vec<ConcreteExpr>,
 }
 
 impl ConcreteSpecialFunctionCall {
+    fn is_statically_evaluable(&self) -> bool {
+        // NOTE: other special function are not suitable for late
+        // statical evaluation.
+        if self.name != "if" && self.name != "unless" {
+            return false;
+        }
+
+        self.args.iter().all(|arg| arg.is_value())
+    }
+
+    fn static_run(&self) -> EvaluationResult {
+        self.run(None, &ByteRecord::new(), &EvaluationContext::default())
+    }
+
     fn run<'a>(
         &'a self,
         index: Option<usize>,
@@ -185,6 +199,18 @@ impl ConcreteSpecialFunctionCall {
         context: &'a EvaluationContext,
     ) -> EvaluationResult {
         (self.function)(index, record, context, &self.args)
+    }
+}
+
+// NOTE: in older rust versions, Debug cannot be derived
+// correctly from `fn` and it will not compile without
+// this custom `Debug` implementation
+impl fmt::Debug for ConcreteSpecialFunctionCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConcreteSpecialFunctionCall")
+            .field("name", &self.name)
+            .field("args", &self.args)
+            .finish()
     }
 }
 
@@ -236,10 +262,22 @@ fn concretize_call(
             }
         }
 
-        return Ok(ConcreteExpr::SpecialCall(ConcreteSpecialFunctionCall {
+        let concrete_call = ConcreteSpecialFunctionCall {
+            name: function_name.clone(),
             function: runtime_function.expect("missing special function runtime"),
             args: concretize_arguments(&arguments, call.args, headers)?,
-        }));
+        };
+
+        if concrete_call.is_statically_evaluable() {
+            match concrete_call.static_run() {
+                Err(evaluation_error) => {
+                    return Err(ConcretizationError::StaticEvaluationError(evaluation_error))
+                }
+                Ok(value) => return Ok(ConcreteExpr::Value(value)),
+            };
+        }
+
+        return Ok(ConcreteExpr::SpecialCall(concrete_call));
     }
 
     Ok(match get_function(function_name) {
