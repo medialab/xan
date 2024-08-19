@@ -341,6 +341,11 @@ use the operators in the previous section.
     - upper(string) -> string
         Uppercase string.
 
+## Collections (list of maps) functions
+
+    - index_by(collection, key) -> map
+        Create a map from item key to collection item.
+
 ## Map functions
 
     - keys(map) -> [string]

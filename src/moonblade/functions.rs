@@ -98,6 +98,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| arithmetic_op(args, DynamicNumber::idiv),
             FunctionArguments::binary(),
         ),
+        "index_by" => (index_by, FunctionArguments::binary()),
         "isfile" => (isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "json_parse" => (json_parse, FunctionArguments::unary()),
@@ -681,6 +682,23 @@ fn values(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(
         map.values().cloned().collect::<Vec<_>>(),
     ))
+}
+
+fn index_by(args: BoundArguments) -> FunctionResult {
+    let list = args.get1().try_as_list()?;
+    let key = args.get(1).unwrap().try_as_str()?;
+
+    let mut map: HashMap<String, DynamicValue> = HashMap::new();
+
+    for item in list {
+        let record = item.try_as_map()?;
+
+        if let Some(value) = record.get(key.as_ref()) {
+            map.insert(value.try_as_str()?.into_owned(), item.clone());
+        }
+    }
+
+    Ok(DynamicValue::from(map))
 }
 
 // Arithmetics
