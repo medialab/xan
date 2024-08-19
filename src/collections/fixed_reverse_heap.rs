@@ -173,6 +173,86 @@ impl<T: Ord + Clone, V: Clone> FixedReverseHeapMap<T, V> {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct FixedReverseHeapMapWithTies<T, V> {
+    capacity: usize,
+    heap: BinaryHeap<(Reverse<T>, Arbitrary<V>)>,
+    ties: Vec<(T, V)>,
+}
+
+impl<T: Ord, V> FixedReverseHeapMapWithTies<T, V> {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            capacity,
+            heap: BinaryHeap::with_capacity(capacity),
+            ties: Vec::new(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.heap.len() + self.ties.len()
+    }
+
+    pub fn push_with<F>(&mut self, item: T, callback: F) -> bool
+    where
+        F: FnOnce() -> V,
+    {
+        let heap = &mut self.heap;
+
+        if heap.len() < self.capacity {
+            heap.push((Reverse(item), Arbitrary(callback())));
+
+            return true;
+        } else {
+            let worst_item = heap.peek().unwrap();
+
+            match item.cmp(&worst_item.0 .0) {
+                Ordering::Greater => {
+                    heap.pop();
+                    heap.push((Reverse(item), Arbitrary(callback())));
+                    self.ties.clear();
+                    return true;
+                }
+                Ordering::Equal => {
+                    self.ties.push((item, callback()));
+                    return true;
+                }
+                _ => (),
+            };
+        }
+
+        false
+    }
+
+    pub fn into_sorted_vec(mut self) -> Vec<(T, V)> {
+        let l = self.len();
+        let hl = self.heap.len();
+
+        let mut items = Vec::with_capacity(l);
+        let uninit = items.spare_capacity_mut();
+
+        let mut i: usize = hl;
+
+        while let Some((Reverse(item), Arbitrary(value))) = self.heap.pop() {
+            i -= 1;
+            uninit[i].write((item, value));
+        }
+
+        i = hl;
+
+        for pair in self.ties {
+            uninit[i].write(pair);
+            i += 1;
+        }
+
+        unsafe {
+            items.set_len(l);
+        }
+
+        items
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,6 +289,32 @@ mod tests {
         assert_eq!(
             heap.clone().into_sorted_vec(),
             vec![(3, "three"), (2, "two")]
+        );
+    }
+
+    #[test]
+    fn test_map_with_ties() {
+        let mut heap = FixedReverseHeapMapWithTies::with_capacity(2);
+        heap.push_with(1, || "one");
+        heap.push_with(2, || "two");
+        heap.push_with(3, || "three");
+
+        assert_eq!(
+            heap.clone().into_sorted_vec(),
+            vec![(3, "three"), (2, "two")]
+        );
+
+        // Final ties
+        let mut heap = FixedReverseHeapMapWithTies::with_capacity(2);
+        heap.push_with(1, || "one");
+        heap.push_with(2, || "two");
+        heap.push_with(3, || "three");
+        heap.push_with(2, || "four");
+        heap.push_with(2, || "five");
+
+        assert_eq!(
+            heap.clone().into_sorted_vec(),
+            vec![(3, "three"), (2, "two"), (2, "four"), (2, "five")]
         );
     }
 }

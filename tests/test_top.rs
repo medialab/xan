@@ -174,3 +174,34 @@ fn top_groubpy_rank() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn top_ties() {
+    let wrk = Workdir::new("top_ties");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "score"],
+            svec!["Sven", "10"],
+            svec!["Harold", "50"],
+            svec!["Mary", "5"],
+            svec!["Elsa", "5"],
+            svec!["John", "5"],
+            svec!["Igor", "1"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("score").args(["-l", "3"]).arg("-T").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "score"],
+        svec!["Harold", "50"],
+        svec!["Sven", "10"],
+        svec!["Mary", "5"],
+        svec!["Elsa", "5"],
+        svec!["John", "5"],
+    ];
+    assert_eq!(got, expected);
+}

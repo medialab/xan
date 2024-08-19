@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
 
-use crate::collections::{FixedReverseHeapMap, SortedInsertHashmap};
+use crate::collections::{FixedReverseHeapMap, FixedReverseHeapMapWithTies, SortedInsertHashmap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
@@ -27,6 +27,8 @@ dedup options:
     -g, --groupby <cols>  Return top n values per group, represented
                           by the values in given columns.
     -r, --rank <col>      Name of a rank column to prepend.
+    -T, --ties            Keep all rows tied for last. Will therefore
+                          consume O(k + t) memory, t being the number of ties.
 
 Common options:
     -h, --help               Display this message
@@ -51,6 +53,7 @@ struct Args {
     flag_reverse: bool,
     flag_groupby: Option<SelectColumns>,
     flag_rank: Option<String>,
+    flag_ties: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -81,22 +84,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     macro_rules! run {
-        ($type:ident) => {{
+        ($heap:ident, $type:ident) => {{
             let mut record = csv::ByteRecord::new();
-            let mut heap =
-                FixedReverseHeapMap::<($type<NotNan<f64>>, usize), csv::ByteRecord>::with_capacity(
-                    usize::from(args.flag_limit),
-                );
-
-            let mut i: usize = 0;
+            let mut heap = $heap::<$type<NotNan<f64>>, csv::ByteRecord>::with_capacity(
+                usize::from(args.flag_limit),
+            );
 
             while rdr.read_byte_record(&mut record)? {
                 if let Ok(score) = std::str::from_utf8(&record[score_col])
                     .unwrap_or("")
                     .parse::<NotNan<f64>>()
                 {
-                    heap.push_with(($type(score), i), || record.clone());
-                    i += 1;
+                    heap.push_with($type(score), || record.clone());
                 }
             }
 
@@ -111,14 +110,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     macro_rules! run_groupby {
-        ($type:ident, $sel:ident) => {{
+        ($heap:ident, $type:ident, $sel:ident) => {{
             let mut record = csv::ByteRecord::new();
             let mut groups: SortedInsertHashmap<
                 GroupKey,
-                FixedReverseHeapMap<($type<NotNan<f64>>, usize), csv::ByteRecord>,
+                $heap<$type<NotNan<f64>>, csv::ByteRecord>,
             > = SortedInsertHashmap::new();
-
-            let mut i: usize = 0;
 
             while rdr.read_byte_record(&mut record)? {
                 if let Ok(score) = std::str::from_utf8(&record[score_col])
@@ -133,18 +130,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     groups.insert_with_or_else(
                         group,
                         || {
-                            let mut heap =
-                                FixedReverseHeapMap::with_capacity(usize::from(args.flag_limit));
-                            heap.push_with(($type(score), i), || record.clone());
+                            let mut heap = $heap::with_capacity(usize::from(args.flag_limit));
+                            heap.push_with($type(score), || record.clone());
                             heap
                         },
                         |heap| {
-                            heap.push_with(($type(score), i), || record.clone());
+                            heap.push_with($type(score), || record.clone());
                         },
                     );
                 }
-
-                i += 1;
             }
 
             for heap in groups.into_values() {
@@ -159,12 +153,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }};
     }
 
-    match (args.flag_reverse, groupby_sel_opt) {
-        (true, None) => run!(Reverse),
-        (false, None) => run!(Forward),
-        (true, Some(sel)) => run_groupby!(Reverse, sel),
-        (false, Some(sel)) => run_groupby!(Forward, sel),
-    }
+    match (args.flag_reverse, args.flag_ties, groupby_sel_opt) {
+        (true, false, None) => run!(FixedReverseHeapMap, Reverse),
+        (false, false, None) => run!(FixedReverseHeapMap, Forward),
+        (true, false, Some(sel)) => run_groupby!(FixedReverseHeapMap, Reverse, sel),
+        (false, false, Some(sel)) => run_groupby!(FixedReverseHeapMap, Forward, sel),
+        (true, true, None) => run!(FixedReverseHeapMapWithTies, Reverse),
+        (false, true, None) => run!(FixedReverseHeapMapWithTies, Forward),
+        (true, true, Some(sel)) => run_groupby!(FixedReverseHeapMapWithTies, Reverse, sel),
+        (false, true, Some(sel)) => run_groupby!(FixedReverseHeapMapWithTies, Forward, sel),
+    };
 
     Ok(wtr.flush()?)
 }
