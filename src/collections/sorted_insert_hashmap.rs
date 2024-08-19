@@ -37,11 +37,11 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
         &mut self,
         key: K,
         callback_insert: I,
-        mut callback_update: U,
+        callback_update: U,
     ) -> bool
     where
         I: FnOnce() -> V,
-        U: FnMut(&mut V),
+        U: FnOnce(&mut V),
     {
         if let Some(item_index) = self.last_entry {
             let (last_key, value) = &mut self.order[item_index];
@@ -67,7 +67,7 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
                 key_was_inserted = true;
                 let item_index = self.order.len();
                 entry.insert(item_index);
-                self.order.push((key.clone(), callback_insert()));
+                self.order.push((key, callback_insert()));
                 item_index
             }
         };
@@ -94,6 +94,9 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
     }
 
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
+        // NOTE: I don't really understand why but in the map function
+        // `self.map` has already been dropped, and the strong count
+        // of the Rc instances is 1 so we can into_inner them.
         self.order
             .into_iter()
             .map(|(k, v)| (Rc::into_inner(k).unwrap(), v))
