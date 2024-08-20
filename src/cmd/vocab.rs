@@ -8,7 +8,10 @@ use crate::CliResult;
 
 // TODO: filters on df because with some stats you cannot filter on this?
 // TODO: maybe option to explode for perf reasons?
-// TODO: add chi2
+// TODO: issue with chi2: can be difference of probability of token to appear in doc vs
+// in whole corpus, e.g. we normalise tf / doc_len and gf / total_token_count, or
+// we can estimate as a whole how much the token should appear in a doc, by
+// comparing tf with gf
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents. Those documents
@@ -26,7 +29,8 @@ This command can compute 4 kinds of differents vocabulary statistics:
 
 1. corpus-level statistics (using the \"corpus\" subcommand):
     - doc_count: number of documents in the corpus
-    - token_count: number of distinct tokens in the corpus
+    - token_count: total number of tokens in the corpus
+    - distinct_token_count: number of distinct tokens in the corpus
     - average_doc_len: average number of tokens per document
 
 2. token-level statistics (using the \"token\" subcommand):
@@ -48,6 +52,7 @@ This command can compute 4 kinds of differents vocabulary statistics:
     - tf: term frequency for the token in the document
     - tfidf: term frequency * idf for the token in the document
     - bm25: BM25 score for the token in the document
+    - chi2: chi2 score for the token in the document
 
 Usage:
     xan vocab corpus <doc-cols> <token-col> [options] [<input>]
@@ -137,6 +142,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output_headers.push_field(b"tf");
         output_headers.push_field(b"tfidf");
         output_headers.push_field(b"bm25");
+        output_headers.push_field(b"chi2");
 
         wtr.write_byte_record(&output_headers)?;
         vocab.for_each_doc_token_level_record(args.flag_k1_value, args.flag_b_value, |r| {
@@ -155,12 +161,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         vocab.for_each_doc_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_corpus {
-        let headers: [&[u8]; 3] = [b"doc_count", b"token_count", b"average_doc_len"];
+        let headers: [&[u8]; 4] = [
+            b"doc_count",
+            b"token_count",
+            b"distinct_token_count",
+            b"average_doc_len",
+        ];
         wtr.write_record(headers)?;
+
+        let vocab_stats = vocab.compute_aggregated_stats();
+
         wtr.write_record([
             vocab.doc_count().to_string().as_bytes(),
+            vocab_stats.total_token_count.to_string().as_bytes(),
             vocab.token_count().to_string().as_bytes(),
-            vocab.average_doc_len().to_string().as_bytes(),
+            vocab_stats.average_doc_len.to_string().as_bytes(),
         ])?;
     }
 
@@ -230,6 +245,12 @@ impl DocumentTokenStats {
 
         idf * (numerator / denominator)
     }
+
+    fn chi2(&self, expected: f64) -> f64 {
+        let tf = self.tf as f64;
+
+        (tf - expected).powi(2) / expected
+    }
 }
 
 #[derive(Default, Debug)]
@@ -264,6 +285,12 @@ impl DocumentStats {
 }
 
 #[derive(Default, Debug)]
+struct VocabularyStats {
+    average_doc_len: f64,
+    total_token_count: usize,
+}
+
+#[derive(Default, Debug)]
 struct Vocabulary {
     token_ids: HashMap<Token, TokenID>,
     tokens: Vec<TokenStats>,
@@ -283,9 +310,17 @@ impl Vocabulary {
         self.tokens.len()
     }
 
-    fn average_doc_len(&self) -> f64 {
-        let doc_len_sum: usize = self.documents.values().map(|s| s.doc_len()).sum();
-        doc_len_sum as f64 / self.doc_count() as f64
+    fn compute_aggregated_stats(&self) -> VocabularyStats {
+        let mut total_token_count: usize = 0;
+
+        for doc_stats in self.documents.values() {
+            total_token_count += doc_stats.doc_len();
+        }
+
+        VocabularyStats {
+            average_doc_len: total_token_count as f64 / self.doc_count() as f64,
+            total_token_count,
+        }
     }
 
     fn add(&mut self, document: Document, token: Token) {
@@ -389,8 +424,8 @@ impl Vocabulary {
             return Ok(());
         }
 
-        // Aggregating average doc lengths for BM25
-        let average_doc_len = self.average_doc_len();
+        // Aggregating stats for bm25 and chi2
+        let voc_stats = self.compute_aggregated_stats();
 
         let mut record = csv::ByteRecord::new();
 
@@ -403,6 +438,7 @@ impl Vocabulary {
                 let token_stats = &self.tokens[token_id];
 
                 let idf = token_stats.idf(n);
+                let expected = token_stats.gf as f64 / voc_stats.total_token_count as f64;
 
                 for cell in doc.iter() {
                     record.push_field(cell);
@@ -413,10 +449,11 @@ impl Vocabulary {
                 record.push_field(doc_token_stats.tfidf(idf).to_string().as_bytes());
                 record.push_field(
                     doc_token_stats
-                        .bm25(idf, doc_len, average_doc_len, k1, b)
+                        .bm25(idf, doc_len, voc_stats.average_doc_len, k1, b)
                         .to_string()
                         .as_bytes(),
                 );
+                record.push_field(doc_token_stats.chi2(expected).to_string().as_bytes());
 
                 callback(&record)?;
             }

@@ -19,8 +19,13 @@ fn vocab_corpus() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["doc_count", "token_count", "average_doc_len"],
-        svec!["2", "3", "2.5"],
+        svec![
+            "doc_count",
+            "token_count",
+            "distinct_token_count",
+            "average_doc_len"
+        ],
+        svec!["2", "5", "3", "2.5"],
     ];
     assert_eq!(got, expected);
 }
@@ -116,16 +121,24 @@ fn vocab_doc_token() {
     got[1..].sort();
 
     let expected = vec![
-        svec!["doc", "token", "tf", "tfidf", "bm25"],
-        svec!["1", "cat", "2", "0", "0"],
-        svec!["1", "dog", "1", "0.6931471805599453", "0.64072428455121"],
-        svec!["2", "cat", "1", "0", "0"],
+        svec!["doc", "token", "tf", "tfidf", "bm25", "chi2"],
+        svec!["1", "cat", "2", "0", "0", "3.266666666666666"],
+        svec![
+            "1",
+            "dog",
+            "1",
+            "0.6931471805599453",
+            "0.64072428455121",
+            "3.2000000000000006"
+        ],
+        svec!["2", "cat", "1", "0", "0", "0.2666666666666667"],
         svec![
             "2",
             "rabbit",
             "1",
             "0.6931471805599453",
-            "0.7549127709068711"
+            "0.7549127709068711",
+            "3.2000000000000006"
         ],
     ];
     assert_eq!(got, expected);
