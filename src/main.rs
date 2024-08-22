@@ -443,6 +443,12 @@ impl From<glob::PatternError> for CliError {
     }
 }
 
+impl From<transient_btree_index::Error> for CliError {
+    fn from(value: transient_btree_index::Error) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
 impl From<()> for CliError {
     fn from(_: ()) -> CliError {
         CliError::Other("unknown error".to_string())

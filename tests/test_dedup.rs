@@ -22,6 +22,27 @@ fn dedup() {
 }
 
 #[test]
+fn dedup_external() {
+    let wrk = Workdir::new("dedup_external");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b"],
+            svec!["1", "1"],
+            svec!["2", "2"],
+            svec!["2", "2"],
+            svec!["1", "1"],
+        ],
+    );
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").arg("-e");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["a", "b"], svec!["1", "1"], svec!["2", "2"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn dedup_keep_last() {
     let wrk = Workdir::new("dedup_keep_last");
     wrk.create(

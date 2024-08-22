@@ -2,11 +2,12 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use csv;
 use dlv_list::{Index, VecList};
+use transient_btree_index::{BtreeConfig, BtreeIndex};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
-use crate::CliResult;
+use crate::{CliError, CliResult};
 
 static USAGE: &str = "
 Deduplicate the rows of a CSV file. Runs in O(n) time, consuming O(c) memory, c being
@@ -31,6 +32,8 @@ dedup options:
                         the first one. Note that it will cost more memory and that
                         no rows will be flushed before the whole file has been read
                         if -S/--sorted is not used.
+    -e, --external      Use an external btree index to keep the index on disk and avoid
+                        overflowing RAM. Does not work with -l/--keep-last.
 
 Common options:
     -h, --help               Display this message
@@ -50,12 +53,23 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_sorted: bool,
     flag_keep_last: bool,
+    flag_external: bool,
 }
 
 type DeduplicationKey = Vec<Vec<u8>>;
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_external && args.flag_keep_last {
+        return Err(CliError::Other(
+            "-l/--keep-last does not work with -e/--external!".to_string(),
+        ));
+    }
+
+    if args.flag_sorted {
+        args.flag_external = false;
+    }
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -68,6 +82,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
+
+    if args.flag_external {
+        let mut record = csv::ByteRecord::new();
+
+        let mut btree_index =
+            BtreeIndex::<Vec<Vec<u8>>, ()>::with_capacity(BtreeConfig::default(), 1024)?;
+
+        while rdr.read_byte_record(&mut record)? {
+            let key = sel.collect(&record);
+
+            if btree_index.insert(key, ())?.is_none() {
+                wtr.write_byte_record(&record)?;
+            }
+        }
+    }
 
     match (args.flag_sorted, args.flag_keep_last) {
         // Unsorted, keep first
