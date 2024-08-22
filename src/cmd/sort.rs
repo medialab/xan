@@ -177,12 +177,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .to_string(),
         });
 
+        let mut sorter_builder = ExternalSorterBuilder::new()
+            .with_tmp_dir(Path::new(&tmp_dir))
+            .with_buffer(MemoryLimitedBufferBuilder::new(args.flag_memory_limit * MB));
+
+        if args.flag_parallel {
+            sorter_builder = sorter_builder.with_threads_number(num_cpus::get_physical());
+        }
+
         let sorter: ExternalSorter<Vec<Vec<u8>>, csv::Error, MemoryLimitedBufferBuilder> =
-            ExternalSorterBuilder::new()
-                .with_tmp_dir(Path::new(&tmp_dir))
-                .with_buffer(MemoryLimitedBufferBuilder::new(args.flag_memory_limit * MB))
-                .build()
-                .unwrap();
+            sorter_builder.build().unwrap();
 
         let records = rdr.byte_records().map(|result| {
             result.map(|record| {
