@@ -2073,6 +2073,7 @@ dependencies = [
  "csv-index",
  "ctrlc",
  "dateparser",
+ "deepsize",
  "dlv-list",
  "docopt",
  "emojis",

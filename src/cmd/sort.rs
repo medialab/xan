@@ -1,17 +1,16 @@
 use std::cmp;
-use std::iter::FromIterator;
 use std::path::Path;
+use std::str::from_utf8;
 
 use bytesize::MB;
+use csv;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
 
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
-use crate::util;
+use crate::util::{self, DeepSizedByteRecord};
 use crate::CliResult;
-use csv;
-use std::str::from_utf8;
 
 use self::Number::{Float, Int};
 
@@ -185,35 +184,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             sorter_builder = sorter_builder.with_threads_number(num_cpus::get_physical());
         }
 
-        let sorter: ExternalSorter<Vec<Vec<u8>>, csv::Error, MemoryLimitedBufferBuilder> =
-            sorter_builder.build().unwrap();
-
-        let records = rdr.byte_records().map(|result| {
-            result.map(|record| {
-                record
-                    .into_iter()
-                    .map(|cell| cell.to_vec())
-                    .collect::<Vec<Vec<u8>>>()
-            })
-        });
+        let sorter: ExternalSorter<
+            DeepSizedByteRecord,
+            csv::Error,
+            MemoryLimitedBufferBuilder,
+            util::CsvExternalChunk,
+        > = sorter_builder.build().unwrap();
 
         let sorted = sorter
-            .sort_by(records, |r1, r2| {
-                let r1 = csv::ByteRecord::from_iter(r1);
-                let r2 = csv::ByteRecord::from_iter(r2);
+            .sort_by(
+                rdr.byte_records()
+                    .map(|result| result.map(DeepSizedByteRecord)),
+                |r1, r2| {
+                    let a = sel.select(r1.as_ref());
+                    let b = sel.select(r2.as_ref());
 
-                let a = sel.select(&r1);
-                let b = sel.select(&r2);
-
-                match (numeric, reverse) {
-                    (false, false) => iter_cmp(a, b),
-                    (true, false) => iter_cmp_num(a, b),
-                    (false, true) => iter_cmp(b, a),
-                    (true, true) => iter_cmp_num(b, a),
-                }
-            })
+                    match (numeric, reverse) {
+                        (false, false) => iter_cmp(a, b),
+                        (true, false) => iter_cmp_num(a, b),
+                        (false, true) => iter_cmp(b, a),
+                        (true, true) => iter_cmp_num(b, a),
+                    }
+                },
+            )
             .unwrap()
-            .map(|result| csv::ByteRecord::from(result.unwrap()));
+            .map(|result| result.unwrap().into_inner());
 
         Box::new(sorted)
     } else {

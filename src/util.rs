@@ -12,7 +12,9 @@ use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use colored::{Color, ColoredString, Colorize, Styles};
 use dateparser::parse_with_timezone;
+use deepsize::DeepSizeOf;
 use docopt::Docopt;
+use ext_sort::ExternalChunk;
 use numfmt::{Formatter, Numeric, Precision};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
@@ -687,6 +689,80 @@ pub fn bytes_cursor_from_read<R: io::Read>(source: &mut R) -> io::Result<io::Cur
     let mut bytes = Vec::<u8>::new();
     source.read_to_end(&mut bytes)?;
     Ok(io::Cursor::new(bytes))
+}
+
+// A custom implementation de/serializing ext-sort chunks as CSV
+pub struct DeepSizedByteRecord(pub csv::ByteRecord);
+
+impl DeepSizedByteRecord {
+    pub fn as_ref(&self) -> &csv::ByteRecord {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> csv::ByteRecord {
+        self.0
+    }
+}
+
+impl DeepSizeOf for DeepSizedByteRecord {
+    fn deep_size_of(&self) -> usize {
+        // Good enough approximation...
+        self.0.as_slice().len() + (self.0.len().saturating_sub(1))
+    }
+
+    fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
+        self.deep_size_of()
+    }
+}
+
+pub struct CsvExternalChunk {
+    reader: csv::Reader<io::Take<io::BufReader<fs::File>>>,
+}
+
+impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
+    type SerializationError = csv::Error;
+    type DeserializationError = csv::Error;
+
+    fn new(reader: io::Take<io::BufReader<fs::File>>) -> Self {
+        CsvExternalChunk {
+            reader: csv::Reader::from_reader(reader),
+        }
+    }
+
+    fn dump(
+        chunk_writer: &mut io::BufWriter<fs::File>,
+        items: impl IntoIterator<Item = DeepSizedByteRecord>,
+    ) -> Result<(), Self::SerializationError> {
+        let mut csv_writer = csv::Writer::from_writer(chunk_writer);
+
+        for item in items.into_iter() {
+            csv_writer.write_record(item.as_ref())?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Iterator for CsvExternalChunk {
+    type Item = Result<
+        DeepSizedByteRecord,
+        <Self as ExternalChunk<DeepSizedByteRecord>>::DeserializationError,
+    >;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut record = csv::ByteRecord::new();
+
+        match self.reader.read_byte_record(&mut record) {
+            Ok(read) => {
+                if read {
+                    Some(Ok(DeepSizedByteRecord(record)))
+                } else {
+                    None
+                }
+            }
+            Err(err) => Some(Err(err)),
+        }
+    }
 }
 
 #[cfg(test)]
