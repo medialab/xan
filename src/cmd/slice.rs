@@ -119,6 +119,10 @@ impl Args {
             }
 
             i += 1;
+
+            if &i > indices.last().unwrap() {
+                break;
+            }
         }
 
         Ok(())
