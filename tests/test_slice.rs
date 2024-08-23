@@ -173,3 +173,26 @@ fn slice_indices() {
     let expected = vec![svec!["n"], svec!["one"], svec!["four"], svec!["five"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn slice_indices_indexed() {
+    let wrk = Workdir::new("slice_indices_indexed");
+    wrk.create_indexed(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["zero"],
+            svec!["one"],
+            svec!["two"],
+            svec!["three"],
+            svec!["four"],
+            svec!["five"],
+        ],
+    );
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-i", "0,2,4"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["zero"], svec!["two"], svec!["four"]];
+    assert_eq!(got, expected);
+}

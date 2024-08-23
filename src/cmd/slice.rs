@@ -62,7 +62,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some(indices) if indices.contains(',') => {
             return match args.rconfig().indexed()? {
                 None => args.no_index_plural(),
-                Some(_indexed) => unimplemented!(),
+                Some(idx) => args.with_index_plural(idx),
             };
         }
         _ => (),
@@ -70,7 +70,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     match args.rconfig().indexed()? {
         None => args.no_index(),
-        Some(idxed) => args.with_index(idxed),
+        Some(idx) => args.with_index(idx),
     }
 }
 
@@ -125,7 +125,25 @@ impl Args {
             }
         }
 
-        Ok(())
+        Ok(wtr.flush()?)
+    }
+
+    fn with_index_plural(&self, mut idx: Indexed<fs::File, fs::File>) -> CliResult<()> {
+        let mut wtr = self.wconfig().writer()?;
+        self.rconfig().write_headers(&mut *idx, &mut wtr)?;
+
+        for index in self.plural_indices()? {
+            idx.seek(index as u64)?;
+
+            match idx.byte_records().next() {
+                None => break,
+                Some(record) => {
+                    wtr.write_byte_record(&record?)?;
+                }
+            }
+        }
+
+        Ok(wtr.flush()?)
     }
 
     fn range(&self) -> Result<(usize, usize), String> {
