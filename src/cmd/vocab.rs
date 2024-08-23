@@ -246,10 +246,10 @@ impl DocumentTokenStats {
         idf * (numerator / denominator)
     }
 
-    fn chi2(&self, expected: f64) -> f64 {
+    fn chi2(&self, doc_len: usize, expected: f64) -> f64 {
         let tf = self.tf as f64;
 
-        (tf - expected).powi(2) / expected
+        ((tf / doc_len as f64) - expected).powi(2) / expected
     }
 }
 
@@ -453,7 +453,12 @@ impl Vocabulary {
                         .to_string()
                         .as_bytes(),
                 );
-                record.push_field(doc_token_stats.chi2(expected).to_string().as_bytes());
+                record.push_field(
+                    doc_token_stats
+                        .chi2(doc_len, expected)
+                        .to_string()
+                        .as_bytes(),
+                );
 
                 callback(&record)?;
             }
