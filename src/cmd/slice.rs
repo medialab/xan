@@ -29,6 +29,9 @@ slice options:
     -l, --len <arg>        The length of the slice (can be used instead
                            of --end).
     -i, --index <arg>      Slice a single record (shortcut for -s N -l 1).
+                           You can also provide multiples indices separated by
+                           commas, e.g. \"1,4,67,89\". Note that selected records
+                           will be emitted in file order.
 
 Common options:
     -h, --help             Display this message
@@ -46,7 +49,7 @@ struct Args {
     flag_start: Option<usize>,
     flag_end: Option<usize>,
     flag_len: Option<usize>,
-    flag_index: Option<usize>,
+    flag_index: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -54,6 +57,17 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    match &args.flag_index {
+        Some(indices) if indices.contains(',') => {
+            return match args.rconfig().indexed()? {
+                None => args.no_index_plural(),
+                Some(_indexed) => unimplemented!(),
+            };
+        }
+        _ => (),
+    };
+
     match args.rconfig().indexed()? {
         None => args.no_index(),
         Some(idxed) => args.with_index(idxed),
@@ -89,13 +103,54 @@ impl Args {
         Ok(())
     }
 
+    fn no_index_plural(&self) -> CliResult<()> {
+        let mut rdr = self.rconfig().reader()?;
+        let mut wtr = self.wconfig().writer()?;
+        self.rconfig().write_headers(&mut rdr, &mut wtr)?;
+
+        let indices = self.plural_indices()?;
+
+        let mut record = csv::ByteRecord::new();
+        let mut i: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            if indices.contains(&i) {
+                wtr.write_byte_record(&record)?;
+            }
+
+            i += 1;
+        }
+
+        Ok(())
+    }
+
     fn range(&self) -> Result<(usize, usize), String> {
-        util::range(
-            self.flag_start,
-            self.flag_end,
-            self.flag_len,
-            self.flag_index,
-        )
+        let index: Option<usize> = self
+            .flag_index
+            .as_ref()
+            .map(|string| string.parse::<usize>())
+            .transpose()
+            .map_err(|_| "could not parse -i/--index!")?;
+
+        util::range(self.flag_start, self.flag_end, self.flag_len, index)
+    }
+
+    // NOTE: there is room to optimize, but this seems pointless currently
+    fn plural_indices(&self) -> Result<Vec<usize>, &str> {
+        self.flag_index
+            .as_ref()
+            .unwrap()
+            .split(',')
+            .map(|string| {
+                string
+                    .parse::<usize>()
+                    .map_err(|_| "could not parse some index in -i/--index!")
+            })
+            .collect::<Result<Vec<usize>, _>>()
+            .map(|mut indices| {
+                indices.sort();
+                indices
+            })
     }
 
     fn rconfig(&self) -> Config {

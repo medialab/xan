@@ -150,3 +150,26 @@ fn slice_index_withindex() {
 fn slice_index_no_headers_withindex() {
     test_index("slice_index_no_headers_withindex", 1, "b", false, true);
 }
+
+#[test]
+fn slice_indices() {
+    let wrk = Workdir::new("slice_indices");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["zero"],
+            svec!["one"],
+            svec!["two"],
+            svec!["three"],
+            svec!["four"],
+            svec!["five"],
+        ],
+    );
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-i", "1,5,4"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["one"], svec!["four"], svec!["five"]];
+    assert_eq!(got, expected);
+}
