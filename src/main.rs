@@ -86,6 +86,7 @@ macro_rules! command_list {
     bins        Dispatch numeric columns into bins
     blank       Blank down a CSV file
     cat         Concatenate by row or column
+    cluster     Cluster CSV data to find near-duplicates
     count       Count records
     datefmt     Format a recognized date column to a specified format and timezone
     dedup       Deduplicate a CSV file
@@ -218,6 +219,7 @@ enum Command {
     Bins,
     Blank,
     Cat,
+    Cluster,
     Count,
     Datefmt,
     Dedup,
@@ -286,6 +288,7 @@ impl Command {
             Command::Bins => cmd::bins::run(argv),
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
+            Command::Cluster => cmd::cluster::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Datefmt => cmd::datefmt::run(argv),
             Command::Dedup => cmd::dedup::run(argv),

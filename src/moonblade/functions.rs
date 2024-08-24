@@ -13,6 +13,7 @@ use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
 use namedlock::{AutoCleanup, LockSpace};
+use paltoquet::tokenizers::FingerprintTokenizer;
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -87,6 +88,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "escape_regex" => (escape_regex, FunctionArguments::unary()),
         "ext" => (ext, FunctionArguments::unary()),
         "filesize" => (filesize, FunctionArguments::unary()),
+        "fingerprint" => (fingerprint, FunctionArguments::unary()),
         "first" => (first, FunctionArguments::unary()),
         "floor" => (
             |args| unary_arithmetic_op(args, DynamicNumber::floor),
@@ -1209,6 +1211,19 @@ fn uuid(_args: BoundArguments) -> FunctionResult {
         .to_string();
 
     Ok(DynamicValue::from(id))
+}
+
+// Fuzzy matching
+lazy_static! {
+    static ref FINGERPRINT_TOKENIZER: FingerprintTokenizer = FingerprintTokenizer::default();
+}
+
+fn fingerprint(args: BoundArguments) -> FunctionResult {
+    let string = args.get1().try_as_str()?;
+
+    Ok(DynamicValue::from(
+        FINGERPRINT_TOKENIZER.key(string.as_ref()),
+    ))
 }
 
 // Utils

@@ -3,6 +3,7 @@ pub mod behead;
 pub mod bins;
 pub mod blank;
 pub mod cat;
+pub mod cluster;
 pub mod count;
 pub mod datefmt;
 pub mod dedup;

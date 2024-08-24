@@ -359,6 +359,13 @@ use the operators in the previous section.
     - mean(numbers) -> number?
         Return the means of the given numbers.
 
+## Fuzzy matching
+
+    - fingerprint(string) -> string
+        Fingerprints a string by normalizing characters, re-ordering
+        and deduplicating its word tokens before re-joining them by
+        spaces.
+
 ## Utils
 
     - coalesce(*args) -> T
