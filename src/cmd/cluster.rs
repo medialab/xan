@@ -1,5 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap};
 
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::select::SelectColumns;
@@ -55,7 +57,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let program = Program::parse(&key_expr, headers)?;
-    let mut clustering = ClusteringAlgorithm::KeyCollision(KeyCollision::default());
+    let mut clustering: Box<dyn ClusteringAlgorithm> = Box::<KeyCollision>::default();
 
     let mut record = csv::ByteRecord::new();
     let mut index: usize = 0;
@@ -69,9 +71,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index += 1;
     }
 
-    for cluster in clustering.into_clusters() {
-        dbg!(cluster);
-    }
+    let mut clusters = clustering.into_clusters();
+
+    clusters.sort_by(|a, b| {
+        b.values
+            .len()
+            .cmp(&a.values.len())
+            .then_with(|| b.rows.len().cmp(&a.rows.len()))
+            .then_with(|| a.best().cmp(b.best()))
+    });
+
+    let toml_output = TOMLClusters { cluster: clusters };
+
+    println!("{}", toml::to_string_pretty(&toml_output).unwrap());
 
     Ok(())
 }
@@ -81,7 +93,33 @@ struct Cluster {
     id: usize,
     key: String,
     rows: Vec<usize>,
-    values: HashMap<String, usize>,
+    values: Vec<(String, usize)>,
+}
+
+impl Serialize for Cluster {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Cluster", 8)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("key", &self.key)?;
+        state.serialize_field("nb_values", &self.values.len())?;
+        state.serialize_field("nb_rows", &self.rows.len())?;
+        state.serialize_field(
+            "rows",
+            &self
+                .rows
+                .iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+        )?;
+        state.serialize_field("replace_with", self.best())?;
+        state.serialize_field("values", &self.values)?;
+        state.serialize_field("harmonize", &false)?;
+        state.end()
+    }
 }
 
 impl Cluster {
@@ -97,6 +135,9 @@ impl Cluster {
                 .or_insert(1);
         }
 
+        let mut values = values.into_iter().collect::<Vec<_>>();
+        values.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
+
         Cluster {
             id,
             key,
@@ -104,6 +145,15 @@ impl Cluster {
             values,
         }
     }
+
+    fn best(&self) -> &String {
+        &self.values[0].0
+    }
+}
+
+trait ClusteringAlgorithm {
+    fn process(&mut self, index: usize, key: String, value: String);
+    fn into_clusters(self: Box<Self>) -> Vec<Cluster>;
 }
 
 #[derive(Default)]
@@ -111,7 +161,7 @@ struct KeyCollision {
     collisions: HashMap<String, Vec<(usize, String)>>,
 }
 
-impl KeyCollision {
+impl ClusteringAlgorithm for KeyCollision {
     fn process(&mut self, index: usize, key: String, value: String) {
         match self.collisions.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -123,40 +173,17 @@ impl KeyCollision {
         };
     }
 
-    fn into_clusters(self) -> impl Iterator<Item = Cluster> {
+    fn into_clusters(self: Box<Self>) -> Vec<Cluster> {
         self.collisions
             .into_iter()
             .enumerate()
             .map(|(id, (key, entries))| Cluster::from_entries(id, key, entries))
             .filter(|cluster| cluster.values.len() > 1)
+            .collect()
     }
 }
-macro_rules! build_clustering_algorithm_enum {
-    ($($variant: ident,)+) => {
-        enum ClusteringAlgorithm {
-            $(
-                $variant($variant),
-            )+
-        }
 
-        impl ClusteringAlgorithm {
-            fn process(&mut self, index: usize,key: String, value: String) {
-                match self {
-                    $(
-                        Self::$variant(inner) => inner.process(index, key, value),
-                    )+
-                };
-            }
-
-            fn into_clusters(self) -> impl Iterator<Item=Cluster> {
-                match self {
-                    $(
-                        Self::$variant(inner) => inner.into_clusters(),
-                    )+
-                }
-            }
-        }
-    };
+#[derive(Serialize)]
+struct TOMLClusters {
+    cluster: Vec<Cluster>,
 }
-
-build_clustering_algorithm_enum!(KeyCollision,);
