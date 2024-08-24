@@ -21,7 +21,6 @@ cluster options:
 
 Common options:
     -h, --help               Display this message
-    -o, --output <file>      Write output to <file> instead of stdout.
     -n, --no-headers         When set, the first row will not be evaled
                              as headers.
     -d, --delimiter <arg>    The field delimiter for reading CSV data.
@@ -34,7 +33,6 @@ struct Args {
     arg_input: Option<String>,
     flag_key: Option<String>,
     flag_no_headers: bool,
-    flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
 }
 
