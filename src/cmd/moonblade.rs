@@ -341,6 +341,11 @@ use the operators in the previous section.
     - upper(string) -> string
         Uppercase string.
 
+## Dates
+
+    - strptime(number) -> date
+        Convert POSIX timestamp (in seconds) to local time.
+
 ## Collections (list of maps) functions
 
     - index_by(collection, key) -> map

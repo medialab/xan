@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
+use jiff::Zoned;
 use regex::Regex;
 use serde::{
     de::{MapAccess, SeqAccess, Visitor},
@@ -637,6 +638,7 @@ pub enum DynamicValue {
     Integer(i64),
     Boolean(bool),
     Regex(Arc<Regex>),
+    DateTime(Zoned),
     None,
 }
 
@@ -659,6 +661,8 @@ impl Serialize for DynamicValue {
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
+            // Comprends pas pq serialize() n'existe pas pour &Zoned
+            Self::DateTime(v) => v.to_string().serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -776,6 +780,7 @@ impl DynamicValue {
             Self::Float(_) => "float",
             Self::Integer(_) => "integer",
             Self::Boolean(_) => "boolean",
+            Self::DateTime(_) => "datetime",
             Self::Regex(_) => "regex",
             Self::None => "none",
         }
@@ -825,6 +830,7 @@ impl DynamicValue {
                     Cow::Borrowed(b"false")
                 }
             }
+            Self::DateTime(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
@@ -846,6 +852,7 @@ impl DynamicValue {
                     Cow::Borrowed("false")
                 }
             }
+            Self::DateTime(value) => Cow::Owned(value.to_string()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
             Self::None => Cow::Borrowed(""),
             _ => return Err(EvaluationError::from_cast(self, "string")),
@@ -959,6 +966,7 @@ impl DynamicValue {
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
+            Self::DateTime(_value) => false,
             Self::None => false,
         }
     }
@@ -1110,6 +1118,12 @@ impl From<DynamicNumber> for DynamicValue {
             DynamicNumber::Integer(value) => DynamicValue::Integer(value),
             DynamicNumber::Float(value) => DynamicValue::Float(value),
         }
+    }
+}
+
+impl From<Zoned> for DynamicValue {
+    fn from(value: Zoned) -> Self {
+        DynamicValue::DateTime(value)
     }
 }
 

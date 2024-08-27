@@ -12,6 +12,7 @@ use std::sync::Arc;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
+use jiff::{tz::TimeZone, Timestamp};
 use namedlock::{AutoCleanup, LockSpace};
 use unidecode::unidecode;
 use uuid::Uuid;
@@ -159,6 +160,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
+        "strptime" => (strptime, FunctionArguments::unary()),
         "sub" => (
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
@@ -1194,6 +1196,19 @@ fn bytesize(args: BoundArguments) -> FunctionResult {
     let human_readable = ByteSize::b(bytes).to_string();
 
     Ok(DynamicValue::from(human_readable))
+}
+
+// Dates
+fn strptime(args: BoundArguments) -> FunctionResult {
+    let seconds = args.get1().try_as_i64()?;
+    let system = TimeZone::system();
+    match Timestamp::from_second(seconds) {
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
+        Err(_) => Err(EvaluationError::IO(format!(
+            "cannot parse as timestamp {}",
+            seconds
+        ))),
+    }
 }
 
 // Introspection
