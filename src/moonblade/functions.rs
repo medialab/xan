@@ -12,7 +12,7 @@ use std::sync::Arc;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
-use jiff::{tz::TimeZone, Timestamp};
+use jiff::{civil::DateTime, tz::TimeZone, Timestamp};
 use namedlock::{AutoCleanup, LockSpace};
 use unidecode::unidecode;
 use uuid::Uuid;
@@ -160,7 +160,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
-        "strptime" => (strptime, FunctionArguments::unary()),
+        "strptime" => (
+            strptime,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("format"),
+                Argument::with_name("timezone"),
+            ]),
+        ),
         "sub" => (
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
@@ -189,6 +196,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| sequence_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
+        "timestamp" => (timestamp, FunctionArguments::unary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
             |args| unary_arithmetic_op(args, DynamicNumber::trunc),
@@ -1199,7 +1207,7 @@ fn bytesize(args: BoundArguments) -> FunctionResult {
 }
 
 // Dates
-fn strptime(args: BoundArguments) -> FunctionResult {
+fn timestamp(args: BoundArguments) -> FunctionResult {
     let seconds = args.get1().try_as_i64()?;
     let system = TimeZone::system();
     match Timestamp::from_second(seconds) {
@@ -1208,6 +1216,41 @@ fn strptime(args: BoundArguments) -> FunctionResult {
             "cannot parse as timestamp {}",
             seconds
         ))),
+    }
+}
+
+fn strptime(args: BoundArguments) -> FunctionResult {
+    let datestring = args.get1().try_as_str()?;
+    let format = args.get_not_none(1);
+    let timezone = match args.get_not_none(2) {
+        Some(timezone) => {
+            TimeZone::get(&timezone.try_as_str()?).unwrap()
+        },
+        None => TimeZone::system()
+    };
+
+    match format {
+        None => match datestring.parse::<Timestamp>() {
+            Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(timezone))),
+            Err(_) => match datestring.parse::<DateTime>() {
+                Ok(dt) => Ok(DynamicValue::from(dt.to_zoned(timezone).unwrap())),
+                Err(_) => Err(EvaluationError::IO(format!(
+                    "cannot parse {} as a datetime, consider adding a format",
+                    datestring
+                ))),
+            },
+        },
+        Some(format) => {
+            let fmt = format.try_as_str()?;
+            let datetime = DateTime::strptime(fmt.as_ref(), datestring.as_ref());
+            match datetime {
+                Ok(dt) => Ok(DynamicValue::from(dt.to_zoned(timezone).unwrap())),
+                Err(_) => Err(EvaluationError::IO(format!(
+                    "cannot parse {} with format {}",
+                    datestring, fmt
+                ))),
+            }
+        }
     }
 }
 

@@ -343,8 +343,16 @@ use the operators in the previous section.
 
 ## Dates
 
-    - strptime(number) -> date
-        Convert POSIX timestamp (in seconds) to local time.
+    - timestamp(number) -> datetime
+        Parse a number as a POSIX timestamp
+        (nb of seconds since 1970-01-01 00:00:00).
+        A timestamp is always in UTC.
+
+    - strptime(string, format?, timezone?) -> datetime
+        Parse a datetime string according to format
+        ( docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications )
+        If no format is provided, string is parsed as RFC3339.
+        Default timezone is the system timezone.
 
 ## Collections (list of maps) functions
 
