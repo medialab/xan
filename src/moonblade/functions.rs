@@ -1213,7 +1213,7 @@ fn timestamp(args: BoundArguments) -> FunctionResult {
     match Timestamp::from_second(seconds) {
         Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
         Err(_) => Err(EvaluationError::IO(format!(
-            "cannot parse as timestamp {}",
+            "cannot parse {} as timestamp",
             seconds
         ))),
     }
@@ -1223,10 +1223,8 @@ fn strptime(args: BoundArguments) -> FunctionResult {
     let datestring = args.get1().try_as_str()?;
     let format = args.get_not_none(1);
     let timezone = match args.get_not_none(2) {
-        Some(timezone) => {
-            TimeZone::get(&timezone.try_as_str()?).unwrap()
-        },
-        None => TimeZone::system()
+        Some(timezone) => TimeZone::get(&timezone.try_as_str()?).unwrap(),
+        None => TimeZone::system(),
     };
 
     match format {
