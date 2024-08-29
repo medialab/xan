@@ -343,16 +343,20 @@ use the operators in the previous section.
 
 ## Dates
 
+    - strftime(target, format, timezone?) -> string
+        Format target (a time in ISO 8601 format,
+        or the result of strptime function) according to format.
+
+    - strptime(string, format?, timezone?) -> datetime
+        Parse a datetime string according to format
+        ( https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications )
+        If no format is provided, string is parsed as ISO 8601 date format.
+        Default timezone is the system timezone.
+
     - timestamp(number) -> datetime
         Parse a number as a POSIX timestamp
         (nb of seconds since 1970-01-01 00:00:00).
         A timestamp is always in UTC.
-
-    - strptime(string, format?, timezone?) -> datetime
-        Parse a datetime string according to format
-        ( docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications )
-        If no format is provided, string is parsed as RFC3339.
-        Default timezone is the system timezone.
 
 ## Collections (list of maps) functions
 

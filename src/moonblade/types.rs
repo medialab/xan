@@ -840,6 +840,13 @@ impl DynamicValue {
         self.serialize_as_bytes_with_options(b"|")
     }
 
+    pub fn try_as_datetime(&self) -> Result<&Zoned, EvaluationError> {
+        match self {
+            Self::DateTime(zoned) => Ok(zoned),
+            _ => Err(EvaluationError::from_cast(self, "datetime")),
+        }
+    }
+
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
