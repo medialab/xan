@@ -8,10 +8,7 @@ use std::str;
 use std::thread;
 use std::time;
 
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use chrono_tz::Tz;
 use colored::{Color, ColoredString, Colorize, Styles};
-use dateparser::parse_with_timezone;
 use deepsize::DeepSizeOf;
 use docopt::Docopt;
 use ext_sort::ExternalChunk;
@@ -147,28 +144,6 @@ pub fn range(start: Idx, end: Idx, len: Idx, index: Idx) -> Result<(usize, usize
             let s = start.unwrap_or(0);
             Ok((s, s + l))
         }
-    }
-}
-
-pub fn parse_timezone(tz: Option<String>) -> Result<Tz, String> {
-    match tz {
-        None => Ok(chrono_tz::UTC),
-        Some(time_string) => time_string
-            .parse::<Tz>()
-            .or(Err(format!("{} is not a valid timezone", time_string))),
-    }
-}
-
-pub fn parse_date(date: &str, tz: Tz, input_fmt: &Option<String>) -> Result<DateTime<Utc>, String> {
-    match input_fmt {
-        Some(fmt) => match NaiveDateTime::parse_from_str(date, fmt) {
-            Ok(time) => Ok(tz.from_local_datetime(&time).unwrap().with_timezone(&Utc)),
-            _ => Err(format!("{} is not a valid format", fmt)),
-        },
-        None => match parse_with_timezone(date, &tz) {
-            Ok(time) => Ok(time),
-            _ => Err(format!("Time format could not be inferred for {}", date)),
-        },
     }
 }
 

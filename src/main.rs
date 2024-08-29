@@ -3,15 +3,12 @@ extern crate atty;
 extern crate byteorder;
 extern crate bytesize;
 extern crate calamine;
-extern crate chrono;
-extern crate chrono_tz;
 extern crate colored;
 extern crate console;
 extern crate crossbeam_channel;
 extern crate csv;
 extern crate csv_index;
 extern crate ctrlc;
-extern crate dateparser;
 extern crate docopt;
 extern crate emojis;
 extern crate encoding;
@@ -87,7 +84,6 @@ macro_rules! command_list {
     blank       Blank down a CSV file
     cat         Concatenate by row or column
     count       Count records
-    datefmt     Format a recognized date column to a specified format and timezone
     dedup       Deduplicate a CSV file
     enum        Enumerate CSV file by preprending an index column
     explode     Explode rows based on some column separator
@@ -219,7 +215,6 @@ enum Command {
     Blank,
     Cat,
     Count,
-    Datefmt,
     Dedup,
     Enum,
     Eval,
@@ -287,7 +282,6 @@ impl Command {
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
             Command::Count => cmd::count::run(argv),
-            Command::Datefmt => cmd::datefmt::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
             Command::Enum => cmd::enumerate::run(argv),
             Command::Eval => cmd::eval::run(argv),

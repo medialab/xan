@@ -433,7 +433,6 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - **blank** - Blank down a CSV file
 - **cat** - Concatenate by row or column
 - [**count**](./docs/cmd/count.md) - Count records
-- **datefmt** - Format a recognized date column to a specified format and timezone
 - **dedup** - Deduplicate a CSV file
 - **enum** - Enumerate CSV file by preprending an index column
 - **explode** - Explode rows based on some column separator

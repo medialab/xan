@@ -4,7 +4,6 @@ pub mod bins;
 pub mod blank;
 pub mod cat;
 pub mod count;
-pub mod datefmt;
 pub mod dedup;
 pub mod enumerate;
 pub mod eval;
