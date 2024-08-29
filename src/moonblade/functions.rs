@@ -12,7 +12,7 @@ use std::sync::Arc;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
-use jiff::{civil::DateTime, tz::TimeZone, Timestamp};
+use jiff::{civil::DateTime, tz::TimeZone, Timestamp, Zoned};
 use namedlock::{AutoCleanup, LockSpace};
 use unidecode::unidecode;
 use uuid::Uuid;
@@ -1222,30 +1222,46 @@ fn timestamp(args: BoundArguments) -> FunctionResult {
 fn strptime(args: BoundArguments) -> FunctionResult {
     let datestring = args.get1().try_as_str()?;
     let format = args.get_not_none(1);
-    let timezone = match args.get_not_none(2) {
-        Some(timezone) => TimeZone::get(&timezone.try_as_str()?).unwrap(),
-        None => TimeZone::system(),
-    };
+    let timezone = args.get_not_none(2);
 
     match format {
-        None => match datestring.parse::<Timestamp>() {
-            Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(timezone))),
+        None => match datestring.parse::<Zoned>() {
+            Ok(zoned_datetime) => match timezone {
+                None => Ok(DynamicValue::from(zoned_datetime)),
+                Some(timezone) => {
+                    if TimeZone::get(&timezone.try_as_str()?).unwrap()
+                        == *zoned_datetime.time_zone()
+                    {
+                        Ok(DynamicValue::from(zoned_datetime))
+                    } else {
+                        Err(EvaluationError::IO(format!(
+                            "conflicting timezones between {} and {}",
+                            datestring,
+                            timezone.try_as_str()?
+                        )))
+                    }
+                }
+            },
             Err(_) => match datestring.parse::<DateTime>() {
-                Ok(dt) => Ok(DynamicValue::from(dt.to_zoned(timezone).unwrap())),
+                Ok(datetime) => Ok(DynamicValue::from(
+                    datetime.to_zoned(timezone_parse(timezone)?).unwrap(),
+                )),
                 Err(_) => Err(EvaluationError::IO(format!(
-                    "cannot parse {} as a datetime, consider adding a format",
+                    "cannot parse {} as a datetime, consider adding a custom format",
                     datestring
                 ))),
             },
         },
         Some(format) => {
-            let fmt = format.try_as_str()?;
-            let datetime = DateTime::strptime(fmt.as_ref(), datestring.as_ref());
+            let format = format.try_as_str()?;
+            let datetime = DateTime::strptime(format.as_ref(), datestring.as_ref());
             match datetime {
-                Ok(dt) => Ok(DynamicValue::from(dt.to_zoned(timezone).unwrap())),
+                Ok(datetime) => Ok(DynamicValue::from(
+                    datetime.to_zoned(timezone_parse(timezone)?).unwrap(),
+                )),
                 Err(_) => Err(EvaluationError::IO(format!(
                     "cannot parse {} with format {}",
-                    datestring, fmt
+                    datestring, format
                 ))),
             }
         }
@@ -1278,4 +1294,17 @@ fn json_parse(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
     serde_json::from_str(arg.as_ref()).map_err(|_| EvaluationError::JSONParseError)
+}
+
+fn timezone_parse(timezone: Option<&DynamicValue>) -> Result<TimeZone, EvaluationError> {
+    match timezone {
+        Some(timezone) => match TimeZone::get(&timezone.try_as_str()?) {
+            Ok(timezone) => Ok(timezone),
+            Err(_) => Err(EvaluationError::IO(format!(
+                "{} is not a valid timezone",
+                timezone.try_as_str()?
+            ))),
+        },
+        None => Ok(TimeZone::system()),
+    }
 }
