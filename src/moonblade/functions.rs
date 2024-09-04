@@ -1276,16 +1276,16 @@ fn strptime(args: BoundArguments) -> FunctionResult {
     }
 }
 
-fn strftime(args: BoundArguments) -> FunctionResult {
-    let (target, format) = args.get2();
+fn strftime(mut args: BoundArguments) -> FunctionResult {
+    let (target, format) = args.pop2();
     let fmt = format.try_as_str()?;
     let timezone = timezone_parse(args.get_not_none(2))?;
 
     let datetime = match target {
-        DynamicValue::DateTime(value) => DynamicValue::DateTime(value.clone()),
+        DynamicValue::DateTime(value) => DynamicValue::DateTime(value),
         _ => {
             let mut first_arg = BoundArguments::new();
-            first_arg.push(target.clone());
+            first_arg.push(target);
             strptime(first_arg)?
         }
     };
