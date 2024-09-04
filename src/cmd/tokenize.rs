@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use paltoquet::{NgramsIteratorExt, WordToken, WordTokenKind, WordTokenizerBuilder};
+use paltoquet::tokenizers::{NgramsIteratorExt, WordToken, WordTokenKind, WordTokenizerBuilder};
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};

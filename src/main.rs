@@ -83,6 +83,7 @@ macro_rules! command_list {
     bins        Dispatch numeric columns into bins
     blank       Blank down a CSV file
     cat         Concatenate by row or column
+    cluster     Cluster CSV data to find near-duplicates
     count       Count records
     dedup       Deduplicate a CSV file
     enum        Enumerate CSV file by preprending an index column
@@ -214,6 +215,7 @@ enum Command {
     Bins,
     Blank,
     Cat,
+    Cluster,
     Count,
     Dedup,
     Enum,
@@ -281,6 +283,7 @@ impl Command {
             Command::Bins => cmd::bins::run(argv),
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
+            Command::Cluster => cmd::cluster::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
             Command::Enum => cmd::enumerate::run(argv),

@@ -852,17 +852,23 @@ impl DynamicValue {
             Self::String(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string()),
             Self::Integer(value) => Cow::Owned(value.to_string()),
-            Self::Boolean(value) => {
-                if *value {
-                    Cow::Borrowed("true")
-                } else {
-                    Cow::Borrowed("false")
-                }
-            }
             Self::DateTime(value) => Cow::Owned(value.to_string()),
+            Self::Boolean(value) => Cow::Borrowed(if *value { "true" } else { "false" }),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
             Self::None => Cow::Borrowed(""),
             _ => return Err(EvaluationError::from_cast(self, "string")),
+        })
+    }
+
+    pub fn try_into_string(self) -> Result<String, EvaluationError> {
+        Ok(match self {
+            Self::String(value) => value,
+            Self::Float(value) => value.to_string(),
+            Self::Integer(value) => value.to_string(),
+            Self::Boolean(value) => (if value { "true" } else { "false" }).to_string(),
+            Self::Regex(pattern) => pattern.as_str().to_owned(),
+            Self::None => "".to_string(),
+            _ => return Err(EvaluationError::from_cast(&self, "string")),
         })
     }
 

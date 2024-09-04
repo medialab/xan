@@ -47,6 +47,13 @@ impl ConcreteExpr {
         matches!(self, Self::Value(_))
     }
 
+    fn as_column(&self) -> Option<usize> {
+        match self {
+            Self::Column(index) => Some(*index),
+            _ => None,
+        }
+    }
+
     fn unwrap(self) -> DynamicValue {
         match self {
             Self::Value(v) => v,
@@ -420,6 +427,24 @@ impl Program {
         record: &ByteRecord,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         eval_expression(&self.expr, Some(index), record, &self.context)
+    }
+
+    pub fn generate_key(
+        &self,
+        index: usize,
+        record: &ByteRecord,
+    ) -> Result<String, SpecifiedEvaluationError> {
+        if let Some(index) = self.expr.as_column() {
+            Ok(String::from_utf8(record[index].to_vec()).unwrap())
+        } else {
+            let value = self.run_with_record(index, record)?;
+            Ok(value
+                .try_into_string()
+                .map_err(|err| SpecifiedEvaluationError {
+                    function_name: "<expr>".to_string(),
+                    reason: err,
+                })?)
+        }
     }
 }
 
