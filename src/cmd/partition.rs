@@ -18,6 +18,10 @@ Partitions the given CSV data into chunks based on the value of a column
 The files are written to the output directory with filenames based on the
 values in the partition column and the `--filename` flag.
 
+Note that most operating systems avoid opening more than 1024 files at once,
+so if you know the cardinality of the paritioned column is very high, please
+sort the file on this column beforehand and use the -S/--sorted flag.
+
 Usage:
     xan partition [options] <column> <outdir> [<input>]
     xan partition --help
