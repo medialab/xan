@@ -1161,6 +1161,7 @@ impl PartialEq for DynamicValue {
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
+            (Self::DateTime(a), Self::DateTime(b)) => a == b,
             (Self::None, Self::None) => true,
             _ => false,
         }

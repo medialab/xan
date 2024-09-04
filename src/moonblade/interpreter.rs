@@ -452,6 +452,7 @@ impl Program {
 mod tests {
     use super::super::error::RunError;
     use super::*;
+    use jiff::{tz::TimeZone, Timestamp};
 
     type TestResult = Result<DynamicValue, RunError>;
 
@@ -1004,5 +1005,17 @@ mod tests {
             Ok(DynamicValue::None)
         );
         assert_eq!(eval_code("argmax([a, b])"), Ok(DynamicValue::from(1)));
+    }
+
+    #[test]
+    fn test_timestamp() {
+        let tz = TimeZone::system();
+        let timestamp = Timestamp::from_second(1645805387).unwrap();
+        let zoned = timestamp.to_zoned(tz);
+
+        assert_eq!(
+            eval_code("timestamp(1645805387)"),
+            Ok(DynamicValue::from(zoned))
+        )
     }
 }
