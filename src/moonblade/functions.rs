@@ -170,8 +170,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("timezone"),
             ]),
         ),
-        "strptime" => (
-            strptime,
+        "datetime" => (
+            datetime,
             FunctionArguments::complex(vec![
                 Argument::Positional,
                 Argument::with_name("format"),
@@ -1229,7 +1229,7 @@ fn timestamp(args: BoundArguments) -> FunctionResult {
     }
 }
 
-fn strptime(args: BoundArguments) -> FunctionResult {
+fn datetime(args: BoundArguments) -> FunctionResult {
     let datestring = args.get1().try_as_str()?;
     let format = args.get_not_none(1);
     let timezone = args.get_not_none(2);
@@ -1257,7 +1257,7 @@ fn strptime(args: BoundArguments) -> FunctionResult {
                     datetime.to_zoned(timezone_parse(timezone)?).unwrap(),
                 )),
                 Err(_) => Err(EvaluationError::IO(format!(
-                    "cannot parse \"{}\" as a datetime, consider using strptime with a custom format",
+                    "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
                     datestring
                 ))),
             },
@@ -1288,7 +1288,7 @@ fn strftime(mut args: BoundArguments) -> FunctionResult {
         _ => {
             let mut first_arg = BoundArguments::new();
             first_arg.push(target);
-            strptime(first_arg)?
+            datetime(first_arg)?
         }
     };
 
