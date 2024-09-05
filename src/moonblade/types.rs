@@ -1238,22 +1238,12 @@ impl BoundArguments {
     }
 }
 
-pub struct BoundArgumentsIntoIterator(arrayvec::IntoIter<DynamicValue, BOUND_ARGUMENTS_CAPACITY>);
-
-impl Iterator for BoundArgumentsIntoIterator {
-    type Item = DynamicValue;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
 impl IntoIterator for BoundArguments {
     type Item = DynamicValue;
-    type IntoIter = BoundArgumentsIntoIterator;
+    type IntoIter = arrayvec::IntoIter<Self::Item, BOUND_ARGUMENTS_CAPACITY>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BoundArgumentsIntoIterator(self.stack.into_iter())
+        self.stack.into_iter()
     }
 }
 
