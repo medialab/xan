@@ -1056,9 +1056,10 @@ mod tests {
             Ok(DynamicValue::from(zoned.clone()))
         );
 
-        assert!(
-            eval_code("datetime('2024-07-11T00:00:00[UTC]', format='%FT%H:%M:%S[%V]', timezone='CET')").is_err()
-        );
+        assert!(eval_code(
+            "datetime('2024-07-11T00:00:00[UTC]', format='%FT%H:%M:%S[%V]', timezone='CET')"
+        )
+        .is_err());
 
         assert!(eval_code("datetime('2024-07-11T00:00:00[CET]', timezone='UTC')").is_err());
     }
