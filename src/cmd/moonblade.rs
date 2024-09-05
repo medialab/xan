@@ -345,7 +345,7 @@ use the operators in the previous section.
 
     - strftime(target, format, timezone?) -> string
         Format target (a time in ISO 8601 format,
-        or the result of datetime function) according to format.
+        or the result of datetime() function) according to format.
 
     - datetime(string, format?, timezone?) -> datetime
         Parse a string as a datetime according to format and timezone
