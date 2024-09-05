@@ -1020,6 +1020,18 @@ mod tests {
     }
 
     #[test]
+    fn test_timestamp_ms() {
+        let tz = TimeZone::system();
+        let timestamp = Timestamp::from_millisecond(1645805387000).unwrap();
+        let zoned = timestamp.to_zoned(tz);
+
+        assert_eq!(
+            eval_code("timestamp_ms(1645805387000)"),
+            Ok(DynamicValue::from(zoned))
+        )
+    }
+
+    #[test]
     fn test_datetime() {
         let timestamp: Timestamp = "2024-07-11T01:14:00Z".parse().unwrap();
         let zoned = timestamp.intz("Europe/Paris").unwrap();

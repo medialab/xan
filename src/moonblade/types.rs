@@ -829,7 +829,9 @@ impl DynamicValue {
                     Cow::Borrowed(b"false")
                 }
             }
-            Self::DateTime(value) => Cow::Owned(value.strftime("%FT%T[%Z]").to_string().into_bytes()),
+            Self::DateTime(value) => {
+                Cow::Owned(value.strftime("%FT%T[%Z]").to_string().into_bytes())
+            }
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }

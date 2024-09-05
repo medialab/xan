@@ -207,6 +207,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::binary(),
         ),
         "timestamp" => (timestamp, FunctionArguments::unary()),
+        "timestamp_ms" => (timestamp_ms, FunctionArguments::unary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
             |args| unary_arithmetic_op(args, DynamicNumber::trunc),
@@ -1221,6 +1222,18 @@ fn timestamp(args: BoundArguments) -> FunctionResult {
     let seconds = args.get1().try_as_i64()?;
     let system = TimeZone::system();
     match Timestamp::from_second(seconds) {
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
+        Err(_) => Err(EvaluationError::IO(format!(
+            "cannot parse \"{}\" as timestamp",
+            seconds
+        ))),
+    }
+}
+
+fn timestamp_ms(args: BoundArguments) -> FunctionResult {
+    let seconds = args.get1().try_as_i64()?;
+    let system = TimeZone::system();
+    match Timestamp::from_millisecond(seconds) {
         Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
         Err(_) => Err(EvaluationError::IO(format!(
             "cannot parse \"{}\" as timestamp",
