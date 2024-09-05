@@ -354,8 +354,13 @@ use the operators in the previous section.
         Default timezone is the system timezone.
 
     - timestamp(number) -> datetime
-        Parse a number as a POSIX timestamp
+        Parse a number as a POSIX timestamp in seconds
         (nb of seconds since 1970-01-01 00:00:00 UTC),
+        and convert it to a datetime in local time.
+
+    - timestamp_ms(number) -> datetime
+        Parse a number as a POSIX timestamp in milliseconds
+        (nb of milliseconds since 1970-01-01 00:00:00 UTC),
         and convert it to a datetime in local time.
 
 ## Collections (list of maps) functions
