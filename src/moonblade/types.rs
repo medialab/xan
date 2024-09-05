@@ -1165,7 +1165,6 @@ impl BoundArguments {
         self.stack.len()
     }
 
-    // TODO: validate less than 8 arguments when parsing or concretizing
     pub fn push(&mut self, arg: DynamicValue) {
         self.stack.push(arg);
     }
