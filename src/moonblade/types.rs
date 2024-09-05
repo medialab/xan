@@ -661,8 +661,7 @@ impl Serialize for DynamicValue {
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
-            // Comprends pas pq serialize() n'existe pas pour &Zoned
-            Self::DateTime(v) => v.to_string().serialize(serializer),
+            Self::DateTime(v) => v.strftime("%FT%T[%Z]").to_string().serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -830,7 +829,7 @@ impl DynamicValue {
                     Cow::Borrowed(b"false")
                 }
             }
-            Self::DateTime(value) => Cow::Owned(value.to_string().into_bytes()),
+            Self::DateTime(value) => Cow::Owned(value.strftime("%FT%T[%Z]").to_string().into_bytes()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
