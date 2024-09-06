@@ -12,6 +12,7 @@ use colored::{Color, ColoredString, Colorize, Styles};
 use deepsize::DeepSizeOf;
 use docopt::Docopt;
 use ext_sort::ExternalChunk;
+use jiff::civil::DateTime;
 use numfmt::{Formatter, Numeric, Precision};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
@@ -313,6 +314,8 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         Err(_) => {
             if string.starts_with("http://") || string.starts_with("https://") {
                 ColorOrStyles::Color(Color::Blue)
+            } else if string.parse::<DateTime>().is_ok() {
+                ColorOrStyles::Color(Color::Magenta)
             } else {
                 match string {
                     "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
