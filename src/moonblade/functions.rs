@@ -1287,7 +1287,7 @@ fn datetime(args: BoundArguments) -> FunctionResult {
 fn strftime(args: BoundArguments) -> FunctionResult {
     let (target, format) = args.get2();
     let fmt = format.try_as_str()?;
-    let timezone = timezone_parse(args.get_not_none(2))?;
+    let timezone = args.get_not_none(2);
     // TODO: avoid cloning target and format
     let datetime = match target {
         DynamicValue::DateTime(value) => DynamicValue::DateTime(value.clone()),
@@ -1298,7 +1298,13 @@ fn strftime(args: BoundArguments) -> FunctionResult {
         }
     };
 
-    let zoned_datetime = datetime.try_as_datetime()?.with_time_zone(timezone);
+    let zoned_datetime = match timezone {
+        Some(_tz) => {
+            let tz = timezone_parse(timezone)?;
+            datetime.try_into_datetime()?.with_time_zone(tz)
+        }
+        None => datetime.try_into_datetime()?,
+    };
 
     let formatted_datetime = strtime::format(fmt.as_ref(), &zoned_datetime);
     match formatted_datetime {

@@ -848,6 +848,13 @@ impl DynamicValue {
         }
     }
 
+    pub fn try_into_datetime(self) -> Result<Zoned, EvaluationError> {
+        match self {
+            Self::DateTime(zoned) => Ok(zoned),
+            _ => Err(EvaluationError::from_cast(&self, "datetime")),
+        }
+    }
+
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
