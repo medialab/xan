@@ -250,6 +250,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut formatter = util::acquire_number_formatter();
     let box_chars = BOX_CHARS;
+    let padding = " ";
     let horizontal_box_char = box_chars[BoxChar::Horizontal as usize].to_string();
 
     let mut write_info = || -> Result<(), io::Error> {
@@ -309,7 +310,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         });
 
         displayed_columns.iter().enumerate().for_each(|(i, col)| {
-            s.push_str(&horizontal_box_char.repeat(col.allowed_width + 2));
+            s.push_str(&horizontal_box_char.repeat(col.allowed_width + 2 * padding.len()));
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 s.push(match pos {
@@ -347,7 +348,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write!(
             &output,
             "{}",
-            format!("{} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+            format!("{}{}", box_chars[BoxChar::Vertical as usize], padding).dimmed()
         )?;
 
         for (i, cell) in row.iter().enumerate() {
@@ -355,7 +356,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 write!(
                     &output,
                     "{}",
-                    format!(" {} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+                    format!(
+                        "{}{}{}",
+                        padding,
+                        box_chars[BoxChar::Vertical as usize],
+                        padding
+                    )
+                    .dimmed()
                 )?;
             }
 
@@ -364,8 +371,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 write!(
                     &output,
-                    " {} …",
-                    format!("{} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+                    "{}…",
+                    format!(
+                        "{}{}{}",
+                        padding,
+                        box_chars[BoxChar::Vertical as usize],
+                        padding
+                    )
+                    .dimmed(),
                 )?;
             }
         }
@@ -373,7 +386,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write!(
             &output,
             "{}",
-            format!(" {}", box_chars[BoxChar::Vertical as usize]).dimmed()
+            format!("{}{}", padding, box_chars[BoxChar::Vertical as usize]).dimmed()
         )?;
         writeln!(&output)?;
 
