@@ -1273,6 +1273,15 @@ impl BoundArguments {
 
 pub struct BoundArgumentsIntoIterator(arrayvec::IntoIter<DynamicValue, BOUND_ARGUMENTS_CAPACITY>);
 
+impl BoundArgumentsIntoIterator {
+    pub fn next_not_none(&mut self) -> Option<DynamicValue> {
+        self.next().and_then(|value| match value {
+            DynamicValue::None => None,
+            _ => Some(value),
+        })
+    }
+}
+
 impl Iterator for BoundArgumentsIntoIterator {
     type Item = DynamicValue;
 

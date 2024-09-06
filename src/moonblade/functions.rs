@@ -1293,22 +1293,26 @@ fn datetime(args: BoundArguments) -> FunctionResult {
 }
 
 fn strftime(args: BoundArguments) -> FunctionResult {
-    let (target, format) = args.get2();
+    let mut args = args.into_iter();
+
+    let target = args.next().unwrap();
+    let format = args.next().unwrap();
+    let timezone = args.next_not_none();
+
     let fmt = format.try_as_str()?;
-    let timezone = args.get_not_none(2);
-    // TODO: avoid cloning target and format
+
     let datetime = match target {
-        DynamicValue::DateTime(value) => DynamicValue::DateTime(value.clone()),
+        DynamicValue::DateTime(value) => DynamicValue::DateTime(value),
         _ => {
             let mut first_arg = BoundArguments::new();
-            first_arg.push(target.clone());
+            first_arg.push(target);
             datetime(first_arg)?
         }
     };
 
     let zoned_datetime = match timezone {
         Some(timezone) => {
-            let tz = timezone_parse(timezone)?;
+            let tz = timezone_parse(&timezone)?;
             datetime.try_into_datetime()?.with_time_zone(tz)
         }
         None => datetime.try_into_datetime()?,
