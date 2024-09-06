@@ -15,6 +15,23 @@ const TRAILING_COLS: usize = 8;
 const PER_CELL_PADDING_COLS: usize = 3;
 const HEADERS_ROWS: usize = 8;
 
+#[repr(u8)]
+enum BoxChar {
+    CornerUpLeft,
+    CornerUpRight,
+    CornerBottomLeft,
+    CornerBottomRight,
+    CrossLeft,
+    CrossRight,
+    CrossBottom,
+    CrossUp,
+    CrossFull,
+    Horizontal,
+    Vertical,
+}
+
+const BOX_CHARS: [char; 11] = ['┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼', '─', '│'];
+
 static USAGE: &str = "
 Preview CSV data in the terminal in a human-friendly way with aligned columns,
 shiny colors & all.
@@ -91,7 +108,6 @@ impl Args {
     }
 }
 
-// TODO: no-headers, file empty with -I panic
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
@@ -233,6 +249,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut formatter = util::acquire_number_formatter();
+    let box_chars = BOX_CHARS;
+    let horizontal_box_char = box_chars[BoxChar::Horizontal as usize].to_string();
 
     let mut write_info = || -> Result<(), io::Error> {
         if args.flag_hide_info {
@@ -285,22 +303,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut s = String::new();
 
         s.push(match pos {
-            HRPosition::Bottom => '┌',
-            HRPosition::Top => '└',
-            HRPosition::Middle => '├',
+            HRPosition::Bottom => box_chars[BoxChar::CornerUpLeft as usize],
+            HRPosition::Top => box_chars[BoxChar::CornerBottomLeft as usize],
+            HRPosition::Middle => box_chars[BoxChar::CrossLeft as usize],
         });
 
         displayed_columns.iter().enumerate().for_each(|(i, col)| {
-            s.push_str(&"─".repeat(col.allowed_width + 2));
+            s.push_str(&horizontal_box_char.repeat(col.allowed_width + 2));
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 s.push(match pos {
-                    HRPosition::Bottom => '┬',
-                    HRPosition::Top => '┴',
-                    HRPosition::Middle => '┼',
+                    HRPosition::Bottom => box_chars[BoxChar::CrossBottom as usize],
+                    HRPosition::Top => box_chars[BoxChar::CrossUp as usize],
+                    HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
                 });
 
-                s.push_str(&"─".repeat(3));
+                s.push_str(&horizontal_box_char.repeat(3));
             }
 
             if i == displayed_columns.len() - 1 {
@@ -308,16 +326,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             s.push(match pos {
-                HRPosition::Bottom => '┬',
-                HRPosition::Top => '┴',
-                HRPosition::Middle => '┼',
+                HRPosition::Bottom => box_chars[BoxChar::CrossBottom as usize],
+                HRPosition::Top => box_chars[BoxChar::CrossUp as usize],
+                HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
             });
         });
 
         s.push(match pos {
-            HRPosition::Bottom => '┐',
-            HRPosition::Top => '┘',
-            HRPosition::Middle => '┤',
+            HRPosition::Bottom => box_chars[BoxChar::CornerUpRight as usize],
+            HRPosition::Top => box_chars[BoxChar::CornerBottomRight as usize],
+            HRPosition::Middle => box_chars[BoxChar::CrossRight as usize],
         });
 
         writeln!(&output, "{}", s.dimmed())?;
@@ -326,21 +344,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let write_row = |row: Vec<colored::ColoredString>| -> Result<(), io::Error> {
-        write!(&output, "{}", "│ ".dimmed())?;
+        write!(
+            &output,
+            "{}",
+            format!("{} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+        )?;
 
         for (i, cell) in row.iter().enumerate() {
             if i != 0 {
-                write!(&output, "{}", " │ ".dimmed())?;
+                write!(
+                    &output,
+                    "{}",
+                    format!(" {} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+                )?;
             }
 
             write!(&output, "{}", cell)?;
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
-                write!(&output, "{}", " │ …".dimmed())?;
+                write!(
+                    &output,
+                    " {} …",
+                    format!("{} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+                )?;
             }
         }
 
-        write!(&output, "{}", " │".dimmed())?;
+        write!(
+            &output,
+            "{}",
+            format!(" {}", box_chars[BoxChar::Vertical as usize]).dimmed()
+        )?;
         writeln!(&output)?;
 
         Ok(())
@@ -384,6 +418,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     writeln!(&output)?;
     write_info()?;
+
+    // NOTE: we stop if there is nothing to show
+    let nothing_to_show =
+        records.is_empty() && (headers.is_empty() || (!args.flag_hide_index && headers.len() == 1));
+
+    if nothing_to_show {
+        return Ok(());
+    }
+
     write_headers(true)?;
 
     let mut last_group: Option<Vec<String>> = None;
