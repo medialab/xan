@@ -30,7 +30,7 @@ enum BoxChar {
     Vertical,
 }
 
-const BOX_CHARS: [char; 11] = ['┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼', '─', '│'];
+const BOX_CHARS: [char; 11] = ['┌', '┐', '└', '┘', '┤', '├', '┬', '┴', '┼', '─', '│'];
 
 static USAGE: &str = "
 Preview CSV data in the terminal in a human-friendly way with aligned columns,
@@ -305,7 +305,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         s.push(match pos {
             HRPosition::Bottom => box_chars[BoxChar::CornerUpLeft as usize],
             HRPosition::Top => box_chars[BoxChar::CornerBottomLeft as usize],
-            HRPosition::Middle => box_chars[BoxChar::CrossLeft as usize],
+            HRPosition::Middle => box_chars[BoxChar::CrossRight as usize],
         });
 
         displayed_columns.iter().enumerate().for_each(|(i, col)| {
@@ -335,7 +335,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         s.push(match pos {
             HRPosition::Bottom => box_chars[BoxChar::CornerUpRight as usize],
             HRPosition::Top => box_chars[BoxChar::CornerBottomRight as usize],
-            HRPosition::Middle => box_chars[BoxChar::CrossRight as usize],
+            HRPosition::Middle => box_chars[BoxChar::CrossLeft as usize],
         });
 
         writeln!(&output, "{}", s.dimmed())?;
@@ -387,10 +387,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             HRPosition::Middle
         })?;
 
-        if args.flag_hide_headers {
-            return Ok(());
-        }
-
         let headers_row: Vec<colored::ColoredString> = displayed_columns
             .iter()
             .map(|col| (col, &headers[col.index]))
@@ -427,7 +423,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    write_headers(true)?;
+    if args.flag_hide_headers {
+        write_horizontal_ruler(HRPosition::Bottom)?;
+    } else {
+        write_headers(true)?;
+    }
 
     let mut last_group: Option<Vec<String>> = None;
 
@@ -502,7 +502,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if need_to_repeat_headers {
-        write_headers(false)?;
+        if args.flag_hide_headers {
+            write_horizontal_ruler(HRPosition::Top)?;
+        } else {
+            write_headers(false)?;
+        }
         write_info()?;
         writeln!(&output)?;
     } else {
