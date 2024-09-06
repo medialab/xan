@@ -50,6 +50,8 @@ view options:
                            a pager such as \"less\", with no with constraints.
     -E, --sanitize-emojis  Replace emojis by their shortcode to avoid formatting issues.
     -I, --hide-index       Hide the row index on the left.
+    -H, --hide-headers     Hide the headers.
+    -M, --hide-info        Hide information about number of displayed columns, rows etc.
     -g, --groupby <cols>   Isolate and emphasize groups of rows, represented by consecutive
                            rows with identical values in selected columns.
 
@@ -74,6 +76,8 @@ struct Args {
     flag_expand: bool,
     flag_sanitize_emojis: bool,
     flag_hide_index: bool,
+    flag_hide_headers: bool,
+    flag_hide_info: bool,
     flag_groupby: Option<SelectColumns>,
 }
 
@@ -132,12 +136,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|(i, h)| {
                 if args.flag_hide_index {
                     i.to_string()
+                } else if i == 0 {
+                    h.to_string()
                 } else {
-                    if i == 0 {
-                        h.to_string()
-                    } else {
-                        (i - 1).to_string()
-                    }
+                    (i - 1).to_string()
                 }
             })
             .collect();
@@ -192,7 +194,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .enumerate()
         .map(|(i, h)| {
             usize::max(
-                h.width(),
+                if args.flag_hide_headers { 0 } else { h.width() },
                 records
                     .iter()
                     .map(|c| match c[i].width() {
@@ -233,10 +235,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut formatter = util::acquire_number_formatter();
 
     let mut write_info = || -> Result<(), io::Error> {
+        if args.flag_hide_info {
+            return Ok(());
+        }
+
+        let len_offset = if args.flag_hide_index { 0 } else { 1 };
+
         let pretty_records_len = util::pretty_print_float(&mut formatter, records.len());
-        let pretty_headers_len = util::pretty_print_float(&mut formatter, headers.len() - 1);
+        let pretty_headers_len =
+            util::pretty_print_float(&mut formatter, headers.len() - len_offset);
         let pretty_displayed_headers_len =
-            util::pretty_print_float(&mut formatter, displayed_columns.len() - 1);
+            util::pretty_print_float(&mut formatter, displayed_columns.len() - len_offset);
 
         writeln!(
             &output,
@@ -343,6 +352,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             HRPosition::Middle
         })?;
+
+        if args.flag_hide_headers {
+            return Ok(());
+        }
 
         let headers_row: Vec<colored::ColoredString> = displayed_columns
             .iter()
