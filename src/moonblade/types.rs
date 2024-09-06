@@ -827,13 +827,7 @@ impl DynamicValue {
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Integer(value) => Cow::Owned(value.to_string().into_bytes()),
-            Self::Boolean(value) => {
-                if *value {
-                    Cow::Borrowed(b"true")
-                } else {
-                    Cow::Borrowed(b"false")
-                }
-            }
+            Self::Boolean(value) => Cow::Borrowed(if *value { b"true" } else { b"false" }),
             Self::DateTime(value) => Cow::Owned(
                 value
                     .strftime(DYNAMIC_VALUE_DATE_FORMAT)
