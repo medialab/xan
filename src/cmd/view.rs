@@ -15,6 +15,23 @@ const TRAILING_COLS: usize = 8;
 const PER_CELL_PADDING_COLS: usize = 3;
 const HEADERS_ROWS: usize = 8;
 
+#[repr(u8)]
+enum BoxChar {
+    CornerUpLeft,
+    CornerUpRight,
+    CornerBottomLeft,
+    CornerBottomRight,
+    CrossLeft,
+    CrossRight,
+    CrossBottom,
+    CrossUp,
+    CrossFull,
+    Horizontal,
+    Vertical,
+}
+
+const BOX_CHARS: [char; 11] = ['┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼', '─', '│'];
+
 static USAGE: &str = "
 Preview CSV data in the terminal in a human-friendly way with aligned columns,
 shiny colors & all.
@@ -50,6 +67,8 @@ view options:
                            a pager such as \"less\", with no with constraints.
     -E, --sanitize-emojis  Replace emojis by their shortcode to avoid formatting issues.
     -I, --hide-index       Hide the row index on the left.
+    -H, --hide-headers     Hide the headers.
+    -M, --hide-info        Hide information about number of displayed columns, rows etc.
     -g, --groupby <cols>   Isolate and emphasize groups of rows, represented by consecutive
                            rows with identical values in selected columns.
 
@@ -74,6 +93,8 @@ struct Args {
     flag_expand: bool,
     flag_sanitize_emojis: bool,
     flag_hide_index: bool,
+    flag_hide_headers: bool,
+    flag_hide_info: bool,
     flag_groupby: Option<SelectColumns>,
 }
 
@@ -87,7 +108,6 @@ impl Args {
     }
 }
 
-// TODO: no-headers, file empty with -I panic
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
@@ -119,26 +139,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         groupby_sel.offset_by(1);
     }
 
-    let mut potential_headers = rdr.headers()?.clone();
+    let mut headers = rdr.headers()?.clone();
 
     if !args.flag_hide_index {
-        potential_headers = potential_headers.prepend("-");
+        headers = headers.prepend("-");
     }
 
-    let mut headers: Vec<String> = Vec::new();
-
-    for (i, header) in potential_headers.iter().enumerate() {
-        let header = match rconfig.no_headers {
-            true => {
-                if i == 0 {
-                    header.to_string()
+    if rconfig.no_headers {
+        headers = headers
+            .into_iter()
+            .enumerate()
+            .map(|(i, h)| {
+                if args.flag_hide_index {
+                    i.to_string()
+                } else if i == 0 {
+                    h.to_string()
                 } else {
                     (i - 1).to_string()
                 }
-            }
-            false => header.to_string(),
-        };
-        headers.push(header);
+            })
+            .collect();
     }
 
     let mut all_records_buffered = false;
@@ -190,7 +210,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .enumerate()
         .map(|(i, h)| {
             usize::max(
-                h.width(),
+                if args.flag_hide_headers { 0 } else { h.width() },
                 records
                     .iter()
                     .map(|c| match c[i].width() {
@@ -229,12 +249,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut formatter = util::acquire_number_formatter();
+    let box_chars = BOX_CHARS;
+    let horizontal_box_char = box_chars[BoxChar::Horizontal as usize].to_string();
 
     let mut write_info = || -> Result<(), io::Error> {
+        if args.flag_hide_info {
+            return Ok(());
+        }
+
+        let len_offset = if args.flag_hide_index { 0 } else { 1 };
+
         let pretty_records_len = util::pretty_print_float(&mut formatter, records.len());
-        let pretty_headers_len = util::pretty_print_float(&mut formatter, headers.len() - 1);
+        let pretty_headers_len =
+            util::pretty_print_float(&mut formatter, headers.len() - len_offset);
         let pretty_displayed_headers_len =
-            util::pretty_print_float(&mut formatter, displayed_columns.len() - 1);
+            util::pretty_print_float(&mut formatter, displayed_columns.len() - len_offset);
 
         writeln!(
             &output,
@@ -274,22 +303,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut s = String::new();
 
         s.push(match pos {
-            HRPosition::Bottom => '┌',
-            HRPosition::Top => '└',
-            HRPosition::Middle => '├',
+            HRPosition::Bottom => box_chars[BoxChar::CornerUpLeft as usize],
+            HRPosition::Top => box_chars[BoxChar::CornerBottomLeft as usize],
+            HRPosition::Middle => box_chars[BoxChar::CrossLeft as usize],
         });
 
         displayed_columns.iter().enumerate().for_each(|(i, col)| {
-            s.push_str(&"─".repeat(col.allowed_width + 2));
+            s.push_str(&horizontal_box_char.repeat(col.allowed_width + 2));
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 s.push(match pos {
-                    HRPosition::Bottom => '┬',
-                    HRPosition::Top => '┴',
-                    HRPosition::Middle => '┼',
+                    HRPosition::Bottom => box_chars[BoxChar::CrossBottom as usize],
+                    HRPosition::Top => box_chars[BoxChar::CrossUp as usize],
+                    HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
                 });
 
-                s.push_str(&"─".repeat(3));
+                s.push_str(&horizontal_box_char.repeat(3));
             }
 
             if i == displayed_columns.len() - 1 {
@@ -297,16 +326,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             s.push(match pos {
-                HRPosition::Bottom => '┬',
-                HRPosition::Top => '┴',
-                HRPosition::Middle => '┼',
+                HRPosition::Bottom => box_chars[BoxChar::CrossBottom as usize],
+                HRPosition::Top => box_chars[BoxChar::CrossUp as usize],
+                HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
             });
         });
 
         s.push(match pos {
-            HRPosition::Bottom => '┐',
-            HRPosition::Top => '┘',
-            HRPosition::Middle => '┤',
+            HRPosition::Bottom => box_chars[BoxChar::CornerUpRight as usize],
+            HRPosition::Top => box_chars[BoxChar::CornerBottomRight as usize],
+            HRPosition::Middle => box_chars[BoxChar::CrossRight as usize],
         });
 
         writeln!(&output, "{}", s.dimmed())?;
@@ -315,21 +344,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let write_row = |row: Vec<colored::ColoredString>| -> Result<(), io::Error> {
-        write!(&output, "{}", "│ ".dimmed())?;
+        write!(
+            &output,
+            "{}",
+            format!("{} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+        )?;
 
         for (i, cell) in row.iter().enumerate() {
             if i != 0 {
-                write!(&output, "{}", " │ ".dimmed())?;
+                write!(
+                    &output,
+                    "{}",
+                    format!(" {} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+                )?;
             }
 
             write!(&output, "{}", cell)?;
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
-                write!(&output, "{}", " │ …".dimmed())?;
+                write!(
+                    &output,
+                    " {} …",
+                    format!("{} ", box_chars[BoxChar::Vertical as usize]).dimmed()
+                )?;
             }
         }
 
-        write!(&output, "{}", " │".dimmed())?;
+        write!(
+            &output,
+            "{}",
+            format!(" {}", box_chars[BoxChar::Vertical as usize]).dimmed()
+        )?;
         writeln!(&output)?;
 
         Ok(())
@@ -341,6 +386,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             HRPosition::Middle
         })?;
+
+        if args.flag_hide_headers {
+            return Ok(());
+        }
 
         let headers_row: Vec<colored::ColoredString> = displayed_columns
             .iter()
@@ -369,6 +418,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     writeln!(&output)?;
     write_info()?;
+
+    // NOTE: we stop if there is nothing to show
+    let nothing_to_show =
+        records.is_empty() && (headers.is_empty() || (!args.flag_hide_index && headers.len() == 1));
+
+    if nothing_to_show {
+        return Ok(());
+    }
+
     write_headers(true)?;
 
     let mut last_group: Option<Vec<String>> = None;

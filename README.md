@@ -546,6 +546,9 @@ available functions & operators):
         'trim(name)'
         'trim(concat(name, " ", surname))'
 
+  . Named function arguments:
+        'read(path, encoding="utf-8")'
+
   . Using operators (unary & binary):
         '-nb1'
         'nb1 + nb2'
@@ -572,8 +575,22 @@ available functions & operators):
         '/john/'
         '/john/i' (case-insensitive)
 
-  . Nesting function calls:
-        'add(sub(col1, col2), mul(col3, col4))'
+  . List literals:
+        '[1, 2, 3]'
+        '["one", "two"]
+
+  . Map literals:
+        '{one: 1, two: 2}'
+        '{leaf: "hello", "nested": [1, 2, 3]}'
+
+Note that constant expressions will never be evaluated more than once
+when parsing the program.
+
+This means that when evaluating the following:
+    'get(read_json("config.json"), name)'
+
+The "config.json" file will never be read/parsed more than once and will not
+be read/parsed once per row.
 ```
 
 ### Functions & Operators
@@ -581,6 +598,7 @@ available functions & operators):
 This help can be found in the terminal by executing `xan map --functions`.
 
 ```
+
 # Available functions & operators
 
 (use --cheatsheet for a reminder of the expression language's basics)
@@ -642,6 +660,16 @@ use the operators in the previous section.
 
     x in y
     x not in y
+
+## Indexing & slicing operators
+
+    x[y] - get y from x (string or list index, map key)
+    x[start:end] - slice x from start index to end index
+    x[:end] - slice x from start to end index
+    x[start:] - slice x from start index to end
+
+    Negative indices are accepted and mean the same thing as with
+    the Python language.
 
 ## Pipeline operator (using "_" for left-hand size substitution)
 
@@ -802,6 +830,9 @@ use the operators in the previous section.
     - lower(string) -> string
         Lowercase string.
 
+    - match(string, pattern, group?) -> string
+        Return a regex pattern match on the string.
+
     - replace(string, pattern, replacement) -> string
         Replace pattern in string. Can use a regex.
 
@@ -827,6 +858,53 @@ use the operators in the previous section.
 
     - upper(string) -> string
         Uppercase string.
+
+## Dates
+
+    - datetime(string, format=?, timezone=?) -> datetime
+        Parse a string as a datetime according to format and timezone
+        (https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications).
+        If no format is provided, string is parsed as ISO 8601 date format.
+        Default timezone is the system timezone.
+
+    - strftime(target, format, timezone=?) -> string
+        Format target (a time in ISO 8601 format,
+        or the result of datetime() function) according to format.
+
+    - timestamp(number) -> datetime
+        Parse a number as a POSIX timestamp in seconds
+        (nb of seconds since 1970-01-01 00:00:00 UTC),
+        and convert it to a datetime in local time.
+
+    - timestamp_ms(number) -> datetime
+        Parse a number as a POSIX timestamp in milliseconds
+        (nb of milliseconds since 1970-01-01 00:00:00 UTC),
+        and convert it to a datetime in local time.
+
+## Collections (list of maps) functions
+
+    - index_by(collection, key) -> map
+        Create a map from item key to collection item.
+
+## Map functions
+
+    - keys(map) -> [string]
+        Return a list of the map's keys.
+
+    - values(map) -> [T]
+        Return a list of the map's values.
+
+## List aggregation functions
+
+    - mean(numbers) -> number?
+        Return the means of the given numbers.
+
+## Fuzzy matching
+
+    - fingerprint(string) -> string
+        Fingerprints a string by normalizing characters, re-ordering
+        and deduplicating its word tokens before re-joining them by
+        spaces.
 
 ## Utils
 
@@ -855,14 +933,11 @@ use the operators in the previous section.
     - index() -> integer?
         Return the row's index, if applicable.
 
-    - json_parse(string) -> T
+    - json_parse(string) -> any
         Parse the given string as JSON.
 
     - typeof(value) -> string
         Return type of value.
-
-    - val(value) -> T
-        Return a value as-is. Useful to return constants.
 
 ## IO & path wrangling
 
@@ -871,6 +946,10 @@ use the operators in the previous section.
 
     - bytesize(integer) -> string
         Return a number of bytes in human-readable format (KB, MB, GB, etc.).
+
+    - copy(source_path, target_path) -> string
+        Copy a source to target path. Will create necessary directories
+        on the way. Returns target path as a convenience.
 
     - ext(path) -> string?
         Return the path's extension, if any.
@@ -881,13 +960,24 @@ use the operators in the previous section.
     - isfile(string) -> bool
         Return whether the given path is an existing file on disk.
 
+    - move(source_path, target_path) -> string
+        Move a source to target path. Will create necessary directories
+        on the way. Returns target path as a convenience.
+
     - pathjoin(string, *strings) -> string
         Join multiple paths correctly.
 
-    - read(path, encoding?, errors?) -> string
+    - read(path, encoding=?, errors=?) -> string
         Read file at path. Default encoding is "utf-8".
         Default error handling policy is "replace", and can be
         one of "replace", "ignore" or "strict".
+
+    - read_csv(path) -> list[map]
+        Read and parse CSV file at path, returning its rows as
+        a list of maps with headers as keys.
+
+    - read_json(path) -> any
+        Read and parse JSON file at path.
 
     - write(string, path) -> string
         Write string to path as utf-8 text. Will create necessary
@@ -930,10 +1020,18 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - argmin(<expr>, <expr>?) -> any
         Return the index of the row where the first expression is minimized, or
         the result of the second expression where the first expression is minimized.
+        Ties will be broken by original row index.
 
     - argmax(<expr>, <expr>?) -> any
         Return the index of the row where the first expression is maximized, or
         the result of the second expression where the first expression is maximized.
+        Ties will be broken by original row index.
+
+    - argtop(k, <expr>, <expr>?, separator?)
+        Find the top k values returned by the first expression and either
+        return the indices of matching rows or the result of the second
+        expression, joined by a pipe character ('|') or by the provided separator.
+        Ties will be broken by original row index.
 
     - avg(<expr>) -> number
         Average of numerical values. Same as `mean`.
@@ -987,6 +1085,15 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Value appearing the most, breaking ties arbitrarily in favor of the
         first value in lexicographical order.
 
+    - most_common(k, <expr>, separator?)
+        List of top k most common values returned by expression
+        joined by a pipe character ('|') or by the provided separator.
+        Ties will be broken by lexicographical order.
+
+    - most_common_counts(k, <expr>, separator?)
+        List of top k most common counts returned by expression
+        joined by a pipe character ('|') or by the provided separator.
+
     - quantile(<expr>, p) -> number
         Return the desired quantile of numerical values.
 
@@ -1010,6 +1117,11 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
     - sum(<expr>) -> number
         Sum of numerical values.
+
+    - top(k, <expr>, separator?)
+        Find the top k values returned by the expression and join
+        them by a pipe character ('|') or by the provided separator.
+        Ties will be broken by original row index.
 
     - type(<expr>) -> string
         Best type description for seen values.
