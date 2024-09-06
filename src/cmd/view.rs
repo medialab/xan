@@ -12,7 +12,6 @@ use crate::CliError;
 use crate::CliResult;
 
 const TRAILING_COLS: usize = 8;
-const PER_CELL_PADDING_COLS: usize = 3;
 const HEADERS_ROWS: usize = 8;
 
 #[repr(u8)]
@@ -223,11 +222,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .collect();
 
+    // Border styles
+    let box_chars = BOX_CHARS;
+    let padding = " ";
+    let horizontal_box_char = box_chars[BoxChar::Horizontal as usize].to_string();
+
+    // Width inferrence
     let displayed_columns = infer_best_column_display(
         cols,
         &max_column_widths,
         args.infer_expand(),
         if args.flag_hide_index { 0 } else { 1 },
+        padding.len() * 2 + 1,
     );
 
     let all_columns_shown = displayed_columns.len() == headers.len();
@@ -249,9 +255,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut formatter = util::acquire_number_formatter();
-    let box_chars = BOX_CHARS;
-    let padding = " ";
-    let horizontal_box_char = box_chars[BoxChar::Horizontal as usize].to_string();
 
     let mut write_info = || -> Result<(), io::Error> {
         if args.flag_hide_info {
@@ -644,6 +647,7 @@ fn infer_best_column_display(
     max_column_widths: &[usize],
     expand: bool,
     left_advantage: usize,
+    per_cell_padding_cols: usize,
 ) -> DisplayedColumns {
     if expand {
         // NOTE: we keep max column size to 3/4 of current screen
@@ -714,14 +718,14 @@ fn infer_best_column_display(
                     break;
                 }
 
-                if *column_width + PER_CELL_PADDING_COLS > col_budget {
+                if *column_width + per_cell_padding_cols > col_budget {
                     if col_budget > 7 {
                         attempt.push(left, i, col_budget, max_column_widths[i]);
                     }
                     break;
                 }
 
-                col_budget -= column_width + PER_CELL_PADDING_COLS;
+                col_budget -= column_width + per_cell_padding_cols;
                 attempt.push(left, i, *column_width, max_column_widths[i]);
             } else {
                 break;
