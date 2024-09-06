@@ -1252,7 +1252,11 @@ fn datetime(args: BoundArguments) -> FunctionResult {
             Ok(zoned_datetime) => match_timezone(&datestring, zoned_datetime, timezone),
             Err(_) => match datestring.parse::<DateTime>() {
                 Ok(datetime) => Ok(DynamicValue::from(
-                    datetime.to_zoned(timezone_parse(timezone)?).unwrap(),
+                    datetime.to_zoned(timezone
+                        .map(|tz| {timezone_parse(tz)})
+                        .transpose()?
+                        .unwrap_or_else(TimeZone::system))
+                        .unwrap()
                 )),
                 Err(_) => Err(EvaluationError::IO(format!(
                     "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
@@ -1270,7 +1274,11 @@ fn datetime(args: BoundArguments) -> FunctionResult {
                     let datetime = DateTime::strptime(format.as_ref(), datestring.as_ref());
                     match datetime {
                         Ok(datetime) => Ok(DynamicValue::from(
-                            datetime.to_zoned(timezone_parse(timezone)?).unwrap(),
+                            datetime.to_zoned(timezone
+                                .map(|tz| {timezone_parse(tz)})
+                                .transpose()?
+                                .unwrap_or_else(TimeZone::system))
+                                .unwrap()
                         )),
                         Err(_) => Err(EvaluationError::IO(format!(
                             "cannot parse \"{}\" with format \"{}\"",
@@ -1299,7 +1307,7 @@ fn strftime(args: BoundArguments) -> FunctionResult {
     };
 
     let zoned_datetime = match timezone {
-        Some(_tz) => {
+        Some(timezone) => {
             let tz = timezone_parse(timezone)?;
             datetime.try_into_datetime()?.with_time_zone(tz)
         }
@@ -1316,16 +1324,13 @@ fn strftime(args: BoundArguments) -> FunctionResult {
     }
 }
 
-fn timezone_parse(timezone: Option<&DynamicValue>) -> Result<TimeZone, EvaluationError> {
-    match timezone {
-        Some(timezone) => match TimeZone::get(&timezone.try_as_str()?) {
-            Ok(timezone) => Ok(timezone),
-            Err(_) => Err(EvaluationError::IO(format!(
-                "{} is not a valid timezone",
-                timezone.try_as_str()?
-            ))),
-        },
-        None => Ok(TimeZone::system()),
+fn timezone_parse(timezone: &DynamicValue) -> Result<TimeZone, EvaluationError> {
+    match TimeZone::get(&timezone.try_as_str()?) {
+        Ok(timezone) => Ok(timezone),
+        Err(_) => Err(EvaluationError::IO(format!(
+            "{} is not a valid timezone",
+            timezone.try_as_str()?
+        ))),
     }
 }
 
