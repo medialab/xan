@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.17.0"  #:version
+version = "0.18.0"  #:version
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
