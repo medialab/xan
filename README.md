@@ -434,7 +434,6 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - **cat** - Concatenate by row or column
 - **cluster** - Cluster CSV data to find near-duplicates
 - [**count**](./docs/cmd/count.md) - Count records
-- **datefmt** - Format a recognized date column to a specified format and timezone
 - **dedup** - Deduplicate a CSV file
 - **enum** - Enumerate CSV file by preprending an index column
 - **explode** - Explode rows based on some column separator

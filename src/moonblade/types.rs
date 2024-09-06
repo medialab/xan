@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
+use jiff::Zoned;
 use regex::Regex;
 use serde::{
     de::{MapAccess, SeqAccess, Visitor},
@@ -637,8 +638,11 @@ pub enum DynamicValue {
     Integer(i64),
     Boolean(bool),
     Regex(Arc<Regex>),
+    DateTime(Box<Zoned>),
     None,
 }
+
+const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T[%Z]";
 
 impl Default for DynamicValue {
     fn default() -> Self {
@@ -659,6 +663,10 @@ impl Serialize for DynamicValue {
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
+            Self::DateTime(v) => v
+                .strftime(DYNAMIC_VALUE_DATE_FORMAT)
+                .to_string()
+                .serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -776,6 +784,7 @@ impl DynamicValue {
             Self::Float(_) => "float",
             Self::Integer(_) => "integer",
             Self::Boolean(_) => "boolean",
+            Self::DateTime(_) => "datetime",
             Self::Regex(_) => "regex",
             Self::None => "none",
         }
@@ -818,13 +827,13 @@ impl DynamicValue {
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Integer(value) => Cow::Owned(value.to_string().into_bytes()),
-            Self::Boolean(value) => {
-                if *value {
-                    Cow::Borrowed(b"true")
-                } else {
-                    Cow::Borrowed(b"false")
-                }
-            }
+            Self::Boolean(value) => Cow::Borrowed(if *value { b"true" } else { b"false" }),
+            Self::DateTime(value) => Cow::Owned(
+                value
+                    .strftime(DYNAMIC_VALUE_DATE_FORMAT)
+                    .to_string()
+                    .into_bytes(),
+            ),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
@@ -834,11 +843,26 @@ impl DynamicValue {
         self.serialize_as_bytes_with_options(b"|")
     }
 
+    pub fn try_as_datetime(&self) -> Result<&Zoned, EvaluationError> {
+        match self {
+            Self::DateTime(zoned) => Ok(zoned),
+            _ => Err(EvaluationError::from_cast(self, "datetime")),
+        }
+    }
+
+    pub fn try_into_datetime(self) -> Result<Zoned, EvaluationError> {
+        match self {
+            Self::DateTime(zoned) => Ok(*zoned),
+            _ => Err(EvaluationError::from_cast(&self, "datetime")),
+        }
+    }
+
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string()),
             Self::Integer(value) => Cow::Owned(value.to_string()),
+            Self::DateTime(value) => Cow::Owned(value.to_string()),
             Self::Boolean(value) => Cow::Borrowed(if *value { "true" } else { "false" }),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
             Self::None => Cow::Borrowed(""),
@@ -965,6 +989,7 @@ impl DynamicValue {
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
+            Self::DateTime(_) => true,
             Self::None => false,
         }
     }
@@ -1119,6 +1144,12 @@ impl From<DynamicNumber> for DynamicValue {
     }
 }
 
+impl From<Zoned> for DynamicValue {
+    fn from(value: Zoned) -> Self {
+        DynamicValue::DateTime(Box::new(value))
+    }
+}
+
 impl<T> From<Option<T>> for DynamicValue
 where
     T: Into<DynamicValue>,
@@ -1140,6 +1171,7 @@ impl PartialEq for DynamicValue {
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
+            (Self::DateTime(a), Self::DateTime(b)) => a == b,
             (Self::None, Self::None) => true,
             _ => false,
         }
@@ -1238,12 +1270,32 @@ impl BoundArguments {
     }
 }
 
+pub struct BoundArgumentsIntoIterator(arrayvec::IntoIter<DynamicValue, BOUND_ARGUMENTS_CAPACITY>);
+
+impl BoundArgumentsIntoIterator {
+    pub fn next_not_none(&mut self) -> Option<DynamicValue> {
+        self.next().and_then(|value| match value {
+            DynamicValue::None => None,
+            _ => Some(value),
+        })
+    }
+}
+
+impl Iterator for BoundArgumentsIntoIterator {
+    type Item = DynamicValue;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+}
+
 impl IntoIterator for BoundArguments {
     type Item = DynamicValue;
-    type IntoIter = arrayvec::IntoIter<Self::Item, BOUND_ARGUMENTS_CAPACITY>;
+    type IntoIter = BoundArgumentsIntoIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.stack.into_iter()
+        BoundArgumentsIntoIterator(self.stack.into_iter())
     }
 }
 

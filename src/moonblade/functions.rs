@@ -12,6 +12,7 @@ use std::sync::Arc;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
+use jiff::{civil::DateTime, fmt::strtime, tz::TimeZone, Timestamp, Zoned};
 use namedlock::{AutoCleanup, LockSpace};
 use paltoquet::tokenizers::FingerprintTokenizer;
 use unidecode::unidecode;
@@ -161,6 +162,22 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
+        "strftime" => (
+            strftime,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::Positional,
+                Argument::with_name("timezone"),
+            ]),
+        ),
+        "datetime" => (
+            datetime,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("format"),
+                Argument::with_name("timezone"),
+            ]),
+        ),
         "sub" => (
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
@@ -189,6 +206,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| sequence_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
+        "timestamp" => (timestamp, FunctionArguments::unary()),
+        "timestamp_ms" => (timestamp_ms, FunctionArguments::unary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
             |args| unary_arithmetic_op(args, DynamicNumber::trunc),
@@ -1196,6 +1215,148 @@ fn bytesize(args: BoundArguments) -> FunctionResult {
     let human_readable = ByteSize::b(bytes).to_string();
 
     Ok(DynamicValue::from(human_readable))
+}
+
+// Dates
+fn timestamp(args: BoundArguments) -> FunctionResult {
+    let seconds = args.get1().try_as_i64()?;
+    let system = TimeZone::system();
+    match Timestamp::from_second(seconds) {
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
+        Err(_) => Err(EvaluationError::DateTime(format!(
+            "cannot parse \"{}\" as timestamp",
+            seconds
+        ))),
+    }
+}
+
+fn timestamp_ms(args: BoundArguments) -> FunctionResult {
+    let seconds = args.get1().try_as_i64()?;
+    let system = TimeZone::system();
+    match Timestamp::from_millisecond(seconds) {
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
+        Err(_) => Err(EvaluationError::DateTime(format!(
+            "cannot parse \"{}\" as timestamp",
+            seconds
+        ))),
+    }
+}
+
+fn datetime(args: BoundArguments) -> FunctionResult {
+    let datestring = args.get1().try_as_str()?;
+    let format = args.get_not_none(1);
+    let timezone = args.get_not_none(2);
+
+    match format {
+        None => match datestring.parse::<Zoned>() {
+            Ok(zoned_datetime) => match_timezone(&datestring, zoned_datetime, timezone),
+            Err(_) => match datestring.parse::<DateTime>() {
+                Ok(datetime) => Ok(DynamicValue::from(
+                    datetime.to_zoned(timezone
+                        .map(|tz| {timezone_parse(tz)})
+                        .transpose()?
+                        .unwrap_or_else(TimeZone::system))
+                        .unwrap()
+                )),
+                Err(_) => Err(EvaluationError::DateTime(format!(
+                    "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                    datestring
+                ))),
+            },
+        },
+        Some(format) => {
+            let format = format.try_as_str()?;
+            let zoned = Zoned::strptime(format.as_ref(), datestring.as_ref());
+
+            match zoned {
+                Ok(zoned_datetime) => match_timezone(&datestring, zoned_datetime, timezone),
+                Err(_) => {
+                    let datetime = DateTime::strptime(format.as_ref(), datestring.as_ref());
+                    match datetime {
+                        Ok(datetime) => Ok(DynamicValue::from(
+                            datetime.to_zoned(timezone
+                                .map(|tz| {timezone_parse(tz)})
+                                .transpose()?
+                                .unwrap_or_else(TimeZone::system))
+                                .unwrap()
+                        )),
+                        Err(_) => Err(EvaluationError::DateTime(format!(
+                            "cannot parse \"{}\" with format \"{}\"",
+                            datestring, format
+                        ))),
+                    }
+
+                }
+            }
+        }
+    }
+}
+
+fn strftime(args: BoundArguments) -> FunctionResult {
+    let mut args = args.into_iter();
+
+    let target = args.next().unwrap();
+    let format = args.next().unwrap();
+    let timezone = args.next_not_none();
+
+    let fmt = format.try_as_str()?;
+
+    let datetime = match target {
+        DynamicValue::DateTime(value) => DynamicValue::DateTime(value),
+        _ => {
+            let mut first_arg = BoundArguments::new();
+            first_arg.push(target);
+            datetime(first_arg)?
+        }
+    };
+
+    let zoned_datetime = match timezone {
+        Some(timezone) => {
+            let tz = timezone_parse(&timezone)?;
+            datetime.try_into_datetime()?.with_time_zone(tz)
+        }
+        None => datetime.try_into_datetime()?,
+    };
+
+    let formatted_datetime = strtime::format(fmt.as_ref(), &zoned_datetime);
+    match formatted_datetime {
+        Ok(value) => Ok(DynamicValue::from(value)),
+        Err(_) => Err(EvaluationError::DateTime(format!(
+            "\"{}\" is not a valid format",
+            fmt.as_ref()
+        ))),
+    }
+}
+
+fn timezone_parse(timezone: &DynamicValue) -> Result<TimeZone, EvaluationError> {
+    match TimeZone::get(&timezone.try_as_str()?) {
+        Ok(timezone) => Ok(timezone),
+        Err(_) => Err(EvaluationError::DateTime(format!(
+            "{} is not a valid timezone",
+            timezone.try_as_str()?
+        ))),
+    }
+}
+
+fn match_timezone(
+    datestring: &str,
+    zoned: Zoned,
+    timezone: Option<&DynamicValue>,
+) -> Result<DynamicValue, EvaluationError> {
+    match timezone {
+        None => Ok(DynamicValue::from(zoned)),
+        Some(timezone) => {
+            if TimeZone::get(&timezone.try_as_str()?).unwrap() == *zoned.time_zone() {
+                Ok(DynamicValue::from(zoned))
+            } else {
+                Err(EvaluationError::DateTime(format!(
+                    "conflicting timezones between \"{}\" and \"{}\"",
+                    datestring,
+                    timezone.try_as_str()?
+                )))
+            }
+        }
+    }
 }
 
 // Introspection

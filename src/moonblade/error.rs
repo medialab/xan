@@ -120,6 +120,7 @@ pub enum EvaluationError {
     InvalidPath,
     NotImplemented(String),
     IO(String),
+    DateTime(String),
     Cast(String, String),
     Custom(String),
     UnsupportedEncoding(String),
@@ -143,6 +144,7 @@ impl Display for EvaluationError {
             Self::InvalidPath => write!(f, "invalid posix path"),
             Self::InvalidArity(arity) => arity.fmt(f),
             Self::IO(msg) => write!(f, "{}", msg),
+            Self::DateTime(msg) => write!(f, "{}", msg),
             Self::Custom(msg) => write!(f, "{}", msg),
             Self::Cast(from_type, to_type) => write!(
                 f,

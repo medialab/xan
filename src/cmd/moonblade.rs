@@ -341,6 +341,28 @@ use the operators in the previous section.
     - upper(string) -> string
         Uppercase string.
 
+## Dates
+
+    - datetime(string, format=?, timezone=?) -> datetime
+        Parse a string as a datetime according to format and timezone
+        (https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications).
+        If no format is provided, string is parsed as ISO 8601 date format.
+        Default timezone is the system timezone.
+
+    - strftime(target, format, timezone=?) -> string
+        Format target (a time in ISO 8601 format,
+        or the result of datetime() function) according to format.
+
+    - timestamp(number) -> datetime
+        Parse a number as a POSIX timestamp in seconds
+        (nb of seconds since 1970-01-01 00:00:00 UTC),
+        and convert it to a datetime in local time.
+
+    - timestamp_ms(number) -> datetime
+        Parse a number as a POSIX timestamp in milliseconds
+        (nb of milliseconds since 1970-01-01 00:00:00 UTC),
+        and convert it to a datetime in local time.
+
 ## Collections (list of maps) functions
 
     - index_by(collection, key) -> map
