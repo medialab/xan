@@ -11,7 +11,6 @@ use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliError;
 use crate::CliResult;
 
-const TRAILING_COLS: usize = 8;
 const HEADERS_ROWS: usize = 8;
 
 #[repr(u8)]
@@ -233,7 +232,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         &max_column_widths,
         args.infer_expand(),
         if args.flag_hide_index { 0 } else { 1 },
-        padding.len() * 2 + 1,
+        padding,
     );
 
     let all_columns_shown = displayed_columns.len() == headers.len();
@@ -322,7 +321,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
                 });
 
-                s.push_str(&horizontal_box_char.repeat(3));
+                s.push_str(&horizontal_box_char.repeat(1 + 2 * padding.len()));
             }
 
             if i == displayed_columns.len() - 1 {
@@ -647,7 +646,7 @@ fn infer_best_column_display(
     max_column_widths: &[usize],
     expand: bool,
     left_advantage: usize,
-    per_cell_padding_cols: usize,
+    padding: &str,
 ) -> DisplayedColumns {
     if expand {
         // NOTE: we keep max column size to 3/4 of current screen
@@ -656,6 +655,9 @@ fn infer_best_column_display(
             adjust_column_widths(max_column_widths, ((cols as f64) * 0.75) as usize),
         );
     }
+
+    let per_cell_padding_cols = padding.len() * 2 + 1;
+    let ellipsis_padding_cols = padding.len() * 4 + 4;
 
     let mut attempts: Vec<DisplayedColumns> = Vec::new();
 
@@ -687,7 +689,7 @@ fn infer_best_column_display(
 
         let widths = adjust_column_widths(max_column_widths, max_allowed_width);
 
-        let mut col_budget = cols - TRAILING_COLS;
+        let mut col_budget = cols - ellipsis_padding_cols;
         let mut widths_iter = widths.iter().enumerate();
         let mut toggle = true;
         let mut left_leaning = left_advantage;
