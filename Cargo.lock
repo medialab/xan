@@ -1946,7 +1946,7 @@ dependencies = [
 
 [[package]]
 name = "xan"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "arrayvec 0.7.4",
  "atty",
