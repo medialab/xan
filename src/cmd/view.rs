@@ -119,26 +119,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         groupby_sel.offset_by(1);
     }
 
-    let mut potential_headers = rdr.headers()?.clone();
+    let mut headers = rdr.headers()?.clone();
 
     if !args.flag_hide_index {
-        potential_headers = potential_headers.prepend("-");
+        headers = headers.prepend("-");
     }
 
-    let mut headers: Vec<String> = Vec::new();
-
-    for (i, header) in potential_headers.iter().enumerate() {
-        let header = match rconfig.no_headers {
-            true => {
-                if i == 0 {
-                    header.to_string()
+    if rconfig.no_headers {
+        headers = headers
+            .into_iter()
+            .enumerate()
+            .map(|(i, h)| {
+                if args.flag_hide_index {
+                    i.to_string()
                 } else {
-                    (i - 1).to_string()
+                    if i == 0 {
+                        h.to_string()
+                    } else {
+                        (i - 1).to_string()
+                    }
                 }
-            }
-            false => header.to_string(),
-        };
-        headers.push(header);
+            })
+            .collect();
     }
 
     let mut all_records_buffered = false;
