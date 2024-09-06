@@ -1197,7 +1197,6 @@ impl BoundArguments {
         self.stack.len()
     }
 
-    // TODO: validate less than 8 arguments when parsing or concretizing
     pub fn push(&mut self, arg: DynamicValue) {
         self.stack.push(arg);
     }
@@ -1285,6 +1284,7 @@ impl BoundArgumentsIntoIterator {
 impl Iterator for BoundArgumentsIntoIterator {
     type Item = DynamicValue;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
     }
