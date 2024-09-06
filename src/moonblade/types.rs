@@ -638,7 +638,7 @@ pub enum DynamicValue {
     Integer(i64),
     Boolean(bool),
     Regex(Arc<Regex>),
-    DateTime(Zoned),
+    DateTime(Box<Zoned>),
     None,
 }
 
@@ -852,7 +852,7 @@ impl DynamicValue {
 
     pub fn try_into_datetime(self) -> Result<Zoned, EvaluationError> {
         match self {
-            Self::DateTime(zoned) => Ok(zoned),
+            Self::DateTime(zoned) => Ok(*zoned),
             _ => Err(EvaluationError::from_cast(&self, "datetime")),
         }
     }
@@ -1146,7 +1146,7 @@ impl From<DynamicNumber> for DynamicValue {
 
 impl From<Zoned> for DynamicValue {
     fn from(value: Zoned) -> Self {
-        DynamicValue::DateTime(value)
+        DynamicValue::DateTime(Box::new(value))
     }
 }
 
