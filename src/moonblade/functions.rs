@@ -14,7 +14,7 @@ use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
 use jiff::{civil::DateTime, fmt::strtime, tz::TimeZone, Timestamp, Zoned};
 use namedlock::{AutoCleanup, LockSpace};
-use paltoquet::tokenizers::FingerprintTokenizer;
+use paltoquet::{stemmers::s_stemmer, tokenizers::FingerprintTokenizer};
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -80,6 +80,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "contains" => (contains, FunctionArguments::binary()),
         "copy" => (copy_file, FunctionArguments::binary()),
         "count" => (count, FunctionArguments::binary()),
+        "datetime" => (
+            datetime,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("format"),
+                Argument::with_name("timezone"),
+            ]),
+        ),
         "div" => (
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
@@ -170,18 +178,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("timezone"),
             ]),
         ),
-        "datetime" => (
-            datetime,
-            FunctionArguments::complex(vec![
-                Argument::Positional,
-                Argument::with_name("format"),
-                Argument::with_name("timezone"),
-            ]),
-        ),
         "sub" => (
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
         ),
+        "s_stemmer" => (s_stemmer_fn, FunctionArguments::unary()),
         "eq" => (
             |args| sequence_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
@@ -1385,6 +1386,12 @@ fn fingerprint(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(
         FINGERPRINT_TOKENIZER.key(string.as_ref()),
     ))
+}
+
+fn s_stemmer_fn(args: BoundArguments) -> FunctionResult {
+    let string = args.get1().try_as_str()?;
+
+    Ok(DynamicValue::from(s_stemmer(&string)))
 }
 
 // Utils

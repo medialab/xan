@@ -381,12 +381,16 @@ use the operators in the previous section.
     - mean(numbers) -> number?
         Return the means of the given numbers.
 
-## Fuzzy matching
+## Fuzzy matching & information retrieval
 
     - fingerprint(string) -> string
-        Fingerprints a string by normalizing characters, re-ordering
+        Fingerprint a string by normalizing characters, re-ordering
         and deduplicating its word tokens before re-joining them by
         spaces.
+
+    - s_stemmer(string) -> string
+        Apply a very simple stemmer removing common plural inflexions in
+        some languages.
 
 ## Utils
 
