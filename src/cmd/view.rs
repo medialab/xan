@@ -42,6 +42,7 @@ struct ViewTheme {
     box_chars: BoxCharsArray,
     hr_under_headers: bool,
     external_borders: bool,
+    striped: bool,
 }
 
 impl Default for ViewTheme {
@@ -52,6 +53,7 @@ impl Default for ViewTheme {
             box_chars: BOX_CHARS,
             hr_under_headers: true,
             external_borders: true,
+            striped: false,
         }
     }
 }
@@ -75,6 +77,7 @@ impl ViewTheme {
             box_chars: INVISIBLE_BOX_CHARS,
             hr_under_headers: false,
             external_borders: false,
+            ..Self::default()
         }
     }
 
@@ -90,6 +93,17 @@ impl ViewTheme {
             index_column_header: " ",
             external_borders: false,
             ..Self::default()
+        }
+    }
+
+    fn striped() -> Self {
+        Self {
+            padding: "",
+            index_column_header: " ",
+            box_chars: INVISIBLE_BOX_CHARS,
+            hr_under_headers: false,
+            external_borders: false,
+            striped: true,
         }
     }
 
@@ -149,6 +163,7 @@ impl FromStr for ViewTheme {
             "compact" => Self::compact(),
             "rounded" => Self::rounded(),
             "slim" => Self::slim(),
+            "striped" => Self::striped(),
             _ => return Err(format!("unknown \"{}\" theme!", s)),
         })
     }
@@ -176,7 +191,7 @@ Usage:
 
 view options:
     -t, --theme <name>     Theme for the table display, one of: \"default\", \"borderless\", \"compact\",
-                           \"rounded\" or \"slim\".
+                           \"rounded\", \"slim\" or \"striped\".
                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
     -p, --pager            Automatically use the \"less\" command to page the results.
                            This flag does not work on windows!
@@ -493,7 +508,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    let write_row = |row: Vec<colored::ColoredString>| -> Result<(), io::Error> {
+    let write_row = |row: Vec<colored::ColoredString>, mut dimmed: bool| -> Result<(), io::Error> {
+        if !theme.striped {
+            dimmed = false;
+        }
+
         if theme.external_borders {
             write!(
                 &output,
@@ -511,7 +530,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 )?;
             }
 
-            write!(&output, "{}", cell)?;
+            if dimmed {
+                write!(&output, "{}", cell.clone().reversed())?;
+            } else {
+                write!(&output, "{}", cell)?;
+            }
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 write!(
@@ -559,7 +582,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(headers_row)?;
+        write_row(headers_row, false)?;
 
         if !above || theme.hr_under_headers {
             write_horizontal_ruler(if above {
@@ -590,6 +613,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut last_group: Option<Vec<String>> = None;
+    let mut record_i: usize = 0;
 
     for record in records.iter() {
         let (need_to_draw_hr, need_to_erase_sel) = if let Some(groupby_sel) = &groupby_sel_opt {
@@ -649,7 +673,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(row)?;
+        write_row(row, record_i % 2 == 0)?;
+        record_i += 1;
     }
 
     if !all_records_buffered {
@@ -658,7 +683,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|col| util::unicode_aware_rpad_with_ellipsis("…", col.allowed_width, " ").dimmed())
             .collect();
 
-        write_row(row)?;
+        write_row(row, record_i % 2 == 0)?;
     }
 
     if need_to_repeat_headers {
