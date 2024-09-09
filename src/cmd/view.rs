@@ -34,12 +34,13 @@ enum BoxChar {
 
 const BOX_CHARS: BoxCharsArray = ['┌', '┐', '└', '┘', '┤', '├', '┬', '┴', '┼', '─', '│'];
 const ROUNDED_BOX_CHARS: BoxCharsArray = ['╭', '╮', '╰', '╯', '┤', '├', '┬', '┴', '┼', '─', '│'];
+const INVISIBLE_BOX_CHARS: BoxCharsArray = [' '; 11];
 
-#[derive(Clone)]
 struct ViewTheme {
     padding: &'static str,
     index_column_header: &'static str,
     box_chars: BoxCharsArray,
+    hr_under_headers: bool,
 }
 
 impl Default for ViewTheme {
@@ -48,12 +49,23 @@ impl Default for ViewTheme {
             padding: " ",
             index_column_header: "-",
             box_chars: BOX_CHARS,
+            hr_under_headers: true,
         }
     }
 }
 
 impl ViewTheme {
     // Themes beyond default
+    fn compact() -> Self {
+        Self {
+            padding: "",
+            index_column_header: " ",
+            box_chars: INVISIBLE_BOX_CHARS,
+            hr_under_headers: false,
+            ..Self::default()
+        }
+    }
+
     fn rounded() -> Self {
         Self {
             box_chars: ROUNDED_BOX_CHARS,
@@ -113,6 +125,7 @@ impl FromStr for ViewTheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_ascii_lowercase().as_str() {
             "default" => Self::default(),
+            "compact" => Self::compact(),
             "rounded" => Self::rounded(),
             _ => return Err(format!("unknown \"{}\" theme", s)),
         })
@@ -140,7 +153,7 @@ Usage:
     xan view --help
 
 view options:
-    -t, --theme <name>     Theme for the table display, one of: \"default\", \"rounded\".
+    -t, --theme <name>     Theme for the table display, one of: \"default\", \"rounded\", \"compact\".
                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
     -p, --pager            Automatically use the \"less\" command to page the results.
                            This flag does not work on windows!
@@ -484,11 +497,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let write_headers = |above: bool| -> Result<(), io::Error> {
-        write_horizontal_ruler(if above {
-            HRPosition::Bottom
-        } else {
-            HRPosition::Middle
-        })?;
+        if above || theme.hr_under_headers {
+            write_horizontal_ruler(if above {
+                HRPosition::Bottom
+            } else {
+                HRPosition::Middle
+            })?;
+        }
 
         let headers_row: Vec<colored::ColoredString> = displayed_columns
             .iter()
@@ -506,11 +521,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect();
 
         write_row(headers_row)?;
-        write_horizontal_ruler(if above {
-            HRPosition::Middle
-        } else {
-            HRPosition::Top
-        })?;
+
+        if !above || theme.hr_under_headers {
+            write_horizontal_ruler(if above {
+                HRPosition::Middle
+            } else {
+                HRPosition::Top
+            })?;
+        }
 
         Ok(())
     };
