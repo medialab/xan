@@ -41,6 +41,7 @@ struct ViewTheme {
     index_column_header: &'static str,
     box_chars: BoxCharsArray,
     hr_under_headers: bool,
+    external_borders: bool,
 }
 
 impl Default for ViewTheme {
@@ -50,25 +51,44 @@ impl Default for ViewTheme {
             index_column_header: "-",
             box_chars: BOX_CHARS,
             hr_under_headers: true,
+            external_borders: true,
         }
     }
 }
 
 impl ViewTheme {
     // Themes beyond default
+    fn borderless() -> Self {
+        Self {
+            index_column_header: " ",
+            box_chars: INVISIBLE_BOX_CHARS,
+            hr_under_headers: false,
+            external_borders: false,
+            ..Self::default()
+        }
+    }
+
     fn compact() -> Self {
         Self {
             padding: "",
             index_column_header: " ",
             box_chars: INVISIBLE_BOX_CHARS,
             hr_under_headers: false,
-            ..Self::default()
+            external_borders: false,
         }
     }
 
     fn rounded() -> Self {
         Self {
             box_chars: ROUNDED_BOX_CHARS,
+            ..Self::default()
+        }
+    }
+
+    fn slim() -> Self {
+        Self {
+            index_column_header: " ",
+            external_borders: false,
             ..Self::default()
         }
     }
@@ -125,9 +145,11 @@ impl FromStr for ViewTheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_ascii_lowercase().as_str() {
             "default" => Self::default(),
+            "borderless" => Self::borderless(),
             "compact" => Self::compact(),
             "rounded" => Self::rounded(),
-            _ => return Err(format!("unknown \"{}\" theme", s)),
+            "slim" => Self::slim(),
+            _ => return Err(format!("unknown \"{}\" theme!", s)),
         })
     }
 }
@@ -153,7 +175,8 @@ Usage:
     xan view --help
 
 view options:
-    -t, --theme <name>     Theme for the table display, one of: \"default\", \"rounded\", \"compact\".
+    -t, --theme <name>     Theme for the table display, one of: \"default\", \"borderless\", \"compact\",
+                           \"rounded\" or \"slim\".
                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
     -p, --pager            Automatically use the \"less\" command to page the results.
                            This flag does not work on windows!
@@ -418,14 +441,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let write_horizontal_ruler = |pos: HRPosition| -> Result<(), io::Error> {
         let mut s = String::new();
 
-        s.push(match pos {
-            HRPosition::Bottom => theme.corner_up_left(),
-            HRPosition::Top => theme.corner_bottom_left(),
-            HRPosition::Middle => theme.cross_right(),
-        });
+        if theme.external_borders {
+            s.push(match pos {
+                HRPosition::Bottom => theme.corner_up_left(),
+                HRPosition::Top => theme.corner_bottom_left(),
+                HRPosition::Middle => theme.cross_right(),
+            });
+        }
 
         displayed_columns.iter().enumerate().for_each(|(i, col)| {
-            s.push_str(&horizontal_box.repeat(col.allowed_width + 2 * padding.len()));
+            s.push_str(&horizontal_box.repeat(
+                col.allowed_width + 2 * padding.len()
+                    - (if i == 0 && !theme.external_borders {
+                        1
+                    } else {
+                        0
+                    }),
+            ));
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 s.push(match pos {
@@ -448,11 +480,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             });
         });
 
-        s.push(match pos {
-            HRPosition::Bottom => theme.corner_up_right(),
-            HRPosition::Top => theme.corner_bottom_right(),
-            HRPosition::Middle => theme.cross_left(),
-        });
+        if theme.external_borders {
+            s.push(match pos {
+                HRPosition::Bottom => theme.corner_up_right(),
+                HRPosition::Top => theme.corner_bottom_right(),
+                HRPosition::Middle => theme.cross_left(),
+            });
+        }
 
         writeln!(&output, "{}", s.dimmed())?;
 
@@ -460,11 +494,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let write_row = |row: Vec<colored::ColoredString>| -> Result<(), io::Error> {
-        write!(
-            &output,
-            "{}",
-            format!("{}{}", theme.vertical(), padding).dimmed()
-        )?;
+        if theme.external_borders {
+            write!(
+                &output,
+                "{}",
+                format!("{}{}", theme.vertical(), padding).dimmed()
+            )?;
+        }
 
         for (i, cell) in row.iter().enumerate() {
             if i != 0 {
@@ -486,11 +522,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        write!(
-            &output,
-            "{}",
-            format!("{}{}", padding, theme.vertical()).dimmed()
-        )?;
+        if theme.external_borders {
+            write!(
+                &output,
+                "{}",
+                format!("{}{}", padding, theme.vertical()).dimmed()
+            )?;
+        }
+
         writeln!(&output)?;
 
         Ok(())
