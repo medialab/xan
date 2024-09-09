@@ -1,4 +1,6 @@
+use std::env;
 use std::io::{self, Write};
+use std::str::FromStr;
 
 use colored::{self, Colorize};
 use csv;
@@ -12,6 +14,8 @@ use crate::CliError;
 use crate::CliResult;
 
 const HEADERS_ROWS: usize = 8;
+
+type BoxCharsArray = [char; 11];
 
 #[repr(u8)]
 enum BoxChar {
@@ -28,7 +32,92 @@ enum BoxChar {
     Vertical,
 }
 
-const BOX_CHARS: [char; 11] = ['┌', '┐', '└', '┘', '┤', '├', '┬', '┴', '┼', '─', '│'];
+const BOX_CHARS: BoxCharsArray = ['┌', '┐', '└', '┘', '┤', '├', '┬', '┴', '┼', '─', '│'];
+const ROUNDED_BOX_CHARS: BoxCharsArray = ['╭', '╮', '╰', '╯', '┤', '├', '┬', '┴', '┼', '─', '│'];
+
+#[derive(Clone)]
+struct ViewTheme {
+    padding: &'static str,
+    index_column_header: &'static str,
+    box_chars: BoxCharsArray,
+}
+
+impl Default for ViewTheme {
+    fn default() -> Self {
+        Self {
+            padding: " ",
+            index_column_header: "-",
+            box_chars: BOX_CHARS,
+        }
+    }
+}
+
+impl ViewTheme {
+    // Themes beyond default
+    fn rounded() -> Self {
+        Self {
+            box_chars: ROUNDED_BOX_CHARS,
+            ..Self::default()
+        }
+    }
+
+    // Methods
+    fn horizontal_box(&self) -> String {
+        self.box_chars[BoxChar::Horizontal as usize].to_string()
+    }
+
+    fn corner_up_left(&self) -> char {
+        self.box_chars[BoxChar::CornerUpLeft as usize]
+    }
+
+    fn corner_up_right(&self) -> char {
+        self.box_chars[BoxChar::CornerUpRight as usize]
+    }
+
+    fn corner_bottom_left(&self) -> char {
+        self.box_chars[BoxChar::CornerBottomLeft as usize]
+    }
+
+    fn corner_bottom_right(&self) -> char {
+        self.box_chars[BoxChar::CornerBottomRight as usize]
+    }
+
+    fn cross_left(&self) -> char {
+        self.box_chars[BoxChar::CrossLeft as usize]
+    }
+
+    fn cross_right(&self) -> char {
+        self.box_chars[BoxChar::CrossRight as usize]
+    }
+
+    fn cross_bottom(&self) -> char {
+        self.box_chars[BoxChar::CrossBottom as usize]
+    }
+
+    fn cross_up(&self) -> char {
+        self.box_chars[BoxChar::CrossUp as usize]
+    }
+
+    fn cross_full(&self) -> char {
+        self.box_chars[BoxChar::CrossFull as usize]
+    }
+
+    fn vertical(&self) -> char {
+        self.box_chars[BoxChar::Vertical as usize]
+    }
+}
+
+impl FromStr for ViewTheme {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_ascii_lowercase().as_str() {
+            "default" => Self::default(),
+            "rounded" => Self::rounded(),
+            _ => return Err(format!("unknown \"{}\" theme", s)),
+        })
+    }
+}
 
 static USAGE: &str = "
 Preview CSV data in the terminal in a human-friendly way with aligned columns,
@@ -51,10 +140,12 @@ Usage:
     xan view --help
 
 view options:
+    -t, --theme <name>     Theme for the table display, one of: \"default\", \"rounded\".
+                           Can also be set through the \"XAN_VIEW_THEME\" environment variable.
     -p, --pager            Automatically use the \"less\" command to page the results.
                            This flag does not work on windows!
     -l, --limit <number>   Maximum of lines of files to read into memory. Set
-                           to <=0 to disable a limit. [default: 100].
+                           to <= 0 to disable the limit. [default: 100].
     -R, --rainbow          Alqternating colors for columns, rather than color by value type.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
@@ -82,6 +173,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_pager: bool,
+    flag_theme: Option<String>,
     flag_cols: Option<usize>,
     flag_delimiter: Option<Delimiter>,
     flag_no_headers: bool,
@@ -120,6 +212,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let cols = util::acquire_term_cols(&args.flag_cols);
     let rows = util::acquire_term_rows();
 
+    // Theme
+    let theme = match &args.flag_theme {
+        Some(name) => name.to_string(),
+        None => match env::var("XAN_VIEW_THEME") {
+            Ok(name) if !name.is_empty() => name,
+            _ => "default".to_string(),
+        },
+    }
+    .parse::<ViewTheme>()?;
+
+    let padding = theme.padding;
+    let horizontal_box = theme.horizontal_box();
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
@@ -140,7 +245,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut headers = rdr.headers()?.clone();
 
     if !args.flag_hide_index {
-        headers = headers.prepend("-");
+        headers = headers.prepend(theme.index_column_header);
     }
 
     if rconfig.no_headers {
@@ -220,11 +325,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )
         })
         .collect();
-
-    // Border styles
-    let box_chars = BOX_CHARS;
-    let padding = " ";
-    let horizontal_box_char = box_chars[BoxChar::Horizontal as usize].to_string();
 
     // Width inferrence
     let displayed_columns = infer_best_column_display(
@@ -306,22 +406,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut s = String::new();
 
         s.push(match pos {
-            HRPosition::Bottom => box_chars[BoxChar::CornerUpLeft as usize],
-            HRPosition::Top => box_chars[BoxChar::CornerBottomLeft as usize],
-            HRPosition::Middle => box_chars[BoxChar::CrossRight as usize],
+            HRPosition::Bottom => theme.corner_up_left(),
+            HRPosition::Top => theme.corner_bottom_left(),
+            HRPosition::Middle => theme.cross_right(),
         });
 
         displayed_columns.iter().enumerate().for_each(|(i, col)| {
-            s.push_str(&horizontal_box_char.repeat(col.allowed_width + 2 * padding.len()));
+            s.push_str(&horizontal_box.repeat(col.allowed_width + 2 * padding.len()));
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 s.push(match pos {
-                    HRPosition::Bottom => box_chars[BoxChar::CrossBottom as usize],
-                    HRPosition::Top => box_chars[BoxChar::CrossUp as usize],
-                    HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
+                    HRPosition::Bottom => theme.cross_bottom(),
+                    HRPosition::Top => theme.cross_up(),
+                    HRPosition::Middle => theme.cross_full(),
                 });
 
-                s.push_str(&horizontal_box_char.repeat(1 + 2 * padding.len()));
+                s.push_str(&horizontal_box.repeat(1 + 2 * padding.len()));
             }
 
             if i == displayed_columns.len() - 1 {
@@ -329,16 +429,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             s.push(match pos {
-                HRPosition::Bottom => box_chars[BoxChar::CrossBottom as usize],
-                HRPosition::Top => box_chars[BoxChar::CrossUp as usize],
-                HRPosition::Middle => box_chars[BoxChar::CrossFull as usize],
+                HRPosition::Bottom => theme.cross_bottom(),
+                HRPosition::Top => theme.cross_up(),
+                HRPosition::Middle => theme.cross_full(),
             });
         });
 
         s.push(match pos {
-            HRPosition::Bottom => box_chars[BoxChar::CornerUpRight as usize],
-            HRPosition::Top => box_chars[BoxChar::CornerBottomRight as usize],
-            HRPosition::Middle => box_chars[BoxChar::CrossLeft as usize],
+            HRPosition::Bottom => theme.corner_up_right(),
+            HRPosition::Top => theme.corner_bottom_right(),
+            HRPosition::Middle => theme.cross_left(),
         });
 
         writeln!(&output, "{}", s.dimmed())?;
@@ -350,7 +450,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write!(
             &output,
             "{}",
-            format!("{}{}", box_chars[BoxChar::Vertical as usize], padding).dimmed()
+            format!("{}{}", theme.vertical(), padding).dimmed()
         )?;
 
         for (i, cell) in row.iter().enumerate() {
@@ -358,13 +458,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 write!(
                     &output,
                     "{}",
-                    format!(
-                        "{}{}{}",
-                        padding,
-                        box_chars[BoxChar::Vertical as usize],
-                        padding
-                    )
-                    .dimmed()
+                    format!("{}{}{}", padding, theme.vertical(), padding).dimmed()
                 )?;
             }
 
@@ -374,13 +468,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 write!(
                     &output,
                     "{}…",
-                    format!(
-                        "{}{}{}",
-                        padding,
-                        box_chars[BoxChar::Vertical as usize],
-                        padding
-                    )
-                    .dimmed(),
+                    format!("{}{}{}", padding, theme.vertical(), padding).dimmed(),
                 )?;
             }
         }
@@ -388,7 +476,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write!(
             &output,
             "{}",
-            format!("{}{}", padding, box_chars[BoxChar::Vertical as usize]).dimmed()
+            format!("{}{}", padding, theme.vertical()).dimmed()
         )?;
         writeln!(&output)?;
 
