@@ -358,17 +358,17 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
     }
 }
 
-// pub fn highlight_trimmable_whitespace(string: &str) -> String {
-//     let start = string.len() - string.trim_start().len();
-//     let end = string.trim_end().len();
+pub fn highlight_trimmable_whitespace(string: &str) -> String {
+    let start = string.len() - string.trim_start().len();
+    let end = string.trim_end().len();
 
-//     format!(
-//         "{}{}{}",
-//         "·".repeat((0..start).len()).white().dimmed(),
-//         &string[start..end],
-//         "·".repeat((end..string.len()).len()).white().dimmed()
-//     )
-// }
+    format!(
+        "{}{}{}",
+        "·".repeat((0..start).len()).white().dimmed(),
+        &string[start..end],
+        "·".repeat((end..string.len()).len()).white().dimmed()
+    )
+}
 
 pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
     // Replacing some nasty stuff that can break representation
@@ -410,8 +410,9 @@ pub fn unicode_aware_pad<'a>(
     string: &'a str,
     width: usize,
     padding: &str,
+    actual_string_width: Option<usize>,
 ) -> Cow<'a, str> {
-    let string_width = string.width();
+    let string_width = actual_string_width.unwrap_or_else(|| string.width());
 
     if string_width >= width {
         return Cow::Borrowed(string);
@@ -432,7 +433,7 @@ pub fn unicode_aware_pad<'a>(
 }
 
 pub fn unicode_aware_rpad<'a>(string: &'a str, width: usize, padding: &str) -> Cow<'a, str> {
-    unicode_aware_pad(false, string, width, padding)
+    unicode_aware_pad(false, string, width, padding, None)
 }
 
 fn has_rtl(string: &str) -> bool {
@@ -445,9 +446,38 @@ pub fn unicode_aware_pad_with_ellipsis(
     width: usize,
     padding: &str,
 ) -> String {
-    let mut string =
-        unicode_aware_pad(left, &unicode_aware_ellipsis(string, width), width, padding)
-            .into_owned();
+    let mut string = unicode_aware_pad(
+        left,
+        &unicode_aware_ellipsis(string, width),
+        width,
+        padding,
+        None,
+    )
+    .into_owned();
+
+    // NOTE: we force back to LTR at the end of the string, so it does not destroy
+    // table formatting & wrapping.
+    if has_rtl(&string) {
+        string.push('\u{200E}');
+    }
+
+    string
+}
+
+pub fn unicode_aware_highlighted_pad_with_ellipsis(
+    left: bool,
+    string: &str,
+    width: usize,
+    padding: &str,
+) -> String {
+    let mut string = unicode_aware_pad(
+        left,
+        &highlight_trimmable_whitespace(&unicode_aware_ellipsis(string, width)),
+        width,
+        padding,
+        Some(string.width()),
+    )
+    .into_owned();
 
     // NOTE: we force back to LTR at the end of the string, so it does not destroy
     // table formatting & wrapping.

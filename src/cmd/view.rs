@@ -663,12 +663,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     util::colorizer_by_type(cell)
                 };
 
-                let cell = util::unicode_aware_rpad_with_ellipsis(cell, col.allowed_width, " ");
-
                 if !args.flag_hide_index && i == 0 {
-                    cell.dimmed()
+                    util::unicode_aware_rpad_with_ellipsis(cell, col.allowed_width, " ").dimmed()
                 } else {
-                    util::colorize(&colorizer, &cell)
+                    util::colorize(
+                        &colorizer,
+                        &util::unicode_aware_highlighted_pad_with_ellipsis(
+                            false,
+                            cell,
+                            col.allowed_width,
+                            " ",
+                        ),
+                    )
                 }
             })
             .collect();
