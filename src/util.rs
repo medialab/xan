@@ -358,6 +358,18 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
     }
 }
 
+// pub fn highlight_trimmable_whitespace(string: &str) -> String {
+//     let start = string.len() - string.trim_start().len();
+//     let end = string.trim_end().len();
+
+//     format!(
+//         "{}{}{}",
+//         "·".repeat((0..start).len()).white().dimmed(),
+//         &string[start..end],
+//         "·".repeat((end..string.len()).len()).white().dimmed()
+//     )
+// }
+
 pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
     // Replacing some nasty stuff that can break representation
     let mut string = string.replace('\n', " ");
