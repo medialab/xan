@@ -41,7 +41,6 @@ extern crate serde_json;
 extern crate termsize;
 extern crate textwrap;
 extern crate threadpool;
-extern crate unicode_bidi;
 extern crate unicode_segmentation;
 extern crate unicode_width;
 extern crate unidecode;

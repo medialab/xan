@@ -436,8 +436,20 @@ pub fn unicode_aware_rpad<'a>(string: &'a str, width: usize, padding: &str) -> C
     unicode_aware_pad(false, string, width, padding, None)
 }
 
+// NOTE: adapted from https://docs.rs/is-rtl/0.1.1/src/is_rtl/lib.rs.html#1-30
+fn is_rtl(c: char) -> bool {
+    match c {
+        '\u{600}'..='\u{6FF}'
+        | '\u{10840}'..='\u{1085F}'
+        | '\u{591}'..='\u{5F4}'
+        | '\u{103A0}'..='\u{103D5}'
+        | '\u{700}'..='\u{74F}' => true,
+        _ => false,
+    }
+}
+
 fn has_rtl(string: &str) -> bool {
-    unicode_bidi::BidiInfo::new(string, None).has_rtl()
+    string.chars().any(is_rtl)
 }
 
 pub fn unicode_aware_pad_with_ellipsis(
