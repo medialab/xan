@@ -111,11 +111,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             let cell = if args.flag_condense {
-                util::unicode_aware_rpad_with_ellipsis(cell, max_value_width, " ")
+                util::unicode_aware_highlighted_pad_with_ellipsis(false, cell, max_value_width, " ")
             } else if args.flag_wrap {
                 util::unicode_aware_wrap(cell, max_value_width, max_header_width + 1)
             } else {
-                cell.to_string()
+                util::highlight_trimmable_whitespace(cell)
             };
 
             let cell = util::colorize(&cell_colorizer, &cell);
