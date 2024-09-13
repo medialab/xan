@@ -934,26 +934,16 @@ where
 {
     let (a, b) = args.pop2();
 
-    match (a, b) {
-        (DynamicValue::DateTime(a), b) => Ok(DynamicValue::from(
-            match a.partial_cmp(&b.try_into_datetime()?) {
-                Some(ordering) => validate(ordering),
-                None => false,
-            },
-        )),
-        (a, DynamicValue::DateTime(b)) => Ok(DynamicValue::from(
-            match b.partial_cmp(&a.try_into_datetime()?) {
-                Some(ordering) => validate(ordering),
-                None => false,
-            },
-        )),
-        (a, b) => Ok(DynamicValue::from(
-            match a.try_as_number()?.partial_cmp(&b.try_as_number()?) {
-                Some(ordering) => validate(ordering),
-                None => false,
-            },
-        )),
-    }
+    let ordering = match (a, b) {
+        (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
+        (a, DynamicValue::DateTime(b)) => b.partial_cmp(&a.try_into_datetime()?),
+        (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
+    };
+
+    Ok(DynamicValue::from(match ordering {
+        Some(ordering) => validate(ordering),
+        None => false,
+    }))
 }
 
 fn sequence_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
