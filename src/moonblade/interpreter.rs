@@ -930,6 +930,29 @@ mod tests {
         assert_eq!(eval_code("1 <= 2"), Ok(DynamicValue::from(true)));
         assert_eq!(eval_code("1 != 2"), Ok(DynamicValue::from(true)));
 
+        assert_eq!(
+            eval_code("datetime('2024-09-12') > datetime('2024-09-11')"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code("datetime('2024-09-12') != datetime('2024-09-11')"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code("datetime('2024-09-12') == '2024-09-12'"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code(
+                "datetime('2024-07-11T02:00:00', timezone='CET') == '2024-07-11T00:00:00[UTC]'"
+            ),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code("datetime('2024-07-11') == '2024-07-11T00:00:00'"),
+            Ok(DynamicValue::from(true))
+        );
+
         assert_eq!(eval_code("'a' eq 'b'"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("'a' gt 'b'"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("'a' ge 'b'"), Ok(DynamicValue::from(false)));
