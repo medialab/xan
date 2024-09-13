@@ -1,4 +1,6 @@
 use std::collections::{hash_map::Entry, HashMap};
+use std::num::NonZeroUsize;
+use std::rc::Rc;
 
 use crate::collections::SortedInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -26,7 +28,7 @@ doc,token
 1,eats
 2,hello
 
-This command can compute 4 kinds of differents vocabulary statistics:
+This command can compute 5 kinds of differents vocabulary statistics:
 
 1. corpus-level statistics (using the \"corpus\" subcommand):
     - doc_count: number of documents in the corpus
@@ -55,11 +57,20 @@ This command can compute 4 kinds of differents vocabulary statistics:
     - bm25: BM25 score for the token in the document
     - chi2: chi2 score for the token in the document
 
+5. token-cooccurrence-level statistics (using the \"cooc\" subcommand):
+    - token1: the first token
+    - token2: the second token
+    - count: total number of co-occurrences
+    - pmi: pointwise mutual information
+    - ppmi: positive pointwise mutual information
+    - npmi: normalized pointwise mutual information
+
 Usage:
     xan vocab corpus <token-col> [options] [<input>]
     xan vocab token <token-col> [options] [<input>]
     xan vocab doc <token-col> [options] [<input>]
     xan vocab doc-token <token-col> [options] [<input>]
+    xan vocab cooc <token-col> [options] [<input>]
     xan vocab --help
 
 vocab options:
@@ -69,6 +80,13 @@ vocab options:
 vocab doc-token options:
     --k1-value <value>     \"k1\" factor for BM25 computation. [default: 1.2]
     --b-value <value>      \"b\" factor for BM25 computation. [default: 0.75]
+
+vocab cooc options:
+    -w, --window <n>  Size of the co-occurrence window. If not given, co-occurrence will be based
+                      on the bag of word model where token are considered to co-occur with every
+                      other one in a same document.
+                      Set the window to \"1\" to compute bigram collocations. Set a larger window
+                      to get something similar to what word2vec considers.
 
 Common options:
     -h, --help             Display this message
@@ -87,12 +105,14 @@ struct Args {
     cmd_doc: bool,
     cmd_doc_token: bool,
     cmd_corpus: bool,
+    cmd_cooc: bool,
     arg_input: Option<String>,
     arg_token_col: SelectColumns,
     flag_doc: Option<SelectColumns>,
     flag_sep: Option<String>,
     flag_k1_value: f64,
     flag_b_value: f64,
+    flag_window: Option<NonZeroUsize>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -141,10 +161,58 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     };
 
-    let mut vocab = Vocabulary::new();
-
     let mut record = csv::ByteRecord::new();
     let mut i: usize = 0;
+
+    let mut wtr = Config::new(&args.flag_output).writer()?;
+
+    if args.cmd_cooc {
+        let mut cooccurrences = Cooccurrences::default();
+
+        // NOTE:
+        //  --sep and no --doc: trivial for both model
+        //  --sep and --doc: not trivial when model is BOW, because we need a multimap of docs
+        //  no --sep and --doc:
+        //      need a multimap for bow
+        //      need to aggregate consecutive identical doc value for window
+        match (&sep, &doc_sel) {
+            (Some(c), None) => {
+                while rdr.read_byte_record(&mut record)? {
+                    let bag_of_words: Vec<Rc<Token>> = record[token_pos]
+                        .split(|b| b == c)
+                        .map(|t| Rc::new(t.to_vec()))
+                        .collect();
+
+                    for i in 0..bag_of_words.len() {
+                        let source = &bag_of_words[i];
+                        let source_id = cooccurrences.register_token(source.clone());
+                        cooccurrences.add_occurrence(source_id);
+
+                        for j in (i + 1)..bag_of_words.len() {
+                            let target = &bag_of_words[j];
+                            let target_id = cooccurrences.register_token(target.clone());
+
+                            if source < target {
+                                cooccurrences.add_cooccurrence(source_id, target_id);
+                            } else {
+                                cooccurrences.add_cooccurrence(target_id, source_id);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        let output_headers: [&[u8]; 6] = [b"token1", b"token2", b"count", b"pmi", b"ppmi", b"npmi"];
+
+        wtr.write_record(output_headers)?;
+        cooccurrences.for_each_cooc_record(|r| wtr.write_byte_record(r))?;
+
+        return Ok(wtr.flush()?);
+    }
+
+    let mut vocab = Vocabulary::new();
 
     while rdr.read_byte_record(&mut record)? {
         let document: Document = match &doc_sel {
@@ -164,8 +232,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         i += 1;
     }
-
-    let mut wtr = Config::new(&args.flag_output).writer()?;
 
     if args.cmd_token {
         let headers: [&[u8]; 6] = [b"token", b"gf", b"df", b"idf", b"gfidf", b"pigeonhole"];
@@ -510,6 +576,107 @@ impl Vocabulary {
                 );
 
                 callback(&record)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct CooccurrenceTokenEntry {
+    token: Rc<Token>,
+    gf: usize,
+    gcf: usize,
+    cooc: SortedInsertHashmap<TokenID, usize>,
+}
+
+impl CooccurrenceTokenEntry {
+    fn new(token: Rc<Token>) -> Self {
+        Self {
+            token,
+            gf: 0,
+            gcf: 0,
+            cooc: SortedInsertHashmap::new(),
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+struct Cooccurrences {
+    token_ids: HashMap<Rc<Token>, TokenID>,
+    token_entries: Vec<CooccurrenceTokenEntry>,
+    occurrences_count: usize,
+    cooccurrences_count: usize,
+}
+
+impl Cooccurrences {
+    fn register_token(&mut self, token: Rc<Token>) -> TokenID {
+        match self.token_ids.entry(token.clone()) {
+            Entry::Occupied(entry) => {
+                let id = *entry.get();
+                id
+            }
+            Entry::Vacant(entry) => {
+                let id = self.token_entries.len();
+                let token_entry = CooccurrenceTokenEntry::new(token);
+                self.token_entries.push(token_entry);
+                entry.insert(id);
+                id
+            }
+        }
+    }
+
+    fn add_occurrence(&mut self, token_id: TokenID) {
+        self.token_entries[token_id].gf += 1;
+        self.occurrences_count += 1;
+    }
+
+    fn add_cooccurrence(&mut self, source: TokenID, target: TokenID) {
+        self.cooccurrences_count += 1;
+
+        let source_entry = &mut self.token_entries[source];
+
+        source_entry
+            .cooc
+            .insert_with_or_else(target, || 1, |count| *count += 1);
+
+        source_entry.gcf += 1;
+
+        self.token_entries[target].gcf += 1;
+    }
+
+    fn for_each_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
+    where
+        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+    {
+        let mut csv_record = csv::ByteRecord::new();
+        let cooccurrences_count = self.cooccurrences_count as f64;
+
+        for source_entry in self.token_entries.iter() {
+            let px = source_entry.gcf as f64 / cooccurrences_count;
+
+            for (target_id, count) in source_entry.cooc.iter() {
+                let target_entry = &self.token_entries[*target_id];
+
+                let py = target_entry.gcf as f64 / cooccurrences_count;
+                let px_py = *count as f64 / cooccurrences_count;
+
+                let pmi = (px_py / (px * py)).log2();
+                let ppmi = pmi.max(0.0);
+
+                let hxy = -px_py.log2();
+                let npmi = pmi / hxy;
+
+                csv_record.clear();
+                csv_record.push_field(&source_entry.token);
+                csv_record.push_field(&target_entry.token);
+                csv_record.push_field(count.to_string().as_bytes());
+                csv_record.push_field(pmi.to_string().as_bytes());
+                csv_record.push_field(ppmi.to_string().as_bytes());
+                csv_record.push_field(npmi.to_string().as_bytes());
+
+                callback(&csv_record)?;
             }
         }
 
