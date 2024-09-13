@@ -74,10 +74,10 @@ tokenize options:
     -m, --min-token <n>      Minimum characters count of a token to be included in the output.
     -M, --max-token <n>      Maximum characters count of a token to be included in the output.
     --stoplist <path>        Path to a .txt stoplist containing one word per line.
-    --sep <char>             If given, the command will output exactly one row per input row,
+    --sep <delim>            If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
-    --ngrams-sep <char>      Separator to be use to join ngrams tokens.
+    --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
                              [default: |]
     --keep-text              Force keeping the text column in output.
     -p, --parallel           Whether to use parallelization to speed up computations.

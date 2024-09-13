@@ -4,6 +4,7 @@ use crate::collections::SortedInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
+use crate::CliError;
 use crate::CliResult;
 
 // TODO: filters on df because with some stats you cannot filter on this?
@@ -34,7 +35,7 @@ This command can compute 4 kinds of differents vocabulary statistics:
     - average_doc_len: average number of tokens per document
 
 2. token-level statistics (using the \"token\" subcommand):
-    - (token): some distinct token (the column will be named like the input)
+    - token: some distinct token (the column will be named like the input)
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
     - idf: inverse document frequency of the token
@@ -48,18 +49,22 @@ This command can compute 4 kinds of differents vocabulary statistics:
 
 4. doc-token-level statistics (using the \"doc-token\" subcommand):
     - (*doc): columns representing the document (named like the input)
-    - (token): some distinct documnet token (the column will be named like the input)
+    - token: some distinct documnet token (the column will be named like the input)
     - tf: term frequency for the token in the document
     - tfidf: term frequency * idf for the token in the document
     - bm25: BM25 score for the token in the document
     - chi2: chi2 score for the token in the document
 
 Usage:
-    xan vocab corpus <doc-cols> <token-col> [options] [<input>]
-    xan vocab token <doc-cols> <token-col> [options] [<input>]
-    xan vocab doc <doc-cols> <token-col> [options] [<input>]
-    xan vocab doc-token <doc-cols> <token-col> [options] [<input>]
+    xan vocab corpus <token-col> [options] [<input>]
+    xan vocab token <token-col> [options] [<input>]
+    xan vocab doc <token-col> [options] [<input>]
+    xan vocab doc-token <token-col> [options] [<input>]
     xan vocab --help
+
+vocab options:
+    -D, --doc <doc-cols>  Optional selection of columns representing a row's document.
+    --sep <delim>         Delimiter used to separate tokens in one row's token cell.
 
 vocab doc-token options:
     --k1-value <value>     \"k1\" factor for BM25 computation. [default: 1.2]
@@ -83,8 +88,9 @@ struct Args {
     cmd_doc_token: bool,
     cmd_corpus: bool,
     arg_input: Option<String>,
-    arg_doc_cols: SelectColumns,
     arg_token_col: SelectColumns,
+    flag_doc: Option<SelectColumns>,
+    flag_sep: Option<String>,
     flag_k1_value: f64,
     flag_b_value: f64,
     flag_output: Option<String>,
@@ -95,50 +101,88 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    if args.flag_doc.is_none() && args.flag_sep.is_none() {
+        return Err(CliError::Other(
+            "cannot omit -D, --doc without --sep!".to_string(),
+        ));
+    }
+
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers)
-        .select(args.arg_doc_cols);
+        .no_headers(args.flag_no_headers);
 
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let sel = rconf.selection(&headers)?;
     let token_pos = Config::new(&None)
         .select(args.arg_token_col)
         .single_selection(&headers)?;
 
+    let doc_sel = args
+        .flag_doc
+        .map(|selection| {
+            Config::new(&None)
+                .no_headers(args.flag_no_headers)
+                .select(selection)
+                .selection(&headers)
+        })
+        .transpose()?;
+
+    let sep = match args.flag_sep {
+        None => None,
+        Some(string) => {
+            if string.len() > 1 {
+                return Err(CliError::Other(
+                    "--sep cannot be more than a single byte!".to_string(),
+                ));
+            }
+
+            Some(string.into_bytes()[0])
+        }
+    };
+
     let mut vocab = Vocabulary::new();
 
     let mut record = csv::ByteRecord::new();
+    let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
-        let document: Document = sel.select(&record).map(|cell| cell.to_vec()).collect();
-        let token: Token = record[token_pos].to_vec();
+        let document: Document = match &doc_sel {
+            Some(sel) => sel.select(&record).map(|cell| cell.to_vec()).collect(),
+            None => vec![i.to_string().into_bytes()],
+        };
 
-        vocab.add(document, token);
+        if let Some(c) = &sep {
+            for token in record[token_pos].split(|b| b == c) {
+                let token: Token = token.to_vec();
+                vocab.add(document.clone(), token);
+            }
+        } else {
+            let token: Token = record[token_pos].to_vec();
+            vocab.add(document, token);
+        }
+
+        i += 1;
     }
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     if args.cmd_token {
-        wtr.write_record([
-            &headers[token_pos],
-            b"gf",
-            b"df",
-            b"idf",
-            b"gfidf",
-            b"pigeonhole",
-        ])?;
+        let headers: [&[u8]; 6] = [b"token", b"gf", b"df", b"idf", b"gfidf", b"pigeonhole"];
+        wtr.write_record(headers)?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_doc_token {
         let mut output_headers = csv::ByteRecord::new();
 
-        for col_name in sel.select(&headers) {
-            output_headers.push_field(col_name);
+        if let Some(sel) = &doc_sel {
+            for col_name in sel.select(&headers) {
+                output_headers.push_field(col_name);
+            }
+        } else {
+            output_headers.push_field(b"doc");
         }
 
-        output_headers.push_field(&headers[token_pos]);
+        output_headers.push_field(b"token");
         output_headers.push_field(b"tf");
         output_headers.push_field(b"tfidf");
         output_headers.push_field(b"bm25");
@@ -151,9 +195,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.cmd_doc {
         let mut output_headers = csv::ByteRecord::new();
 
-        for col_name in sel.select(&headers) {
-            output_headers.push_field(col_name);
+        if let Some(sel) = &doc_sel {
+            for col_name in sel.select(&headers) {
+                output_headers.push_field(col_name);
+            }
+        } else {
+            output_headers.push_field(b"doc");
         }
+
         output_headers.push_field(b"token_count");
         output_headers.push_field(b"distinct_token_count");
 
