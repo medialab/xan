@@ -9,12 +9,7 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-// TODO: filters on df because with some stats you cannot filter on this?
-// TODO: maybe option to explode for perf reasons?
-// TODO: issue with chi2: can be difference of probability of token to appear in doc vs
-// in whole corpus, e.g. we normalise tf / doc_len and gf / total_token_count, or
-// we can estimate as a whole how much the token should appear in a doc, by
-// comparing tf with gf
+// TODO: can we normalize chi2 by document len?
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents. Those documents
