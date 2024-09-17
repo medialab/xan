@@ -935,6 +935,14 @@ mod tests {
             Ok(DynamicValue::from(true))
         );
         assert_eq!(
+            eval_code("'2024-09-12' > datetime('2024-09-11')"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
+            eval_code("datetime('2024-09-12') > '2024-09-11'"),
+            Ok(DynamicValue::from(true))
+        );
+        assert_eq!(
             eval_code("datetime('2024-09-12') != datetime('2024-09-11')"),
             Ok(DynamicValue::from(true))
         );

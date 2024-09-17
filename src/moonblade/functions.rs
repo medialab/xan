@@ -936,7 +936,7 @@ where
 
     let ordering = match (a, b) {
         (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
-        (a, DynamicValue::DateTime(b)) => b.partial_cmp(&a.try_into_datetime()?),
+        (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
         (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
     };
 
