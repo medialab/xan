@@ -466,11 +466,11 @@ impl DynamicNumber {
     }
 }
 
-impl ToString for DynamicNumber {
-    fn to_string(&self) -> String {
+impl fmt::Display for DynamicNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Integer(n) => n.to_string(),
-            Self::Float(n) => n.to_string(),
+            Self::Integer(n) => n.fmt(f),
+            Self::Float(n) => n.fmt(f),
         }
     }
 }

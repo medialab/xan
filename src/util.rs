@@ -128,7 +128,7 @@ pub fn range(start: Idx, end: Idx, len: Idx, index: Idx) -> Result<(usize, usize
         (_, Some(_), Some(_), None) => {
             Err("--end and --len cannot be used at the same time.".to_owned())
         }
-        (_, None, None, None) => Ok((start.unwrap_or(0), ::std::usize::MAX)),
+        (_, None, None, None) => Ok((start.unwrap_or(0), usize::MAX)),
         (_, Some(e), None, None) => {
             let s = start.unwrap_or(0);
             if s > e {
