@@ -109,7 +109,7 @@ neg            =  { "-" }
 open_indexing = { "[" }
 
 // Functions
-func_arg = { (ident ~ "=")? ~ expr }
+func_arg = { ((ident ~ "=")? ~ expr) | expr }
 func     = { ident ~ "(" ~ (func_arg ~ ","?)* ~ ")" }
 
 // Expressions
