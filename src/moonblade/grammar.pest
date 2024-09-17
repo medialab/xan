@@ -113,11 +113,11 @@ func_arg = { ((ident ~ "=")? ~ expr) | expr }
 func     = { ident ~ "(" ~ (func_arg ~ ","?)* ~ ")" }
 
 // Expressions
-full_slice  =  { term ~ ":" ~ term }
-start_slice =  { term ~ ":" }
-end_slice   =  { ":" ~ term }
+full_slice  =  { unary_operator* ~ term ~ ":" ~ unary_operator* ~ term }
+start_slice =  { unary_operator* ~ term ~ ":" }
+end_slice   =  { ":" ~ unary_operator* ~ term }
 slice       = _{ full_slice | start_slice | end_slice }
-expr        =  { unary_operator* ~ term ~ (binary_operator ~ term | open_indexing ~ (slice | term) ~ "]")* }
+expr        =  { unary_operator* ~ term ~ (binary_operator ~ unary_operator* ~ term | open_indexing ~ (slice | unary_operator* ~ term) ~ "]")* }
 term        = _{
     func
   | bool
