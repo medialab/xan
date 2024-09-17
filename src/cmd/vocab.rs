@@ -186,18 +186,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     for i in 0..bag_of_words.len() {
                         let source = &bag_of_words[i];
                         let source_id = cooccurrences.register_token(source.clone());
-                        cooccurrences.add_occurrence(source_id);
 
                         #[allow(clippy::needless_range_loop)]
                         for j in (i + 1)..bag_of_words.len() {
                             let target = &bag_of_words[j];
                             let target_id = cooccurrences.register_token(target.clone());
-
-                            if source < target {
-                                cooccurrences.add_cooccurrence(source_id, target_id);
-                            } else {
-                                cooccurrences.add_cooccurrence(target_id, source_id);
-                            }
+                            cooccurrences.add_undirected_cooccurrence(source_id, target_id);
                         }
                     }
                 }
@@ -587,7 +581,6 @@ impl Vocabulary {
 #[derive(Debug)]
 struct CooccurrenceTokenEntry {
     token: Rc<Token>,
-    gf: usize,
     gcf: usize,
     cooc: SortedInsertHashmap<TokenID, usize>,
 }
@@ -596,7 +589,6 @@ impl CooccurrenceTokenEntry {
     fn new(token: Rc<Token>) -> Self {
         Self {
             token,
-            gf: 0,
             gcf: 0,
             cooc: SortedInsertHashmap::new(),
         }
@@ -607,7 +599,6 @@ impl CooccurrenceTokenEntry {
 struct Cooccurrences {
     token_ids: HashMap<Rc<Token>, TokenID>,
     token_entries: Vec<CooccurrenceTokenEntry>,
-    occurrences_count: usize,
     cooccurrences_count: usize,
 }
 
@@ -628,12 +619,11 @@ impl Cooccurrences {
         }
     }
 
-    fn add_occurrence(&mut self, token_id: TokenID) {
-        self.token_entries[token_id].gf += 1;
-        self.occurrences_count += 1;
-    }
+    fn add_undirected_cooccurrence(&mut self, mut source: TokenID, mut target: TokenID) {
+        if source > target {
+            (source, target) = (target, source);
+        }
 
-    fn add_cooccurrence(&mut self, source: TokenID, target: TokenID) {
         self.cooccurrences_count += 1;
 
         let source_entry = &mut self.token_entries[source];
@@ -643,6 +633,11 @@ impl Cooccurrences {
             .insert_with_or_else(target, || 1, |count| *count += 1);
 
         source_entry.gcf += 1;
+
+        // Do not overcount self-links
+        if source == target {
+            return;
+        }
 
         self.token_entries[target].gcf += 1;
     }
