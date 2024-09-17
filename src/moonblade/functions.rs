@@ -27,28 +27,28 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
     Some(match name {
-        "__num_eq" => (
-            |args| number_compare(args, Ordering::is_eq),
+        "__gen_eq" => (
+            |args| general_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
         ),
-        "__num_gt" => (
-            |args| number_compare(args, Ordering::is_gt),
+        "__gen_gt" => (
+            |args| general_compare(args, Ordering::is_gt),
             FunctionArguments::binary(),
         ),
-        "__num_ge" => (
-            |args| number_compare(args, Ordering::is_ge),
+        "__gen_ge" => (
+            |args| general_compare(args, Ordering::is_ge),
             FunctionArguments::binary(),
         ),
-        "__num_lt" => (
-            |args| number_compare(args, Ordering::is_lt),
+        "__gen_lt" => (
+            |args| general_compare(args, Ordering::is_lt),
             FunctionArguments::binary(),
         ),
-        "__num_le" => (
-            |args| number_compare(args, Ordering::is_le),
+        "__gen_le" => (
+            |args| general_compare(args, Ordering::is_le),
             FunctionArguments::binary(),
         ),
-        "__num_ne" => (
-            |args| number_compare(args, Ordering::is_ne),
+        "__gen_ne" => (
+            |args| general_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
         "abs" => (
@@ -928,13 +928,19 @@ fn or(args: BoundArguments) -> FunctionResult {
 // }
 
 // Comparison
-fn number_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
+fn general_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
 where
     F: FnOnce(Ordering) -> bool,
 {
-    let (a, b) = args.get2_number()?;
+    let (a, b) = args.pop2();
 
-    Ok(DynamicValue::from(match a.partial_cmp(&b) {
+    let ordering = match (a, b) {
+        (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
+        (a, DynamicValue::DateTime(b)) => b.partial_cmp(&a.try_into_datetime()?),
+        (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
+    };
+
+    Ok(DynamicValue::from(match ordering {
         Some(ordering) => validate(ordering),
         None => false,
     }))
@@ -1302,24 +1308,17 @@ fn strftime(args: BoundArguments) -> FunctionResult {
 
     let fmt = format.try_as_str()?;
 
-    let datetime = match target {
-        DynamicValue::DateTime(value) => DynamicValue::DateTime(value),
-        _ => {
-            let mut first_arg = BoundArguments::new();
-            first_arg.push(target);
-            datetime(first_arg)?
-        }
-    };
+    let datetime = target.try_into_datetime()?;
 
     let zoned_datetime = match timezone {
         Some(timezone) => {
             let tz = timezone_parse(&timezone)?;
-            datetime.try_into_datetime()?.with_time_zone(tz)
+            Box::new(datetime.with_time_zone(tz))
         }
-        None => datetime.try_into_datetime()?,
+        None => datetime,
     };
 
-    let formatted_datetime = strtime::format(fmt.as_ref(), &zoned_datetime);
+    let formatted_datetime = strtime::format(fmt.as_ref(), &*zoned_datetime);
     match formatted_datetime {
         Ok(value) => Ok(DynamicValue::from(value)),
         Err(_) => Err(EvaluationError::DateTime(format!(

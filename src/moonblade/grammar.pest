@@ -50,12 +50,12 @@ binary_operator = _{
   | idiv
   | div
   | rem
-  | num_eq
-  | num_ne
-  | num_le
-  | num_lt
-  | num_ge
-  | num_gt
+  | gen_eq
+  | gen_ne
+  | gen_le
+  | gen_lt
+  | gen_ge
+  | gen_gt
   | str_eq
   | str_ne
   | str_le
@@ -70,12 +70,12 @@ binary_operator = _{
   | pipe
 }
 
-num_eq = { "==" }
-num_ne = { "!=" }
-num_lt = { "<" }
-num_le = { "<=" }
-num_gt = { ">" }
-num_ge = { ">=" }
+gen_eq = { "==" }
+gen_ne = { "!=" }
+gen_lt = { "<" }
+gen_le = { "<=" }
+gen_gt = { ">" }
+gen_ge = { ">=" }
 
 str_eq = { "eq" }
 str_ne = { "ne" }

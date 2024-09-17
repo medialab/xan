@@ -17,12 +17,12 @@ pub struct MoonbladePestParser;
 impl Rule {
     fn as_fn_op_str(&self) -> &'static str {
         match self {
-            Self::num_eq => "__num_eq",
-            Self::num_ne => "__num_ne",
-            Self::num_lt => "__num_lt",
-            Self::num_le => "__num_le",
-            Self::num_gt => "__num_gt",
-            Self::num_ge => "__num_ge",
+            Self::gen_eq => "__gen_eq",
+            Self::gen_ne => "__gen_ne",
+            Self::gen_lt => "__gen_lt",
+            Self::gen_le => "__gen_le",
+            Self::gen_gt => "__gen_gt",
+            Self::gen_ge => "__gen_ge",
             Self::str_eq => "eq",
             Self::str_ne => "ne",
             Self::str_lt => "lt",
@@ -60,16 +60,16 @@ lazy_static! {
         .op(Op::infix(Rule::pipe, Assoc::Left))
         .op(Op::infix(Rule::or, Assoc::Left))
         .op(Op::infix(Rule::and, Assoc::Left))
-        .op(Op::infix(Rule::num_eq, Assoc::Left) |
-            Op::infix(Rule::num_ne, Assoc::Left) |
+        .op(Op::infix(Rule::gen_eq, Assoc::Left) |
+            Op::infix(Rule::gen_ne, Assoc::Left) |
             Op::infix(Rule::str_eq, Assoc::Left) |
             Op::infix(Rule::str_ne, Assoc::Left))
         .op(Op::infix(Rule::in_op, Assoc::Left) |
             Op::infix(Rule::not_in, Assoc::Left) |
-            Op::infix(Rule::num_lt, Assoc::Left) |
-            Op::infix(Rule::num_le, Assoc::Left) |
-            Op::infix(Rule::num_gt, Assoc::Left) |
-            Op::infix(Rule::num_ge, Assoc::Left) |
+            Op::infix(Rule::gen_lt, Assoc::Left) |
+            Op::infix(Rule::gen_le, Assoc::Left) |
+            Op::infix(Rule::gen_gt, Assoc::Left) |
+            Op::infix(Rule::gen_ge, Assoc::Left) |
             Op::infix(Rule::str_lt, Assoc::Left) |
             Op::infix(Rule::str_le, Assoc::Left) |
             Op::infix(Rule::str_gt, Assoc::Left) |
