@@ -661,8 +661,12 @@ impl Cooccurrences {
                 let pmi = (px_py / (px * py)).log2();
                 let ppmi = pmi.max(0.0);
 
-                let hxy = -px_py.log2();
-                let npmi = pmi / hxy;
+                // If probability is 1, then self-information is 0 and npmi must be 1, meaning full co-occurrence.
+                let npmi = if px_py >= 1.0 {
+                    1.0
+                } else {
+                    pmi / (-px_py.log2())
+                };
 
                 csv_record.clear();
                 csv_record.push_field(&source_entry.token);
