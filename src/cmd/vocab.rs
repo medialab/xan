@@ -87,6 +87,7 @@ vocab cooc options:
                       other one in a same document.
                       Set the window to \"1\" to compute bigram collocations. Set a larger window
                       to get something similar to what word2vec considers.
+    -f, --forward     Whether to only consider a forward window when traversing token contexts.
 
 Common options:
     -h, --help             Display this message
@@ -113,6 +114,7 @@ struct Args {
     flag_k1_value: f64,
     flag_b_value: f64,
     flag_window: Option<NonZeroUsize>,
+    flag_forward: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -191,7 +193,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         for j in (i + 1)..bag_of_words.len() {
                             let target = &bag_of_words[j];
                             let target_id = cooccurrences.register_token(target.clone());
-                            cooccurrences.add_undirected_cooccurrence(source_id, target_id);
+                            cooccurrences.add_cooccurrence(args.flag_forward, source_id, target_id);
                         }
                     }
                 }
@@ -619,8 +621,8 @@ impl Cooccurrences {
         }
     }
 
-    fn add_undirected_cooccurrence(&mut self, mut source: TokenID, mut target: TokenID) {
-        if source > target {
+    fn add_cooccurrence(&mut self, directed: bool, mut source: TokenID, mut target: TokenID) {
+        if !directed && source > target {
             (source, target) = (target, source);
         }
 
