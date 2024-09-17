@@ -188,6 +188,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let source_id = cooccurrences.register_token(source.clone());
                         cooccurrences.add_occurrence(source_id);
 
+                        #[allow(clippy::needless_range_loop)]
                         for j in (i + 1)..bag_of_words.len() {
                             let target = &bag_of_words[j];
                             let target_id = cooccurrences.register_token(target.clone());
