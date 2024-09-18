@@ -22,7 +22,6 @@ extern crate rand_seeder;
 extern crate ratatui;
 #[macro_use]
 extern crate lazy_static;
-extern crate libc;
 extern crate num_cpus;
 extern crate numfmt;
 #[cfg(not(windows))]
