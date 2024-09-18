@@ -2,14 +2,14 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
+use bstr::ByteSlice;
+
 use crate::collections::SortedInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
-
-// TODO: can we normalize chi2 by document len?
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents. Those documents
@@ -145,19 +145,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
-    let sep = match args.flag_sep {
-        None => None,
-        Some(string) => {
-            if string.len() > 1 {
-                return Err(CliError::Other(
-                    "--sep cannot be more than a single byte!".to_string(),
-                ));
-            }
-
-            Some(string.into_bytes()[0])
-        }
-    };
-
     let mut record = csv::ByteRecord::new();
     let mut i: usize = 0;
 
@@ -172,11 +159,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         //  no --sep and --doc:
         //      need a multimap for bow
         //      need to aggregate consecutive identical doc value for window
-        match (&sep, &doc_sel) {
-            (Some(c), None) => {
+        match (&args.flag_sep, &doc_sel) {
+            (Some(sep), None) => {
                 while rdr.read_byte_record(&mut record)? {
                     let bag_of_words: Vec<Rc<Token>> = record[token_pos]
-                        .split(|b| b == c)
+                        .split_str(sep)
                         .map(|t| Rc::new(t.to_vec()))
                         .collect();
 
@@ -217,8 +204,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             None => vec![i.to_string().into_bytes()],
         };
 
-        if let Some(c) = &sep {
-            for token in record[token_pos].split(|b| b == c) {
+        if let Some(sep) = &args.flag_sep {
+            for token in record[token_pos].split_str(sep) {
                 let token: Token = token.to_vec();
                 vocab.add(document.clone(), token);
             }

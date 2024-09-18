@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use csv;
 
 use crate::config::{Config, Delimiter};
@@ -5,51 +6,6 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
-
-// NOTE: shamelessly stolen from:
-// https://stackoverflow.com/questions/38821671/how-can-slices-be-split-using-another-slice-as-a-delimiter
-struct SplitSubsequence<'a, 'b, T: 'a + 'b> {
-    slice: &'a [T],
-    needle: &'b [T],
-    ended: bool,
-}
-
-impl<'a, 'b, T: 'a + 'b + PartialEq> Iterator for SplitSubsequence<'a, 'b, T> {
-    type Item = &'a [T];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.ended {
-            None
-        } else if self.slice.is_empty() {
-            self.ended = true;
-            Some(self.slice)
-        } else if let Some(p) = self
-            .slice
-            .windows(self.needle.len())
-            .position(|w| w == self.needle)
-        {
-            let item = &self.slice[..p];
-            self.slice = &self.slice[p + self.needle.len()..];
-            Some(item)
-        } else {
-            self.ended = true;
-            let item = self.slice;
-            self.slice = &self.slice[self.slice.len() - 1..];
-            Some(item)
-        }
-    }
-}
-
-fn split_subsequence<'a, 'b, T>(slice: &'a [T], needle: &'b [T]) -> SplitSubsequence<'a, 'b, T>
-where
-    T: 'a + 'b + PartialEq,
-{
-    SplitSubsequence {
-        slice,
-        needle,
-        ended: false,
-    }
-}
 
 static USAGE: &str = "
 Explode CSV rows into multiple ones by splitting column values by using the
@@ -145,21 +101,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
-    let sep = args.arg_separator.as_bytes();
-    let single_byte_sep = if sep.len() == 1 { Some(&sep[0]) } else { None };
-
     let mut record = csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         let splits: Vec<Vec<&[u8]>> = sel
             .select(&record)
-            .map(|cell| {
-                if let Some(s) = single_byte_sep {
-                    cell.split(|b| b == s).collect()
-                } else {
-                    split_subsequence(cell, sep).collect()
-                }
-            })
+            .map(|cell| cell.split_str(&args.arg_separator).collect())
             .collect();
 
         if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
