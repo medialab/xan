@@ -2,6 +2,7 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::HashMap;
 
 use csv::ByteRecord;
+use jiff::civil::DateTime;
 use rayon::prelude::*;
 
 use crate::collections::{FixedReverseHeap, FixedReverseHeapMap, SortedInsertHashmap};
@@ -830,6 +831,8 @@ const TYPE_EMPTY: u8 = 0;
 const TYPE_STRING: u8 = 1;
 const TYPE_FLOAT: u8 = 2;
 const TYPE_INT: u8 = 3;
+const TYPE_DATE: u8 = 4;
+const TYPE_URL: u8 = 5;
 
 #[derive(Debug, Clone)]
 struct Types {
@@ -846,19 +849,27 @@ impl Types {
     }
 
     fn set_empty(&mut self) {
-        self.set(TYPE_EMPTY)
+        self.set(TYPE_EMPTY);
     }
 
     fn set_string(&mut self) {
-        self.set(TYPE_STRING)
+        self.set(TYPE_STRING);
     }
 
     fn set_float(&mut self) {
-        self.set(TYPE_FLOAT)
+        self.set(TYPE_FLOAT);
     }
 
     fn set_int(&mut self) {
-        self.set(TYPE_INT)
+        self.set(TYPE_INT);
+    }
+
+    fn set_date(&mut self) {
+        self.set(TYPE_DATE);
+    }
+
+    fn set_url(&mut self) {
+        self.set(TYPE_URL);
     }
 
     fn has(&self, pos: u8) -> bool {
@@ -881,6 +892,14 @@ impl Types {
         self.has(TYPE_INT)
     }
 
+    fn has_date(&self) -> bool {
+        self.has(TYPE_DATE)
+    }
+
+    fn has_url(&self) -> bool {
+        self.has(TYPE_URL)
+    }
+
     fn most_likely_type(&self) -> Option<&str> {
         Some(if self.has_string() {
             "string"
@@ -888,6 +907,10 @@ impl Types {
             "float"
         } else if self.has_int() {
             "int"
+        } else if self.has_url() {
+            "url"
+        } else if self.has_date() {
+            "date"
         } else if self.has_empty() {
             "empty"
         } else {
@@ -896,7 +919,7 @@ impl Types {
     }
 
     fn sorted_types(&self) -> Vec<&str> {
-        let mut result: Vec<&str> = Vec::new();
+        let mut result = Vec::new();
 
         if self.has_int() {
             result.push("int");
@@ -906,6 +929,12 @@ impl Types {
         }
         if self.has_string() {
             result.push("string");
+        }
+        if self.has_date() {
+            result.push("date");
+        }
+        if self.has_url() {
+            result.push("url");
         }
         if self.has_empty() {
             result.push("empty");
@@ -1376,7 +1405,13 @@ impl CompositeAggregator {
                                 DynamicNumber::Integer(_) => types.set_int(),
                             };
                         } else {
-                            types.set_string();
+                            match value.try_as_str() {
+                                Ok(s) if s.parse::<DateTime>().is_ok() => types.set_date(),
+                                Ok(s) if s.starts_with("http://") || s.starts_with("https://") => {
+                                    types.set_url()
+                                }
+                                _ => types.set_string(),
+                            };
                         }
                     }
                     Aggregator::Values(values) => {
@@ -2082,6 +2117,10 @@ impl Stats {
             if let Some(numbers) = self.numbers.as_mut() {
                 numbers.add(number);
             }
+        } else if cell.parse::<DateTime>().is_ok() {
+            self.types.set_date();
+        } else if cell.starts_with("http://") || cell.starts_with("https://") {
+            self.types.set_url();
         } else {
             self.types.set_string();
         }
