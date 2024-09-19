@@ -442,6 +442,10 @@ impl Selection {
     pub fn contains(&self, i: usize) -> bool {
         self.0.iter().any(|j| i == *j)
     }
+
+    pub fn subtract(&mut self, other: &Self) {
+        self.0.retain(|i| !other.contains(*i));
+    }
 }
 
 impl ops::Deref for Selection {

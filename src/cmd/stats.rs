@@ -4,7 +4,10 @@ use crate::util;
 use crate::CliResult;
 use csv;
 
+use crate::collections::SortedInsertHashmap;
 use crate::moonblade::Stats;
+
+type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Computes descriptive statistics on CSV data.
@@ -26,16 +29,16 @@ type          (default) - Most likely type of the column
 types         (default) - Pipe-separated list of all types witnessed in the column
 sum           (default) - Sum of numerical values
 mean          (default) - Mean of numerical values
-q1            (-q)      - First quartile of numerical values
-median        (-q)      - Second quartile, i.e. median, of numerical values
-q3            (-q)      - Third quartile of numerical values
+q1            (-q, -A)  - First quartile of numerical values
+median        (-q, -A)  - Second quartile, i.e. median, of numerical values
+q3            (-q, -A)  - Third quartile of numerical values
 variance      (default) - Population variance of numerical values
 stddev        (default) - Population standard deviation of numerical values
 min           (default) - Minimum numerical value
 max           (default) - Maximum numerical value
-cardinality   (-c)      - Number of distinct string values
-mode          (-c)      - Most frequent string value (tie breaking is arbitrary & random!)
-tied_for_mode (-c)      - Number of values tied for mode
+cardinality   (-c, -A)  - Number of distinct string values
+mode          (-c, -A)  - Most frequent string value (tie breaking is arbitrary & random!)
+tied_for_mode (-c, -A)  - Number of values tied for mode
 lex_first     (default) - First string in lexical order
 lex_last      (default) - Last string in lexical order
 min_length    (default) - Minimum string length
@@ -49,6 +52,8 @@ stats options:
                            See 'xan select --help' for the format details.
                            This is provided here because piping 'xan select'
                            into 'xan stats' will disable the use of indexing.
+    -g, --groupby <cols>   If given, will compute stats per group as defined by
+                           the given column selection.
     -A, --all              Show all statistics available.
     -c, --cardinality      Show cardinality and modes.
                            This requires storing all CSV data in memory.
@@ -71,6 +76,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_select: SelectColumns,
+    flag_groupby: Option<SelectColumns>,
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,
@@ -112,13 +118,87 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     let headers = rdr.byte_headers()?.clone();
-    let sel = rconf.selection(&headers)?;
+    let mut sel = rconf.selection(&headers)?;
+    let groupby_sel_opt = args
+        .flag_groupby
+        .as_ref()
+        .map(|cols| Config::new(&None).select(cols.clone()).selection(&headers))
+        .transpose()?;
+
+    // No need to consider the grouping column when aggregating stats
+    if let Some(gsel) = &groupby_sel_opt {
+        sel.subtract(gsel);
+    }
 
     // Nothing was selected
     if sel.is_empty() {
         return Ok(());
     }
 
+    let field_names: Vec<Vec<u8>> = if args.flag_no_headers {
+        sel.indices()
+            .map(|i| i.to_string().as_bytes().to_vec())
+            .collect()
+    } else {
+        sel.select(&headers).map(|h| h.to_vec()).collect()
+    };
+
+    // Grouping
+    if let Some(gsel) = groupby_sel_opt {
+        let mut record = csv::ByteRecord::new();
+
+        for h in gsel.select(&headers) {
+            record.push_field(h);
+        }
+
+        record.extend(&args.new_stats_for_column().headers());
+
+        wtr.write_byte_record(&record)?;
+
+        let mut groups: SortedInsertHashmap<GroupKey, Vec<Stats>> = SortedInsertHashmap::new();
+
+        while rdr.read_byte_record(&mut record)? {
+            let group_key: Vec<_> = gsel.select(&record).map(|cell| cell.to_vec()).collect();
+
+            groups.insert_with_or_else(
+                group_key,
+                || {
+                    let mut fields = (0..sel.len())
+                        .map(|_| args.new_stats_for_column())
+                        .collect::<Vec<_>>();
+
+                    for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
+                        stats.process(cell);
+                    }
+
+                    fields
+                },
+                |fields| {
+                    for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
+                        stats.process(cell);
+                    }
+                },
+            );
+        }
+
+        for (group, fields) in groups.into_iter() {
+            for (name, stats) in field_names.iter().zip(fields.into_iter()) {
+                record.clear();
+
+                for h in group.iter() {
+                    record.push_field(h);
+                }
+
+                record.extend(&stats.results(name));
+
+                wtr.write_byte_record(&record)?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // No grouping
     let mut fields = (0..sel.len())
         .map(|_| args.new_stats_for_column())
         .collect::<Vec<_>>();
@@ -132,14 +212,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             stats.process(cell);
         }
     }
-
-    let field_names: Vec<Vec<u8>> = if args.flag_no_headers {
-        sel.indices()
-            .map(|i| i.to_string().as_bytes().to_vec())
-            .collect()
-    } else {
-        sel.select(&headers).map(|h| h.to_vec()).collect()
-    };
 
     for (name, stats) in field_names.into_iter().zip(fields.into_iter()) {
         wtr.write_byte_record(&stats.results(&name))?;

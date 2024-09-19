@@ -169,9 +169,7 @@ fn frequency_groubby() {
     );
 
     let mut cmd = wrk.command("frequency");
-    cmd.args(["-s", "color"])
-        .args(["-g", "name"])
-        .arg("data.csv");
+    cmd.args(["-g", "name"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 

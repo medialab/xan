@@ -12,8 +12,6 @@ use crate::CliResult;
 type GroupKey = Vec<Vec<u8>>;
 type ValueKey = Vec<u8>;
 
-// TODO: used cached sorted map later on
-
 static USAGE: &str = "
 Compute a frequency table on CSV data.
 
@@ -92,14 +90,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     let headers = rdr.byte_headers()?.clone();
-    let sel = rconf.selection(&headers)?;
+    let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby
         .map(|cols| Config::new(&None).select(cols).selection(&headers))
         .transpose()?;
 
+    // No need to consider the grouping column when counting frequencies
+    if let Some(gsel) = &groupby_sel_opt {
+        sel.subtract(gsel);
+    }
+
     // Nothing was selected
-    if sel.len() == 0 {
+    if sel.is_empty() {
         return Ok(());
     }
 
