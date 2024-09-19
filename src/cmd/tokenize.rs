@@ -221,71 +221,66 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let tokenizer = tokenizer_builder.build();
 
+    // NOTE: everything in this function will be parallelized
+    let tokenize = move |string: &str| -> Vec<(String, WordTokenKind)> {
+        let tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
+            Box::new(tokenizer.simple_tokenize(string))
+        } else {
+            Box::new(tokenizer.tokenize(string))
+        };
+
+        if let Some(range) = &ngrams {
+            tokens
+                .map(|token| token.text)
+                .ngrams_range(range.clone())
+                .map(|gram| (gram.join(&args.flag_ngrams_sep), WordTokenKind::Word))
+                .collect()
+        } else {
+            tokens.map(|token| token.to_pair()).collect()
+        }
+    };
+
+    // NOTE: nothing here will be parallelized
     macro_rules! write_tokens {
         ($record:ident, $tokens:expr) => {{
             if let Some(sep) = &args.flag_sep {
-                if let Some(range) = &ngrams {
-                    let joined_tokens = $tokens
-                        .map(|t| t.text)
-                        .ngrams_range(range.clone())
-                        .map(|gram| gram.join(&args.flag_ngrams_sep))
+                let joined_types_opt = args.flag_token_type.as_ref().map(|_| {
+                    $tokens
+                        .iter()
+                        .map(|token| token.1.as_str())
                         .collect::<Vec<_>>()
-                        .join(sep);
+                        .join(sep)
+                });
 
-                    // NOTE: if not -p, we are mutating the working record
-                    $record.push_field(joined_tokens.as_bytes());
+                let joined_tokens = $tokens
+                    .into_iter()
+                    .map(|token| token.0)
+                    .collect::<Vec<_>>()
+                    .join(sep);
 
-                    wtr.write_byte_record(&$record)?;
-                } else {
-                    let mut types = Vec::new();
+                // NOTE: if not -p, we are mutating the working record
+                $record.push_field(joined_tokens.as_bytes());
 
-                    let joined_tokens = $tokens
-                        .map(|t| {
-                            if args.flag_token_type.is_some() {
-                                types.push(t.kind.as_str());
-                            }
-                            t.text
-                        })
-                        .collect::<Vec<_>>()
-                        .join(sep);
+                if let Some(joined_types) = joined_types_opt {
+                    $record.push_field(joined_types.as_bytes());
+                }
 
-                    // NOTE: if not -p, we are mutating the working record
-                    $record.push_field(joined_tokens.as_bytes());
+                wtr.write_byte_record(&$record)?;
+            } else {
+                for token in $tokens {
+                    let mut record_to_write = if args.flag_keep_text {
+                        $record.clone()
+                    } else {
+                        $record.remove(col_index)
+                    };
+
+                    record_to_write.push_field(token.0.as_bytes());
 
                     if args.flag_token_type.is_some() {
-                        $record.push_field(types.join(sep).as_bytes());
+                        record_to_write.push_field(token.1.as_str().as_bytes());
                     }
 
-                    wtr.write_byte_record(&$record)?;
-                }
-            } else {
-                if let Some(range) = &ngrams {
-                    for gram in $tokens.map(|t| t.text).ngrams_range(range.clone()) {
-                        let mut record_to_write = if args.flag_keep_text {
-                            $record.clone()
-                        } else {
-                            $record.remove(col_index)
-                        };
-
-                        record_to_write.push_field(gram.join(&args.flag_ngrams_sep).as_bytes());
-                        wtr.write_byte_record(&record_to_write)?;
-                    }
-                } else {
-                    for token in $tokens {
-                        let mut record_to_write = if args.flag_keep_text {
-                            $record.clone()
-                        } else {
-                            $record.remove(col_index)
-                        };
-
-                        record_to_write.push_field(token.text.as_bytes());
-
-                        if args.flag_token_type.is_some() {
-                            record_to_write.push_field(token.kind.as_str().as_bytes());
-                        }
-
-                        wtr.write_record(&record_to_write)?;
-                    }
+                    wtr.write_record(&record_to_write)?;
                 }
             }
         }};
@@ -307,17 +302,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let text =
                         std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
 
-                    let tokens = if args.flag_simple {
-                        tokenizer
-                            .simple_tokenize(text)
-                            .map(|token| (token.text.to_string(), token.kind))
-                            .collect()
-                    } else {
-                        tokenizer
-                            .tokenize(text)
-                            .map(|token| (token.text.to_string(), token.kind))
-                            .collect()
-                    };
+                    let tokens = tokenize(text);
 
                     Ok((record, tokens))
                 },
@@ -325,12 +310,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .try_for_each(|result| -> CliResult<()> {
                 let (mut record, tokens) = result?;
 
-                write_tokens!(
-                    record,
-                    tokens
-                        .iter()
-                        .map(|(text, kind)| WordToken { text, kind: *kind })
-                );
+                write_tokens!(record, tokens);
 
                 Ok(())
             })?;
@@ -339,12 +319,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         while rdr.read_byte_record(&mut record)? {
             let text = std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
+            let tokens = tokenize(text);
 
-            if args.flag_simple {
-                write_tokens!(record, tokenizer.simple_tokenize(text))
-            } else {
-                write_tokens!(record, tokenizer.tokenize(text))
-            }
+            write_tokens!(record, tokens);
         }
     }
 
