@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::num::NonZeroUsize;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
@@ -716,6 +717,29 @@ impl<T: Iterator> ChunksIteratorExt for T {
     }
 }
 
+pub trait JoinIteratorExt {
+    fn join(self, sep: &str) -> String;
+}
+
+impl<T: Deref<Target = str>, I: Iterator<Item = T>> JoinIteratorExt for I {
+    fn join(self, sep: &str) -> String {
+        let mut string = String::with_capacity(self.size_hint().0.saturating_sub(1));
+        let mut started = false;
+
+        for item in self {
+            if started {
+                string.push_str(sep);
+            } else {
+                started = true;
+            }
+
+            string.push_str(item.deref());
+        }
+
+        string
+    }
+}
+
 pub fn bytes_cursor_from_read<R: io::Read>(source: &mut R) -> io::Result<io::Cursor<Vec<u8>>> {
     let mut bytes = Vec::<u8>::new();
     source.read_to_end(&mut bytes)?;
@@ -842,5 +866,13 @@ mod tests {
             str_to_csv_byte_record("\"test, ok\",\"\"\"John"),
             brec![b"test, ok", b"\"John"]
         );
+    }
+
+    #[test]
+    fn test_join_iterator_ext() {
+        let strings = ["a", "b", "c"];
+
+        assert_eq!(std::iter::empty::<&str>().join("|"), String::from(""));
+        assert_eq!(strings.iter().cloned().join("|"), String::from("a|b|c"));
     }
 }

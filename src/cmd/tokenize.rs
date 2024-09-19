@@ -5,7 +5,7 @@ use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::util::{self, ImmutableRecordHelpers, JoinIteratorExt};
 use crate::CliResult;
 
 static USAGE: &str = "
@@ -244,19 +244,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! write_tokens {
         ($record:ident, $tokens:expr) => {{
             if let Some(sep) = &args.flag_sep {
-                let joined_types_opt = args.flag_token_type.as_ref().map(|_| {
-                    $tokens
-                        .iter()
-                        .map(|token| token.1.as_str())
-                        .collect::<Vec<_>>()
-                        .join(sep)
-                });
+                let joined_types_opt = args
+                    .flag_token_type
+                    .as_ref()
+                    .map(|_| $tokens.iter().map(|token| token.1.as_str()).join(sep));
 
-                let joined_tokens = $tokens
-                    .into_iter()
-                    .map(|token| token.0)
-                    .collect::<Vec<_>>()
-                    .join(sep);
+                let joined_tokens = $tokens.iter().map(|token| token.0.as_str()).join(sep);
 
                 // NOTE: if not -p, we are mutating the working record
                 $record.push_field(joined_tokens.as_bytes());
