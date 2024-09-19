@@ -115,7 +115,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconf.selection(&headers)?;
 
     // Nothing was selected
-    if sel.len() == 0 {
+    if sel.is_empty() {
         return Ok(());
     }
 

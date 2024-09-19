@@ -431,6 +431,10 @@ impl Selection {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn indices(&self) -> impl Iterator<Item = usize> + '_ {
         self.0.iter().copied()
     }
