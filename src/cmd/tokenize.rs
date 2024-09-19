@@ -74,6 +74,9 @@ tokenize options:
     -m, --min-token <n>      Minimum characters count of a token to be included in the output.
     -M, --max-token <n>      Maximum characters count of a token to be included in the output.
     --stoplist <path>        Path to a .txt stoplist containing one word per line.
+    -J, --filter-junk        Whether to apply some heuristics to filter out words that look like junk.
+    -L, --lower              Whether to normalize token case using lower case.
+    -U, --unidecode          Whether to normalize token text to ascii.
     --sep <delim>            If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
@@ -114,6 +117,9 @@ struct Args {
     flag_min_token: Option<usize>,
     flag_max_token: Option<usize>,
     flag_stoplist: Option<String>,
+    flag_filter_junk: bool,
+    flag_lower: bool,
+    flag_unidecode: bool,
     flag_simple: bool,
     flag_ngrams: Option<String>,
     flag_ngrams_sep: String,
@@ -219,6 +225,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if args.flag_filter_junk {
+        tokenizer_builder = tokenizer_builder.filter_junk();
+    }
+
     let tokenizer = tokenizer_builder.build();
 
     // NOTE: everything in this function will be parallelized
@@ -229,14 +239,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Box::new(tokenizer.tokenize(string))
         };
 
+        let tokens = tokens.map(|token| {
+            let pair = token.to_pair();
+
+            let mut text = pair.0;
+
+            if args.flag_lower {
+                text = text.to_lowercase();
+            }
+
+            if args.flag_unidecode {
+                text = unidecode::unidecode(&text);
+            }
+
+            (text, pair.1)
+        });
+
         if let Some(range) = &ngrams {
             tokens
-                .map(|token| token.text)
+                .map(|token| token.0)
                 .ngrams_range(range.clone())
                 .map(|gram| (gram.join(&args.flag_ngrams_sep), WordTokenKind::Word))
                 .collect()
         } else {
-            tokens.map(|token| token.to_pair()).collect()
+            tokens.collect()
         }
     };
 
