@@ -1040,7 +1040,7 @@ mod tests {
 
     #[test]
     fn test_timestamp() {
-        let tz = TimeZone::system();
+        let tz = TimeZone::UTC;
         let timestamp = Timestamp::from_second(1645805387).unwrap();
         let zoned = timestamp.to_zoned(tz);
 
@@ -1052,7 +1052,7 @@ mod tests {
 
     #[test]
     fn test_timestamp_ms() {
-        let tz = TimeZone::system();
+        let tz = TimeZone::UTC;
         let timestamp = Timestamp::from_millisecond(1645805387000).unwrap();
         let zoned = timestamp.to_zoned(tz);
 

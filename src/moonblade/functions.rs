@@ -1227,9 +1227,9 @@ fn bytesize(args: BoundArguments) -> FunctionResult {
 // Dates
 fn timestamp(args: BoundArguments) -> FunctionResult {
     let seconds = args.get1().try_as_i64()?;
-    let system = TimeZone::system();
+    let utc = TimeZone::UTC;
     match Timestamp::from_second(seconds) {
-        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(utc))),
         Err(_) => Err(EvaluationError::DateTime(format!(
             "cannot parse \"{}\" as timestamp",
             seconds
@@ -1238,13 +1238,13 @@ fn timestamp(args: BoundArguments) -> FunctionResult {
 }
 
 fn timestamp_ms(args: BoundArguments) -> FunctionResult {
-    let seconds = args.get1().try_as_i64()?;
-    let system = TimeZone::system();
-    match Timestamp::from_millisecond(seconds) {
-        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(system))),
+    let milliseconds = args.get1().try_as_i64()?;
+    let utc = TimeZone::UTC;
+    match Timestamp::from_millisecond(milliseconds) {
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(utc))),
         Err(_) => Err(EvaluationError::DateTime(format!(
             "cannot parse \"{}\" as timestamp",
-            seconds
+            milliseconds
         ))),
     }
 }
