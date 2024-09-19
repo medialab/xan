@@ -75,11 +75,11 @@ impl ConcreteExpr {
         })
     }
 
-    pub fn evaluate<'a>(
-        &'a self,
+    pub fn evaluate(
+        &self,
         index: Option<usize>,
         record: &ByteRecord,
-        context: &'a EvaluationContext,
+        context: &EvaluationContext,
     ) -> EvaluationResult {
         match self {
             Self::Call(function_call) => function_call.run(index, record, context),
@@ -129,11 +129,11 @@ impl ConcreteFunctionCall {
         self.run(None, &ByteRecord::new(), &EvaluationContext::default())
     }
 
-    fn run<'a>(
-        &'a self,
+    fn run(
+        &self,
         index: Option<usize>,
         record: &ByteRecord,
-        context: &'a EvaluationContext,
+        context: &EvaluationContext,
     ) -> EvaluationResult {
         let mut bound_args = BoundArguments::new();
 
@@ -199,11 +199,11 @@ impl ConcreteSpecialFunctionCall {
         self.run(None, &ByteRecord::new(), &EvaluationContext::default())
     }
 
-    fn run<'a>(
-        &'a self,
+    fn run(
+        &self,
         index: Option<usize>,
         record: &ByteRecord,
-        context: &'a EvaluationContext,
+        context: &EvaluationContext,
     ) -> EvaluationResult {
         (self.function)(index, record, context, &self.args)
     }
