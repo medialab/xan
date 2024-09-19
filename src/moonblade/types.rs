@@ -843,20 +843,20 @@ impl DynamicValue {
         self.serialize_as_bytes_with_options(b"|")
     }
 
-    pub fn try_into_datetime(self) -> Result<Box<Zoned>, EvaluationError> {
+    pub fn try_into_datetime(self) -> Result<Zoned, EvaluationError> {
         match self {
-            DynamicValue::DateTime(value) => Ok(value),
+            DynamicValue::DateTime(value) => Ok(*value),
             DynamicValue::String(value) => match value.parse::<Zoned>() {
-                Ok(zoned_datetime) => Ok(Box::new(zoned_datetime)),
+                Ok(zoned_datetime) => Ok(zoned_datetime),
                 Err(_) => match value.parse::<DateTime>() {
-                    Ok(datetime) => Ok(Box::new(datetime.to_zoned(TimeZone::system()).unwrap())),
+                    Ok(datetime) => Ok(datetime.to_zoned(TimeZone::system()).unwrap()),
                     Err(_) => Err(EvaluationError::DateTime(format!(
                         "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
                         value
                     )))
                 }
             },
-            _ => Err(EvaluationError::from_cast(&self, "string"))
+            _ => Err(EvaluationError::from_cast(&self, "datetime"))
         }
     }
 

@@ -935,7 +935,7 @@ where
     let (a, b) = args.pop2();
 
     let ordering = match (a, b) {
-        (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
+        (DynamicValue::DateTime(a), b) => (*a).partial_cmp(&b.try_into_datetime()?),
         (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
         (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
     };
@@ -1313,12 +1313,12 @@ fn strftime(args: BoundArguments) -> FunctionResult {
     let zoned_datetime = match timezone {
         Some(timezone) => {
             let tz = timezone_parse(&timezone)?;
-            Box::new(datetime.with_time_zone(tz))
+            datetime.with_time_zone(tz)
         }
         None => datetime,
     };
 
-    let formatted_datetime = strtime::format(fmt.as_ref(), &*zoned_datetime);
+    let formatted_datetime = strtime::format(fmt.as_ref(), &zoned_datetime);
     match formatted_datetime {
         Ok(value) => Ok(DynamicValue::from(value)),
         Err(_) => Err(EvaluationError::DateTime(format!(
