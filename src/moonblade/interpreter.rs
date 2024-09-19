@@ -389,6 +389,7 @@ pub fn concretize_expression(
         Expr::Func(call) => concretize_call(call, headers)?,
         Expr::List(list) => concretize_list(list, headers)?,
         Expr::Map(map) => concretize_map(map, headers)?,
+        Expr::Lambda(_, _) => unimplemented!(),
         Expr::Slice(_) => unreachable!(),
     })
 }

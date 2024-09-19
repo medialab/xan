@@ -232,6 +232,21 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                 Rule::false_lit => Expr::Bool(false),
                 Rule::null => Expr::Null,
                 Rule::expr => pratt_parse(primary.into_inner())?,
+                Rule::lambda => {
+                    let mut pairs = primary.into_inner();
+                    let last_pair = pairs.next_back().unwrap();
+
+                    debug_assert!(matches!(last_pair.as_rule(), Rule::expr));
+
+                    let args = pairs
+                        .take_while(|p| matches!(p.as_rule(), Rule::ident))
+                        .map(|p| pratt_parse(Pairs::single(p)))
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    let inner_expr = pratt_parse(last_pair.into_inner())?;
+
+                    Expr::Lambda(args, Box::new(inner_expr))
+                }
                 Rule::func => {
                     let mut pairs = primary.into_inner();
                     let func_name = pairs.next().unwrap().as_str().to_lowercase();
@@ -351,6 +366,7 @@ pub enum Slice {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Func(FunctionCall),
+    Lambda(Vec<Expr>, Box<Expr>),
     Int(i64),
     Float(f64),
     Identifier(String),
@@ -659,6 +675,45 @@ mod tests {
         assert_eq!(
             parse_expression("add(count, 1)"),
             Ok(func("add", vec![id("count"), Int(1)]))
+        );
+    }
+
+    #[test]
+    fn test_lambdas() {
+        assert_eq!(
+            parse_expression("map(array, x => x + 1)"),
+            Ok(func(
+                "map",
+                vec![
+                    id("array"),
+                    Lambda(vec![id("x")], Box::new(func("add", vec![id("x"), Int(1)])))
+                ]
+            ))
+        );
+
+        assert_eq!(
+            parse_expression("map(array, (x) => x + 1)"),
+            Ok(func(
+                "map",
+                vec![
+                    id("array"),
+                    Lambda(vec![id("x")], Box::new(func("add", vec![id("x"), Int(1)])))
+                ]
+            ))
+        );
+
+        assert_eq!(
+            parse_expression("map(array, (x, y) => x + y)"),
+            Ok(func(
+                "map",
+                vec![
+                    id("array"),
+                    Lambda(
+                        vec![id("x"), id("y")],
+                        Box::new(func("add", vec![id("x"), id("y")]))
+                    )
+                ]
+            ))
         );
     }
 

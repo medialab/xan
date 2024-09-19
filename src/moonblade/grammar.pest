@@ -111,6 +111,7 @@ open_indexing = { "[" }
 // Functions
 func_arg = { ((ident ~ "=")? ~ expr) | expr }
 func     = { ident ~ "(" ~ (func_arg ~ ","?)* ~ ")" }
+lambda   = { (ident | ("(" ~ (ident ~ ","?)* ~ ")")) ~ "=>" ~ expr }
 
 // Expressions
 full_slice  =  { unary_operator* ~ term ~ ":" ~ unary_operator* ~ term }
@@ -120,6 +121,7 @@ slice       = _{ full_slice | start_slice | end_slice }
 expr        =  { unary_operator* ~ term ~ (binary_operator ~ unary_operator* ~ term | open_indexing ~ (slice | unary_operator* ~ term) ~ "]")* }
 term        = _{
     func
+  | lambda
   | bool
   | null
   | regex
