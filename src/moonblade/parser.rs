@@ -382,19 +382,32 @@ pub enum Expr {
 
 impl Expr {
     pub fn simplify(&mut self) {
-        if let Self::Func(call) = self {
-            if call.name == "neg" && call.args.len() == 1 {
-                match call.args[0].1 {
-                    Self::Int(n) => *self = Self::Int(-n),
-                    Self::Float(n) => *self = Self::Float(-n),
-                    _ => (),
-                }
-            } else {
-                for (_, arg) in call.args.iter_mut() {
-                    arg.simplify();
+        match self {
+            Self::Func(call) => {
+                if call.name == "neg" && call.args.len() == 1 {
+                    match call.args[0].1 {
+                        Self::Int(n) => *self = Self::Int(-n),
+                        Self::Float(n) => *self = Self::Float(-n),
+                        _ => (),
+                    }
+                } else {
+                    for (_, arg) in call.args.iter_mut() {
+                        arg.simplify();
+                    }
                 }
             }
-        }
+            Self::List(exprs) => {
+                for expr in exprs.iter_mut() {
+                    expr.simplify();
+                }
+            }
+            Self::Map(exprs) => {
+                for (_, expr) in exprs.iter_mut() {
+                    expr.simplify();
+                }
+            }
+            _ => (),
+        };
     }
 
     pub fn try_to_usize(&self) -> Option<usize> {
