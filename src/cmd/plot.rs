@@ -29,10 +29,13 @@ fn get_series_color(i: usize) -> Style {
     }
 }
 
-fn graduations_from_domain<'a>(domain: (f64, f64)) -> Vec<Span<'a>> {
+fn graduations_from_domain<'a>(
+    formatter: &mut numfmt::Formatter,
+    domain: (f64, f64),
+) -> Vec<Span<'a>> {
     vec![
-        Span::from(domain.0.to_string()),
-        Span::from(domain.1.to_string()),
+        Span::from(util::pretty_print_float(formatter, domain.0)),
+        Span::from(util::pretty_print_float(formatter, domain.1)),
     ]
 }
 
@@ -229,19 +232,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
+        let mut formatter = util::acquire_number_formatter();
+
         // Create the X axis and define its properties
         let x_axis = Axis::default()
             .title(args.arg_x.dim())
             .style(Style::default().white())
             .bounds([x_domain.0, x_domain.1])
-            .labels(graduations_from_domain(x_domain));
+            .labels(graduations_from_domain(&mut formatter, x_domain));
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
             .title(args.arg_y.dim())
             .style(Style::default().white())
             .bounds([y_domain.0, y_domain.1])
-            .labels(graduations_from_domain(y_domain));
+            .labels(graduations_from_domain(&mut formatter, y_domain));
 
         // Create the chart and link all the parts together
         let mut chart = Chart::new(datasets)
