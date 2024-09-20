@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
 use serde::de::{Deserialize, Deserializer, Error};
@@ -144,6 +145,10 @@ plot options:
     --marker <name>   Marker to use. Can be one of (by order of size): 'braille', 'dot',
                       'halfblock', 'bar', 'block'.
                       [default: braille]
+    --x-ticks <n>     Number of x-axis graduation steps.
+                      [default: 3]
+    --y-ticks <n>     Number of y-axis graduation steps.
+                      [default: 4]
 
 Common options:
     -h, --help             Display this message
@@ -165,6 +170,8 @@ struct Args {
     flag_rows: Option<usize>,
     flag_color: Option<String>,
     flag_marker: Marker,
+    flag_x_ticks: NonZeroUsize,
+    flag_y_ticks: NonZeroUsize,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -297,7 +304,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 &mut formatter,
                 x_axis_type,
                 x_domain,
-                3,
+                args.flag_x_ticks.get(),
             ));
 
         // Create the Y axis and define its properties
@@ -309,7 +316,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 &mut formatter,
                 y_axis_type,
                 y_domain,
-                4,
+                args.flag_y_ticks.get(),
             ));
 
         // Create the chart and link all the parts together
