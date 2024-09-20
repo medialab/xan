@@ -29,14 +29,35 @@ fn get_series_color(i: usize) -> Style {
     }
 }
 
+fn lerp(min: f64, max: f64, t: f64) -> f64 {
+    (1.0 - t) * min + t * max
+}
+
 fn graduations_from_domain<'a>(
     formatter: &mut numfmt::Formatter,
     domain: (f64, f64),
+    steps: usize,
 ) -> Vec<Span<'a>> {
-    vec![
-        Span::from(util::pretty_print_float(formatter, domain.0)),
-        Span::from(util::pretty_print_float(formatter, domain.1)),
-    ]
+    debug_assert!(steps > 1);
+
+    let mut graduations: Vec<Span> = Vec::with_capacity(steps);
+
+    let mut t = 0.0;
+    let fract = 1.0 / (steps - 1) as f64;
+
+    graduations.push(Span::from(util::pretty_print_float(formatter, domain.0)));
+
+    for _ in 1..(steps - 1) {
+        t += fract;
+        graduations.push(Span::from(util::pretty_print_float(
+            formatter,
+            lerp(domain.0, domain.1, t),
+        )));
+    }
+
+    graduations.push(Span::from(util::pretty_print_float(formatter, domain.1)));
+
+    graduations
 }
 
 fn merge_domains(mut domains: impl Iterator<Item = (f64, f64)>) -> (f64, f64) {
@@ -239,14 +260,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .title(args.arg_x.dim())
             .style(Style::default().white())
             .bounds([x_domain.0, x_domain.1])
-            .labels(graduations_from_domain(&mut formatter, x_domain));
+            .labels(graduations_from_domain(&mut formatter, x_domain, 3));
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
             .title(args.arg_y.dim())
             .style(Style::default().white())
             .bounds([y_domain.0, y_domain.1])
-            .labels(graduations_from_domain(&mut formatter, y_domain));
+            .labels(graduations_from_domain(&mut formatter, y_domain, 4));
 
         // Create the chart and link all the parts together
         let mut chart = Chart::new(datasets)
