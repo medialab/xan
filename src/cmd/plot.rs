@@ -14,6 +14,7 @@ use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
 use crate::config::{Config, Delimiter};
+use crate::moonblade::DynamicNumber;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
@@ -33,9 +34,20 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
     (1.0 - t) * min + t * max
 }
 
+fn typed_span<'a>(formatter: &mut numfmt::Formatter, axis_type: AxisType, x: f64) -> Span<'a> {
+    Span::from(util::pretty_print_float(
+        formatter,
+        match axis_type {
+            AxisType::Float => x,
+            AxisType::Int => x.trunc(),
+        },
+    ))
+}
+
 fn graduations_from_domain<'a>(
     formatter: &mut numfmt::Formatter,
-    domain: (f64, f64),
+    axis_type: AxisType,
+    domain: (DynamicNumber, DynamicNumber),
     steps: usize,
 ) -> Vec<Span<'a>> {
     debug_assert!(steps > 1);
@@ -45,22 +57,25 @@ fn graduations_from_domain<'a>(
     let mut t = 0.0;
     let fract = 1.0 / (steps - 1) as f64;
 
-    graduations.push(Span::from(util::pretty_print_float(formatter, domain.0)));
+    graduations.push(typed_span(formatter, axis_type, domain.0.as_float()));
 
     for _ in 1..(steps - 1) {
         t += fract;
-        graduations.push(Span::from(util::pretty_print_float(
+        graduations.push(typed_span(
             formatter,
-            lerp(domain.0, domain.1, t),
-        )));
+            axis_type,
+            lerp(domain.0.as_float(), domain.1.as_float(), t),
+        ));
     }
 
-    graduations.push(Span::from(util::pretty_print_float(formatter, domain.1)));
+    graduations.push(typed_span(formatter, axis_type, domain.1.as_float()));
 
     graduations
 }
 
-fn merge_domains(mut domains: impl Iterator<Item = (f64, f64)>) -> (f64, f64) {
+fn merge_domains(
+    mut domains: impl Iterator<Item = (DynamicNumber, DynamicNumber)>,
+) -> (DynamicNumber, DynamicNumber) {
     let mut domain = domains.next().unwrap();
 
     for other in domains {
@@ -73,6 +88,16 @@ fn merge_domains(mut domains: impl Iterator<Item = (f64, f64)>) -> (f64, f64) {
     }
 
     domain
+}
+
+fn merge_axis_types(mut axis_types: impl Iterator<Item = AxisType>) -> AxisType {
+    let mut axis_type = axis_types.next().unwrap();
+
+    for other in axis_types {
+        axis_type = axis_type.and(other);
+    }
+
+    axis_type
 }
 
 #[derive(Clone, Copy)]
@@ -200,7 +225,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // NOTE: we sort on x if we want a line plot
     if args.flag_line {
         for (_, series) in finalized_series.iter_mut() {
-            series.sort();
+            series.sort_by_x_axis();
         }
     }
 
@@ -218,18 +243,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let area = Rect::new(0, 0, cols, rows);
 
         // Create the datasets to fill the chart with
-
         let x_domain = merge_domains(
             finalized_series
                 .iter()
                 .map(|(_, series)| series.x_domain().unwrap()),
         );
+        let x_axis_type =
+            merge_axis_types(finalized_series.iter().map(|(_, series)| series.types.0));
 
         let y_domain = merge_domains(
             finalized_series
                 .iter()
                 .map(|(_, series)| series.y_domain().unwrap()),
         );
+        let y_axis_type =
+            merge_axis_types(finalized_series.iter().map(|(_, series)| series.types.1));
+
+        let finalized_series = finalized_series
+            .into_iter()
+            .map(|(name_opt, series)| (name_opt, series.into_floats()))
+            .collect::<Vec<_>>();
 
         let datasets = finalized_series
             .iter()
@@ -243,7 +276,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         GraphType::Scatter
                     })
                     .style(get_series_color(i))
-                    .data(&series.points);
+                    .data(series);
 
                 if let Some(name) = name_opt {
                     dataset = dataset.name(name.clone());
@@ -259,15 +292,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let x_axis = Axis::default()
             .title(args.arg_x.dim())
             .style(Style::default().white())
-            .bounds([x_domain.0, x_domain.1])
-            .labels(graduations_from_domain(&mut formatter, x_domain, 3));
+            .bounds([x_domain.0.as_float(), x_domain.1.as_float()])
+            .labels(graduations_from_domain(
+                &mut formatter,
+                x_axis_type,
+                x_domain,
+                3,
+            ));
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
             .title(args.arg_y.dim())
             .style(Style::default().white())
-            .bounds([y_domain.0, y_domain.1])
-            .labels(graduations_from_domain(&mut formatter, y_domain, 4));
+            .bounds([y_domain.0.as_float(), y_domain.1.as_float()])
+            .labels(graduations_from_domain(
+                &mut formatter,
+                y_axis_type,
+                y_domain,
+                4,
+            ));
 
         // Create the chart and link all the parts together
         let mut chart = Chart::new(datasets)
@@ -364,27 +407,61 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
+enum AxisType {
+    Int,
+    Float,
+}
+
+impl AxisType {
+    fn and(self, other: AxisType) -> Self {
+        match (self, other) {
+            (Self::Float, _) | (_, Self::Float) => Self::Float,
+            _ => Self::Int,
+        }
+    }
+}
+
 struct Series {
-    points: Vec<(f64, f64)>,
-    extent: Option<((f64, f64), (f64, f64))>,
+    types: (AxisType, AxisType),
+    points: Vec<(DynamicNumber, DynamicNumber)>,
+    extent: Option<(
+        (DynamicNumber, DynamicNumber),
+        (DynamicNumber, DynamicNumber),
+    )>,
 }
 
 impl Series {
     fn new() -> Self {
         Self {
+            types: (AxisType::Int, AxisType::Int),
             points: Vec::new(),
             extent: None,
         }
     }
 
-    fn of(x: f64, y: f64) -> Self {
-        Self {
-            points: vec![(x, y)],
-            extent: Some(((x, x), (y, y))),
-        }
+    fn into_floats(self) -> Vec<(f64, f64)> {
+        self.points
+            .into_iter()
+            .map(|(x, y)| (x.as_float(), y.as_float()))
+            .collect()
     }
 
-    fn add(&mut self, x: f64, y: f64) {
+    fn of(x: DynamicNumber, y: DynamicNumber) -> Self {
+        let mut series = Self::new();
+        series.add(x, y);
+        series
+    }
+
+    fn add(&mut self, x: DynamicNumber, y: DynamicNumber) {
+        if x.is_float() {
+            self.types.0 = AxisType::Float;
+        }
+
+        if y.is_float() {
+            self.types.1 = AxisType::Float;
+        }
+
         self.points.push((x, y));
 
         match self.extent.as_mut() {
@@ -407,16 +484,16 @@ impl Series {
         };
     }
 
-    fn x_domain(&self) -> Option<(f64, f64)> {
+    fn x_domain(&self) -> Option<(DynamicNumber, DynamicNumber)> {
         self.extent.map(|(x, _)| x)
     }
 
-    fn y_domain(&self) -> Option<(f64, f64)> {
+    fn y_domain(&self) -> Option<(DynamicNumber, DynamicNumber)> {
         self.extent.map(|(_, y)| y)
     }
 
-    fn sort(&mut self) {
-        self.points.sort_by(|a, b| a.0.total_cmp(&b.0))
+    fn sort_by_x_axis(&mut self) {
+        self.points.sort_by(|a, b| a.0.cmp(&b.0))
     }
 }
 
@@ -442,11 +519,11 @@ impl GroupedSeries {
         }
     }
 
-    fn add(&mut self, x: f64, y: f64) {
+    fn add(&mut self, x: DynamicNumber, y: DynamicNumber) {
         self.default.as_mut().unwrap().add(x, y);
     }
 
-    fn add_with_name(&mut self, name: &[u8], x: f64, y: f64) {
+    fn add_with_name(&mut self, name: &[u8], x: DynamicNumber, y: DynamicNumber) {
         let mapping = self.mapping.as_mut().unwrap();
         let current_len = mapping.len();
 

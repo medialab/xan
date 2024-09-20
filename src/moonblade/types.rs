@@ -383,6 +383,10 @@ impl DynamicNumber {
         }
     }
 
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float(_))
+    }
+
     pub fn idiv(self, rhs: Self) -> Self {
         Self::Integer(match self {
             Self::Integer(a) => match rhs {
