@@ -65,6 +65,12 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 cargo install xan
 ```
 
+You can also install the latest dev version thusly:
+
+```
+cargo install --git https://github.com/medialab/xan
+```
+
 ## Quick tour
 
 Let's learn about the most commonly used `xan` commands by exploring a corpus of French medias:
