@@ -391,6 +391,9 @@ use the operators in the previous section.
         and deduplicating its word tokens before re-joining them by
         spaces.
 
+    - carry_stemmer(string) -> string
+        Apply the \"Carry\" stemmer targeting the French language.
+
     - s_stemmer(string) -> string
         Apply a very simple stemmer removing common plural inflexions in
         some languages.

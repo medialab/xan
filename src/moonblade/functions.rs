@@ -15,7 +15,10 @@ use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
 use jiff::{civil::DateTime, fmt::strtime, tz::TimeZone, Timestamp, Zoned};
 use namedlock::{AutoCleanup, LockSpace};
-use paltoquet::{stemmers::s_stemmer, tokenizers::FingerprintTokenizer};
+use paltoquet::{
+    stemmers::{fr::carry_stemmer, s_stemmer},
+    tokenizers::FingerprintTokenizer,
+};
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -71,6 +74,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(1..=2),
         ),
         "bytesize" => (bytesize, FunctionArguments::unary()),
+        "carry_stemmer" => (carry_stemmer_fn, FunctionArguments::unary()),
         "ceil" => (
             |args| unary_arithmetic_op(args, DynamicNumber::ceil),
             FunctionArguments::unary(),
@@ -1406,6 +1410,12 @@ fn s_stemmer_fn(args: BoundArguments) -> FunctionResult {
     let string = args.get1().try_as_str()?;
 
     Ok(DynamicValue::from(s_stemmer(&string)))
+}
+
+fn carry_stemmer_fn(args: BoundArguments) -> FunctionResult {
+    let string = args.get1().try_as_str()?;
+
+    Ok(DynamicValue::from(carry_stemmer(&string)))
 }
 
 // Utils
