@@ -17,6 +17,7 @@ use serde::{
 };
 
 use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
+use super::interpreter::{ConcreteExpr, EvaluationContext, LambdaVariables};
 use super::parser::Expr;
 use super::utils::downgrade_float;
 
@@ -639,6 +640,7 @@ pub enum DynamicValue {
     Boolean(bool),
     Regex(Arc<Regex>),
     DateTime(Box<Zoned>),
+    Lambda(Arc<ConcreteExpr>),
     None,
 }
 
@@ -667,6 +669,7 @@ impl Serialize for DynamicValue {
                 .strftime(DYNAMIC_VALUE_DATE_FORMAT)
                 .to_string()
                 .serialize(serializer),
+            Self::Lambda(_) => "<lambda>".serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -786,6 +789,7 @@ impl DynamicValue {
             Self::Boolean(_) => "boolean",
             Self::DateTime(_) => "datetime",
             Self::Regex(_) => "regex",
+            Self::Lambda(_) => "lambda",
             Self::None => "none",
         }
     }
@@ -835,6 +839,7 @@ impl DynamicValue {
                     .into_bytes(),
             ),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
+            Self::Lambda(_) => Cow::Borrowed(b"<lambda>"),
             Self::None => Cow::Borrowed(b""),
         }
     }
@@ -889,6 +894,13 @@ impl DynamicValue {
         match self {
             Self::Regex(regex) => Ok(regex),
             _ => Err(EvaluationError::from_cast(self, "regex")),
+        }
+    }
+
+    pub fn try_as_lambda(&self) -> Result<&ConcreteExpr, EvaluationError> {
+        match self {
+            Self::Lambda(expr) => Ok(expr),
+            _ => Err(EvaluationError::from_cast(self, "lambda")),
         }
     }
 
@@ -993,6 +1005,7 @@ impl DynamicValue {
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
             Self::DateTime(_) => true,
+            Self::Lambda(_) => true,
             Self::None => false,
         }
     }
@@ -1185,15 +1198,44 @@ pub type EvaluationResult = Result<DynamicValue, SpecifiedEvaluationError>;
 
 pub const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
-pub struct BoundArguments {
+pub struct BoundArguments<'a> {
     stack: ArrayVec<DynamicValue, BOUND_ARGUMENTS_CAPACITY>,
+    index: Option<usize>,
+    record: &'a csv::ByteRecord,
+    context: &'a EvaluationContext,
 }
 
-impl BoundArguments {
-    pub fn new() -> Self {
+impl<'a> BoundArguments<'a> {
+    pub fn new(
+        index: Option<usize>,
+        record: &'a csv::ByteRecord,
+        context: &'a EvaluationContext,
+    ) -> Self {
         Self {
             stack: ArrayVec::new(),
+            index,
+            record,
+            context,
         }
+    }
+
+    fn evaluate_lambda(
+        &self,
+        expr: &ConcreteExpr,
+        variables: &LambdaVariables,
+    ) -> Result<DynamicValue, EvaluationError> {
+        expr.evaluate(self.index, &self.record, &self.context, Some(variables))
+            .map_err(|err| err.reason)
+    }
+
+    pub fn evaluate_unary_lambda(
+        &self,
+        expr: &ConcreteExpr,
+        arg: DynamicValue,
+    ) -> Result<DynamicValue, EvaluationError> {
+        let mut variables = LambdaVariables::new();
+        variables.push(arg);
+        self.evaluate_lambda(expr, &variables)
     }
 
     pub fn len(&self) -> usize {
@@ -1293,7 +1335,7 @@ impl Iterator for BoundArgumentsIntoIterator {
     }
 }
 
-impl IntoIterator for BoundArguments {
+impl<'a> IntoIterator for BoundArguments<'a> {
     type Item = DynamicValue;
     type IntoIter = BoundArgumentsIntoIterator;
 

@@ -26,6 +26,7 @@ pub enum ConcretizationError {
     UnknownArgumentName(String),
     StaticEvaluationError(SpecifiedEvaluationError),
     NotStaticallyAnalyzable,
+    NestedLambdas,
 }
 
 impl Display for ConcretizationError {
@@ -42,6 +43,7 @@ impl Display for ConcretizationError {
             }
             Self::StaticEvaluationError(error) => error.fmt(f),
             Self::NotStaticallyAnalyzable => write!(f, "not statically analyzable"),
+            Self::NestedLambdas => write!(f, "nested lambdas are not supported"),
         }
     }
 }
@@ -117,6 +119,7 @@ impl Display for SpecifiedEvaluationError {
 #[derive(Debug, PartialEq)]
 pub enum EvaluationError {
     InvalidArity(InvalidArity),
+    LambdaVariableOutOfBound,
     InvalidPath,
     NotImplemented(String),
     IO(String),
@@ -143,6 +146,7 @@ impl Display for EvaluationError {
         match self {
             Self::InvalidPath => write!(f, "invalid posix path"),
             Self::InvalidArity(arity) => arity.fmt(f),
+            Self::LambdaVariableOutOfBound => write!(f, "lambda variable out-of-bounds"),
             Self::IO(msg) => write!(f, "{}", msg),
             Self::DateTime(msg) => write!(f, "{}", msg),
             Self::Custom(msg) => write!(f, "{}", msg),

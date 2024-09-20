@@ -240,8 +240,8 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
 
                     let args = pairs
                         .take_while(|p| matches!(p.as_rule(), Rule::ident))
-                        .map(|p| pratt_parse(Pairs::single(p)))
-                        .collect::<Result<Vec<_>, _>>()?;
+                        .map(|p| p.as_str().to_string())
+                        .collect::<Vec<_>>();
 
                     let inner_expr = pratt_parse(last_pair.into_inner())?;
 
@@ -366,7 +366,7 @@ pub enum Slice {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Func(FunctionCall),
-    Lambda(Vec<Expr>, Box<Expr>),
+    Lambda(Vec<String>, Box<Expr>),
     Int(i64),
     Float(f64),
     Identifier(String),
@@ -686,7 +686,10 @@ mod tests {
                 "map",
                 vec![
                     id("array"),
-                    Lambda(vec![id("x")], Box::new(func("add", vec![id("x"), Int(1)])))
+                    Lambda(
+                        vec!["x".to_string()],
+                        Box::new(func("add", vec![id("x"), Int(1)]))
+                    )
                 ]
             ))
         );
@@ -697,7 +700,10 @@ mod tests {
                 "map",
                 vec![
                     id("array"),
-                    Lambda(vec![id("x")], Box::new(func("add", vec![id("x"), Int(1)])))
+                    Lambda(
+                        vec!["x".to_string()],
+                        Box::new(func("add", vec![id("x"), Int(1)]))
+                    )
                 ]
             ))
         );
@@ -709,7 +715,7 @@ mod tests {
                 vec![
                     id("array"),
                     Lambda(
-                        vec![id("x"), id("y")],
+                        vec!["x".to_string(), "y".to_string()],
                         Box::new(func("add", vec![id("x"), id("y")]))
                     )
                 ]

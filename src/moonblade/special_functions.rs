@@ -4,14 +4,19 @@
 use csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::interpreter::{ConcreteExpr, EvaluationContext};
+use super::interpreter::{ConcreteExpr, EvaluationContext, LambdaVariables};
 use super::parser::FunctionCall;
 use super::types::{ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments};
 
 pub type ComptimeFunctionResult = Result<Option<ConcreteExpr>, ConcretizationError>;
 pub type ComptimeFunction = fn(&FunctionCall, &ByteRecord) -> ComptimeFunctionResult;
-pub type RuntimeFunction =
-    fn(Option<usize>, &ByteRecord, &EvaluationContext, &[ConcreteExpr]) -> EvaluationResult;
+pub type RuntimeFunction = fn(
+    Option<usize>,
+    &ByteRecord,
+    &EvaluationContext,
+    Option<&LambdaVariables>,
+    &[ConcreteExpr],
+) -> EvaluationResult;
 
 pub fn get_special_function(
     name: &str,
@@ -114,12 +119,13 @@ fn runtime_if(
     index: Option<usize>,
     record: &ByteRecord,
     context: &EvaluationContext,
+    lambda_variables: Option<&LambdaVariables>,
     args: &[ConcreteExpr],
 ) -> EvaluationResult {
     let arity = args.len();
 
     let condition = &args[0];
-    let result = condition.evaluate(index, record, context)?;
+    let result = condition.evaluate(index, record, context, lambda_variables)?;
 
     let mut branch: Option<&ConcreteExpr> = None;
 
@@ -131,7 +137,7 @@ fn runtime_if(
 
     match branch {
         None => Ok(DynamicValue::None),
-        Some(arg) => arg.evaluate(index, record, context),
+        Some(arg) => arg.evaluate(index, record, context, lambda_variables),
     }
 }
 
@@ -139,12 +145,13 @@ fn runtime_unless(
     index: Option<usize>,
     record: &ByteRecord,
     context: &EvaluationContext,
+    lambda_variables: Option<&LambdaVariables>,
     args: &[ConcreteExpr],
 ) -> EvaluationResult {
     let arity = args.len();
 
     let condition = &args[0];
-    let result = condition.evaluate(index, record, context)?;
+    let result = condition.evaluate(index, record, context, lambda_variables)?;
 
     let mut branch: Option<&ConcreteExpr> = None;
 
@@ -156,7 +163,7 @@ fn runtime_unless(
 
     match branch {
         None => Ok(DynamicValue::None),
-        Some(arg) => arg.evaluate(index, record, context),
+        Some(arg) => arg.evaluate(index, record, context, lambda_variables),
     }
 }
 
@@ -164,6 +171,7 @@ fn runtime_index(
     index: Option<usize>,
     _record: &ByteRecord,
     _context: &EvaluationContext,
+    _lambda_variables: Option<&LambdaVariables>,
     _args: &[ConcreteExpr],
 ) -> EvaluationResult {
     Ok(match index {
@@ -176,11 +184,15 @@ fn runtime_col(
     index: Option<usize>,
     record: &ByteRecord,
     context: &EvaluationContext,
+    lambda_variables: Option<&LambdaVariables>,
     args: &[ConcreteExpr],
 ) -> EvaluationResult {
-    let name_or_pos = args.first().unwrap().evaluate(index, record, context)?;
+    let name_or_pos = args
+        .first()
+        .unwrap()
+        .evaluate(index, record, context, lambda_variables)?;
     let pos = match args.get(1) {
-        Some(p) => Some(p.evaluate(index, record, context)?),
+        Some(p) => Some(p.evaluate(index, record, context, lambda_variables)?),
         None => None,
     };
 

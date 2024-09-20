@@ -125,6 +125,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "match" => (regex_match, FunctionArguments::with_range(2..=3)),
         "max" => (variadic_max, FunctionArguments::variadic(2)),
         "md5" => (md5, FunctionArguments::unary()),
+        "map" => (map, FunctionArguments::binary()),
         "mean" => (mean, FunctionArguments::unary()),
         "min" => (variadic_min, FunctionArguments::variadic(2)),
         "mod" => (
@@ -666,6 +667,23 @@ fn replace(args: BoundArguments) -> FunctionResult {
     };
 
     Ok(DynamicValue::from(replaced))
+}
+
+// Higher-order functions
+fn map(mut args: BoundArguments) -> FunctionResult {
+    let (arg1, arg2) = args.pop2();
+
+    // TODO: validate arity at some point
+    // TODO: arc optimization
+    let list = arg1.try_into_arc_list()?;
+    let lambda = arg2.try_as_lambda()?;
+
+    let result = list
+        .iter()
+        .map(|item| args.evaluate_unary_lambda(lambda, item.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(DynamicValue::from(result))
 }
 
 fn compact(mut args: BoundArguments) -> FunctionResult {

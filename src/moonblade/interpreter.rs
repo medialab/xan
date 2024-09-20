@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::RegexBuilder;
 
@@ -30,9 +31,12 @@ impl EvaluationContext {
     }
 }
 
+pub type LambdaVariables = ArrayVec<DynamicValue, 2>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConcreteExpr {
     Column(usize),
+    LambdaVariable(usize),
     Value(DynamicValue),
     List(Vec<ConcreteExpr>),
     Map(Vec<(String, ConcreteExpr)>),
@@ -61,7 +65,11 @@ impl ConcreteExpr {
         }
     }
 
-    fn bind(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
+    fn bind(
+        &self,
+        record: &ByteRecord,
+        lambda_variables: Option<&LambdaVariables>,
+    ) -> Result<DynamicValue, EvaluationError> {
         Ok(match self {
             Self::Value(value) => value.clone(),
             Self::Column(index) => match record.get(*index) {
@@ -70,6 +78,13 @@ impl ConcreteExpr {
                     Err(_) => return Err(EvaluationError::UnicodeDecodeError),
                     Ok(value) => DynamicValue::from(value),
                 },
+            },
+            Self::LambdaVariable(index) => match lambda_variables {
+                Some(variables) => match variables.get(*index) {
+                    Some(value) => value.clone(),
+                    None => return Err(EvaluationError::LambdaVariableOutOfBound),
+                },
+                None => return Err(EvaluationError::LambdaVariableOutOfBound),
             },
             Self::List(_) | Self::Map(_) | Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
         })
@@ -80,15 +95,20 @@ impl ConcreteExpr {
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
+        lambda_variables: Option<&LambdaVariables>,
     ) -> EvaluationResult {
         match self {
-            Self::Call(function_call) => function_call.run(index, record, context),
-            Self::SpecialCall(function_call) => function_call.run(index, record, context),
+            Self::Call(function_call) => {
+                function_call.run(index, record, context, lambda_variables)
+            }
+            Self::SpecialCall(function_call) => {
+                function_call.run(index, record, context, lambda_variables)
+            }
             Self::List(items) => {
                 let mut bound = Vec::with_capacity(items.len());
 
                 for item in items {
-                    bound.push(item.evaluate(index, record, context)?);
+                    bound.push(item.evaluate(index, record, context, lambda_variables)?);
                 }
 
                 Ok(DynamicValue::from(bound))
@@ -97,15 +117,20 @@ impl ConcreteExpr {
                 let mut bound = HashMap::with_capacity(pairs.len());
 
                 for (k, v) in pairs {
-                    bound.insert(k.to_string(), v.evaluate(index, record, context)?);
+                    bound.insert(
+                        k.to_string(),
+                        v.evaluate(index, record, context, lambda_variables)?,
+                    );
                 }
 
                 Ok(DynamicValue::from(bound))
             }
-            _ => self.bind(record).map_err(|err| SpecifiedEvaluationError {
-                function_name: "<expr>".to_string(),
-                reason: err,
-            }),
+            _ => self
+                .bind(record, lambda_variables)
+                .map_err(|err| SpecifiedEvaluationError {
+                    function_name: "<expr>".to_string(),
+                    reason: err,
+                }),
         }
     }
 }
@@ -126,7 +151,13 @@ impl ConcreteFunctionCall {
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(None, &ByteRecord::new(), &EvaluationContext::default())
+        // TODO: lambdas
+        self.run(
+            None,
+            &ByteRecord::new(),
+            &EvaluationContext::default(),
+            None,
+        )
     }
 
     fn run(
@@ -134,23 +165,36 @@ impl ConcreteFunctionCall {
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
+        lambda_variables: Option<&LambdaVariables>,
     ) -> EvaluationResult {
-        let mut bound_args = BoundArguments::new();
+        let mut bound_args = BoundArguments::new(index, record, context);
 
         for arg in self.args.iter() {
             match arg {
                 ConcreteExpr::Call(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(index, record, context)?);
+                    bound_args.push(sub_function_call.run(
+                        index,
+                        record,
+                        context,
+                        lambda_variables,
+                    )?);
                 }
                 ConcreteExpr::SpecialCall(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(index, record, context)?);
+                    bound_args.push(sub_function_call.run(
+                        index,
+                        record,
+                        context,
+                        lambda_variables,
+                    )?);
                 }
                 ConcreteExpr::List(_) | ConcreteExpr::Map(_) => {
-                    bound_args.push(arg.evaluate(index, record, context)?)
+                    bound_args.push(arg.evaluate(index, record, context, lambda_variables)?)
                 }
-                _ => bound_args.push(arg.bind(record).map_err(|err| SpecifiedEvaluationError {
-                    function_name: self.name.to_string(),
-                    reason: err,
+                _ => bound_args.push(arg.bind(record, lambda_variables).map_err(|err| {
+                    SpecifiedEvaluationError {
+                        function_name: self.name.to_string(),
+                        reason: err,
+                    }
                 })?),
             }
         }
@@ -196,7 +240,13 @@ impl ConcreteSpecialFunctionCall {
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(None, &ByteRecord::new(), &EvaluationContext::default())
+        // TODO: lambdas
+        self.run(
+            None,
+            &ByteRecord::new(),
+            &EvaluationContext::default(),
+            None,
+        )
     }
 
     fn run(
@@ -204,8 +254,9 @@ impl ConcreteSpecialFunctionCall {
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
+        lambda_variables: Option<&LambdaVariables>,
     ) -> EvaluationResult {
-        (self.function)(index, record, context, &self.args)
+        (self.function)(index, record, context, lambda_variables, &self.args)
     }
 }
 
@@ -225,10 +276,13 @@ fn concretize_arguments(
     function_arguments: &FunctionArguments,
     parsed_args: Vec<(Option<String>, Expr)>,
     headers: &ByteRecord,
+    lambda_arg_names: Option<&Vec<String>>,
 ) -> Result<Vec<ConcreteExpr>, ConcretizationError> {
     let concrete_args = parsed_args
         .into_iter()
-        .map(|(name, expr)| concretize_expression(expr, headers).map(|r| (name, r)))
+        .map(|(name, expr)| {
+            concretize_expression_inner(expr, headers, lambda_arg_names).map(|r| (name, r))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(function_arguments
@@ -241,6 +295,7 @@ fn concretize_arguments(
 fn concretize_call(
     call: FunctionCall,
     headers: &ByteRecord,
+    lambda_arg_names: Option<&Vec<String>>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let function_name = &call.name;
     let actual_arity = call.args.len();
@@ -272,7 +327,7 @@ fn concretize_call(
         let concrete_call = ConcreteSpecialFunctionCall {
             name: function_name.clone(),
             function: runtime_function.expect("missing special function runtime"),
-            args: concretize_arguments(&arguments, call.args, headers)?,
+            args: concretize_arguments(&arguments, call.args, headers, lambda_arg_names)?,
         };
 
         if concrete_call.is_statically_evaluable() {
@@ -299,7 +354,7 @@ fn concretize_call(
             let concrete_call = ConcreteFunctionCall {
                 name: function_name.clone(),
                 function,
-                args: concretize_arguments(&arguments, call.args, headers)?,
+                args: concretize_arguments(&arguments, call.args, headers, lambda_arg_names)?,
             };
 
             if concrete_call.is_statically_evaluable() {
@@ -319,10 +374,11 @@ fn concretize_call(
 fn concretize_list(
     list: Vec<Expr>,
     headers: &ByteRecord,
+    lambda_arg_names: Option<&Vec<String>>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let concrete_list = list
         .into_iter()
-        .map(|item| concretize_expression(item, headers))
+        .map(|item| concretize_expression_inner(item, headers, lambda_arg_names))
         .collect::<Result<Vec<ConcreteExpr>, _>>()?;
 
     // NOTE: here we can collapse to a literal value
@@ -341,10 +397,11 @@ fn concretize_list(
 fn concretize_map(
     map: Vec<(String, Expr)>,
     headers: &ByteRecord,
+    lambda_arg_names: Option<&Vec<String>>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let concrete_map = map
         .into_iter()
-        .map(|(k, v)| concretize_expression(v, headers).map(|e| (k, e)))
+        .map(|(k, v)| concretize_expression_inner(v, headers, lambda_arg_names).map(|e| (k, e)))
         .collect::<Result<Vec<(String, ConcreteExpr)>, _>>()?;
 
     // NOTE: here we can collapse to a literal value
@@ -360,9 +417,10 @@ fn concretize_map(
     })
 }
 
-pub fn concretize_expression(
+fn concretize_expression_inner(
     expr: Expr,
     headers: &ByteRecord,
+    lambda_arg_names: Option<&Vec<String>>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
         Expr::Underscore => unreachable!(),
@@ -372,6 +430,12 @@ pub fn concretize_expression(
         Expr::Int(v) => ConcreteExpr::Value(DynamicValue::Integer(v)),
         Expr::Str(v) => ConcreteExpr::Value(DynamicValue::String(v)),
         Expr::Identifier(name) => {
+            if let Some(external_names) = lambda_arg_names {
+                if let Some(index) = external_names.iter().position(|n| &name == n) {
+                    return Ok(ConcreteExpr::LambdaVariable(index));
+                }
+            }
+
             let indexation = ColumIndexationBy::Name(name);
 
             match indexation.find_column_index(headers) {
@@ -386,12 +450,24 @@ pub fn concretize_expression(
             Ok(regex) => ConcreteExpr::Value(DynamicValue::from(regex)),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
-        Expr::Func(call) => concretize_call(call, headers)?,
-        Expr::List(list) => concretize_list(list, headers)?,
-        Expr::Map(map) => concretize_map(map, headers)?,
-        Expr::Lambda(_, _) => unimplemented!(),
+        Expr::Func(call) => concretize_call(call, headers, lambda_arg_names)?,
+        Expr::List(list) => concretize_list(list, headers, lambda_arg_names)?,
+        Expr::Map(map) => concretize_map(map, headers, lambda_arg_names)?,
+        Expr::Lambda(names, inner_expr) => {
+            if lambda_arg_names.is_some() {
+                return Err(ConcretizationError::NestedLambdas);
+            }
+            concretize_expression_inner(*inner_expr, headers, Some(&names))?
+        }
         Expr::Slice(_) => unreachable!(),
     })
+}
+
+pub fn concretize_expression(
+    expr: Expr,
+    headers: &ByteRecord,
+) -> Result<ConcreteExpr, ConcretizationError> {
+    concretize_expression_inner(expr, headers, None)
 }
 
 pub fn eval_expression(
@@ -400,7 +476,7 @@ pub fn eval_expression(
     record: &ByteRecord,
     context: &EvaluationContext,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    expr.evaluate(index, record, context)
+    expr.evaluate(index, record, context, None)
 }
 
 #[derive(Clone)]
