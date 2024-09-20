@@ -52,6 +52,7 @@ hist options:
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
     -P, --hide-percent       Don't show percentages.
+    -u, --unit <unit>        Value unit.
 
 Common options:
     -h, --help             Display this message
@@ -89,6 +90,7 @@ struct Args {
     flag_rainbow: bool,
     flag_name: String,
     flag_hide_percent: bool,
+    flag_unit: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -129,6 +131,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let cols = util::acquire_term_cols(&args.flag_cols);
 
+    let unit = args.flag_unit.as_deref().unwrap_or("");
+
     for histogram in histograms.iter() {
         if histogram.len() == 0 {
             continue;
@@ -146,11 +150,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         println!(
-            "\nHistogram for {} (bars: {}, sum: {}, max: {}):\n",
+            "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}):\n",
             histogram.field.green(),
             util::pretty_print_float(&mut formatter, histogram.len()).cyan(),
             util::pretty_print_float(&mut formatter, sum).cyan(),
-            util::pretty_print_float(&mut formatter, histogram.max().unwrap()).cyan()
+            unit.cyan(),
+            util::pretty_print_float(&mut formatter, histogram.max().unwrap()).cyan(),
+            unit.cyan(),
         );
 
         let pct_cols: usize = if args.flag_hide_percent { 0 } else { 8 };
@@ -159,13 +165,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             return fail!("You did not provide enough --cols to print anything!");
         }
 
+        let value_max_width_unit_addendum = match &args.flag_unit {
+            None => 0,
+            Some(unit) => unit.width(),
+        };
+
         let remaining_cols = cols - pct_cols;
         let count_cols = histogram.value_max_width(&mut formatter).unwrap();
         let label_cols = usize::min(
             (remaining_cols as f64 * 0.4).floor() as usize,
             histogram.label_max_width().unwrap(),
         );
-        let bar_cols = remaining_cols - count_cols - label_cols - 4;
+        let bar_cols =
+            remaining_cols - (count_cols + value_max_width_unit_addendum) - label_cols - 4;
 
         let mut odd = false;
 
@@ -200,7 +212,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             println!(
-                "{} |{}{}|{}|",
+                "{} |{}{}{}|{}|",
                 label,
                 util::unicode_aware_lpad_with_ellipsis(
                     &util::pretty_print_float(&mut formatter, bar.value),
@@ -208,6 +220,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     " "
                 )
                 .cyan(),
+                unit.cyan(),
                 if args.flag_hide_percent {
                     "".to_string().normal()
                 } else {
