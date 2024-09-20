@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::cmp::max;
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::HashMap;
@@ -104,6 +105,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "fmt" => (fmt, FunctionArguments::variadic(2)),
+        "numfmt" => (fmt_number, FunctionArguments::unary()),
         "get" => (get, FunctionArguments::with_range(2..=3)),
         "idiv" => (
             |args| arithmetic_op(args, DynamicNumber::idiv),
@@ -411,6 +413,19 @@ fn fmt(args: BoundArguments) -> FunctionResult {
     }
 
     formatted.push_str(&pattern[last_match..]);
+
+    Ok(DynamicValue::from(formatted))
+}
+
+thread_local! {
+    static NUMBER_FORMATTER: RefCell<numfmt::Formatter> = RefCell::new(crate::util::acquire_number_formatter());
+}
+
+fn fmt_number(mut args: BoundArguments) -> FunctionResult {
+    let number = args.pop1().try_as_number()?;
+
+    let formatted = NUMBER_FORMATTER
+        .with_borrow_mut(|formatter| crate::util::pretty_print_float(formatter, number));
 
     Ok(DynamicValue::from(formatted))
 }

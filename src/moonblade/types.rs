@@ -626,6 +626,15 @@ impl FromStr for DynamicNumber {
     }
 }
 
+impl numfmt::Numeric for DynamicNumber {
+    fn to_f64(&self) -> f64 {
+        match self {
+            Self::Float(n) => *n,
+            Self::Integer(n) => *n as f64,
+        }
+    }
+}
+
 // NOTE: a DynamicValue should always be:
 //   1. cheap to clone (notice the Arcs)
 //   2. 24 bytes large max

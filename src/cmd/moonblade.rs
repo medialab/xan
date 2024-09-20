@@ -283,7 +283,7 @@ use the operators in the previous section.
     - first(seq) -> T
         Get first element of sequence.
 
-    - fmt(string, *replacements):
+    - fmt(string, *replacements) -> string:
         Format a string by replacing \"{}\" occurrences by subsequent
         arguments.
 
@@ -314,6 +314,9 @@ use the operators in the previous section.
 
     - match(string, pattern, group?) -> string
         Return a regex pattern match on the string.
+
+    - numfmt(number) -> string:
+        Format a number with thousands separator and proper significance.
 
     - replace(string, pattern, replacement) -> string
         Replace pattern in string. Can use a regex.
