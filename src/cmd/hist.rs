@@ -51,6 +51,7 @@ hist options:
                              [default: max]
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
+    -P, --hide-percent       Don't show percentages.
 
 Common options:
     -h, --help             Display this message
@@ -87,6 +88,7 @@ struct Args {
     flag_simple: bool,
     flag_rainbow: bool,
     flag_name: String,
+    flag_hide_percent: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -151,7 +153,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             util::pretty_print_float(&mut formatter, histogram.max().unwrap()).cyan()
         );
 
-        let pct_cols: usize = 8;
+        let pct_cols: usize = if args.flag_hide_percent { 0 } else { 8 };
 
         if cols < 30 {
             return fail!("You did not provide enough --cols to print anything!");
@@ -198,7 +200,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             println!(
-                "{} |{} {}|{}|",
+                "{} |{}{}|{}|",
                 label,
                 util::unicode_aware_lpad_with_ellipsis(
                     &util::pretty_print_float(&mut formatter, bar.value),
@@ -206,7 +208,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     " "
                 )
                 .cyan(),
-                format!("{:>6.2}%", bar.value / sum * 100.0).purple(),
+                if args.flag_hide_percent {
+                    "".to_string().normal()
+                } else {
+                    format!(" {:>6.2}%", bar.value / sum * 100.0).purple()
+                },
                 bar_as_chars
             );
         }
