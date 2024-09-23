@@ -1,6 +1,8 @@
 // NOTE: the runtime function take a &[ConcreteExpr] instead of BoundArguments
 // because they notoriously might want not to bind arguments in the first
 // place (e.g. "if"/"unless").
+use std::sync::Arc;
+
 use csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
@@ -27,6 +29,32 @@ pub fn get_special_function(
     Option<RuntimeFunction>,
     FunctionArguments,
 )> {
+    macro_rules! higher_order_fn {
+        ($name:expr, $variant:ident) => {
+            (
+                None,
+                Some(
+                    |index: Option<usize>,
+                     record: &ByteRecord,
+                     context: &EvaluationContext,
+                     args: &[ConcreteExpr],
+                     lambda_variables: Option<&LambdaArguments>| {
+                        runtime_higher_order(
+                            index,
+                            record,
+                            context,
+                            args,
+                            lambda_variables,
+                            $name,
+                            HigherOrderOperation::$variant,
+                        )
+                    },
+                ),
+                FunctionArguments::binary(),
+            )
+        };
+    }
+
     Some(match name {
         // NOTE: col, cols and headers need a comptime version because static evaluation
         // is not an option for them. What's more they rely on the headers index which
@@ -73,27 +101,8 @@ pub fn get_special_function(
         // if and unless, they cannot work in DFS fashion unless you
         // bind some values ahead of time.
         // NOTE: higher-order functions work fine with static evaluation
-        "map" => (
-            None,
-            Some(
-                |index: Option<usize>,
-                 record: &ByteRecord,
-                 context: &EvaluationContext,
-                 args: &[ConcreteExpr],
-                 lambda_variables: Option<&LambdaArguments>| {
-                    runtime_higher_order(
-                        index,
-                        record,
-                        context,
-                        args,
-                        lambda_variables,
-                        "map",
-                        HigherOrderOperation::Map,
-                    )
-                },
-            ),
-            FunctionArguments::binary(),
-        ),
+        "map" => higher_order_fn!("map", Map),
+        "filter" => higher_order_fn!("filter", Filter),
 
         _ => return None,
     })
@@ -258,6 +267,7 @@ fn runtime_col(
 
 #[derive(Clone, Copy)]
 enum HigherOrderOperation {
+    Filter,
     Map,
 }
 
@@ -268,9 +278,8 @@ fn runtime_higher_order(
     args: &[ConcreteExpr],
     lambda_variables: Option<&LambdaArguments>,
     name: &str,
-    _op: HigherOrderOperation,
+    op: HigherOrderOperation,
 ) -> EvaluationResult {
-    // TODO: can apply some Arc optimization here
     let list = args
         .first()
         .unwrap()
@@ -296,16 +305,47 @@ fn runtime_higher_order(
         Some(v) => v.clone(),
     };
 
-    let mut new_list = Vec::with_capacity(list.len());
-
     let item_arg_index = variables.register(arg_name);
 
-    for item in list.iter() {
-        variables.set(item_arg_index, item.clone());
+    match op {
+        HigherOrderOperation::Map => {
+            let mut new_list = Vec::with_capacity(list.len());
 
-        let result = lambda.evaluate(index, record, context, Some(&variables))?;
-        new_list.push(result);
+            match Arc::try_unwrap(list) {
+                Ok(owned_list) => {
+                    for item in owned_list {
+                        variables.set(item_arg_index, item);
+
+                        let result = lambda.evaluate(index, record, context, Some(&variables))?;
+                        new_list.push(result);
+                    }
+                }
+                Err(borrowed_list) => {
+                    for item in borrowed_list.iter() {
+                        variables.set(item_arg_index, item.clone());
+
+                        let result = lambda.evaluate(index, record, context, Some(&variables))?;
+                        new_list.push(result);
+                    }
+                }
+            }
+
+            Ok(DynamicValue::from(new_list))
+        }
+        HigherOrderOperation::Filter => {
+            let mut new_list = Vec::new();
+
+            for item in list.iter() {
+                variables.set(item_arg_index, item.clone());
+
+                let result = lambda.evaluate(index, record, context, Some(&variables))?;
+
+                if result.is_truthy() {
+                    new_list.push(item.clone());
+                }
+            }
+
+            Ok(DynamicValue::from(new_list))
+        }
     }
-
-    Ok(DynamicValue::from(new_list))
 }

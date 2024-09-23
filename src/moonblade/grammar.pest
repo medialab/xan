@@ -110,7 +110,7 @@ open_indexing = { "[" }
 
 // Functions
 func_arg = { ((ident ~ "=")? ~ expr) | expr }
-func     = { ident ~ "(" ~ (func_arg ~ ","?)* ~ ")" }
+func     = { ident ~ "(" ~ func_arg? ~ ("," ~ func_arg)* ~ ")" }
 lambda   = { (ident | ("(" ~ (ident ~ ","?)* ~ ")")) ~ "=>" ~ expr }
 
 // Expressions
