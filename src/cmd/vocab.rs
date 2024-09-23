@@ -163,16 +163,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         match (&args.flag_sep, &doc_sel, args.flag_window) {
             // Separator or not, doc column, bag-of-words model
             (_, Some(sel), None) => {
-                // TODO: this hashmap is not stable
-                let mut doc_tokens: HashMap<Document, Vec<Rc<Token>>> = HashMap::new();
+                let mut doc_tokens: SortedInsertHashmap<Document, Vec<Rc<Token>>> =
+                    SortedInsertHashmap::new();
 
                 while rdr.read_byte_record(&mut record)? {
                     let doc = sel.collect(&record);
 
-                    match doc_tokens.entry(doc) {
-                        Entry::Occupied(mut entry) => {
-                            let tokens = entry.get_mut();
-
+                    doc_tokens.insert_with_or_else(
+                        doc,
+                        || match &args.flag_sep {
+                            Some(sep) => record[token_pos]
+                                .split_str(sep)
+                                .map(|t| Rc::new(t.to_vec()))
+                                .collect(),
+                            None => {
+                                vec![Rc::new(record[token_pos].to_vec())]
+                            }
+                        },
+                        |tokens| {
                             match &args.flag_sep {
                                 Some(sep) => {
                                     for token in record[token_pos].split_str(sep) {
@@ -183,23 +191,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                     tokens.push(Rc::new(record[token_pos].to_vec()));
                                 }
                             };
-                        }
-                        Entry::Vacant(entry) => {
-                            match &args.flag_sep {
-                                Some(sep) => {
-                                    entry.insert(
-                                        record[token_pos]
-                                            .split_str(sep)
-                                            .map(|t| Rc::new(t.to_vec()))
-                                            .collect(),
-                                    );
-                                }
-                                None => {
-                                    entry.insert(vec![Rc::new(record[token_pos].to_vec())]);
-                                }
-                            };
-                        }
-                    };
+                        },
+                    );
                 }
 
                 for bag_of_words in doc_tokens.into_values() {
