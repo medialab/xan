@@ -155,12 +155,55 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // NOTE:
         //  --sep and no --doc: trivial for both model
-        //  --sep and --doc: not trivial when model is BOW, because we need a multimap of docs
+        //  --sep and --doc:
+        //      need a multimap for bow
         //  no --sep and --doc:
         //      need a multimap for bow
         //      need to aggregate consecutive identical doc value for window
-        match (&args.flag_sep, &doc_sel) {
-            (Some(sep), None) => {
+        match (&args.flag_sep, &doc_sel, args.flag_window) {
+            // Separator, doc column, bag-of-words model
+            (Some(sep), Some(sel), None) => {
+                let mut doc_tokens: HashMap<Document, Vec<Rc<Token>>> = HashMap::new();
+
+                while rdr.read_byte_record(&mut record)? {
+                    let doc = sel.collect(&record);
+
+                    match doc_tokens.entry(doc) {
+                        Entry::Occupied(mut entry) => {
+                            let tokens = entry.get_mut();
+
+                            for token in record[token_pos].split_str(sep) {
+                                tokens.push(Rc::new(token.to_vec()));
+                            }
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(
+                                record[token_pos]
+                                    .split_str(sep)
+                                    .map(|t| Rc::new(t.to_vec()))
+                                    .collect(),
+                            );
+                        }
+                    };
+                }
+
+                for bag_of_words in doc_tokens.into_values() {
+                    for i in 0..bag_of_words.len() {
+                        let source = &bag_of_words[i];
+                        let source_id = cooccurrences.register_token(source.clone());
+
+                        #[allow(clippy::needless_range_loop)]
+                        for j in (i + 1)..bag_of_words.len() {
+                            let target = &bag_of_words[j];
+                            let target_id = cooccurrences.register_token(target.clone());
+                            cooccurrences.add_cooccurrence(args.flag_forward, source_id, target_id);
+                        }
+                    }
+                }
+            }
+
+            // Separator, doc = row or sel, both models
+            (Some(sep), _, model) => {
                 while rdr.read_byte_record(&mut record)? {
                     let bag_of_words: Vec<Rc<Token>> = record[token_pos]
                         .split_str(sep)
@@ -171,8 +214,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let source = &bag_of_words[i];
                         let source_id = cooccurrences.register_token(source.clone());
 
-                        let upper_bound = args
-                            .flag_window
+                        let upper_bound = model
                             .map(|w| (i + 1 + w.get()).min(bag_of_words.len()))
                             .unwrap_or(bag_of_words.len());
 
@@ -185,6 +227,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
             }
+
             _ => unreachable!(),
         };
 
