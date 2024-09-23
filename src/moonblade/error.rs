@@ -136,6 +136,20 @@ impl EvaluationError {
     pub fn from_cast(from_value: &DynamicValue, expected: &str) -> Self {
         Self::Cast(from_value.type_of().to_string(), expected.to_string())
     }
+
+    pub fn specify(self, function_name: &str) -> SpecifiedEvaluationError {
+        SpecifiedEvaluationError {
+            function_name: function_name.to_string(),
+            reason: self,
+        }
+    }
+
+    pub fn anonymous(self) -> SpecifiedEvaluationError {
+        SpecifiedEvaluationError {
+            function_name: "<expr>".to_string(),
+            reason: self,
+        }
+    }
 }
 
 impl Display for EvaluationError {

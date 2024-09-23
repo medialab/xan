@@ -1038,10 +1038,7 @@ impl Aggregator {
                             strings.push(
                                 value
                                     .try_as_str()
-                                    .map_err(|err| SpecifiedEvaluationError {
-                                        function_name: "argtop".to_string(),
-                                        reason: err,
-                                    })?
+                                    .map_err(|err| err.specify("argtop"))?
                                     .into_owned(),
                             );
                         }
@@ -1805,10 +1802,7 @@ fn run_with_record_on_aggregators(
 
         aggregator
             .process_value(index, value, record)
-            .map_err(|err| SpecifiedEvaluationError {
-                reason: err,
-                function_name: format!("<agg-expr: {}>", unit.expr_key),
-            })?;
+            .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)))?;
     }
 
     Ok(())

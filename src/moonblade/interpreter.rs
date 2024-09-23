@@ -102,10 +102,7 @@ impl ConcreteExpr {
 
                 Ok(DynamicValue::from(bound))
             }
-            _ => self.bind(record).map_err(|err| SpecifiedEvaluationError {
-                function_name: "<expr>".to_string(),
-                reason: err,
-            }),
+            _ => self.bind(record).map_err(|err| err.anonymous()),
         }
     }
 }
@@ -148,19 +145,13 @@ impl ConcreteFunctionCall {
                 ConcreteExpr::List(_) | ConcreteExpr::Map(_) => {
                     bound_args.push(arg.evaluate(index, record, context)?)
                 }
-                _ => bound_args.push(arg.bind(record).map_err(|err| SpecifiedEvaluationError {
-                    function_name: self.name.to_string(),
-                    reason: err,
-                })?),
+                _ => bound_args.push(arg.bind(record).map_err(|err| err.specify(&self.name))?),
             }
         }
 
         match (self.function)(bound_args) {
             Ok(value) => Ok(value),
-            Err(err) => Err(SpecifiedEvaluationError {
-                function_name: self.name.clone(),
-                reason: err,
-            }),
+            Err(err) => Err(err.specify(&self.name)),
         }
     }
 }
@@ -439,12 +430,7 @@ impl Program {
             Ok(String::from_utf8(record[index].to_vec()).unwrap())
         } else {
             let value = self.run_with_record(index, record)?;
-            Ok(value
-                .try_into_string()
-                .map_err(|err| SpecifiedEvaluationError {
-                    function_name: "<expr>".to_string(),
-                    reason: err,
-                })?)
+            Ok(value.try_into_string().map_err(|err| err.anonymous())?)
         }
     }
 }
