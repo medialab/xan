@@ -241,3 +241,35 @@ fn vocab_cooc_sep_no_doc() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn vocab_cooc_no_sep() {
+    let wrk = Workdir::new("vocab_cooc_no_sep");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["doc", "token"],
+            svec!["one", "cat"],
+            svec!["one", "dog"],
+            svec!["one", "cat"],
+            svec!["two", "cat"],
+            svec!["two", "rabbit"],
+        ],
+    );
+    let mut cmd = wrk.command("vocab");
+    cmd.arg("cooc")
+        .arg("token")
+        .args(["--doc", "doc"])
+        .args(["-w", "10"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let expected = vec![
+        svec!["token1", "token2", "count", "pmi", "ppmi", "npmi"],
+        svec!["cat", "dog", "2", "0", "0", "0"],
+        svec!["cat", "cat", "1", "-2", "0", "-1"],
+        svec!["cat", "rabbit", "1", "0", "0", "0"],
+    ];
+    assert_eq!(got, expected);
+}

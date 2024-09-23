@@ -161,8 +161,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         //      need a multimap for bow
         //      need to aggregate consecutive identical doc value for window
         match (&args.flag_sep, &doc_sel, args.flag_window) {
-            // Separator, doc column, bag-of-words model
-            (Some(sep), Some(sel), None) => {
+            // Separator or not, doc column, bag-of-words model
+            (_, Some(sel), None) => {
+                // TODO: this hashmap is not stable
                 let mut doc_tokens: HashMap<Document, Vec<Rc<Token>>> = HashMap::new();
 
                 while rdr.read_byte_record(&mut record)? {
@@ -172,17 +173,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         Entry::Occupied(mut entry) => {
                             let tokens = entry.get_mut();
 
-                            for token in record[token_pos].split_str(sep) {
-                                tokens.push(Rc::new(token.to_vec()));
-                            }
+                            match &args.flag_sep {
+                                Some(sep) => {
+                                    for token in record[token_pos].split_str(sep) {
+                                        tokens.push(Rc::new(token.to_vec()));
+                                    }
+                                }
+                                None => {
+                                    tokens.push(Rc::new(record[token_pos].to_vec()));
+                                }
+                            };
                         }
                         Entry::Vacant(entry) => {
-                            entry.insert(
-                                record[token_pos]
-                                    .split_str(sep)
-                                    .map(|t| Rc::new(t.to_vec()))
-                                    .collect(),
-                            );
+                            match &args.flag_sep {
+                                Some(sep) => {
+                                    entry.insert(
+                                        record[token_pos]
+                                            .split_str(sep)
+                                            .map(|t| Rc::new(t.to_vec()))
+                                            .collect(),
+                                    );
+                                }
+                                None => {
+                                    entry.insert(vec![Rc::new(record[token_pos].to_vec())]);
+                                }
+                            };
                         }
                     };
                 }
@@ -215,7 +230,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let source_id = cooccurrences.register_token(source.clone());
 
                         let upper_bound = model
-                            .map(|w| (i + 1 + w.get()).min(bag_of_words.len()))
+                            .map(|window| (i + 1 + window.get()).min(bag_of_words.len()))
                             .unwrap_or(bag_of_words.len());
 
                         #[allow(clippy::needless_range_loop)]
@@ -228,6 +243,52 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
+            // No separator, doc = sel, window model
+            (None, Some(sel), Some(window)) => {
+                macro_rules! flush_bag_of_words {
+                    ($bag_of_words:ident) => {{
+                        for i in 0..$bag_of_words.len() {
+                            let source = &$bag_of_words[i];
+                            let source_id = cooccurrences.register_token(source.clone());
+
+                            #[allow(clippy::needless_range_loop)]
+                            for j in (i + 1)..(i + 1 + window.get()).min($bag_of_words.len()) {
+                                let target = &$bag_of_words[j];
+                                let target_id = cooccurrences.register_token(target.clone());
+                                cooccurrences.add_cooccurrence(
+                                    args.flag_forward,
+                                    source_id,
+                                    target_id,
+                                );
+                            }
+                        }
+                    }};
+                }
+
+                let mut current_opt: Option<(Document, Vec<Rc<Token>>)> = None;
+
+                while rdr.read_byte_record(&mut record)? {
+                    let doc = sel.collect(&record);
+                    let token = Rc::new(record[token_pos].to_vec());
+
+                    match current_opt.as_mut() {
+                        Some((current_doc, tokens)) if current_doc == &doc => {
+                            tokens.push(token);
+                        }
+                        _ => {
+                            if let Some((_, tokens)) = current_opt.replace((doc, vec![token])) {
+                                flush_bag_of_words!(tokens);
+                            }
+                        }
+                    };
+                }
+
+                if let Some((_, tokens)) = current_opt {
+                    flush_bag_of_words!(tokens);
+                }
+            }
+
+            // Not possible, as per arg validation (no sep without doc is not possible since irrelevant)
             _ => unreachable!(),
         };
 
