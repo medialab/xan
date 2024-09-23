@@ -125,7 +125,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "match" => (regex_match, FunctionArguments::with_range(2..=3)),
         "max" => (variadic_max, FunctionArguments::variadic(2)),
         "md5" => (md5, FunctionArguments::unary()),
-        "map" => (map, FunctionArguments::binary()),
         "mean" => (mean, FunctionArguments::unary()),
         "min" => (variadic_min, FunctionArguments::variadic(2)),
         "mod" => (

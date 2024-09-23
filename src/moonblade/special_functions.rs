@@ -56,6 +56,7 @@ pub fn get_special_function(
             Some(runtime_unless),
             FunctionArguments::with_range(2..=3),
         ),
+        "map" => (None, Some(runtime_map), FunctionArguments::binary()),
         _ => return None,
     })
 }
@@ -215,4 +216,31 @@ fn runtime_col(
             },
         },
     }
+}
+
+fn runtime_map(
+    index: Option<usize>,
+    record: &ByteRecord,
+    context: &EvaluationContext,
+    lambda_variables: Option<&LambdaVariables>,
+    args: &[ConcreteExpr],
+) -> EvaluationResult {
+    let list = args
+        .first()
+        .unwrap()
+        .evaluate(index, record, context, lambda_variables)?
+        .try_into_arc_list()
+        .unwrap();
+
+    let lambda = args.get(1).unwrap();
+    let mut v = Vec::new();
+
+    for item in list.iter() {
+        let mut lambda_variables = LambdaVariables::new();
+        lambda_variables.push(item.clone());
+        let result = lambda.evaluate(index, record, context, Some(&lambda_variables))?;
+        v.push(result);
+    }
+
+    Ok(DynamicValue::from(v))
 }

@@ -454,9 +454,9 @@ fn concretize_expression_inner(
         Expr::List(list) => concretize_list(list, headers, lambda_arg_names)?,
         Expr::Map(map) => concretize_map(map, headers, lambda_arg_names)?,
         Expr::Lambda(names, inner_expr) => {
-            if lambda_arg_names.is_some() {
-                return Err(ConcretizationError::NestedLambdas);
-            }
+            // if lambda_arg_names.is_some() {
+            //     return Err(ConcretizationError::NestedLambdas);
+            // }
             concretize_expression_inner(*inner_expr, headers, Some(&names))?
         }
         Expr::Slice(_) => unreachable!(),
