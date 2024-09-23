@@ -21,6 +21,9 @@ pub fn get_special_function(
     FunctionArguments,
 )> {
     Some(match name {
+        // NOTE: col, cols and headers need a comptime version because static evaluation
+        // is not an option for them. What's more they rely on the headers index which
+        // is not available to normal functions.
         "col" => (
             Some(comptime_col),
             Some(runtime_col),
@@ -44,8 +47,15 @@ pub fn get_special_function(
             None,
             FunctionArguments::with_range(0..=2),
         ),
-        "if" => (None, Some(runtime_if), FunctionArguments::with_range(2..=3)),
+        // NOTE: index needs to be a special function because it relies on external
+        // data that cannot be accessed by normal functions.
         "index" => (None, Some(runtime_index), FunctionArguments::nullary()),
+
+        // NOTE: if and unless need to be special functions because they short-circuit
+        // underlying evaluation and circumvent the typical DFS evaluation scheme.
+        // NOTE: if and unless don't require a comptime version because static evaluation
+        // will work just fine here.
+        "if" => (None, Some(runtime_if), FunctionArguments::with_range(2..=3)),
         "unless" => (
             None,
             Some(runtime_unless),
