@@ -85,10 +85,10 @@ impl ConcreteExpr {
         }
     }
 
-    pub fn as_lambda(&self) -> (&Vec<String>, &Self) {
+    pub fn try_as_lambda(&self) -> Result<(&Vec<String>, &Self), EvaluationError> {
         match self {
-            Self::Lambda(names, expr) => (names, expr),
-            _ => panic!("cannot unwrap as lambda"),
+            Self::Lambda(names, expr) => Ok((names, expr)),
+            _ => Err(EvaluationError::InvalidLambda),
         }
     }
 

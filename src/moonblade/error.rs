@@ -118,6 +118,7 @@ impl Display for SpecifiedEvaluationError {
 pub enum EvaluationError {
     InvalidArity(InvalidArity),
     InvalidPath,
+    InvalidLambda,
     NotImplemented(String),
     IO(String),
     DateTime(String),
@@ -157,6 +158,7 @@ impl Display for EvaluationError {
         match self {
             Self::InvalidPath => write!(f, "invalid posix path"),
             Self::InvalidArity(arity) => arity.fmt(f),
+            Self::InvalidLambda => write!(f, "provided argument is not a lambda"),
             Self::IO(msg) => write!(f, "{}", msg),
             Self::DateTime(msg) => write!(f, "{}", msg),
             Self::Custom(msg) => write!(f, "{}", msg),

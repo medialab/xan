@@ -7,7 +7,7 @@ use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationErro
 use super::interpreter::{ConcreteExpr, EvaluationContext};
 use super::parser::FunctionCall;
 use super::types::{
-    ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, LambdaArguments,
+    Arity, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, LambdaArguments,
 };
 
 pub type ComptimeFunctionResult = Result<Option<ConcreteExpr>, ConcretizationError>;
@@ -278,10 +278,17 @@ fn runtime_higher_order(
         .try_into_arc_list()
         .map_err(|err| err.specify(name))?;
 
-    // TODO: validate we have a lambda
-    let (names, lambda) = args.get(1).unwrap().as_lambda();
+    let (names, lambda) = args
+        .get(1)
+        .unwrap()
+        .try_as_lambda()
+        .map_err(|err| err.anonymous())?;
 
-    // TODO: validate arity here.
+    // Validating arity
+    Arity::Strict(1)
+        .validate(names.len())
+        .map_err(|invalid_arity| EvaluationError::InvalidArity(invalid_arity).anonymous())?;
+
     let arg_name = names.first().unwrap();
 
     let mut variables = match lambda_variables {
