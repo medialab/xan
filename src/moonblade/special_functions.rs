@@ -6,12 +6,19 @@ use csv::ByteRecord;
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{ConcreteExpr, EvaluationContext};
 use super::parser::FunctionCall;
-use super::types::{ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments};
+use super::types::{
+    ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, LambdaArguments,
+};
 
 pub type ComptimeFunctionResult = Result<Option<ConcreteExpr>, ConcretizationError>;
 pub type ComptimeFunction = fn(&FunctionCall, &ByteRecord) -> ComptimeFunctionResult;
-pub type RuntimeFunction =
-    fn(Option<usize>, &ByteRecord, &EvaluationContext, &[ConcreteExpr]) -> EvaluationResult;
+pub type RuntimeFunction = fn(
+    Option<usize>,
+    &ByteRecord,
+    &EvaluationContext,
+    &[ConcreteExpr],
+    Option<&LambdaArguments>,
+) -> EvaluationResult;
 
 pub fn get_special_function(
     name: &str,
@@ -61,6 +68,33 @@ pub fn get_special_function(
             Some(runtime_unless),
             FunctionArguments::with_range(2..=3),
         ),
+
+        // NOTE: lambda evaluation need to be a special function because, like
+        // if and unless, they cannot work in DFS fashion unless you
+        // bind some values ahead of time.
+        // NOTE: higher-order functions work fine with static evaluation
+        "map" => (
+            None,
+            Some(
+                |index: Option<usize>,
+                 record: &ByteRecord,
+                 context: &EvaluationContext,
+                 args: &[ConcreteExpr],
+                 lambda_variables: Option<&LambdaArguments>| {
+                    runtime_higher_order(
+                        index,
+                        record,
+                        context,
+                        args,
+                        lambda_variables,
+                        "map",
+                        HigherOrderOperation::Map,
+                    )
+                },
+            ),
+            FunctionArguments::binary(),
+        ),
+
         _ => return None,
     })
 }
@@ -125,11 +159,12 @@ fn runtime_if(
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let arity = args.len();
 
     let condition = &args[0];
-    let result = condition.evaluate(index, record, context)?;
+    let result = condition.evaluate(index, record, context, lambda_variables)?;
 
     let mut branch: Option<&ConcreteExpr> = None;
 
@@ -141,7 +176,7 @@ fn runtime_if(
 
     match branch {
         None => Ok(DynamicValue::None),
-        Some(arg) => arg.evaluate(index, record, context),
+        Some(arg) => arg.evaluate(index, record, context, lambda_variables),
     }
 }
 
@@ -150,11 +185,12 @@ fn runtime_unless(
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let arity = args.len();
 
     let condition = &args[0];
-    let result = condition.evaluate(index, record, context)?;
+    let result = condition.evaluate(index, record, context, lambda_variables)?;
 
     let mut branch: Option<&ConcreteExpr> = None;
 
@@ -166,7 +202,7 @@ fn runtime_unless(
 
     match branch {
         None => Ok(DynamicValue::None),
-        Some(arg) => arg.evaluate(index, record, context),
+        Some(arg) => arg.evaluate(index, record, context, lambda_variables),
     }
 }
 
@@ -175,6 +211,7 @@ fn runtime_index(
     _record: &ByteRecord,
     _context: &EvaluationContext,
     _args: &[ConcreteExpr],
+    _lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     Ok(match index {
         None => DynamicValue::None,
@@ -187,10 +224,14 @@ fn runtime_col(
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
-    let name_or_pos = args.first().unwrap().evaluate(index, record, context)?;
+    let name_or_pos = args
+        .first()
+        .unwrap()
+        .evaluate(index, record, context, lambda_variables)?;
     let pos = match args.get(1) {
-        Some(p) => Some(p.evaluate(index, record, context)?),
+        Some(p) => Some(p.evaluate(index, record, context, lambda_variables)?),
         None => None,
     };
 
@@ -213,4 +254,51 @@ fn runtime_col(
             },
         },
     }
+}
+
+#[derive(Clone, Copy)]
+enum HigherOrderOperation {
+    Map,
+}
+
+fn runtime_higher_order(
+    index: Option<usize>,
+    record: &ByteRecord,
+    context: &EvaluationContext,
+    args: &[ConcreteExpr],
+    lambda_variables: Option<&LambdaArguments>,
+    name: &str,
+    _op: HigherOrderOperation,
+) -> EvaluationResult {
+    // TODO: can apply some Arc optimization here
+    let list = args
+        .first()
+        .unwrap()
+        .evaluate(index, record, context, lambda_variables)?
+        .try_into_arc_list()
+        .map_err(|err| err.specify(name))?;
+
+    // TODO: validate we have a lambda
+    let (names, lambda) = args.get(1).unwrap().as_lambda();
+
+    // TODO: validate arity here.
+    let arg_name = names.first().unwrap();
+
+    let mut variables = match lambda_variables {
+        None => LambdaArguments::new(),
+        Some(v) => v.clone(),
+    };
+
+    let mut new_list = Vec::with_capacity(list.len());
+
+    let item_arg_index = variables.register(arg_name);
+
+    for item in list.iter() {
+        variables.set(item_arg_index, item.clone());
+
+        let result = lambda.evaluate(index, record, context, Some(&variables))?;
+        new_list.push(result);
+    }
+
+    Ok(DynamicValue::from(new_list))
 }

@@ -10,7 +10,7 @@ use super::parser::{parse_expression, Expr, FunctionCall};
 use super::special_functions::{get_special_function, RuntimeFunction as SpecialFunction};
 use super::types::{
     BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments,
-    HeadersIndex, BOUND_ARGUMENTS_CAPACITY,
+    HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -33,6 +33,8 @@ impl EvaluationContext {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConcreteExpr {
     Column(usize),
+    Lambda(Vec<String>, Box<ConcreteExpr>),
+    LambdaBinding(String),
     Value(DynamicValue),
     List(Vec<ConcreteExpr>),
     Map(Vec<(String, ConcreteExpr)>),
@@ -45,6 +47,28 @@ pub enum ConcreteExpr {
 impl ConcreteExpr {
     fn is_value(&self) -> bool {
         matches!(self, Self::Value(_))
+    }
+
+    // NOTE: here we are not abiding by the DFS
+    fn is_deeply_statically_evaluable(&self, bound: &Vec<String>) -> bool {
+        match self {
+            Self::Value(_) => true,
+            Self::LambdaBinding(name) => bound.contains(name),
+            Self::Lambda(names, expr) => {
+                let mut new_bound = bound.clone();
+
+                for name in names {
+                    if !new_bound.contains(name) {
+                        new_bound.push(name.to_string());
+                    }
+                }
+
+                expr.is_deeply_statically_evaluable(&new_bound)
+            }
+            Self::Call(call) => call.is_statically_evaluable(bound),
+            Self::SpecialCall(call) => call.is_statically_evaluable(bound),
+            _ => false,
+        }
     }
 
     fn as_column(&self) -> Option<usize> {
@@ -61,7 +85,18 @@ impl ConcreteExpr {
         }
     }
 
-    fn bind(&self, record: &ByteRecord) -> Result<DynamicValue, EvaluationError> {
+    pub fn as_lambda(&self) -> (&Vec<String>, &Self) {
+        match self {
+            Self::Lambda(names, expr) => (names, expr),
+            _ => panic!("cannot unwrap as lambda"),
+        }
+    }
+
+    fn bind(
+        &self,
+        record: &ByteRecord,
+        lambda_variables: Option<&LambdaArguments>,
+    ) -> Result<DynamicValue, EvaluationError> {
         Ok(match self {
             Self::Value(value) => value.clone(),
             Self::Column(index) => match record.get(*index) {
@@ -71,7 +106,15 @@ impl ConcreteExpr {
                     Ok(value) => DynamicValue::from(value),
                 },
             },
-            Self::List(_) | Self::Map(_) | Self::Call(_) | Self::SpecialCall(_) => unreachable!(),
+            Self::LambdaBinding(name) => lambda_variables
+                .expect("lambda_variables MUST be set")
+                .get(name)
+                .clone(),
+            Self::List(_)
+            | Self::Map(_)
+            | Self::Call(_)
+            | Self::SpecialCall(_)
+            | Self::Lambda(_, _) => unreachable!(),
         })
     }
 
@@ -80,15 +123,20 @@ impl ConcreteExpr {
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
+        lambda_variables: Option<&LambdaArguments>,
     ) -> EvaluationResult {
         match self {
-            Self::Call(function_call) => function_call.run(index, record, context),
-            Self::SpecialCall(function_call) => function_call.run(index, record, context),
+            Self::Call(function_call) => {
+                function_call.run(index, record, context, lambda_variables)
+            }
+            Self::SpecialCall(function_call) => {
+                function_call.run(index, record, context, lambda_variables)
+            }
             Self::List(items) => {
                 let mut bound = Vec::with_capacity(items.len());
 
                 for item in items {
-                    bound.push(item.evaluate(index, record, context)?);
+                    bound.push(item.evaluate(index, record, context, lambda_variables)?);
                 }
 
                 Ok(DynamicValue::from(bound))
@@ -97,12 +145,17 @@ impl ConcreteExpr {
                 let mut bound = HashMap::with_capacity(pairs.len());
 
                 for (k, v) in pairs {
-                    bound.insert(k.to_string(), v.evaluate(index, record, context)?);
+                    bound.insert(
+                        k.to_string(),
+                        v.evaluate(index, record, context, lambda_variables)?,
+                    );
                 }
 
                 Ok(DynamicValue::from(bound))
             }
-            _ => self.bind(record).map_err(|err| err.anonymous()),
+            _ => self
+                .bind(record, lambda_variables)
+                .map_err(|err| err.anonymous()),
         }
     }
 }
@@ -115,15 +168,24 @@ pub struct ConcreteFunctionCall {
 }
 
 impl ConcreteFunctionCall {
-    fn is_statically_evaluable(&self) -> bool {
+    fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         // NOTE: nullary functions such as index() or uuid() usually
         // rely on some external implicit state and cannot be statically
         // evaluated.
-        !self.args.is_empty() && self.args.iter().all(|arg| arg.is_value())
+        !self.args.is_empty()
+            && self
+                .args
+                .iter()
+                .all(|arg| arg.is_deeply_statically_evaluable(bound))
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(None, &ByteRecord::new(), &EvaluationContext::default())
+        self.run(
+            None,
+            &ByteRecord::new(),
+            &EvaluationContext::default(),
+            None,
+        )
     }
 
     fn run(
@@ -131,21 +193,35 @@ impl ConcreteFunctionCall {
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
+        lambda_variables: Option<&LambdaArguments>,
     ) -> EvaluationResult {
         let mut bound_args = BoundArguments::new();
 
         for arg in self.args.iter() {
             match arg {
                 ConcreteExpr::Call(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(index, record, context)?);
+                    bound_args.push(sub_function_call.run(
+                        index,
+                        record,
+                        context,
+                        lambda_variables,
+                    )?);
                 }
                 ConcreteExpr::SpecialCall(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(index, record, context)?);
+                    bound_args.push(sub_function_call.run(
+                        index,
+                        record,
+                        context,
+                        lambda_variables,
+                    )?);
                 }
                 ConcreteExpr::List(_) | ConcreteExpr::Map(_) => {
-                    bound_args.push(arg.evaluate(index, record, context)?)
+                    bound_args.push(arg.evaluate(index, record, context, lambda_variables)?)
                 }
-                _ => bound_args.push(arg.bind(record).map_err(|err| err.specify(&self.name))?),
+                _ => bound_args.push(
+                    arg.bind(record, lambda_variables)
+                        .map_err(|err| err.specify(&self.name))?,
+                ),
             }
         }
 
@@ -176,18 +252,25 @@ pub struct ConcreteSpecialFunctionCall {
 }
 
 impl ConcreteSpecialFunctionCall {
-    fn is_statically_evaluable(&self) -> bool {
+    fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         // NOTE: other special function are not suitable for late
         // statical evaluation.
-        if self.name != "if" && self.name != "unless" {
+        if ["col", "cols", "headers", "index"].contains(&self.name.as_str()) {
             return false;
         }
 
-        self.args.iter().all(|arg| arg.is_value())
+        self.args
+            .iter()
+            .all(|arg| arg.is_deeply_statically_evaluable(bound))
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(None, &ByteRecord::new(), &EvaluationContext::default())
+        self.run(
+            None,
+            &ByteRecord::new(),
+            &EvaluationContext::default(),
+            None,
+        )
     }
 
     fn run(
@@ -195,8 +278,9 @@ impl ConcreteSpecialFunctionCall {
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
+        lambda_variables: Option<&LambdaArguments>,
     ) -> EvaluationResult {
-        (self.function)(index, record, context, &self.args)
+        (self.function)(index, record, context, &self.args, lambda_variables)
     }
 }
 
@@ -266,7 +350,7 @@ fn concretize_call(
             args: concretize_arguments(&arguments, call.args, headers)?,
         };
 
-        if concrete_call.is_statically_evaluable() {
+        if concrete_call.is_statically_evaluable(&vec![]) {
             match concrete_call.static_run() {
                 Err(evaluation_error) => {
                     return Err(ConcretizationError::StaticEvaluationError(evaluation_error))
@@ -293,7 +377,7 @@ fn concretize_call(
                 args: concretize_arguments(&arguments, call.args, headers)?,
             };
 
-            if concrete_call.is_statically_evaluable() {
+            if concrete_call.is_statically_evaluable(&vec![]) {
                 match concrete_call.static_run() {
                     Err(evaluation_error) => {
                         return Err(ConcretizationError::StaticEvaluationError(evaluation_error))
@@ -380,7 +464,10 @@ pub fn concretize_expression(
         Expr::Func(call) => concretize_call(call, headers)?,
         Expr::List(list) => concretize_list(list, headers)?,
         Expr::Map(map) => concretize_map(map, headers)?,
-        Expr::Lambda(_) | Expr::LambdaBinding(_) => unimplemented!(),
+        Expr::Lambda(names, expr) => {
+            ConcreteExpr::Lambda(names, Box::new(concretize_expression(*expr, headers)?))
+        }
+        Expr::LambdaBinding(name) => ConcreteExpr::LambdaBinding(name),
         Expr::Slice(_) => unreachable!(),
     })
 }
@@ -391,7 +478,7 @@ pub fn eval_expression(
     record: &ByteRecord,
     context: &EvaluationContext,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    expr.evaluate(index, record, context)
+    expr.evaluate(index, record, context, None)
 }
 
 #[derive(Clone)]

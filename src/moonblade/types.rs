@@ -1197,6 +1197,55 @@ impl PartialEq for DynamicValue {
 pub type EvaluationResult = Result<DynamicValue, SpecifiedEvaluationError>;
 
 pub const BOUND_ARGUMENTS_CAPACITY: usize = 8;
+const LAMBDA_ARGUMENTS_CAPACITY: usize = 4;
+
+#[derive(Clone, Debug)]
+pub struct LambdaArguments {
+    stack: ArrayVec<(String, DynamicValue), LAMBDA_ARGUMENTS_CAPACITY>,
+}
+
+impl LambdaArguments {
+    pub fn new() -> Self {
+        Self {
+            stack: ArrayVec::new(),
+        }
+    }
+
+    pub fn get(&self, name: &str) -> &DynamicValue {
+        self.stack
+            .iter()
+            .find_map(|(n, v)| if n == name { Some(v) } else { None })
+            .expect("lambda variables cannot be out-of-bounds")
+    }
+
+    pub fn register(&mut self, name: &str) -> usize {
+        for (i, (n, _)) in self.stack.iter().enumerate() {
+            if n == name {
+                return i;
+            }
+        }
+
+        let i = self.stack.len();
+
+        self.stack.push((name.to_string(), DynamicValue::None));
+        i
+    }
+
+    pub fn set(&mut self, index: usize, value: DynamicValue) {
+        self.stack[index].1 = value;
+    }
+
+    // pub fn upsert(&mut self, name: &str, value: DynamicValue) {
+    //     for (n, v) in self.stack.iter_mut() {
+    //         if n == name {
+    //             *v = value;
+    //             return;
+    //         }
+    //     }
+
+    //     self.stack.push((name.to_string(), value));
+    // }
+}
 
 pub struct BoundArguments {
     stack: ArrayVec<DynamicValue, BOUND_ARGUMENTS_CAPACITY>,

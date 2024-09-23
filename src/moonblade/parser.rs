@@ -240,13 +240,13 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
 
                     let names = pairs
                         .take_while(|p| matches!(p.as_rule(), Rule::ident))
-                        .map(|p| p.as_str())
+                        .map(|p| p.as_str().to_string())
                         .collect::<Vec<_>>();
 
                     let mut inner_expr = pratt_parse(last_pair.into_inner())?;
                     inner_expr.bind_lambda_args(&names);
 
-                    Expr::Lambda(Box::new(inner_expr))
+                    Expr::Lambda(names, Box::new(inner_expr))
                 }
                 Rule::func => {
                     let mut pairs = primary.into_inner();
@@ -367,8 +367,8 @@ pub enum Slice {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Func(FunctionCall),
-    Lambda(Box<Expr>),
-    LambdaBinding(usize),
+    Lambda(Vec<String>, Box<Expr>),
+    LambdaBinding(String),
     Int(i64),
     Float(f64),
     Identifier(String),
@@ -383,11 +383,11 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn bind_lambda_args(&mut self, names: &Vec<&str>) {
+    pub fn bind_lambda_args(&mut self, names: &Vec<String>) {
         match self {
             Self::Identifier(name) => {
-                if let Some(index) = names.iter().position(|n| n == name) {
-                    *self = Self::LambdaBinding(index);
+                if names.iter().any(|n| n == name) {
+                    *self = Self::LambdaBinding(name.to_string());
                 }
             }
             Self::Func(call) => {
@@ -404,9 +404,6 @@ impl Expr {
                 for (_, expr) in exprs.iter_mut() {
                     expr.bind_lambda_args(names);
                 }
-            }
-            Self::Lambda(_) => {
-                unimplemented!()
             }
             _ => (),
         };
@@ -436,9 +433,6 @@ impl Expr {
                 for (_, expr) in exprs.iter_mut() {
                     expr.simplify();
                 }
-            }
-            Self::Lambda(expr) => {
-                expr.simplify();
             }
             _ => (),
         };
@@ -642,6 +636,17 @@ mod tests {
         Regex(string.to_string(), true)
     }
 
+    fn lambda(names: Vec<&str>, expr: Expr) -> Expr {
+        Lambda(
+            names.into_iter().map(|s| s.to_string()).collect(),
+            Box::new(expr),
+        )
+    }
+
+    fn lb(string: &str) -> Expr {
+        LambdaBinding(string.to_string())
+    }
+
     macro_rules! list {
         ( $( $x:expr ),* ) => {
             {
@@ -733,7 +738,7 @@ mod tests {
                 "map",
                 vec![
                     id("array"),
-                    Lambda(Box::new(func("add", vec![LambdaBinding(0), Int(1)])))
+                    lambda(vec!["x"], func("add", vec![lb("x"), Int(1)]))
                 ]
             ))
         );
@@ -744,7 +749,7 @@ mod tests {
                 "map",
                 vec![
                     id("array"),
-                    Lambda(Box::new(func("add", vec![LambdaBinding(0), Int(1)])))
+                    lambda(vec!["x"], func("add", vec![lb("x"), Int(1)]))
                 ]
             ))
         );
@@ -755,10 +760,7 @@ mod tests {
                 "map",
                 vec![
                     id("array"),
-                    Lambda(Box::new(func(
-                        "add",
-                        vec![LambdaBinding(0), LambdaBinding(1)]
-                    )))
+                    lambda(vec!["x", "y"], func("add", vec![lb("x"), lb("y")]))
                 ]
             ))
         );
@@ -769,7 +771,7 @@ mod tests {
                 "map",
                 vec![
                     id("array"),
-                    Lambda(Box::new(func("add", vec![LambdaBinding(0), id("age")])))
+                    lambda(vec!["x"], func("add", vec![lb("x"), id("age")]))
                 ]
             ))
         );
