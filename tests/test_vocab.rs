@@ -234,10 +234,19 @@ fn vocab_cooc_sep_no_doc() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "pmi", "ppmi", "npmi"],
-        svec!["cat", "dog", "2", "0", "0", "0"],
-        svec!["cat", "cat", "1", "-2", "0", "-1"],
-        svec!["cat", "rabbit", "1", "0", "0", "0"],
+        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "ppmi", "npmi"],
+        svec!["cat", "dog", "2", "0", "0", "0", "0", "0"],
+        svec![
+            "cat",
+            "cat",
+            "1",
+            "2.25",
+            "-2.772588722239781",
+            "-2",
+            "0",
+            "-1"
+        ],
+        svec!["cat", "rabbit", "1", "0", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -265,10 +274,19 @@ fn vocab_cooc_no_sep() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "pmi", "ppmi", "npmi"],
-        svec!["cat", "dog", "2", "0", "0", "0"],
-        svec!["cat", "cat", "1", "-2", "0", "-1"],
-        svec!["cat", "rabbit", "1", "0", "0", "0"],
+        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "ppmi", "npmi"],
+        svec!["cat", "dog", "2", "0", "0", "0", "0", "0"],
+        svec![
+            "cat",
+            "cat",
+            "1",
+            "2.25",
+            "-2.772588722239781",
+            "-2",
+            "0",
+            "-1"
+        ],
+        svec!["cat", "rabbit", "1", "0", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -297,10 +315,19 @@ fn vocab_cooc_no_sep_window() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "pmi", "ppmi", "npmi"],
-        svec!["cat", "dog", "2", "0", "0", "0"],
-        svec!["cat", "cat", "1", "-2", "0", "-1"],
-        svec!["cat", "rabbit", "1", "0", "0", "0"],
+        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "ppmi", "npmi"],
+        svec!["cat", "dog", "2", "0", "0", "0", "0", "0"],
+        svec![
+            "cat",
+            "cat",
+            "1",
+            "2.25",
+            "-2.772588722239781",
+            "-2",
+            "0",
+            "-1"
+        ],
+        svec!["cat", "rabbit", "1", "0", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }

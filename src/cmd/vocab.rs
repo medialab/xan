@@ -3,6 +3,7 @@
 // sciences sociales. 2017. École normale supérieure, thesis. hal-bioemco.ccsd.cnrs.fr,
 // https://sciencespo.hal.science/tel-03626011
 // https://sciencespo.hal.science/tel-03626011v1/file/2017-cointet-hdr-la-cartographie-des-traces-textuelles-comme-methodologie-denquete-en-sciences-sociales.pdf
+// https://pbil.univ-lyon1.fr/R/pdf/tdr35.pdf
 
 use std::collections::{hash_map::Entry, HashMap};
 use std::num::NonZeroUsize;
@@ -62,6 +63,8 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
+    - chi2: chi2 score
+    - G2: G2 score
     - pmi: pointwise mutual information
     - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
@@ -291,7 +294,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             _ => unreachable!(),
         };
 
-        let output_headers: [&[u8]; 6] = [b"token1", b"token2", b"count", b"pmi", b"ppmi", b"npmi"];
+        let output_headers: [&[u8]; 8] = [
+            b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"ppmi", b"npmi",
+        ];
 
         wtr.write_record(output_headers)?;
         cooccurrences.for_each_cooc_record(|r| wtr.write_byte_record(r))?;
@@ -750,6 +755,7 @@ impl Cooccurrences {
                 let py = target_entry.gcf as f64 / cooccurrences_count;
                 let px_py = *count as f64 / cooccurrences_count;
 
+                // PMI-related computations
                 let pmi = (px_py / (px * py)).log2();
                 let ppmi = pmi.max(0.0);
 
@@ -760,10 +766,21 @@ impl Cooccurrences {
                     pmi / (-px_py.log2())
                 };
 
+                // chi2/G2 computations
+                // NOTE: we are using the simplified version that does not take the
+                // full contingency matrix into account!
+                let observed = *count as f64;
+                let expected =
+                    source_entry.gcf as f64 * target_entry.gcf as f64 / cooccurrences_count;
+                let chi2 = (observed - expected).powi(2) / expected;
+                let g2 = 2.0 * observed * (observed / expected).ln();
+
                 csv_record.clear();
                 csv_record.push_field(&source_entry.token);
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(count.to_string().as_bytes());
+                csv_record.push_field(chi2.to_string().as_bytes());
+                csv_record.push_field(g2.to_string().as_bytes());
                 csv_record.push_field(pmi.to_string().as_bytes());
                 csv_record.push_field(ppmi.to_string().as_bytes());
                 csv_record.push_field(npmi.to_string().as_bytes());
