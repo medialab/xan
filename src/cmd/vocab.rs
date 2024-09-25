@@ -69,6 +69,15 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
 
+    or, using the -D, --distrib flag:
+
+    - token1: the first token
+    - token2: the second token
+    - count: total number of co-occurrences
+    - sdI: distributional score based on PMI
+    - sdG2: distributional score based on G2
+    - sdchi2: distributional score based on chi2
+
 Usage:
     xan vocab corpus <token-col> [options] [<input>]
     xan vocab token <token-col> [options] [<input>]
@@ -91,7 +100,8 @@ vocab cooc options:
                       other one in a same document.
                       Set the window to \"1\" to compute bigram collocations. Set a larger window
                       to get something similar to what word2vec considers.
-    -f, --forward     Whether to only consider a forward window when traversing token contexts.
+    -F, --forward     Whether to only consider a forward window when traversing token contexts.
+    -D, --distrib     Compute directed distributional similarity metrics instead.
 
 Common options:
     -h, --help             Display this message
@@ -119,6 +129,7 @@ struct Args {
     flag_b_value: f64,
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
+    flag_distrib: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -130,6 +141,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_doc.is_none() && args.flag_sep.is_none() {
         return Err(CliError::Other(
             "cannot omit -D, --doc without --sep!".to_string(),
+        ));
+    }
+
+    if args.flag_distrib && args.flag_forward {
+        return Err(CliError::Other(
+            "-D, --distrib does not make sense with -F, --forward".to_string(),
         ));
     }
 
@@ -161,6 +178,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.cmd_cooc {
         let mut cooccurrences = Cooccurrences::default();
+
+        let cooccurrence_mode = if args.flag_forward {
+            CooccurrenceMode::Forward
+        } else if args.flag_distrib {
+            CooccurrenceMode::Full
+        } else {
+            CooccurrenceMode::Symmetrical
+        };
 
         // NOTE:
         //  --sep and no --doc: trivial for both model
@@ -213,7 +238,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         for j in (i + 1)..bag_of_words.len() {
                             let target = &bag_of_words[j];
                             let target_id = cooccurrences.register_token(target.clone());
-                            cooccurrences.add_cooccurrence(args.flag_forward, source_id, target_id);
+                            cooccurrences.add_cooccurrence(cooccurrence_mode, source_id, target_id);
                         }
                     }
                 }
@@ -239,7 +264,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         for j in (i + 1)..upper_bound {
                             let target = &bag_of_words[j];
                             let target_id = cooccurrences.register_token(target.clone());
-                            cooccurrences.add_cooccurrence(args.flag_forward, source_id, target_id);
+                            cooccurrences.add_cooccurrence(cooccurrence_mode, source_id, target_id);
                         }
                     }
                 }
@@ -258,7 +283,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 let target = &$bag_of_words[j];
                                 let target_id = cooccurrences.register_token(target.clone());
                                 cooccurrences.add_cooccurrence(
-                                    args.flag_forward,
+                                    cooccurrence_mode,
                                     source_id,
                                     target_id,
                                 );
@@ -690,6 +715,23 @@ impl CooccurrenceTokenEntry {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum CooccurrenceMode {
+    Symmetrical,
+    Forward,
+    Full,
+}
+
+impl CooccurrenceMode {
+    fn is_symmetrical(&self) -> bool {
+        matches!(self, Self::Symmetrical)
+    }
+
+    fn is_full(&self) -> bool {
+        matches!(self, Self::Full)
+    }
+}
+
 #[derive(Default, Debug)]
 struct Cooccurrences {
     token_ids: HashMap<Rc<Token>, TokenID>,
@@ -714,8 +756,13 @@ impl Cooccurrences {
         }
     }
 
-    fn add_cooccurrence(&mut self, directed: bool, mut source: TokenID, mut target: TokenID) {
-        if !directed && source > target {
+    fn add_cooccurrence(
+        &mut self,
+        mode: CooccurrenceMode,
+        mut source: TokenID,
+        mut target: TokenID,
+    ) {
+        if mode.is_symmetrical() && source > target {
             (source, target) = (target, source);
         }
 
@@ -734,7 +781,15 @@ impl Cooccurrences {
             return;
         }
 
-        self.token_entries[target].gcf += 1;
+        let target_entry = &mut self.token_entries[target];
+
+        if mode.is_full() {
+            target_entry
+                .cooc
+                .insert_with_or_else(source, || 1, |count| *count += 1);
+        }
+
+        target_entry.gcf += 1;
     }
 
     fn for_each_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
