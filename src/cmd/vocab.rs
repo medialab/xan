@@ -1,3 +1,9 @@
+// References:
+// Cointet, Jean-Philippe. La cartographie des traces textuelles comme méthodologie d’enquête en
+// sciences sociales. 2017. École normale supérieure, thesis. hal-bioemco.ccsd.cnrs.fr,
+// https://sciencespo.hal.science/tel-03626011
+// https://sciencespo.hal.science/tel-03626011v1/file/2017-cointet-hdr-la-cartographie-des-traces-textuelles-comme-methodologie-denquete-en-sciences-sociales.pdf
+
 use std::collections::{hash_map::Entry, HashMap};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
