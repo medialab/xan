@@ -599,11 +599,9 @@ impl Vocabulary {
 
         let mut record = csv::ByteRecord::new();
 
-        for (token, token_id) in self.token_ids.into_iter() {
-            let stats = &self.tokens[token_id];
-
+        for stats in self.tokens.into_iter() {
             record.clear();
-            record.push_field(&token);
+            record.push_field(&stats.text);
             record.push_field(stats.gf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
