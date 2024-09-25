@@ -844,4 +844,75 @@ impl Cooccurrences {
 
         Ok(())
     }
+
+    // fn for_each_distrib_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
+    // where
+    //     F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+    // {
+    //     #[derive(Default)]
+    //     struct Metrics {
+    //         pmi: f64,
+    //         chi2: f64,
+    //         g2: f64,
+    //     }
+
+    //     let mut csv_record = csv::ByteRecord::new();
+    //     let cooccurrences_count = self.cooccurrences_count as f64;
+
+    //     let mut sums: Vec<Metrics> = Vec::with_capacity(self.token_entries.len());
+    //     let mut computed_metrics: HashMap<(usize, usize), Metrics> =
+    //         HashMap::with_capacity(self.cooccurrences_count);
+
+    //     for (source_id, source_entry) in self.token_entries.iter().enumerate() {
+    //         let px = source_entry.gcf as f64 / cooccurrences_count;
+
+    //         let mut sum = Metrics::default();
+
+    //         for (target_id, count) in source_entry.cooc.iter() {
+    //             let target_entry = &self.token_entries[*target_id];
+
+    //             let py = target_entry.gcf as f64 / cooccurrences_count;
+    //             let px_py = *count as f64 / cooccurrences_count;
+
+    //             // PMI
+    //             let pmi = (px_py / (px * py)).log2();
+
+    //             // chi2/G2 computations
+    //             // NOTE: we are using the simplified version that does not take the
+    //             // full contingency matrix into account!
+    //             let observed = *count as f64;
+    //             let expected =
+    //                 source_entry.gcf as f64 * target_entry.gcf as f64 / cooccurrences_count;
+    //             let chi2 = (observed - expected).powi(2) / expected;
+    //             let g2 = 2.0 * observed * (observed / expected).ln();
+
+    //             sum.pmi += pmi;
+    //             sum.chi2 += chi2;
+    //             sum.g2 += g2;
+
+    //             computed_metrics.insert((source_id, *target_id), Metrics { pmi, chi2, g2 });
+    //         }
+
+    //         sums.push(sum);
+    //     }
+
+    //     for (source_id, source_entry) in self.token_entries.iter().enumerate() {
+    //         let sum = &sums[source_id];
+
+    //         for (target_id, count) in source_entry.cooc.iter() {
+    //             let target_entry = &self.token_entries[*target_id];
+
+    //             csv_record.clear();
+    //             csv_record.push_field(&source_entry.token);
+    //             csv_record.push_field(&target_entry.token);
+    //             csv_record.push_field(count.to_string().as_bytes());
+
+    //             // let min_sum =
+
+    //             callback(&csv_record)?;
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
 }
