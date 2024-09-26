@@ -42,6 +42,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token: some distinct token (the column will be named like the input)
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
+    - df_ratio: proportion of documents containing the token
     - idf: inverse document frequency of the token
     - gfidf: global frequency * idf for the token
     - pigeonhole: ratio between df and expected df in random distribution
@@ -362,7 +363,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.cmd_token {
-        let headers: [&[u8]; 6] = [b"token", b"gf", b"df", b"idf", b"gfidf", b"pigeonhole"];
+        let headers: [&[u8]; 7] = [
+            b"token",
+            b"gf",
+            b"df",
+            b"df_ratio",
+            b"idf",
+            b"gfidf",
+            b"pigeonhole",
+        ];
         wtr.write_record(headers)?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_doc_token {
@@ -640,6 +649,7 @@ impl Vocabulary {
             record.push_field(&stats.text);
             record.push_field(stats.gf.to_string().as_bytes());
             record.push_field(stats.df.to_string().as_bytes());
+            record.push_field((stats.df as f64 / n as f64).to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
             record.push_field(stats.gfidf(n).to_string().as_bytes());
             record.push_field(stats.pigeonhole(n).to_string().as_bytes());
