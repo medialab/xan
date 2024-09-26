@@ -336,6 +336,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             cooccurrences
                 .for_each_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
         }
+
         return Ok(wtr.flush()?);
     }
 
@@ -925,6 +926,8 @@ impl Cooccurrences {
             sums.push(sum);
         }
 
+        // TODO: symmetrical is possible, and perform intersection only on smallest collections
+        // to minimize lookups
         for (source_id, source_entry) in self.token_entries.iter().enumerate() {
             let sum = &sums[source_id];
 
