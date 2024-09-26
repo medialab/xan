@@ -1,5 +1,7 @@
+use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
+use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
 use paltoquet::tokenizers::{NgramsIteratorExt, WordToken, WordTokenKind, WordTokenizerBuilder};
 use pariter::IteratorExt;
 
@@ -7,6 +9,14 @@ use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers, JoinIteratorExt};
 use crate::CliResult;
+
+fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
+    Ok(match name {
+        "carry" => |n: &str| Cow::Owned(carry_stemmer(n)),
+        "s" => s_stemmer,
+        _ => return Err(format!("unknown stemmer \"{}\"", name)),
+    })
+}
 
 static USAGE: &str = "
 Tokenize the given text column by splitting it into word pieces (think
@@ -77,6 +87,10 @@ tokenize options:
     -J, --filter-junk        Whether to apply some heuristics to filter out words that look like junk.
     -L, --lower              Whether to normalize token case using lower case.
     -U, --unidecode          Whether to normalize token text to ascii.
+    -S, --stemmer <name>     Stemmer to normalize the tokens. Can be one of:
+                                - \"s\": a basic stemmer removing typical plural inflections in
+                                         most European languages.
+                                - \"carry\": a stemmer targeting the French language.
     --sep <delim>            If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
@@ -123,6 +137,7 @@ struct Args {
     flag_simple: bool,
     flag_ngrams: Option<String>,
     flag_ngrams_sep: String,
+    flag_stemmer: Option<String>,
 }
 
 impl Args {
@@ -149,6 +164,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .flag_ngrams
         .as_ref()
         .map(|text| parse_range(text))
+        .transpose()?;
+
+    let stemmer_opt = args
+        .flag_stemmer
+        .as_ref()
+        .map(|name| get_stemmer(name))
         .transpose()?;
 
     let mut rdr = rconfig.reader()?;
@@ -250,6 +271,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if args.flag_unidecode {
                 text = unidecode::unidecode(&text);
+            }
+
+            if let Some(stemmer) = &stemmer_opt {
+                text = stemmer(&text).into_owned();
             }
 
             (text, pair.1)
