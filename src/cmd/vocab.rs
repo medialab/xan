@@ -69,7 +69,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
 
-    or, using the -D, --distrib flag:
+    or, using the --distrib flag:
 
     - token1: the first token
     - token2: the second token
@@ -100,7 +100,7 @@ vocab cooc options:
                       Set the window to \"1\" to compute bigram collocations. Set a larger window
                       to get something similar to what word2vec considers.
     -F, --forward     Whether to only consider a forward window when traversing token contexts.
-    -D, --distrib     Compute directed distributional similarity metrics instead.
+    --distrib     Compute directed distributional similarity metrics instead.
 
 Common options:
     -h, --help             Display this message

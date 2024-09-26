@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::ops::RangeInclusive;
 
 use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
@@ -91,6 +92,9 @@ tokenize options:
                                 - \"s\": a basic stemmer removing typical plural inflections in
                                          most European languages.
                                 - \"carry\": a stemmer targeting the French language.
+    -V, --vocab <name>       Path to a CSV file containing allowed vocabulary (or \"-\" for stdin).
+    --vocab-token <col>  Column of vocabulary file containing allowed tokens.
+                             [default: token]
     --sep <delim>            If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
@@ -138,6 +142,8 @@ struct Args {
     flag_ngrams: Option<String>,
     flag_ngrams_sep: String,
     flag_stemmer: Option<String>,
+    flag_vocab: Option<String>,
+    flag_vocab_token: SelectColumns,
 }
 
 impl Args {
@@ -246,6 +252,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    let whitelist_opt = args
+        .flag_vocab
+        .map(|path| -> CliResult<HashSet<String>> {
+            let config = Config::new(&Some(path)).select(args.flag_vocab_token);
+            let mut vocab_reader = config.reader()?;
+            let vocab_headers = vocab_reader.byte_headers()?;
+
+            let token_pos = config.single_selection(vocab_headers)?;
+
+            let mut vocab_record = csv::ByteRecord::new();
+
+            let mut whitelist = HashSet::new();
+
+            while vocab_reader.read_byte_record(&mut vocab_record)? {
+                let token = String::from_utf8(vocab_record[token_pos].to_vec()).unwrap();
+                whitelist.insert(token);
+            }
+
+            Ok(whitelist)
+        })
+        .transpose()?;
+
     if args.flag_filter_junk {
         tokenizer_builder = tokenizer_builder.filter_junk();
     }
@@ -260,7 +288,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Box::new(tokenizer.tokenize(string))
         };
 
-        let tokens = tokens.map(|token| {
+        let tokens = tokens.filter_map(|token| {
             let pair = token.to_pair();
 
             let mut text = pair.0;
@@ -277,7 +305,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 text = stemmer(&text).into_owned();
             }
 
-            (text, pair.1)
+            if let Some(whitelist) = &whitelist_opt {
+                if !whitelist.contains(&text) {
+                    return None;
+                }
+            }
+
+            Some((text, pair.1))
         });
 
         if let Some(range) = &ngrams {
