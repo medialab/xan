@@ -88,7 +88,7 @@ tokenize options:
     -J, --filter-junk        Whether to apply some heuristics to filter out words that look like junk.
     -L, --lower              Whether to normalize token case using lower case.
     -U, --unidecode          Whether to normalize token text to ascii.
-    -S, --stemmer <name>     Stemmer to normalize the tokens. Can be one of:
+    --stemmer <name>     Stemmer to normalize the tokens. Can be one of:
                                 - \"s\": a basic stemmer removing typical plural inflections in
                                          most European languages.
                                 - \"carry\": a stemmer targeting the French language.

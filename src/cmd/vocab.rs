@@ -100,7 +100,9 @@ vocab cooc options:
                       Set the window to \"1\" to compute bigram collocations. Set a larger window
                       to get something similar to what word2vec considers.
     -F, --forward     Whether to only consider a forward window when traversing token contexts.
-    --distrib     Compute directed distributional similarity metrics instead.
+    --distrib         Compute directed distributional similarity metrics instead.
+    --min-count <n>   Minimum number of co-occurrence count to be included in the result.
+                      [default: 1]
 
 Common options:
     -h, --help             Display this message
@@ -129,6 +131,7 @@ struct Args {
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
     flag_distrib: bool,
+    flag_min_count: usize,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -322,14 +325,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sdI", b"sdG2"];
 
             wtr.write_record(output_headers)?;
-            cooccurrences.for_each_distrib_cooc_record(|r| wtr.write_byte_record(r))?;
+            cooccurrences
+                .for_each_distrib_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
         } else {
             let output_headers: [&[u8]; 8] = [
                 b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"ppmi", b"npmi",
             ];
 
             wtr.write_record(output_headers)?;
-            cooccurrences.for_each_cooc_record(|r| wtr.write_byte_record(r))?;
+            cooccurrences
+                .for_each_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
         }
         return Ok(wtr.flush()?);
     }
@@ -832,7 +837,7 @@ impl Cooccurrences {
         target_entry.gcf += 1;
     }
 
-    fn for_each_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
+    fn for_each_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
@@ -843,6 +848,10 @@ impl Cooccurrences {
             let x = source_entry.gcf;
 
             for (target_id, count) in source_entry.cooc.iter() {
+                if *count < min_count {
+                    continue;
+                }
+
                 let target_entry = &self.token_entries[*target_id];
 
                 let y = target_entry.gcf;
@@ -873,7 +882,7 @@ impl Cooccurrences {
         Ok(())
     }
 
-    fn for_each_distrib_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
+    fn for_each_distrib_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
@@ -920,6 +929,10 @@ impl Cooccurrences {
             let sum = &sums[source_id];
 
             for (target_id, count) in source_entry.cooc.iter() {
+                if *count < min_count {
+                    continue;
+                }
+
                 let target_entry = &self.token_entries[*target_id];
 
                 let mut min_pmi_sum = 0.0;
