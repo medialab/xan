@@ -698,6 +698,41 @@ impl Vocabulary {
     }
 }
 
+#[inline]
+fn compute_pmi(x: usize, y: usize, xy: usize, n: usize) -> f64 {
+    // NOTE: (xy / n) / ((x / n) * (y / n)) = (xy * z) / (x * y)
+    ((xy * n) as f64 / (x * y) as f64).log2()
+}
+
+#[inline]
+fn compute_ppmi(pmi: f64) -> f64 {
+    pmi.max(0.0)
+}
+
+#[inline]
+fn compute_npmi(xy: usize, n: usize, pmi: f64) -> f64 {
+    // If probability is 1, then self-information is 0 and npmi must be 1, meaning full co-occurrence.
+    if xy >= n {
+        1.0
+    } else {
+        let p_xy = xy as f64 / n as f64;
+
+        pmi / (-p_xy.log2())
+    }
+}
+
+#[inline]
+fn compute_simplified_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
+    // This version does not take into account the full contingency matrix.
+    let observed = xy as f64;
+    let expected = x as f64 * y as f64 / n as f64;
+
+    (
+        (observed - expected).powi(2) / expected,
+        2.0 * observed * (observed / expected).ln(),
+    )
+}
+
 #[derive(Debug)]
 struct CooccurrenceTokenEntry {
     token: Rc<Token>,
@@ -797,36 +832,24 @@ impl Cooccurrences {
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
         let mut csv_record = csv::ByteRecord::new();
-        let cooccurrences_count = self.cooccurrences_count as f64;
+        let n = self.cooccurrences_count;
 
         for source_entry in self.token_entries.iter() {
-            let px = source_entry.gcf as f64 / cooccurrences_count;
+            let x = source_entry.gcf;
 
             for (target_id, count) in source_entry.cooc.iter() {
                 let target_entry = &self.token_entries[*target_id];
 
-                let py = target_entry.gcf as f64 / cooccurrences_count;
-                let px_py = *count as f64 / cooccurrences_count;
-
-                // PMI-related computations
-                let pmi = (px_py / (px * py)).log2();
-                let ppmi = pmi.max(0.0);
-
-                // If probability is 1, then self-information is 0 and npmi must be 1, meaning full co-occurrence.
-                let npmi = if px_py >= 1.0 {
-                    1.0
-                } else {
-                    pmi / (-px_py.log2())
-                };
+                let y = target_entry.gcf;
+                let xy = *count;
 
                 // chi2/G2 computations
-                // NOTE: we are using the simplified version that does not take the
-                // full contingency matrix into account!
-                let observed = *count as f64;
-                let expected =
-                    source_entry.gcf as f64 * target_entry.gcf as f64 / cooccurrences_count;
-                let chi2 = (observed - expected).powi(2) / expected;
-                let g2 = 2.0 * observed * (observed / expected).ln();
+                let (chi2, g2) = compute_simplified_chi2_and_g2(x, y, xy, n);
+
+                // PMI-related computations
+                let pmi = compute_pmi(x, y, xy, n);
+                let ppmi = compute_ppmi(pmi);
+                let npmi = compute_npmi(xy, n, pmi);
 
                 csv_record.clear();
                 csv_record.push_field(&source_entry.token);
