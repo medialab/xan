@@ -76,7 +76,6 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - count: total number of co-occurrences
     - sdI: distributional score based on PMI
     - sdG2: distributional score based on G2
-    - sdchi2: distributional score based on chi2
 
 Usage:
     xan vocab corpus <token-col> [options] [<input>]
@@ -319,13 +318,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             _ => unreachable!(),
         };
 
-        let output_headers: [&[u8]; 8] = [
-            b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"ppmi", b"npmi",
-        ];
+        if args.flag_distrib {
+            let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sdI", b"sdG2"];
 
-        wtr.write_record(output_headers)?;
-        cooccurrences.for_each_cooc_record(|r| wtr.write_byte_record(r))?;
+            wtr.write_record(output_headers)?;
+            cooccurrences.for_each_distrib_cooc_record(|r| wtr.write_byte_record(r))?;
+        } else {
+            let output_headers: [&[u8]; 8] = [
+                b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"ppmi", b"npmi",
+            ];
 
+            wtr.write_record(output_headers)?;
+            cooccurrences.for_each_cooc_record(|r| wtr.write_byte_record(r))?;
+        }
         return Ok(wtr.flush()?);
     }
 
@@ -868,74 +873,96 @@ impl Cooccurrences {
         Ok(())
     }
 
-    // fn for_each_distrib_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
-    // where
-    //     F: FnMut(&csv::ByteRecord) -> Result<(), E>,
-    // {
-    //     #[derive(Default)]
-    //     struct Metrics {
-    //         pmi: f64,
-    //         chi2: f64,
-    //         g2: f64,
-    //     }
+    fn for_each_distrib_cooc_record<F, E>(self, mut callback: F) -> Result<(), E>
+    where
+        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+    {
+        #[derive(Default)]
+        struct Metrics {
+            pmi: f64,
+            g2: f64,
+        }
 
-    //     let mut csv_record = csv::ByteRecord::new();
-    //     let cooccurrences_count = self.cooccurrences_count as f64;
+        let mut csv_record = csv::ByteRecord::new();
+        let n = self.cooccurrences_count;
 
-    //     let mut sums: Vec<Metrics> = Vec::with_capacity(self.token_entries.len());
-    //     let mut computed_metrics: HashMap<(usize, usize), Metrics> =
-    //         HashMap::with_capacity(self.cooccurrences_count);
+        let mut sums: Vec<Metrics> = Vec::with_capacity(self.token_entries.len());
+        let mut computed_metrics: HashMap<(usize, usize), Metrics> =
+            HashMap::with_capacity(self.cooccurrences_count);
 
-    //     for (source_id, source_entry) in self.token_entries.iter().enumerate() {
-    //         let px = source_entry.gcf as f64 / cooccurrences_count;
+        for (source_id, source_entry) in self.token_entries.iter().enumerate() {
+            let x = source_entry.gcf;
 
-    //         let mut sum = Metrics::default();
+            let mut sum = Metrics::default();
 
-    //         for (target_id, count) in source_entry.cooc.iter() {
-    //             let target_entry = &self.token_entries[*target_id];
+            for (target_id, count) in source_entry.cooc.iter() {
+                let target_entry = &self.token_entries[*target_id];
 
-    //             let py = target_entry.gcf as f64 / cooccurrences_count;
-    //             let px_py = *count as f64 / cooccurrences_count;
+                let y = target_entry.gcf;
+                let xy = *count;
 
-    //             // PMI
-    //             let pmi = (px_py / (px * py)).log2();
+                // G2 computations
+                let (_, g2) = compute_simplified_chi2_and_g2(x, y, xy, n);
 
-    //             // chi2/G2 computations
-    //             // NOTE: we are using the simplified version that does not take the
-    //             // full contingency matrix into account!
-    //             let observed = *count as f64;
-    //             let expected =
-    //                 source_entry.gcf as f64 * target_entry.gcf as f64 / cooccurrences_count;
-    //             let chi2 = (observed - expected).powi(2) / expected;
-    //             let g2 = 2.0 * observed * (observed / expected).ln();
+                // PMI-related computations
+                let pmi = compute_pmi(x, y, xy, n);
 
-    //             sum.pmi += pmi;
-    //             sum.chi2 += chi2;
-    //             sum.g2 += g2;
+                sum.pmi += pmi;
+                sum.g2 += g2;
 
-    //             computed_metrics.insert((source_id, *target_id), Metrics { pmi, chi2, g2 });
-    //         }
+                computed_metrics.insert((source_id, *target_id), Metrics { pmi, g2 });
+            }
 
-    //         sums.push(sum);
-    //     }
+            sums.push(sum);
+        }
 
-    //     for (source_id, source_entry) in self.token_entries.iter().enumerate() {
-    //         let sum = &sums[source_id];
+        for (source_id, source_entry) in self.token_entries.iter().enumerate() {
+            let sum = &sums[source_id];
 
-    //         for (target_id, count) in source_entry.cooc.iter() {
-    //             let target_entry = &self.token_entries[*target_id];
+            for (target_id, count) in source_entry.cooc.iter() {
+                let target_entry = &self.token_entries[*target_id];
 
-    //             csv_record.clear();
-    //             csv_record.push_field(&source_entry.token);
-    //             csv_record.push_field(&target_entry.token);
-    //             csv_record.push_field(count.to_string().as_bytes());
+                let mut min_pmi_sum = 0.0;
+                let mut min_g2_sum = 0.0;
 
-    //             // let min_sum =
+                for other_id in source_entry.cooc.keys() {
+                    let source_other = computed_metrics.get(&(source_id, *other_id)).unwrap();
+                    let target_other = computed_metrics.get(&(*target_id, *other_id));
 
-    //             callback(&csv_record)?;
-    //         }
-    //     }
+                    match target_other {
+                        Some(m) if m.pmi > 0.0 && source_other.pmi > 0.0 => {
+                            min_pmi_sum += source_other.pmi.min(m.pmi);
+                        }
+                        _ => (),
+                    };
 
-    //     Ok(())
-    // }
+                    match target_other {
+                        Some(m) if m.g2 > 0.0 && source_other.g2 > 0.0 => {
+                            min_g2_sum += source_other.g2.min(m.g2);
+                        }
+                        _ => (),
+                    };
+                }
+
+                // No intersection, we skip this edge
+                if min_pmi_sum == 0.0 && min_g2_sum == 0.0 {
+                    continue;
+                }
+
+                let sd_i = min_pmi_sum / sum.pmi;
+                let sd_g2 = min_g2_sum / sum.g2;
+
+                csv_record.clear();
+                csv_record.push_field(&source_entry.token);
+                csv_record.push_field(&target_entry.token);
+                csv_record.push_field(count.to_string().as_bytes());
+                csv_record.push_field(sd_i.to_string().as_bytes());
+                csv_record.push_field(sd_g2.to_string().as_bytes());
+
+                callback(&csv_record)?;
+            }
+        }
+
+        Ok(())
+    }
 }
