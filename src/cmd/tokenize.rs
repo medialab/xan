@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
@@ -17,6 +17,12 @@ fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
         "s" => s_stemmer,
         _ => return Err(format!("unknown stemmer \"{}\"", name)),
     })
+}
+
+#[derive(Clone)]
+enum TokenWhitelist {
+    WithId(HashMap<String, String>),
+    WithoutId(HashSet<String>),
 }
 
 static USAGE: &str = "
@@ -88,13 +94,15 @@ tokenize options:
     -J, --filter-junk        Whether to apply some heuristics to filter out words that look like junk.
     -L, --lower              Whether to normalize token case using lower case.
     -U, --unidecode          Whether to normalize token text to ascii.
-    --stemmer <name>     Stemmer to normalize the tokens. Can be one of:
+    --stemmer <name>         Stemmer to normalize the tokens. Can be one of:
                                 - \"s\": a basic stemmer removing typical plural inflections in
                                          most European languages.
                                 - \"carry\": a stemmer targeting the French language.
     -V, --vocab <name>       Path to a CSV file containing allowed vocabulary (or \"-\" for stdin).
-    --vocab-token <col>  Column of vocabulary file containing allowed tokens.
+    --vocab-token <col>      Column of vocabulary file containing allowed tokens.
                              [default: token]
+    --vocab-token-id <col>   Column of vocabulary file containing a token id to emit in place of the
+                             token itself.
     --sep <delim>            If given, the command will output exactly one row per input row,
                              keep the text column and join the tokens using the provided character.
                              We recommend using \"§\" as a separator.
@@ -144,6 +152,7 @@ struct Args {
     flag_stemmer: Option<String>,
     flag_vocab: Option<String>,
     flag_vocab_token: SelectColumns,
+    flag_vocab_token_id: Option<SelectColumns>,
 }
 
 impl Args {
@@ -254,7 +263,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let whitelist_opt = args
         .flag_vocab
-        .map(|path| -> CliResult<HashSet<String>> {
+        .map(|path| -> CliResult<TokenWhitelist> {
             let config = Config::new(&Some(path)).select(args.flag_vocab_token);
             let mut vocab_reader = config.reader()?;
             let vocab_headers = vocab_reader.byte_headers()?;
@@ -263,14 +272,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let mut vocab_record = csv::ByteRecord::new();
 
-            let mut whitelist = HashSet::new();
+            if let Some(vocab_token_id) = args.flag_vocab_token_id {
+                let mut whitelist = HashMap::new();
+                let token_id_pos = Config::new(&None)
+                    .select(vocab_token_id)
+                    .single_selection(vocab_headers)?;
 
-            while vocab_reader.read_byte_record(&mut vocab_record)? {
-                let token = String::from_utf8(vocab_record[token_pos].to_vec()).unwrap();
-                whitelist.insert(token);
+                while vocab_reader.read_byte_record(&mut vocab_record)? {
+                    let token = String::from_utf8(vocab_record[token_pos].to_vec()).unwrap();
+                    let token_id = String::from_utf8(vocab_record[token_id_pos].to_vec()).unwrap();
+                    whitelist.insert(token, token_id);
+                }
+
+                Ok(TokenWhitelist::WithId(whitelist))
+            } else {
+                let mut whitelist = HashSet::new();
+
+                while vocab_reader.read_byte_record(&mut vocab_record)? {
+                    let token = String::from_utf8(vocab_record[token_pos].to_vec()).unwrap();
+                    whitelist.insert(token);
+                }
+
+                Ok(TokenWhitelist::WithoutId(whitelist))
             }
-
-            Ok(whitelist)
         })
         .transpose()?;
 
@@ -306,8 +330,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             if let Some(whitelist) = &whitelist_opt {
-                if !whitelist.contains(&text) {
-                    return None;
+                match whitelist {
+                    TokenWhitelist::WithoutId(inner) => {
+                        if !inner.contains(&text) {
+                            return None;
+                        }
+                    }
+                    TokenWhitelist::WithId(inner) => match inner.get(&text) {
+                        None => return None,
+                        Some(token_id) => {
+                            text = token_id.to_string();
+                        }
+                    },
                 }
             }
 
