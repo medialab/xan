@@ -744,6 +744,15 @@ fn compute_simplified_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f
     )
 }
 
+#[inline]
+fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
+    // This version does not take into account the full contingency matrix.
+    let observed = xy as f64;
+    let expected = x as f64 * y as f64 / n as f64;
+
+    2.0 * observed * (observed / expected).ln()
+}
+
 #[derive(Debug)]
 struct CooccurrenceTokenEntry {
     token: Rc<Token>,
@@ -897,10 +906,8 @@ impl Cooccurrences {
         let n = self.cooccurrences_count;
 
         let mut sums: Vec<Metrics> = Vec::with_capacity(self.token_entries.len());
-        let mut computed_metrics: HashMap<(usize, usize), Metrics> =
-            HashMap::with_capacity(self.cooccurrences_count);
 
-        for (source_id, source_entry) in self.token_entries.iter().enumerate() {
+        for source_entry in self.token_entries.iter() {
             let x = source_entry.gcf;
 
             let mut sum = Metrics::default();
@@ -912,52 +919,67 @@ impl Cooccurrences {
                 let xy = *count;
 
                 // G2 computations
-                let (_, g2) = compute_simplified_chi2_and_g2(x, y, xy, n);
+                let g2 = compute_simplified_g2(x, y, xy, n);
 
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
 
                 sum.pmi += pmi;
                 sum.g2 += g2;
-
-                computed_metrics.insert((source_id, *target_id), Metrics { pmi, g2 });
             }
 
             sums.push(sum);
         }
 
-        // TODO: symmetrical is possible, and perform intersection only on smallest collections
-        // to minimize lookups
         for (source_id, source_entry) in self.token_entries.iter().enumerate() {
-            let sum = &sums[source_id];
-
-            for (target_id, count) in source_entry.cooc.iter() {
-                if *count < min_count {
+            for (target_id, source_target_count) in source_entry.cooc.iter() {
+                if source_id == *target_id || *source_target_count < min_count {
                     continue;
                 }
 
                 let target_entry = &self.token_entries[*target_id];
 
+                // We do both entries at once and we optimize by intersection length
+                if source_entry.cooc.len() > target_entry.cooc.len() {
+                    continue;
+                }
+
                 let mut min_pmi_sum = 0.0;
                 let mut min_g2_sum = 0.0;
 
-                for other_id in source_entry.cooc.keys() {
-                    let source_other = computed_metrics.get(&(source_id, *other_id)).unwrap();
-                    let target_other = computed_metrics.get(&(*target_id, *other_id));
-
-                    match target_other {
-                        Some(m) if m.pmi > 0.0 && source_other.pmi > 0.0 => {
-                            min_pmi_sum += source_other.pmi.min(m.pmi);
-                        }
-                        _ => (),
+                for (other_id, source_other_count) in source_entry.cooc.iter() {
+                    let target_other_count = match target_entry.cooc.get(other_id) {
+                        Some(c) => c,
+                        None => continue,
                     };
 
-                    match target_other {
-                        Some(m) if m.g2 > 0.0 && source_other.g2 > 0.0 => {
-                            min_g2_sum += source_other.g2.min(m.g2);
-                        }
-                        _ => (),
-                    };
+                    let other_entry = &self.token_entries[*other_id];
+
+                    let pmi_source_other =
+                        compute_pmi(source_entry.gcf, other_entry.gcf, *source_other_count, n);
+                    let pmi_target_other =
+                        compute_pmi(target_entry.gcf, other_entry.gcf, *target_other_count, n);
+
+                    if pmi_source_other > 0.0 && pmi_target_other > 0.0 {
+                        min_pmi_sum += pmi_source_other.min(pmi_target_other);
+                    }
+
+                    let g2_source_other = compute_simplified_g2(
+                        source_entry.gcf,
+                        other_entry.gcf,
+                        *source_other_count,
+                        n,
+                    );
+                    let g2_target_other = compute_simplified_g2(
+                        target_entry.gcf,
+                        other_entry.gcf,
+                        *target_other_count,
+                        n,
+                    );
+
+                    if g2_source_other > 0.0 && g2_target_other > 0.0 {
+                        min_g2_sum += g2_source_other.min(g2_target_other);
+                    }
                 }
 
                 // No intersection, we skip this edge
@@ -965,13 +987,29 @@ impl Cooccurrences {
                     continue;
                 }
 
-                let sd_i = min_pmi_sum / sum.pmi;
-                let sd_g2 = min_g2_sum / sum.g2;
+                let source_sum = &sums[source_id];
+
+                let sd_i = min_pmi_sum / source_sum.pmi;
+                let sd_g2 = min_g2_sum / source_sum.g2;
 
                 csv_record.clear();
                 csv_record.push_field(&source_entry.token);
                 csv_record.push_field(&target_entry.token);
-                csv_record.push_field(count.to_string().as_bytes());
+                csv_record.push_field(source_target_count.to_string().as_bytes());
+                csv_record.push_field(sd_i.to_string().as_bytes());
+                csv_record.push_field(sd_g2.to_string().as_bytes());
+
+                callback(&csv_record)?;
+
+                let target_sum = &sums[*target_id];
+
+                let sd_i = min_pmi_sum / target_sum.pmi;
+                let sd_g2 = min_g2_sum / target_sum.g2;
+
+                csv_record.clear();
+                csv_record.push_field(&target_entry.token);
+                csv_record.push_field(&source_entry.token);
+                csv_record.push_field(source_target_count.to_string().as_bytes());
                 csv_record.push_field(sd_i.to_string().as_bytes());
                 csv_record.push_field(sd_g2.to_string().as_bytes());
 

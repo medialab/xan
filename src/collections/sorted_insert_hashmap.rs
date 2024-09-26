@@ -85,9 +85,13 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
         &mut self.order[self.last_entry.unwrap()].1
     }
 
-    pub fn keys(&self) -> impl Iterator<Item = &K> {
-        self.order.iter().map(|(k, _)| k.as_ref())
+    pub fn get(&self, key: &K) -> Option<&V> {
+        self.map.get(key).map(|index| &self.order[*index].1)
     }
+
+    // pub fn keys(&self) -> impl Iterator<Item = &K> {
+    //     self.order.iter().map(|(k, _)| k.as_ref())
+    // }
 
     pub fn values(&self) -> impl Iterator<Item = &V> {
         self.order.iter().map(|(_, cell)| cell)
