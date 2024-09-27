@@ -394,3 +394,41 @@ fn tokenize_sep_ngrams() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn tokenize_paragraphs() {
+    let wrk = Workdir::new("tokenize_paragraphs");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "Hello\n\nBonjour"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text").arg("--paragraphs").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "paragraph"],
+        svec!["1", "Hello"],
+        svec!["1", "Bonjour"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn tokenize_sentencess() {
+    let wrk = Workdir::new("tokenize_sentencess");
+    wrk.create(
+        "data.csv",
+        vec![svec!["n", "text"], svec!["1", "Bonjour. Je suis John!"]],
+    );
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("text").arg("--sentences").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "sentence"],
+        svec!["1", "Bonjour."],
+        svec!["1", "Je suis John!"],
+    ];
+    assert_eq!(got, expected);
+}

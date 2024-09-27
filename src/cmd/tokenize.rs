@@ -3,7 +3,10 @@ use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
-use paltoquet::tokenizers::{NgramsIteratorExt, WordToken, WordTokenKind, WordTokenizerBuilder};
+use paltoquet::tokenizers::{
+    split_paragraphs, split_sentences, NgramsIteratorExt, WordToken, WordTokenKind,
+    WordTokenizerBuilder,
+};
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
@@ -27,7 +30,10 @@ enum TokenWhitelist {
 
 static USAGE: &str = "
 Tokenize the given text column by splitting it into word pieces (think
-words, numbers, hashtags etc.). This command will therefore emit one row
+words, numbers, hashtags etc.) or paragraphs (using the --paragraphs flag)
+or sentences (using the --sentences) flag.
+
+This command will therefore emit one row
 per token written in a new column added at the end, all while dropping
 the original text column unless --sep or --keep-text is passed.
 
@@ -74,14 +80,18 @@ Usage:
 
 tokenize options:
     -c, --column <name>      Name for the token column. Will default to \"token\" or \"tokens\"
-                             if --sep is given.
+                             if --sep is given, or \"paragraph\"/\"paragraphs\" respectively
+                             if --paragraphs is given, or \"sentence\"/\"sentences\" if --sentences
+                             is given.
+    --paragraphs             Split paragraphs instead of words.
+    --sentences              Split sentences instead of words.
+    -S, --simple             Use a simpler, more performant variant of the tokenizer but unable
+                             to infer token types, nor handle subtle cases.
     -N, --ngrams <n>         If given, will output token ngrams using the given n or the given
                              range of n values using a comma as separator e.g. \"1,3\".
                              This cannot be used with -T, --token-type.
     -T, --token-type <name>  Name of a column to add containing the type of the tokens.
                              This cannot be used with -N, --ngrams.
-    -S, --simple             Use a simpler, more performant variant of the tokenizer but unable
-                             to infer token types, nor handle subtle cases.
     -D, --drop <types>       Types of tokens to drop from the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -k, --keep.
                              See the list of recognized types above.
@@ -147,6 +157,8 @@ struct Args {
     flag_lower: bool,
     flag_unidecode: bool,
     flag_simple: bool,
+    flag_paragraphs: bool,
+    flag_sentences: bool,
     flag_ngrams: Option<String>,
     flag_ngrams_sep: String,
     flag_stemmer: Option<String>,
@@ -157,8 +169,34 @@ struct Args {
 
 impl Args {
     fn validate(&self) -> Result<(), &str> {
+        let mut tokenizer_count = 0;
+
+        if self.flag_simple {
+            tokenizer_count += 1;
+        }
+        if self.flag_paragraphs {
+            tokenizer_count += 1;
+        }
+        if self.flag_sentences {
+            tokenizer_count += 1;
+        }
+
+        if tokenizer_count > 1 {
+            return Err("must select only one of --simple, --paragraphs, --sentences!");
+        }
+
+        if self.flag_sentences || self.flag_paragraphs {
+            if self.flag_ngrams.is_some() {
+                return Err("--ngrams cannot work with --paragraphs nor --sentences!");
+            }
+
+            if self.flag_token_type.is_some() {
+                return Err("-T,--token-type cannot work with --paragraphs nor --sentences!");
+            }
+        }
+
         if self.flag_ngrams.is_some() && self.flag_token_type.is_some() {
-            return Err("--ngrams cannot be used with -T,--token-type");
+            return Err("--ngrams cannot be used with -T,--token-type!");
         }
 
         Ok(())
@@ -197,7 +235,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some(name) => name,
         None => {
             if args.flag_sep.is_some() {
-                "tokens"
+                if args.flag_paragraphs {
+                    "paragraphs"
+                } else if args.flag_sentences {
+                    "sentences"
+                } else {
+                    "tokens"
+                }
+            } else if args.flag_paragraphs {
+                "paragraph"
+            } else if args.flag_sentences {
+                "sentence"
             } else {
                 "token"
             }
@@ -306,6 +354,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // NOTE: everything in this function will be parallelized
     let tokenize = move |string: &str| -> Vec<(String, WordTokenKind)> {
+        if args.flag_paragraphs {
+            return split_paragraphs(string)
+                .map(|paragraph| (paragraph.to_string(), WordTokenKind::Word))
+                .collect();
+        } else if args.flag_sentences {
+            return split_sentences(string)
+                .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
+                .collect();
+        }
+
         let tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
             Box::new(tokenizer.simple_tokenize(string))
         } else {
