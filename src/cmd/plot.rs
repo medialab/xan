@@ -149,6 +149,10 @@ plot options:
                          [default: 3]
     --y-ticks <n>        Number of y-axis graduation steps.
                          [default: 4]
+    --x-min <n>          Force a minimum value for x axis.
+    --x-max <n>          Force a maximum value for x axis.
+    --y-min <n>          Force a minimum value for y axis.
+    --y-max <n>          Force a maximum value for y axis.
 
 Common options:
     -h, --help             Display this message
@@ -172,6 +176,10 @@ struct Args {
     flag_marker: Marker,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
+    flag_x_min: Option<DynamicNumber>,
+    flag_x_max: Option<DynamicNumber>,
+    flag_y_min: Option<DynamicNumber>,
+    flag_y_max: Option<DynamicNumber>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -220,6 +228,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .parse()
             .expect("could not parse number");
 
+        // Filtering out-of-bounds values
+        if matches!(args.flag_x_min, Some(x_min) if x < x_min)
+            || matches!(args.flag_x_max, Some(x_max) if x > x_max)
+            || matches!(args.flag_y_min, Some(y_min) if y < y_min)
+            || matches!(args.flag_y_max, Some(y_max) if y > y_max)
+        {
+            continue;
+        }
+
         if let Some(i) = color_column_index {
             grouped_series.add_with_name(&record[i], x, y)
         } else {
@@ -229,9 +246,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut finalized_series = grouped_series.finalize();
 
-    // NOTE: we sort on x if we want a line plot
-    if args.flag_line {
-        for (_, series) in finalized_series.iter_mut() {
+    for (_, series) in finalized_series.iter_mut() {
+        // Domain bounds
+        if let Some(x_min) = args.flag_x_min {
+            series.set_x_min(x_min);
+        }
+        if let Some(x_max) = args.flag_x_max {
+            series.set_x_max(x_max);
+        }
+        if let Some(y_min) = args.flag_y_min {
+            series.set_y_min(y_min);
+        }
+        if let Some(y_max) = args.flag_y_max {
+            series.set_y_max(y_max);
+        }
+
+        // NOTE: we sort on x if we want a line plot
+        if args.flag_line {
             series.sort_by_x_axis();
         }
     }
@@ -251,7 +282,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let n = finalized_series[0].1.len();
 
-        // Create the datasets to fill the chart with
+        // x axis information
         let x_domain = merge_domains(
             finalized_series
                 .iter()
@@ -263,6 +294,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .iter()
             .all(|(_, series)| series.can_display_x_axis_title());
 
+        // y axis information
         let y_domain = merge_domains(
             finalized_series
                 .iter()
@@ -274,6 +306,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .iter()
             .all(|(_, series)| series.can_display_y_axis_title());
 
+        // Create the datasets to fill the chart with
         let finalized_series = finalized_series
             .into_iter()
             .map(|(name_opt, series)| (name_opt, series.into_floats()))
@@ -538,6 +571,30 @@ impl Series {
             !self.points.iter().any(|(x, y)| *x == min_x && *y == max_y)
         } else {
             true
+        }
+    }
+
+    fn set_x_min(&mut self, v: DynamicNumber) {
+        if let Some((x, _)) = self.extent.as_mut() {
+            x.0 = v;
+        }
+    }
+
+    fn set_x_max(&mut self, v: DynamicNumber) {
+        if let Some((x, _)) = self.extent.as_mut() {
+            x.1 = v;
+        }
+    }
+
+    fn set_y_min(&mut self, v: DynamicNumber) {
+        if let Some((_, y)) = self.extent.as_mut() {
+            y.0 = v;
+        }
+    }
+
+    fn set_y_max(&mut self, v: DynamicNumber) {
+        if let Some((_, y)) = self.extent.as_mut() {
+            y.1 = v;
         }
     }
 

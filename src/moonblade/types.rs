@@ -12,7 +12,7 @@ use csv::ByteRecord;
 use jiff::{civil::DateTime, tz::TimeZone, Zoned};
 use regex::Regex;
 use serde::{
-    de::{MapAccess, SeqAccess, Visitor},
+    de::{Deserializer, Error as DeserializeError, MapAccess, SeqAccess, Visitor},
     Deserialize, Serialize, Serializer,
 };
 
@@ -470,6 +470,15 @@ impl DynamicNumber {
     }
 }
 
+impl<'de> Deserialize<'de> for DynamicNumber {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<DynamicNumber, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        raw.parse::<DynamicNumber>()
+            .map_err(|_| D::Error::custom(format!("cannot parse {} as number", raw)))
+    }
+}
+
 impl fmt::Display for DynamicNumber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -689,7 +698,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<DynamicValue, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         struct ValueVisitor;
 
