@@ -133,22 +133,22 @@ Usage:
     xsv plot --help
 
 plot options:
-    --line            Whether to draw a line plot instead of a scatter plot.
-    --color <column>  Name of the categorical column that will be used to
-                      color the different points.
-    --cols <num>      Width of the graph in terminal columns, i.e. characters.
-                      Defaults to using all your terminal's width or 80 if
-                      terminal size cannot be found (i.e. when piping to file).
-    --rows <num>      Height of the graph in terminal rows, i.e. characters.
-                      Defaults to using all your terminal's height minus 2 or 30 if
-                      terminal size cannot be found (i.e. when piping to file).
-    --marker <name>   Marker to use. Can be one of (by order of size): 'braille', 'dot',
-                      'halfblock', 'bar', 'block'.
-                      [default: braille]
-    --x-ticks <n>     Number of x-axis graduation steps.
-                      [default: 3]
-    --y-ticks <n>     Number of y-axis graduation steps.
-                      [default: 4]
+    -L, --line           Whether to draw a line plot instead of a scatter plot.
+    --color <column>     Name of the categorical column that will be used to
+                         color the different points.
+    --cols <num>         Width of the graph in terminal columns, i.e. characters.
+                         Defaults to using all your terminal's width or 80 if
+                         terminal size cannot be found (i.e. when piping to file).
+    --rows <num>         Height of the graph in terminal rows, i.e. characters.
+                         Defaults to using all your terminal's height minus 2 or 30 if
+                         terminal size cannot be found (i.e. when piping to file).
+    -M, --marker <name>  Marker to use. Can be one of (by order of size): 'braille', 'dot',
+                         'halfblock', 'bar', 'block'.
+                         [default: braille]
+    --x-ticks <n>        Number of x-axis graduation steps.
+                         [default: 3]
+    --y-ticks <n>        Number of y-axis graduation steps.
+                         [default: 4]
 
 Common options:
     -h, --help             Display this message
@@ -249,6 +249,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     terminal.draw(|frame| {
         let area = Rect::new(0, 0, cols, rows);
 
+        let n = finalized_series[0].1.len();
+
         // Create the datasets to fill the chart with
         let x_domain = merge_domains(
             finalized_series
@@ -257,6 +259,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
         let x_axis_type =
             merge_axis_types(finalized_series.iter().map(|(_, series)| series.types.0));
+        let can_display_x_axis_title = finalized_series
+            .iter()
+            .all(|(_, series)| series.can_display_x_axis_title());
 
         let y_domain = merge_domains(
             finalized_series
@@ -265,6 +270,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
         let y_axis_type =
             merge_axis_types(finalized_series.iter().map(|(_, series)| series.types.1));
+        let can_display_y_axis_title = finalized_series
+            .iter()
+            .all(|(_, series)| series.can_display_y_axis_title());
 
         let finalized_series = finalized_series
             .into_iter()
@@ -297,26 +305,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Create the X axis and define its properties
         let x_axis = Axis::default()
-            .title(args.arg_x.dim())
+            .title(if can_display_x_axis_title {
+                args.arg_x.dim()
+            } else {
+                "".dim()
+            })
             .style(Style::default().white())
             .bounds([x_domain.0.as_float(), x_domain.1.as_float()])
             .labels(graduations_from_domain(
                 &mut formatter,
                 x_axis_type,
                 x_domain,
-                args.flag_x_ticks.get(),
+                args.flag_x_ticks.get().min(n.max(2)),
             ));
 
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
-            .title(args.arg_y.dim())
+            .title(if can_display_y_axis_title {
+                args.arg_y.dim()
+            } else {
+                "".dim()
+            })
             .style(Style::default().white())
             .bounds([y_domain.0.as_float(), y_domain.1.as_float()])
             .labels(graduations_from_domain(
                 &mut formatter,
                 y_axis_type,
                 y_domain,
-                args.flag_y_ticks.get(),
+                args.flag_y_ticks.get().min(n.max(2)),
             ));
 
         // Create the chart and link all the parts together
@@ -447,6 +463,10 @@ impl Series {
         }
     }
 
+    fn len(&self) -> usize {
+        self.points.len()
+    }
+
     fn into_floats(self) -> Vec<(f64, f64)> {
         self.points
             .into_iter()
@@ -497,6 +517,28 @@ impl Series {
 
     fn y_domain(&self) -> Option<(DynamicNumber, DynamicNumber)> {
         self.extent.map(|(_, y)| y)
+    }
+
+    fn can_display_x_axis_title(&self) -> bool {
+        if let Some((extent_x, extent_y)) = self.extent {
+            let max_x = extent_x.1;
+            let min_y = extent_y.0;
+
+            !self.points.iter().any(|(x, y)| *x == max_x && *y == min_y)
+        } else {
+            true
+        }
+    }
+
+    fn can_display_y_axis_title(&self) -> bool {
+        if let Some((extent_x, extent_y)) = self.extent {
+            let min_x = extent_x.0;
+            let max_y = extent_y.1;
+
+            !self.points.iter().any(|(x, y)| *x == min_x && *y == max_y)
+        } else {
+            true
+        }
     }
 
     fn sort_by_x_axis(&mut self) {
