@@ -301,6 +301,10 @@ pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {
         string.truncate(string.len() - 2);
     }
 
+    if string.contains('.') {
+        string = string.trim_end_matches('0').to_string();
+    }
+
     string
 }
 
