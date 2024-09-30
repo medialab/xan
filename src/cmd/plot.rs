@@ -52,6 +52,16 @@ fn graduations_from_domain(
 ) -> Vec<String> {
     debug_assert!(steps > 1);
 
+    if axis_type.is_int() {
+        let range = (domain.1.as_int() - domain.0.as_int()).abs();
+
+        if steps as i64 >= range {
+            return (domain.0.as_int()..domain.1.as_int())
+                .map(|i| i.to_string())
+                .collect();
+        }
+    }
+
     let mut graduations: Vec<String> = Vec::with_capacity(steps);
 
     let mut t = 0.0;
@@ -88,6 +98,32 @@ fn merge_domains(
     }
 
     domain
+}
+
+fn fix_flat_domain(
+    domain: (DynamicNumber, DynamicNumber),
+    axis_type: AxisType,
+) -> (DynamicNumber, DynamicNumber) {
+    if domain.0 != domain.1 {
+        return domain;
+    }
+
+    match axis_type {
+        AxisType::Float => {
+            let center_value = domain.0.as_float();
+            (
+                DynamicNumber::Float(center_value - 0.5),
+                DynamicNumber::Float(center_value + 0.5),
+            )
+        }
+        AxisType::Int => {
+            let center_value = domain.0.as_int();
+            (
+                DynamicNumber::Integer(center_value - 1),
+                DynamicNumber::Integer(center_value + 1),
+            )
+        }
+    }
 }
 
 fn merge_axis_types(mut axis_types: impl Iterator<Item = AxisType>) -> AxisType {
@@ -317,6 +353,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let can_display_x_axis_title = finalized_series
             .iter()
             .all(|(_, series)| series.can_display_x_axis_title());
+        let x_domain = fix_flat_domain(x_domain, x_axis_type);
 
         // y axis information
         let y_domain = merge_domains(
@@ -329,6 +366,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let can_display_y_axis_title = finalized_series
             .iter()
             .all(|(_, series)| series.can_display_y_axis_title());
+        let y_domain = fix_flat_domain(y_domain, y_axis_type);
 
         // Create the datasets to fill the chart with
         let finalized_series = finalized_series
@@ -501,6 +539,10 @@ impl AxisType {
             (Self::Float, _) | (_, Self::Float) => Self::Float,
             _ => Self::Int,
         }
+    }
+
+    fn is_int(self) -> bool {
+        matches!(self, AxisType::Int)
     }
 }
 

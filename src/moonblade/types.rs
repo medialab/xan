@@ -383,6 +383,13 @@ impl DynamicNumber {
         }
     }
 
+    pub fn as_int(self) -> i64 {
+        match self {
+            Self::Float(f) => f as i64,
+            Self::Integer(i) => i,
+        }
+    }
+
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))
     }
