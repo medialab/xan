@@ -6,7 +6,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Cell;
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
@@ -172,8 +172,11 @@ plot options:
     -B, --bars               Whether to draw bars instead of the default scatter plot.
                              WARNING: currently does not work if y range does not include 0.
                              (https://github.com/ratatui/ratatui/issues/1391)
-    -C, --category <column>  Name of the categorical column that will be used to
+    -C, --category <col>     Name of the categorical column that will be used to
                              draw different datasets each with their own color.
+                             Incompatible with -Y, --add-series.
+    -Y, --add-series <col>   Name of another column of y values to add as new series.
+                             Incompatible with -C, --category.
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if
                              terminal size cannot be found (i.e. when piping to file).
@@ -214,6 +217,7 @@ struct Args {
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
     flag_category: Option<SelectColumns>,
+    flag_add_series: Vec<SelectColumns>,
     flag_marker: Marker,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
@@ -228,6 +232,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+
+    if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
+        return Err(CliError::Other(
+            "-C, --category cannot work with -Y, --add-series!".to_string(),
+        ));
+    }
 
     if args.flag_x_ticks.get() < 2 {
         return Err(CliError::Other("--x-ticks must be > 1!".to_string()));
@@ -269,7 +279,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|name| Config::new(&None).select(name).single_selection(headers))
         .transpose()?;
 
-    let showing_multiple_series = category_column_index.is_some();
+    let additional_series_indices = args
+        .flag_add_series
+        .into_iter()
+        .map(|name| {
+            let i = Config::new(&None).select(name).single_selection(headers)?;
+
+            let col_name = if args.flag_no_headers {
+                i.to_string().into_bytes()
+            } else {
+                headers[i].to_vec()
+            };
+
+            Ok((col_name, i))
+        })
+        .collect::<Result<Vec<(Vec<u8>, usize)>, CliError>>()?;
+
+    let showing_multiple_series =
+        category_column_index.is_some() || !additional_series_indices.is_empty();
 
     let mut record = csv::ByteRecord::new();
 
@@ -298,6 +325,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if let Some(i) = category_column_index {
             grouped_series.add_with_name(&record[i], x, y)
+        } else if !additional_series_indices.is_empty() {
+            grouped_series.add_with_name(y_column_name.as_bytes(), x, y);
+
+            for (name, pos) in additional_series_indices.iter() {
+                let v = String::from_utf8_lossy(&record[*pos])
+                    .parse()
+                    .expect("could not parse number");
+
+                grouped_series.add_with_name(name, x, v);
+            }
         } else {
             grouped_series.add(x, y);
         }
@@ -424,6 +461,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .style(Style::default().white())
             .bounds([y_domain.0.as_float(), y_domain.1.as_float()])
+            .labels_alignment(Alignment::Right)
             .labels(graduations_from_domain(
                 &mut formatter,
                 y_axis_type,
