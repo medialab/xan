@@ -16,7 +16,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::DynamicNumber;
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
-use crate::CliResult;
+use crate::{CliError, CliResult};
 
 fn get_series_color(i: usize) -> Style {
     match i {
@@ -188,6 +188,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+
+    if args.flag_x_ticks.get() < 2 {
+        return Err(CliError::Other("--x-ticks must be > 1!".to_string()));
+    }
+    if args.flag_y_ticks.get() < 2 {
+        return Err(CliError::Other("--y-ticks must be > 1!".to_string()));
+    }
 
     // Collecting data
     let mut rdr = rconf.reader()?;
