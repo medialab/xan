@@ -170,6 +170,8 @@ Usage:
 plot options:
     -L, --line               Whether to draw a line plot instead of the default scatter plot.
     -B, --bars               Whether to draw bars instead of the default scatter plot.
+                             WARNING: currently does not work if y range does not include 0.
+                             (https://github.com/ratatui/ratatui/issues/1391)
     -C, --category <column>  Name of the categorical column that will be used to
                              draw different datasets each with their own color.
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
@@ -182,6 +184,8 @@ plot options:
                              'halfblock', 'bar', 'block'.
                              [default: braille]
     --x-ticks <n>            Number of x-axis graduation steps.
+                             WARNING: more than 3 graduations will lead to weirdly aligned
+                             labels sometimes (https://github.com/ratatui/ratatui/issues/334).
                              [default: 3]
     --y-ticks <n>            Number of y-axis graduation steps.
                              [default: 4]
