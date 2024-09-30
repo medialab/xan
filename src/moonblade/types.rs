@@ -882,6 +882,13 @@ impl DynamicValue {
         }
     }
 
+    pub fn try_as_timezone(&self) -> Result<TimeZone, EvaluationError> {
+        let name = self.try_as_str()?;
+
+        TimeZone::get(&name)
+            .map_err(|_| EvaluationError::DateTime(format!("{} is not a valid timezone", name)))
+    }
+
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
