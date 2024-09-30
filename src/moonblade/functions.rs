@@ -32,27 +32,27 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
     Some(match name {
         "__gen_eq" => (
-            |args| general_compare(args, Ordering::is_eq),
+            |args| abstract_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
         ),
         "__gen_gt" => (
-            |args| general_compare(args, Ordering::is_gt),
+            |args| abstract_compare(args, Ordering::is_gt),
             FunctionArguments::binary(),
         ),
         "__gen_ge" => (
-            |args| general_compare(args, Ordering::is_ge),
+            |args| abstract_compare(args, Ordering::is_ge),
             FunctionArguments::binary(),
         ),
         "__gen_lt" => (
-            |args| general_compare(args, Ordering::is_lt),
+            |args| abstract_compare(args, Ordering::is_lt),
             FunctionArguments::binary(),
         ),
         "__gen_le" => (
-            |args| general_compare(args, Ordering::is_le),
+            |args| abstract_compare(args, Ordering::is_le),
             FunctionArguments::binary(),
         ),
         "__gen_ne" => (
-            |args| general_compare(args, Ordering::is_ne),
+            |args| abstract_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
         "abs" => (
@@ -947,7 +947,7 @@ fn or(args: BoundArguments) -> FunctionResult {
 // }
 
 // Comparison
-fn general_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
+fn abstract_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
 where
     F: FnOnce(Ordering) -> bool,
 {
@@ -1322,10 +1322,9 @@ fn strftime(args: BoundArguments) -> FunctionResult {
     let mut args = args.into_iter();
 
     let target = args.next().unwrap();
-    let format = args.next().unwrap();
+    let format_arg = args.next().unwrap();
+    let format = format_arg.try_as_str()?;
     let timezone = args.next_not_none();
-
-    let fmt = format.try_as_str()?;
 
     let datetime = target.try_into_datetime()?;
 
@@ -1337,12 +1336,11 @@ fn strftime(args: BoundArguments) -> FunctionResult {
         None => datetime,
     };
 
-    let formatted_datetime = strtime::format(fmt.as_ref(), &zoned_datetime);
-    match formatted_datetime {
-        Ok(value) => Ok(DynamicValue::from(value)),
+    match strtime::format(format.as_ref(), &zoned_datetime) {
+        Ok(formatted) => Ok(DynamicValue::from(formatted)),
         Err(_) => Err(EvaluationError::DateTime(format!(
             "\"{}\" is not a valid format",
-            fmt.as_ref()
+            format
         ))),
     }
 }
