@@ -9,8 +9,6 @@ use ratatui::buffer::Cell;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
-use ratatui::text::Span;
-// use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Padding};
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
@@ -35,41 +33,41 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
     (1.0 - t) * min + t * max
 }
 
-fn typed_span<'a>(formatter: &mut numfmt::Formatter, axis_type: AxisType, x: f64) -> Span<'a> {
-    Span::from(util::pretty_print_float(
+fn format_graduation(formatter: &mut numfmt::Formatter, axis_type: AxisType, x: f64) -> String {
+    util::pretty_print_float(
         formatter,
         match axis_type {
             AxisType::Float => x,
             AxisType::Int => x.trunc(),
         },
-    ))
+    )
 }
 
-fn graduations_from_domain<'a>(
+fn graduations_from_domain(
     formatter: &mut numfmt::Formatter,
     axis_type: AxisType,
     domain: (DynamicNumber, DynamicNumber),
     steps: usize,
-) -> Vec<Span<'a>> {
+) -> Vec<String> {
     debug_assert!(steps > 1);
 
-    let mut graduations: Vec<Span> = Vec::with_capacity(steps);
+    let mut graduations: Vec<String> = Vec::with_capacity(steps);
 
     let mut t = 0.0;
     let fract = 1.0 / (steps - 1) as f64;
 
-    graduations.push(typed_span(formatter, axis_type, domain.0.as_float()));
+    graduations.push(format_graduation(formatter, axis_type, domain.0.as_float()));
 
     for _ in 1..(steps - 1) {
         t += fract;
-        graduations.push(typed_span(
+        graduations.push(format_graduation(
             formatter,
             axis_type,
             lerp(domain.0.as_float(), domain.1.as_float(), t),
         ));
     }
 
-    graduations.push(typed_span(formatter, axis_type, domain.1.as_float()));
+    graduations.push(format_graduation(formatter, axis_type, domain.1.as_float()));
 
     graduations
 }
