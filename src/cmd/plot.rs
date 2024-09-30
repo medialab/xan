@@ -131,26 +131,26 @@ Usage:
     xsv plot --help
 
 plot options:
-    -L, --line           Whether to draw a line plot instead of a scatter plot.
-    --color <column>     Name of the categorical column that will be used to
-                         color the different points.
-    --cols <num>         Width of the graph in terminal columns, i.e. characters.
-                         Defaults to using all your terminal's width or 80 if
-                         terminal size cannot be found (i.e. when piping to file).
-    --rows <num>         Height of the graph in terminal rows, i.e. characters.
-                         Defaults to using all your terminal's height minus 2 or 30 if
-                         terminal size cannot be found (i.e. when piping to file).
-    -M, --marker <name>  Marker to use. Can be one of (by order of size): 'braille', 'dot',
-                         'halfblock', 'bar', 'block'.
-                         [default: braille]
-    --x-ticks <n>        Number of x-axis graduation steps.
-                         [default: 3]
-    --y-ticks <n>        Number of y-axis graduation steps.
-                         [default: 4]
-    --x-min <n>          Force a minimum value for x axis.
-    --x-max <n>          Force a maximum value for x axis.
-    --y-min <n>          Force a minimum value for y axis.
-    --y-max <n>          Force a maximum value for y axis.
+    -L, --line               Whether to draw a line plot instead of a scatter plot.
+    -C, --category <column>  Name of the categorical column that will be used to
+                             draw different datasets each with their own color.
+    --cols <num>             Width of the graph in terminal columns, i.e. characters.
+                             Defaults to using all your terminal's width or 80 if
+                             terminal size cannot be found (i.e. when piping to file).
+    --rows <num>             Height of the graph in terminal rows, i.e. characters.
+                             Defaults to using all your terminal's height minus 2 or 30 if
+                             terminal size cannot be found (i.e. when piping to file).
+    -M, --marker <name>      Marker to use. Can be one of (by order of size): 'braille', 'dot',
+                             'halfblock', 'bar', 'block'.
+                             [default: braille]
+    --x-ticks <n>            Number of x-axis graduation steps.
+                             [default: 3]
+    --y-ticks <n>            Number of y-axis graduation steps.
+                             [default: 4]
+    --x-min <n>              Force a minimum value for the x axis.
+    --x-max <n>              Force a maximum value for the x axis.
+    --y-min <n>              Force a minimum value for the y axis.
+    --y-max <n>              Force a maximum value for the y axis.
 
 Common options:
     -h, --help             Display this message
@@ -170,7 +170,7 @@ struct Args {
     flag_line: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
-    flag_color: Option<String>,
+    flag_category: Option<String>,
     flag_marker: Marker,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
@@ -198,8 +198,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .find_column_index(args.arg_y.as_bytes())
         .ok_or_else(|| format!("cannot find column containing y values \"{}\"", args.arg_y))?;
 
-    let color_column_index = args
-        .flag_color
+    let category_column_index = args
+        .flag_category
         .as_ref()
         .map(|name| {
             headers
@@ -208,7 +208,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
-    let showing_multiple_series = color_column_index.is_some();
+    let showing_multiple_series = category_column_index.is_some();
 
     let mut record = csv::ByteRecord::new();
 
@@ -235,7 +235,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             continue;
         }
 
-        if let Some(i) = color_column_index {
+        if let Some(i) = category_column_index {
             grouped_series.add_with_name(&record[i], x, y)
         } else {
             grouped_series.add(x, y);
