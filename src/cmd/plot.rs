@@ -2,6 +2,11 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
+use jiff::{
+    civil::{Date, DateTime, Time},
+    tz::TimeZone,
+    Timestamp, Unit, Zoned,
+};
 use serde::de::{Deserialize, Deserializer, Error};
 
 use ratatui::backend::TestBackend;
@@ -17,6 +22,105 @@ use crate::moonblade::DynamicNumber;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::{CliError, CliResult};
+
+fn parse_as_timestamp(cell: &[u8]) -> Result<DynamicNumber, CliError> {
+    let format_error = || {
+        CliError::Other(format!(
+            "could not parse \"{}\" as date!",
+            String::from_utf8_lossy(cell)
+        ))
+    };
+
+    let string = std::str::from_utf8(cell).map_err(|_| format_error())?;
+
+    let zoned = if let Ok(z) = string.parse::<Zoned>() {
+        z
+    } else if let Ok(datetime) = string.parse::<DateTime>() {
+        datetime
+            .to_zoned(TimeZone::system())
+            .map_err(|_| format_error())?
+    } else if let Ok(date) = string.parse::<Date>() {
+        date.to_datetime(Time::default())
+            .to_zoned(TimeZone::system())
+            .map_err(|_| format_error())?
+    } else {
+        return Err(format_error());
+    };
+
+    Ok(DynamicNumber::Integer(zoned.timestamp().as_millisecond()))
+}
+
+fn parse_as_number(cell: &[u8]) -> Result<DynamicNumber, CliError> {
+    let string = String::from_utf8_lossy(cell);
+
+    string
+        .parse::<DynamicNumber>()
+        .map_err(|_| CliError::Other(format!("could not parse \"{}\" as number!", string)))
+}
+
+impl DynamicNumber {
+    fn to_timestamp(self) -> Timestamp {
+        Timestamp::from_millisecond(self.as_int()).unwrap()
+    }
+
+    fn to_zoned(self) -> Zoned {
+        self.to_timestamp().to_zoned(TimeZone::UTC)
+    }
+}
+
+const MINUTES_BOUND: i64 = 60;
+const HOURS_BOUND: i64 = MINUTES_BOUND * 60;
+const DAYS_BOUND: i64 = HOURS_BOUND * 24;
+const MONTHS_BOUND: i64 = DAYS_BOUND * 60;
+const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
+
+fn infer_temporal_granularity(domain: (DynamicNumber, DynamicNumber)) -> Unit {
+    let start = domain.0.to_zoned();
+    let end = domain.1.to_zoned();
+
+    let duration = start.duration_until(&end);
+    let seconds = duration.as_secs();
+
+    if seconds > YEARS_BOUND {
+        Unit::Year
+    } else if seconds > MONTHS_BOUND {
+        Unit::Month
+    } else if seconds > DAYS_BOUND {
+        Unit::Day
+    } else if seconds > HOURS_BOUND {
+        Unit::Hour
+    } else if seconds > MINUTES_BOUND {
+        Unit::Minute
+    } else {
+        Unit::Second
+    }
+}
+
+fn floor_timestamp(milliseconds: DynamicNumber, unit: Unit) -> i64 {
+    let mut zoned = milliseconds.to_zoned();
+
+    // TODO: we could optimize some computations by foregoing
+    zoned = match unit {
+        Unit::Year => zoned.first_of_year().unwrap(),
+        Unit::Month => zoned.first_of_month().unwrap(),
+        _ => zoned.round(unit).unwrap(),
+    };
+
+    zoned.timestamp().as_millisecond()
+}
+
+fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
+    let timestamp = Timestamp::from_millisecond(milliseconds).unwrap();
+
+    timestamp
+        .strftime(match unit {
+            Unit::Year => "%Y",
+            Unit::Month => "%Y-%m",
+            Unit::Day => "%F",
+            _ => "%F %T",
+        })
+        .to_string()
+}
 
 fn get_series_color(i: usize) -> Style {
     match i {
@@ -35,11 +139,16 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
 }
 
 fn format_graduation(formatter: &mut numfmt::Formatter, axis_type: AxisType, x: f64) -> String {
+    if let AxisType::Timestamp(granularity) = axis_type {
+        return format_timestamp(x.trunc() as i64, granularity);
+    }
+
     util::pretty_print_float(
         formatter,
         match axis_type {
             AxisType::Float => x,
             AxisType::Int => x.trunc(),
+            _ => unreachable!(),
         },
     )
 }
@@ -123,6 +232,7 @@ fn fix_flat_domain(
                 DynamicNumber::Integer(center_value + 1),
             )
         }
+        _ => unimplemented!(),
     }
 }
 
@@ -172,6 +282,7 @@ plot options:
     -B, --bars               Whether to draw bars instead of the default scatter plot.
                              WARNING: currently does not work if y range does not include 0.
                              (https://github.com/ratatui/ratatui/issues/1391)
+    -T, --time               Use to indicate that the x axis is temporal.
     -C, --category <col>     Name of the categorical column that will be used to
                              draw different datasets each with their own color.
                              Incompatible with -Y, --add-series.
@@ -214,6 +325,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_line: bool,
     flag_bars: bool,
+    flag_time: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
     flag_category: Option<SelectColumns>,
@@ -307,12 +419,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     while rdr.read_byte_record(&mut record)? {
-        let x = String::from_utf8_lossy(&record[x_column_index])
-            .parse()
-            .expect("could not parse number");
-        let y = String::from_utf8_lossy(&record[y_column_index])
-            .parse()
-            .expect("could not parse number");
+        let x_cell = &record[x_column_index];
+
+        let x = if args.flag_time {
+            parse_as_timestamp(x_cell)?
+        } else {
+            parse_as_number(x_cell)?
+        };
+
+        let y = parse_as_number(&record[y_column_index])?;
 
         // Filtering out-of-bounds values
         if matches!(args.flag_x_min, Some(x_min) if x < x_min)
@@ -329,9 +444,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             grouped_series.add_with_name(y_column_name.as_bytes(), x, y);
 
             for (name, pos) in additional_series_indices.iter() {
-                let v = String::from_utf8_lossy(&record[*pos])
-                    .parse()
-                    .expect("could not parse number");
+                let v = parse_as_number(&record[*pos])?;
 
                 grouped_series.add_with_name(name, x, v);
             }
@@ -343,6 +456,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut finalized_series = grouped_series.finalize();
 
     for (_, series) in finalized_series.iter_mut() {
+        if args.flag_time {
+            series.mark_as_temporal();
+        }
+
         // Domain bounds
         if let Some(x_min) = args.flag_x_min {
             series.set_x_min(x_min);
@@ -568,6 +685,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 enum AxisType {
     Int,
     Float,
+    Timestamp(Unit),
 }
 
 impl AxisType {
@@ -676,6 +794,49 @@ impl Series {
             !self.points.iter().any(|(x, y)| *x == min_x && *y == max_y)
         } else {
             true
+        }
+    }
+
+    fn mark_as_temporal(&mut self) {
+        if let Some((x_domain, y_domain)) = self.extent.as_mut() {
+            let granularity = infer_temporal_granularity(*x_domain);
+            self.types.0 = AxisType::Timestamp(granularity);
+
+            let mut buckets: HashMap<i64, DynamicNumber> = HashMap::new();
+
+            for (x, y) in self.points.iter() {
+                buckets
+                    .entry(floor_timestamp(*x, granularity))
+                    .and_modify(|c| *c += *y)
+                    .or_insert(*y);
+            }
+
+            self.points.clear();
+
+            let mut new_y_domain: Option<(DynamicNumber, DynamicNumber)> = None;
+
+            for (x, y) in buckets {
+                match new_y_domain.as_mut() {
+                    None => new_y_domain = Some((y, y)),
+                    Some((current_y_min, current_y_max)) => {
+                        if y < *current_y_min {
+                            *current_y_min = y;
+                        }
+
+                        if y > *current_y_max {
+                            *current_y_max = y;
+                        }
+                    }
+                };
+
+                self.points.push((DynamicNumber::Integer(x), y));
+            }
+
+            *x_domain = (
+                DynamicNumber::Integer(floor_timestamp(x_domain.0, granularity)),
+                DynamicNumber::Integer(floor_timestamp(x_domain.1, granularity)),
+            );
+            *y_domain = new_y_domain.unwrap();
         }
     }
 

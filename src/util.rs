@@ -573,8 +573,6 @@ impl EmojiSanitizer {
 pub trait ImmutableRecordHelpers<'a> {
     type Cell;
 
-    fn find_column_index(&self, value: Self::Cell) -> Option<usize>;
-
     #[must_use]
     fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self;
 
@@ -590,13 +588,6 @@ pub trait ImmutableRecordHelpers<'a> {
 
 impl<'a> ImmutableRecordHelpers<'a> for csv::ByteRecord {
     type Cell = &'a [u8];
-
-    fn find_column_index(&self, value: Self::Cell) -> Option<usize> {
-        self.iter()
-            .enumerate()
-            .find(|(_, cell)| *cell == value)
-            .map(|(i, _)| i)
-    }
 
     fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self {
         self.iter()
@@ -629,13 +620,6 @@ impl<'a> ImmutableRecordHelpers<'a> for csv::ByteRecord {
 
 impl<'a> ImmutableRecordHelpers<'a> for csv::StringRecord {
     type Cell = &'a str;
-
-    fn find_column_index(&self, value: Self::Cell) -> Option<usize> {
-        self.iter()
-            .enumerate()
-            .find(|(_, cell)| *cell == value)
-            .map(|(i, _)| i)
-    }
 
     fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self {
         self.iter()
