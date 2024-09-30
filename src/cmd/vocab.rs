@@ -928,14 +928,19 @@ impl Cooccurrences {
                 let y = target_entry.gcf;
                 let xy = *count;
 
-                // G2 computations
-                let g2 = compute_simplified_g2(x, y, xy, n);
-
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
 
-                sum.pmi += pmi;
-                sum.g2 += g2;
+                if pmi > 0.0 {
+                    sum.pmi += pmi;
+                }
+
+                // G2 computations
+                let g2 = compute_simplified_g2(x, y, xy, n);
+
+                if g2 > 0.0 {
+                    sum.g2 += g2;
+                }
             }
 
             sums.push(sum);
