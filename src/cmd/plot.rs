@@ -132,7 +132,8 @@ Usage:
     xsv plot --help
 
 plot options:
-    -L, --line               Whether to draw a line plot instead of a scatter plot.
+    -L, --line               Whether to draw a line plot instead of the default scatter plot.
+    -B, --bars               Whether to draw bars instead of the default scatter plot.
     -C, --category <column>  Name of the categorical column that will be used to
                              draw different datasets each with their own color.
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
@@ -169,6 +170,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_line: bool,
+    flag_bars: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
     flag_category: Option<String>,
@@ -335,6 +337,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .marker(args.flag_marker.into_inner())
                     .graph_type(if args.flag_line {
                         GraphType::Line
+                    } else if args.flag_bars {
+                        GraphType::Bar
                     } else {
                         GraphType::Scatter
                     })
