@@ -15,7 +15,7 @@ use ratatui::Terminal;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::DynamicNumber;
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::util;
 use crate::{CliError, CliResult};
 
 fn get_series_color(i: usize) -> Style {
@@ -213,7 +213,7 @@ struct Args {
     flag_bars: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
-    flag_category: Option<String>,
+    flag_category: Option<SelectColumns>,
     flag_marker: Marker,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
@@ -266,12 +266,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let category_column_index = args
         .flag_category
-        .as_ref()
-        .map(|name| {
-            headers
-                .find_column_index(name.as_bytes())
-                .ok_or_else(|| format!("cannot find column containing color values \"{}\"", name))
-        })
+        .map(|name| Config::new(&None).select(name).single_selection(headers))
         .transpose()?;
 
     let showing_multiple_series = category_column_index.is_some();
