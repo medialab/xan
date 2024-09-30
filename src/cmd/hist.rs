@@ -7,6 +7,7 @@ use numfmt::Formatter;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -62,27 +63,14 @@ Common options:
                            Must be a single character.
 ";
 
-fn find_column_index(headers: &csv::ByteRecord, name: &str) -> Result<usize, String> {
-    let index = headers
-        .iter()
-        .enumerate()
-        .find(|(_, h)| *h == name.as_bytes())
-        .map(|r| r.0);
-
-    match index {
-        None => Err(format!("could not find column \"{}\"", name)),
-        Some(i) => Ok(i),
-    }
-}
-
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_field: String,
-    flag_label: String,
-    flag_value: String,
+    flag_field: SelectColumns,
+    flag_label: SelectColumns,
+    flag_value: SelectColumns,
     flag_cols: Option<usize>,
     flag_force_colors: bool,
     flag_domain_max: String,
@@ -106,9 +94,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = conf.reader()?;
     let headers = rdr.byte_headers()?;
 
-    let field_pos_option = find_column_index(headers, &args.flag_field).ok();
-    let label_pos = find_column_index(headers, &args.flag_label)?;
-    let value_pos = find_column_index(headers, &args.flag_value)?;
+    let label_pos = Config::new(&None)
+        .select(args.flag_label)
+        .single_selection(headers)?;
+    let value_pos = Config::new(&None)
+        .select(args.flag_value)
+        .single_selection(headers)?;
+    let field_pos_option = Config::new(&None)
+        .select(args.flag_field)
+        .single_selection(headers)
+        .ok();
 
     let mut histograms = Histograms::new();
 

@@ -14,6 +14,7 @@ use ratatui::Terminal;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::DynamicNumber;
+use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
@@ -163,8 +164,8 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_x: String,
-    arg_y: String,
+    arg_x: SelectColumns,
+    arg_y: SelectColumns,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_line: bool,
@@ -190,13 +191,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?;
 
-    let x_column_index = headers
-        .find_column_index(args.arg_x.as_bytes())
-        .ok_or_else(|| format!("cannot find column containing x values \"{}\"", args.arg_x))?;
+    let x_column_index = Config::new(&None)
+        .select(args.arg_x)
+        .single_selection(headers)?;
 
-    let y_column_index = headers
-        .find_column_index(args.arg_y.as_bytes())
-        .ok_or_else(|| format!("cannot find column containing y values \"{}\"", args.arg_y))?;
+    let y_column_index = Config::new(&None)
+        .select(args.arg_y)
+        .single_selection(headers)?;
+
+    let x_column_name = if args.flag_no_headers {
+        x_column_index.to_string()
+    } else {
+        std::str::from_utf8(&headers[x_column_index])
+            .unwrap()
+            .to_string()
+    };
+
+    let y_column_name = if args.flag_no_headers {
+        y_column_index.to_string()
+    } else {
+        std::str::from_utf8(&headers[y_column_index])
+            .unwrap()
+            .to_string()
+    };
 
     let category_column_index = args
         .flag_category
@@ -337,7 +354,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Create the X axis and define its properties
         let x_axis = Axis::default()
             .title(if can_display_x_axis_title {
-                args.arg_x.dim()
+                x_column_name.dim()
             } else {
                 "".dim()
             })
@@ -353,7 +370,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Create the Y axis and define its properties
         let y_axis = Axis::default()
             .title(if can_display_y_axis_title {
-                args.arg_y.dim()
+                y_column_name.dim()
             } else {
                 "".dim()
             })
