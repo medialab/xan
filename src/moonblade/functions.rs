@@ -1318,28 +1318,38 @@ fn datetime(args: BoundArguments) -> FunctionResult {
     }
 }
 
-fn strftime(args: BoundArguments) -> FunctionResult {
-    let mut args = args.into_iter();
+fn abstract_strftime(
+    mut datetime: Zoned,
+    format: &str,
+    timezone: Option<TimeZone>,
+) -> FunctionResult {
+    if let Some(tz) = timezone {
+        datetime = datetime.with_time_zone(tz);
+    }
 
-    let target = args.next().unwrap();
-    let format_arg = args.next().unwrap();
-    let format = format_arg.try_as_str()?;
-    let timezone = args.next_not_none();
-
-    let datetime = target.try_into_datetime()?;
-
-    let zoned_datetime = match timezone {
-        Some(timezone) => datetime.with_time_zone(timezone.try_as_timezone()?),
-        None => datetime,
-    };
-
-    match strtime::format(format.as_ref(), &zoned_datetime) {
+    match strtime::format(format, &datetime) {
         Ok(formatted) => Ok(DynamicValue::from(formatted)),
         Err(_) => Err(EvaluationError::DateTime(format!(
             "\"{}\" is not a valid format",
             format
         ))),
     }
+}
+
+fn strftime(args: BoundArguments) -> FunctionResult {
+    let mut args = args.into_iter();
+
+    let target = args.next().unwrap();
+    let format_arg = args.next().unwrap();
+    let format = format_arg.try_as_str()?;
+    let timezone = args
+        .next_not_none()
+        .map(|tz| tz.try_as_timezone())
+        .transpose()?;
+
+    let datetime = target.try_into_datetime()?;
+
+    abstract_strftime(datetime, &format, timezone)
 }
 
 fn match_timezone(
