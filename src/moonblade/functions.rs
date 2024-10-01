@@ -137,6 +137,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| binary_arithmetic_op(args, Rem::rem),
             FunctionArguments::binary(),
         ),
+        "month" => (
+            |args| custom_strftime(args, "%m"),
+            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+        ),
+        "month_day" => (
+            |args| custom_strftime(args, "%m-%d"),
+            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+        ),
         "move" => (move_file, FunctionArguments::binary()),
         "mul" => (
             |args| variadic_arithmetic_op(args, Mul::mul),
@@ -226,6 +234,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "uuid" => (uuid, FunctionArguments::nullary()),
         "values" => (values, FunctionArguments::unary()),
         "write" => (write, FunctionArguments::binary()),
+        "year" => (
+            |args| custom_strftime(args, "%Y"),
+            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+        ),
+        "year_month_day" => (
+            |args| custom_strftime(args, "%F"),
+            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+        ),
         _ => return None,
     })
 }
@@ -1350,6 +1366,20 @@ fn strftime(args: BoundArguments) -> FunctionResult {
     let datetime = target.try_into_datetime()?;
 
     abstract_strftime(datetime, &format, timezone)
+}
+
+fn custom_strftime(args: BoundArguments, format: &str) -> FunctionResult {
+    let mut args = args.into_iter();
+
+    let target = args.next().unwrap();
+    let timezone = args
+        .next_not_none()
+        .map(|tz| tz.try_as_timezone())
+        .transpose()?;
+
+    let datetime = target.try_into_datetime()?;
+
+    abstract_strftime(datetime, format, timezone)
 }
 
 fn match_timezone(
