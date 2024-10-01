@@ -12,7 +12,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Cell;
-use ratatui::layout::{Alignment, Constraint};
+use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
@@ -106,7 +106,7 @@ plot options:
                              Incompatible with -Y, --add-series.
     -Y, --add-series <col>   Name of another column of y values to add as new series.
                              Incompatible with -C, --category.
-    -G, --granularity <g>    Force temporal granularity for x axis discretization when
+    -g, --granularity <g>    Force temporal granularity for x axis discretization when
                              using -T, --time. Must be one of \"years\", \"months\", \"days\",
                              \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
@@ -115,7 +115,7 @@ plot options:
     --rows <num>             Height of the graph in terminal rows, i.e. characters.
                              Defaults to using all your terminal's height minus 2 or 30 if
                              terminal size cannot be found (i.e. when piping to file).
-    -g, --grid-cols <n>      Display small multiples of datasets given by -C, --category
+    -G, --grid-cols <n>      Display small multiples of datasets given by -C, --category
                              or -Y, --add-series using the provided number of grid columns.
     -M, --marker <name>      Marker to use. Can be one of (by order of size): 'braille', 'dot',
                              'halfblock', 'bar', 'block'.
@@ -365,99 +365,218 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .saturating_sub(2) as u16;
 
     let cols = util::acquire_term_cols(&args.flag_cols) as u16;
-
     let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
 
-    terminal.draw(|frame| {
-        let n = finalized_series[0].1.len();
+    match args.flag_grid_cols {
+        None => {
+            terminal.draw(|frame| {
+                let n = finalized_series[0].1.len();
 
-        // x axis information
-        let (x_axis_info, y_axis_info) = AxisInfo::from_series(finalized_series.iter());
+                // x axis information
+                let (x_axis_info, y_axis_info) =
+                    AxisInfo::from_multiple_series(finalized_series.iter());
 
-        // Create the datasets to fill the chart with
-        let finalized_series = finalized_series
-            .into_iter()
-            .map(|(name_opt, series)| (name_opt, series.to_floats()))
-            .collect::<Vec<_>>();
+                // Create the datasets to fill the chart with
+                let finalized_series = finalized_series
+                    .iter()
+                    .map(|(name_opt, series)| (name_opt, series.to_floats()))
+                    .collect::<Vec<_>>();
 
-        let datasets = finalized_series
-            .iter()
-            .enumerate()
-            .map(|(i, (name_opt, series))| {
-                let mut dataset = Dataset::default()
-                    .marker(args.flag_marker.into_inner())
-                    .graph_type(if args.flag_line {
-                        GraphType::Line
-                    } else if args.flag_bars {
-                        GraphType::Bar
-                    } else {
-                        GraphType::Scatter
+                let datasets = finalized_series
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (name_opt, series))| {
+                        let mut dataset = Dataset::default()
+                            .marker(args.flag_marker.into_inner())
+                            .graph_type(if args.flag_line {
+                                GraphType::Line
+                            } else if args.flag_bars {
+                                GraphType::Bar
+                            } else {
+                                GraphType::Scatter
+                            })
+                            .style(get_series_color(i))
+                            .data(series);
+
+                        if let Some(name) = name_opt {
+                            dataset = dataset.name(name.clone());
+                        }
+
+                        dataset
                     })
-                    .style(get_series_color(i))
-                    .data(series);
+                    .collect();
 
-                if let Some(name) = name_opt {
-                    dataset = dataset.name(name.clone());
+                let mut formatter = util::acquire_number_formatter();
+
+                // Create the X axis and define its properties
+                let x_axis = Axis::default()
+                    .title(if x_axis_info.can_be_displayed {
+                        x_column_name.dim()
+                    } else {
+                        "".dim()
+                    })
+                    .style(Style::default().white())
+                    .bounds([
+                        x_axis_info.domain.0.as_float(),
+                        x_axis_info.domain.1.as_float(),
+                    ])
+                    .labels(graduations_from_domain(
+                        &mut formatter,
+                        x_axis_info.axis_type,
+                        x_axis_info.domain,
+                        args.flag_x_ticks.get().min(n.max(2)),
+                    ));
+
+                // Create the Y axis and define its properties
+                let y_axis = Axis::default()
+                    .title(if !has_added_series && y_axis_info.can_be_displayed {
+                        y_column_name.dim()
+                    } else {
+                        "".dim()
+                    })
+                    .style(Style::default().white())
+                    .bounds([
+                        y_axis_info.domain.0.as_float(),
+                        y_axis_info.domain.1.as_float(),
+                    ])
+                    .labels(graduations_from_domain(
+                        &mut formatter,
+                        y_axis_info.axis_type,
+                        y_axis_info.domain,
+                        args.flag_y_ticks.get().min(n.max(2)),
+                    ));
+
+                // Create the chart and link all the parts together
+                let mut chart = Chart::new(datasets).x_axis(x_axis).y_axis(y_axis);
+
+                if !showing_multiple_series {
+                    chart = chart.legend_position(None);
+                } else {
+                    chart =
+                        chart.hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0)));
                 }
 
-                dataset
-            })
-            .collect();
+                frame.render_widget(chart, frame.area());
+            })?;
 
-        let mut formatter = util::acquire_number_formatter();
-
-        // Create the X axis and define its properties
-        let x_axis = Axis::default()
-            .title(if x_axis_info.can_be_displayed {
-                x_column_name.dim()
-            } else {
-                "".dim()
-            })
-            .style(Style::default().white())
-            .bounds([
-                x_axis_info.domain.0.as_float(),
-                x_axis_info.domain.1.as_float(),
-            ])
-            .labels(graduations_from_domain(
-                &mut formatter,
-                x_axis_info.axis_type,
-                x_axis_info.domain,
-                args.flag_x_ticks.get().min(n.max(2)),
-            ));
-
-        // Create the Y axis and define its properties
-        let y_axis = Axis::default()
-            .title(if !has_added_series && y_axis_info.can_be_displayed {
-                y_column_name.dim()
-            } else {
-                "".dim()
-            })
-            .style(Style::default().white())
-            .bounds([
-                y_axis_info.domain.0.as_float(),
-                y_axis_info.domain.1.as_float(),
-            ])
-            .labels_alignment(Alignment::Right)
-            .labels(graduations_from_domain(
-                &mut formatter,
-                y_axis_info.axis_type,
-                y_axis_info.domain,
-                args.flag_y_ticks.get().min(n.max(2)),
-            ));
-
-        // Create the chart and link all the parts together
-        let mut chart = Chart::new(datasets).x_axis(x_axis).y_axis(y_axis);
-
-        if !showing_multiple_series {
-            chart = chart.legend_position(None);
-        } else {
-            chart = chart.hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0)));
+            print_terminal(&terminal, cols);
         }
+        Some(grid_cols) => {
+            let grid_cols = grid_cols.get();
+            let mut color_i: usize = 0;
+            let mut first_grid_col = true;
 
-        frame.render_widget(chart, frame.area());
-    })?;
+            for finalized_series_column in finalized_series.chunks(grid_cols) {
+                let x_column_name = x_column_name.clone();
 
-    print_terminal(&terminal, cols);
+                if first_grid_col {
+                    first_grid_col = false;
+                } else {
+                    println!();
+                }
+
+                terminal.draw(|frame| {
+                    let actual_grid_cols = finalized_series_column.len();
+
+                    let layout = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .spacing(2)
+                        .constraints(vec![
+                            Constraint::Ratio(1, grid_cols as u32);
+                            actual_grid_cols
+                        ])
+                        .split(frame.area());
+
+                    for (i, single_finalized_series) in finalized_series_column.iter().enumerate() {
+                        let n = single_finalized_series.1.len();
+
+                        // x axis information
+                        let (x_axis_info, y_axis_info) =
+                            AxisInfo::from_single_series(single_finalized_series);
+
+                        // Create the datasets to fill the chart with
+                        let single_finalized_series = (
+                            single_finalized_series.0.clone(),
+                            single_finalized_series.1.to_floats(),
+                        );
+
+                        let mut dataset = Dataset::default()
+                            .marker(args.flag_marker.into_inner())
+                            .graph_type(if args.flag_line {
+                                GraphType::Line
+                            } else if args.flag_bars {
+                                GraphType::Bar
+                            } else {
+                                GraphType::Scatter
+                            })
+                            .style(get_series_color(color_i))
+                            .data(&single_finalized_series.1);
+
+                        if let Some(name) = single_finalized_series.0 {
+                            dataset = dataset.name(name.clone());
+                        }
+
+                        let mut formatter = util::acquire_number_formatter();
+
+                        // Create the X axis and define its properties
+                        let x_axis = Axis::default()
+                            .title(if x_axis_info.can_be_displayed {
+                                x_column_name.clone().dim()
+                            } else {
+                                "".dim()
+                            })
+                            .style(Style::default().white())
+                            .bounds([
+                                x_axis_info.domain.0.as_float(),
+                                x_axis_info.domain.1.as_float(),
+                            ])
+                            .labels(graduations_from_domain(
+                                &mut formatter,
+                                x_axis_info.axis_type,
+                                x_axis_info.domain,
+                                args.flag_x_ticks.get().min(n.max(2)),
+                            ));
+
+                        // Create the Y axis and define its properties
+                        let y_axis = Axis::default()
+                            .title(if !has_added_series && y_axis_info.can_be_displayed {
+                                y_column_name.clone().dim()
+                            } else {
+                                "".dim()
+                            })
+                            .style(Style::default().white())
+                            .bounds([
+                                y_axis_info.domain.0.as_float(),
+                                y_axis_info.domain.1.as_float(),
+                            ])
+                            .labels(graduations_from_domain(
+                                &mut formatter,
+                                y_axis_info.axis_type,
+                                y_axis_info.domain,
+                                args.flag_y_ticks.get().min(n.max(2)),
+                            ));
+
+                        // Create the chart and link all the parts together
+                        let chart = Chart::new(vec![dataset]).x_axis(x_axis).y_axis(y_axis);
+
+                        // if !showing_multiple_series {
+                        //     chart = chart.legend_position(None);
+                        // } else {
+                        //     chart = chart.hidden_legend_constraints((
+                        //         Constraint::Min(0),
+                        //         Constraint::Min(0),
+                        //     ));
+                        // }
+
+                        frame.render_widget(chart, layout[i]);
+                        color_i += 1;
+                    }
+                })?;
+
+                print_terminal(&terminal, cols);
+            }
+        }
+    }
 
     Ok(())
 }
@@ -666,7 +785,11 @@ struct AxisInfo {
 }
 
 impl AxisInfo {
-    fn from_series<'a>(
+    fn from_single_series(series: &(Option<String>, Series)) -> (AxisInfo, AxisInfo) {
+        Self::from_multiple_series(std::iter::once(series))
+    }
+
+    fn from_multiple_series<'a>(
         mut series: impl Iterator<Item = &'a (Option<String>, Series)>,
     ) -> (AxisInfo, AxisInfo) {
         let first_series = &series.next().unwrap().1;
