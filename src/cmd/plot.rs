@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
+use indexmap::IndexMap;
 use jiff::{
     civil::{Date, DateTime, Time},
     tz::TimeZone,
@@ -11,7 +12,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Cell;
-use ratatui::layout::{Alignment, Constraint, Rect};
+use ratatui::layout::{Alignment, Constraint};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
@@ -22,6 +23,444 @@ use crate::moonblade::DynamicNumber;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::{CliError, CliResult};
+
+#[derive(Clone, Copy)]
+struct Marker(symbols::Marker);
+
+impl Marker {
+    fn into_inner(self) -> symbols::Marker {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for Marker {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(Self(match raw.as_str() {
+            "dot" => symbols::Marker::Dot,
+            "braille" => symbols::Marker::Braille,
+            "halfblock" => symbols::Marker::HalfBlock,
+            "block" => symbols::Marker::Block,
+            "bar" => symbols::Marker::Bar,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unknown marker type \"{}\"!",
+                    raw
+                )))
+            }
+        }))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Granularity(Unit);
+
+impl Granularity {
+    fn into_inner(self) -> Unit {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for Granularity {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(Self(match raw.as_str() {
+            "year" | "years" => Unit::Year,
+            "month" | "months" => Unit::Month,
+            "day" | "days" => Unit::Day,
+            "hour" | "hours" => Unit::Hour,
+            "minute" | "minutes" => Unit::Minute,
+            "second" | "seconds" => Unit::Second,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "invalid granularity \"{}\"!",
+                    raw
+                )))
+            }
+        }))
+    }
+}
+
+static USAGE: &str = "
+Draw a scatter plot or a line plot based on 2-dimensional data.
+
+Usage:
+    xan plot --count [options] <x> [<input>]
+    xan plot [options] <x> <y> [<input>]
+    xan plot --help
+
+plot options:
+    -L, --line               Whether to draw a line plot instead of the default scatter plot.
+    -B, --bars               Whether to draw bars instead of the default scatter plot.
+                             WARNING: currently does not work if y range does not include 0.
+                             (https://github.com/ratatui/ratatui/issues/1391)
+    -T, --time               Use to indicate that the x axis is temporal. The axis will be
+                             discretized according to some inferred temporal granularity and
+                             y values will be summed wrt the newly discretized x axis.
+    --count                  Omit the y column and count rows instead. Only relevant when
+                             used with -T, --time that will discretize the x axis.
+    -C, --category <col>     Name of the categorical column that will be used to
+                             draw different datasets each with their own color.
+                             Incompatible with -Y, --add-series.
+    -Y, --add-series <col>   Name of another column of y values to add as new series.
+                             Incompatible with -C, --category.
+    -G, --granularity <g>    Force temporal granularity for x axis discretization when
+                             using -T, --time. Must be one of \"years\", \"months\", \"days\",
+                             \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
+    --cols <num>             Width of the graph in terminal columns, i.e. characters.
+                             Defaults to using all your terminal's width or 80 if
+                             terminal size cannot be found (i.e. when piping to file).
+    --rows <num>             Height of the graph in terminal rows, i.e. characters.
+                             Defaults to using all your terminal's height minus 2 or 30 if
+                             terminal size cannot be found (i.e. when piping to file).
+    -g, --grid-cols <n>      Display small multiples of datasets given by -C, --category
+                             or -Y, --add-series using the provided number of grid columns.
+    -M, --marker <name>      Marker to use. Can be one of (by order of size): 'braille', 'dot',
+                             'halfblock', 'bar', 'block'.
+                             [default: braille]
+    --x-ticks <n>            Number of x-axis graduation steps.
+                             WARNING: more than 3 graduations will lead to weirdly aligned
+                             labels sometimes (https://github.com/ratatui/ratatui/issues/334).
+                             [default: 3]
+    --y-ticks <n>            Number of y-axis graduation steps.
+                             [default: 4]
+    --x-min <n>              Force a minimum value for the x axis.
+    --x-max <n>              Force a maximum value for the x axis.
+    --y-min <n>              Force a minimum value for the y axis.
+    --y-max <n>              Force a maximum value for the y axis.
+
+Common options:
+    -h, --help             Display this message
+    -n, --no-headers       When set, the file will be considered as having no
+                           headers.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
+                           Must be a single character. [default: ,]
+";
+
+#[derive(Deserialize)]
+struct Args {
+    arg_input: Option<String>,
+    arg_x: SelectColumns,
+    arg_y: Option<SelectColumns>,
+    flag_no_headers: bool,
+    flag_delimiter: Option<Delimiter>,
+    flag_line: bool,
+    flag_bars: bool,
+    flag_time: bool,
+    flag_count: bool,
+    flag_cols: Option<usize>,
+    flag_rows: Option<usize>,
+    flag_grid_cols: Option<NonZeroUsize>,
+    flag_category: Option<SelectColumns>,
+    flag_add_series: Vec<SelectColumns>,
+    flag_marker: Marker,
+    flag_granularity: Option<Granularity>,
+    flag_x_ticks: NonZeroUsize,
+    flag_y_ticks: NonZeroUsize,
+    flag_x_min: Option<String>,
+    flag_x_max: Option<String>,
+    flag_y_min: Option<DynamicNumber>,
+    flag_y_max: Option<DynamicNumber>,
+}
+
+impl Args {
+    fn parse_x_bounds(&self) -> CliResult<(Option<DynamicNumber>, Option<DynamicNumber>)> {
+        if self.flag_time {
+            Ok((
+                self.flag_x_min
+                    .as_ref()
+                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
+                    .transpose()?,
+                self.flag_x_max
+                    .as_ref()
+                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
+                    .transpose()?,
+            ))
+        } else {
+            Ok((
+                self.flag_x_min
+                    .as_ref()
+                    .map(|cell| parse_as_number(cell.as_bytes()))
+                    .transpose()?,
+                self.flag_x_max
+                    .as_ref()
+                    .map(|cell| parse_as_number(cell.as_bytes()))
+                    .transpose()?,
+            ))
+        }
+    }
+}
+
+pub fn run(argv: &[&str]) -> CliResult<()> {
+    let args: Args = util::get_args(USAGE, argv)?;
+    let rconf = Config::new(&args.arg_input)
+        .delimiter(args.flag_delimiter)
+        .no_headers(args.flag_no_headers);
+
+    debug_assert!(if args.flag_count {
+        args.arg_y.is_none()
+    } else {
+        true
+    });
+
+    let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
+
+    if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
+        return Err(CliError::Other(
+            "-C, --category cannot work with -Y, --add-series!".to_string(),
+        ));
+    }
+
+    if args.flag_x_ticks.get() < 2 {
+        return Err(CliError::Other("--x-ticks must be > 1!".to_string()));
+    }
+    if args.flag_y_ticks.get() < 2 {
+        return Err(CliError::Other("--y-ticks must be > 1!".to_string()));
+    }
+
+    let has_added_series = !args.flag_add_series.is_empty();
+
+    // Collecting data
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?;
+
+    let x_column_index = Config::new(&None)
+        .select(args.arg_x)
+        .single_selection(headers)?;
+
+    let y_column_index_opt = args
+        .arg_y
+        .map(|name| Config::new(&None).select(name).single_selection(headers))
+        .transpose()?;
+
+    let x_column_name = if args.flag_no_headers {
+        x_column_index.to_string()
+    } else {
+        std::str::from_utf8(&headers[x_column_index])
+            .unwrap()
+            .to_string()
+    };
+
+    let y_column_name = match y_column_index_opt {
+        Some(y_column_index) => {
+            if args.flag_no_headers {
+                y_column_index.to_string()
+            } else {
+                std::str::from_utf8(&headers[y_column_index])
+                    .unwrap()
+                    .to_string()
+            }
+        }
+        None => "count()".to_string(),
+    };
+
+    let category_column_index = args
+        .flag_category
+        .map(|name| Config::new(&None).select(name).single_selection(headers))
+        .transpose()?;
+
+    let additional_series_indices = args
+        .flag_add_series
+        .into_iter()
+        .map(|name| {
+            let i = Config::new(&None).select(name).single_selection(headers)?;
+
+            let col_name = if args.flag_no_headers {
+                i.to_string().into_bytes()
+            } else {
+                headers[i].to_vec()
+            };
+
+            Ok((col_name, i))
+        })
+        .collect::<Result<Vec<(Vec<u8>, usize)>, CliError>>()?;
+
+    let showing_multiple_series =
+        category_column_index.is_some() || !additional_series_indices.is_empty();
+
+    let mut record = csv::ByteRecord::new();
+
+    let mut grouped_series = if showing_multiple_series {
+        GroupedSeries::with_groups()
+    } else {
+        GroupedSeries::default()
+    };
+
+    while rdr.read_byte_record(&mut record)? {
+        let x_cell = &record[x_column_index];
+
+        let x = if args.flag_time {
+            parse_as_timestamp(x_cell)?
+        } else {
+            parse_as_number(x_cell)?
+        };
+
+        let y = match y_column_index_opt {
+            Some(y_column_index) => parse_as_number(&record[y_column_index])?,
+            None => DynamicNumber::Integer(1),
+        };
+
+        // Filtering out-of-bounds values
+        if matches!(flag_x_min, Some(x_min) if x < x_min)
+            || matches!(flag_x_max, Some(x_max) if x > x_max)
+            || matches!(args.flag_y_min, Some(y_min) if y < y_min)
+            || matches!(args.flag_y_max, Some(y_max) if y > y_max)
+        {
+            continue;
+        }
+
+        if let Some(i) = category_column_index {
+            grouped_series.add_with_name(&record[i], x, y)
+        } else if !additional_series_indices.is_empty() {
+            grouped_series.add_with_name(y_column_name.as_bytes(), x, y);
+
+            for (name, pos) in additional_series_indices.iter() {
+                let v = parse_as_number(&record[*pos])?;
+
+                grouped_series.add_with_name(name, x, v);
+            }
+        } else {
+            grouped_series.add(x, y);
+        }
+    }
+
+    if grouped_series.is_empty() {
+        println!("Nothing to display!");
+        return Ok(());
+    }
+
+    let mut finalized_series = grouped_series.finalize();
+
+    for (_, series) in finalized_series.iter_mut() {
+        if args.flag_time {
+            series.mark_as_temporal(args.flag_granularity.map(|g| g.into_inner()));
+        }
+
+        // Domain bounds
+        if let Some(x_min) = flag_x_min {
+            series.set_x_min(x_min);
+        }
+        if let Some(x_max) = flag_x_max {
+            series.set_x_max(x_max);
+        }
+        if let Some(y_min) = args.flag_y_min {
+            series.set_y_min(y_min);
+        }
+        if let Some(y_max) = args.flag_y_max {
+            series.set_y_max(y_max);
+        }
+
+        // NOTE: we sort on x if we want a line plot
+        if args.flag_line {
+            series.sort_by_x_axis();
+        }
+    }
+
+    // Drawing
+    let rows = args
+        .flag_rows
+        .unwrap_or_else(|| util::acquire_term_rows().unwrap_or(30))
+        .saturating_sub(2) as u16;
+
+    let cols = util::acquire_term_cols(&args.flag_cols) as u16;
+
+    let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
+
+    terminal.draw(|frame| {
+        let n = finalized_series[0].1.len();
+
+        // x axis information
+        let (x_axis_info, y_axis_info) = AxisInfo::from_series(finalized_series.iter());
+
+        // Create the datasets to fill the chart with
+        let finalized_series = finalized_series
+            .into_iter()
+            .map(|(name_opt, series)| (name_opt, series.to_floats()))
+            .collect::<Vec<_>>();
+
+        let datasets = finalized_series
+            .iter()
+            .enumerate()
+            .map(|(i, (name_opt, series))| {
+                let mut dataset = Dataset::default()
+                    .marker(args.flag_marker.into_inner())
+                    .graph_type(if args.flag_line {
+                        GraphType::Line
+                    } else if args.flag_bars {
+                        GraphType::Bar
+                    } else {
+                        GraphType::Scatter
+                    })
+                    .style(get_series_color(i))
+                    .data(series);
+
+                if let Some(name) = name_opt {
+                    dataset = dataset.name(name.clone());
+                }
+
+                dataset
+            })
+            .collect();
+
+        let mut formatter = util::acquire_number_formatter();
+
+        // Create the X axis and define its properties
+        let x_axis = Axis::default()
+            .title(if x_axis_info.can_be_displayed {
+                x_column_name.dim()
+            } else {
+                "".dim()
+            })
+            .style(Style::default().white())
+            .bounds([
+                x_axis_info.domain.0.as_float(),
+                x_axis_info.domain.1.as_float(),
+            ])
+            .labels(graduations_from_domain(
+                &mut formatter,
+                x_axis_info.axis_type,
+                x_axis_info.domain,
+                args.flag_x_ticks.get().min(n.max(2)),
+            ));
+
+        // Create the Y axis and define its properties
+        let y_axis = Axis::default()
+            .title(if !has_added_series && y_axis_info.can_be_displayed {
+                y_column_name.dim()
+            } else {
+                "".dim()
+            })
+            .style(Style::default().white())
+            .bounds([
+                y_axis_info.domain.0.as_float(),
+                y_axis_info.domain.1.as_float(),
+            ])
+            .labels_alignment(Alignment::Right)
+            .labels(graduations_from_domain(
+                &mut formatter,
+                y_axis_info.axis_type,
+                y_axis_info.domain,
+                args.flag_y_ticks.get().min(n.max(2)),
+            ));
+
+        // Create the chart and link all the parts together
+        let mut chart = Chart::new(datasets).x_axis(x_axis).y_axis(y_axis);
+
+        if !showing_multiple_series {
+            chart = chart.legend_position(None);
+        } else {
+            chart = chart.hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0)));
+        }
+
+        frame.render_widget(chart, frame.area());
+    })?;
+
+    print_terminal(&terminal, cols);
+
+    Ok(())
+}
 
 fn parse_as_timestamp(cell: &[u8]) -> Result<DynamicNumber, CliError> {
     let format_error = || {
@@ -193,23 +632,6 @@ fn graduations_from_domain(
     graduations
 }
 
-fn merge_domains(
-    mut domains: impl Iterator<Item = (DynamicNumber, DynamicNumber)>,
-) -> (DynamicNumber, DynamicNumber) {
-    let mut domain = domains.next().unwrap();
-
-    for other in domains {
-        if other.0 < domain.0 {
-            domain.0 = other.0;
-        }
-        if other.1 > domain.1 {
-            domain.1 = other.1;
-        }
-    }
-
-    domain
-}
-
 fn fix_flat_domain(
     domain: (DynamicNumber, DynamicNumber),
     axis_type: AxisType,
@@ -237,471 +659,72 @@ fn fix_flat_domain(
     }
 }
 
-fn merge_axis_types(mut axis_types: impl Iterator<Item = AxisType>) -> AxisType {
-    let mut axis_type = axis_types.next().unwrap();
-
-    for other in axis_types {
-        axis_type = axis_type.and(other);
-    }
-
-    axis_type
+struct AxisInfo {
+    can_be_displayed: bool,
+    domain: (DynamicNumber, DynamicNumber),
+    axis_type: AxisType,
 }
 
-#[derive(Clone, Copy)]
-struct Marker(symbols::Marker);
+impl AxisInfo {
+    fn from_series<'a>(
+        mut series: impl Iterator<Item = &'a (Option<String>, Series)>,
+    ) -> (AxisInfo, AxisInfo) {
+        let first_series = &series.next().unwrap().1;
+        let mut x_domain = first_series.x_domain().unwrap();
+        let mut y_domain = first_series.y_domain().unwrap();
+        let mut x_axis_type = first_series.types.0;
+        let mut y_axis_type = first_series.types.1;
+        let mut x_can_be_displayed = true;
+        let mut y_can_be_displayed = true;
 
-impl Marker {
-    fn into_inner(self) -> symbols::Marker {
-        self.0
-    }
-}
+        for (_, other_series) in series {
+            let other_x_domain = other_series.x_domain().unwrap();
+            let other_y_domain = other_series.y_domain().unwrap();
 
-impl<'de> Deserialize<'de> for Marker {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
-
-        Ok(Self(match raw.as_str() {
-            "dot" => symbols::Marker::Dot,
-            "braille" => symbols::Marker::Braille,
-            "halfblock" => symbols::Marker::HalfBlock,
-            "block" => symbols::Marker::Block,
-            "bar" => symbols::Marker::Bar,
-            _ => {
-                return Err(D::Error::custom(format!(
-                    "unknown marker type \"{}\"!",
-                    raw
-                )))
+            if other_x_domain.0 < x_domain.0 {
+                x_domain.0 = other_x_domain.0;
             }
-        }))
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Granularity(Unit);
-
-impl Granularity {
-    fn into_inner(self) -> Unit {
-        self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for Granularity {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
-
-        Ok(Self(match raw.as_str() {
-            "year" | "years" => Unit::Year,
-            "month" | "months" => Unit::Month,
-            "day" | "days" => Unit::Day,
-            "hour" | "hours" => Unit::Hour,
-            "minute" | "minutes" => Unit::Minute,
-            "second" | "seconds" => Unit::Second,
-            _ => {
-                return Err(D::Error::custom(format!(
-                    "invalid granularity \"{}\"!",
-                    raw
-                )))
+            if other_x_domain.1 > x_domain.1 {
+                x_domain.1 = other_x_domain.1;
             }
-        }))
-    }
-}
 
-static USAGE: &str = "
-Draw a scatter plot or a line plot based on 2-dimensional data.
+            if other_y_domain.0 < y_domain.0 {
+                y_domain.0 = other_y_domain.0;
+            }
+            if other_y_domain.1 > y_domain.1 {
+                y_domain.1 = other_y_domain.1;
+            }
 
-Usage:
-    xan plot --count [options] <x> [<input>]
-    xan plot [options] <x> <y> [<input>]
-    xan plot --help
+            x_axis_type = x_axis_type.and(other_series.types.0);
+            y_axis_type = y_axis_type.and(other_series.types.1);
 
-plot options:
-    -L, --line               Whether to draw a line plot instead of the default scatter plot.
-    -B, --bars               Whether to draw bars instead of the default scatter plot.
-                             WARNING: currently does not work if y range does not include 0.
-                             (https://github.com/ratatui/ratatui/issues/1391)
-    -T, --time               Use to indicate that the x axis is temporal. The axis will be
-                             discretized according to some inferred temporal granularity and
-                             y values will be summed wrt the newly discretized x axis.
-    --count                  Omit the y column and count rows instead. Only relevant when
-                             used with -T, --time that will discretize the x axis.
-    -C, --category <col>     Name of the categorical column that will be used to
-                             draw different datasets each with their own color.
-                             Incompatible with -Y, --add-series.
-    -Y, --add-series <col>   Name of another column of y values to add as new series.
-                             Incompatible with -C, --category.
-    -G, --granularity <g>    Force temporal granularity for x axis discretization when
-                             using -T, --time. Must be one of \"years\", \"months\", \"days\",
-                             \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
-    --cols <num>             Width of the graph in terminal columns, i.e. characters.
-                             Defaults to using all your terminal's width or 80 if
-                             terminal size cannot be found (i.e. when piping to file).
-    --rows <num>             Height of the graph in terminal rows, i.e. characters.
-                             Defaults to using all your terminal's height minus 2 or 30 if
-                             terminal size cannot be found (i.e. when piping to file).
-    -M, --marker <name>      Marker to use. Can be one of (by order of size): 'braille', 'dot',
-                             'halfblock', 'bar', 'block'.
-                             [default: braille]
-    --x-ticks <n>            Number of x-axis graduation steps.
-                             WARNING: more than 3 graduations will lead to weirdly aligned
-                             labels sometimes (https://github.com/ratatui/ratatui/issues/334).
-                             [default: 3]
-    --y-ticks <n>            Number of y-axis graduation steps.
-                             [default: 4]
-    --x-min <n>              Force a minimum value for the x axis.
-    --x-max <n>              Force a maximum value for the x axis.
-    --y-min <n>              Force a minimum value for the y axis.
-    --y-max <n>              Force a maximum value for the y axis.
-
-Common options:
-    -h, --help             Display this message
-    -n, --no-headers       When set, the file will be considered as having no
-                           headers.
-    -d, --delimiter <arg>  The field delimiter for reading CSV data.
-                           Must be a single character. [default: ,]
-";
-
-#[derive(Deserialize)]
-struct Args {
-    arg_input: Option<String>,
-    arg_x: SelectColumns,
-    arg_y: Option<SelectColumns>,
-    flag_no_headers: bool,
-    flag_delimiter: Option<Delimiter>,
-    flag_line: bool,
-    flag_bars: bool,
-    flag_time: bool,
-    flag_count: bool,
-    flag_cols: Option<usize>,
-    flag_rows: Option<usize>,
-    flag_category: Option<SelectColumns>,
-    flag_add_series: Vec<SelectColumns>,
-    flag_marker: Marker,
-    flag_granularity: Option<Granularity>,
-    flag_x_ticks: NonZeroUsize,
-    flag_y_ticks: NonZeroUsize,
-    flag_x_min: Option<String>,
-    flag_x_max: Option<String>,
-    flag_y_min: Option<DynamicNumber>,
-    flag_y_max: Option<DynamicNumber>,
-}
-
-impl Args {
-    fn parse_x_bounds(&self) -> CliResult<(Option<DynamicNumber>, Option<DynamicNumber>)> {
-        if self.flag_time {
-            Ok((
-                self.flag_x_min
-                    .as_ref()
-                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
-                    .transpose()?,
-                self.flag_x_max
-                    .as_ref()
-                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
-                    .transpose()?,
-            ))
-        } else {
-            Ok((
-                self.flag_x_min
-                    .as_ref()
-                    .map(|cell| parse_as_number(cell.as_bytes()))
-                    .transpose()?,
-                self.flag_x_max
-                    .as_ref()
-                    .map(|cell| parse_as_number(cell.as_bytes()))
-                    .transpose()?,
-            ))
-        }
-    }
-}
-
-pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
-    let rconf = Config::new(&args.arg_input)
-        .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers);
-
-    debug_assert!(if args.flag_count {
-        args.arg_y.is_none()
-    } else {
-        true
-    });
-
-    let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
-
-    if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
-        return Err(CliError::Other(
-            "-C, --category cannot work with -Y, --add-series!".to_string(),
-        ));
-    }
-
-    if args.flag_x_ticks.get() < 2 {
-        return Err(CliError::Other("--x-ticks must be > 1!".to_string()));
-    }
-    if args.flag_y_ticks.get() < 2 {
-        return Err(CliError::Other("--y-ticks must be > 1!".to_string()));
-    }
-
-    // Collecting data
-    let mut rdr = rconf.reader()?;
-    let headers = rdr.byte_headers()?;
-
-    let x_column_index = Config::new(&None)
-        .select(args.arg_x)
-        .single_selection(headers)?;
-
-    let y_column_index_opt = args
-        .arg_y
-        .map(|name| Config::new(&None).select(name).single_selection(headers))
-        .transpose()?;
-
-    let x_column_name = if args.flag_no_headers {
-        x_column_index.to_string()
-    } else {
-        std::str::from_utf8(&headers[x_column_index])
-            .unwrap()
-            .to_string()
-    };
-
-    let y_column_name = match y_column_index_opt {
-        Some(y_column_index) => {
-            if args.flag_no_headers {
-                y_column_index.to_string()
-            } else {
-                std::str::from_utf8(&headers[y_column_index])
-                    .unwrap()
-                    .to_string()
+            if !other_series.can_display_x_axis_title() {
+                x_can_be_displayed = false;
+            }
+            if !other_series.can_display_y_axis_title() {
+                y_can_be_displayed = false;
             }
         }
-        None => "count()".to_string(),
-    };
 
-    let category_column_index = args
-        .flag_category
-        .map(|name| Config::new(&None).select(name).single_selection(headers))
-        .transpose()?;
+        x_domain = fix_flat_domain(x_domain, x_axis_type);
+        y_domain = fix_flat_domain(y_domain, y_axis_type);
 
-    let additional_series_indices = args
-        .flag_add_series
-        .into_iter()
-        .map(|name| {
-            let i = Config::new(&None).select(name).single_selection(headers)?;
-
-            let col_name = if args.flag_no_headers {
-                i.to_string().into_bytes()
-            } else {
-                headers[i].to_vec()
-            };
-
-            Ok((col_name, i))
-        })
-        .collect::<Result<Vec<(Vec<u8>, usize)>, CliError>>()?;
-
-    let showing_multiple_series =
-        category_column_index.is_some() || !additional_series_indices.is_empty();
-
-    let mut record = csv::ByteRecord::new();
-
-    let mut grouped_series = if showing_multiple_series {
-        GroupedSeries::with_groups()
-    } else {
-        GroupedSeries::default()
-    };
-
-    while rdr.read_byte_record(&mut record)? {
-        let x_cell = &record[x_column_index];
-
-        let x = if args.flag_time {
-            parse_as_timestamp(x_cell)?
-        } else {
-            parse_as_number(x_cell)?
-        };
-
-        let y = match y_column_index_opt {
-            Some(y_column_index) => parse_as_number(&record[y_column_index])?,
-            None => DynamicNumber::Integer(1),
-        };
-
-        // Filtering out-of-bounds values
-        if matches!(flag_x_min, Some(x_min) if x < x_min)
-            || matches!(flag_x_max, Some(x_max) if x > x_max)
-            || matches!(args.flag_y_min, Some(y_min) if y < y_min)
-            || matches!(args.flag_y_max, Some(y_max) if y > y_max)
-        {
-            continue;
-        }
-
-        if let Some(i) = category_column_index {
-            grouped_series.add_with_name(&record[i], x, y)
-        } else if !additional_series_indices.is_empty() {
-            grouped_series.add_with_name(y_column_name.as_bytes(), x, y);
-
-            for (name, pos) in additional_series_indices.iter() {
-                let v = parse_as_number(&record[*pos])?;
-
-                grouped_series.add_with_name(name, x, v);
-            }
-        } else {
-            grouped_series.add(x, y);
-        }
+        (
+            AxisInfo {
+                can_be_displayed: x_can_be_displayed,
+                domain: x_domain,
+                axis_type: x_axis_type,
+            },
+            AxisInfo {
+                can_be_displayed: y_can_be_displayed,
+                domain: y_domain,
+                axis_type: y_axis_type,
+            },
+        )
     }
+}
 
-    if grouped_series.is_empty() {
-        println!("Nothing to display!");
-        return Ok(());
-    }
-
-    let mut finalized_series = grouped_series.finalize();
-
-    for (_, series) in finalized_series.iter_mut() {
-        if args.flag_time {
-            series.mark_as_temporal(args.flag_granularity.map(|g| g.into_inner()));
-        }
-
-        // Domain bounds
-        if let Some(x_min) = flag_x_min {
-            series.set_x_min(x_min);
-        }
-        if let Some(x_max) = flag_x_max {
-            series.set_x_max(x_max);
-        }
-        if let Some(y_min) = args.flag_y_min {
-            series.set_y_min(y_min);
-        }
-        if let Some(y_max) = args.flag_y_max {
-            series.set_y_max(y_max);
-        }
-
-        // NOTE: we sort on x if we want a line plot
-        if args.flag_line {
-            series.sort_by_x_axis();
-        }
-    }
-
-    // Drawing
-    let rows = args
-        .flag_rows
-        .unwrap_or_else(|| util::acquire_term_rows().unwrap_or(30))
-        .saturating_sub(2) as u16;
-
-    let cols = util::acquire_term_cols(&args.flag_cols) as u16;
-
-    let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
-
-    terminal.draw(|frame| {
-        let area = Rect::new(0, 0, cols, rows);
-
-        let n = finalized_series[0].1.len();
-
-        // x axis information
-        let x_domain = merge_domains(
-            finalized_series
-                .iter()
-                .map(|(_, series)| series.x_domain().unwrap()),
-        );
-        let x_axis_type =
-            merge_axis_types(finalized_series.iter().map(|(_, series)| series.types.0));
-        let can_display_x_axis_title = finalized_series
-            .iter()
-            .all(|(_, series)| series.can_display_x_axis_title());
-        let x_domain = fix_flat_domain(x_domain, x_axis_type);
-
-        // y axis information
-        let y_domain = merge_domains(
-            finalized_series
-                .iter()
-                .map(|(_, series)| series.y_domain().unwrap()),
-        );
-        let y_axis_type =
-            merge_axis_types(finalized_series.iter().map(|(_, series)| series.types.1));
-        let can_display_y_axis_title = finalized_series
-            .iter()
-            .all(|(_, series)| series.can_display_y_axis_title());
-        let y_domain = fix_flat_domain(y_domain, y_axis_type);
-
-        // Create the datasets to fill the chart with
-        let finalized_series = finalized_series
-            .into_iter()
-            .map(|(name_opt, series)| (name_opt, series.into_floats()))
-            .collect::<Vec<_>>();
-
-        let datasets = finalized_series
-            .iter()
-            .enumerate()
-            .map(|(i, (name_opt, series))| {
-                let mut dataset = Dataset::default()
-                    .marker(args.flag_marker.into_inner())
-                    .graph_type(if args.flag_line {
-                        GraphType::Line
-                    } else if args.flag_bars {
-                        GraphType::Bar
-                    } else {
-                        GraphType::Scatter
-                    })
-                    .style(get_series_color(i))
-                    .data(series);
-
-                if let Some(name) = name_opt {
-                    dataset = dataset.name(name.clone());
-                }
-
-                dataset
-            })
-            .collect();
-
-        let mut formatter = util::acquire_number_formatter();
-
-        // Create the X axis and define its properties
-        let x_axis = Axis::default()
-            .title(if can_display_x_axis_title {
-                x_column_name.dim()
-            } else {
-                "".dim()
-            })
-            .style(Style::default().white())
-            .bounds([x_domain.0.as_float(), x_domain.1.as_float()])
-            .labels(graduations_from_domain(
-                &mut formatter,
-                x_axis_type,
-                x_domain,
-                args.flag_x_ticks.get().min(n.max(2)),
-            ));
-
-        // Create the Y axis and define its properties
-        let y_axis = Axis::default()
-            .title(if can_display_y_axis_title {
-                y_column_name.dim()
-            } else {
-                "".dim()
-            })
-            .style(Style::default().white())
-            .bounds([y_domain.0.as_float(), y_domain.1.as_float()])
-            .labels_alignment(Alignment::Right)
-            .labels(graduations_from_domain(
-                &mut formatter,
-                y_axis_type,
-                y_domain,
-                args.flag_y_ticks.get().min(n.max(2)),
-            ));
-
-        // Create the chart and link all the parts together
-        let mut chart = Chart::new(datasets)
-            // .block(
-            //     Block::default()
-            //         .border_style(Style::default().dim())
-            //         .borders(Borders::ALL)
-            //         .padding(Padding::symmetric(2, 1)),
-            // )
-            .x_axis(x_axis)
-            .y_axis(y_axis);
-
-        if !showing_multiple_series {
-            chart = chart.legend_position(None);
-        } else {
-            chart = chart.hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0)));
-        }
-
-        frame.render_widget(chart, area);
-    })?;
-
+fn print_terminal(terminal: &Terminal<TestBackend>, cols: u16) {
     let contents = &terminal.backend().buffer().content;
 
     let mut i: usize = 0;
@@ -773,8 +796,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         i += cols as usize;
     }
-
-    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -823,9 +844,9 @@ impl Series {
         self.len() == 0
     }
 
-    fn into_floats(self) -> Vec<(f64, f64)> {
+    fn to_floats(&self) -> Vec<(f64, f64)> {
         self.points
-            .into_iter()
+            .iter()
             .map(|(x, y)| (x.as_float(), y.as_float()))
             .collect()
     }
@@ -970,7 +991,7 @@ impl Series {
 }
 
 struct GroupedSeries {
-    mapping: Option<HashMap<Vec<u8>, (usize, Series)>>,
+    mapping: Option<IndexMap<Vec<u8>, Series>>,
     default: Option<Series>,
 }
 
@@ -986,7 +1007,7 @@ impl Default for GroupedSeries {
 impl GroupedSeries {
     fn with_groups() -> Self {
         Self {
-            mapping: Some(HashMap::new()),
+            mapping: Some(IndexMap::new()),
             default: None,
         }
     }
@@ -997,14 +1018,13 @@ impl GroupedSeries {
 
     fn add_with_name(&mut self, name: &[u8], x: DynamicNumber, y: DynamicNumber) {
         let mapping = self.mapping.as_mut().unwrap();
-        let current_len = mapping.len();
 
         mapping
             .entry(name.to_vec())
-            .and_modify(|(_, series)| {
+            .and_modify(|series| {
                 series.add(x, y);
             })
-            .or_insert_with(|| (current_len, Series::of(x, y)));
+            .or_insert_with(|| Series::of(x, y));
     }
 
     fn finalize(self) -> Vec<(Option<String>, Series)> {
@@ -1013,10 +1033,7 @@ impl GroupedSeries {
         if let Some(default_series) = self.default {
             output.push((None, default_series));
         } else if let Some(mapping) = self.mapping {
-            let mut items = mapping.into_iter().collect::<Vec<_>>();
-            items.sort_by(|a, b| a.1 .0.cmp(&b.1 .0));
-
-            for (name, (_, series)) in items {
+            for (name, series) in mapping.into_iter() {
                 output.push((Some(String::from_utf8(name).unwrap()), series));
             }
         }
@@ -1033,6 +1050,6 @@ impl GroupedSeries {
             .as_ref()
             .unwrap()
             .values()
-            .all(|series| series.1.is_empty())
+            .all(|series| series.is_empty())
     }
 }
