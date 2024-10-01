@@ -68,6 +68,7 @@ impl DynamicNumber {
     }
 }
 
+const MEAN_COLS: i64 = 70;
 const MINUTES_BOUND: i64 = 60;
 const HOURS_BOUND: i64 = MINUTES_BOUND * 60;
 const DAYS_BOUND: i64 = HOURS_BOUND * 24;
@@ -81,15 +82,15 @@ fn infer_temporal_granularity(domain: (DynamicNumber, DynamicNumber)) -> Unit {
     let duration = start.duration_until(&end);
     let seconds = duration.as_secs();
 
-    if seconds > YEARS_BOUND {
+    if seconds > YEARS_BOUND * MEAN_COLS {
         Unit::Year
-    } else if seconds > MONTHS_BOUND {
+    } else if seconds > MONTHS_BOUND * MEAN_COLS {
         Unit::Month
-    } else if seconds > DAYS_BOUND {
+    } else if seconds > DAYS_BOUND * MEAN_COLS {
         Unit::Day
-    } else if seconds > HOURS_BOUND {
+    } else if seconds > HOURS_BOUND * MEAN_COLS {
         Unit::Hour
-    } else if seconds > MINUTES_BOUND {
+    } else if seconds > MINUTES_BOUND * MEAN_COLS {
         Unit::Minute
     } else {
         Unit::Second
@@ -259,13 +260,48 @@ impl<'de> Deserialize<'de> for Marker {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(d)?;
 
-        Ok(Marker(match raw.as_str() {
+        Ok(Self(match raw.as_str() {
             "dot" => symbols::Marker::Dot,
             "braille" => symbols::Marker::Braille,
             "halfblock" => symbols::Marker::HalfBlock,
             "block" => symbols::Marker::Block,
             "bar" => symbols::Marker::Bar,
-            _ => return Err(D::Error::custom(format!("invalid marker type \"{}\"", raw))),
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unknown marker type \"{}\"!",
+                    raw
+                )))
+            }
+        }))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Granularity(Unit);
+
+impl Granularity {
+    fn into_inner(self) -> Unit {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for Granularity {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(Self(match raw.as_str() {
+            "year" | "years" => Unit::Year,
+            "month" | "months" => Unit::Month,
+            "day" | "days" => Unit::Day,
+            "hour" | "hours" => Unit::Hour,
+            "minute" | "minutes" => Unit::Minute,
+            "second" | "seconds" => Unit::Second,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "invalid granularity \"{}\"!",
+                    raw
+                )))
+            }
         }))
     }
 }
@@ -293,6 +329,9 @@ plot options:
                              Incompatible with -Y, --add-series.
     -Y, --add-series <col>   Name of another column of y values to add as new series.
                              Incompatible with -C, --category.
+    -G, --granularity <g>    Force temporal granularity for x axis discretization when
+                             using -T, --time. Must be one of \"years\", \"months\", \"days\",
+                             \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if
                              terminal size cannot be found (i.e. when piping to file).
@@ -337,6 +376,7 @@ struct Args {
     flag_category: Option<SelectColumns>,
     flag_add_series: Vec<SelectColumns>,
     flag_marker: Marker,
+    flag_granularity: Option<Granularity>,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
     flag_x_min: Option<DynamicNumber>,
@@ -478,7 +518,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     for (_, series) in finalized_series.iter_mut() {
         if args.flag_time {
-            series.mark_as_temporal();
+            series.mark_as_temporal(args.flag_granularity.map(|g| g.into_inner()));
         }
 
         // Domain bounds
@@ -818,9 +858,9 @@ impl Series {
         }
     }
 
-    fn mark_as_temporal(&mut self) {
+    fn mark_as_temporal(&mut self, granularity: Option<Unit>) {
         if let Some((x_domain, y_domain)) = self.extent.as_mut() {
-            let granularity = infer_temporal_granularity(*x_domain);
+            let granularity = granularity.unwrap_or_else(|| infer_temporal_granularity(*x_domain));
             self.types.0 = AxisType::Timestamp(granularity);
 
             let mut buckets: HashMap<i64, DynamicNumber> = HashMap::new();
