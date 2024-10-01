@@ -274,8 +274,8 @@ static USAGE: &str = "
 Draw a scatter plot or a line plot based on 2-dimensional data.
 
 Usage:
-    xsv plot [options] <x> <y> [<input>]
-    xsv plot --help
+    xan plot [options] <x> <y> [<input>]
+    xan plot --help
 
 plot options:
     -L, --line               Whether to draw a line plot instead of the default scatter plot.

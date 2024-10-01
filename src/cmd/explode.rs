@@ -35,7 +35,7 @@ Usage:
 explode options:
     -r, --rename <name>    New names for the exploded columns. Must be written
                            in CSV format if exploding multiple columns.
-                           See 'xsv rename' help for more details.
+                           See 'xan rename' help for more details.
 
 Common options:
     -h, --help             Display this message

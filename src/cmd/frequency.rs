@@ -29,7 +29,7 @@ Since this computes an exact frequency table, memory proportional to the
 cardinality of each selected column is required.
 
 To compute custom aggregations per group, beyond just counting, please be sure to
-check the `xsv groupby` command instead.
+check the `xan groupby` command instead.
 
 Usage:
     xan frequency [options] [<input>]
