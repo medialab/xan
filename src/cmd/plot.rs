@@ -5,7 +5,7 @@ use colored::{ColoredString, Colorize};
 use jiff::{
     civil::{Date, DateTime, Time},
     tz::TimeZone,
-    Timestamp, Unit, Zoned,
+    Timestamp, Unit, Zoned, ZonedRound,
 };
 use serde::de::{Deserialize, Deserializer, Error};
 
@@ -101,9 +101,9 @@ fn floor_timestamp(milliseconds: DynamicNumber, unit: Unit) -> i64 {
 
     // TODO: we could optimize some computations by foregoing
     zoned = match unit {
-        Unit::Year => zoned.first_of_year().unwrap(),
-        Unit::Month => zoned.first_of_month().unwrap(),
-        _ => zoned.round(unit).unwrap(),
+        Unit::Year => zoned.start_of_day().unwrap().first_of_year().unwrap(),
+        Unit::Month => zoned.start_of_day().unwrap().first_of_month().unwrap(),
+        _ => zoned.round(ZonedRound::new().smallest(unit)).unwrap(),
     };
 
     zoned.timestamp().as_millisecond()
