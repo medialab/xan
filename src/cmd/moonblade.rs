@@ -365,6 +365,26 @@ use the operators in the previous section.
         Parse a number as a POSIX timestamp in milliseconds
         (nb of milliseconds since 1970-01-01 00:00:00 UTC),
         and convert it to a datetime in local time.
+    
+    - year_month_day(target, timezone=?) -> date
+        Extract the year, month and day of a datetime.
+        If the input is a string, first parse it into datetime, and then extract the year, month and day.
+        Equivalent to datetime(string, format = \"%Y-%m-%d\", timezone = ?)
+
+    - month_day(target, timezone=?) -> date
+        Extract the month and day of a datetime.
+        If the input is a string, first parse it into datetime, and then extract the month and day.
+        Equivalent to datetime(string, format = \"%m-%d\", timezone = ?)
+
+    - month(target, timezone=?) -> date
+        Extract the month of a datetime.
+        If the input is a string, first parse it into datetime, and then extract the month.
+        Equivalent to datetime(string, format = \"%m\", timezone = ?)
+
+    - year(target, timezone=?) -> date
+        Extract the year of a datetime.
+        If the input is a string, first parse it into datetime, and then extract the year.
+        Equivalent to datetime(string, format = \"%Y\", timezone = ?)
 
 ## Collections (list of maps) functions
 

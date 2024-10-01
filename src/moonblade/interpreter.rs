@@ -1145,15 +1145,61 @@ mod tests {
             eval_code("datetime('2024-07-11T03:14:00[Europe/Paris]')"),
             Ok(DynamicValue::from(zoned.clone()))
         );
-
+        assert_eq!(
+            eval_code("year_month_day('2024-07-11T03:14:00[Europe/Paris]')"),
+            Ok(DynamicValue::from("2024-07-11"))
+        );
+        assert_eq!(
+            eval_code("month_day('2024-07-11T03:14:00[Europe/Paris]')"),
+            Ok(DynamicValue::from("07-11"))
+        );
+        assert_eq!(
+            eval_code("month('2024-07-11T03:14:00[Europe/Paris]')"),
+            Ok(DynamicValue::from("07"))
+        );
+        assert_eq!(
+            eval_code("year('2024-07-11T03:14:00[Europe/Paris]')"),
+            Ok(DynamicValue::from("2024"))
+        );
         assert_eq!(
             eval_code("datetime('20240711 03:14[CET]')"),
             Ok(DynamicValue::from(zoned.clone()))
         );
-
+        assert_eq!(
+            eval_code("year_month_day('20240711 03:14[CET]')"),
+            Ok(DynamicValue::from("2024-07-11"))
+        );
+        assert_eq!(
+            eval_code("month_day('20240711 03:14[CET]')"),
+            Ok(DynamicValue::from("07-11"))
+        );
+        assert_eq!(
+            eval_code("month('20240711 03:14[CET]')"),
+            Ok(DynamicValue::from("07"))
+        );
+        assert_eq!(
+            eval_code("year('20240711 03:14[CET]')"),
+            Ok(DynamicValue::from("2024"))
+        );
         assert_eq!(
             eval_code("datetime('2024-07-11 03:14:00', timezone='Europe/Paris')"),
             Ok(DynamicValue::from(zoned.clone()))
+        );
+        assert_eq!(
+            eval_code("year_month_day('2024-07-11 03:14:00', timezone='Europe/Paris')"),
+            Ok(DynamicValue::from("2024-07-11"))
+        );
+        assert_eq!(
+            eval_code("month_day('2024-07-11 03:14:00', timezone='Europe/Paris')"),
+            Ok(DynamicValue::from("07-11"))
+        );
+        assert_eq!(
+            eval_code("month('2024-07-11 03:14:00', timezone='Europe/Paris')"),
+            Ok(DynamicValue::from("07"))
+        );
+        assert_eq!(
+            eval_code("year('2024-07-11 03:14:00', timezone='Europe/Paris')"),
+            Ok(DynamicValue::from("2024"))
         );
 
         let timestamp: Timestamp = "2024-07-11T00:00:00Z".parse().unwrap();
@@ -1162,6 +1208,22 @@ mod tests {
         assert_eq!(
             eval_code("datetime('2024-07-11', timezone='UTC')"),
             Ok(DynamicValue::from(zoned.clone()))
+        );
+        assert_eq!(
+            eval_code("year_month_day('2024-07-11')"),
+            Ok(DynamicValue::from("2024-07-11"))
+        );
+        assert_eq!(
+            eval_code("month_day('2024-07-11')"),
+            Ok(DynamicValue::from("07-11"))
+        );
+        assert_eq!(
+            eval_code("month('2024-07-11')"),
+            Ok(DynamicValue::from("07"))
+        );
+        assert_eq!(
+            eval_code("year('2024-07-11')"),
+            Ok(DynamicValue::from("2024"))
         );
 
         assert_eq!(
@@ -1175,7 +1237,6 @@ mod tests {
         );
 
         assert!(eval_code("datetime('2024-07-11T00:00:00[CET]', timezone='UTC')").is_err());
-
         assert!(eval_code(
             "datetime('2024-07-11T00:00:00[UTC]', format='%FT%H:%M:%S[%V]', timezone='CET')"
         )
