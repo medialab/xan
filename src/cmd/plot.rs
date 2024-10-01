@@ -274,6 +274,7 @@ static USAGE: &str = "
 Draw a scatter plot or a line plot based on 2-dimensional data.
 
 Usage:
+    xan plot --count [options] <x> [<input>]
     xan plot [options] <x> <y> [<input>]
     xan plot --help
 
@@ -282,7 +283,11 @@ plot options:
     -B, --bars               Whether to draw bars instead of the default scatter plot.
                              WARNING: currently does not work if y range does not include 0.
                              (https://github.com/ratatui/ratatui/issues/1391)
-    -T, --time               Use to indicate that the x axis is temporal.
+    -T, --time               Use to indicate that the x axis is temporal. The axis will be
+                             discretized according to some inferred temporal granularity and
+                             y values will be summed wrt the newly discretized x axis.
+    --count                  Omit the y column and count rows instead. Only relevant when
+                             used with -T, --time that will discretize the x axis.
     -C, --category <col>     Name of the categorical column that will be used to
                              draw different datasets each with their own color.
                              Incompatible with -Y, --add-series.
@@ -320,12 +325,13 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_x: SelectColumns,
-    arg_y: SelectColumns,
+    arg_y: Option<SelectColumns>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_line: bool,
     flag_bars: bool,
     flag_time: bool,
+    flag_count: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
     flag_category: Option<SelectColumns>,
@@ -344,6 +350,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+
+    debug_assert!(if args.flag_count {
+        args.arg_y.is_none()
+    } else {
+        true
+    });
 
     if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
         return Err(CliError::Other(
@@ -366,9 +378,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.arg_x)
         .single_selection(headers)?;
 
-    let y_column_index = Config::new(&None)
-        .select(args.arg_y)
-        .single_selection(headers)?;
+    let y_column_index_opt = args
+        .arg_y
+        .map(|name| Config::new(&None).select(name).single_selection(headers))
+        .transpose()?;
 
     let x_column_name = if args.flag_no_headers {
         x_column_index.to_string()
@@ -378,12 +391,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .to_string()
     };
 
-    let y_column_name = if args.flag_no_headers {
-        y_column_index.to_string()
-    } else {
-        std::str::from_utf8(&headers[y_column_index])
-            .unwrap()
-            .to_string()
+    let y_column_name = match y_column_index_opt {
+        Some(y_column_index) => {
+            if args.flag_no_headers {
+                y_column_index.to_string()
+            } else {
+                std::str::from_utf8(&headers[y_column_index])
+                    .unwrap()
+                    .to_string()
+            }
+        }
+        None => "count()".to_string(),
     };
 
     let category_column_index = args
@@ -427,7 +445,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             parse_as_number(x_cell)?
         };
 
-        let y = parse_as_number(&record[y_column_index])?;
+        let y = match y_column_index_opt {
+            Some(y_column_index) => parse_as_number(&record[y_column_index])?,
+            None => DynamicNumber::Integer(1),
+        };
 
         // Filtering out-of-bounds values
         if matches!(args.flag_x_min, Some(x_min) if x < x_min)
