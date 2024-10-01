@@ -514,6 +514,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if grouped_series.is_empty() {
+        println!("Nothing to display!");
+        return Ok(());
+    }
+
     let mut finalized_series = grouped_series.finalize();
 
     for (_, series) in finalized_series.iter_mut() {
@@ -784,6 +789,10 @@ impl Series {
         self.points.len()
     }
 
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn into_floats(self) -> Vec<(f64, f64)> {
         self.points
             .into_iter()
@@ -983,5 +992,17 @@ impl GroupedSeries {
         }
 
         output
+    }
+
+    fn is_empty(&self) -> bool {
+        if let Some(series) = &self.default {
+            return series.is_empty();
+        }
+
+        self.mapping
+            .as_ref()
+            .unwrap()
+            .values()
+            .all(|series| series.1.is_empty())
     }
 }
