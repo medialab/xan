@@ -68,7 +68,7 @@ impl DynamicNumber {
     }
 }
 
-const MEAN_COLS: i64 = 70;
+const MEAN_COLS: i64 = 35;
 const MINUTES_BOUND: i64 = 60;
 const HOURS_BOUND: i64 = MINUTES_BOUND * 60;
 const DAYS_BOUND: i64 = HOURS_BOUND * 24;
@@ -379,10 +379,38 @@ struct Args {
     flag_granularity: Option<Granularity>,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
-    flag_x_min: Option<DynamicNumber>,
-    flag_x_max: Option<DynamicNumber>,
+    flag_x_min: Option<String>,
+    flag_x_max: Option<String>,
     flag_y_min: Option<DynamicNumber>,
     flag_y_max: Option<DynamicNumber>,
+}
+
+impl Args {
+    fn parse_x_bounds(&self) -> CliResult<(Option<DynamicNumber>, Option<DynamicNumber>)> {
+        if self.flag_time {
+            Ok((
+                self.flag_x_min
+                    .as_ref()
+                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
+                    .transpose()?,
+                self.flag_x_max
+                    .as_ref()
+                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
+                    .transpose()?,
+            ))
+        } else {
+            Ok((
+                self.flag_x_min
+                    .as_ref()
+                    .map(|cell| parse_as_number(cell.as_bytes()))
+                    .transpose()?,
+                self.flag_x_max
+                    .as_ref()
+                    .map(|cell| parse_as_number(cell.as_bytes()))
+                    .transpose()?,
+            ))
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -396,6 +424,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         true
     });
+
+    let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
 
     if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
         return Err(CliError::Other(
@@ -491,8 +521,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         // Filtering out-of-bounds values
-        if matches!(args.flag_x_min, Some(x_min) if x < x_min)
-            || matches!(args.flag_x_max, Some(x_max) if x > x_max)
+        if matches!(flag_x_min, Some(x_min) if x < x_min)
+            || matches!(flag_x_max, Some(x_max) if x > x_max)
             || matches!(args.flag_y_min, Some(y_min) if y < y_min)
             || matches!(args.flag_y_max, Some(y_max) if y > y_max)
         {
@@ -527,10 +557,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Domain bounds
-        if let Some(x_min) = args.flag_x_min {
+        if let Some(x_min) = flag_x_min {
             series.set_x_min(x_min);
         }
-        if let Some(x_max) = args.flag_x_max {
+        if let Some(x_max) = flag_x_max {
             series.set_x_max(x_max);
         }
         if let Some(y_min) = args.flag_y_min {
