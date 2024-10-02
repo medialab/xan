@@ -119,6 +119,10 @@ plot options:
                                Can also be given as a ratio of the terminal's height e.g. \"0.5\".
     -S, --small-multiples <n>  Display small multiples of datasets given by -C, --category
                                or -Y, --add-series using the provided number of grid columns.
+                               The plot will all share the same x scale but use a different y scale by
+                               default. See --share-y-scale and --separate-x-scale to tweak this behavior.
+    --share-y-scale            Share y scale for all plot when drawing small multiples.
+    --separate-x-scale         Use a distinct x scale for all plots when drawing small multiples.
     -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
                                'halfblock', 'bar', 'block'.
                                [default: braille]
@@ -155,6 +159,8 @@ struct Args {
     flag_cols: Option<String>,
     flag_rows: Option<String>,
     flag_small_multiples: Option<NonZeroUsize>,
+    flag_share_y_scale: bool,
+    flag_separate_x_scale: bool,
     flag_category: Option<SelectColumns>,
     flag_add_series: Vec<SelectColumns>,
     flag_marker: Marker,
@@ -498,6 +504,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut color_i: usize = 0;
             let mut first_grid_col = true;
 
+            let (harmonized_x_axis_info, harmonized_y_axis_info) =
+                AxisInfo::from_multiple_series(finalized_series.iter());
+
             for finalized_series_column in finalized_series.chunks(grid_cols) {
                 let x_column_name = x_column_name.clone();
 
@@ -523,8 +532,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let n = single_finalized_series.1.len();
 
                         // x axis information
-                        let (x_axis_info, y_axis_info) =
+                        let (mut x_axis_info, mut y_axis_info) =
                             AxisInfo::from_single_series(single_finalized_series);
+
+                        if !args.flag_separate_x_scale {
+                            x_axis_info = harmonized_x_axis_info.clone();
+                        }
+
+                        if args.flag_share_y_scale {
+                            y_axis_info = harmonized_y_axis_info.clone();
+                        }
 
                         // Create the datasets to fill the chart with
                         let single_finalized_series = (
@@ -810,6 +827,7 @@ fn fix_flat_domain(
     }
 }
 
+#[derive(Clone)]
 struct AxisInfo {
     can_be_displayed: bool,
     domain: (DynamicNumber, DynamicNumber),
