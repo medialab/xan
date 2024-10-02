@@ -11,8 +11,8 @@ use jiff::{
 use serde::de::{Deserialize, Deserializer, Error};
 
 use ratatui::backend::TestBackend;
-use ratatui::buffer::Cell;
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::buffer::{Buffer, Cell};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
@@ -495,6 +495,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 frame.render_widget(chart, frame.area());
+                patch_buffer(frame.buffer_mut(), None);
             })?;
 
             print_terminal(&terminal, cols);
@@ -622,6 +623,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         frame.render_widget(chart, layout[i]);
+                        patch_buffer(frame.buffer_mut(), Some(&layout[i]));
+
                         color_i += 1;
                     }
                 })?;
@@ -972,6 +975,25 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
         println!("{}", line);
 
         i += cols;
+    }
+}
+
+fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>) {
+    let area = area.unwrap_or(buffer.area()).clone();
+
+    let x_axis_col = (area.x..area.x + area.width)
+        .find(|x| buffer.cell((*x, area.y)).unwrap().symbol() == "│")
+        .unwrap();
+
+    // Drawing ticks for y axis
+    for y in area.y..area.y + area.height {
+        let cell = buffer.cell((x_axis_col, y)).unwrap();
+
+        if cell.symbol() == "│"
+            && (area.x..x_axis_col).any(|x| buffer.cell((x, y)).unwrap().symbol() != " ")
+        {
+            buffer.cell_mut((x_axis_col, y)).unwrap().set_symbol("┼");
+        }
     }
 }
 
