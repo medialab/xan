@@ -1094,8 +1094,12 @@ enum AxisType {
 impl AxisType {
     fn and(self, other: AxisType) -> Self {
         match (self, other) {
-            (Self::Float, _) | (_, Self::Float) => Self::Float,
-            _ => Self::Int,
+            (Self::Timestamp(unit1), Self::Timestamp(unit2)) => Self::Timestamp(unit1.max(unit2)),
+            (Self::Float, Self::Int) | (Self::Int, Self::Float) | (Self::Float, Self::Float) => {
+                Self::Float
+            }
+            (Self::Int, Self::Int) => Self::Int,
+            _ => unreachable!(),
         }
     }
 
