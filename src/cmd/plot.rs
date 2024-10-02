@@ -1,3 +1,7 @@
+// Issue tracking:
+//  - https://github.com/ratatui/ratatui/issues/334
+//  - https://github.com/ratatui/ratatui/issues/1391
+
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
@@ -9,6 +13,7 @@ use jiff::{
     Timestamp, Unit, Zoned, ZonedRound,
 };
 use serde::de::{Deserialize, Deserializer, Error};
+use unicode_width::UnicodeWidthStr;
 
 use ratatui::backend::TestBackend;
 use ratatui::buffer::{Buffer, Cell};
@@ -127,8 +132,6 @@ plot options:
                                'halfblock', 'bar', 'block'.
                                [default: braille]
     --x-ticks <n>              Number of x-axis graduation steps.
-                               WARNING: more than 3 graduations will lead to weirdly aligned
-                               labels sometimes (https://github.com/ratatui/ratatui/issues/334).
                                [default: 3]
     --y-ticks <n>              Number of y-axis graduation steps.
                                [default: 4]
@@ -447,6 +450,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut formatter = util::acquire_number_formatter();
 
                 // Create the X axis and define its properties
+                let x_ticks = graduations_from_domain(
+                    &mut formatter,
+                    x_axis_info.axis_type,
+                    x_axis_info.domain,
+                    args.flag_x_ticks.get().min(n.max(2)),
+                );
                 let x_axis = Axis::default()
                     .title(if x_axis_info.can_be_displayed {
                         x_column_name.dim()
@@ -458,12 +467,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         x_axis_info.domain.0.as_float(),
                         x_axis_info.domain.1.as_float(),
                     ])
-                    .labels(graduations_from_domain(
-                        &mut formatter,
-                        x_axis_info.axis_type,
-                        x_axis_info.domain,
-                        args.flag_x_ticks.get().min(n.max(2)),
-                    ));
+                    .labels(x_ticks.clone());
 
                 // Create the Y axis and define its properties
                 let y_axis = Axis::default()
@@ -495,7 +499,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 frame.render_widget(chart, frame.area());
-                patch_buffer(frame.buffer_mut(), None);
+                patch_buffer(frame.buffer_mut(), None, &x_ticks);
             })?;
 
             print_terminal(&terminal, cols);
@@ -569,6 +573,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let mut formatter = util::acquire_number_formatter();
 
                         // Create the X axis and define its properties
+                        let x_ticks = graduations_from_domain(
+                            &mut formatter,
+                            x_axis_info.axis_type,
+                            x_axis_info.domain,
+                            args.flag_x_ticks.get().min(n.max(2)),
+                        );
                         let x_axis = Axis::default()
                             .title(if x_axis_info.can_be_displayed {
                                 x_column_name.clone().dim()
@@ -580,12 +590,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 x_axis_info.domain.0.as_float(),
                                 x_axis_info.domain.1.as_float(),
                             ])
-                            .labels(graduations_from_domain(
-                                &mut formatter,
-                                x_axis_info.axis_type,
-                                x_axis_info.domain,
-                                args.flag_x_ticks.get().min(n.max(2)),
-                            ));
+                            .labels(x_ticks.clone());
 
                         // Create the Y axis and define its properties
                         let y_axis = Axis::default()
@@ -623,7 +628,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         frame.render_widget(chart, layout[i]);
-                        patch_buffer(frame.buffer_mut(), Some(&layout[i]));
+                        patch_buffer(frame.buffer_mut(), Some(&layout[i]), &x_ticks);
 
                         color_i += 1;
                     }
@@ -978,23 +983,70 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
     }
 }
 
-fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>) {
-    let area = area.unwrap_or(buffer.area()).clone();
+fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>) {
+    let area = *area.unwrap_or(buffer.area());
 
-    let x_axis_col = (area.x..area.x + area.width)
+    let origin_col = (area.x..area.x + area.width)
         .find(|x| buffer.cell((*x, area.y)).unwrap().symbol() == "│")
         .unwrap();
 
     // Drawing ticks for y axis
     for y in area.y..area.y + area.height {
-        let cell = buffer.cell((x_axis_col, y)).unwrap();
+        let cell = buffer.cell((origin_col, y)).unwrap();
 
         if cell.symbol() == "│"
-            && (area.x..x_axis_col).any(|x| buffer.cell((x, y)).unwrap().symbol() != " ")
+            && (area.x..origin_col).any(|x| buffer.cell((x, y)).unwrap().symbol() != " ")
         {
-            buffer.cell_mut((x_axis_col, y)).unwrap().set_symbol("┼");
+            buffer.cell_mut((origin_col, y)).unwrap().set_symbol("┼");
         }
     }
+
+    // Fixing ticks for x axis
+    let x_axis_line_y = area.y + area.height - 2;
+    let x_axis_legend_y = x_axis_line_y + 1;
+    let x_axis_end_pos = (area.x + area.width - 1, x_axis_line_y);
+
+    for x in area.x..area.x + area.width {
+        buffer.cell_mut((x, x_axis_legend_y)).unwrap().reset();
+    }
+
+    let steps = x_ticks.len();
+    let mut t = 0.0;
+    let fract = 1.0 / (steps - 1) as f64;
+
+    let first_tick = x_ticks.first().unwrap();
+    buffer.set_string(
+        origin_col
+            .saturating_sub(first_tick.width() as u16)
+            .min(area.x),
+        x_axis_legend_y,
+        first_tick,
+        Style::new(),
+    );
+
+    for i in 1..(steps - 1) {
+        t += fract;
+        let x = lerp(origin_col as f64, (area.x + area.width - 1) as f64, t) as u16;
+        buffer.cell_mut((x, x_axis_line_y)).unwrap().set_symbol("┼");
+
+        let tick = &x_ticks[i];
+        buffer.set_string(
+            x - (tick.width() / 2) as u16,
+            x_axis_legend_y,
+            tick,
+            Style::new(),
+        );
+    }
+
+    let last_tick = x_ticks.last().unwrap();
+
+    buffer.set_string(
+        area.x + area.width - last_tick.width() as u16,
+        x_axis_legend_y,
+        last_tick,
+        Style::new(),
+    );
+    buffer.cell_mut(x_axis_end_pos).unwrap().set_symbol("┼");
 }
 
 #[derive(Debug, Clone, Copy)]
