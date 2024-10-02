@@ -1043,7 +1043,7 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
         Style::new(),
     );
 
-    for tick in x_ticks.iter().skip(1).take(steps - 1) {
+    for tick in x_ticks.iter().skip(1).take(steps - 2) {
         t += fract;
         let x = lerp(origin_col as f64, (area.x + area.width - 1) as f64, t) as u16;
         buffer.cell_mut((x, x_axis_line_y)).unwrap().set_symbol("┼");
