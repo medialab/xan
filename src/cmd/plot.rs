@@ -112,9 +112,11 @@ plot options:
     --cols <num>               Width of the graph in terminal columns, i.e. characters.
                                Defaults to using all your terminal's width or 80 if
                                terminal size cannot be found (i.e. when piping to file).
+                               Can also be given as a ratio of the terminal's width e.g. \"0.5\".
     --rows <num>               Height of the graph in terminal rows, i.e. characters.
                                Defaults to using all your terminal's height minus 2 or 30 if
                                terminal size cannot be found (i.e. when piping to file).
+                               Can also be given as a ratio of the terminal's height e.g. \"0.5\".
     -S, --small-multiples <n>  Display small multiples of datasets given by -C, --category
                                or -Y, --add-series using the provided number of grid columns.
     -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
@@ -150,8 +152,8 @@ struct Args {
     flag_bars: bool,
     flag_time: bool,
     flag_count: bool,
-    flag_cols: Option<usize>,
-    flag_rows: Option<usize>,
+    flag_cols: Option<String>,
+    flag_rows: Option<String>,
     flag_small_multiples: Option<NonZeroUsize>,
     flag_category: Option<SelectColumns>,
     flag_add_series: Vec<SelectColumns>,
@@ -358,14 +360,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    // Drawing
-    let rows = args
-        .flag_rows
-        .unwrap_or_else(|| util::acquire_term_rows().unwrap_or(30))
-        .saturating_sub(2) as u16;
+    // Solving cols & rows
+    let mut cols = util::acquire_term_cols(&None);
 
-    let cols = util::acquire_term_cols(&args.flag_cols) as u16;
-    let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
+    if let Some(spec) = &args.flag_cols {
+        if spec.contains('.') {
+            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid! ")?;
+
+            cols = (cols as f64 * ratio).trunc().abs() as usize;
+        } else {
+            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid! ")?;
+        }
+    }
+
+    let mut rows = util::acquire_term_rows().unwrap_or(30);
+
+    if let Some(spec) = &args.flag_rows {
+        if spec.contains('.') {
+            let ratio = spec.parse::<f64>().map_err(|_| "--rows is invalid! ")?;
+
+            rows = (rows as f64 * ratio).trunc().abs() as usize;
+        } else {
+            rows = spec.parse::<usize>().map_err(|_| "--rows is invalid! ")?;
+        }
+    }
+
+    // NOTE: leaving one row for the prompt
+    rows = rows.saturating_sub(1);
+
+    // Drawing
+    let mut terminal = Terminal::new(TestBackend::new(cols as u16, rows as u16))?;
 
     match args.flag_small_multiples {
         None => {
@@ -847,7 +871,7 @@ impl AxisInfo {
     }
 }
 
-fn print_terminal(terminal: &Terminal<TestBackend>, cols: u16) {
+fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
     let contents = &terminal.backend().buffer().content;
 
     let mut i: usize = 0;
@@ -903,7 +927,7 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: u16) {
     }
 
     while i < contents.len() {
-        let line = group_cells_by_color(&contents[i..(i + cols as usize)])
+        let line = group_cells_by_color(&contents[i..(i + cols)])
             .iter()
             .map(|cells| {
                 colorize(
@@ -917,7 +941,7 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: u16) {
 
         println!("{}", line);
 
-        i += cols as usize;
+        i += cols;
     }
 }
 

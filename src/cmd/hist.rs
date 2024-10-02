@@ -42,6 +42,7 @@ hist options:
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if
                              terminal's size cannot be found (i.e. when piping to file).
+                             Can also be given as a ratio of the terminal's width e.g. \"0.5\".
     -R, --rainbow            Alternating colors for the bars.
     -m, --domain-max <type>  If \"max\" max bar length will be scaled to the
                              max bar value. If \"sum\", max bar length will be scaled to
@@ -71,7 +72,7 @@ struct Args {
     flag_field: SelectColumns,
     flag_label: SelectColumns,
     flag_value: SelectColumns,
-    flag_cols: Option<usize>,
+    flag_cols: Option<String>,
     flag_force_colors: bool,
     flag_domain_max: String,
     flag_simple: bool,
@@ -124,7 +125,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut formatter = util::acquire_number_formatter();
 
-    let cols = util::acquire_term_cols(&args.flag_cols);
+    let mut cols = util::acquire_term_cols(&None);
+
+    if let Some(spec) = &args.flag_cols {
+        if spec.contains('.') {
+            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid! ")?;
+
+            cols = (cols as f64 * ratio).trunc().abs() as usize;
+        } else {
+            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid! ")?;
+        }
+    }
 
     let unit = args.flag_unit.as_deref().unwrap_or("");
 
