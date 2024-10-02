@@ -92,40 +92,40 @@ Usage:
     xan plot --help
 
 plot options:
-    -L, --line               Whether to draw a line plot instead of the default scatter plot.
-    -B, --bars               Whether to draw bars instead of the default scatter plot.
-                             WARNING: currently does not work if y range does not include 0.
-                             (https://github.com/ratatui/ratatui/issues/1391)
-    -T, --time               Use to indicate that the x axis is temporal. The axis will be
-                             discretized according to some inferred temporal granularity and
-                             y values will be summed wrt the newly discretized x axis.
-    --count                  Omit the y column and count rows instead. Only relevant when
-                             used with -T, --time that will discretize the x axis.
-    -C, --category <col>     Name of the categorical column that will be used to
-                             draw different datasets each with their own color.
-                             Incompatible with -Y, --add-series.
-    -Y, --add-series <col>   Name of another column of y values to add as new series.
-                             Incompatible with -C, --category.
-    -g, --granularity <g>    Force temporal granularity for x axis discretization when
-                             using -T, --time. Must be one of \"years\", \"months\", \"days\",
-                             \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
-    --cols <num>             Width of the graph in terminal columns, i.e. characters.
-                             Defaults to using all your terminal's width or 80 if
-                             terminal size cannot be found (i.e. when piping to file).
-    --rows <num>             Height of the graph in terminal rows, i.e. characters.
-                             Defaults to using all your terminal's height minus 2 or 30 if
-                             terminal size cannot be found (i.e. when piping to file).
-    -G, --grid-cols <n>      Display small multiples of datasets given by -C, --category
-                             or -Y, --add-series using the provided number of grid columns.
-    -M, --marker <name>      Marker to use. Can be one of (by order of size): 'braille', 'dot',
-                             'halfblock', 'bar', 'block'.
-                             [default: braille]
-    --x-ticks <n>            Number of x-axis graduation steps.
-                             WARNING: more than 3 graduations will lead to weirdly aligned
-                             labels sometimes (https://github.com/ratatui/ratatui/issues/334).
-                             [default: 3]
-    --y-ticks <n>            Number of y-axis graduation steps.
-                             [default: 4]
+    -L, --line                 Whether to draw a line plot instead of the default scatter plot.
+    -B, --bars                 Whether to draw bars instead of the default scatter plot.
+                               WARNING: currently does not work if y range does not include 0.
+                               (https://github.com/ratatui/ratatui/issues/1391)
+    -T, --time                 Use to indicate that the x axis is temporal. The axis will be
+                               discretized according to some inferred temporal granularity and
+                               y values will be summed wrt the newly discretized x axis.
+    --count                    Omit the y column and count rows instead. Only relevant when
+                               used with -T, --time that will discretize the x axis.
+    -C, --category <col>       Name of the categorical column that will be used to
+                               draw different datasets each with their own color.
+                               Incompatible with -Y, --add-series.
+    -Y, --add-series <col>     Name of another column of y values to add as new series.
+                               Incompatible with -C, --category.
+    -g, --granularity <g>      Force temporal granularity for x axis discretization when
+                               using -T, --time. Must be one of \"years\", \"months\", \"days\",
+                               \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
+    --cols <num>               Width of the graph in terminal columns, i.e. characters.
+                               Defaults to using all your terminal's width or 80 if
+                               terminal size cannot be found (i.e. when piping to file).
+    --rows <num>               Height of the graph in terminal rows, i.e. characters.
+                               Defaults to using all your terminal's height minus 2 or 30 if
+                               terminal size cannot be found (i.e. when piping to file).
+    -S, --small-multiples <n>  Display small multiples of datasets given by -C, --category
+                               or -Y, --add-series using the provided number of grid columns.
+    -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
+                               'halfblock', 'bar', 'block'.
+                               [default: braille]
+    --x-ticks <n>              Number of x-axis graduation steps.
+                               WARNING: more than 3 graduations will lead to weirdly aligned
+                               labels sometimes (https://github.com/ratatui/ratatui/issues/334).
+                               [default: 3]
+    --y-ticks <n>              Number of y-axis graduation steps.
+                               [default: 4]
     --x-min <n>              Force a minimum value for the x axis.
     --x-max <n>              Force a maximum value for the x axis.
     --y-min <n>              Force a minimum value for the y axis.
@@ -152,7 +152,7 @@ struct Args {
     flag_count: bool,
     flag_cols: Option<usize>,
     flag_rows: Option<usize>,
-    flag_grid_cols: Option<NonZeroUsize>,
+    flag_small_multiples: Option<NonZeroUsize>,
     flag_category: Option<SelectColumns>,
     flag_add_series: Vec<SelectColumns>,
     flag_marker: Marker,
@@ -367,7 +367,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let cols = util::acquire_term_cols(&args.flag_cols) as u16;
     let mut terminal = Terminal::new(TestBackend::new(cols, rows))?;
 
-    match args.flag_grid_cols {
+    match args.flag_small_multiples {
         None => {
             terminal.draw(|frame| {
                 let n = finalized_series[0].1.len();
