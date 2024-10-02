@@ -395,7 +395,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // if we have more than what can fit in a single column by default
     if let Some(grid_cols) = args.flag_small_multiples {
         if args.flag_rows.is_none() && finalized_series.windows(grid_cols.get()).count() > 1 {
-            rows = rows / 2;
+            rows /= 2;
         }
     }
 
@@ -561,7 +561,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             .style(get_series_color(color_i))
                             .data(&single_finalized_series.1);
 
-                        if let Some(name) = single_finalized_series.0 {
+                        if let Some(name) = &single_finalized_series.0 {
                             dataset = dataset.name(name.clone());
                         }
 
@@ -588,8 +588,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         // Create the Y axis and define its properties
                         let y_axis = Axis::default()
-                            .title(if !has_added_series && y_axis_info.can_be_displayed {
-                                y_column_name.clone().dim()
+                            .title(if y_axis_info.can_be_displayed {
+                                if has_added_series {
+                                    single_finalized_series.0.unwrap().dim()
+                                } else {
+                                    y_column_name.clone().dim()
+                                }
                             } else {
                                 "".dim()
                             })
@@ -606,16 +610,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             ));
 
                         // Create the chart and link all the parts together
-                        let chart = Chart::new(vec![dataset]).x_axis(x_axis).y_axis(y_axis);
+                        let mut chart = Chart::new(vec![dataset]).x_axis(x_axis).y_axis(y_axis);
 
-                        // if !showing_multiple_series {
-                        //     chart = chart.legend_position(None);
-                        // } else {
-                        //     chart = chart.hidden_legend_constraints((
-                        //         Constraint::Min(0),
-                        //         Constraint::Min(0),
-                        //     ));
-                        // }
+                        if category_column_index.is_some() {
+                            chart = chart.hidden_legend_constraints((
+                                Constraint::Min(0),
+                                Constraint::Min(0),
+                            ));
+                        } else {
+                            chart = chart.legend_position(None);
+                        }
 
                         frame.render_widget(chart, layout[i]);
                         color_i += 1;
