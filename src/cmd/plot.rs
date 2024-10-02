@@ -990,7 +990,7 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
     }
 }
 
-fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>, draw_grid: bool) {
+fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], draw_grid: bool) {
     let area = *area.unwrap_or(buffer.area());
 
     let origin_col = (area.x..area.x + area.width)
@@ -1043,12 +1043,11 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>,
         Style::new(),
     );
 
-    for i in 1..(steps - 1) {
+    for tick in x_ticks.iter().skip(1).take(steps - 1) {
         t += fract;
         let x = lerp(origin_col as f64, (area.x + area.width - 1) as f64, t) as u16;
         buffer.cell_mut((x, x_axis_line_y)).unwrap().set_symbol("┼");
 
-        let tick = &x_ticks[i];
         buffer.set_string(
             x - (tick.width() / 2) as u16,
             x_axis_legend_y,
@@ -1068,6 +1067,7 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>,
 
                 if cell.symbol() == "─" {
                     cell.set_symbol("┼");
+                    cell.set_style(Style::new().dim());
                 }
             }
         }

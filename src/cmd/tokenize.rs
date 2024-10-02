@@ -104,6 +104,7 @@ tokenize options:
     -J, --filter-junk        Whether to apply some heuristics to filter out words that look like junk.
     -L, --lower              Whether to normalize token case using lower case.
     -U, --unidecode          Whether to normalize token text to ascii.
+    --split-hyphens          Whether to split tokens by hyphens.
     --stemmer <name>         Stemmer to normalize the tokens. Can be one of:
                                 - \"s\": a basic stemmer removing typical plural inflections in
                                          most European languages.
@@ -156,6 +157,7 @@ struct Args {
     flag_filter_junk: bool,
     flag_lower: bool,
     flag_unidecode: bool,
+    flag_split_hyphens: bool,
     flag_simple: bool,
     flag_paragraphs: bool,
     flag_sentences: bool,
@@ -364,11 +366,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .collect();
         }
 
-        let tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
+        let mut tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
             Box::new(tokenizer.simple_tokenize(string))
         } else {
             Box::new(tokenizer.tokenize(string))
         };
+
+        if args.flag_split_hyphens {
+            tokens = Box::new(tokens.flat_map(|token| {
+                token.text.split('-').map(move |text| WordToken {
+                    text,
+                    kind: token.kind,
+                })
+            }));
+        }
 
         let tokens = tokens.filter_map(|token| {
             let pair = token.to_pair();
