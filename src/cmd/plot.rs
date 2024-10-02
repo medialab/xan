@@ -131,6 +131,7 @@ plot options:
     -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
                                'halfblock', 'bar', 'block'.
                                [default: braille]
+    -G, --grid                 Draw a background grid.
     --x-ticks <n>              Number of x-axis graduation steps.
                                [default: 3]
     --y-ticks <n>              Number of y-axis graduation steps.
@@ -168,6 +169,7 @@ struct Args {
     flag_add_series: Vec<SelectColumns>,
     flag_marker: Marker,
     flag_granularity: Option<Granularity>,
+    flag_grid: bool,
     flag_x_ticks: NonZeroUsize,
     flag_y_ticks: NonZeroUsize,
     flag_x_min: Option<String>,
@@ -499,7 +501,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 frame.render_widget(chart, frame.area());
-                patch_buffer(frame.buffer_mut(), None, &x_ticks);
+                patch_buffer(frame.buffer_mut(), None, &x_ticks, args.flag_grid);
             })?;
 
             print_terminal(&terminal, cols);
@@ -628,7 +630,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         frame.render_widget(chart, layout[i]);
-                        patch_buffer(frame.buffer_mut(), Some(&layout[i]), &x_ticks);
+                        patch_buffer(
+                            frame.buffer_mut(),
+                            Some(&layout[i]),
+                            &x_ticks,
+                            args.flag_grid,
+                        );
 
                         color_i += 1;
                     }
@@ -983,7 +990,7 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
     }
 }
 
-fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>) {
+fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>, draw_grid: bool) {
     let area = *area.unwrap_or(buffer.area());
 
     let origin_col = (area.x..area.x + area.width)
@@ -998,6 +1005,18 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>)
             && (area.x..origin_col).any(|x| buffer.cell((x, y)).unwrap().symbol() != " ")
         {
             buffer.cell_mut((origin_col, y)).unwrap().set_symbol("┼");
+
+            if y > area.y && y < area.y + area.height - 3 && draw_grid {
+                for x in origin_col + 1..area.x + area.width {
+                    let cell = buffer.cell_mut((x, y)).unwrap();
+
+                    if cell.symbol() == " " {
+                        cell.reset();
+                        cell.set_symbol("─");
+                        cell.set_style(Style::new().dim());
+                    }
+                }
+            }
         }
     }
 
@@ -1036,6 +1055,22 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &Vec<String>)
             tick,
             Style::new(),
         );
+
+        if draw_grid {
+            for y in area.y..x_axis_line_y {
+                let cell = buffer.cell_mut((x, y)).unwrap();
+
+                if cell.symbol() == " " {
+                    cell.reset();
+                    cell.set_symbol("│");
+                    cell.set_style(Style::new().dim());
+                }
+
+                if cell.symbol() == "─" {
+                    cell.set_symbol("┼");
+                }
+            }
+        }
     }
 
     let last_tick = x_ticks.last().unwrap();
