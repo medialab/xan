@@ -385,6 +385,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    // NOTE: when drawing small multiples, if --rows was not given, we split vertical space
+    // if we have more than what can fit in a single column by default
+    if let Some(grid_cols) = args.flag_small_multiples {
+        if args.flag_rows.is_none() && finalized_series.windows(grid_cols.get()).count() > 1 {
+            rows = rows / 2;
+        }
+    }
+
     // NOTE: leaving one row for the prompt
     rows = rows.saturating_sub(1);
 
