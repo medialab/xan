@@ -19,6 +19,7 @@ not to lose the colors:
 
 Usage:
     xan flatten [options] [<input>]
+    xan f [options] [<input>]
 
 flatten options:
     -c, --condense         Don't wrap cell values on new lines but truncate them

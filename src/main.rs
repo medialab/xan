@@ -80,9 +80,9 @@ macro_rules! command_list {
 
 ## Explore & visualize
     count       Count rows in file
-    headers     Show header names
-    view        Preview a CSV file in a human-friendly way
-    flatten     Display a flattened version of each row of a file
+    headers (h) Show header names
+    view (v)    Preview a CSV file in a human-friendly way
+    flatten (f) Display a flattened version of each row of a file
     hist        Print a histogram with rows of CSV file as bars
     plot        Draw a scatter plot or line chart
     progress    Display a progress bar while reading CSV data
@@ -245,6 +245,7 @@ enum Command {
     Eval,
     Explode,
     ForEach,
+    F,
     Filter,
     FixLengths,
     Flatmap,
@@ -255,6 +256,7 @@ enum Command {
     From,
     Glob,
     Groupby,
+    H,
     Headers,
     Help,
     Hist,
@@ -284,6 +286,7 @@ enum Command {
     Transpose,
     #[serde(rename = "union-find")]
     UnionFind,
+    V,
     View,
     Vocab,
 }
@@ -315,6 +318,7 @@ impl Command {
             Command::Filter => cmd::filter::run(argv),
             Command::FixLengths => cmd::fixlengths::run(argv),
             Command::Flatmap => cmd::flatmap::run(argv),
+            Command::F => cmd::flatten::run(argv),
             Command::Flatten => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
             Command::ForEach => cmd::foreach::run(argv),
@@ -322,6 +326,7 @@ impl Command {
             Command::From => cmd::from::run(argv),
             Command::Glob => cmd::glob::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
+            Command::H => cmd::headers::run(argv),
             Command::Headers => cmd::headers::run(argv),
             Command::Help => {
                 wout!("{}", util::colorize_main_help(USAGE));
@@ -353,6 +358,7 @@ impl Command {
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose => cmd::transpose::run(argv),
             Command::UnionFind => cmd::union_find::run(argv),
+            Command::V => cmd::view::run(argv),
             Command::View => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
         }

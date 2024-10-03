@@ -17,6 +17,7 @@ the --intersect flag.
 
 Usage:
     xan headers [options] [<input>...]
+    xan h [options] [<input>...]
 
 headers options:
     -j, --just-names       Only show the header names (hide column index).

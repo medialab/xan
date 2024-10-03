@@ -187,6 +187,7 @@ the -e/--expand and -C/--force-colors flags before piping like so:
 
 Usage:
     xan view [options] [<input>]
+    xan v [options] [<input>]
     xan view --help
 
 view options:
