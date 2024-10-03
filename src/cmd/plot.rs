@@ -107,9 +107,9 @@ plot options:
     --count                    Omit the y column and count rows instead. Only relevant when
                                used with -T, --time that will discretize the x axis.
     -C, --category <col>       Name of the categorical column that will be used to
-                               draw different datasets each with their own color.
+                               draw distinct series per category.
                                Incompatible with -Y, --add-series.
-    -Y, --add-series <col>     Name of another column of y values to add as new series.
+    -Y, --add-series <col>     Name of another column of y values to add as a new series.
                                Incompatible with -C, --category.
     -g, --granularity <g>      Force temporal granularity for x axis discretization when
                                using -T, --time. Must be one of \"years\", \"months\", \"days\",
