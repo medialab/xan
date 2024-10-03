@@ -126,8 +126,12 @@ plot options:
                                or -Y, --add-series using the provided number of grid columns.
                                The plot will all share the same x scale but use a different y scale by
                                default. See --share-y-scale and --separate-x-scale to tweak this behavior.
-    --share-y-scale            Share y scale for all plot when drawing small multiples.
-    --separate-x-scale         Use a distinct x scale for all plots when drawing small multiples.
+    --share-x-scale <yes|no>   Give \"yes\" to share x scale for all plot when drawing small multiples with -S,
+                               or \"no\" to keep them separate.
+                               [default: yes]
+    --share-y-scale <yes|no>   Give \"yes\" to share y scale for all plot when drawing small multiples with -S,
+                               or \"no\" to keep them separate. Defaults to \"yes\" when -C, --category is given
+                               and \"no\" when -Y, --add-series is given.
     -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
                                'halfblock', 'bar', 'block'.
                                [default: braille]
@@ -163,8 +167,8 @@ struct Args {
     flag_cols: Option<String>,
     flag_rows: Option<String>,
     flag_small_multiples: Option<NonZeroUsize>,
-    flag_share_y_scale: bool,
-    flag_separate_x_scale: bool,
+    flag_share_x_scale: String,
+    flag_share_y_scale: Option<String>,
     flag_category: Option<SelectColumns>,
     flag_add_series: Vec<SelectColumns>,
     flag_marker: Marker,
@@ -211,6 +215,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+
+    let share_x_scale = args.flag_share_x_scale == "yes";
+    let share_y_scale = args
+        .flag_share_y_scale
+        .as_ref()
+        .map(|choice| choice == "yes")
+        .unwrap_or(args.flag_add_series.is_empty());
 
     debug_assert!(if args.flag_count {
         args.arg_y.is_none()
@@ -542,11 +553,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let (mut x_axis_info, mut y_axis_info) =
                             AxisInfo::from_single_series(single_finalized_series);
 
-                        if !args.flag_separate_x_scale {
+                        if share_x_scale {
                             x_axis_info = harmonized_x_axis_info.clone();
                         }
 
-                        if args.flag_share_y_scale {
+                        if share_y_scale {
                             y_axis_info = harmonized_y_axis_info.clone();
                         }
 
