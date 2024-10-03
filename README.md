@@ -433,55 +433,88 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *All commands are not fully documented on this README yet, but all the necessary information can be found directly from the command line. Just run `xan command -h` for help*
 
-- **agg** - Aggregate data from CSV file
-- [**behead**](./docs/cmd/behead.md) - Drop header from CSV file
-- **bins** - Dispatch numeric columns into bins
-- **blank** - Blank down a CSV file
-- **cat** - Concatenate by row or column
-- **cluster** - Cluster CSV data to find near-duplicates
-- [**count**](./docs/cmd/count.md) - Count records
-- **dedup** - Deduplicate a CSV file
-- **enum** - Enumerate CSV file by preprending an index column
-- **explode** - Explode rows based on some column separator
-- **filter** - Only keep some CSV rows based on an evaluated expression
-- **fixlengths** - Makes all records have same length
-- **flatmap** - Emit one row per value yielded by an expression evaluated for each CSV row
-- **flatten** - Show one field per line
-- **fmt** - Format CSV output (change field delimiter)
-- **foreach** - Loop over a CSV file to perform side effects
-- **frequency** - Show frequency tables
-- **from** - Convert a variety of formats to CSV
-- **glob** - Create a CSV file with paths matching a glob pattern
-- **groupby** - Aggregate data by groups of a CSV file
-- [**headers**](./docs/cmd/headers.md) - Show header names
-- **hist** - Print a histogram with rows of CSV file as bars
-- **implode** - Collapse consecutive identical rows based on a diverging column
-- **index** - Create CSV index for faster access
-- **input** - Read CSV data with special quoting rules
-- **join** - Join CSV files
-- **map** - Create a new column by evaluating an expression on each CSV row
-- **merge** - Merge multiple similar already sorted CSV files
-- **partition** - Partition CSV data based on a column value
-- **plot** - Draw a scatter plot or line chart
-- **progress** - Display a progress bar while reading CSV data
-- **range** - Create a CSV file from a numerical range
-- **rename** - Rename columns of a CSV file
-- **reverse** - Reverse rows of CSV data
-- **sample** - Randomly sample CSV data
-- **search** - Search CSV data with regexes
-- **select** - Select columns from CSV
-- **shuffle** - Shuffle CSV data
-- **slice** - Slice records from CSV
-- **sort** - Sort CSV data
-- **split** - Split CSV data into many files
-- **stats** - Compute basic statistics
-- **tokenize** - Tokenize a text column
-- **top** - Find top rows of a CSV file according to some column
-- **transform** - Transform a column by evaluating an expression on each CSV row
-- **transpose** - Transpose CSV file
-- **union-find** - Apply the union-find algorithm on a CSV edge list
-- **view** - Preview a CSV file in a human-friendly way
-- **vocab** - Build a vocabulary over tokenized documents
+*Explore & visualize*
+
+- [**count**](./docs/cmd/count.md): Count rows in file
+- [**headers**](./docs/cmd/headers.md): Show header names
+- **view**: Preview a CSV file in a human-friendly way
+- **flatten**: Display a flattened version of each row of a file
+- **hist**: Print a histogram with rows of CSV file as bars
+- **plot**: Draw a scatter plot or line chart
+- **progress**: Display a progress bar while reading CSV data
+
+*Search & filter*
+
+- **search**: Search CSV data with regexes
+- **filter**: Only keep some CSV rows based on an evaluated expression
+- **slice**: Slice rows of CSV file
+- **top**: Find top rows of a CSV file according to some column
+- **sample**: Randomly sample CSV data
+
+*Sort & deduplicate*
+
+- **sort**: Sort CSV data
+- **dedup**: Deduplicate a CSV file
+- **shuffle**: Shuffle CSV data
+
+*Combine multiple CSV files*
+
+- **cat**: Concatenate by row or column
+- **join**: Join CSV files
+- **merge**: Merge multiple similar already sorted CSV files
+
+*Split a CSV file into multiple*
+
+- **split**: Split CSV data into chunks
+- **partition**: Partition CSV data based on a column value
+
+*Add & transform columns*
+
+- **map**: Create a new column by evaluating an expression on each CSV row
+- **transform**: Transform a column by evaluating an expression on each CSV row
+- **enum**: Enumerate CSV file by preprending an index column
+- **flatmap**: Emit one row per value yielded by an expression evaluated for each CSV row
+
+*Format, convert & recombobulate*
+
+- **select**: Select columns from CSV
+- [**behead**](./docs/cmd/behead.md): Drop header from CSV file
+- **rename**: Rename columns of a CSV file
+- **input**: Read CSV data with special quoting rules
+- **fixlengths**: Makes all rows have same length
+- **fmt**: Format CSV output (change field delimiter)
+- **explode**: Explode rows based on some column separator
+- **implode**: Collapse consecutive identical rows based on a diverging column
+- **from**: Convert a variety of formats to CSV
+- **reverse**: Reverse rows of CSV data
+- **transpose**: Transpose CSV file
+
+*Aggregate*
+
+- **frequency**: (freq) Show frequency tables
+- **groupby**: Aggregate data by groups of a CSV file
+- **stats**: Compute basic statistics
+- **agg**: Aggregate data from CSV file
+- **bins**: Dispatch numeric columns into bins
+
+*Generate CSV files*
+
+- **glob**: Create a CSV file with paths matching a glob pattern
+- **range**: Create a CSV file from a numerical range
+
+*Perform side-effects*
+
+- **foreach**: Loop over a CSV file to perform side effects
+
+*Lexicometry & fuzzy matching*
+
+- **tokenize**: Tokenize a text column
+- **vocab**: Build a vocabulary over tokenized documents
+- **cluster**: Cluster CSV data to find near-duplicates
+
+*Graph algorithms*
+
+- **union-find**: Apply the union-find algorithm on a CSV edge list
 
 ## General flags and IO model
 
