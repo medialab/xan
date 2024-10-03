@@ -62,8 +62,8 @@ map options:
                                  - "ignore": coerce result for row to null
                                  - "log": print error to stderr
                                [default: panic].
-    --error-column <name>      Name of the column containing errors if
-                               "-E/--errors" is set to "report".
+    --error-column <name>      Name of the column containing errors if -E/--errors
+                               is set to "report".
                                [default: xan_error].
 
 Common options:

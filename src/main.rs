@@ -197,12 +197,15 @@ fn main() {
     }
     match args.arg_command {
         None => {
-            werr!(concat!(
-                "xan is a suite of CSV command line utilities.
+            werr!(
+                "{}",
+                util::colorize_main_help(concat!(
+                    "xan is a suite of CSV command line utilities.
 
 Please choose one of the following commands:",
-                command_list!()
-            ));
+                    command_list!()
+                ))
+            );
             process::exit(0);
         }
         Some(cmd) => match cmd.run() {
@@ -321,7 +324,7 @@ impl Command {
             Command::Groupby => cmd::groupby::run(argv),
             Command::Headers => cmd::headers::run(argv),
             Command::Help => {
-                wout!("{}", USAGE);
+                wout!("{}", util::colorize_main_help(USAGE));
                 Ok(())
             }
             Command::Hist => cmd::hist::run(argv),
@@ -379,7 +382,12 @@ impl fmt::Display for CliError {
 
 impl From<docopt::Error> for CliError {
     fn from(err: docopt::Error) -> CliError {
-        CliError::Flag(err)
+        match err {
+            docopt::Error::WithProgramUsage(_, usage) => {
+                CliError::Other(util::colorize_help(&usage))
+            }
+            _ => CliError::Flag(err),
+        }
     }
 }
 

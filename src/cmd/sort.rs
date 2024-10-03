@@ -42,10 +42,10 @@ macro_rules! sort_by {
 }
 
 static USAGE: &str = "
-Sorts CSV data lexicographically.
+Sorts CSV data.
 
 Note that this requires reading all of the CSV data into memory, unless
-you use the \"-e/--external\" flag, which will be slower and fallback
+you use the -e/--external flag, which will be slower and fallback
 to using disk space.
 
 Usage:
@@ -58,7 +58,7 @@ sort options:
     -N, --numeric             Compare according to string numerical value
     -R, --reverse             Reverse order
     -c, --count <name>        Number of times the line was consecutively duplicated.
-                              Needs a column name. Can only be used with '--uniq'.
+                              Needs a column name. Can only be used with --uniq.
     -u, --uniq                When set, identical consecutive lines will be dropped
                               to keep only one line per sorted value.
     -U, --unstable            Unstable sort. Can improve performance.

@@ -14,10 +14,12 @@ use deepsize::DeepSizeOf;
 use docopt::Docopt;
 use ext_sort::ExternalChunk;
 use jiff::civil::DateTime;
+use lazy_static::lazy_static;
 use numfmt::{Formatter, Numeric, Precision};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use rand_seeder::Seeder;
+use regex::{Captures, Regex};
 use serde::de::{Deserialize, DeserializeOwned, Deserializer, Error};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -43,6 +45,42 @@ pub fn version() -> String {
         }
         _ => "".to_owned(),
     }
+}
+
+lazy_static! {
+    static ref FLAG_REGEX: Regex = Regex::new("([\\s,/\\(])(-[\\w\\-]+)").unwrap();
+    static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options?):|---+").unwrap();
+    static ref DIMMED_REGEX: Regex =
+        Regex::new("\\[?<\\w+>\\]?|\\[[\\w\\s:§|]+\\]|\\s+[\\$>][^\\n]+").unwrap();
+    static ref QUOTE_REGEX: Regex = Regex::new("\"[^\"]+\"|'[^']+'|`[^`]+`").unwrap();
+    static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##.+").unwrap();
+    static ref MAIN_COMMAND_REGEX: Regex = Regex::new("(?m)^\\s{4}\\w[\\w\\-]+").unwrap();
+    static ref MAIN_ALIAS_REGEX: Regex = Regex::new("\\([^\\)]+\\)").unwrap();
+}
+
+pub fn colorize_help(help: &str) -> String {
+    let help = FLAG_REGEX.replace_all(help, |caps: &Captures| {
+        caps[1].to_string() + &caps[2].cyan().to_string()
+    });
+    let help =
+        SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().bold().to_string());
+    let help = QUOTE_REGEX.replace_all(&help, |caps: &Captures| caps[0].green().to_string());
+
+    let help = DIMMED_REGEX.replace_all(&help, |caps: &Captures| {
+        caps[0].dimmed().white().to_string()
+    });
+
+    help.into_owned()
+}
+
+pub fn colorize_main_help(help: &str) -> String {
+    let help =
+        MAIN_SECTION_REGEX.replace_all(help, |caps: &Captures| caps[0].yellow().bold().to_string());
+    let help =
+        MAIN_COMMAND_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().bold().to_string());
+    let help = MAIN_ALIAS_REGEX.replace_all(&help, |caps: &Captures| caps[0].dimmed().to_string());
+
+    help.replace("xan", &"xan".red().to_string())
 }
 
 pub fn get_args<T>(usage: &str, argv: &[&str]) -> CliResult<T>
@@ -528,7 +566,7 @@ pub fn unicode_aware_wrap(string: &str, max_width: usize, indent: usize) -> Stri
 }
 
 pub struct EmojiSanitizer {
-    pattern: regex::Regex,
+    pattern: Regex,
 }
 
 impl EmojiSanitizer {
@@ -547,14 +585,14 @@ impl EmojiSanitizer {
         pattern.pop();
         pattern.push(')');
 
-        let pattern = regex::Regex::new(&pattern).unwrap();
+        let pattern = Regex::new(&pattern).unwrap();
 
         EmojiSanitizer { pattern }
     }
 
     pub fn sanitize(&self, string: &str) -> String {
         self.pattern
-            .replace_all(string, |caps: &regex::Captures| {
+            .replace_all(string, |caps: &Captures| {
                 format!(
                     ":{}:",
                     match emojis::get(&caps[0]) {
