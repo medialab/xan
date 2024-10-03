@@ -306,10 +306,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
 
-    let mut grouped_series = if showing_multiple_series {
-        GroupedSeries::with_groups()
+    let mut series_builder = if !additional_series_indices.is_empty() {
+        let mut multiple_series = MultipleSeries::with_capacity(additional_series_indices.len());
+        multiple_series.register_series(y_column_name.as_bytes());
+
+        for (name, _) in additional_series_indices.iter() {
+            multiple_series.register_series(name);
+        }
+
+        SeriesBuilder::Multiple(multiple_series)
+    } else if category_column_index.is_some() {
+        SeriesBuilder::new_categorical()
     } else {
-        GroupedSeries::default()
+        SeriesBuilder::new_single()
     };
 
     while rdr.read_byte_record(&mut record)? {
@@ -336,26 +345,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if let Some(i) = category_column_index {
-            grouped_series.add_with_name(&record[i], x, y)
+            series_builder.add_with_name(record[i].to_vec(), x, y)
         } else if !additional_series_indices.is_empty() {
-            grouped_series.add_with_name(y_column_name.as_bytes(), x, y);
+            series_builder.add_with_index(0, x, y);
 
-            for (name, pos) in additional_series_indices.iter() {
+            for (i, (_, pos)) in additional_series_indices.iter().enumerate() {
                 let v = parse_as_number(&record[*pos])?;
 
-                grouped_series.add_with_name(name, x, v);
+                series_builder.add_with_index(i + 1, x, v);
             }
         } else {
-            grouped_series.add(x, y);
+            series_builder.add(x, y);
         }
     }
 
-    if grouped_series.is_empty() {
+    if series_builder.is_empty() {
         println!("Nothing to display!");
         return Ok(());
     }
 
-    let mut finalized_series = grouped_series.finalize();
+    let mut finalized_series = series_builder.into_finalized_series();
 
     for (_, series) in finalized_series.iter_mut() {
         if args.flag_time {
@@ -1291,66 +1300,119 @@ impl Series {
     }
 }
 
-struct GroupedSeries {
-    mapping: Option<IndexMap<Vec<u8>, Series>>,
-    default: Option<Series>,
+#[derive(Default)]
+struct CategoricalSeries {
+    mapping: IndexMap<Vec<u8>, Series>,
 }
 
-impl Default for GroupedSeries {
-    fn default() -> Self {
-        Self {
-            mapping: None,
-            default: Some(Series::new()),
-        }
-    }
-}
-
-impl GroupedSeries {
-    fn with_groups() -> Self {
-        Self {
-            mapping: Some(IndexMap::new()),
-            default: None,
-        }
+impl CategoricalSeries {
+    fn new() -> Self {
+        Self::default()
     }
 
-    fn add(&mut self, x: DynamicNumber, y: DynamicNumber) {
-        self.default.as_mut().unwrap().add(x, y);
-    }
-
-    fn add_with_name(&mut self, name: &[u8], x: DynamicNumber, y: DynamicNumber) {
-        let mapping = self.mapping.as_mut().unwrap();
-
-        mapping
-            .entry(name.to_vec())
+    fn add(&mut self, name: Vec<u8>, x: DynamicNumber, y: DynamicNumber) {
+        self.mapping
+            .entry(name)
             .and_modify(|series| {
                 series.add(x, y);
             })
             .or_insert_with(|| Series::of(x, y));
     }
 
-    fn finalize(self) -> Vec<(Option<String>, Series)> {
-        let mut output = Vec::new();
-
-        if let Some(default_series) = self.default {
-            output.push((None, default_series));
-        } else if let Some(mapping) = self.mapping {
-            for (name, series) in mapping.into_iter() {
-                output.push((Some(String::from_utf8(name).unwrap()), series));
-            }
-        }
-
-        output
+    fn into_finalized_series(self) -> Vec<(Option<String>, Series)> {
+        self.mapping
+            .into_iter()
+            .map(|(name, series)| (Some(String::from_utf8(name).unwrap()), series))
+            .collect()
     }
 
     fn is_empty(&self) -> bool {
-        if let Some(series) = &self.default {
-            return series.is_empty();
-        }
+        self.mapping.values().all(|series| series.is_empty())
+    }
+}
 
-        self.mapping
-            .as_ref()
-            .unwrap()
-            .values()
-            .all(|series| series.is_empty())
+#[derive(Default)]
+struct MultipleSeries {
+    series: Vec<(String, Series)>,
+}
+
+impl MultipleSeries {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            series: Vec::with_capacity(capacity),
+        }
+    }
+
+    fn register_series(&mut self, name: &[u8]) {
+        self.series
+            .push((String::from_utf8(name.to_vec()).unwrap(), Series::new()));
+    }
+
+    fn add(&mut self, index: usize, x: DynamicNumber, y: DynamicNumber) {
+        self.series[index].1.add(x, y);
+    }
+
+    fn into_finalized_series(self) -> Vec<(Option<String>, Series)> {
+        self.series
+            .into_iter()
+            .map(|(name, series)| (Some(name), series))
+            .collect()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.series.iter().all(|(_, series)| series.is_empty())
+    }
+}
+
+enum SeriesBuilder {
+    Single(Series),
+    Multiple(MultipleSeries),
+    Categorical(CategoricalSeries),
+}
+
+impl SeriesBuilder {
+    fn new_single() -> Self {
+        Self::Single(Series::new())
+    }
+
+    fn new_categorical() -> Self {
+        Self::Categorical(CategoricalSeries::new())
+    }
+
+    fn add_with_name(&mut self, name: Vec<u8>, x: DynamicNumber, y: DynamicNumber) {
+        match self {
+            Self::Categorical(inner) => inner.add(name, x, y),
+            _ => unreachable!(),
+        };
+    }
+
+    fn add_with_index(&mut self, index: usize, x: DynamicNumber, y: DynamicNumber) {
+        match self {
+            Self::Multiple(inner) => inner.add(index, x, y),
+            _ => unreachable!(),
+        };
+    }
+
+    fn add(&mut self, x: DynamicNumber, y: DynamicNumber) {
+        match self {
+            Self::Single(inner) => inner.add(x, y),
+            _ => unreachable!(),
+        };
+    }
+
+    fn into_finalized_series(self) -> Vec<(Option<String>, Series)> {
+        match self {
+            Self::Single(inner) => vec![(None, inner)],
+            Self::Categorical(inner) => inner.into_finalized_series(),
+            Self::Multiple(inner) => inner.into_finalized_series(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            Self::Single(inner) => inner.is_empty(),
+            Self::Multiple(inner) => inner.is_empty(),
+            Self::Categorical(inner) => inner.is_empty(),
+        }
     }
 }
