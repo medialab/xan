@@ -58,17 +58,26 @@ impl Children {
     }
 }
 
-// TODO: cat without preprocessing is basically moot
 // TODO: stdin handling, csv stdin handling
 // TODO: cat -S/--source-column
+// TODO: examples in the help
+// TODO: document in main
 
 static USAGE: &str = "
-Count, filter & aggregate CSV datasets split into multiple
-files, in parallel.
+Process CSV datasets split into multiple files, in parallel.
+
+`xan parallel count` lets you count the number of rows in the
+whole dataset.
+
+`xan parallel cat` lets you preprocess the files and redirect
+the concatenated output (e.g. searching all the files in
+parallel and retrieving the results).
 
 Usage:
     xan parallel count [options] [<inputs>...]
     xan parallel cat [options] [<inputs>...]
+    xan p count [options] [<inputs>...]
+    xan p cat [options] [<inputs>...]
     xan parallel --help
 
 parallel options:
@@ -201,6 +210,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     // Cat
     else if args.cmd_cat {
+        // NOTE: the bool tracks whether headers were already written
         let writer_mutex = Arc::new(Mutex::new((
             false,
             Config::new(&args.flag_output).writer()?,
