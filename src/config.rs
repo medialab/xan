@@ -1,12 +1,9 @@
 #[allow(deprecated, unused_imports)]
 use std::ascii::AsciiExt;
-use std::borrow::Borrow;
-use std::borrow::ToOwned;
+use std::borrow::{Borrow, ToOwned};
 use std::env;
-use std::fs;
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::{self, Read, SeekFrom};
+use std::fs::{self, File};
+use std::io::{self, prelude::*, Read, SeekFrom};
 use std::ops::Deref;
 use std::path::PathBuf;
 

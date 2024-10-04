@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
-use crate::config::Delimiter;
+use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
@@ -17,6 +17,7 @@ Usage:
 parallel options:
     -p, --preprocess <op>  Preprocessing command that will run on every
                            file to process.
+    --progress             Display a progress bar for the parallel tasks.
 
 Common options:
     -h, --help             Display this message
@@ -34,6 +35,7 @@ struct Args {
     cmd_count: bool,
     cmd_cat: bool,
     flag_preprocess: Option<String>,
+    flag_progress: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -47,23 +49,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     args.arg_inputs
         .par_iter()
         .try_for_each(|name| -> CliResult<()> {
-            let preprocessing = Command::new("cat")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .arg(name)
-                .spawn()
-                .expect("could not spawn preprocessing");
+            let mut reader: csv::Reader<Box<dyn std::io::Read + Send>> =
+                if let Some(_preprocessing) = &args.flag_preprocess {
+                    let config = Config::new(&None)
+                        .delimiter(args.flag_delimiter)
+                        .no_headers(args.flag_no_headers);
 
-            let mut reader_builder = csv::ReaderBuilder::new();
-            reader_builder.flexible(false);
-            reader_builder.has_headers(!args.flag_no_headers);
+                    let child = Command::new("cat")
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .arg(name)
+                        .spawn()
+                        .expect("could not spawn preprocessing");
 
-            if let Some(delimiter) = args.flag_delimiter {
-                reader_builder.delimiter(delimiter.as_byte());
-            }
+                    config.csv_reader_from_reader(Box::new(
+                        child.stdout.expect("cannot read child stdout"),
+                    ))
+                } else {
+                    let config = Config::new(&Some(name.to_string()))
+                        .delimiter(args.flag_delimiter)
+                        .no_headers(args.flag_no_headers);
 
-            let mut reader =
-                reader_builder.from_reader(preprocessing.stdout.expect("cannot read child stdout"));
+                    config.reader()?
+                };
 
             let mut record = csv::ByteRecord::new();
             let mut count: usize = 0;
