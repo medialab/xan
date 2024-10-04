@@ -81,7 +81,7 @@ macro_rules! command_list {
 ## Explore & visualize
     count       Count rows in file
     headers (h) Show header names
-    view (v)    Preview a CSV file in a human-friendly way
+    view    (v) Preview a CSV file in a human-friendly way
     flatten (f) Display a flattened version of each row of a file
     hist        Print a histogram with rows of CSV file as bars
     plot        Draw a scatter plot or line chart

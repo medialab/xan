@@ -435,9 +435,9 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *Explore & visualize*
 
-- [**count**](./docs/cmd/count.md): Count rows in file
-- [**headers**](./docs/cmd/headers.md): Show header names
-- **view**: Preview a CSV file in a human-friendly way
+- [**count, c**](./docs/cmd/count.md): Count rows in file
+- [**headers, h**](./docs/cmd/headers.md): Show header names
+- **view, v**: Preview a CSV file in a human-friendly way
 - **flatten**: Display a flattened version of each row of a file
 - **hist**: Print a histogram with rows of CSV file as bars
 - **plot**: Draw a scatter plot or line chart
@@ -491,7 +491,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *Aggregate*
 
-- **frequency**: (freq) Show frequency tables
+- **frequency, freq**: Show frequency tables
 - **groupby**: Aggregate data by groups of a CSV file
 - **stats**: Compute basic statistics
 - **agg**: Aggregate data from CSV file

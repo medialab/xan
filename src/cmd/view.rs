@@ -197,8 +197,9 @@ view options:
     -p, --pager            Automatically use the \"less\" command to page the results.
                            This flag does not work on windows!
     -l, --limit <number>   Maximum of lines of files to read into memory. Set
-                           to <= 0 to disable the limit. [default: 100].
-    -R, --rainbow          Alqternating colors for columns, rather than color by value type.
+                           to <= 0 to disable the limit.
+                           [default: 100]
+    -R, --rainbow          Alternating colors for columns, rather than color by value type.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
