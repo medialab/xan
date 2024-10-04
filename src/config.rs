@@ -274,7 +274,7 @@ impl Config {
         Ok(())
     }
 
-    pub fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>> {
+    pub fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + Send + 'static>>> {
         Ok(self.csv_writer_from_writer(self.io_writer()?))
     }
 
@@ -452,7 +452,7 @@ impl Config {
         })
     }
 
-    pub fn io_writer(&self) -> io::Result<Box<dyn io::Write + 'static>> {
+    pub fn io_writer(&self) -> io::Result<Box<dyn io::Write + Send + 'static>> {
         Ok(match self.path {
             None => Box::new(io::stdout()),
             Some(ref p) => Box::new(fs::File::create(p)?),

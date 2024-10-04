@@ -105,7 +105,7 @@ struct Args {
 }
 
 impl Args {
-    fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write>>> {
+    fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + Send>>> {
         Config::new(&self.flag_output).writer()
     }
 

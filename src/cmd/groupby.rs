@@ -16,7 +16,7 @@ use crate::cmd::moonblade::{
 };
 
 fn write_group(
-    wtr: &mut csv::Writer<Box<dyn Write>>,
+    wtr: &mut csv::Writer<Box<dyn Write + Send>>,
     group: &Vec<Vec<u8>>,
     addendum: &csv::ByteRecord,
 ) -> CliResult<()> {

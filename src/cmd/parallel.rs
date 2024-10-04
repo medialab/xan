@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use indicatif::ProgressBar;
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -59,6 +60,7 @@ impl Children {
 
 // TODO: cat without preprocessing is basically moot
 // TODO: stdin handling, csv stdin handling
+// TODO: cat -S/--source-column
 
 static USAGE: &str = "
 Count, filter & aggregate CSV datasets split into multiple
@@ -99,17 +101,16 @@ struct Args {
     flag_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
-    flag_buffer_size: Option<NonZeroUsize>,
+    flag_buffer_size: NonZeroUsize,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
+type Reader = csv::Reader<Box<dyn std::io::Read + Send>>;
+
 impl Args {
-    fn reader(
-        &self,
-        path: &str,
-    ) -> CliResult<(csv::Reader<Box<dyn std::io::Read + Send>>, Option<Children>)> {
+    fn reader(&self, path: &str) -> CliResult<(Reader, Option<Children>)> {
         Ok(if let Some(preprocessing) = &self.flag_preprocess {
             let config = Config::new(&None)
                 .delimiter(self.flag_delimiter)
@@ -150,6 +151,10 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    if args.cmd_cat && args.flag_preprocess.is_none() {
+        Err("`xan parallel cat` without -p/--preprocess is counterproductive!\n`xan cat rows` will be faster.")?
+    }
+
     if let Some(threads) = args.flag_threads {
         ThreadPoolBuilder::new()
             .num_threads(threads.get())
@@ -157,9 +162,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .expect("could not build thread pool!");
     }
 
-    let total_inputs = args.arg_inputs.len();
+    let inputs_count = args.arg_inputs.len();
     let progress_bar = if args.flag_progress {
-        ParallelProgressBar::new(total_inputs)
+        ParallelProgressBar::new(inputs_count)
     } else {
         ParallelProgressBar::hidden()
     };
@@ -196,8 +201,61 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     // Cat
     else if args.cmd_cat {
+        let writer_mutex = Arc::new(Mutex::new((
+            false,
+            Config::new(&args.flag_output).writer()?,
+        )));
+        let buffer_size = args.flag_buffer_size.get();
+
+        let flush = |headers: &csv::ByteRecord, records: &[csv::ByteRecord]| -> CliResult<()> {
+            let mut guard = writer_mutex.lock().unwrap();
+
+            if !guard.0 {
+                guard.1.write_byte_record(headers)?;
+                guard.0 = true;
+            }
+
+            for record in records.iter() {
+                guard.1.write_byte_record(record)?;
+            }
+
+            Ok(())
+        };
+
+        args.arg_inputs
+            .par_iter()
+            .try_for_each(|path| -> CliResult<()> {
+                let (mut reader, mut children_opt) = args.reader(path)?;
+                let headers = reader.byte_headers()?.clone();
+
+                let mut buffer: Vec<csv::ByteRecord> = Vec::with_capacity(buffer_size);
+
+                for result in reader.byte_records() {
+                    if buffer.len() == buffer_size {
+                        flush(&headers, &buffer)?;
+
+                        buffer.clear();
+                    }
+
+                    buffer.push(result?);
+                }
+
+                if !buffer.is_empty() {
+                    flush(&headers, &buffer)?;
+                }
+
+                progress_bar.tick();
+
+                if let Some(children) = children_opt.as_mut() {
+                    children.wait()?;
+                }
+
+                Ok(())
+            })?;
+
         progress_bar.abandon();
-        unimplemented!()
+
+        writer_mutex.lock().unwrap().1.flush()?;
     }
 
     Ok(())
