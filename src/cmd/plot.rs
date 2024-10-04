@@ -140,10 +140,10 @@ plot options:
                                [default: 3]
     --y-ticks <n>              Number of y-axis graduation steps.
                                [default: 4]
-    --x-min <n>              Force a minimum value for the x axis.
-    --x-max <n>              Force a maximum value for the x axis.
-    --y-min <n>              Force a minimum value for the y axis.
-    --y-max <n>              Force a maximum value for the y axis.
+    --x-min <n>                Force a minimum value for the x axis.
+    --x-max <n>                Force a maximum value for the x axis.
+    --y-min <n>                Force a minimum value for the y axis.
+    --y-max <n>                Force a maximum value for the y axis.
 
 Common options:
     -h, --help             Display this message
