@@ -1,5 +1,6 @@
 use std::{cmp::Reverse, collections::HashMap};
 
+use bstr::ByteSlice;
 use csv::{self, ByteRecord};
 use rayon::prelude::*;
 
@@ -41,6 +42,8 @@ frequency options:
                            details. This is provided here because piping 'xan
                            select' into 'xan frequency' will disable the use
                            of indexing.
+    --sep <char>           Split the cell into multiple values to count using the
+                           provided separator.
     -g, --groupby <cols>   If given, will compute frequency tables per group
                            as defined by the given columns.
     -l, --limit <arg>      Limit the frequency table to the N most common
@@ -68,6 +71,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_select: SelectColumns,
+    flag_sep: Option<String>,
     flag_limit: usize,
     flag_threshold: Option<u64>,
     flag_no_extra: bool,
@@ -114,6 +118,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         sel.select(&headers).map(|h| h.to_vec()).collect()
     };
 
+    fn coerce_cell(cell: &[u8], no_extra: bool) -> Option<&[u8]> {
+        if !no_extra {
+            if cell.is_empty() {
+                Some(b"<empty>")
+            } else {
+                Some(cell)
+            }
+        } else if cell.is_empty() {
+            None
+        } else {
+            Some(cell)
+        }
+    }
+
     if let Some(groupby_sel) = groupby_sel_opt {
         let mut groups_to_fields_to_counter: SortedInsertHashmap<
             GroupKey,
@@ -137,6 +155,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut record = csv::ByteRecord::new();
 
+        let mut insert = |g: &Vec<Vec<u8>>, i: usize, c: &[u8]| {
+            groups_to_fields_to_counter.insert_with_or_else(
+                g.clone(),
+                || {
+                    let mut list = Vec::with_capacity(sel.len());
+
+                    for _ in 0..sel.len() {
+                        list.push(HashMap::new());
+                    }
+
+                    list[i]
+                        .entry(c.to_vec())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+
+                    list
+                },
+                |list| {
+                    list[i]
+                        .entry(c.to_vec())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+                },
+            );
+        };
+
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
             let group: Vec<_> = groupby_sel
@@ -144,38 +188,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .map(|cell| cell.to_vec())
                 .collect();
 
-            for (i, mut cell) in sel.select(&record).enumerate() {
-                if !args.flag_no_extra {
-                    if cell.is_empty() {
-                        cell = b"<empty>";
+            for (i, cell) in sel.select(&record).enumerate() {
+                if let Some(sep) = &args.flag_sep {
+                    for sub_cell in cell.split_str(sep) {
+                        let sub_cell = match coerce_cell(sub_cell, args.flag_no_extra) {
+                            Some(c) => c,
+                            None => continue,
+                        };
+
+                        insert(&group, i, sub_cell);
                     }
-                } else if cell.is_empty() {
-                    continue;
+                } else {
+                    let cell = match coerce_cell(cell, args.flag_no_extra) {
+                        Some(c) => c,
+                        None => continue,
+                    };
+
+                    insert(&group, i, cell);
                 }
-
-                groups_to_fields_to_counter.insert_with_or_else(
-                    group.clone(),
-                    || {
-                        let mut list = Vec::with_capacity(sel.len());
-
-                        for _ in 0..sel.len() {
-                            list.push(HashMap::new());
-                        }
-
-                        list[i]
-                            .entry(cell.to_vec())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-
-                        list
-                    },
-                    |list| {
-                        list[i]
-                            .entry(cell.to_vec())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                    },
-                );
             }
         }
 
@@ -284,19 +314,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
-            for (mut cell, counter) in sel.select(&record).zip(fields.iter_mut()) {
-                if !args.flag_no_extra {
-                    if cell.is_empty() {
-                        cell = b"<empty>";
-                    }
-                } else if cell.is_empty() {
-                    continue;
-                }
+            for (cell, counter) in sel.select(&record).zip(fields.iter_mut()) {
+                if let Some(sep) = &args.flag_sep {
+                    for sub_cell in cell.split_str(sep) {
+                        let sub_cell = match coerce_cell(sub_cell, args.flag_no_extra) {
+                            Some(c) => c,
+                            None => continue,
+                        };
 
-                counter
-                    .entry(cell.to_vec())
-                    .and_modify(|count| *count += 1)
-                    .or_insert(1);
+                        counter
+                            .entry(sub_cell.to_vec())
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
+                    }
+                } else {
+                    let cell = match coerce_cell(cell, args.flag_no_extra) {
+                        Some(c) => c,
+                        None => continue,
+                    };
+
+                    counter
+                        .entry(cell.to_vec())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+                }
             }
         }
 
