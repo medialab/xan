@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -7,6 +8,7 @@ use indicatif::ProgressBar;
 use rayon::{prelude::*, ThreadPoolBuilder};
 
 use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -58,26 +60,113 @@ impl Children {
     }
 }
 
+#[derive(Default)]
+struct FrequencyTable {
+    map: HashMap<Vec<u8>, u64>,
+}
+
+impl FrequencyTable {
+    fn inc(&mut self, key: Vec<u8>) {
+        self.add(key, 1);
+    }
+
+    fn add(&mut self, key: Vec<u8>, count: u64) {
+        self.map
+            .entry(key)
+            .and_modify(|current_count| *current_count += count)
+            .or_insert(count);
+    }
+}
+
+struct FrequencyTables {
+    tables: Vec<(Vec<u8>, FrequencyTable)>,
+}
+
+impl FrequencyTables {
+    fn new() -> Self {
+        Self { tables: Vec::new() }
+    }
+
+    fn with_capacity(selected_headers: Vec<Vec<u8>>) -> Self {
+        let mut freq_tables = Self {
+            tables: Vec::with_capacity(selected_headers.len()),
+        };
+
+        for header in selected_headers {
+            freq_tables.tables.push((header, FrequencyTable::default()));
+        }
+
+        freq_tables
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut FrequencyTable> {
+        self.tables.iter_mut().map(|(_, t)| t)
+    }
+
+    fn merge(&mut self, other: Self) -> Result<(), &str> {
+        if self.tables.is_empty() {
+            self.tables = other.tables;
+            return Ok(());
+        }
+
+        let error_msg = "inconsistent column selection across files!";
+
+        if self.tables.len() != other.tables.len() {
+            return Err(error_msg);
+        }
+
+        for (i, (name, table)) in other.tables.into_iter().enumerate() {
+            let (current_name, current_table) = &mut self.tables[i];
+
+            if current_name != &name {
+                return Err(error_msg);
+            }
+
+            for (key, count) in table.map {
+                current_table.add(key, count);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn into_sorted(self) -> impl Iterator<Item = (Vec<u8>, Vec<(Vec<u8>, u64)>)> {
+        self.tables.into_iter().map(|(name, table)| {
+            let mut items: Vec<_> = table.map.into_iter().collect();
+            items.par_sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
+
+            (name, items)
+        })
+    }
+}
+
+// TODO: finish progress bar
 // TODO: stdin handling, csv stdin handling
 // TODO: cat -S/--source-column
 // TODO: examples in the help
 // TODO: document in main
+// TODO: can we chunk a single file?
+// TODO: freq --sep
+// TODO: groupby, agg, stats
 
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
 
-`xan parallel count` lets you count the number of rows in the
-whole dataset.
+`xan parallel count` counts the number of rows in the whole dataset.
 
-`xan parallel cat` lets you preprocess the files and redirect
-the concatenated output (e.g. searching all the files in
-parallel and retrieving the results).
+`xan parallel cat` preprocess the files and redirect the concatenated
+rows to your output (e.g. searching all the files in parallel and
+retrieving the results).
+
+`xan parallel freq` build frequency tables in parallel.
 
 Usage:
     xan parallel count [options] [<inputs>...]
     xan parallel cat [options] [<inputs>...]
+    xan parallel freq [options] [<inputs>...]
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
+    xan p freq [options] [<inputs>...]
     xan parallel --help
 
 parallel options:
@@ -91,6 +180,9 @@ parallel cat options:
     -B, --buffer-size <n>  Number of rows a thread is allowed to keep in memory
                            before flushing to the output.
                            [default: 1024]
+
+parallel freq options:
+    -s, --select <cols>  Columns for which to build frequency tables.
 
 Common options:
     -h, --help             Display this message
@@ -107,10 +199,12 @@ struct Args {
     arg_inputs: Vec<String>,
     cmd_count: bool,
     cmd_cat: bool,
+    cmd_freq: bool,
     flag_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_buffer_size: NonZeroUsize,
+    flag_select: SelectColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -265,7 +359,74 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         progress_bar.abandon();
 
-        writer_mutex.lock().unwrap().1.flush()?;
+        Arc::into_inner(writer_mutex)
+            .unwrap()
+            .into_inner()
+            .unwrap()
+            .1
+            .flush()?;
+    }
+    // Freq
+    else if args.cmd_freq {
+        let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
+
+        args.arg_inputs
+            .par_iter()
+            .try_for_each(|path| -> CliResult<()> {
+                let (mut reader, mut children_opt) = args.reader(path)?;
+
+                let headers = reader.byte_headers()?.clone();
+                let sel = Config::new(&None)
+                    .select(args.flag_select.clone())
+                    .selection(&headers)?;
+
+                let mut freq_tables = FrequencyTables::with_capacity(sel.collect(&headers));
+
+                let mut record = csv::ByteRecord::new();
+
+                while reader.read_byte_record(&mut record)? {
+                    for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
+                        table.inc(cell.to_vec());
+                    }
+                }
+
+                total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
+
+                progress_bar.tick();
+
+                if let Some(children) = children_opt.as_mut() {
+                    children.wait()?;
+                }
+
+                Ok(())
+            })?;
+
+        progress_bar.abandon();
+
+        let mut writer = Config::new(&args.flag_output).writer()?;
+
+        let mut output_record = csv::ByteRecord::new();
+        output_record.extend([b"field", b"value", b"count"]);
+
+        writer.write_byte_record(&output_record)?;
+
+        let total_freq_tables = Arc::into_inner(total_freq_tables_mutex)
+            .unwrap()
+            .into_inner()
+            .unwrap();
+
+        for (field, items) in total_freq_tables.into_sorted() {
+            for (value, count) in items {
+                output_record.clear();
+                output_record.push_field(&field);
+                output_record.push_field(&value);
+                output_record.push_field(count.to_string().as_bytes());
+
+                writer.write_byte_record(&output_record)?;
+            }
+        }
+
+        writer.flush()?;
     }
 
     Ok(())
