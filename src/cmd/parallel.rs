@@ -160,6 +160,9 @@ retrieving the results).
 
 `xan parallel freq` build frequency tables in parallel.
 
+Note that you can use the `split` or `partition` command to preemptively
+split a large file into manageable chunks, if you can spare the disk space.
+
 Usage:
     xan parallel count [options] [<inputs>...]
     xan parallel cat [options] [<inputs>...]
