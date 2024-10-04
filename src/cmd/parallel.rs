@@ -1,11 +1,40 @@
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
+
+struct ParallelProgressBar {
+    bar: Option<ProgressBar>,
+}
+
+impl ParallelProgressBar {
+    fn hidden() -> Self {
+        Self { bar: None }
+    }
+
+    fn new(total: usize) -> Self {
+        Self {
+            bar: Some(ProgressBar::new(total as u64)),
+        }
+    }
+
+    fn abandon(&self) {
+        if let Some(bar) = &self.bar {
+            bar.abandon();
+        }
+    }
+
+    fn tick(&self) {
+        if let Some(bar) = &self.bar {
+            bar.inc(1);
+        }
+    }
+}
 
 static USAGE: &str = "
 Parallel todo...
@@ -46,6 +75,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let total_count = AtomicUsize::new(0);
 
+    let total_inputs = args.arg_inputs.len();
+    let progress_bar = if args.flag_progress {
+        ParallelProgressBar::new(total_inputs)
+    } else {
+        ParallelProgressBar::hidden()
+    };
+
     args.arg_inputs
         .par_iter()
         .try_for_each(|name| -> CliResult<()> {
@@ -81,9 +117,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             total_count.fetch_add(count, Ordering::Relaxed);
+            progress_bar.tick();
 
             Ok(())
         })?;
+
+    progress_bar.abandon();
 
     println!("{}", total_count.into_inner());
 
