@@ -1,5 +1,5 @@
 use std::num::NonZeroUsize;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use indicatif::ProgressBar;
@@ -37,8 +37,28 @@ impl ParallelProgressBar {
     }
 }
 
+struct Children {
+    children: Vec<Child>,
+}
+
+impl Children {
+    fn pair(one: Child, two: Child) -> Self {
+        Self {
+            children: vec![one, two],
+        }
+    }
+
+    fn wait(&mut self) -> std::io::Result<()> {
+        for child in self.children.iter_mut() {
+            child.wait()?;
+        }
+
+        Ok(())
+    }
+}
+
 // TODO: cat without preprocessing is basically moot
-// TODO: stding handling, csv stdin handling
+// TODO: stdin handling, csv stdin handling
 
 static USAGE: &str = "
 Count, filter & aggregate CSV datasets split into multiple
@@ -55,6 +75,11 @@ parallel options:
     --progress             Display a progress bar for the parallel tasks.
     -t, --threads <n>      Number of threads to use. Will default to a sensible
                            number based on the available CPUs.
+
+parallel cat options:
+    -B, --buffer-size <n>  Number of rows a thread is allowed to keep in memory
+                           before flushing to the output.
+                           [default: 1024]
 
 Common options:
     -h, --help             Display this message
@@ -74,32 +99,50 @@ struct Args {
     flag_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
+    flag_buffer_size: Option<NonZeroUsize>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
 impl Args {
-    fn reader(&self, path: &str) -> CliResult<csv::Reader<Box<dyn std::io::Read + Send>>> {
-        Ok(if let Some(_preprocessing) = &self.flag_preprocess {
+    fn reader(
+        &self,
+        path: &str,
+    ) -> CliResult<(csv::Reader<Box<dyn std::io::Read + Send>>, Option<Children>)> {
+        Ok(if let Some(preprocessing) = &self.flag_preprocess {
             let config = Config::new(&None)
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let child = Command::new("cat")
+            let shell = std::env::var("SHELL").expect("$SHELL is not set!");
+
+            let mut cat = Command::new("cat")
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .arg(path)
                 .spawn()
+                .expect("could not spawn \"cat\"");
+
+            let mut child = Command::new(shell)
+                .stdin(cat.stdout.take().expect("could not consume cat stdout"))
+                .stdout(Stdio::piped())
+                .args(["-c", preprocessing])
+                .spawn()
                 .expect("could not spawn preprocessing");
 
-            config.csv_reader_from_reader(Box::new(child.stdout.expect("cannot read child stdout")))
+            (
+                config.csv_reader_from_reader(Box::new(
+                    child.stdout.take().expect("cannot read child stdout"),
+                )),
+                Some(Children::pair(cat, child)),
+            )
         } else {
             let config = Config::new(&Some(path.to_string()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            config.reader()?
+            (config.reader()?, None)
         })
     }
 }
@@ -114,8 +157,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .expect("could not build thread pool!");
     }
 
-    let total_count = AtomicUsize::new(0);
-
     let total_inputs = args.arg_inputs.len();
     let progress_bar = if args.flag_progress {
         ParallelProgressBar::new(total_inputs)
@@ -123,26 +164,41 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ParallelProgressBar::hidden()
     };
 
-    args.arg_inputs
-        .par_iter()
-        .try_for_each(|path| -> CliResult<()> {
-            let mut reader = args.reader(path)?;
-            let mut record = csv::ByteRecord::new();
-            let mut count: usize = 0;
+    // Count
+    if args.cmd_count {
+        let total_count = AtomicUsize::new(0);
 
-            while reader.read_byte_record(&mut record)? {
-                count += 1;
-            }
+        args.arg_inputs
+            .par_iter()
+            .try_for_each(|path| -> CliResult<()> {
+                let (mut reader, mut children_opt) = args.reader(path)?;
 
-            total_count.fetch_add(count, Ordering::Relaxed);
-            progress_bar.tick();
+                let mut record = csv::ByteRecord::new();
+                let mut count: usize = 0;
 
-            Ok(())
-        })?;
+                while reader.read_byte_record(&mut record)? {
+                    count += 1;
+                }
 
-    progress_bar.abandon();
+                total_count.fetch_add(count, Ordering::Relaxed);
+                progress_bar.tick();
 
-    println!("{}", total_count.into_inner());
+                if let Some(children) = children_opt.as_mut() {
+                    children.wait()?;
+                }
+
+                Ok(())
+            })?;
+
+        progress_bar.abandon();
+
+        println!("{}", total_count.into_inner());
+    }
+    // Cat
+    else if args.cmd_cat {
+        progress_bar.abandon();
+        unimplemented!()
+    }
 
     Ok(())
 }
