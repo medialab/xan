@@ -435,9 +435,9 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *Explore & visualize*
 
-- [**count, c**](./docs/cmd/count.md): Count rows in file
-- [**headers, h**](./docs/cmd/headers.md): Show header names
-- **view, v**: Preview a CSV file in a human-friendly way
+- [**count (c)**](./docs/cmd/count.md): Count rows in file
+- [**headers (h)**](./docs/cmd/headers.md): Show header names
+- **view (v)**: Preview a CSV file in a human-friendly way
 - **flatten**: Display a flattened version of each row of a file
 - **hist**: Print a histogram with rows of CSV file as bars
 - **plot**: Draw a scatter plot or line chart
@@ -457,23 +457,19 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - **dedup**: Deduplicate a CSV file
 - **shuffle**: Shuffle CSV data
 
+*Aggregate*
+
+- **frequency (freq)**: Show frequency tables
+- **groupby**: Aggregate data by groups of a CSV file
+- **stats**: Compute basic statistics
+- **agg**: Aggregate data from CSV file
+- **bins**: Dispatch numeric columns into bins
+
 *Combine multiple CSV files*
 
 - **cat**: Concatenate by row or column
 - **join**: Join CSV files
 - **merge**: Merge multiple similar already sorted CSV files
-
-*Split a CSV file into multiple*
-
-- **split**: Split CSV data into chunks
-- **partition**: Partition CSV data based on a column value
-
-*Add & transform columns*
-
-- **map**: Create a new column by evaluating an expression on each CSV row
-- **transform**: Transform a column by evaluating an expression on each CSV row
-- **enum**: Enumerate CSV file by preprending an index column
-- **flatmap**: Emit one row per value yielded by an expression evaluated for each CSV row
 
 *Format, convert & recombobulate*
 
@@ -489,13 +485,21 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - **reverse**: Reverse rows of CSV data
 - **transpose**: Transpose CSV file
 
-*Aggregate*
+*Add & transform columns*
 
-- **frequency, freq**: Show frequency tables
-- **groupby**: Aggregate data by groups of a CSV file
-- **stats**: Compute basic statistics
-- **agg**: Aggregate data from CSV file
-- **bins**: Dispatch numeric columns into bins
+- **map**: Create a new column by evaluating an expression on each CSV row
+- **transform**: Transform a column by evaluating an expression on each CSV row
+- **enum**: Enumerate CSV file by preprending an index column
+- **flatmap**: Emit one row per value yielded by an expression evaluated for each CSV row
+
+*Split a CSV file into multiple*
+
+- **split**: Split CSV data into chunks
+- **partition**: Partition CSV data based on a column value
+
+*Parallel operation over multiple CSV files*
+
+- **parallel (p)**: Map-reduce-like parallel computation
 
 *Generate CSV files*
 

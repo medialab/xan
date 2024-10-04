@@ -99,20 +99,17 @@ macro_rules! command_list {
     dedup       Deduplicate a CSV file
     shuffle     Shuffle CSV data
 
+## Aggregate
+    frequency (freq) Show frequency tables
+    groupby          Aggregate data by groups of a CSV file
+    stats            Compute basic statistics
+    agg              Aggregate data from CSV file
+    bins             Dispatch numeric columns into bins
+
 ## Combine multiple CSV files
     cat         Concatenate by row or column
     join        Join CSV files
     merge       Merge multiple similar already sorted CSV files
-
-## Split a CSV file into multiple
-    split       Split CSV data into chunks
-    partition   Partition CSV data based on a column value
-
-## Add & transform columns
-    map         Create a new column by evaluating an expression on each CSV row
-    transform   Transform a column by evaluating an expression on each CSV row
-    enum        Enumerate CSV file by preprending an index column
-    flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
 
 ## Format, convert & recombobulate
     select      Select columns from CSV
@@ -127,12 +124,18 @@ macro_rules! command_list {
     reverse     Reverse rows of CSV data
     transpose   Transpose CSV file
 
-## Aggregate
-    frequency (freq) Show frequency tables
-    groupby          Aggregate data by groups of a CSV file
-    stats            Compute basic statistics
-    agg              Aggregate data from CSV file
-    bins             Dispatch numeric columns into bins
+## Add & transform columns
+    map         Create a new column by evaluating an expression on each CSV row
+    transform   Transform a column by evaluating an expression on each CSV row
+    enum        Enumerate CSV file by preprending an index column
+    flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
+
+## Split a CSV file into multiple
+    split       Split CSV data into chunks
+    partition   Partition CSV data based on a column value
+
+## Parallel operation over multiple CSV files
+    parallel (p) Map-reduce-like parallel computation
 
 ## Generate CSV files
     glob        Create a CSV file with paths matching a glob pattern
