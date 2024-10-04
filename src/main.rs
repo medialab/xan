@@ -266,6 +266,8 @@ enum Command {
     Join,
     Map,
     Merge,
+    P,
+    Parallel,
     Partition,
     Plot,
     Progress,
@@ -318,16 +320,14 @@ impl Command {
             Command::Filter => cmd::filter::run(argv),
             Command::FixLengths => cmd::fixlengths::run(argv),
             Command::Flatmap => cmd::flatmap::run(argv),
-            Command::F => cmd::flatten::run(argv),
-            Command::Flatten => cmd::flatten::run(argv),
+            Command::Flatten | Command::F => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
             Command::ForEach => cmd::foreach::run(argv),
             Command::Freq | Command::Frequency => cmd::frequency::run(argv),
             Command::From => cmd::from::run(argv),
             Command::Glob => cmd::glob::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
-            Command::H => cmd::headers::run(argv),
-            Command::Headers => cmd::headers::run(argv),
+            Command::Headers | Command::H => cmd::headers::run(argv),
             Command::Help => {
                 wout!("{}", util::colorize_main_help(USAGE));
                 Ok(())
@@ -339,6 +339,7 @@ impl Command {
             Command::Join => cmd::join::run(argv),
             Command::Map => cmd::map::run(argv),
             Command::Merge => cmd::merge::run(argv),
+            Command::Parallel | Command::P => cmd::parallel::run(argv),
             Command::Partition => cmd::partition::run(argv),
             Command::Plot => cmd::plot::run(argv),
             Command::Progress => cmd::progress::run(argv),
@@ -358,8 +359,7 @@ impl Command {
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose => cmd::transpose::run(argv),
             Command::UnionFind => cmd::union_find::run(argv),
-            Command::V => cmd::view::run(argv),
-            Command::View => cmd::view::run(argv),
+            Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
         }
     }
