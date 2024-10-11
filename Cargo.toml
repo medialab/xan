@@ -27,6 +27,7 @@ include = [
   "src/**/*.pest",
   "tests/**/*.rs"
 ]
+default-run = "xan"
 
 [[bin]]
 name = "xan"
