@@ -87,8 +87,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_external {
         let mut record = csv::ByteRecord::new();
 
-        let mut btree_index =
-            BtreeIndex::<Vec<Vec<u8>>, ()>::with_capacity(BtreeConfig::default(), 1024)?;
+        let mut btree_index = BtreeIndex::<Vec<Vec<u8>>, ()>::with_capacity(
+            BtreeConfig::default().fixed_value_size(0),
+            1024,
+        )?;
 
         while rdr.read_byte_record(&mut record)? {
             let key = sel.collect(&record);
