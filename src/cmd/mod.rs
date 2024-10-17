@@ -4,6 +4,8 @@ pub mod bins;
 pub mod blank;
 pub mod cat;
 pub mod cluster;
+pub mod compgen;
+pub mod completions;
 pub mod count;
 pub mod dedup;
 pub mod enumerate;

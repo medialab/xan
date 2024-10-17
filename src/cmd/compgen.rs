@@ -59,12 +59,11 @@ static COMMANDS: [&str; 52] = [
 
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
-// bash: complete -C "target/debug/__xan" -o default xan
-// zsh:  complete -F "target/debug/__xan" -o default xan
-fn main() {
+pub fn run() {
     let args = std::env::args().collect::<Vec<_>>();
-    let mut to_complete = args[2].as_str();
-    let word_before = &args[3];
+
+    let mut to_complete = args[3].as_str();
+    let word_before = &args[4];
 
     if to_complete == "--" {
         to_complete = "";
@@ -88,7 +87,6 @@ fn main() {
     }
 
     // Completing column selectors
-    // TODO: escape the selector name
     if word_before == "-s"
         || word_before == "--select"
         || word_before == "-g"

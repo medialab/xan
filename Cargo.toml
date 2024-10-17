@@ -27,18 +27,12 @@ include = [
   "src/**/*.pest",
   "tests/**/*.rs"
 ]
-default-run = "xan"
 
 [[bin]]
 name = "xan"
 test = true
 bench = false
 doctest = false
-
-[[bin]]
-name = "__xan"
-path = "src/completion.rs"
-test = false
 
 [[test]]
 name = "tests"

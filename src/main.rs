@@ -242,6 +242,8 @@ enum Command {
     Blank,
     Cat,
     Cluster,
+    Compgen,
+    Completions,
     Count,
     Dedup,
     Enum,
@@ -315,6 +317,11 @@ impl Command {
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
             Command::Cluster => cmd::cluster::run(argv),
+            Command::Compgen => {
+                cmd::compgen::run();
+                Ok(())
+            }
+            Command::Completions => cmd::completions::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
             Command::Enum => cmd::enumerate::run(argv),
