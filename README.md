@@ -71,6 +71,14 @@ You can also install the latest dev version thusly:
 cargo install --git https://github.com/medialab/xan
 ```
 
+Note that `xan` also exposes handy automatic completions for command and header names that you can install through the `xan completions` command.
+
+Run the following command to understand how to install those completions:
+
+```bash
+xan completions -h
+```
+
 ## Quick tour
 
 Let's learn about the most commonly used `xan` commands by exploring a corpus of French medias:
