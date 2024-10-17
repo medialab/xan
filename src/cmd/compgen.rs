@@ -1,3 +1,4 @@
+use std::env;
 use std::fs::File;
 
 use glob::glob;
@@ -60,7 +61,7 @@ static COMMANDS: [&str; 52] = [
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
 pub fn run() {
-    let args = std::env::args().collect::<Vec<_>>();
+    let args = env::args().collect::<Vec<_>>();
 
     let mut to_complete = args[3].as_str();
     let word_before = &args[4];
@@ -85,9 +86,8 @@ pub fn run() {
             }
         }
     }
-
     // Completing column selectors
-    if word_before == "-s"
+    else if word_before == "-s"
         || word_before == "--select"
         || word_before == "-g"
         || word_before == "--groupby"

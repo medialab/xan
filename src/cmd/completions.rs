@@ -27,6 +27,14 @@ static BASH_COMPLETE_FUNCTION: &str = "
 function __xan {
     xan compgen \"$1\" \"$2\" \"$3\"
 }
+complete -C __xan -o default xan
+";
+
+static ZSH_COMPLETE_FUNCTION: &str = "
+# Xan completions
+function __xan {
+    xan compgen \"$1\" \"$2\" \"$3\"
+}
 complete -F __xan -o default xan
 ";
 
@@ -39,8 +47,10 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.cmd_bash || args.cmd_zsh {
+    if args.cmd_bash {
         println!("{}", BASH_COMPLETE_FUNCTION.trim_end());
+    } else if args.cmd_zsh {
+        println!("{}", ZSH_COMPLETE_FUNCTION.trim_end());
     }
 
     Ok(())
