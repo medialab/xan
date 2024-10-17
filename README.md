@@ -437,88 +437,88 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 - [**count (c)**](./docs/cmd/count.md): Count rows in file
 - [**headers (h)**](./docs/cmd/headers.md): Show header names
-- **view (v)**: Preview a CSV file in a human-friendly way
-- **flatten**: Display a flattened version of each row of a file
-- **hist**: Print a histogram with rows of CSV file as bars
-- **plot**: Draw a scatter plot or line chart
-- **progress**: Display a progress bar while reading CSV data
+- [**view (v)**](./docs/cmd/view.md): Preview a CSV file in a human-friendly way
+- [**flatten**](./docs/cmd/flatten.md): Display a flattened version of each row of a file
+- [**hist**](./docs/cmd/hist.md): Print a histogram with rows of CSV file as bars
+- [**plot**](./docs/cmd/plot.md): Draw a scatter plot or line chart
+- [**progress**](./docs/cmd/progress.md): Display a progress bar while reading CSV data
 
 *Search & filter*
 
-- **search**: Search CSV data with regexes
-- **filter**: Only keep some CSV rows based on an evaluated expression
-- **slice**: Slice rows of CSV file
-- **top**: Find top rows of a CSV file according to some column
-- **sample**: Randomly sample CSV data
+- [**search**](./docs/cmd/search.md): Search CSV data with regexes
+- [**filter**](./docs/cmd/filter.md): Only keep some CSV rows based on an evaluated expression
+- [**slice**](./docs/cmd/slice.md): Slice rows of CSV file
+- [**top**](./docs/cmd/top.md): Find top rows of a CSV file according to some column
+- [**sample**](./docs/cmd/sample.md): Randomly sample CSV data
 
 *Sort & deduplicate*
 
-- **sort**: Sort CSV data
-- **dedup**: Deduplicate a CSV file
-- **shuffle**: Shuffle CSV data
+- [**sort**](./docs/cmd/sort.md): Sort CSV data
+- [**dedup**](./docs/cmd/dedup.md): Deduplicate a CSV file
+- [**shuffle**](./docs/cmd/shuffle.md): Shuffle CSV data
 
 *Aggregate*
 
-- **frequency (freq)**: Show frequency tables
-- **groupby**: Aggregate data by groups of a CSV file
-- **stats**: Compute basic statistics
-- **agg**: Aggregate data from CSV file
-- **bins**: Dispatch numeric columns into bins
+- [**frequency (freq)**](./docs/cmd/frequency.md): Show frequency tables
+- [**groupby**](./docs/cmd/groupby.md): Aggregate data by groups of a CSV file
+- [**stats**](./docs/cmd/stats.md): Compute basic statistics
+- [**agg**](./docs/cmd/agg.md): Aggregate data from CSV file
+- [**bins**](./docs/cmd/bins.md): Dispatch numeric columns into bins
 
 *Combine multiple CSV files*
 
-- **cat**: Concatenate by row or column
-- **join**: Join CSV files
-- **merge**: Merge multiple similar already sorted CSV files
+- [**cat**](./docs/cmd/cat.md): Concatenate by row or column
+- [**join**](./docs/cmd/join.md): Join CSV files
+- [**merge**](./docs/cmd/merge.md): Merge multiple similar already sorted CSV files
 
 *Format, convert & recombobulate*
 
-- **select**: Select columns from CSV
+- [**select**](./docs/cmd/select.md): Select columns from CSV
 - [**behead**](./docs/cmd/behead.md): Drop header from CSV file
-- **rename**: Rename columns of a CSV file
-- **input**: Read CSV data with special quoting rules
-- **fixlengths**: Makes all rows have same length
-- **fmt**: Format CSV output (change field delimiter)
-- **explode**: Explode rows based on some column separator
-- **implode**: Collapse consecutive identical rows based on a diverging column
-- **from**: Convert a variety of formats to CSV
-- **reverse**: Reverse rows of CSV data
-- **transpose**: Transpose CSV file
+- [**rename**](./docs/cmd/rename.md): Rename columns of a CSV file
+- [**input**](./docs/cmd/input.md): Read CSV data with special quoting rules
+- [**fixlengths**](./docs/cmd/fixlengths.md): Makes all rows have same length
+- [**fmt**](./docs/cmd/fmt.md): Format CSV output (change field delimiter)
+- [**explode**](./docs/cmd/explode.md): Explode rows based on some column separator
+- [**implode**](./docs/cmd/implode.md): Collapse consecutive identical rows based on a diverging column
+- [**from**](./docs/cmd/from.md): Convert a variety of formats to CSV
+- [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
+- [**transpose**](./docs/cmd/transpose.md): Transpose CSV file
 
 *Add & transform columns*
 
-- **map**: Create a new column by evaluating an expression on each CSV row
-- **transform**: Transform a column by evaluating an expression on each CSV row
-- **enum**: Enumerate CSV file by preprending an index column
-- **flatmap**: Emit one row per value yielded by an expression evaluated for each CSV row
+- [**map**](./docs/cmd/map.md): Create a new column by evaluating an expression on each CSV row
+- [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
+- [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
+- [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
 
 *Split a CSV file into multiple*
 
-- **split**: Split CSV data into chunks
-- **partition**: Partition CSV data based on a column value
+- [**split**](./docs/cmd/split.md): Split CSV data into chunks
+- [**partition**](./docs/cmd/partition.md): Partition CSV data based on a column value
 
 *Parallel operation over multiple CSV files*
 
-- **parallel (p)**: Map-reduce-like parallel computation
+- [**parallel (p)**](./docs/cmd/parallel.md): Map-reduce-like parallel computation
 
 *Generate CSV files*
 
-- **glob**: Create a CSV file with paths matching a glob pattern
-- **range**: Create a CSV file from a numerical range
+- [**glob**](./docs/cmd/glob.md): Create a CSV file with paths matching a glob pattern
+- [**range**](./docs/cmd/range.md): Create a CSV file from a numerical range
 
 *Perform side-effects*
 
-- **foreach**: Loop over a CSV file to perform side effects
+- [**foreach**](./docs/cmd/foreach.md): Loop over a CSV file to perform side effects
 
 *Lexicometry & fuzzy matching*
 
-- **tokenize**: Tokenize a text column
-- **vocab**: Build a vocabulary over tokenized documents
-- **cluster**: Cluster CSV data to find near-duplicates
+- [**tokenize**](./docs/cmd/tokenize.md): Tokenize a text column
+- [**vocab**](./docs/cmd/vocab.md): Build a vocabulary over tokenized documents
+- [**cluster**](./docs/cmd/cluster.md): Cluster CSV data to find near-duplicates
 
 *Graph algorithms*
 
-- **union-find**: Apply the union-find algorithm on a CSV edge list
+- [**union-find**](./docs/cmd/union-find.md): Apply the union-find algorithm on a CSV edge list
 
 ## General flags and IO model
 
