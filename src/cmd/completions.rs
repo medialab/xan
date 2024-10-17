@@ -8,10 +8,13 @@ to your current shell.
 Only support `bash` and `zsh` for now (or at least any shell relying on
 `complete` and `compgen`).
 
-For `bash`, just run:
+For `bash`, run:
     $ xan completions bash >> ~/.bashrc
 
-For `zsh`, just run:
+To enable those completions system-wide, you can also run:
+    $ xan completions bash > /etc/bash_completions.d/xan
+
+For `zsh`, run:
     $ xan completions zsh >> ~/.zshrc
 
 Usage:
