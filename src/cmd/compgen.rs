@@ -62,7 +62,7 @@ static COMMANDS: [&str; 52] = [
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
 fn find_csv_files_in_prompt() -> Vec<String> {
-    let words = shlex::split(&env::var("COMP_LINE").unwrap_or("".to_string())).unwrap_or(vec![]);
+    let words = shlex::split(&env::var("COMP_LINE").unwrap_or("".to_string())).unwrap_or_default();
 
     words
         .into_iter()
@@ -93,7 +93,7 @@ fn find_csv_files_to_test() -> Vec<PathBuf> {
     let in_prompt = find_csv_files_in_prompt();
 
     if !in_prompt.is_empty() {
-        return in_prompt.into_iter().map(|s| PathBuf::from(s)).collect();
+        return in_prompt.into_iter().map(PathBuf::from).collect();
     }
 
     most_likely_csv_files_by_glob().collect()
