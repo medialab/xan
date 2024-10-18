@@ -1,49 +1,5 @@
-extern crate arrayvec;
-extern crate atty;
-extern crate byteorder;
-extern crate bytesize;
-extern crate calamine;
-extern crate colored;
-extern crate console;
-extern crate crossbeam_channel;
-extern crate csv;
-extern crate csv_index;
-extern crate ctrlc;
-extern crate docopt;
-extern crate emojis;
-extern crate encoding;
-extern crate ext_sort;
-extern crate filetime;
-extern crate flate2;
-extern crate glob;
-extern crate indicatif;
-extern crate rand_chacha;
-extern crate rand_seeder;
-extern crate ratatui;
-#[macro_use]
-extern crate lazy_static;
-extern crate num_cpus;
-extern crate numfmt;
-#[cfg(not(windows))]
-extern crate pager;
-extern crate pariter;
-extern crate rand;
-extern crate rayon;
-extern crate regex;
-extern crate serde;
-extern crate thread_local;
 #[macro_use]
 extern crate serde_derive;
-extern crate pest;
-extern crate pest_derive;
-extern crate serde_json;
-extern crate termsize;
-extern crate textwrap;
-extern crate threadpool;
-extern crate unicode_segmentation;
-extern crate unicode_width;
-extern crate unidecode;
-extern crate uuid;
 
 use std::borrow::ToOwned;
 use std::env;

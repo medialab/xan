@@ -1,5 +1,6 @@
 // En tant que chef, je m'engage à ce que nous ne nous
 // fassions pas *tous* tuer.
+use lazy_static::lazy_static;
 use pest::{
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},

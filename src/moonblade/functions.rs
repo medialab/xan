@@ -14,6 +14,7 @@ use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
 use jiff::{civil::DateTime, fmt::strtime, tz::TimeZone, Timestamp, Zoned};
+use lazy_static::lazy_static;
 use namedlock::{AutoCleanup, LockSpace};
 use paltoquet::{
     stemmers::{fr::carry_stemmer, s_stemmer},
