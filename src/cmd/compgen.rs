@@ -140,6 +140,8 @@ pub fn run() {
     {
         let mut all_headers = Vec::<String>::new();
 
+        let to_complete = to_complete.trim_matches(|c: char| c == '\'' || c == '"');
+
         for path in find_csv_files_to_test() {
             let file = match File::open(path) {
                 Ok(f) => f,
