@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::io;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, Stdio};
@@ -16,9 +17,6 @@ use crate::CliResult;
 // TODO: finish progress bar
 // TODO: cat -S/--source-column
 // TODO: examples in the help
-// TODO: document in main
-// TODO: can we chunk a single file?
-// TODO: raw preprocessing
 // TODO: freq --sep
 // TODO: groupby, agg, stats
 // TODO: unit tests
@@ -86,6 +84,12 @@ impl Drop for Children {
         } else {
             let _ = self.wait();
         }
+    }
+}
+
+impl From<Vec<Child>> for Children {
+    fn from(children: Vec<Child>) -> Self {
+        Self { children }
     }
 }
 
@@ -187,6 +191,17 @@ retrieving the results).
 Note that you can use the `split` or `partition` command to preemptively
 split a large file into manageable chunks, if you can spare the disk space.
 
+Preprocessing on each file can be done using two different methods:
+
+1. Using a pipeline composed only of xan subcommands using -P, --preprocess:
+    $ xan parallel count -P \"search -s name John | slice -l 10\" file.csv
+
+2. Using a shell subcommand that will be passed to \"$SHELL -c\":
+    $ xan parallel count -S \"xan search -s name John | xan slice -l 10\" file.csv
+
+The second preprocessing option will of course not work in DOS-based shells and Powershell
+on Windows.
+
 Usage:
     xan parallel count [options] [<inputs>...]
     xan parallel cat [options] [<inputs>...]
@@ -197,13 +212,14 @@ Usage:
     xan parallel --help
 
 parallel options:
-    -P, --preprocess <op>  Preprocessing command that will run on every
-                           file to process.
-    --progress             Display a progress bar for the parallel tasks.
-    -t, --threads <n>      Number of threads to use. Will default to a sensible
-                           number based on the available CPUs.
-    --path-column <name>   Name of the path column if stdin is given as a CSV file
-                           instead of one path per line.
+    -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
+    -S, --shell-preprocess <op>  Preprocessing commands that will run directly in your
+                                 own shell using the -c flag. Will not work on windows.
+    --progress                   Display a progress bar for the parallel tasks.
+    -t, --threads <n>            Number of threads to use. Will default to a sensible
+                                 number based on the available CPUs.
+    --path-column <name>         Name of the path column if stdin is given as a CSV file
+                                 instead of one path per line.
 
 parallel cat options:
     -B, --buffer-size <n>  Number of rows a thread is allowed to keep in memory
@@ -230,6 +246,7 @@ struct Args {
     cmd_cat: bool,
     cmd_freq: bool,
     flag_preprocess: Option<String>,
+    flag_shell_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectColumns>,
@@ -282,12 +299,16 @@ impl Args {
     }
 
     fn reader(&self, path: &str) -> CliResult<(Reader, Option<Children>)> {
-        Ok(if let Some(preprocessing) = &self.flag_preprocess {
+        Ok(if let Some(preprocessing) = &self.flag_shell_preprocess {
+            if preprocessing.trim().is_empty() {
+                Err("-S, --shell-preprocess cannot be an empty command!")?;
+            }
+
             let config = Config::new(&None)
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let shell = std::env::var("SHELL").expect("$SHELL is not set!");
+            let shell = env::var("SHELL").expect("$SHELL is not set!");
 
             let mut cat = Command::new("cat")
                 .stdin(Stdio::null())
@@ -301,13 +322,70 @@ impl Args {
                 .stdout(Stdio::piped())
                 .args(["-c", preprocessing])
                 .spawn()
-                .expect("could not spawn preprocessing");
+                .expect("could not spawn shell preprocessing");
 
             (
                 config.csv_reader_from_reader(Box::new(
                     child.stdout.take().expect("cannot read child stdout"),
                 )),
                 Some(Children::pair(cat, child)),
+            )
+        } else if let Some(preprocessing) = &self.flag_preprocess {
+            if preprocessing.trim().is_empty() {
+                Err("-P, --preprocess cannot be an empty command!")?;
+            }
+
+            let exe = env::current_exe()?;
+
+            let preprocessing = shlex::split(preprocessing).expect("could not shlex");
+
+            let mut children: Vec<Child> = Vec::new();
+
+            for mut step in preprocessing.split(|token| token == "|") {
+                let mut command = Command::new(exe.clone());
+                command.stdout(Stdio::piped());
+
+                if let Some(first) = step.first() {
+                    if first == "xan" {
+                        step = &step[1..];
+                    }
+                }
+
+                for arg in step {
+                    command.arg(arg);
+                }
+
+                if let Some(last_child) = children.last_mut() {
+                    // Piping last command into the next
+                    command.stdin(
+                        last_child
+                            .stdout
+                            .take()
+                            .expect("could not consume last child stdout"),
+                    );
+                } else {
+                    // First command in pipeline must read the file
+                    command.stdin(Stdio::null());
+                    command.arg(path);
+                }
+
+                children.push(command.spawn().expect("could not spawn preprocessing"));
+            }
+
+            let config = Config::new(&None)
+                .delimiter(self.flag_delimiter)
+                .no_headers(self.flag_no_headers);
+
+            (
+                config.csv_reader_from_reader(Box::new(
+                    children
+                        .last_mut()
+                        .unwrap()
+                        .stdout
+                        .take()
+                        .expect("cannot read child stdout"),
+                )),
+                Some(Children::from(children)),
             )
         } else {
             let config = Config::new(&Some(path.to_string()))
@@ -322,8 +400,8 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.cmd_cat && args.flag_preprocess.is_none() {
-        Err("`xan parallel cat` without -p/--preprocess is counterproductive!\n`xan cat rows` will be faster.")?
+    if args.cmd_cat && args.flag_preprocess.is_none() && args.flag_shell_preprocess.is_none() {
+        Err("`xan parallel cat` without -P/--preprocess or -S/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
     }
 
     if let Some(threads) = args.flag_threads {
