@@ -4,6 +4,10 @@
 ```txt
 Process CSV datasets split into multiple files, in parallel.
 
+The CSV files composing said dataset can be given as variadic arguments to the
+command, or given through stdin, one path per line or in a CSV column when
+using --path-column.
+
 `xan parallel count` counts the number of rows in the whole dataset.
 
 `xan parallel cat` preprocess the files and redirect the concatenated
@@ -25,11 +29,13 @@ Usage:
     xan parallel --help
 
 parallel options:
-    -p, --preprocess <op>  Preprocessing command that will run on every
+    -P, --preprocess <op>  Preprocessing command that will run on every
                            file to process.
     --progress             Display a progress bar for the parallel tasks.
     -t, --threads <n>      Number of threads to use. Will default to a sensible
                            number based on the available CPUs.
+    --path-column <name>   Name of the path column if stdin is given as a CSV file
+                           instead of one path per line.
 
 parallel cat options:
     -B, --buffer-size <n>  Number of rows a thread is allowed to keep in memory

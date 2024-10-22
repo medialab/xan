@@ -23,6 +23,8 @@ Usage:
     xan view --help
 
 view options:
+    -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
+                           for the full syntax.
     -t, --theme <name>     Theme for the table display, one of: "default", "borderless", "compact",
                            "rounded", "slim" or "striped".
                            Can also be set through the "XAN_VIEW_THEME" environment variable.

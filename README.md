@@ -1069,6 +1069,9 @@ use the operators in the previous section.
     - md5(string) -> string
         Return the md5 hash of string in hexadecimal representation.
 
+    - random() -> float
+        Return a random float between 0 and 1.
+
     - uuid() -> string
         Return a uuid v4.
 ```

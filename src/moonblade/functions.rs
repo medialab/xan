@@ -20,6 +20,7 @@ use paltoquet::{
     stemmers::{fr::carry_stemmer, s_stemmer},
     tokenizers::FingerprintTokenizer,
 };
+use rand::Rng;
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -162,6 +163,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
             FunctionArguments::binary(),
         ),
+        "random" => (random, FunctionArguments::nullary()),
         "read" => (
             read,
             FunctionArguments::complex(vec![
@@ -1417,6 +1419,10 @@ fn uuid(_args: BoundArguments) -> FunctionResult {
         .to_string();
 
     Ok(DynamicValue::from(id))
+}
+
+fn random(_args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(rand::thread_rng().gen::<f64>()))
 }
 
 // Fuzzy matching
