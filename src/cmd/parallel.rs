@@ -58,6 +58,24 @@ impl Children {
 
         Ok(())
     }
+
+    fn kill(&mut self) -> std::io::Result<()> {
+        for child in self.children.iter_mut() {
+            child.kill()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for Children {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let _ = self.kill();
+        } else {
+            let _ = self.wait();
+        }
+    }
 }
 
 #[derive(Default)]
@@ -133,7 +151,7 @@ impl FrequencyTables {
     fn into_sorted(self) -> impl Iterator<Item = (Vec<u8>, Vec<(Vec<u8>, u64)>)> {
         self.tables.into_iter().map(|(name, table)| {
             let mut items: Vec<_> = table.map.into_iter().collect();
-            items.par_sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
+            items.par_sort_unstable_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
 
             (name, items)
         })
@@ -146,8 +164,10 @@ impl FrequencyTables {
 // TODO: examples in the help
 // TODO: document in main
 // TODO: can we chunk a single file?
+// TODO: raw preprocessing
 // TODO: freq --sep
 // TODO: groupby, agg, stats
+// TODO: unit tests
 
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
@@ -282,7 +302,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.arg_inputs
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
-                let (mut reader, mut children_opt) = args.reader(path)?;
+                let (mut reader, _children_guard) = args.reader(path)?;
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
@@ -293,10 +313,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 total_count.fetch_add(count, Ordering::Relaxed);
                 progress_bar.tick();
-
-                if let Some(children) = children_opt.as_mut() {
-                    children.wait()?;
-                }
 
                 Ok(())
             })?;
@@ -332,7 +348,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.arg_inputs
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
-                let (mut reader, mut children_opt) = args.reader(path)?;
+                let (mut reader, _children_guard) = args.reader(path)?;
                 let headers = reader.byte_headers()?.clone();
 
                 let mut buffer: Vec<csv::ByteRecord> = Vec::with_capacity(buffer_size);
@@ -353,10 +369,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 progress_bar.tick();
 
-                if let Some(children) = children_opt.as_mut() {
-                    children.wait()?;
-                }
-
                 Ok(())
             })?;
 
@@ -376,7 +388,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.arg_inputs
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
-                let (mut reader, mut children_opt) = args.reader(path)?;
+                let (mut reader, _children_guard) = args.reader(path)?;
 
                 let headers = reader.byte_headers()?.clone();
                 let sel = Config::new(&None)
@@ -396,10 +408,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
                 progress_bar.tick();
-
-                if let Some(children) = children_opt.as_mut() {
-                    children.wait()?;
-                }
 
                 Ok(())
             })?;

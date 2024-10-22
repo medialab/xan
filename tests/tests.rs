@@ -40,6 +40,7 @@ mod test_index;
 mod test_join;
 mod test_map;
 mod test_merge;
+mod test_parallel;
 mod test_partition;
 mod test_range;
 mod test_rename;
