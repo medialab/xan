@@ -7,6 +7,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use bstr::ByteSlice;
 use indicatif::ProgressBar;
 use rayon::{prelude::*, ThreadPoolBuilder};
 
@@ -16,8 +17,6 @@ use crate::util;
 use crate::CliResult;
 
 // TODO: finish progress bar
-// TODO: examples in the help
-// TODO: freq --sep
 // TODO: groupby, agg, stats
 
 struct ParallelProgressBar {
@@ -231,6 +230,8 @@ parallel cat options:
 
 parallel freq options:
     -s, --select <cols>  Columns for which to build frequency tables.
+    --sep <char>         Split the cell into multiple values to count using the
+                         provided separator.
 
 Common options:
     -h, --help             Display this message
@@ -257,6 +258,7 @@ struct Args {
     flag_input_dir: Option<PathBuf>,
     flag_source_column: Option<String>,
     flag_select: SelectColumns,
+    flag_sep: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -545,7 +547,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 while reader.read_byte_record(&mut record)? {
                     for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
-                        table.inc(cell.to_vec());
+                        if let Some(sep) = &args.flag_sep {
+                            for subcell in cell.split_str(sep) {
+                                table.inc(subcell.to_vec());
+                            }
+                        } else {
+                            table.inc(cell.to_vec());
+                        }
                     }
                 }
 

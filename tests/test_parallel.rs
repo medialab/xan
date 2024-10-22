@@ -51,6 +51,40 @@ fn parallel_freq() {
 }
 
 #[test]
+fn parallel_freq_sep() {
+    let wrk = Workdir::new("parallel_freq_sep");
+    wrk.create(
+        "data1.csv",
+        vec![
+            svec!["color"],
+            svec!["blue"],
+            svec!["blue|red"],
+            svec!["yellow|red"],
+        ],
+    );
+    wrk.create(
+        "data2.csv",
+        vec![svec!["color"], svec!["red"], svec!["red"], svec!["blue"]],
+    );
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("freq")
+        .args(["-s", "color"])
+        .args(["--sep", "|"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["field", "value", "count"],
+        svec!["color", "red", "4"],
+        svec!["color", "blue", "3"],
+        svec!["color", "yellow", "1"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn parallel_cat() {
     let wrk = Workdir::new("parallel_cat");
     wrk.create(
