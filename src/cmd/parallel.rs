@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,6 +12,17 @@ use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
+
+// TODO: finish progress bar
+// TODO: csv stdin handling
+// TODO: cat -S/--source-column
+// TODO: examples in the help
+// TODO: document in main
+// TODO: can we chunk a single file?
+// TODO: raw preprocessing
+// TODO: freq --sep
+// TODO: groupby, agg, stats
+// TODO: unit tests
 
 struct ParallelProgressBar {
     bar: Option<ProgressBar>,
@@ -51,7 +63,7 @@ impl Children {
         }
     }
 
-    fn wait(&mut self) -> std::io::Result<()> {
+    fn wait(&mut self) -> io::Result<()> {
         for child in self.children.iter_mut() {
             child.wait()?;
         }
@@ -59,7 +71,7 @@ impl Children {
         Ok(())
     }
 
-    fn kill(&mut self) -> std::io::Result<()> {
+    fn kill(&mut self) -> io::Result<()> {
         for child in self.children.iter_mut() {
             child.kill()?;
         }
@@ -158,17 +170,6 @@ impl FrequencyTables {
     }
 }
 
-// TODO: finish progress bar
-// TODO: stdin handling, csv stdin handling
-// TODO: cat -S/--source-column
-// TODO: examples in the help
-// TODO: document in main
-// TODO: can we chunk a single file?
-// TODO: raw preprocessing
-// TODO: freq --sep
-// TODO: groupby, agg, stats
-// TODO: unit tests
-
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
 
@@ -233,9 +234,30 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
-type Reader = csv::Reader<Box<dyn std::io::Read + Send>>;
+type Reader = csv::Reader<Box<dyn io::Read + Send>>;
 
 impl Args {
+    fn inputs(&self) -> io::Result<Vec<String>> {
+        if !self.arg_inputs.is_empty() {
+            return Ok(self.arg_inputs.clone());
+        }
+
+        Ok(io::stdin()
+            .lines()
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .filter_map(|line| {
+                let line = line.trim();
+
+                if !line.is_empty() {
+                    Some(line.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect())
+    }
+
     fn reader(&self, path: &str) -> CliResult<(Reader, Option<Children>)> {
         Ok(if let Some(preprocessing) = &self.flag_preprocess {
             let config = Config::new(&None)
@@ -299,7 +321,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.cmd_count {
         let total_count = AtomicUsize::new(0);
 
-        args.arg_inputs
+        args.inputs()?
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
@@ -345,7 +367,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(())
         };
 
-        args.arg_inputs
+        args.inputs()?
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
@@ -385,7 +407,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     else if args.cmd_freq {
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
-        args.arg_inputs
+        args.inputs()?
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
