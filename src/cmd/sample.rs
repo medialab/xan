@@ -8,10 +8,12 @@ use rand::Rng;
 
 use crate::config::{Config, Delimiter};
 use crate::index::Indexed;
-use crate::select::SelectColumns;
+use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
+
+type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Randomly samples CSV data uniformly using memory proportional to the size of
@@ -22,8 +24,8 @@ size is less than 10% of the total number of records. This allows for efficient
 sampling such that the entire CSV file is not parsed.
 
 This command is intended to provide a means to sample from a CSV data set that
-is too big to fit into memory (for example, for use with commands like 'xan
-frequency' or 'xan stats'). It will however visit every CSV record exactly
+is too big to fit into memory (for example, for use with commands like 'xan freq'
+or 'xan stats'). It will however visit every CSV record exactly
 once, which is necessary to provide a uniform random sample. If you wish to
 limit the number of records visited, use the 'xan slice' command to pipe into
 'xan sample'.
@@ -37,7 +39,8 @@ Usage:
 
 sample options:
     --seed <number>        RNG seed.
-    -w, --weight <column>      Column containing weights to bias the sample.
+    -w, --weight <column>  Column containing weights to bias the sample.
+    -g, --groupby <cols>   Return a sample per group.
 
 Common options:
     -h, --help             Display this message
@@ -59,6 +62,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_seed: Option<usize>,
     flag_weight: Option<SelectColumns>,
+    flag_groupby: Option<SelectColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -76,6 +80,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let sampled = match rconfig.indexed()? {
         Some(mut idx) => {
+            // TODO: crash if -g
+
             if args.flag_weight.is_some() {
                 let mut rdr = rconfig.reader()?;
                 rconfig.write_headers(&mut rdr, &mut wtr)?;
@@ -100,10 +106,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => {
             let mut rdr = rconfig.reader()?;
             rconfig.write_headers(&mut rdr, &mut wtr)?;
+            let byte_headers = rdr.byte_headers()?;
+
+            let group_sel_opt = args
+                .flag_groupby
+                .map(|s| Config::new(&None).select(s).selection(byte_headers))
+                .transpose()?;
 
             if args.flag_weight.is_some() {
-                let weight_column_index = rconfig.single_selection(rdr.byte_headers()?)?;
+                let weight_column_index = rconfig.single_selection(byte_headers)?;
 
+                // TODO: deal with -g
                 sample_weighted_reservoir(
                     &mut rdr,
                     sample_size,
@@ -111,7 +124,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     weight_column_index,
                 )?
             } else {
-                sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
+                if let Some(group_sel) = group_sel_opt {
+                    sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
+                } else {
+                    sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
+                }
             }
         }
     };
@@ -165,6 +182,15 @@ fn sample_reservoir<R: io::Read>(
         }
     }
     Ok(reservoir)
+}
+
+fn sample_reservoir_grouped<R: io::Read>(
+    rdr: &mut csv::Reader<R>,
+    sample_size: u64,
+    seed: Option<usize>,
+    group_sel: Selection,
+) -> CliResult<Vec<csv::ByteRecord>> {
+    Ok(vec![])
 }
 
 #[derive(PartialEq)]
