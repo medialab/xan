@@ -191,6 +191,8 @@ Usage:
     xan view --help
 
 view options:
+    -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
+                           for the full syntax.
     -t, --theme <name>     Theme for the table display, one of: \"default\", \"borderless\", \"compact\",
                            \"rounded\", \"slim\" or \"striped\".
                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
@@ -225,6 +227,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_select: SelectColumns,
     flag_pager: bool,
     flag_theme: Option<String>,
     flag_cols: Option<usize>,
@@ -280,10 +283,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers);
+        .no_headers(args.flag_no_headers)
+        .select(args.flag_select.clone());
 
     let mut rdr = rconfig.reader()?;
     let byte_headers = rdr.byte_headers()?;
+    let sel = rconfig.selection(byte_headers)?;
 
     let mut groupby_sel_opt = args
         .flag_groupby
@@ -295,7 +300,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         groupby_sel.offset_by(1);
     }
 
-    let mut headers = rdr.headers()?.clone();
+    let headers = rdr.headers()?.clone();
+    let mut headers = sel
+        .select_string_record(&headers)
+        .collect::<csv::StringRecord>();
 
     if !args.flag_hide_index {
         headers = headers.prepend(theme.index_column_header);
@@ -330,7 +338,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             match r_iter.next() {
                 None => break,
                 Some((i, record)) => {
-                    let mut record = record?;
+                    let mut record = sel
+                        .select_string_record(&record?)
+                        .collect::<csv::StringRecord>();
 
                     if args.flag_sanitize_emojis {
                         record = sanitize_emojis(&emoji_sanitizer, &record);
