@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::io;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -15,11 +16,9 @@ use crate::util;
 use crate::CliResult;
 
 // TODO: finish progress bar
-// TODO: cat -S/--source-column
 // TODO: examples in the help
 // TODO: freq --sep
 // TODO: groupby, agg, stats
-// TODO: unit tests
 
 struct ParallelProgressBar {
     bar: Option<ProgressBar>,
@@ -222,9 +221,13 @@ parallel options:
                                  instead of one path per line.
 
 parallel cat options:
-    -B, --buffer-size <n>  Number of rows a thread is allowed to keep in memory
-                           before flushing to the output.
-                           [default: 1024]
+    -B, --buffer-size <n>       Number of rows a thread is allowed to keep in memory
+                                before flushing to the output.
+                                [default: 1024]
+    -I, --input-dir <dir>       When concatenating rows, root directory to resolve
+                                relative paths contained in the -i/--input file column.
+    -S, --source-column <name>  Name of a column to prepend in the output of indicating the
+                                path to source file.
 
 parallel freq options:
     -s, --select <cols>  Columns for which to build frequency tables.
@@ -251,6 +254,8 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectColumns>,
     flag_buffer_size: NonZeroUsize,
+    flag_input_dir: Option<PathBuf>,
+    flag_source_column: Option<String>,
     flag_select: SelectColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -472,7 +477,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
-                let headers = reader.byte_headers()?.clone();
+                let mut headers = reader.byte_headers()?.clone();
+
+                if let Some(source_column) = &args.flag_source_column {
+                    headers.push_field(source_column.as_bytes());
+                }
 
                 let mut buffer: Vec<csv::ByteRecord> = Vec::with_capacity(buffer_size);
 
@@ -483,7 +492,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         buffer.clear();
                     }
 
-                    buffer.push(result?);
+                    let mut record = result?;
+
+                    if args.flag_source_column.is_some() {
+                        if let Some(root_dir) = &args.flag_input_dir {
+                            let mut buf = root_dir.clone();
+                            buf.push(path);
+                            record.push_field(buf.to_string_lossy().as_bytes());
+                        } else {
+                            record.push_field(path.as_bytes());
+                        }
+                    }
+
+                    buffer.push(record);
                 }
 
                 if !buffer.is_empty() {

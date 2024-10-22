@@ -13,7 +13,7 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-type GroupKey = Vec<Vec<u8>>;
+// type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Randomly samples CSV data uniformly using memory proportional to the size of
@@ -123,12 +123,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     args.flag_seed,
                     weight_column_index,
                 )?
+            } else if let Some(group_sel) = group_sel_opt {
+                sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
             } else {
-                if let Some(group_sel) = group_sel_opt {
-                    sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
-                } else {
-                    sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
-                }
+                sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
             }
         }
     };
@@ -185,10 +183,10 @@ fn sample_reservoir<R: io::Read>(
 }
 
 fn sample_reservoir_grouped<R: io::Read>(
-    rdr: &mut csv::Reader<R>,
-    sample_size: u64,
-    seed: Option<usize>,
-    group_sel: Selection,
+    _rdr: &mut csv::Reader<R>,
+    _sample_size: u64,
+    _seed: Option<usize>,
+    _group_sel: Selection,
 ) -> CliResult<Vec<csv::ByteRecord>> {
     Ok(vec![])
 }
