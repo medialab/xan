@@ -14,7 +14,6 @@ use crate::util;
 use crate::CliResult;
 
 // TODO: finish progress bar
-// TODO: csv stdin handling
 // TODO: cat -S/--source-column
 // TODO: examples in the help
 // TODO: document in main
@@ -173,6 +172,10 @@ impl FrequencyTables {
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
 
+The CSV files composing said dataset can be given as variadic arguments to the
+command, or given through stdin, one path per line or in a CSV column when
+using --path-column.
+
 `xan parallel count` counts the number of rows in the whole dataset.
 
 `xan parallel cat` preprocess the files and redirect the concatenated
@@ -194,11 +197,13 @@ Usage:
     xan parallel --help
 
 parallel options:
-    -p, --preprocess <op>  Preprocessing command that will run on every
+    -P, --preprocess <op>  Preprocessing command that will run on every
                            file to process.
     --progress             Display a progress bar for the parallel tasks.
     -t, --threads <n>      Number of threads to use. Will default to a sensible
                            number based on the available CPUs.
+    --path-column <name>   Name of the path column if stdin is given as a CSV file
+                           instead of one path per line.
 
 parallel cat options:
     -B, --buffer-size <n>  Number of rows a thread is allowed to keep in memory
@@ -227,6 +232,7 @@ struct Args {
     flag_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
+    flag_path_column: Option<SelectColumns>,
     flag_buffer_size: NonZeroUsize,
     flag_select: SelectColumns,
     flag_output: Option<String>,
@@ -237,25 +243,42 @@ struct Args {
 type Reader = csv::Reader<Box<dyn io::Read + Send>>;
 
 impl Args {
-    fn inputs(&self) -> io::Result<Vec<String>> {
+    fn inputs(&self) -> CliResult<Vec<String>> {
         if !self.arg_inputs.is_empty() {
-            return Ok(self.arg_inputs.clone());
+            Ok(self.arg_inputs.clone())
+        } else if let Some(col_name) = &self.flag_path_column {
+            let config = Config::new(&None).select(col_name.clone());
+            let mut reader = config.reader()?;
+            let headers = reader.byte_headers()?;
+            let path_column_index = config.single_selection(headers)?;
+
+            let mut paths = Vec::new();
+            let mut record = csv::ByteRecord::new();
+
+            while reader.read_byte_record(&mut record)? {
+                let path = String::from_utf8(record[path_column_index].to_vec())
+                    .expect("could not decode path column as utf8");
+
+                paths.push(path);
+            }
+
+            Ok(paths)
+        } else {
+            Ok(io::stdin()
+                .lines()
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .filter_map(|line| {
+                    let line = line.trim();
+
+                    if !line.is_empty() {
+                        Some(line.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect())
         }
-
-        Ok(io::stdin()
-            .lines()
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .filter_map(|line| {
-                let line = line.trim();
-
-                if !line.is_empty() {
-                    Some(line.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect())
     }
 
     fn reader(&self, path: &str) -> CliResult<(Reader, Option<Children>)> {
