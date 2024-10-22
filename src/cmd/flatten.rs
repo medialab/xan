@@ -1,6 +1,7 @@
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
+use crate::select::SelectColumns;
 use colored;
 use colored::Colorize;
 use unicode_width::UnicodeWidthStr;
@@ -22,6 +23,8 @@ Usage:
     xan f [options] [<input>]
 
 flatten options:
+    -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
+                           for the full syntax.
     -c, --condense         Don't wrap cell values on new lines but truncate them
                            with ellipsis instead.
     -w, --wrap             Wrap cell values all while minding the header's indent.
@@ -44,6 +47,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_select: SelectColumns,
     flag_condense: bool,
     flag_wrap: bool,
     flag_cols: Option<usize>,
@@ -57,8 +61,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers);
+        .no_headers(args.flag_no_headers)
+        .select(args.flag_select.clone());
     let mut rdr = rconfig.reader()?;
+    let byte_headers = rdr.byte_headers()?;
+    let sel = rconfig.selection(byte_headers)?;
 
     if args.flag_force_colors {
         colored::control::set_override(true);
@@ -67,6 +74,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let cols = util::acquire_term_cols(&args.flag_cols);
 
     let potential_headers = rdr.headers()?.clone();
+    let potential_headers = sel
+        .select_string_record(&potential_headers)
+        .collect::<csv::StringRecord>();
     let mut headers: Vec<String> = Vec::new();
 
     for (i, header) in potential_headers.iter().enumerate() {
@@ -93,6 +103,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let max_value_width = cols - max_header_width - 1;
 
     while rdr.read_record(&mut record)? {
+        let record = sel
+            .select_string_record(&record)
+            .collect::<csv::StringRecord>();
         if record_index > 0 {
             println!();
         }
