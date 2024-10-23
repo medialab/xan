@@ -14,11 +14,12 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 
 use crate::cmd::progress::get_progress_style;
 use crate::config::{Config, Delimiter};
+use crate::moonblade::Stats;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
-// TODO: groupby, agg, stats
+// TODO: groupby, agg
 
 fn get_spinner_template(path: ColoredString) -> ProgressStyle {
     ProgressStyle::with_template(&format!(
@@ -281,6 +282,61 @@ impl FrequencyTables {
     }
 }
 
+struct StatsTables {
+    tables: Vec<(Vec<u8>, Stats)>,
+}
+
+impl StatsTables {
+    fn new() -> Self {
+        Self { tables: Vec::new() }
+    }
+
+    fn with_capacity(selected_headers: Vec<Vec<u8>>) -> Self {
+        let mut stats_tables = Self {
+            tables: Vec::with_capacity(selected_headers.len()),
+        };
+
+        for header in selected_headers {
+            stats_tables.tables.push((header, Stats::new()));
+        }
+
+        stats_tables
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut Stats> {
+        self.tables.iter_mut().map(|(_, t)| t)
+    }
+
+    fn merge(&mut self, other: Self) -> Result<(), &str> {
+        if self.tables.is_empty() {
+            self.tables = other.tables;
+            return Ok(());
+        }
+
+        let error_msg = "inconsistent column selection across files!";
+
+        if self.tables.len() != other.tables.len() {
+            return Err(error_msg);
+        }
+
+        for (i, (name, table)) in other.tables.into_iter().enumerate() {
+            let (current_name, current_table) = &mut self.tables[i];
+
+            if current_name != &name {
+                return Err(error_msg);
+            }
+
+            current_table.merge(table);
+        }
+
+        Ok(())
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (Vec<u8>, Stats)> {
+        self.tables.into_iter()
+    }
+}
+
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
 
@@ -294,7 +350,9 @@ using --path-column.
 rows to your output (e.g. searching all the files in parallel and
 retrieving the results).
 
-`xan parallel freq` build frequency tables in parallel.
+`xan parallel freq` builds frequency tables in parallel.
+
+`xan parallel stats` computes well-known statistics in parallel.
 
 Note that you can use the `split` or `partition` command to preemptively
 split a large file into manageable chunks, if you can spare the disk space.
@@ -314,9 +372,11 @@ Usage:
     xan parallel count [options] [<inputs>...]
     xan parallel cat [options] [<inputs>...]
     xan parallel freq [options] [<inputs>...]
+    xan parallel stats [options] [<inputs>...]
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
     xan p freq [options] [<inputs>...]
+    xan p stats [options] [<inputs>...]
     xan parallel --help
 
 parallel options:
@@ -343,6 +403,9 @@ parallel freq options:
     --sep <char>         Split the cell into multiple values to count using the
                          provided separator.
 
+parallel stats options:
+    -s, --select <cols>  Columns for which to build statistics.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -359,6 +422,7 @@ struct Args {
     cmd_count: bool,
     cmd_cat: bool,
     cmd_freq: bool,
+    cmd_stats: bool,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_progress: bool,
@@ -688,8 +752,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(())
         })?;
 
-        progress_bar.succeed();
-
         let mut writer = Config::new(&args.flag_output).writer()?;
 
         let mut output_record = csv::ByteRecord::new();
@@ -711,6 +773,50 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 writer.write_byte_record(&output_record)?;
             }
+        }
+
+        progress_bar.succeed();
+        writer.flush()?;
+    }
+    // Stats
+    else if args.cmd_stats {
+        let mut writer = Config::new(&args.flag_output).writer()?;
+        writer.write_byte_record(&Stats::new().headers())?;
+
+        let total_stats = Mutex::new(StatsTables::new());
+
+        args.try_for_each_path(|path| {
+            let (mut reader, _children_guard) = args.reader(path)?;
+
+            let bar = progress_bar.start(path);
+
+            let headers = reader.byte_headers()?.clone();
+            let sel = Config::new(&None)
+                .select(args.flag_select.clone())
+                .selection(&headers)?;
+
+            let mut local_stats = StatsTables::with_capacity(sel.collect(&headers));
+            let mut record = csv::ByteRecord::new();
+
+            while reader.read_byte_record(&mut record)? {
+                for (cell, stats) in sel.select(&record).zip(local_stats.iter_mut()) {
+                    stats.process(cell);
+                }
+
+                ParallelProgressBar::tick(&bar);
+            }
+
+            total_stats.lock().unwrap().merge(local_stats)?;
+
+            progress_bar.stop(path);
+
+            Ok(())
+        })?;
+
+        progress_bar.succeed();
+
+        for (name, stats) in total_stats.into_inner().unwrap().into_iter() {
+            writer.write_byte_record(&stats.results(&name))?;
         }
 
         writer.flush()?;

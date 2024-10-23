@@ -1975,6 +1975,23 @@ impl Stats {
         }
     }
 
+    pub fn merge(&mut self, other: Self) {
+        self.count.merge(other.count);
+        self.extent.merge(other.extent);
+        self.length_extent.merge(other.length_extent);
+        self.welford.merge(other.welford);
+        self.sum.merge(other.sum);
+        self.types.merge(other.types);
+
+        if let Some(frequencies) = &mut self.frequencies {
+            frequencies.merge(other.frequencies.unwrap());
+        }
+
+        if let Some(numbers) = &mut self.numbers {
+            numbers.merge(other.numbers.unwrap());
+        }
+    }
+
     pub fn include_nulls(&mut self) {
         self.nulls = true;
     }
