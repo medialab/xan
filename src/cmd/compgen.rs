@@ -72,6 +72,7 @@ fn find_csv_files_in_prompt() -> Vec<String> {
                 || p.ends_with(".csv.gz")
                 || p.ends_with(".tsv.gz")
         })
+        .take(15)
         .collect()
 }
 
