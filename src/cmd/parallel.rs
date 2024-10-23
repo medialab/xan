@@ -21,7 +21,7 @@ use crate::CliResult;
 
 // TODO: groupby, agg
 
-fn get_spinner_template(path: ColoredString) -> ProgressStyle {
+fn get_spinner_style(path: ColoredString) -> ProgressStyle {
     ProgressStyle::with_template(&format!(
         "{{spinner}} {{human_pos:>11}} rows of {} in {{elapsed}} ({{per_sec}})",
         path
@@ -63,7 +63,7 @@ impl Bars {
 
     fn start(&self, path: &str) -> ProgressBar {
         let bar = ProgressBar::new_spinner();
-        bar.set_style(get_spinner_template(path.cyan()));
+        bar.set_style(get_spinner_style(path.cyan()));
 
         self.bars.lock().unwrap().push((
             path.to_string(),
@@ -78,7 +78,7 @@ impl Bars {
             if p != path {
                 true
             } else {
-                b.set_style(get_spinner_template(path.green()));
+                b.set_style(get_spinner_style(path.green()));
                 b.abandon();
                 false
             }
@@ -102,7 +102,7 @@ impl Bars {
 
     fn interrupt(&self) {
         for (path, bar) in self.bars.lock().unwrap().iter() {
-            bar.set_style(get_spinner_template(path.yellow()));
+            bar.set_style(get_spinner_style(path.yellow()));
             bar.tick();
             bar.abandon();
         }
@@ -601,6 +601,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let inputs_count = args.arg_inputs.len();
     let progress_bar = if args.flag_progress {
+        console::set_colors_enabled(true);
+        colored::control::set_override(true);
+
         ParallelProgressBar::new(inputs_count)
     } else {
         ParallelProgressBar::hidden()
