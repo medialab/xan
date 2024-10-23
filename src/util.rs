@@ -76,8 +76,9 @@ pub fn colorize_help(help: &str) -> String {
 pub fn colorize_main_help(help: &str) -> String {
     let help =
         MAIN_SECTION_REGEX.replace_all(help, |caps: &Captures| caps[0].yellow().bold().to_string());
-    let help =
-        MAIN_COMMAND_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().bold().to_string());
+    let help = MAIN_COMMAND_REGEX.replace_all(&help, |caps: &Captures| {
+        "    ".to_string() + &caps[0][4..].cyan().bold().to_string()
+    });
     let help = MAIN_ALIAS_REGEX.replace_all(&help, |caps: &Captures| caps[0].dimmed().to_string());
 
     help.replace("xan", &"xan".red().to_string())

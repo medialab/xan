@@ -340,29 +340,38 @@ impl StatsTables {
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
 
-The CSV files composing said dataset can be given as variadic arguments to the
+The CSV files composing said dataset can be given as multiple arguments to the
 command, or given through stdin, one path per line or in a CSV column when
-using --path-column.
+using --path-column:
 
-`xan parallel count` counts the number of rows in the whole dataset.
+    Multiple arguments through shell glob:
+    $ xan parallel count data/**/docs.csv
 
-`xan parallel cat` preprocess the files and redirect the concatenated
-rows to your output (e.g. searching all the files in parallel and
-retrieving the results).
+    One path per line, fed through stdin:
+    $ ls data/**/docs.csv | xan parallel count
 
-`xan parallel freq` builds frequency tables in parallel.
-
-`xan parallel stats` computes well-known statistics in parallel.
+    Paths from a CSV column through stdin:
+    $ xan glob 'data/**/docs.csv' | xan parallel count --path-column path
 
 Note that you can use the `split` or `partition` command to preemptively
 split a large file into manageable chunks, if you can spare the disk space.
 
-Preprocessing on each file can be done using two different methods:
+This command has multiple subcommands that each perform some typical
+parallel reduce operation:
 
-1. Using a pipeline composed only of xan subcommands using -P, --preprocess:
+    - `count`: counts the number of rows in the whole dataset.
+    - `cat`: preprocess the files and redirect the concatenated
+        rows to your output (e.g. searching all the files in parallel and
+        retrieving the results).
+    - `freq`: builds frequency tables in parallel.
+    - `stats`: computes well-known statistics in parallel.
+
+Finally, preprocessing on each file can be done using two different methods:
+
+1. Using only xan subcommands with -P, --preprocess:
     $ xan parallel count -P \"search -s name John | slice -l 10\" file.csv
 
-2. Using a shell subcommand that will be passed to \"$SHELL -c\":
+2. Using a shell subcommand passed to \"$SHELL -c\" with -S, --shell-preprocess:
     $ xan parallel count -S \"xan search -s name John | xan slice -l 10\" file.csv
 
 The second preprocessing option will of course not work in DOS-based shells and Powershell
