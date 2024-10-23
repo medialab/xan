@@ -8,41 +8,152 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bstr::ByteSlice;
-use indicatif::ProgressBar;
+use colored::{ColoredString, Colorize};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
 
+use crate::cmd::progress::get_progress_style;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
-// TODO: finish progress bar
 // TODO: groupby, agg, stats
+// TODO: factorize iteration over paths
+
+fn get_spinner_template(path: ColoredString) -> ProgressStyle {
+    ProgressStyle::with_template(&format!(
+        "{{spinner}} {{human_pos:>11}} rows of {} in {{elapsed}} ({{per_sec}})",
+        path
+    ))
+    .unwrap()
+    .tick_chars("⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈⣿")
+}
+
+struct Bars {
+    main: ProgressBar,
+    multi: MultiProgress,
+    bars: Mutex<Vec<(String, ProgressBar)>>,
+    total: u64,
+}
+
+impl Bars {
+    fn new(total: usize) -> Self {
+        let main = ProgressBar::new(total as u64);
+        let multi = MultiProgress::new();
+        multi.add(main.clone());
+
+        let bars = Bars {
+            main,
+            multi,
+            bars: Mutex::new(Vec::new()),
+            total: total as u64,
+        };
+
+        bars.set_color("blue");
+
+        bars
+    }
+
+    fn set_color(&self, color: &str) {
+        self.main
+            .set_style(get_progress_style(Some(self.total), color, false, "files"));
+        self.main.tick();
+    }
+
+    fn start(&self, path: &str) -> ProgressBar {
+        let bar = ProgressBar::new_spinner();
+        bar.set_style(get_spinner_template(path.cyan()));
+
+        self.bars.lock().unwrap().push((
+            path.to_string(),
+            self.multi.insert_before(&self.main, bar.clone()),
+        ));
+
+        bar
+    }
+
+    fn stop(&self, path: &str) {
+        self.bars.lock().unwrap().retain_mut(|(p, b)| {
+            if p != path {
+                true
+            } else {
+                b.set_style(get_spinner_template(path.green()));
+                b.abandon();
+                false
+            }
+        });
+        self.main.inc(1);
+    }
+
+    fn abandon(&self) {
+        for (_, bar) in self.bars.lock().unwrap().iter() {
+            bar.abandon();
+        }
+
+        self.main.abandon();
+    }
+
+    fn succeed(&self) {
+        self.set_color("green");
+        self.main.tick();
+        self.abandon();
+    }
+
+    fn interrupt(&self) {
+        for (path, bar) in self.bars.lock().unwrap().iter() {
+            bar.set_style(get_spinner_template(path.yellow()));
+            bar.tick();
+            bar.abandon();
+        }
+
+        self.set_color("yellow");
+        self.main.abandon();
+    }
+}
 
 struct ParallelProgressBar {
-    bar: Option<ProgressBar>,
+    bars: Option<Arc<Bars>>,
 }
 
 impl ParallelProgressBar {
     fn hidden() -> Self {
-        Self { bar: None }
+        Self { bars: None }
     }
 
     fn new(total: usize) -> Self {
-        Self {
-            bar: Some(ProgressBar::new(total as u64)),
-        }
+        let bars = Arc::new(Bars::new(total));
+
+        let handle = bars.clone();
+
+        ctrlc::set_handler(move || {
+            handle.interrupt();
+            std::process::exit(1);
+        })
+        .expect("Could not setup ctrl+c handler!");
+
+        Self { bars: Some(bars) }
     }
 
-    fn abandon(&self) {
-        if let Some(bar) = &self.bar {
-            bar.abandon();
-        }
+    fn start(&self, path: &str) -> Option<ProgressBar> {
+        self.bars.as_ref().map(|bars| bars.start(path))
     }
 
-    fn tick(&self) {
-        if let Some(bar) = &self.bar {
+    fn tick(bar_opt: &Option<ProgressBar>) {
+        if let Some(bar) = bar_opt {
             bar.inc(1);
+        }
+    }
+
+    fn stop(&self, path: &str) {
+        if let Some(bars) = &self.bars {
+            bars.stop(path);
+        }
+    }
+
+    fn succeed(&self) {
+        if let Some(bars) = &self.bars {
+            bars.succeed();
         }
     }
 }
@@ -434,20 +545,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
 
+                let bar = progress_bar.start(path);
+
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
 
                 while reader.read_byte_record(&mut record)? {
                     count += 1;
+
+                    ParallelProgressBar::tick(&bar);
                 }
 
                 total_count.fetch_add(count, Ordering::Relaxed);
-                progress_bar.tick();
+                progress_bar.stop(path);
 
                 Ok(())
             })?;
 
-        progress_bar.abandon();
+        progress_bar.succeed();
 
         println!("{}", total_count.into_inner());
     }
@@ -479,6 +594,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
+
+                progress_bar.start(path);
+
                 let mut headers = reader.byte_headers()?.clone();
 
                 if let Some(source_column) = &args.flag_source_column {
@@ -513,12 +631,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     flush(&headers, &buffer)?;
                 }
 
-                progress_bar.tick();
+                progress_bar.stop(path);
 
                 Ok(())
             })?;
 
-        progress_bar.abandon();
+        progress_bar.succeed();
 
         Arc::into_inner(writer_mutex)
             .unwrap()
@@ -535,6 +653,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .par_iter()
             .try_for_each(|path| -> CliResult<()> {
                 let (mut reader, _children_guard) = args.reader(path)?;
+
+                progress_bar.start(path);
 
                 let headers = reader.byte_headers()?.clone();
                 let sel = Config::new(&None)
@@ -559,12 +679,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
-                progress_bar.tick();
+                progress_bar.stop(path);
 
                 Ok(())
             })?;
 
-        progress_bar.abandon();
+        progress_bar.succeed();
 
         let mut writer = Config::new(&args.flag_output).writer()?;
 

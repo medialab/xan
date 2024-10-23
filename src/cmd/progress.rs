@@ -11,7 +11,7 @@ use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
-fn get_progress_style_template(total: u64, color: &str, bytes: bool) -> String {
+fn get_progress_style_template(total: u64, color: &str, bytes: bool, unit: &str) -> String {
     let mut f = String::new();
 
     if bytes {
@@ -27,23 +27,33 @@ fn get_progress_style_template(total: u64, color: &str, bytes: bool) -> String {
         f.push_str(color);
         f.push_str("/white.dim} {human_pos:>");
         f.push_str(&padding.to_string());
-        f.push_str(
-            "}/{human_len} rows {spinner} [{percent:>3}%] in {elapsed} ({per_sec}, eta: {eta})",
-        );
+        f.push_str("}/{human_len} ");
+        f.push_str(unit);
+        f.push_str(" {spinner} [{percent:>3}%] in {elapsed} ({per_sec}, eta: {eta})");
     }
 
     f
 }
 
-fn get_progress_style(total: &Option<u64>, color: &str, bytes: bool) -> ProgressStyle {
+pub fn get_progress_style(
+    total: Option<u64>,
+    color: &str,
+    bytes: bool,
+    unit: &str,
+) -> ProgressStyle {
     ProgressStyle::with_template(&match total {
-        Some(count) => get_progress_style_template(*count, color, bytes),
-        None => (if bytes {
-            "{prefix}{decimal_bytes} {spinner} in {elapsed} ({decimal_bytes_per_sec})"
-        } else {
-            "{prefix}{human_pos} rows {spinner} in {elapsed} ({per_sec})"
-        })
-        .to_string(),
+        Some(count) => get_progress_style_template(count, color, bytes, unit),
+        None => {
+            if bytes {
+                "{prefix}{decimal_bytes} {spinner} in {elapsed} ({decimal_bytes_per_sec})"
+                    .to_string()
+            } else {
+                format!(
+                    "{{prefix}}{{human_pos}} {} {{spinner}} in {{elapsed}} ({{per_sec}})",
+                    unit
+                )
+            }
+        }
     })
     .unwrap()
     .progress_chars("━╸━")
@@ -63,7 +73,7 @@ impl EnhancedProgressBar {
             Some(count) => ProgressBar::new(count),
         };
 
-        bar.set_style(get_progress_style(&total, "blue", bytes));
+        bar.set_style(get_progress_style(total, "blue", bytes, "rows"));
 
         if let Some(string) = title {
             bar.set_prefix([string, " ".to_string()].concat());
@@ -90,8 +100,12 @@ impl EnhancedProgressBar {
     }
 
     fn change_color(&self, color: &str) {
-        self.inner
-            .set_style(get_progress_style(&self.inner.length(), color, self.bytes));
+        self.inner.set_style(get_progress_style(
+            self.inner.length(),
+            color,
+            self.bytes,
+            "rows",
+        ));
     }
 
     fn interrupt(&self) {
