@@ -19,7 +19,6 @@ use crate::util;
 use crate::CliResult;
 
 // TODO: groupby, agg, stats
-// TODO: factorize iteration over paths
 
 fn get_spinner_template(path: ColoredString) -> ProgressStyle {
     ProgressStyle::with_template(&format!(
@@ -513,6 +512,13 @@ impl Args {
             (config.reader()?, None)
         })
     }
+
+    fn try_for_each_path<F>(&self, callback: F) -> CliResult<()>
+    where
+        F: Fn(&String) -> CliResult<()> + Send + Sync,
+    {
+        self.inputs()?.par_iter().try_for_each(callback)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -540,27 +546,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.cmd_count {
         let total_count = AtomicUsize::new(0);
 
-        args.inputs()?
-            .par_iter()
-            .try_for_each(|path| -> CliResult<()> {
-                let (mut reader, _children_guard) = args.reader(path)?;
+        args.try_for_each_path(|path| {
+            let (mut reader, _children_guard) = args.reader(path)?;
 
-                let bar = progress_bar.start(path);
+            let bar = progress_bar.start(path);
 
-                let mut record = csv::ByteRecord::new();
-                let mut count: usize = 0;
+            let mut record = csv::ByteRecord::new();
+            let mut count: usize = 0;
 
-                while reader.read_byte_record(&mut record)? {
-                    count += 1;
+            while reader.read_byte_record(&mut record)? {
+                count += 1;
 
-                    ParallelProgressBar::tick(&bar);
-                }
+                ParallelProgressBar::tick(&bar);
+            }
 
-                total_count.fetch_add(count, Ordering::Relaxed);
-                progress_bar.stop(path);
+            total_count.fetch_add(count, Ordering::Relaxed);
+            progress_bar.stop(path);
 
-                Ok(())
-            })?;
+            Ok(())
+        })?;
 
         progress_bar.succeed();
 
@@ -590,51 +594,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(())
         };
 
-        args.inputs()?
-            .par_iter()
-            .try_for_each(|path| -> CliResult<()> {
-                let (mut reader, _children_guard) = args.reader(path)?;
+        args.try_for_each_path(|path| {
+            let (mut reader, _children_guard) = args.reader(path)?;
 
-                progress_bar.start(path);
+            let bar = progress_bar.start(path);
 
-                let mut headers = reader.byte_headers()?.clone();
+            let mut headers = reader.byte_headers()?.clone();
 
-                if let Some(source_column) = &args.flag_source_column {
-                    headers.push_field(source_column.as_bytes());
-                }
+            if let Some(source_column) = &args.flag_source_column {
+                headers.push_field(source_column.as_bytes());
+            }
 
-                let mut buffer: Vec<csv::ByteRecord> = Vec::with_capacity(buffer_size);
+            let mut buffer: Vec<csv::ByteRecord> = Vec::with_capacity(buffer_size);
 
-                for result in reader.byte_records() {
-                    if buffer.len() == buffer_size {
-                        flush(&headers, &buffer)?;
-
-                        buffer.clear();
-                    }
-
-                    let mut record = result?;
-
-                    if args.flag_source_column.is_some() {
-                        if let Some(root_dir) = &args.flag_input_dir {
-                            let mut buf = root_dir.clone();
-                            buf.push(path);
-                            record.push_field(buf.to_string_lossy().as_bytes());
-                        } else {
-                            record.push_field(path.as_bytes());
-                        }
-                    }
-
-                    buffer.push(record);
-                }
-
-                if !buffer.is_empty() {
+            for result in reader.byte_records() {
+                if buffer.len() == buffer_size {
                     flush(&headers, &buffer)?;
+
+                    buffer.clear();
                 }
 
-                progress_bar.stop(path);
+                let mut record = result?;
 
-                Ok(())
-            })?;
+                if args.flag_source_column.is_some() {
+                    if let Some(root_dir) = &args.flag_input_dir {
+                        let mut buf = root_dir.clone();
+                        buf.push(path);
+                        record.push_field(buf.to_string_lossy().as_bytes());
+                    } else {
+                        record.push_field(path.as_bytes());
+                    }
+                }
+
+                buffer.push(record);
+
+                ParallelProgressBar::tick(&bar);
+            }
+
+            if !buffer.is_empty() {
+                flush(&headers, &buffer)?;
+            }
+
+            progress_bar.stop(path);
+
+            Ok(())
+        })?;
 
         progress_bar.succeed();
 
@@ -649,40 +653,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     else if args.cmd_freq {
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
-        args.inputs()?
-            .par_iter()
-            .try_for_each(|path| -> CliResult<()> {
-                let (mut reader, _children_guard) = args.reader(path)?;
+        args.try_for_each_path(|path| {
+            let (mut reader, _children_guard) = args.reader(path)?;
 
-                progress_bar.start(path);
+            let bar = progress_bar.start(path);
 
-                let headers = reader.byte_headers()?.clone();
-                let sel = Config::new(&None)
-                    .select(args.flag_select.clone())
-                    .selection(&headers)?;
+            let headers = reader.byte_headers()?.clone();
+            let sel = Config::new(&None)
+                .select(args.flag_select.clone())
+                .selection(&headers)?;
 
-                let mut freq_tables = FrequencyTables::with_capacity(sel.collect(&headers));
+            let mut freq_tables = FrequencyTables::with_capacity(sel.collect(&headers));
 
-                let mut record = csv::ByteRecord::new();
+            let mut record = csv::ByteRecord::new();
 
-                while reader.read_byte_record(&mut record)? {
-                    for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
-                        if let Some(sep) = &args.flag_sep {
-                            for subcell in cell.split_str(sep) {
-                                table.inc(subcell.to_vec());
-                            }
-                        } else {
-                            table.inc(cell.to_vec());
+            while reader.read_byte_record(&mut record)? {
+                for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
+                    if let Some(sep) = &args.flag_sep {
+                        for subcell in cell.split_str(sep) {
+                            table.inc(subcell.to_vec());
                         }
+                    } else {
+                        table.inc(cell.to_vec());
                     }
                 }
 
-                total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
+                ParallelProgressBar::tick(&bar);
+            }
 
-                progress_bar.stop(path);
+            total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
-                Ok(())
-            })?;
+            progress_bar.stop(path);
+
+            Ok(())
+        })?;
 
         progress_bar.succeed();
 
