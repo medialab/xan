@@ -291,13 +291,16 @@ impl StatsTables {
         Self { tables: Vec::new() }
     }
 
-    fn with_capacity(selected_headers: Vec<Vec<u8>>) -> Self {
+    fn with_capacity<F>(selected_headers: Vec<Vec<u8>>, new: F) -> Self
+    where
+        F: Fn() -> Stats,
+    {
         let mut stats_tables = Self {
             tables: Vec::with_capacity(selected_headers.len()),
         };
 
         for header in selected_headers {
-            stats_tables.tables.push((header, Stats::new()));
+            stats_tables.tables.push((header, new()));
         }
 
         stats_tables
@@ -414,6 +417,13 @@ parallel freq options:
 
 parallel stats options:
     -s, --select <cols>  Columns for which to build statistics.
+    -A, --all            Show all statistics available.
+    -c, --cardinality    Show cardinality and modes.
+                         This requires storing all CSV data in memory.
+    -q, --quartiles      Show quartiles.
+                         This requires storing all CSV data in memory.
+    --nulls              Include empty values in the population size for computing
+                         mean and standard deviation.
 
 Common options:
     -h, --help             Display this message
@@ -442,6 +452,10 @@ struct Args {
     flag_source_column: Option<String>,
     flag_select: SelectColumns,
     flag_sep: Option<String>,
+    flag_all: bool,
+    flag_cardinality: bool,
+    flag_quartiles: bool,
+    flag_nulls: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -450,6 +464,24 @@ struct Args {
 type Reader = csv::Reader<Box<dyn io::Read + Send>>;
 
 impl Args {
+    fn new_stats(&self) -> Stats {
+        let mut stats = Stats::new();
+
+        if self.flag_nulls {
+            stats.include_nulls();
+        }
+
+        if self.flag_all || self.flag_cardinality {
+            stats.compute_frequencies();
+        }
+
+        if self.flag_all || self.flag_quartiles {
+            stats.compute_numbers();
+        }
+
+        stats
+    }
+
     fn inputs(&self) -> CliResult<Vec<String>> {
         if !self.arg_inputs.is_empty() {
             Ok(self.arg_inputs.clone())
@@ -793,7 +825,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Stats
     else if args.cmd_stats {
         let mut writer = Config::new(&args.flag_output).writer()?;
-        writer.write_byte_record(&Stats::new().headers())?;
+        writer.write_byte_record(&args.new_stats().headers())?;
 
         let total_stats = Mutex::new(StatsTables::new());
 
@@ -807,7 +839,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .select(args.flag_select.clone())
                 .selection(&headers)?;
 
-            let mut local_stats = StatsTables::with_capacity(sel.collect(&headers));
+            let mut local_stats =
+                StatsTables::with_capacity(sel.collect(&headers), || args.new_stats());
             let mut record = csv::ByteRecord::new();
 
             while reader.read_byte_record(&mut record)? {

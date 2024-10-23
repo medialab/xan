@@ -87,7 +87,7 @@ struct Args {
 }
 
 impl Args {
-    fn new_stats_for_column(&self) -> Stats {
+    fn new_stats(&self) -> Stats {
         let mut stats = Stats::new();
 
         if self.flag_nulls {
@@ -151,7 +151,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             record.push_field(h);
         }
 
-        record.extend(&args.new_stats_for_column().headers());
+        record.extend(&args.new_stats().headers());
 
         wtr.write_byte_record(&record)?;
 
@@ -163,9 +163,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             groups.insert_with_or_else(
                 group_key,
                 || {
-                    let mut fields = (0..sel.len())
-                        .map(|_| args.new_stats_for_column())
-                        .collect::<Vec<_>>();
+                    let mut fields = (0..sel.len()).map(|_| args.new_stats()).collect::<Vec<_>>();
 
                     for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
                         stats.process(cell);
@@ -199,9 +197,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // No grouping
-    let mut fields = (0..sel.len())
-        .map(|_| args.new_stats_for_column())
-        .collect::<Vec<_>>();
+    let mut fields = (0..sel.len()).map(|_| args.new_stats()).collect::<Vec<_>>();
 
     wtr.write_byte_record(&fields[0].headers())?;
 
