@@ -5,13 +5,13 @@
 // deletions efficiently but it was not designed for this anyway.
 use std::collections::{hash_map::Entry, HashMap};
 use std::hash::Hash;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct SortedInsertHashmap<K, V> {
-    map: HashMap<Rc<K>, usize>,
+    map: HashMap<Arc<K>, usize>,
     last_entry: Option<usize>,
-    order: Vec<(Rc<K>, V)>,
+    order: Vec<(Arc<K>, V)>,
 }
 
 impl<K, V> Default for SortedInsertHashmap<K, V> {
@@ -53,7 +53,7 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
             }
         }
 
-        let key = Rc::new(key);
+        let key = Arc::new(key);
         let mut key_was_inserted = false;
 
         let item_index = match self.map.entry(key.clone()) {
@@ -104,10 +104,10 @@ impl<K: Eq + Hash, V> SortedInsertHashmap<K, V> {
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
         // NOTE: I don't really understand why but in the map function
         // `self.map` has already been dropped, and the strong count
-        // of the Rc instances is 1 so we can into_inner them.
+        // of the Arc instances is 1 so we can into_inner them.
         self.order
             .into_iter()
-            .map(|(k, v)| (Rc::into_inner(k).unwrap(), v))
+            .map(|(k, v)| (Arc::into_inner(k).unwrap(), v))
     }
 
     pub fn into_values(self) -> impl Iterator<Item = V> {

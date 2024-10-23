@@ -190,3 +190,30 @@ fn parallel_agg() {
     let expected = vec![svec!["sum"], svec!["19"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn parallel_groupby() {
+    let wrk = Workdir::new("parallel_groupby");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["n", "name"], svec!["4", "john"], svec!["7", "mary"]],
+    );
+    wrk.create("data2.csv", vec![svec!["n", "name"], svec!["8", "john"]]);
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("groupby")
+        .arg("name")
+        .arg("sum(n) as sum")
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|r| r[0].to_owned());
+
+    let expected = vec![
+        svec!["name", "sum"],
+        svec!["john", "12"],
+        svec!["mary", "7"],
+    ];
+    assert_eq!(got, expected);
+}
