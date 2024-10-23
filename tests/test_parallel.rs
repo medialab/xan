@@ -172,3 +172,21 @@ fn parallel_cat_source_column_input_dir() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn parallel_agg() {
+    let wrk = Workdir::new("parallel_agg");
+    wrk.create("data1.csv", vec![svec!["n"], svec!["4"], svec!["7"]]);
+    wrk.create("data2.csv", vec![svec!["n"], svec!["8"]]);
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("agg")
+        .arg("sum(n) as sum")
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let expected = vec![svec!["sum"], svec!["19"]];
+    assert_eq!(got, expected);
+}

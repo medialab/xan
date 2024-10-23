@@ -14,12 +14,10 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 
 use crate::cmd::progress::get_progress_style;
 use crate::config::{Config, Delimiter};
-use crate::moonblade::Stats;
+use crate::moonblade::{AggregationProgram, Stats};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-
-// TODO: groupby, agg
 
 fn get_spinner_style(path: ColoredString) -> ProgressStyle {
     ProgressStyle::with_template(&format!(
@@ -366,8 +364,13 @@ parallel reduce operation:
     - `cat`: preprocess the files and redirect the concatenated
         rows to your output (e.g. searching all the files in parallel and
         retrieving the results).
-    - `freq`: builds frequency tables in parallel.
-    - `stats`: computes well-known statistics in parallel.
+    - `freq`: builds frequency tables in parallel. See \"xan freq -h\" for
+        an example of output.
+    - `stats`: computes well-known statistics in parallel. See \"xan stats -h\" for
+        an example of output.
+    - `agg`: parallelize a custom aggregation. See \"xan agg -h\" for more details.
+    - `groupby`: parallelize a custom grouped aggregation. See \"xan groupby -h\"
+        for more details.
 
 Finally, preprocessing on each file can be done using two different methods:
 
@@ -385,10 +388,14 @@ Usage:
     xan parallel cat [options] [<inputs>...]
     xan parallel freq [options] [<inputs>...]
     xan parallel stats [options] [<inputs>...]
+    xan parallel agg [options] <expr> [<inputs>...]
+    xan parallel groupby [options] <group> <expr> [<inputs>...]
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
     xan p freq [options] [<inputs>...]
     xan p stats [options] [<inputs>...]
+    xan p agg [options] <expr> [<inputs>...]
+    xan p groupby [options] <group> <expr> [<inputs>...]
     xan parallel --help
 
 parallel options:
@@ -437,11 +444,15 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_inputs: Vec<String>,
     cmd_count: bool,
     cmd_cat: bool,
     cmd_freq: bool,
     cmd_stats: bool,
+    cmd_agg: bool,
+    _cmd_groupby: bool,
+    arg_inputs: Vec<String>,
+    arg_expr: Option<String>,
+    _arg_group: Option<SelectColumns>,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_progress: bool,
@@ -827,7 +838,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut writer = Config::new(&args.flag_output).writer()?;
         writer.write_byte_record(&args.new_stats().headers())?;
 
-        let total_stats = Mutex::new(StatsTables::new());
+        let total_stats_mutex = Mutex::new(StatsTables::new());
 
         args.try_for_each_path(|path| {
             let (mut reader, _children_guard) = args.reader(path)?;
@@ -851,20 +862,61 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 ParallelProgressBar::tick(&bar);
             }
 
-            total_stats.lock().unwrap().merge(local_stats)?;
+            total_stats_mutex.lock().unwrap().merge(local_stats)?;
 
             progress_bar.stop(path);
 
             Ok(())
         })?;
 
-        progress_bar.succeed();
-
-        for (name, stats) in total_stats.into_inner().unwrap().into_iter() {
+        for (name, stats) in total_stats_mutex.into_inner().unwrap().into_iter() {
             writer.write_byte_record(&stats.results(&name))?;
         }
 
+        progress_bar.succeed();
         writer.flush()?;
+    }
+    // Agg
+    else if args.cmd_agg {
+        let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
+
+        args.try_for_each_path(|path| {
+            let (mut reader, _children_guard) = args.reader(path)?;
+
+            let bar = progress_bar.start(path);
+
+            let mut record = csv::ByteRecord::new();
+            let mut program =
+                AggregationProgram::parse(args.arg_expr.as_ref().unwrap(), reader.byte_headers()?)?;
+
+            let mut index: usize = 0;
+
+            while reader.read_byte_record(&mut record)? {
+                program.run_with_record(index, &record)?;
+                index += 1;
+
+                ParallelProgressBar::tick(&bar);
+            }
+
+            let mut total_program_opt = total_program_mutex.lock().unwrap();
+
+            match total_program_opt.as_mut() {
+                Some(current_program) => current_program.merge(program),
+                None => *total_program_opt = Some(program),
+            };
+
+            progress_bar.stop(path);
+
+            Ok(())
+        })?;
+
+        if let Some(mut total_program) = total_program_mutex.into_inner().unwrap() {
+            let mut writer = Config::new(&args.flag_output).writer()?;
+            writer.write_record(total_program.headers())?;
+            writer.write_record(&total_program.finalize(true)?)?;
+        }
+
+        progress_bar.succeed();
     }
 
     Ok(())
