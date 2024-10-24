@@ -5,7 +5,7 @@ use csv::ByteRecord;
 use jiff::civil::DateTime;
 use rayon::prelude::*;
 
-use crate::collections::{FixedReverseHeap, FixedReverseHeapMap, ClusteredInsertHashmap};
+use crate::collections::{ClusteredInsertHashmap, FixedReverseHeap, FixedReverseHeapMap};
 
 use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
@@ -1898,13 +1898,12 @@ impl GroupAggregationProgram {
 
     pub fn merge(&mut self, other: Self) {
         for (key, other_aggregators) in other.groups.into_iter() {
-            // TODO: clearly we can do better than cloning here
-            self.groups.insert_with_or_else(
+            self.groups.insert_or_update_with(
                 key,
-                || other_aggregators.clone(),
-                |self_aggregators| {
+                other_aggregators,
+                |self_aggregators, other_aggregators| {
                     for (self_aggregator, other_aggregator) in
-                        self_aggregators.iter_mut().zip(other_aggregators.clone())
+                        self_aggregators.iter_mut().zip(other_aggregators)
                     {
                         self_aggregator.merge(other_aggregator);
                     }
