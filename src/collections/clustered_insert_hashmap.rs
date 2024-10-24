@@ -118,8 +118,29 @@ impl<K: Eq + Hash, V> ClusteredInsertHashmap<K, V> {
     where
         F: FnOnce() -> V,
     {
-        self.insert_with_or_else(key, callback, |_| {});
-        self.map.last_mut().unwrap().1
+        let index = 'index: {
+            let len = self.map.len();
+
+            if let Some((last_key, _)) = self.map.last() {
+                if last_key == &key {
+                    break 'index len - 1;
+                }
+            }
+
+            match self.map.entry(key) {
+                IndexMapEntry::Vacant(entry) => {
+                    entry.insert(callback());
+                    len
+                }
+                IndexMapEntry::Occupied(entry) => {
+                    debug_assert!(len > 1);
+                    entry.swap_indices(len - 1);
+                    len - 1
+                }
+            }
+        };
+
+        &mut self.map.as_mut_slice()[index]
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {
