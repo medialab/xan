@@ -175,10 +175,10 @@ fn frequency_groubby() {
 
     let expected = vec![
         svec!["field", "name", "value", "count"],
-        svec!["color", "john", "blue", "2"],
-        svec!["color", "john", "yellow", "1"],
         svec!["color", "mary", "red", "3"],
         svec!["color", "mary", "purple", "1"],
+        svec!["color", "john", "blue", "2"],
+        svec!["color", "john", "yellow", "1"],
     ];
     assert_eq!(got, expected);
 
@@ -193,10 +193,10 @@ fn frequency_groubby() {
 
     let expected = vec![
         svec!["field", "name", "value", "count"],
-        svec!["color", "john", "blue", "2"],
-        svec!["color", "john", "<rest>", "1"],
         svec!["color", "mary", "red", "3"],
         svec!["color", "mary", "<rest>", "1"],
+        svec!["color", "john", "blue", "2"],
+        svec!["color", "john", "<rest>", "1"],
     ];
     assert_eq!(got, expected);
 
@@ -212,8 +212,8 @@ fn frequency_groubby() {
 
     let expected = vec![
         svec!["field", "name", "value", "count"],
-        svec!["color", "john", "blue", "2"],
         svec!["color", "mary", "red", "3"],
+        svec!["color", "john", "blue", "2"],
     ];
     assert_eq!(got, expected);
 }

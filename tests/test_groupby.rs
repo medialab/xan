@@ -250,9 +250,9 @@ fn groupby_complex_selection() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["name", "color", "sum"],
-        svec!["john", "blue", "3"],
-        svec!["mary", "orange", "5"],
         svec!["john", "yellow", "9"],
+        svec!["mary", "orange", "5"],
+        svec!["john", "blue", "3"],
     ];
     assert_eq!(got, expected);
 }
@@ -281,8 +281,8 @@ fn groupby_most_common() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["name", "top", "counts"],
-        svec!["john", "blue|purple", "2|1"],
         svec!["mary", "orange", "2"],
+        svec!["john", "blue|purple", "2|1"],
     ];
     assert_eq!(got, expected);
 }

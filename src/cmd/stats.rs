@@ -4,7 +4,7 @@ use crate::util;
 use crate::CliResult;
 use csv;
 
-use crate::collections::SortedInsertHashmap;
+use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::Stats;
 
 type GroupKey = Vec<Vec<u8>>;
@@ -155,7 +155,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&record)?;
 
-        let mut groups: SortedInsertHashmap<GroupKey, Vec<Stats>> = SortedInsertHashmap::new();
+        let mut groups: ClusteredInsertHashmap<GroupKey, Vec<Stats>> = ClusteredInsertHashmap::new();
 
         while rdr.read_byte_record(&mut record)? {
             let group_key: Vec<_> = gsel.select(&record).map(|cell| cell.to_vec()).collect();

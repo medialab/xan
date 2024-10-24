@@ -3,7 +3,9 @@ use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
 
-use crate::collections::{FixedReverseHeapMap, FixedReverseHeapMapWithTies, SortedInsertHashmap};
+use crate::collections::{
+    ClusteredInsertHashmap, FixedReverseHeapMap, FixedReverseHeapMapWithTies,
+};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
@@ -112,10 +114,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! run_groupby {
         ($heap:ident, $type:ident, $sel:ident) => {{
             let mut record = csv::ByteRecord::new();
-            let mut groups: SortedInsertHashmap<
+            let mut groups: ClusteredInsertHashmap<
                 GroupKey,
                 $heap<$type<NotNan<f64>>, csv::ByteRecord>,
-            > = SortedInsertHashmap::new();
+            > = ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {
                 if let Ok(score) = std::str::from_utf8(&record[score_col])

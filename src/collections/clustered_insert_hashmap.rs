@@ -1,16 +1,19 @@
 // An IndexMap variant checking last inserted key before
-// performing any lookup. The output order is deterministic
-// but not guaranteed to be the insertion order!
+// performing any lookup.
+// This is an optimization strategy that minimizes hashmap
+// lookup when the data is clustered by key.
+// Note that the output order of the map will be deterministic
+// but that it is not guaranteed to be the insertion order!
 use std::hash::Hash;
 
-use indexmap::{map::Entry, IndexMap};
+use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 
 #[derive(Debug, Clone)]
-pub struct SortedInsertHashmapBetter<K, V> {
+pub struct ClusteredInsertHashmap<K, V> {
     map: IndexMap<K, V>,
 }
 
-impl<K, V> Default for SortedInsertHashmapBetter<K, V> {
+impl<K, V> Default for ClusteredInsertHashmap<K, V> {
     fn default() -> Self {
         Self {
             map: IndexMap::new(),
@@ -18,7 +21,7 @@ impl<K, V> Default for SortedInsertHashmapBetter<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V> SortedInsertHashmapBetter<K, V> {
+impl<K: Eq + Hash, V> ClusteredInsertHashmap<K, V> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -50,13 +53,13 @@ impl<K: Eq + Hash, V> SortedInsertHashmapBetter<K, V> {
         let len = self.map.len();
 
         match self.map.entry(key) {
-            Entry::Vacant(entry) => {
+            IndexMapEntry::Vacant(entry) => {
                 entry.insert(callback_insert());
 
                 // Inserted
                 true
             }
-            Entry::Occupied(mut entry) => {
+            IndexMapEntry::Occupied(mut entry) => {
                 callback_update(entry.get_mut());
 
                 // NOTE: here, we know we are not the last entry, so we need to

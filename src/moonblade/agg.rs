@@ -5,7 +5,7 @@ use csv::ByteRecord;
 use jiff::civil::DateTime;
 use rayon::prelude::*;
 
-use crate::collections::{FixedReverseHeap, FixedReverseHeapMap, SortedInsertHashmap};
+use crate::collections::{FixedReverseHeap, FixedReverseHeapMap, ClusteredInsertHashmap};
 
 use super::error::{ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
@@ -1880,7 +1880,7 @@ type GroupKey = Vec<Vec<u8>>;
 #[derive(Debug, Clone)]
 pub struct GroupAggregationProgram {
     planner: ConcreteAggregationPlanner,
-    groups: SortedInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
+    groups: ClusteredInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
     context: EvaluationContext,
 }
 
@@ -1891,7 +1891,7 @@ impl GroupAggregationProgram {
 
         Ok(Self {
             planner,
-            groups: SortedInsertHashmap::new(),
+            groups: ClusteredInsertHashmap::new(),
             context: EvaluationContext::new(headers),
         })
     }

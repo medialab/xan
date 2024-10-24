@@ -123,8 +123,8 @@ fn top_groubpy() {
 
     let expected = vec![
         svec!["color", "score"],
-        svec!["red", "2"],
         svec!["yellow", "2"],
+        svec!["red", "2"],
     ];
     assert_eq!(got, expected);
 
@@ -139,8 +139,8 @@ fn top_groubpy() {
 
     let expected = vec![
         svec!["color", "score"],
-        svec!["red", "1"],
         svec!["yellow", "2"],
+        svec!["red", "1"],
     ];
     assert_eq!(got, expected);
 }
@@ -168,9 +168,9 @@ fn top_groubpy_rank() {
 
     let expected = vec![
         svec!["rank", "color", "score"],
+        svec!["1", "yellow", "2"],
         svec!["1", "red", "2"],
         svec!["2", "red", "1"],
-        svec!["1", "yellow", "2"],
     ];
     assert_eq!(got, expected);
 }

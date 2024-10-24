@@ -4,7 +4,7 @@ use bstr::ByteSlice;
 use csv::{self, ByteRecord};
 use rayon::prelude::*;
 
-use crate::collections::{FixedReverseHeap, SortedInsertHashmap};
+use crate::collections::{ClusteredInsertHashmap, FixedReverseHeap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -133,10 +133,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if let Some(groupby_sel) = groupby_sel_opt {
-        let mut groups_to_fields_to_counter: SortedInsertHashmap<
+        let mut groups_to_fields_to_counter: ClusteredInsertHashmap<
             GroupKey,
             Vec<HashMap<ValueKey, u64>>,
-        > = SortedInsertHashmap::new();
+        > = ClusteredInsertHashmap::new();
 
         let output_headers = {
             let mut r = ByteRecord::new();

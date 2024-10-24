@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use bstr::ByteSlice;
 
-use crate::collections::SortedInsertHashmap;
+use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -200,8 +200,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         match (&args.flag_sep, &doc_sel, args.flag_window) {
             // Separator or not, doc column, bag-of-words model
             (_, Some(sel), None) => {
-                let mut doc_tokens: SortedInsertHashmap<Document, Vec<Rc<Token>>> =
-                    SortedInsertHashmap::new();
+                let mut doc_tokens: ClusteredInsertHashmap<Document, Vec<Rc<Token>>> =
+                    ClusteredInsertHashmap::new();
 
                 while rdr.read_byte_record(&mut record)? {
                     let doc = sel.collect(&record);
@@ -546,7 +546,7 @@ struct VocabularyStats {
 struct Vocabulary {
     token_ids: HashMap<Token, TokenID>,
     tokens: Vec<TokenStats>,
-    documents: SortedInsertHashmap<Document, DocumentStats>,
+    documents: ClusteredInsertHashmap<Document, DocumentStats>,
 }
 
 impl Vocabulary {
@@ -767,7 +767,7 @@ fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 struct CooccurrenceTokenEntry {
     token: Rc<Token>,
     gcf: usize,
-    cooc: SortedInsertHashmap<TokenID, usize>,
+    cooc: ClusteredInsertHashmap<TokenID, usize>,
 }
 
 impl CooccurrenceTokenEntry {
@@ -775,7 +775,7 @@ impl CooccurrenceTokenEntry {
         Self {
             token,
             gcf: 0,
-            cooc: SortedInsertHashmap::new(),
+            cooc: ClusteredInsertHashmap::new(),
         }
     }
 }
