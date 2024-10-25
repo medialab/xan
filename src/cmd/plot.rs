@@ -138,8 +138,7 @@ plot options:
     -G, --grid                 Draw a background grid.
     --x-ticks <n>              Number of x-axis graduation steps.
                                [default: 3]
-    --y-ticks <n>              Number of y-axis graduation steps.
-                               [default: 4]
+    --y-ticks <n>              Number of y-axis graduation steps. Will default to some sensible number.
     --x-min <n>                Force a minimum value for the x axis.
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
@@ -175,7 +174,7 @@ struct Args {
     flag_granularity: Option<Granularity>,
     flag_grid: bool,
     flag_x_ticks: NonZeroUsize,
-    flag_y_ticks: NonZeroUsize,
+    flag_y_ticks: Option<NonZeroUsize>,
     flag_x_min: Option<String>,
     flag_x_max: Option<String>,
     flag_y_min: Option<DynamicNumber>,
@@ -208,6 +207,30 @@ impl Args {
             ))
         }
     }
+
+    fn infer_y_ticks(&self, rows: usize) -> usize {
+        let ideal_y_ticks = {
+            let y_axis_rows = rows.saturating_sub(2);
+
+            // NOTE: those shenanigans is to try and find some division
+            // that will not split the grid into uneven steps
+            if y_axis_rows % 5 == 0 {
+                y_axis_rows / 5
+            } else if y_axis_rows % 4 == 0 {
+                y_axis_rows / 4
+            } else if y_axis_rows % 6 == 0 {
+                y_axis_rows / 6
+            } else if y_axis_rows % 3 == 0 {
+                y_axis_rows / 3
+            } else {
+                y_axis_rows / 5
+            }
+        };
+
+        self.flag_y_ticks
+            .map(|n| n.get())
+            .unwrap_or(ideal_y_ticks.max(3))
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -232,16 +255,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
 
     if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
-        return Err(CliError::Other(
-            "-C, --category cannot work with -Y, --add-series!".to_string(),
-        ));
+        Err("-C, --category cannot work with -Y, --add-series!")?;
     }
 
     if args.flag_x_ticks.get() < 2 {
-        return Err(CliError::Other("--x-ticks must be > 1!".to_string()));
+        Err("--x-ticks must be > 1!")?;
     }
-    if args.flag_y_ticks.get() < 2 {
-        return Err(CliError::Other("--y-ticks must be > 1!".to_string()));
+
+    if matches!(args.flag_y_ticks, Some(n) if n.get() < 2) {
+        Err("--y-ticks must be > 1!")?;
     }
 
     let has_added_series = !args.flag_add_series.is_empty();
@@ -251,12 +273,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?;
 
     let x_column_index = Config::new(&None)
-        .select(args.arg_x)
+        .select(args.arg_x.clone())
         .single_selection(headers)?;
 
     let y_column_index_opt = args
         .arg_y
-        .map(|name| Config::new(&None).select(name).single_selection(headers))
+        .as_ref()
+        .map(|name| {
+            Config::new(&None)
+                .select(name.clone())
+                .single_selection(headers)
+        })
         .transpose()?;
 
     let x_column_name = if args.flag_no_headers {
@@ -282,14 +309,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let category_column_index = args
         .flag_category
-        .map(|name| Config::new(&None).select(name).single_selection(headers))
+        .as_ref()
+        .map(|name| {
+            Config::new(&None)
+                .select(name.clone())
+                .single_selection(headers)
+        })
         .transpose()?;
 
     let additional_series_indices = args
         .flag_add_series
-        .into_iter()
+        .iter()
         .map(|name| {
-            let i = Config::new(&None).select(name).single_selection(headers)?;
+            let i = Config::new(&None)
+                .select(name.clone())
+                .single_selection(headers)?;
 
             let col_name = if args.flag_no_headers {
                 i.to_string().into_bytes()
@@ -416,6 +450,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if rows < 3 {
+        Err("not enough rows to draw!")?;
+    }
+
     // NOTE: when drawing small multiples, if --rows was not given, we split vertical space
     // if we have more than what can fit in a single column by default
     if let Some(grid_cols) = args.flag_small_multiples {
@@ -426,6 +464,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // NOTE: leaving one row for the prompt
     rows = rows.saturating_sub(1);
+
+    let y_ticks = args.infer_y_ticks(rows);
 
     // Drawing
     let mut terminal = Terminal::new(TestBackend::new(cols as u16, rows as u16))?;
@@ -507,7 +547,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         &mut formatter,
                         y_axis_info.axis_type,
                         y_axis_info.domain,
-                        args.flag_y_ticks.get().min(n.max(2)),
+                        y_ticks.min(n.max(2)),
                     ));
 
                 // Create the chart and link all the parts together
@@ -634,7 +674,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 &mut formatter,
                                 y_axis_info.axis_type,
                                 y_axis_info.domain,
-                                args.flag_y_ticks.get().min(n.max(2)),
+                                y_ticks.min(n.max(2)),
                             ));
 
                         // Create the chart and link all the parts together
