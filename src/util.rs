@@ -443,6 +443,14 @@ pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
 
     if graphemes_count > parts.len() {
         parts.pop();
+
+        let mut elided_width = parts.iter().map(|part| part.width()).sum::<usize>() + 1;
+
+        while elided_width < max_width {
+            parts.push(" ");
+            elided_width += 1;
+        }
+
         parts.push("…");
     }
 
