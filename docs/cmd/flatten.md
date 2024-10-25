@@ -18,6 +18,8 @@ Usage:
     xan f [options] [<input>]
 
 flatten options:
+    -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
+                           for the full syntax.
     -c, --condense         Don't wrap cell values on new lines but truncate them
                            with ellipsis instead.
     -w, --wrap             Wrap cell values all while minding the header's indent.
