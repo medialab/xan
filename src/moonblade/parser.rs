@@ -134,10 +134,7 @@ fn build_string(pair: Pair<Rule>) -> String {
                     rest => rest,
                 });
             }
-            _ => {
-                dbg!(inner);
-                unreachable!()
-            }
+            _ => unreachable!(),
         }
     }
 

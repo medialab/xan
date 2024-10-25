@@ -1033,10 +1033,7 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
             Color::Green => Colorize::green(string),
             Color::Yellow => Colorize::yellow(string),
             Color::Magenta => Colorize::magenta(string),
-            _ => {
-                dbg!(&color);
-                unimplemented!();
-            }
+            _ => unimplemented!(),
         };
 
         if modifer.is_empty() {
@@ -1045,10 +1042,7 @@ fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
 
         match modifer {
             Modifier::DIM => Colorize::dimmed(string),
-            _ => {
-                dbg!(&modifer);
-                unimplemented!();
-            }
+            _ => unimplemented!(),
         }
     }
 

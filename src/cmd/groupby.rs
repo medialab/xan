@@ -162,7 +162,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 Some(current_group) => {
                     if current_group != &group {
-                        dbg!(current_group);
                         write_group(
                             &mut wtr,
                             current_group,
