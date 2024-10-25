@@ -49,10 +49,10 @@ plot options:
                                'halfblock', 'bar', 'block'.
                                [default: braille]
     -G, --grid                 Draw a background grid.
-    --x-ticks <n>              Number of x-axis graduation steps.
-                               [default: 3]
-    --y-ticks <n>              Number of y-axis graduation steps.
-                               [default: 4]
+    --x-ticks <n>              Number of x-axis graduation steps. Will default to some sensible number based on
+                               the dimensions of the terminal.
+    --y-ticks <n>              Number of y-axis graduation steps. Will default to some sensible number based on
+                               the dimensions of the terminal.
     --x-min <n>                Force a minimum value for the x axis.
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
