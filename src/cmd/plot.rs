@@ -136,9 +136,10 @@ plot options:
                                'halfblock', 'bar', 'block'.
                                [default: braille]
     -G, --grid                 Draw a background grid.
-    --x-ticks <n>              Number of x-axis graduation steps.
-                               [default: 3]
-    --y-ticks <n>              Number of y-axis graduation steps. Will default to some sensible number.
+    --x-ticks <n>              Number of x-axis graduation steps. Will default to some sensible number based on
+                               the dimensions of the terminal.
+    --y-ticks <n>              Number of y-axis graduation steps. Will default to some sensible number based on
+                               the dimensions of the terminal.
     --x-min <n>                Force a minimum value for the x axis.
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
@@ -173,7 +174,7 @@ struct Args {
     flag_marker: Marker,
     flag_granularity: Option<Granularity>,
     flag_grid: bool,
-    flag_x_ticks: NonZeroUsize,
+    flag_x_ticks: Option<NonZeroUsize>,
     flag_y_ticks: Option<NonZeroUsize>,
     flag_x_min: Option<String>,
     flag_x_max: Option<String>,
@@ -258,7 +259,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-C, --category cannot work with -Y, --add-series!")?;
     }
 
-    if args.flag_x_ticks.get() < 2 {
+    if matches!(args.flag_x_ticks, Some(n) if n.get() < 2) {
         Err("--x-ticks must be > 1!")?;
     }
 
@@ -438,6 +439,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if cols < 10 {
+        Err("not enough cols to draw!")?;
+    }
+
     let mut rows = util::acquire_term_rows().unwrap_or(30);
 
     if let Some(spec) = &args.flag_rows {
@@ -473,7 +478,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match args.flag_small_multiples {
         None => {
             terminal.draw(|frame| {
-                let n = finalized_series[0].1.len();
+                // let n = finalized_series[0].1.len();
 
                 // x axis information
                 let (x_axis_info, y_axis_info) =
@@ -511,12 +516,39 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 let mut formatter = util::acquire_number_formatter();
 
+                // Create the Y axis and define its properties
+                let y_ticks_labels = graduations_from_domain(
+                    &mut formatter,
+                    y_axis_info.axis_type,
+                    y_axis_info.domain,
+                    y_ticks,
+                );
+                let x_ticks = infer_x_ticks(
+                    args.flag_x_ticks,
+                    &mut formatter,
+                    &x_axis_info,
+                    &y_ticks_labels,
+                    cols,
+                );
+                let y_axis = Axis::default()
+                    .title(if !has_added_series && y_axis_info.can_be_displayed {
+                        y_column_name.dim()
+                    } else {
+                        "".dim()
+                    })
+                    .style(Style::default().white())
+                    .bounds([
+                        y_axis_info.domain.0.as_float(),
+                        y_axis_info.domain.1.as_float(),
+                    ])
+                    .labels(y_ticks_labels);
+
                 // Create the X axis and define its properties
-                let x_ticks = graduations_from_domain(
+                let x_ticks_labels = graduations_from_domain(
                     &mut formatter,
                     x_axis_info.axis_type,
                     x_axis_info.domain,
-                    args.flag_x_ticks.get().min(n.max(2)),
+                    x_ticks,
                 );
                 let x_axis = Axis::default()
                     .title(if x_axis_info.can_be_displayed {
@@ -529,26 +561,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         x_axis_info.domain.0.as_float(),
                         x_axis_info.domain.1.as_float(),
                     ])
-                    .labels(x_ticks.clone());
-
-                // Create the Y axis and define its properties
-                let y_axis = Axis::default()
-                    .title(if !has_added_series && y_axis_info.can_be_displayed {
-                        y_column_name.dim()
-                    } else {
-                        "".dim()
-                    })
-                    .style(Style::default().white())
-                    .bounds([
-                        y_axis_info.domain.0.as_float(),
-                        y_axis_info.domain.1.as_float(),
-                    ])
-                    .labels(graduations_from_domain(
-                        &mut formatter,
-                        y_axis_info.axis_type,
-                        y_axis_info.domain,
-                        y_ticks.min(n.max(2)),
-                    ));
+                    .labels(x_ticks_labels.clone());
 
                 // Create the chart and link all the parts together
                 let mut chart = Chart::new(datasets).x_axis(x_axis).y_axis(y_axis);
@@ -561,7 +574,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 frame.render_widget(chart, frame.area());
-                patch_buffer(frame.buffer_mut(), None, &x_ticks, args.flag_grid);
+                patch_buffer(frame.buffer_mut(), None, &x_ticks_labels, args.flag_grid);
             })?;
 
             print_terminal(&terminal, cols);
@@ -596,7 +609,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .split(frame.area());
 
                     for (i, single_finalized_series) in finalized_series_column.iter().enumerate() {
-                        let n = single_finalized_series.1.len();
+                        // let n = single_finalized_series.1.len();
 
                         // x axis information
                         let (mut x_axis_info, mut y_axis_info) =
@@ -634,27 +647,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         let mut formatter = util::acquire_number_formatter();
 
-                        // Create the X axis and define its properties
-                        let x_ticks = graduations_from_domain(
-                            &mut formatter,
-                            x_axis_info.axis_type,
-                            x_axis_info.domain,
-                            args.flag_x_ticks.get().min(n.max(2)),
-                        );
-                        let x_axis = Axis::default()
-                            .title(if x_axis_info.can_be_displayed {
-                                x_column_name.clone().dim()
-                            } else {
-                                "".dim()
-                            })
-                            .style(Style::default().white())
-                            .bounds([
-                                x_axis_info.domain.0.as_float(),
-                                x_axis_info.domain.1.as_float(),
-                            ])
-                            .labels(x_ticks.clone());
-
                         // Create the Y axis and define its properties
+                        let y_ticks_labels = graduations_from_domain(
+                            &mut formatter,
+                            y_axis_info.axis_type,
+                            y_axis_info.domain,
+                            y_ticks,
+                        );
+                        let x_ticks = infer_x_ticks(
+                            args.flag_x_ticks,
+                            &mut formatter,
+                            &x_axis_info,
+                            &y_ticks_labels,
+                            cols / actual_grid_cols,
+                        );
                         let y_axis = Axis::default()
                             .title(if y_axis_info.can_be_displayed {
                                 if has_added_series {
@@ -670,12 +676,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 y_axis_info.domain.0.as_float(),
                                 y_axis_info.domain.1.as_float(),
                             ])
-                            .labels(graduations_from_domain(
-                                &mut formatter,
-                                y_axis_info.axis_type,
-                                y_axis_info.domain,
-                                y_ticks.min(n.max(2)),
-                            ));
+                            .labels(y_ticks_labels);
+
+                        // Create the X axis and define its properties
+                        let x_ticks_labels = graduations_from_domain(
+                            &mut formatter,
+                            x_axis_info.axis_type,
+                            x_axis_info.domain,
+                            x_ticks,
+                        );
+                        let x_axis = Axis::default()
+                            .title(if x_axis_info.can_be_displayed {
+                                x_column_name.clone().dim()
+                            } else {
+                                "".dim()
+                            })
+                            .style(Style::default().white())
+                            .bounds([
+                                x_axis_info.domain.0.as_float(),
+                                x_axis_info.domain.1.as_float(),
+                            ])
+                            .labels(x_ticks_labels.clone());
 
                         // Create the chart and link all the parts together
                         let mut chart = Chart::new(vec![dataset]).x_axis(x_axis).y_axis(y_axis);
@@ -693,7 +714,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         patch_buffer(
                             frame.buffer_mut(),
                             Some(&layout[i]),
-                            &x_ticks,
+                            &x_ticks_labels,
                             args.flag_grid,
                         );
 
@@ -1142,6 +1163,27 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
         Style::new(),
     );
     buffer.cell_mut(x_axis_end_pos).unwrap().set_symbol("┼");
+}
+
+fn infer_x_ticks(
+    from_user: Option<NonZeroUsize>,
+    formatter: &mut numfmt::Formatter,
+    x_axis_info: &AxisInfo,
+    y_ticks_labels: &[String],
+    mut cols: usize,
+) -> usize {
+    if let Some(n) = from_user {
+        return n.get().max(2);
+    }
+
+    let sample = graduations_from_domain(formatter, x_axis_info.axis_type, x_axis_info.domain, 15);
+
+    let y_offset = y_ticks_labels.first().unwrap().width() + 1;
+    cols = cols.saturating_sub(y_offset);
+
+    let max_width = sample.iter().map(|label| label.width()).max().unwrap() + 4;
+
+    (cols / max_width).max(2)
 }
 
 #[derive(Debug, Clone, Copy)]
