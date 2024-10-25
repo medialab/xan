@@ -228,7 +228,10 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     Expr::Regex(build_string(primary), case_insensitive)
                 }
                 Rule::underscore => Expr::Underscore,
-                Rule::ident => Expr::Identifier(primary.as_str().to_string()),
+                Rule::ident => Expr::Identifier(
+                    primary.as_str().trim_end_matches('?').to_string(),
+                    primary.as_str().ends_with("?"),
+                ),
                 Rule::true_lit => Expr::Bool(true),
                 Rule::false_lit => Expr::Bool(false),
                 Rule::null => Expr::Null,
@@ -300,8 +303,8 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                         call.fill_underscore(&lhs?);
                         Expr::Func(call)
                     }
-                    Expr::Identifier(name) => match get_function(&name) {
-                        None => Expr::Identifier(name),
+                    Expr::Identifier(name, unsure) => match get_function(&name) {
+                        None => Expr::Identifier(name, unsure),
                         Some(_) => Expr::Func(FunctionCall::new(&name, vec![lhs?])),
                     },
                     rest => rest,
@@ -372,7 +375,7 @@ pub enum Expr {
     LambdaBinding(String),
     Int(i64),
     Float(f64),
-    Identifier(String),
+    Identifier(String, bool),
     Str(String),
     List(Vec<Expr>),
     Map(Vec<(String, Expr)>),
@@ -386,7 +389,7 @@ pub enum Expr {
 impl Expr {
     pub fn bind_lambda_args(&mut self, names: &Vec<String>) {
         match self {
-            Self::Identifier(name) => {
+            Self::Identifier(name, _) => {
                 if names.iter().any(|n| n == name) {
                     *self = Self::LambdaBinding(name.to_string());
                 }
@@ -609,7 +612,11 @@ mod tests {
     use super::*;
 
     fn id(name: &str) -> Expr {
-        Identifier(name.to_string())
+        Identifier(name.to_string(), false)
+    }
+
+    fn unsure_id(name: &str) -> Expr {
+        Identifier(name.to_string(), true)
     }
 
     fn func(name: &str, args: Vec<Expr>) -> Expr {
@@ -700,6 +707,7 @@ mod tests {
     #[test]
     fn test_identifiers() {
         assert_eq!(parse_expression("name"), Ok(id("name")));
+        assert_eq!(parse_expression("name?"), Ok(unsure_id("name")));
     }
 
     #[test]

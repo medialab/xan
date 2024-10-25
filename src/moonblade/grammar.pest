@@ -38,7 +38,7 @@ regex            = { "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ (regex_fla
 
 // Identifiers
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
-ident      = @{ ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+ }
+ident      = @{ (ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+) ~ "?"? }
 
 // Operators
 // NOTE: order IS important

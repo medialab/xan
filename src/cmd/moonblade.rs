@@ -27,6 +27,9 @@ available functions & operators):
   . Indexing a column by name and 0-based nth (for duplicate headers):
         'col(\"col\", 1)'
 
+  . Indexing a column that may not exist:
+        'name?'
+
   . Applying functions:
         'trim(name)'
         'trim(concat(name, \" \", surname))'

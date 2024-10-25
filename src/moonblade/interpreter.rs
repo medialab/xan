@@ -446,12 +446,18 @@ pub fn concretize_expression(
         Expr::Float(v) => ConcreteExpr::Value(DynamicValue::Float(v)),
         Expr::Int(v) => ConcreteExpr::Value(DynamicValue::Integer(v)),
         Expr::Str(v) => ConcreteExpr::Value(DynamicValue::String(v)),
-        Expr::Identifier(name) => {
+        Expr::Identifier(name, unsure) => {
             let indexation = ColumIndexationBy::Name(name);
 
             match indexation.find_column_index(headers) {
                 Some(index) => ConcreteExpr::Column(index),
-                None => return Err(ConcretizationError::ColumnNotFound(indexation)),
+                None => {
+                    if unsure {
+                        return Ok(ConcreteExpr::Value(DynamicValue::None));
+                    }
+
+                    return Err(ConcretizationError::ColumnNotFound(indexation));
+                }
             }
         }
         Expr::Regex(pattern, case_insensitive) => match RegexBuilder::new(&pattern)
@@ -593,6 +599,13 @@ mod tests {
             eval_code("trim(a) | len | add(b, _)"),
             Ok(DynamicValue::Integer(64))
         );
+    }
+
+    #[test]
+    fn test_identifiers() {
+        assert_eq!(eval_code("name"), Ok(DynamicValue::from("john")));
+        assert_eq!(eval_code("name?"), Ok(DynamicValue::from("john")));
+        assert_eq!(eval_code("full_name?"), Ok(DynamicValue::None));
     }
 
     #[test]
