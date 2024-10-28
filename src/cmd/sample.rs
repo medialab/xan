@@ -40,7 +40,7 @@ Usage:
 sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
-    -g, --groupby <cols>   Return a sample per group.
+    -g, --groupby <cols>   (NOT IMPLEMENTED YET!) Return a sample per group.
 
 Common options:
     -h, --help             Display this message
