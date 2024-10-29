@@ -71,6 +71,10 @@ parallel options:
     --path-column <name>         Name of the path column if stdin is given as a CSV file
                                  instead of one path per line.
 
+parallel count options:
+    -S, --source-column <name>  If given, will return a CSV file containing a column with
+                                the source file being counted and a column with the count itself.
+
 parallel cat options:
     -B, --buffer-size <n>       Number of rows a thread is allowed to keep in memory
                                 before flushing to the output.

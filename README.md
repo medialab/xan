@@ -726,58 +726,58 @@ use the operators in the previous section.
 
 ## Pipeline operator (using "_" for left-hand size substitution)
 
-    'trim(name) | len(_)'         - Same as len(trim(name))
-    'trim(name) | len'            - Supports elision for unary functions
-    'trim(name) | add(1, len(_))' - Can be nested
-    'add(trim(name) | len, 2)'    - Can be used anywhere
+    trim(name) | len(_)         - Same as len(trim(name))
+    trim(name) | len            - Supports elision for unary functions
+    trim(name) | add(1, len(_)) - Can be nested
+    add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Arithmetics
 
     - abs(x) -> number
         Return absolute value of number.
 
-    - add(x, y, *n) -> number
+    - add(x,  y,  *n) -> number
         Add two or more numbers.
 
-    - argmax(numbers, labels?) -> any
+    - argmax(numbers,  labels?) -> any
         Return the index or label of the largest number in the list.
 
-    - argmin(numbers, labels?) -> any
+    - argmin(numbers,  labels?) -> any
         Return the index or label of the smallest number in the list.
 
     - ceil(x) -> number
         Return the smallest integer greater than or equal to x.
 
-    - div(x, y, *n) -> number
+    - div(x,  y,  *n) -> number
         Divide two or more numbers.
 
     - floor(x) -> number
         Return the smallest integer lower than or equal to x.
 
-    - idiv(x, y) -> number
+    - idiv(x,  y) -> number
         Integer division of two numbers.
 
     - log(x) -> number
         Return the natural logarithm of x.
 
-    - max(x, y, *n) -> number
+    - max(x,  y,  *n) -> number
     - max(list_of_numbers) -> number
         Return the maximum number.
 
-    - min(x, y, *n) -> number
+    - min(x,  y,  *n) -> number
     - min(list_of_numbers) -> number
         Return the minimum number.
 
-    - mod(x, y) -> number
+    - mod(x,  y) -> number
         Return the remainder of x divided by y.
 
-    - mul(x, y, *n) -> number
+    - mul(x,  y,  *n) -> number
         Multiply two or more numbers.
 
     - neg(x) -> number
         Return -x.
 
-    - pow(x, y) -> number
+    - pow(x,  y) -> number
         Raise x to the power of y.
 
     - round(x) -> number
@@ -786,7 +786,7 @@ use the operators in the previous section.
     - sqrt(x) -> number
         Return the square root of x.
 
-    - sub(x, y, *n) -> number
+    - sub(x,  y,  *n) -> number
         Subtract two or more numbers.
 
     - trunc(x) -> number
@@ -794,39 +794,39 @@ use the operators in the previous section.
 
 ## Boolean operations & branching
 
-    - and(a, b, *x) -> T
+    - and(a,  b,  *x) -> T
         Perform boolean AND operation on two or more values.
 
-    - if(cond, then, else?) -> T
+    - if(cond,  then,  else?) -> T
         Evaluate condition and switch to correct branch.
 
-    - unless(cond, then, else?) -> T
+    - unless(cond,  then,  else?) -> T
         Shorthand for `if(not(cond), then, else?)`.
 
     - not(a) -> bool
         Perform boolean NOT operation.
 
-    - or(a, b, *x) -> T
+    - or(a,  b,  *x) -> T
         Perform boolean OR operation on two or more values.
 
 ## Comparison
 
-    - eq(s1, s2) -> bool
+    - eq(s1,  s2) -> bool
         Test string or sequence equality.
 
-    - ne(s1, s2) -> bool
+    - ne(s1,  s2) -> bool
         Test string or sequence inequality.
 
-    - gt(s1, s2) -> bool
+    - gt(s1,  s2) -> bool
         Test that string or sequence s1 > s2.
 
-    - ge(s1, s2) -> bool
+    - ge(s1,  s2) -> bool
         Test that string or sequence s1 >= s2.
 
-    - lt(s1, s2) -> bool
+    - lt(s1,  s2) -> bool
         Test that string or sequence s1 < s2.
 
-    - ge(s1, s2) -> bool
+    - ge(s1,  s2) -> bool
         Test that string or sequence s1 <= s2.
 
 ## String & sequence helpers
@@ -834,18 +834,18 @@ use the operators in the previous section.
     - compact(list) -> list
         Drop all falsey values from given list.
 
-    - concat(string, *strings) -> string
+    - concat(string,  *strings) -> string
         Concatenate given strings into a single one.
 
-    - contains(seq, subseq) -> bool
+    - contains(seq,  subseq) -> bool
         Find if subseq can be found in seq. Subseq can
         be a regular expression.
 
-    - count(seq, pattern) -> int
+    - count(seq,  pattern) -> int
         Count number of times pattern appear in seq. Pattern
         can be a regular expression.
 
-    - endswith(string, pattern) -> bool
+    - endswith(string,  pattern) -> bool
         Test if string ends with pattern.
 
     - escape_regex(string) -> string
@@ -854,7 +854,7 @@ use the operators in the previous section.
     - first(seq) -> T
         Get first element of sequence.
 
-    - fmt(string, *replacements) -> string:
+    - fmt(string,  *replacements) -> string:
         Format a string by replacing "{}" occurrences by subsequent
         arguments.
 
@@ -862,12 +862,12 @@ use the operators in the previous section.
         the first "{}" by the value of the name column, then the
         second one by the value of the surname column.
 
-    - get(target, index_or_key, default?) -> T
+    - get(target,  index_or_key,  default?) -> T
         Get nth element of sequence (can use negative indexing), or key of mapping.
         Returns nothing if index or key is not found or alternatively the provided
         default value.
 
-    - join(seq, sep) -> string
+    - join(seq,  sep) -> string
         Join sequence by separator.
 
     - last(seq) -> T
@@ -876,36 +876,36 @@ use the operators in the previous section.
     - len(seq) -> int
         Get length of sequence.
 
-    - ltrim(string, pattern?) -> string
+    - ltrim(string,  pattern?) -> string
         Trim string of leading whitespace or
         provided characters.
 
     - lower(string) -> string
         Lowercase string.
 
-    - match(string, pattern, group?) -> string
+    - match(string,  pattern,  group?) -> string
         Return a regex pattern match on the string.
 
     - numfmt(number) -> string:
         Format a number with thousands separator and proper significance.
 
-    - replace(string, pattern, replacement) -> string
+    - replace(string,  pattern,  replacement) -> string
         Replace pattern in string. Can use a regex.
 
-    - rtrim(string, pattern?) -> string
+    - rtrim(string,  pattern?) -> string
         Trim string of trailing whitespace or
         provided characters.
 
-    - slice(seq, start, end?) -> seq
+    - slice(seq,  start,  end?) -> seq
         Return slice of sequence.
 
-    - split(string, sep, max?) -> list
+    - split(string,  sep,  max?) -> list
         Split a string by separator.
 
-    - startswith(string, pattern) -> bool
+    - startswith(string,  pattern) -> bool
         Test if string starts with pattern.
 
-    - trim(string, pattern?) -> string
+    - trim(string,  pattern?) -> string
         Trim string of leading & trailing whitespace or
         provided characters.
 
@@ -917,13 +917,13 @@ use the operators in the previous section.
 
 ## Dates
 
-    - datetime(string, format=?, timezone=?) -> datetime
+    - datetime(string,  format=?,  timezone=?) -> datetime
         Parse a string as a datetime according to format and timezone
         (https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications).
         If no format is provided, string is parsed as ISO 8601 date format.
         Default timezone is the system timezone.
 
-    - strftime(target, format, timezone=?) -> string
+    - strftime(target,  format,  timezone=?) -> string
         Format target (a time in ISO 8601 format,
         or the result of datetime() function) according to format.
 
@@ -937,29 +937,29 @@ use the operators in the previous section.
         (nb of milliseconds since 1970-01-01 00:00:00 UTC),
         and convert it to a datetime in local time.
 
-    - year_month_day(target, timezone=?) -> date
+    - year_month_day(target,  timezone=?) -> date
         Extract the year, month and day of a datetime.
         If the input is a string, first parse it into datetime, and then extract the year, month and day.
         Equivalent to strftime(string, format = "%Y-%m-%d", timezone = ?)
 
-    - month_day(target, timezone=?) -> date
+    - month_day(target,  timezone=?) -> date
         Extract the month and day of a datetime.
         If the input is a string, first parse it into datetime, and then extract the month and day.
         Equivalent to strftime(string, format = "%m-%d", timezone = ?)
 
-    - month(target, timezone=?) -> date
+    - month(target,  timezone=?) -> date
         Extract the month of a datetime.
         If the input is a string, first parse it into datetime, and then extract the month.
         Equivalent to strftime(string, format = "%m", timezone = ?)
 
-    - year(target, timezone=?) -> date
+    - year(target,  timezone=?) -> date
         Extract the year of a datetime.
         If the input is a string, first parse it into datetime, and then extract the year.
         Equivalent to strftime(string, format = "%Y", timezone = ?)
 
 ## Collections (list of maps) functions
 
-    - index_by(collection, key) -> map
+    - index_by(collection,  key) -> map
         Create a map from item key to collection item.
 
 ## Map functions
@@ -994,11 +994,11 @@ use the operators in the previous section.
     - coalesce(*args) -> T
         Return first truthy value.
 
-    - col(name_or_pos, nth?) -> string
+    - col(name_or_pos,  nth?) -> string
         Return value of cell for given column, by name, by position or by
         name & nth, in case of duplicate header names.
 
-    - cols(from_name_or_pos?, to_name_or_pos?) -> list
+    - cols(from_name_or_pos?,  to_name_or_pos?) -> list
         Return list of cell values from the given colum by name or position
         to another given column by name or position, inclusive.
         Can also be called with a single argument to take a slice from the
@@ -1007,7 +1007,7 @@ use the operators in the previous section.
     - err(msg) -> error
         Make the expression return a custom error.
 
-    - headers(from_name_or_pos?, to_name_or_pos?) -> list
+    - headers(from_name_or_pos?,  to_name_or_pos?) -> list
         Return list of header names from the given colum by name or position
         to another given column by name or position, inclusive.
         Can also be called with a single argument to take a slice from the
@@ -1030,7 +1030,7 @@ use the operators in the previous section.
     - bytesize(integer) -> string
         Return a number of bytes in human-readable format (KB, MB, GB, etc.).
 
-    - copy(source_path, target_path) -> string
+    - copy(source_path,  target_path) -> string
         Copy a source to target path. Will create necessary directories
         on the way. Returns target path as a convenience.
 
@@ -1043,14 +1043,14 @@ use the operators in the previous section.
     - isfile(string) -> bool
         Return whether the given path is an existing file on disk.
 
-    - move(source_path, target_path) -> string
+    - move(source_path,  target_path) -> string
         Move a source to target path. Will create necessary directories
         on the way. Returns target path as a convenience.
 
-    - pathjoin(string, *strings) -> string
+    - pathjoin(string,  *strings) -> string
         Join multiple paths correctly.
 
-    - read(path, encoding=?, errors=?) -> string
+    - read(path,  encoding=?,  errors=?) -> string
         Read file at path. Default encoding is "utf-8".
         Default error handling policy is "replace", and can be
         one of "replace", "ignore" or "strict".
@@ -1062,7 +1062,7 @@ use the operators in the previous section.
     - read_json(path) -> any
         Read and parse JSON file at path.
 
-    - write(string, path) -> string
+    - write(string,  path) -> string
         Write string to path as utf-8 text. Will create necessary
         directories recursively before actually writing the file.
         Return the path that was written.
@@ -1103,17 +1103,17 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - any(<expr>) -> bool
         Returns true if one of the elements returned by given expression is truthy.
 
-    - argmin(<expr>, <expr>?) -> any
+    - argmin(<expr>,  <expr>?) -> any
         Return the index of the row where the first expression is minimized, or
         the result of the second expression where the first expression is minimized.
         Ties will be broken by original row index.
 
-    - argmax(<expr>, <expr>?) -> any
+    - argmax(<expr>,  <expr>?) -> any
         Return the index of the row where the first expression is maximized, or
         the result of the second expression where the first expression is maximized.
         Ties will be broken by original row index.
 
-    - argtop(k, <expr>, <expr>?, separator?)
+    - argtop(k,  <expr>,  <expr>?,  separator?) -> string
         Find the top k values returned by the first expression and either
         return the indices of matching rows or the result of the second
         expression, joined by a pipe character ('|') or by the provided separator.
@@ -1133,7 +1133,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - count_empty(<expr>) -> number
         Count the number of empty values returned by given expression.
 
-    - distinct_values(<expr>, separator?) -> string
+    - distinct_values(<expr>,  separator?) -> string
         List of sorted distinct values joined by a pipe character ('|') by default or by
         the provided separator.
 
@@ -1171,16 +1171,16 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Value appearing the most, breaking ties arbitrarily in favor of the
         first value in lexicographical order.
 
-    - most_common(k, <expr>, separator?)
+    - most_common(k,  <expr>,  separator?) -> string
         List of top k most common values returned by expression
         joined by a pipe character ('|') or by the provided separator.
         Ties will be broken by lexicographical order.
 
-    - most_common_counts(k, <expr>, separator?)
+    - most_common_counts(k,  <expr>,  separator?) -> numbers
         List of top k most common counts returned by expression
         joined by a pipe character ('|') or by the provided separator.
 
-    - quantile(<expr>, p) -> number
+    - quantile(<expr>,  p) -> number
         Return the desired quantile of numerical values.
 
     - q1(<expr>) -> number
@@ -1204,7 +1204,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - sum(<expr>) -> number
         Sum of numerical values.
 
-    - top(k, <expr>, separator?)
+    - top(k,  <expr>,  separator?) -> any
         Find the top k values returned by the expression and join
         them by a pipe character ('|') or by the provided separator.
         Ties will be broken by original row index.
@@ -1215,7 +1215,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - types(<expr>) -> string
         Sorted list, pipe-separated, of all the types seen in the values.
 
-    - values(<expr>, separator?) -> string
+    - values(<expr>,  separator?) -> string
         List of values joined by a pipe character ('|') by default or by
         the provided separator.
 
