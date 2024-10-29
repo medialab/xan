@@ -17,7 +17,7 @@ lazy_static! {
     static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##{0,2} .+").unwrap();
     static ref FLAG_REGEX: Regex = Regex::new(r"--[\w\-]+").unwrap();
     static ref FUNCTION_REGEX: Regex =
-        Regex::new(r"(?i)- ([a-z0-9_]+)\(((?:[a-z0-9=?*_]+\s*,?\s*)*)\) -> ([a-z\[\]?]+)").unwrap();
+        Regex::new(r"(?i)- ([a-z0-9_]+)\(((?:[a-z0-9=?*_<>]+\s*,?\s*)*)\) -> ([a-z\[\]?| ]+)").unwrap();
     // static ref SPACER_REGEX: Regex = Regex::new(r"(?m)^ {8}([^\n]+)").unwrap();
     static ref UNARY_OPERATOR_REGEX: Regex = Regex::new(r"([!-])x").unwrap();
     static ref BINARY_OPERATOR_REGEX: Regex = Regex::new(
@@ -34,7 +34,14 @@ fn colorize_functions_help(help: &str) -> String {
             + &"(".yellow().to_string()
             + &caps[2]
                 .split(',')
-                .map(|arg| arg.red().to_string())
+                .map(|arg| {
+                    (if arg == "<expr>" || arg == "<expr>?" {
+                        arg.dimmed()
+                    } else {
+                        arg.red()
+                    })
+                    .to_string()
+                })
                 .collect::<Vec<_>>()
                 .join(", ")
             + &")".yellow().to_string()
@@ -578,8 +585,8 @@ use the operators in the previous section.
     colorize_functions_help(help)
 }
 
-pub fn get_moonblade_aggregations_function_help() -> &'static str {
-    "
+pub fn get_moonblade_aggregations_function_help() -> String {
+    let help = "
 # Available aggregation functions
 
 (use --cheatsheet for a reminder of how the scripting language works)
@@ -609,7 +616,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         the result of the second expression where the first expression is maximized.
         Ties will be broken by original row index.
 
-    - argtop(k, <expr>, <expr>?, separator?)
+    - argtop(k, <expr>, <expr>?, separator?) -> string
         Find the top k values returned by the first expression and either
         return the indices of matching rows or the result of the second
         expression, joined by a pipe character ('|') or by the provided separator.
@@ -667,12 +674,12 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Value appearing the most, breaking ties arbitrarily in favor of the
         first value in lexicographical order.
 
-    - most_common(k, <expr>, separator?)
+    - most_common(k, <expr>, separator?) -> string
         List of top k most common values returned by expression
         joined by a pipe character ('|') or by the provided separator.
         Ties will be broken by lexicographical order.
 
-    - most_common_counts(k, <expr>, separator?)
+    - most_common_counts(k, <expr>, separator?) -> numbers
         List of top k most common counts returned by expression
         joined by a pipe character ('|') or by the provided separator.
 
@@ -700,7 +707,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - sum(<expr>) -> number
         Sum of numerical values.
 
-    - top(k, <expr>, separator?)
+    - top(k, <expr>, separator?) -> any
         Find the top k values returned by the expression and join
         them by a pipe character ('|') or by the provided separator.
         Ties will be broken by original row index.
@@ -723,7 +730,9 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
     - var_sample(<expr>) -> number
         Sample variance (i.e. using Bessel's correction).
-"
+";
+
+    colorize_functions_help(help)
 }
 
 pub enum MoonbladeMode {
