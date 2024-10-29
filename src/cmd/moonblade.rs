@@ -25,6 +25,8 @@ lazy_static! {
     )
     .unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
+
+    static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^  \. (.+)$").unwrap();
 }
 
 fn colorize_functions_help(help: &str) -> String {
@@ -80,8 +82,18 @@ fn colorize_functions_help(help: &str) -> String {
     help.into_owned()
 }
 
-pub fn get_moonblade_cheatsheet() -> &'static str {
-    "
+fn colorize_cheatsheet(help: &str) -> String {
+    let help = CHEATSHEET_ITEM_REGEX.replace_all(help, |caps: &Captures| {
+        "  . ".to_string() + &caps[1].yellow().to_string()
+    });
+
+    let help = FLAG_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().to_string());
+
+    help.into_owned()
+}
+
+pub fn get_moonblade_cheatsheet() -> String {
+    let help = "
 xan script language cheatsheet (use --functions for comprehensive list of
 available functions & operators):
 
@@ -149,7 +161,9 @@ This means that when evaluating the following:
 
 The \"config.json\" file will never be read/parsed more than once and will not
 be read/parsed once per row.
-"
+";
+
+    colorize_cheatsheet(help)
 }
 
 pub fn get_moonblade_functions_help() -> String {
