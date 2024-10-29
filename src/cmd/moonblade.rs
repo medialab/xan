@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
 
+use colored::Colorize;
+use lazy_static::lazy_static;
 use pariter::IteratorExt;
+use regex::{Captures, Regex};
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
@@ -9,6 +12,66 @@ use crate::select::SelectColumns;
 use crate::util::ImmutableRecordHelpers;
 use crate::CliError;
 use crate::CliResult;
+
+lazy_static! {
+    static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##{0,2} .+").unwrap();
+    static ref FLAG_REGEX: Regex = Regex::new(r"--[\w\-]+").unwrap();
+    static ref FUNCTION_REGEX: Regex =
+        Regex::new(r"(?i)- ([a-z0-9_]+)\(((?:[a-z0-9=?*_]+\s*,?\s*)*)\) -> ([a-z\[\]?]+)").unwrap();
+    // static ref SPACER_REGEX: Regex = Regex::new(r"(?m)^ {8}([^\n]+)").unwrap();
+    static ref UNARY_OPERATOR_REGEX: Regex = Regex::new(r"([!-])x").unwrap();
+    static ref BINARY_OPERATOR_REGEX: Regex = Regex::new(
+        r"x (==|!=|<[= ]|>[= ]|&& |\|\| |and|or |not in|in|eq|ne|lt|le|gt|ge|//|\*\*|[+\-*/%.]) y"
+    )
+    .unwrap();
+    static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
+}
+
+fn colorize_functions_help(help: &str) -> String {
+    let help = FUNCTION_REGEX.replace_all(help, |caps: &Captures| {
+        "- ".to_string()
+            + &caps[1].cyan().to_string()
+            + &"(".yellow().to_string()
+            + &caps[2]
+                .split(',')
+                .map(|arg| arg.red().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+            + &")".yellow().to_string()
+            + " -> "
+            + &caps[3].magenta().to_string()
+    });
+
+    let help =
+        MAIN_SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().to_string());
+
+    // let help = SPACER_REGEX.replace_all(&help, |caps: &Captures| {
+    //     " ".repeat(8) + &caps[1].dimmed().to_string()
+    // });
+
+    let help = UNARY_OPERATOR_REGEX.replace_all(&help, |caps: &Captures| {
+        caps[1].cyan().to_string() + &"x".red().to_string()
+    });
+
+    let help = BINARY_OPERATOR_REGEX.replace_all(&help, |caps: &Captures| {
+        "x".red().to_string() + " " + &caps[1].cyan().to_string() + " " + &"y".red().to_string()
+    });
+
+    let help = SLICE_REGEX.replace_all(&help, |caps: &Captures| {
+        "x".red().to_string()
+            + "["
+            + &caps[1]
+                .split(":")
+                .map(|part| part.cyan().to_string())
+                .collect::<Vec<_>>()
+                .join(":")
+            + "]"
+    });
+
+    let help = FLAG_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().to_string());
+
+    help.into_owned()
+}
 
 pub fn get_moonblade_cheatsheet() -> &'static str {
     "
@@ -82,8 +145,8 @@ be read/parsed once per row.
 "
 }
 
-pub fn get_moonblade_functions_help() -> &'static str {
-    "
+pub fn get_moonblade_functions_help() -> String {
+    let help = "
 # Available functions & operators
 
 (use --cheatsheet for a reminder of the expression language's basics)
@@ -158,10 +221,10 @@ use the operators in the previous section.
 
 ## Pipeline operator (using \"_\" for left-hand size substitution)
 
-    'trim(name) | len(_)'         - Same as len(trim(name))
-    'trim(name) | len'            - Supports elision for unary functions
-    'trim(name) | add(1, len(_))' - Can be nested
-    'add(trim(name) | len, 2)'    - Can be used anywhere
+    trim(name) | len(_)         - Same as len(trim(name))
+    trim(name) | len            - Supports elision for unary functions
+    trim(name) | add(1, len(_)) - Can be nested
+    add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Arithmetics
 
@@ -510,7 +573,9 @@ use the operators in the previous section.
     - uuid() -> string
         Return a uuid v4.
 
-"
+";
+
+    colorize_functions_help(help)
 }
 
 pub fn get_moonblade_aggregations_function_help() -> &'static str {
