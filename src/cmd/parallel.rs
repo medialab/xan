@@ -408,6 +408,10 @@ parallel options:
     --path-column <name>         Name of the path column if stdin is given as a CSV file
                                  instead of one path per line.
 
+parallel count options:
+    -S, --source-column <name>  If given, will return a CSV file containing a column with
+                                the source file being counted and a column with the count itself.
+
 parallel cat options:
     -B, --buffer-size <n>       Number of rows a thread is allowed to keep in memory
                                 before flushing to the output.
@@ -667,31 +671,78 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Count
     if args.cmd_count {
-        let total_count = AtomicUsize::new(0);
+        if let Some(source_column_name) = &args.flag_source_column {
+            let writer_mutex = {
+                let mut writer = Config::new(&args.flag_output).writer()?;
 
-        inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-            let (mut reader, _children_guard) = args.reader(path)?;
+                let mut output_headers = csv::ByteRecord::new();
+                output_headers.push_field(source_column_name.as_bytes());
+                output_headers.push_field(b"count");
 
-            let bar = progress_bar.start(path);
+                writer.write_byte_record(&output_headers)?;
 
-            let mut record = csv::ByteRecord::new();
-            let mut count: usize = 0;
+                Mutex::new(writer)
+            };
 
-            while reader.read_byte_record(&mut record)? {
-                count += 1;
+            inputs.par_iter().try_for_each(|path| -> CliResult<()> {
+                let (mut reader, _children_guard) = args.reader(path)?;
 
-                ParallelProgressBar::tick(&bar);
-            }
+                let bar = progress_bar.start(path);
 
-            total_count.fetch_add(count, Ordering::Relaxed);
-            progress_bar.stop(path);
+                let mut record = csv::ByteRecord::new();
+                let mut count: usize = 0;
 
-            Ok(())
-        })?;
+                while reader.read_byte_record(&mut record)? {
+                    count += 1;
 
-        progress_bar.succeed();
+                    ParallelProgressBar::tick(&bar);
+                }
 
-        println!("{}", total_count.into_inner());
+                let mut output_record = csv::ByteRecord::new();
+                output_record.push_field(path.as_bytes());
+                output_record.push_field(count.to_string().as_bytes());
+
+                writer_mutex
+                    .lock()
+                    .unwrap()
+                    .write_byte_record(&output_record)?;
+
+                progress_bar.stop(path);
+
+                Ok(())
+            })?;
+
+            progress_bar.succeed();
+
+            writer_mutex.into_inner().unwrap().flush()?;
+        } else {
+            let total_count = AtomicUsize::new(0);
+
+            inputs.par_iter().try_for_each(|path| -> CliResult<()> {
+                let (mut reader, _children_guard) = args.reader(path)?;
+
+                let bar = progress_bar.start(path);
+
+                let mut record = csv::ByteRecord::new();
+                let mut count: usize = 0;
+
+                while reader.read_byte_record(&mut record)? {
+                    count += 1;
+
+                    ParallelProgressBar::tick(&bar);
+                }
+
+                total_count.fetch_add(count, Ordering::Relaxed);
+
+                progress_bar.stop(path);
+
+                Ok(())
+            })?;
+
+            progress_bar.succeed();
+
+            println!("{}", total_count.into_inner());
+        }
     }
     // Cat
     else if args.cmd_cat {
