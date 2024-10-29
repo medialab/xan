@@ -18,6 +18,32 @@ fn parallel_count() {
 }
 
 #[test]
+fn parallel_count_source_column() {
+    let wrk = Workdir::new("parallel_count_source_column");
+    wrk.create(
+        "data1.csv",
+        vec![svec!["color"], svec!["blue"], svec!["yellow"], svec!["red"]],
+    );
+    wrk.create("data2.csv", vec![svec!["color"], svec!["red"]]);
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("count")
+        .args(["--source-column", "source"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    got[1..].sort_by_key(|r| r[0].to_owned());
+
+    let expected = vec![
+        svec!["source", "count"],
+        svec!["data1.csv", "3"],
+        svec!["data2.csv", "1"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn parallel_freq() {
     let wrk = Workdir::new("parallel_freq");
     wrk.create(
