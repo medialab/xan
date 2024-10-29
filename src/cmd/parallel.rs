@@ -98,20 +98,20 @@ impl Bars {
         self.abandon();
     }
 
-    fn interrupt(&self) {
-        for (path, bar) in self.bars.lock().unwrap().iter() {
-            bar.set_style(get_spinner_style(path.yellow()));
-            bar.tick();
-            bar.abandon();
-        }
+    // fn interrupt(&self) {
+    //     for (path, bar) in self.bars.lock().unwrap().iter() {
+    //         bar.set_style(get_spinner_style(path.yellow()));
+    //         bar.tick();
+    //         bar.abandon();
+    //     }
 
-        self.set_color("yellow");
-        self.main.abandon();
-    }
+    //     self.set_color("yellow");
+    //     self.main.abandon();
+    // }
 }
 
 struct ParallelProgressBar {
-    bars: Option<Arc<Bars>>,
+    bars: Option<Bars>,
 }
 
 impl ParallelProgressBar {
@@ -120,17 +120,9 @@ impl ParallelProgressBar {
     }
 
     fn new(total: usize) -> Self {
-        let bars = Arc::new(Bars::new(total));
-
-        let handle = bars.clone();
-
-        ctrlc::set_handler(move || {
-            handle.interrupt();
-            std::process::exit(1);
-        })
-        .expect("Could not setup ctrl+c handler!");
-
-        Self { bars: Some(bars) }
+        Self {
+            bars: Some(Bars::new(total)),
+        }
     }
 
     fn start(&self, path: &str) -> Option<ProgressBar> {
