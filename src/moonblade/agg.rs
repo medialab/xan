@@ -1,7 +1,9 @@
 use std::cmp::{Ordering, Reverse};
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 
 use csv::ByteRecord;
+use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use jiff::civil::DateTime;
 use rayon::prelude::*;
 
@@ -827,6 +829,42 @@ impl Values {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ApproxCardinality {
+    register: HyperLogLogPlus<String, RandomState>,
+    count: usize,
+}
+
+impl ApproxCardinality {
+    fn new() -> Self {
+        Self {
+            register: HyperLogLogPlus::new(16, RandomState::new()).unwrap(),
+            count: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.register = HyperLogLogPlus::new(16, RandomState::new()).unwrap();
+        self.count = 0;
+    }
+
+    fn add(&mut self, string: &str) {
+        self.register.insert(string);
+    }
+
+    fn finalize(&mut self) {
+        self.count = self.register.count().trunc() as usize;
+    }
+
+    fn get(&self) -> usize {
+        self.count
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.register.merge(&other.register).unwrap();
+    }
+}
+
 const TYPE_EMPTY: u8 = 0;
 const TYPE_STRING: u8 = 1;
 const TYPE_FLOAT: u8 = 2;
@@ -982,6 +1020,9 @@ macro_rules! build_aggregation_method_enum {
 
             fn finalize(&mut self, parallel: bool) {
                 match self {
+                    Self::ApproxCardinality(inner) => {
+                        inner.finalize();
+                    }
                     Self::Numbers(inner) => {
                         inner.finalize(parallel);
                     }
@@ -994,6 +1035,7 @@ macro_rules! build_aggregation_method_enum {
 
 build_aggregation_method_enum!(
     AllAny,
+    ApproxCardinality,
     ArgExtent,
     ArgTop,
     Count,
@@ -1021,6 +1063,9 @@ impl Aggregator {
             }
             (ConcreteAggregationMethod::Any, Self::AllAny(inner)) => {
                 DynamicValue::from(inner.any())
+            }
+            (ConcreteAggregationMethod::ApproxCardinality, Self::ApproxCardinality(inner)) => {
+                DynamicValue::from(inner.get())
             }
             (ConcreteAggregationMethod::ArgTop(_, expr_opt, separator), Self::ArgTop(inner)) => {
                 DynamicValue::from(match expr_opt {
@@ -1243,6 +1288,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::All | ConcreteAggregationMethod::Any => {
                 upsert_aggregator!(AllAny)
             }
+            ConcreteAggregationMethod::ApproxCardinality => {
+                upsert_aggregator!(ApproxCardinality)
+            }
             ConcreteAggregationMethod::Count(_) => {
                 upsert_aggregator!(Count)
             }
@@ -1335,6 +1383,11 @@ impl CompositeAggregator {
                 Some(value) => match method {
                     Aggregator::AllAny(allany) => {
                         allany.add(value.is_truthy());
+                    }
+                    Aggregator::ApproxCardinality(approx_cardinality) => {
+                        if !value.is_nullish() {
+                            approx_cardinality.add(&value.try_as_str()?);
+                        }
                     }
                     Aggregator::Count(count) => {
                         if !value.is_nullish() {
@@ -1483,6 +1536,7 @@ fn get_separator_from_argument(args: Vec<ConcreteExpr>, pos: usize) -> Option<St
 enum ConcreteAggregationMethod {
     All,
     Any,
+    ApproxCardinality,
     ArgMin(Option<ConcreteExpr>),
     ArgMax(Option<ConcreteExpr>),
     ArgTop(usize, Option<ConcreteExpr>, String),
@@ -1519,6 +1573,7 @@ impl ConcreteAggregationMethod {
         Ok(match name {
             "all" => Self::All,
             "any" => Self::Any,
+            "approx_cardinality" => Self::ApproxCardinality,
             "argmin" => Self::ArgMin(args.pop()),
             "argmax" => Self::ArgMax(args.pop()),
             "argtop" => Self::ArgTop(

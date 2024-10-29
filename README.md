@@ -1103,6 +1103,10 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - any(<expr>) -> bool
         Returns true if one of the elements returned by given expression is truthy.
 
+    - approx_cardinality(<expr>) -> int
+        Returns the approximate cardinality of the set of values returned by given
+        expression using the HyperLogLog+ algorithm.
+
     - argmin(<expr>,  <expr>?) -> any
         Return the index of the row where the first expression is minimized, or
         the result of the second expression where the first expression is minimized.

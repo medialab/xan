@@ -797,6 +797,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0c62115964e08cb8039170eb33c1d0e2388a256930279edca206fff675f82c3"
 
 [[package]]
+name = "hyperloglogplus"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "621debdf94dcac33e50475fdd76d34d5ea9c0362a834b9db08c3024696c1fbe3"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1987,6 +1996,7 @@ dependencies = [
  "filetime",
  "flate2",
  "glob",
+ "hyperloglogplus",
  "indexmap",
  "indicatif",
  "jiff",
