@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.29.0"  #:version
+version = "0.30.0"  #:version
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
@@ -59,6 +59,7 @@ ext-sort = { version = "0.1.4", features = ["memory-limit"] }
 filetime = "0.1"
 flate2 = "1.0.27"
 glob = "0.3.1"
+hyperloglogplus = "0.4.1"
 indexmap = "2.5.0"
 indicatif = "0.17.8"
 jiff = "0.1.13"
@@ -92,7 +93,6 @@ unidecode = "0.3.0"
 unicode-segmentation = "1.10.1"
 unicode-width = "0.1.11"
 uuid = { version = "0.8.2", features = ["v4"] }
-hyperloglogplus = "0.4.1"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
