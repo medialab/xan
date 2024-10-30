@@ -551,8 +551,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 write!(
                     &output,
-                    "{}…",
-                    format!("{}{}{}", padding, theme.vertical(), padding).dimmed(),
+                    "{}",
+                    format!("{}{}{}…", padding, theme.vertical(), padding).dimmed(),
                 )?;
             }
         }
