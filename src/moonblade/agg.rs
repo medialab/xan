@@ -832,20 +832,20 @@ impl Values {
 #[derive(Debug, Clone)]
 struct ApproxCardinality {
     register: HyperLogLogPlus<String, RandomState>,
-    count: usize,
+    count: Option<usize>,
 }
 
 impl ApproxCardinality {
     fn new() -> Self {
         Self {
             register: HyperLogLogPlus::new(16, RandomState::new()).unwrap(),
-            count: 0,
+            count: None,
         }
     }
 
     fn clear(&mut self) {
         self.register = HyperLogLogPlus::new(16, RandomState::new()).unwrap();
-        self.count = 0;
+        self.count = None;
     }
 
     fn add(&mut self, string: &str) {
@@ -853,11 +853,11 @@ impl ApproxCardinality {
     }
 
     fn finalize(&mut self) {
-        self.count = self.register.count().trunc() as usize;
+        self.count = Some(self.register.count().trunc() as usize);
     }
 
     fn get(&self) -> usize {
-        self.count
+        self.count.expect("not finalized!")
     }
 
     fn merge(&mut self, other: Self) {
@@ -2028,6 +2028,7 @@ pub struct Stats {
     types: Types,
     frequencies: Option<Frequencies>,
     numbers: Option<Numbers>,
+    approx_cardinality: Option<ApproxCardinality>,
 }
 
 impl Stats {
@@ -2043,6 +2044,7 @@ impl Stats {
             types: Types::new(),
             frequencies: None,
             numbers: None,
+            approx_cardinality: None,
         }
     }
 
@@ -2061,6 +2063,10 @@ impl Stats {
         if let Some(numbers) = &mut self.numbers {
             numbers.merge(other.numbers.unwrap());
         }
+
+        if let Some(approx_cardinality) = &mut self.approx_cardinality {
+            approx_cardinality.merge(other.approx_cardinality.unwrap());
+        }
     }
 
     pub fn include_nulls(&mut self) {
@@ -2073,6 +2079,10 @@ impl Stats {
 
     pub fn compute_numbers(&mut self) {
         self.numbers = Some(Numbers::new());
+    }
+
+    pub fn compute_approx(&mut self) {
+        self.approx_cardinality = Some(ApproxCardinality::new());
     }
 
     pub fn headers(&self) -> ByteRecord {
@@ -2097,6 +2107,10 @@ impl Stats {
         headers.push_field(b"min");
         headers.push_field(b"max");
 
+        if self.approx_cardinality.is_some() {
+            headers.push_field(b"approx_cardinality");
+        }
+
         if self.frequencies.is_some() {
             headers.push_field(b"cardinality");
             headers.push_field(b"mode");
@@ -2111,7 +2125,7 @@ impl Stats {
         headers
     }
 
-    pub fn results(&self, name: &[u8]) -> ByteRecord {
+    pub fn results(self, name: &[u8]) -> ByteRecord {
         let mut record = ByteRecord::new();
 
         record.push_field(name);
@@ -2127,7 +2141,9 @@ impl Stats {
         record.push_field(&map_to_field(self.sum.get()));
         record.push_field(&map_to_field(self.welford.mean()));
 
-        if let Some(numbers) = self.numbers.as_ref() {
+        if let Some(mut numbers) = self.numbers {
+            numbers.finalize(false);
+
             match numbers.quartiles() {
                 Some(quartiles) => {
                     for quartile in quartiles {
@@ -2146,6 +2162,11 @@ impl Stats {
         record.push_field(&map_to_field(self.welford.stdev()));
         record.push_field(&map_to_field(self.extent.min()));
         record.push_field(&map_to_field(self.extent.max()));
+
+        if let Some(mut approx_cardinality) = self.approx_cardinality {
+            approx_cardinality.finalize();
+            record.push_field(approx_cardinality.get().to_string().as_bytes());
+        }
 
         if let Some(frequencies) = self.frequencies.as_ref() {
             record.push_field(frequencies.cardinality().to_string().as_bytes());
@@ -2194,7 +2215,7 @@ impl Stats {
             match number {
                 DynamicNumber::Float(_) => self.types.set_float(),
                 DynamicNumber::Integer(_) => self.types.set_int(),
-            }
+            };
 
             if let Some(numbers) = self.numbers.as_mut() {
                 numbers.add(number);
@@ -2209,6 +2230,10 @@ impl Stats {
 
         if let Some(frequencies) = self.frequencies.as_mut() {
             frequencies.add(cell.to_string());
+        }
+
+        if let Some(approx_cardinality) = self.approx_cardinality.as_mut() {
+            approx_cardinality.add(cell);
         }
 
         self.lexicograhic_extent.add(cell);

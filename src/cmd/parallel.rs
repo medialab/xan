@@ -420,13 +420,14 @@ parallel freq options:
 
 parallel stats options:
     -s, --select <cols>  Columns for which to build statistics.
-    -A, --all            Show all statistics available.
-    -c, --cardinality    Show cardinality and modes.
-                         This requires storing all CSV data in memory.
-    -q, --quartiles      Show quartiles.
-                         This requires storing all CSV data in memory.
-    --nulls              Include empty values in the population size for computing
-                         mean and standard deviation.
+    -A, --all              Shorthand for -cq.
+    -c, --cardinality      Show cardinality and modes.
+                           This requires storing all CSV data in memory.
+    -q, --quartiles        Show quartiles.
+                           This requires storing all CSV data in memory.
+    -a, --approx           Show approximated statistics.
+    --nulls                Include empty values in the population size for computing
+                           mean and standard deviation.
 
 Common options:
     -h, --help             Display this message
@@ -462,6 +463,7 @@ struct Args {
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,
+    flag_approx: bool,
     flag_nulls: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -484,6 +486,10 @@ impl Args {
 
         if self.flag_all || self.flag_quartiles {
             stats.compute_numbers();
+        }
+
+        if self.flag_approx {
+            stats.compute_approx();
         }
 
         stats
