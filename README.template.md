@@ -159,7 +159,7 @@ On unix, don't hesitate to use the `-p` flag to automagically forward the full o
 
 ```bash
 # NOTE: drop -c to avoid truncating the values
-xan slice -l 1 medias.csv | xan flatten -c
+xan flatten -c
 ```
 
 ```
@@ -185,6 +185,11 @@ wheel_category                    Opinion Journalism
 wheel_subcategory                 Left Wing
 has_paywall                       false
 inactive                          <empty>
+
+Row n°1
+───────────────────────────────────────────────────────────────────────────────
+webentity_id                      2
+...
 ```
 
 ### Searching for rows
