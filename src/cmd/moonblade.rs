@@ -24,6 +24,10 @@ lazy_static! {
         r"x (==|!=|<[= ]|>[= ]|&& |\|\| |and|or |not in|in|eq|ne|lt|le|gt|ge|//|\*\*|[+\-*/%.]) y"
     )
     .unwrap();
+    static ref PIPELINE_OPERATOR_REGEX: Regex = Regex::new(
+        r"(trim\(name\) )\|"
+    )
+    .unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
 
     static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^  \. (.+)$").unwrap();
@@ -64,6 +68,10 @@ fn colorize_functions_help(help: &str) -> String {
 
     let help = BINARY_OPERATOR_REGEX.replace_all(&help, |caps: &Captures| {
         "x".red().to_string() + " " + &caps[1].cyan().to_string() + " " + &"y".red().to_string()
+    });
+
+    let help = PIPELINE_OPERATOR_REGEX.replace_all(&help, |caps: &Captures| {
+        caps[1].to_string() + &"|".cyan().to_string()
     });
 
     let help = SLICE_REGEX.replace_all(&help, |caps: &Captures| {
@@ -240,7 +248,7 @@ use the operators in the previous section.
     Negative indices are accepted and mean the same thing as with
     the Python language.
 
-## Pipeline operator (using \"_\" for left-hand size substitution)
+## Pipeline operator (using \"_\" for left-hand side substitution)
 
     trim(name) | len(_)         - Same as len(trim(name))
     trim(name) | len            - Supports elision for unary functions

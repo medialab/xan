@@ -724,7 +724,7 @@ use the operators in the previous section.
     Negative indices are accepted and mean the same thing as with
     the Python language.
 
-## Pipeline operator (using "_" for left-hand size substitution)
+## Pipeline operator (using "_" for left-hand side substitution)
 
     trim(name) | len(_)         - Same as len(trim(name))
     trim(name) | len            - Supports elision for unary functions
