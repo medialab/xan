@@ -183,6 +183,7 @@ impl Last {
     }
 }
 
+// NOTE: None means the sum means some level of overflow
 #[derive(Debug, Clone)]
 struct Sum {
     current: Option<DynamicNumber>,
@@ -190,35 +191,45 @@ struct Sum {
 
 impl Sum {
     fn new() -> Self {
-        Self { current: None }
+        Self {
+            current: Some(DynamicNumber::Integer(0)),
+        }
     }
 
     fn clear(&mut self) {
-        self.current = None;
+        self.current = Some(DynamicNumber::Integer(0));
     }
 
     fn add(&mut self, value: DynamicNumber) {
-        match self.current.as_mut() {
-            None => self.current = Some(value),
-            Some(current_sum) => {
-                match current_sum {
-                    DynamicNumber::Float(a) => match value {
-                        DynamicNumber::Float(b) => *a += b,
-                        DynamicNumber::Integer(b) => *a += b as f64,
-                    },
-                    DynamicNumber::Integer(a) => match value {
-                        DynamicNumber::Float(b) => {
-                            self.current = Some(DynamicNumber::Float((*a as f64) + b));
-                        }
-                        DynamicNumber::Integer(b) => *a += b,
-                    },
-                };
-            }
-        };
+        if let Some(current_sum) = self.current.as_mut() {
+            match current_sum {
+                DynamicNumber::Float(a) => match value {
+                    DynamicNumber::Float(b) => *a += b,
+                    DynamicNumber::Integer(b) => *a += b as f64,
+                },
+                DynamicNumber::Integer(a) => match value {
+                    DynamicNumber::Float(b) => {
+                        self.current = Some(DynamicNumber::Float((*a as f64) + b));
+                    }
+                    DynamicNumber::Integer(b) => {
+                        self.current = a.checked_add(b).map(DynamicNumber::Integer)
+                    }
+                },
+            };
+        }
     }
 
     fn get(&self) -> Option<DynamicNumber> {
-        self.current
+        // NOTE: f64 overflow is a little bit more subtle
+        match self.current {
+            None => None,
+            Some(sum) => match sum {
+                DynamicNumber::Float(f) if f == f64::MAX || f == f64::MIN || f.is_infinite() => {
+                    None
+                }
+                _ => self.current,
+            },
+        }
     }
 
     fn merge(&mut self, other: Self) {

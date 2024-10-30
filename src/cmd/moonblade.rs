@@ -731,7 +731,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Sample standard deviation (i.e. using Bessel's correction).
 
     - sum(<expr>) -> number
-        Sum of numerical values.
+        Sum of numerical values. Will return nothing if the sum overflows.
 
     - top(k, <expr>, separator?) -> any
         Find the top k values returned by the expression and join
