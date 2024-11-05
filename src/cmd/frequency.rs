@@ -56,6 +56,9 @@ frequency options:
     -p, --parallel         Allow sorting to be done in parallel. This is only
                            useful with -l/--limit set to 0, i.e. no limit.
 
+Hidden options:
+    --no-limit-we-reach-for-the-sky  Nothing to see here...
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -80,10 +83,16 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_groupby: Option<SelectColumns>,
+    flag_no_limit_we_reach_for_the_sky: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_no_limit_we_reach_for_the_sky {
+        open::that("https://www.youtube.com/watch?v=7kmEEkECFQw")?;
+        return Ok(());
+    }
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
