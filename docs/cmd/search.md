@@ -6,7 +6,7 @@ Filters CSV data by whether the given pattern matches a row.
 
 By default, the pattern is a regex and is applied to each field in each row,
 and if any field matches, then the row is written to the output. The columns to search
-can be limited with the '-s, --select' flag (but the full row is still written to the
+can be limited with the -s, --select flag (but the full row is still written to the
 output if there is a match).
 
 The pattern can also be an exact match, case sensitive or not.

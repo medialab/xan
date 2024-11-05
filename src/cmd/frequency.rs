@@ -38,10 +38,8 @@ Usage:
 
 frequency options:
     -s, --select <arg>     Select a subset of columns to compute frequencies
-                           for. See 'xan select --help' for the format
-                           details. This is provided here because piping 'xan
-                           select' into 'xan frequency' will disable the use
-                           of indexing.
+                           for. See 'xan select --help' for the selection language
+                           details.
     --sep <char>           Split the cell into multiple values to count using the
                            provided separator.
     -g, --groupby <cols>   If given, will compute frequency tables per group
