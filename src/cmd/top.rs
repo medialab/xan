@@ -72,7 +72,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| Config::new(&None).select(cols).selection(headers))
+        .map(|cols| cols.selection(headers, !args.flag_no_headers))
         .transpose()?;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;

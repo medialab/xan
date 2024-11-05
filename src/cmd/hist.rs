@@ -95,15 +95,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = conf.reader()?;
     let headers = rdr.byte_headers()?;
 
-    let label_pos = Config::new(&None)
-        .select(args.flag_label)
-        .single_selection(headers)?;
-    let value_pos = Config::new(&None)
-        .select(args.flag_value)
-        .single_selection(headers)?;
-    let field_pos_option = Config::new(&None)
-        .select(args.flag_field)
-        .single_selection(headers)
+    let label_pos = args
+        .flag_label
+        .single_selection(headers, !args.flag_no_headers)?;
+    let value_pos = args
+        .flag_value
+        .single_selection(headers, !args.flag_no_headers)?;
+    let field_pos_option = args
+        .flag_field
+        .single_selection(headers, !args.flag_no_headers)
         .ok();
 
     let mut histograms = Histograms::new();

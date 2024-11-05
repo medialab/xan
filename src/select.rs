@@ -58,6 +58,20 @@ impl SelectColumns {
         }
         Ok(Selection(map))
     }
+
+    pub fn single_selection(
+        &self,
+        first_record: &csv::ByteRecord,
+        use_names: bool,
+    ) -> Result<usize, String> {
+        let selection = self.selection(first_record, use_names)?;
+
+        if selection.len() != 1 {
+            return Err("target selection is not a single column".to_string());
+        }
+
+        Ok(selection[0])
+    }
 }
 
 impl fmt::Debug for SelectColumns {

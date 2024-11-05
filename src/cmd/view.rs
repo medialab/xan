@@ -293,7 +293,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut groupby_sel_opt = args
         .flag_groupby
         .clone()
-        .map(|cols| Config::new(&None).select(cols).selection(byte_headers))
+        .map(|cols| cols.selection(byte_headers, !args.flag_no_headers))
         .transpose()?;
 
     if let (Some(groupby_sel), false) = (&mut groupby_sel_opt, args.flag_hide_index) {

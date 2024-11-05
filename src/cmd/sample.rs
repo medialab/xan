@@ -110,7 +110,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let group_sel_opt = args
                 .flag_groupby
-                .map(|s| Config::new(&None).select(s).selection(byte_headers))
+                .map(|s| s.selection(byte_headers, !args.flag_no_headers))
                 .transpose()?;
 
             if args.flag_weight.is_some() {

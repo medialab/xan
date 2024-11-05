@@ -504,7 +504,7 @@ impl Args {
             }
 
             if let Some(col_name) = &self.flag_path_column {
-                let config = Config::new(&None).select(col_name.clone());
+                let config = Config::empty().select(col_name.clone());
                 let mut reader = config.reader()?;
                 let headers = reader.byte_headers()?;
                 let path_column_index = config.single_selection(headers)?;
@@ -545,7 +545,7 @@ impl Args {
                 Err("-S, --shell-preprocess cannot be an empty command!")?;
             }
 
-            let config = Config::new(&None)
+            let config = Config::empty()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -613,7 +613,7 @@ impl Args {
                 children.push(command.spawn().expect("could not spawn preprocessing"));
             }
 
-            let config = Config::new(&None)
+            let config = Config::empty()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -831,9 +831,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let bar = progress_bar.start(path);
 
             let headers = reader.byte_headers()?.clone();
-            let sel = Config::new(&None)
-                .select(args.flag_select.clone())
-                .selection(&headers)?;
+            let sel = args.flag_select.selection(&headers, true)?;
 
             let mut freq_tables = FrequencyTables::with_capacity(sel.collect(&headers));
 
@@ -899,9 +897,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let bar = progress_bar.start(path);
 
             let headers = reader.byte_headers()?.clone();
-            let sel = Config::new(&None)
-                .select(args.flag_select.clone())
-                .selection(&headers)?;
+            let sel = args.flag_select.selection(&headers, true)?;
 
             let mut local_stats =
                 StatsTables::with_capacity(sel.collect(&headers), || args.new_stats());
@@ -980,9 +976,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let (mut reader, _children_guard) = args.reader(path)?;
             let headers = reader.byte_headers()?.clone();
 
-            let sel = Config::new(&None)
-                .select(args.arg_group.clone().unwrap())
-                .selection(&headers)?;
+            let sel = args.arg_group.clone().unwrap().selection(&headers, true)?;
 
             let bar = progress_bar.start(path);
 

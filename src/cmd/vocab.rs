@@ -160,18 +160,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let token_pos = Config::new(&None)
-        .select(args.arg_token_col)
-        .single_selection(&headers)?;
+    let token_pos = args
+        .arg_token_col
+        .single_selection(&headers, !args.flag_no_headers)?;
 
     let doc_sel = args
         .flag_doc
-        .map(|selection| {
-            Config::new(&None)
-                .no_headers(args.flag_no_headers)
-                .select(selection)
-                .selection(&headers)
-        })
+        .map(|s| s.selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
     let mut record = csv::ByteRecord::new();
