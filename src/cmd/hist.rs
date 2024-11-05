@@ -213,7 +213,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let label = util::unicode_aware_rpad_with_ellipsis(&bar.label, label_cols, " ");
             let label = match bar.label.as_str() {
-                "<rest>" | "<null>" | "<NaN>" => label.dimmed(),
+                "<rest>" | "<null>" | "<NaN>" | "<empty>" => label.dimmed(),
                 _ => label.normal(),
             };
 
