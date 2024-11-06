@@ -38,6 +38,7 @@ rename options:
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
     -p, --prefix <prefix>  Prefix to add to all the column names.
+    -f, --force            Ignore unknown columns to be renamed.
 
 Common options:
     -h, --help             Display this message

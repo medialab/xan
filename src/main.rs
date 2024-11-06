@@ -405,6 +405,12 @@ impl From<regex::Error> for CliError {
     }
 }
 
+impl From<aho_corasick::BuildError> for CliError {
+    fn from(err: aho_corasick::BuildError) -> Self {
+        CliError::Other(err.to_string())
+    }
+}
+
 impl From<calamine::Error> for CliError {
     fn from(err: calamine::Error) -> Self {
         CliError::Other(err.to_string())

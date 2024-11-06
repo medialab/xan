@@ -2,21 +2,25 @@
 # xan search
 
 ```txt
-Filters CSV data by whether the given pattern matches a row.
+Filter rows of given CSV file if some of its cells contains a desired substring.
 
-By default, the pattern is a regex and is applied to each field in each row,
-and if any field matches, then the row is written to the output. The columns to search
-can be limited with the -s, --select flag (but the full row is still written to the
-output if there is a match).
+Can also be used to search for exact matches using the -e, --exact flag.
 
-The pattern can also be an exact match, case sensitive or not.
+Can also be used to search using a regular expression using the -r, --regex flag.
 
-The command is also able to take a CSV file column containing multiple
-patterns as an input. This can be thought of as a specialized kind
-of left join over the data.
+When using a regular expression, be sure to mind bash escape rules (prefer single
+quotes around your expression and don't forget to use backslashes when needed):
 
-When giving a regex, be sure to mind bash escape rules (prefer single quotes
-around your expression and don't forget to use backslash when needed).
+    $ xan search -r '\bfran[cç]' file.csv
+
+To restrict the columns that will be searched you can use the -s, --select flag.
+
+All search modes can also be case-insensitive using -i, --ignore-case.
+
+Finally, this command is also able to take a CSV file column containing multiple
+patterns to search for at once, using the --input flag:
+
+    $ xan search user_id --input user-ids.csv tweets.csv
 
 Usage:
     xan search [options] <column> --input <index> [<input>]
@@ -24,14 +28,17 @@ Usage:
     xan search --help
 
 search options:
-    -e, --exact            Perform an exact match rather than using a
-                           regular expression.
+    -e, --exact            Perform an exact match.
+    -r, --regex            Use a regex to perform the match.
     --input <index>        CSV file containing a column of value to index & search.
     -i, --ignore-case      Case insensitive search. This is equivalent to
                            prefixing the regex with '(?i)'.
     -s, --select <arg>     Select the columns to search. See 'xan select -h'
                            for the full syntax.
     -v, --invert-match     Select only rows that did not match
+    -f, --flag <column>    If given, the command will not filter rows
+                           but will instead flag the found rows in a new
+                           column with given name.
 
 Common options:
     -h, --help             Display this message
@@ -41,7 +48,4 @@ Common options:
                            sliced, etc.)
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character.
-    -f, --flag <column>    If given, the command will not filter rows
-                           but will instead flag the found rows in a new
-                           column named <column>.
 ```
