@@ -128,3 +128,29 @@ fn rename_no_headers() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn rename_force() {
+    let wrk = Workdir::new("rename_force");
+    wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["-s", "surname,name,surname,age"])
+        .arg("-f")
+        .arg("SURNAME,NAME,SURNAME,AGE")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["NAME", "AGE"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["-s", "surname"])
+        .arg("-f")
+        .arg("SURNAME")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "age"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}

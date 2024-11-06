@@ -38,23 +38,25 @@ Usage:
 
 frequency options:
     -s, --select <arg>     Select a subset of columns to compute frequencies
-                           for. See 'xan select --help' for the format
-                           details. This is provided here because piping 'xan
-                           select' into 'xan frequency' will disable the use
-                           of indexing.
+                           for. See 'xan select --help' for the selection language
+                           details.
     --sep <char>           Split the cell into multiple values to count using the
                            provided separator.
     -g, --groupby <cols>   If given, will compute frequency tables per group
                            as defined by the given columns.
+    -A, --all              Remove the limit.
     -l, --limit <arg>      Limit the frequency table to the N most common
-                           items. Set to <=0 to disable a limit. It is combined
-                           with -t/--threshold.
+                           items. Use -A, -all or set to 0 to disable the limit.
+                           It will be combined with -t/--threshold.
                            [default: 10]
     -t, --threshold <arg>  If set, won't return items having a count less than
                            this given threshold. It is combined with -l/--limit.
     -N, --no-extra         Don't include empty cells & remaining counts.
     -p, --parallel         Allow sorting to be done in parallel. This is only
                            useful with -l/--limit set to 0, i.e. no limit.
+
+Hidden options:
+    --no-limit-we-reach-for-the-sky  Nothing to see here...
 
 Common options:
     -h, --help             Display this message
@@ -72,6 +74,7 @@ struct Args {
     arg_input: Option<String>,
     flag_select: SelectColumns,
     flag_sep: Option<String>,
+    flag_all: bool,
     flag_limit: usize,
     flag_threshold: Option<u64>,
     flag_no_extra: bool,
@@ -80,10 +83,26 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_groupby: Option<SelectColumns>,
+    flag_no_limit_we_reach_for_the_sky: bool,
+}
+
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_all {
+            self.flag_limit = 0;
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
+
+    if args.flag_no_limit_we_reach_for_the_sky {
+        opener::open_browser("https://www.youtube.com/watch?v=7kmEEkECFQw")
+            .expect("could not easter egg");
+        return Ok(());
+    }
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -97,7 +116,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| Config::new(&None).select(cols).selection(&headers))
+        .map(|cols| cols.selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
     // No need to consider the grouping column when counting frequencies

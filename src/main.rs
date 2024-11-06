@@ -217,6 +217,7 @@ enum Command {
     From,
     Glob,
     Groupby,
+    Guillotine,
     H,
     Headers,
     Help,
@@ -268,7 +269,7 @@ impl Command {
         }
         match self {
             Command::Agg => cmd::agg::run(argv),
-            Command::Behead => cmd::behead::run(argv),
+            Command::Behead | Command::Guillotine => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
@@ -401,6 +402,12 @@ impl From<regex::Error> for CliError {
             }
             _ => CliError::Other(format!("{:?}", err)),
         }
+    }
+}
+
+impl From<aho_corasick::BuildError> for CliError {
+    fn from(err: aho_corasick::BuildError) -> Self {
+        CliError::Other(err.to_string())
     }
 }
 

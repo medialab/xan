@@ -273,18 +273,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?;
 
-    let x_column_index = Config::new(&None)
-        .select(args.arg_x.clone())
-        .single_selection(headers)?;
+    let x_column_index = args
+        .arg_x
+        .single_selection(headers, !args.flag_no_headers)?;
 
     let y_column_index_opt = args
         .arg_y
         .as_ref()
-        .map(|name| {
-            Config::new(&None)
-                .select(name.clone())
-                .single_selection(headers)
-        })
+        .map(|name| name.single_selection(headers, !args.flag_no_headers))
         .transpose()?;
 
     let x_column_name = if args.flag_no_headers {
@@ -311,20 +307,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let category_column_index = args
         .flag_category
         .as_ref()
-        .map(|name| {
-            Config::new(&None)
-                .select(name.clone())
-                .single_selection(headers)
-        })
+        .map(|name| name.single_selection(headers, !args.flag_no_headers))
         .transpose()?;
 
     let additional_series_indices = args
         .flag_add_series
         .iter()
         .map(|name| {
-            let i = Config::new(&None)
-                .select(name.clone())
-                .single_selection(headers)?;
+            let i = name.single_selection(headers, !args.flag_no_headers)?;
 
             let col_name = if args.flag_no_headers {
                 i.to_string().into_bytes()

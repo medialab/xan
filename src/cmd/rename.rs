@@ -42,6 +42,7 @@ rename options:
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
     -p, --prefix <prefix>  Prefix to add to all the column names.
+    -f, --force            Ignore unknown columns to be renamed.
 
 Common options:
     -h, --help             Display this message
@@ -62,6 +63,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_prefix: Option<String>,
+    flag_force: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -111,9 +113,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let headers = rdr.byte_headers()?;
+    let mut ignored_in_rename_as: Option<Vec<usize>> = None;
+    let mut nothing_to_do = false;
 
     let selection = match args.flag_select {
-        Some(selection) => {
+        Some(mut selection) => {
+            if args.flag_force {
+                ignored_in_rename_as = Some(selection.retain_known(headers));
+
+                if selection.is_empty() {
+                    nothing_to_do = true;
+                }
+            }
+
             rconfig = rconfig.select(selection);
             rconfig.selection(headers)?
         }
@@ -124,7 +136,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return fail!("Cannot rename a column selection where some columns appear multiple times!");
     }
 
-    let renamed_headers: csv::ByteRecord = if let Some(prefix) = args.flag_prefix {
+    let renamed_headers: csv::ByteRecord = if nothing_to_do {
+        headers.clone()
+    } else if let Some(prefix) = args.flag_prefix {
         headers
             .iter()
             .zip(selection.indexed_mask(headers.len()))
@@ -137,7 +151,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect()
     } else {
-        let rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
+        let mut rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
+
+        if let Some(ignored) = ignored_in_rename_as {
+            rename_as = rename_as
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, c)| if ignored.contains(&i) { None } else { Some(c) })
+                .collect::<csv::ByteRecord>();
+        }
 
         if selection.len() != rename_as.len() {
             return fail!(format!(

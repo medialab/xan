@@ -17,7 +17,7 @@ fn search() {
     let wrk = Workdir::new("search");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv");
+    cmd.arg("-r").arg("^foo").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -33,7 +33,7 @@ fn search_empty() {
     let wrk = Workdir::new("search");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
-    cmd.arg("xxx").arg("data.csv");
+    cmd.arg("-r").arg("xxx").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["h1", "h2"]];
@@ -45,7 +45,7 @@ fn search_empty_no_headers() {
     let wrk = Workdir::new("search");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
-    cmd.arg("xxx").arg("data.csv");
+    cmd.arg("-r").arg("xxx").arg("data.csv");
     cmd.arg("--no-headers");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -58,7 +58,7 @@ fn search_ignore_case() {
     let wrk = Workdir::new("search");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
-    cmd.arg("^FoO").arg("data.csv");
+    cmd.arg("-r").arg("^FoO").arg("data.csv");
     cmd.arg("--ignore-case");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -75,7 +75,7 @@ fn search_no_headers() {
     let wrk = Workdir::new("search_no_headers");
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv");
+    cmd.arg("-r").arg("^foo").arg("data.csv");
     cmd.arg("--no-headers");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -88,7 +88,7 @@ fn search_select() {
     let wrk = Workdir::new("search_select");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv");
+    cmd.arg("-r").arg("^foo").arg("data.csv");
     cmd.arg("--select").arg("h2");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -101,7 +101,7 @@ fn search_select_no_headers() {
     let wrk = Workdir::new("search_select_no_headers");
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv");
+    cmd.arg("-r").arg("^foo").arg("data.csv");
     cmd.arg("--select").arg("1");
     cmd.arg("--no-headers");
 
@@ -115,7 +115,7 @@ fn search_invert_match() {
     let wrk = Workdir::new("search_invert_match");
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv");
+    cmd.arg("-r").arg("^foo").arg("data.csv");
     cmd.arg("--invert-match");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -128,7 +128,7 @@ fn search_invert_match_no_headers() {
     let wrk = Workdir::new("search_invert_match");
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv");
+    cmd.arg("-r").arg("^foo").arg("data.csv");
     cmd.arg("--invert-match");
     cmd.arg("--no-headers");
 
@@ -142,7 +142,10 @@ fn search_flag() {
     let wrk = Workdir::new("search_flag");
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv").args(["--flag", "flagged"]);
+    cmd.arg("-r")
+        .arg("^foo")
+        .arg("data.csv")
+        .args(["--flag", "flagged"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -158,7 +161,10 @@ fn search_flag_invert_match() {
     let wrk = Workdir::new("search_flag");
     wrk.create("data.csv", data(false));
     let mut cmd = wrk.command("search");
-    cmd.arg("^foo").arg("data.csv").args(["--flag", "flagged"]);
+    cmd.arg("-r")
+        .arg("^foo")
+        .arg("data.csv")
+        .args(["--flag", "flagged"]);
     cmd.arg("--invert-match");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -166,6 +172,54 @@ fn search_flag_invert_match() {
         svec!["foobar", "barfoo", "flagged"],
         svec!["a", "b", "1"],
         svec!["barfoo", "foobar", "0"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_substring() {
+    let wrk = Workdir::new("search_substring");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "number"],
+            svec!["John", "13"],
+            svec!["JohnJohn", "24"],
+            svec!["Abigail", "72"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("John").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "number"],
+        svec!["John", "13"],
+        svec!["JohnJohn", "24"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_substring_case_insensitive() {
+    let wrk = Workdir::new("search_substring_case_insensitive");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "number"],
+            svec!["JOHN", "13"],
+            svec!["John", "24"],
+            svec!["Abigail", "72"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("jO").arg("data.csv").arg("-i");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "number"],
+        svec!["JOHN", "13"],
+        svec!["John", "24"],
     ];
     assert_eq!(got, expected);
 }
@@ -215,6 +269,32 @@ fn search_flag_exact_case_insensitive() {
 }
 
 #[test]
+fn search_input_substring() {
+    let wrk = Workdir::new("search_input_substring");
+
+    wrk.create("index.csv", vec![svec!["name"], svec!["suz"], svec!["jo"]]);
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["abigail"],
+            svec!["suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("name")
+        .args(["--input", "index.csv"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["john"], svec!["suzy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn search_input_exact() {
     let wrk = Workdir::new("search_input_exact");
 
@@ -245,8 +325,8 @@ fn search_input_exact() {
 }
 
 #[test]
-fn search_input_exact_lowercase() {
-    let wrk = Workdir::new("search_input_exact_lowercase");
+fn search_input_exact_case_insensitive() {
+    let wrk = Workdir::new("search_input_exact_case_insensitive");
 
     wrk.create(
         "index.csv",
@@ -296,6 +376,7 @@ fn search_input_regex() {
 
     let mut cmd = wrk.command("search");
     cmd.arg("name")
+        .arg("-r")
         .args(["--input", "index.csv"])
         .arg("data.csv")
         .arg("-i");

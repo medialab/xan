@@ -233,17 +233,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let headers = rdr.byte_headers()?;
 
-    let source_index = Config::new(&None)
-        .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers)
-        .select(args.arg_source)
-        .single_selection(headers)?;
+    let source_index = args
+        .arg_source
+        .single_selection(headers, !args.flag_no_headers)?;
 
-    let target_index = Config::new(&None)
-        .delimiter(args.flag_delimiter)
-        .no_headers(args.flag_no_headers)
-        .select(args.arg_target)
-        .single_selection(headers)?;
+    let target_index = args
+        .arg_target
+        .single_selection(headers, !args.flag_no_headers)?;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let mut record = csv::ByteRecord::new();

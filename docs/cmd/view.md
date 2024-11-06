@@ -30,8 +30,9 @@ view options:
                            Can also be set through the "XAN_VIEW_THEME" environment variable.
     -p, --pager            Automatically use the "less" command to page the results.
                            This flag does not work on windows!
-    -l, --limit <number>   Maximum of lines of files to read into memory. Set
-                           to <= 0 to disable the limit.
+    -A, --all              Remove the line limit to display everything.
+    -l, --limit <number>   Maximum of lines of files to read into memory. Use -A, --all or
+                           set to 0 to disable the limit.
                            [default: 100]
     -R, --rainbow          Alternating colors for columns, rather than color by value type.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
@@ -40,7 +41,7 @@ view options:
     -C, --force-colors     Force colors even if output is not supposed to be able to
                            handle them.
     -e, --expand           Expand the table so that in can be easily piped to
-                           a pager such as "less", with no with constraints.
+                           a pager such as "less", with larger width constraints.
     -E, --sanitize-emojis  Replace emojis by their shortcode to avoid formatting issues.
     -I, --hide-index       Hide the row index on the left.
     -H, --hide-headers     Hide the headers.

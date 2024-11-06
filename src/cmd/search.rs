@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use aho_corasick::AhoCorasick;
 use csv;
 use regex::bytes::{RegexBuilder, RegexSetBuilder};
 
@@ -14,9 +15,10 @@ fn lowercase(cell: &[u8]) -> String {
 }
 
 enum Matcher {
-    Regex(regex::bytes::Regex),
+    Substring(AhoCorasick, bool),
     Exact(Vec<u8>),
     ExactCaseInsensitive(String),
+    Regex(regex::bytes::Regex),
     ManyRegex(regex::bytes::RegexSet),
     ManyExact(HashSet<Vec<u8>>),
     ManyExactCaseInsensitive(HashSet<String>),
@@ -25,6 +27,13 @@ enum Matcher {
 impl Matcher {
     fn is_match(&self, cell: &[u8]) -> bool {
         match self {
+            Self::Substring(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    pattern.is_match(&lowercase(cell))
+                } else {
+                    pattern.is_match(cell)
+                }
+            }
             Self::Regex(pattern) => pattern.is_match(cell),
             Self::Exact(pattern) => pattern == cell,
             Self::ExactCaseInsensitive(pattern) => &lowercase(cell) == pattern,
@@ -36,21 +45,25 @@ impl Matcher {
 }
 
 static USAGE: &str = "
-Filters CSV data by whether the given pattern matches a row.
+Filter rows of given CSV file if some of its cells contains a desired substring.
 
-By default, the pattern is a regex and is applied to each field in each row,
-and if any field matches, then the row is written to the output. The columns to search
-can be limited with the '-s, --select' flag (but the full row is still written to the
-output if there is a match).
+Can also be used to search for exact matches using the -e, --exact flag.
 
-The pattern can also be an exact match, case sensitive or not.
+Can also be used to search using a regular expression using the -r, --regex flag.
 
-The command is also able to take a CSV file column containing multiple
-patterns as an input. This can be thought of as a specialized kind
-of left join over the data.
+When using a regular expression, be sure to mind bash escape rules (prefer single
+quotes around your expression and don't forget to use backslashes when needed):
 
-When giving a regex, be sure to mind bash escape rules (prefer single quotes
-around your expression and don't forget to use backslash when needed).
+    $ xan search -r '\\bfran[cç]' file.csv
+
+To restrict the columns that will be searched you can use the -s, --select flag.
+
+All search modes can also be case-insensitive using -i, --ignore-case.
+
+Finally, this command is also able to take a CSV file column containing multiple
+patterns to search for at once, using the --input flag:
+
+    $ xan search user_id --input user-ids.csv tweets.csv
 
 Usage:
     xan search [options] <column> --input <index> [<input>]
@@ -58,14 +71,17 @@ Usage:
     xan search --help
 
 search options:
-    -e, --exact            Perform an exact match rather than using a
-                           regular expression.
+    -e, --exact            Perform an exact match.
+    -r, --regex            Use a regex to perform the match.
     --input <index>        CSV file containing a column of value to index & search.
     -i, --ignore-case      Case insensitive search. This is equivalent to
                            prefixing the regex with '(?i)'.
     -s, --select <arg>     Select the columns to search. See 'xan select -h'
                            for the full syntax.
     -v, --invert-match     Select only rows that did not match
+    -f, --flag <column>    If given, the command will not filter rows
+                           but will instead flag the found rows in a new
+                           column with given name.
 
 Common options:
     -h, --help             Display this message
@@ -75,9 +91,6 @@ Common options:
                            sliced, etc.)
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character.
-    -f, --flag <column>    If given, the command will not filter rows
-                           but will instead flag the found rows in a new
-                           column named <column>.
 ";
 
 #[derive(Deserialize)]
@@ -92,6 +105,7 @@ struct Args {
     flag_invert_match: bool,
     flag_ignore_case: bool,
     flag_exact: bool,
+    flag_regex: bool,
     flag_flag: Option<String>,
     flag_input: Option<String>,
 }
@@ -108,11 +122,20 @@ impl Args {
                     } else {
                         Matcher::Exact(pattern.as_bytes().to_vec())
                     }
-                } else {
+                } else if self.flag_regex {
                     Matcher::Regex(
                         RegexBuilder::new(pattern)
                             .case_insensitive(self.flag_ignore_case)
                             .build()?,
+                    )
+                } else {
+                    Matcher::Substring(
+                        AhoCorasick::new([if self.flag_ignore_case {
+                            pattern.to_lowercase()
+                        } else {
+                            pattern.to_string()
+                        }])?,
+                        self.flag_ignore_case,
                     )
                 })
             }
@@ -152,12 +175,14 @@ impl Args {
                     } else {
                         Matcher::ManyExact(set)
                     }
-                } else {
+                } else if self.flag_regex {
                     Matcher::ManyRegex(
                         RegexSetBuilder::new(&patterns)
                             .case_insensitive(self.flag_ignore_case)
                             .build()?,
                     )
+                } else {
+                    Matcher::Substring(AhoCorasick::new(&patterns)?, self.flag_ignore_case)
                 })
             }
         }

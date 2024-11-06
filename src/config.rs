@@ -162,6 +162,10 @@ impl Config {
         }
     }
 
+    pub fn empty() -> Config {
+        Self::new(&None)
+    }
+
     pub fn delimiter(mut self, d: Option<Delimiter>) -> Config {
         if let Some(d) = d {
             self.delimiter = d.as_byte();
@@ -244,19 +248,7 @@ impl Config {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"
                 .to_owned()),
-            Some(ref sel) => {
-                let selected: Vec<usize> = sel
-                    .selection(first_record, !self.no_headers)?
-                    .iter()
-                    .copied()
-                    .collect();
-
-                if selected.len() != 1 {
-                    return Err("target selection is not a single column".to_string());
-                }
-
-                Ok(selected[0])
-            }
+            Some(ref sel) => sel.single_selection(first_record, !self.no_headers),
         }
     }
 

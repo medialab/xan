@@ -129,7 +129,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let groupby_sel_opt = args
         .flag_groupby
         .as_ref()
-        .map(|cols| Config::new(&None).select(cols.clone()).selection(&headers))
+        .map(|cols| cols.selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
     // No need to consider the grouping column when aggregating stats

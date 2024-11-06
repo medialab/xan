@@ -14,6 +14,10 @@ pub struct SelectColumns {
 }
 
 impl SelectColumns {
+    pub fn is_empty(&self) -> bool {
+        self.selectors.is_empty()
+    }
+
     pub fn parse(mut s: &str) -> Result<Self, String> {
         let invert = if !s.is_empty() && s.as_bytes()[0] == b'!' {
             s = &s[1..];
@@ -57,6 +61,50 @@ impl SelectColumns {
             return Ok(Selection(map));
         }
         Ok(Selection(map))
+    }
+
+    pub fn single_selection(
+        &self,
+        first_record: &csv::ByteRecord,
+        use_names: bool,
+    ) -> Result<usize, String> {
+        let selection = self.selection(first_record, use_names)?;
+
+        if selection.len() != 1 {
+            return Err("target selection is not a single column".to_string());
+        }
+
+        Ok(selection[0])
+    }
+
+    pub fn retain_known(&mut self, headers: &csv::ByteRecord) -> Vec<usize> {
+        let mut dropped: Vec<usize> = Vec::new();
+
+        for (i, selector) in self.selectors.iter().enumerate() {
+            match selector {
+                Selector::One(sel) if sel.index(headers, true).is_err() => {
+                    dropped.push(i);
+                }
+                Selector::Range(start, end)
+                    if start.index(headers, true).is_err() && end.index(headers, true).is_err() =>
+                {
+                    dropped.push(i);
+                }
+                _ => continue,
+            };
+        }
+
+        let mut i: usize = 0;
+
+        self.selectors.retain(|_| {
+            let drop = !dropped.contains(&i);
+
+            i += 1;
+
+            drop
+        });
+
+        dropped
     }
 }
 

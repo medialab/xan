@@ -324,9 +324,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if let Some(vocab_token_id) = args.flag_vocab_token_id {
                 let mut whitelist = HashMap::new();
-                let token_id_pos = Config::new(&None)
-                    .select(vocab_token_id)
-                    .single_selection(vocab_headers)?;
+                let token_id_pos =
+                    vocab_token_id.single_selection(vocab_headers, !args.flag_no_headers)?;
 
                 while vocab_reader.read_byte_record(&mut vocab_record)? {
                     let token = String::from_utf8(vocab_record[token_pos].to_vec()).unwrap();
