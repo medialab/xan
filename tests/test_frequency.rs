@@ -217,3 +217,44 @@ fn frequency_groubby() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn frequency_all() {
+    let wrk = Workdir::new("frequency_all");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["1"],
+            svec!["2"],
+            svec!["3"],
+            svec!["4"],
+            svec!["5"],
+            svec!["6"],
+            svec!["7"],
+            svec!["8"],
+            svec!["9"],
+            svec!["10"],
+            svec!["11"],
+        ],
+    );
+    let mut cmd = wrk.command("frequency");
+    cmd.arg("-A").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["field", "value", "count"],
+        svec!["n", "1", "1"],
+        svec!["n", "10", "1"],
+        svec!["n", "11", "1"],
+        svec!["n", "2", "1"],
+        svec!["n", "3", "1"],
+        svec!["n", "4", "1"],
+        svec!["n", "5", "1"],
+        svec!["n", "6", "1"],
+        svec!["n", "7", "1"],
+        svec!["n", "8", "1"],
+        svec!["n", "9", "1"],
+    ];
+    assert_eq!(got, expected);
+}

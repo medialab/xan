@@ -44,9 +44,10 @@ frequency options:
                            provided separator.
     -g, --groupby <cols>   If given, will compute frequency tables per group
                            as defined by the given columns.
+    -A, --all              Remove the limit.
     -l, --limit <arg>      Limit the frequency table to the N most common
-                           items. Set to <=0 to disable a limit. It is combined
-                           with -t/--threshold.
+                           items. Use -A, -all or set to 0 to disable the limit.
+                           It will be combined with -t/--threshold.
                            [default: 10]
     -t, --threshold <arg>  If set, won't return items having a count less than
                            this given threshold. It is combined with -l/--limit.
@@ -73,6 +74,7 @@ struct Args {
     arg_input: Option<String>,
     flag_select: SelectColumns,
     flag_sep: Option<String>,
+    flag_all: bool,
     flag_limit: usize,
     flag_threshold: Option<u64>,
     flag_no_extra: bool,
@@ -84,8 +86,17 @@ struct Args {
     flag_no_limit_we_reach_for_the_sky: bool,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_all {
+            self.flag_limit = 0;
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     if args.flag_no_limit_we_reach_for_the_sky {
         open::that("https://www.youtube.com/watch?v=7kmEEkECFQw")?;
