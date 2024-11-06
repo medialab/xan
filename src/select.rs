@@ -14,6 +14,10 @@ pub struct SelectColumns {
 }
 
 impl SelectColumns {
+    pub fn is_empty(&self) -> bool {
+        self.selectors.is_empty()
+    }
+
     pub fn parse(mut s: &str) -> Result<Self, String> {
         let invert = if !s.is_empty() && s.as_bytes()[0] == b'!' {
             s = &s[1..];
@@ -71,6 +75,36 @@ impl SelectColumns {
         }
 
         Ok(selection[0])
+    }
+
+    pub fn retain_known(&mut self, headers: &csv::ByteRecord) -> Vec<usize> {
+        let mut dropped: Vec<usize> = Vec::new();
+
+        for (i, selector) in self.selectors.iter().enumerate() {
+            match selector {
+                Selector::One(sel) if sel.index(headers, true).is_err() => {
+                    dropped.push(i);
+                }
+                Selector::Range(start, end)
+                    if start.index(headers, true).is_err() && end.index(headers, true).is_err() =>
+                {
+                    dropped.push(i);
+                }
+                _ => continue,
+            };
+        }
+
+        let mut i: usize = 0;
+
+        self.selectors.retain(|_| {
+            let drop = !dropped.contains(&i);
+
+            i += 1;
+
+            drop
+        });
+
+        dropped
     }
 }
 
