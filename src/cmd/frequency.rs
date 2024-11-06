@@ -99,7 +99,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     args.resolve();
 
     if args.flag_no_limit_we_reach_for_the_sky {
-        open::that("https://www.youtube.com/watch?v=7kmEEkECFQw")?;
+        opener::open_browser("https://www.youtube.com/watch?v=7kmEEkECFQw")
+            .expect("could not easter egg");
         return Ok(());
     }
 
