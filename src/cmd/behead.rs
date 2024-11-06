@@ -9,6 +9,7 @@ Drop a CSV file's header.
 
 Usage:
     xan behead [options] [<input>]
+    xan guillotine [options] [<input>]
 
 Common options:
     -h, --help             Display this message

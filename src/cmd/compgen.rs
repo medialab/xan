@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 52] = [
+static COMMANDS: [&str; 53] = [
     "agg",
     "behead",
     "bins",
@@ -26,6 +26,7 @@ static COMMANDS: [&str; 52] = [
     "from",
     "glob",
     "groupby",
+    "guillotine",
     "headers",
     "help",
     "hist",

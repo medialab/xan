@@ -217,6 +217,7 @@ enum Command {
     From,
     Glob,
     Groupby,
+    Guillotine,
     H,
     Headers,
     Help,
@@ -268,7 +269,7 @@ impl Command {
         }
         match self {
             Command::Agg => cmd::agg::run(argv),
-            Command::Behead => cmd::behead::run(argv),
+            Command::Behead | Command::Guillotine => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
