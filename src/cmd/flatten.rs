@@ -1,7 +1,7 @@
 use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-use crate::select::SelectColumns;
 use colored;
 use colored::Colorize;
 use unicode_width::UnicodeWidthStr;
