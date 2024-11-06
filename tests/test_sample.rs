@@ -35,15 +35,18 @@ fn sample_grouped() {
         ],
     );
     let mut cmd = wrk.command("sample");
-    cmd.arg("2").arg("data.csv").args(["--seed", "123"]).args(["-g", "group"]);
+    cmd.arg("2")
+        .arg("data.csv")
+        .args(["--seed", "123"])
+        .args(["-g", "group"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["number", "group"], 
-        svec!["3", "group1"], 
-        svec!["2", "group1"], 
-        svec!["4", "group2"]
-        ];
+        svec!["number", "group"],
+        svec!["3", "group1"],
+        svec!["2", "group1"],
+        svec!["4", "group2"],
+    ];
     assert_eq!(got, expected);
 }
 
