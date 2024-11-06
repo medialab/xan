@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
-use indexmap::IndexMap;
 
 use csv;
 use rand::seq::SliceRandom;
 use rand::Rng;
+use indexmap::IndexMap;
 
 use crate::config::{Config, Delimiter};
 use crate::index::Indexed;
@@ -221,16 +221,15 @@ fn sample_reservoir_grouped<R: io::Read>(
                 count: 0,
             });
 
-        reservoir.count += 1;
-
         if reservoir.records.len() < sample_size as usize {
             reservoir.records.push(record);
         } else {
-            let random_index = rng.gen_range(0..=reservoir.count);
+            let random_index = rng.gen_range(0..reservoir.count + 1);
             if random_index < sample_size as usize {
                 reservoir.records[random_index] = record;
             }
         }
+        reservoir.count += 1;
     }
 
     Ok(global_reservoir.into_values().flat_map(|gr| gr.records).collect())
@@ -319,7 +318,7 @@ fn sample_weighted_reservoir_grouped<R: io::Read>(
 
         let reservoir = global_reservoir
             .entry(group_key)
-            .or_insert_with(|| BinaryHeap::with_capacity(sample_size as usize));
+            .or_insert_with(|| BinaryHeap::with_capacity(1));
 
         let score = rng.gen::<f64>().powf(1.0 / weight);
         let weighted_row = WeightedRow(score, record);
