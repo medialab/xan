@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
+use indexmap::IndexMap;
 
 use csv;
 use rand::seq::SliceRandom;
@@ -13,7 +14,7 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-// type GroupKey = Vec<Vec<u8>>;
+type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Randomly samples CSV data uniformly using memory proportional to the size of
@@ -40,7 +41,7 @@ Usage:
 sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
-    -g, --groupby <cols>   (NOT IMPLEMENTED YET!) Return a sample per group.
+    -g, --groupby <cols>   Return a sample per group.
 
 Common options:
     -h, --help             Display this message
@@ -75,12 +76,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         rconfig = rconfig.select(weight_column_selection);
     }
 
+    let flag_groupby = args.flag_groupby.clone();
     let sample_size = args.arg_sample_size;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let sampled = match rconfig.indexed()? {
         Some(mut idx) => {
-            // TODO: crash if -g
+            if flag_groupby.is_some() {
+                Err("could not use -g with indexed file !")?;
+            }
 
             if args.flag_weight.is_some() {
                 let mut rdr = rconfig.reader()?;
@@ -112,17 +116,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .flag_groupby
                 .map(|s| Config::new(&None).select(s).selection(byte_headers))
                 .transpose()?;
-
+            
             if args.flag_weight.is_some() {
                 let weight_column_index = rconfig.single_selection(byte_headers)?;
 
-                // TODO: deal with -g
-                sample_weighted_reservoir(
-                    &mut rdr,
-                    sample_size,
-                    args.flag_seed,
-                    weight_column_index,
-                )?
+                if let Some(group_sel) = group_sel_opt {
+                    sample_weighted_reservoir_grouped(
+                        &mut rdr,
+                        sample_size,
+                        args.flag_seed,
+                        weight_column_index,
+                        group_sel,
+                    )?
+                }
+                else {
+                    sample_weighted_reservoir(
+                        &mut rdr,
+                        sample_size,
+                        args.flag_seed,
+                        weight_column_index,
+                    )?
+                }
             } else if let Some(group_sel) = group_sel_opt {
                 sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
             } else {
@@ -181,14 +195,45 @@ fn sample_reservoir<R: io::Read>(
     }
     Ok(reservoir)
 }
+struct GroupReservoir {
+    records: Vec<csv::ByteRecord>,
+    count: usize,
+}
 
 fn sample_reservoir_grouped<R: io::Read>(
-    _rdr: &mut csv::Reader<R>,
-    _sample_size: u64,
-    _seed: Option<usize>,
-    _group_sel: Selection,
+    rdr: &mut csv::Reader<R>,
+    sample_size: u64,
+    seed: Option<usize>,
+    group_sel: Selection,
 ) -> CliResult<Vec<csv::ByteRecord>> {
-    Ok(vec![])
+    let mut global_reservoir: IndexMap<GroupKey, GroupReservoir> = IndexMap::new();
+
+    let mut rng = util::acquire_rng(seed);
+
+    for result in rdr.byte_records() {
+        let record = result?;
+        let group = group_sel.collect(&record);
+
+        let reservoir = global_reservoir
+            .entry(group)
+            .or_insert_with(|| GroupReservoir {
+                records: Vec::with_capacity(1),
+                count: 0,
+            });
+
+        reservoir.count += 1;
+
+        if reservoir.records.len() < sample_size as usize {
+            reservoir.records.push(record);
+        } else {
+            let random_index = rng.gen_range(0..=reservoir.count);
+            if random_index < sample_size as usize {
+                reservoir.records[random_index] = record;
+            }
+        }
+    }
+
+    Ok(global_reservoir.into_values().flat_map(|gr| gr.records).collect())
 }
 
 #[derive(PartialEq)]
@@ -247,6 +292,47 @@ fn sample_weighted_reservoir<R: io::Read>(
     }
 
     Ok(reservoir.into_iter().map(|record| record.row()).collect())
+}
+
+fn sample_weighted_reservoir_grouped<R: io::Read>(
+    rdr: &mut csv::Reader<R>,
+    sample_size: u64,
+    seed: Option<usize>,
+    weight_column_index: usize,
+    group_sel: Selection,
+) -> CliResult<Vec<csv::ByteRecord>> {
+    let mut rng = util::acquire_rng(seed);
+
+    let mut global_reservoir: IndexMap<GroupKey, BinaryHeap<WeightedRow>> = IndexMap::new();
+
+    for result in rdr.byte_records() {
+        let record = result?;
+
+        let group_key: GroupKey = group_sel
+            .select(&record)
+            .map(|cell| cell.to_vec())
+            .collect();
+
+        let weight: f64 = String::from_utf8_lossy(&record[weight_column_index])
+            .parse()
+            .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
+
+        let reservoir = global_reservoir
+            .entry(group_key)
+            .or_insert_with(|| BinaryHeap::with_capacity(sample_size as usize));
+
+        let score = rng.gen::<f64>().powf(1.0 / weight);
+        let weighted_row = WeightedRow(score, record);
+
+        if reservoir.len() < sample_size as usize {
+            reservoir.push(weighted_row);
+        } else if &weighted_row < reservoir.peek().unwrap() {
+            reservoir.pop();
+            reservoir.push(weighted_row);
+        }
+    }
+
+    Ok(global_reservoir.into_values().flatten().map(|record| record.row()).collect())
 }
 
 fn do_random_access(sample_size: u64, total: u64) -> bool {
