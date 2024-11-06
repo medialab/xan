@@ -198,8 +198,9 @@ view options:
                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
     -p, --pager            Automatically use the \"less\" command to page the results.
                            This flag does not work on windows!
-    -l, --limit <number>   Maximum of lines of files to read into memory. Set
-                           to <= 0 to disable the limit.
+    -A, --all              Remove the line limit to display everything.
+    -l, --limit <number>   Maximum of lines of files to read into memory. Use -A, --all or
+                           set to 0 to disable the limit.
                            [default: 100]
     -R, --rainbow          Alternating colors for columns, rather than color by value type.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
@@ -208,7 +209,7 @@ view options:
     -C, --force-colors     Force colors even if output is not supposed to be able to
                            handle them.
     -e, --expand           Expand the table so that in can be easily piped to
-                           a pager such as \"less\", with no with constraints.
+                           a pager such as \"less\", with larger width constraints.
     -E, --sanitize-emojis  Replace emojis by their shortcode to avoid formatting issues.
     -I, --hide-index       Hide the row index on the left.
     -H, --hide-headers     Hide the headers.
@@ -234,7 +235,8 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_no_headers: bool,
     flag_force_colors: bool,
-    flag_limit: isize,
+    flag_all: bool,
+    flag_limit: usize,
     flag_rainbow: bool,
     flag_expand: bool,
     flag_sanitize_emojis: bool,
@@ -245,6 +247,12 @@ struct Args {
 }
 
 impl Args {
+    fn resolve(&mut self) {
+        if self.flag_all {
+            self.flag_limit = 0;
+        }
+    }
+
     fn infer_expand(&self) -> bool {
         self.flag_pager || self.flag_expand
     }
@@ -255,7 +263,8 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     if args.infer_force_colors() {
         colored::control::set_override(true);
@@ -328,7 +337,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut all_records_buffered = false;
 
     let records = {
-        let limit = args.flag_limit as usize;
+        let limit = args.flag_limit;
 
         let mut r_iter = rdr.into_records().enumerate();
 
