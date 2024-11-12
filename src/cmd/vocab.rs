@@ -452,7 +452,7 @@ impl TokenStats {
     fn pigeonhole(&self, n: usize) -> f64 {
         let n = n as f64;
 
-        let expected = n - (n * ((n - 1.0) / n).powf(self.gf as f64));
+        let expected = n - n * ((n - 1.0) / n).powf(self.gf as f64);
 
         self.df as f64 / expected
     }
