@@ -804,6 +804,7 @@ use the operators in the previous section.
 
     - if(cond,  then,  else?) -> T
         Evaluate condition and switch to correct branch.
+        Will actually short-circuit. Contrary to "or" and "and".
 
     - unless(cond,  then,  else?) -> T
         Shorthand for `if(not(cond), then, else?)`.
