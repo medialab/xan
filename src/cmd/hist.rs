@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
+use std::process::Command;
 
 use colored;
 use colored::Colorize;
 use csv;
 use numfmt::Formatter;
 use unicode_width::UnicodeWidthStr;
+use xmlwriter::*;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -55,6 +57,8 @@ hist options:
                              handle them.
     -P, --hide-percent       Don't show percentages.
     -u, --unit <unit>        Value unit.
+    --svg <file>             Save the hist in a SVG file.
+    -o, --open               Open the generated SVG file after creation.
 
 Common options:
     -h, --help             Display this message
@@ -80,6 +84,8 @@ struct Args {
     flag_name: String,
     flag_hide_percent: bool,
     flag_unit: Option<String>,
+    flag_svg: Option<String>,
+    flag_open: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -237,6 +243,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if let Some(svg_file) = &args.flag_svg {
+        generate_svg(&histograms, svg_file)?;
+        println!("Histogram saved in the SVG file : {}", svg_file);
+
+        if args.flag_open {
+            open_svg(svg_file)?;
+        }
+    }
+
     Ok(())
 }
 
@@ -345,5 +360,83 @@ impl Histograms {
 
     pub fn iter(&self) -> impl Iterator<Item = &Histogram> {
         self.histograms.values()
+    }
+}
+
+fn generate_svg(histograms: &Histograms, file_name: &str) -> CliResult<()> {
+    let mut writer = XmlWriter::new(xmlwriter::Options::default());
+    writer.start_element("svg");
+    writer.write_attribute("xmlns", "http://www.w3.org/2000/svg");
+    writer.write_attribute("width", "1000");
+    writer.write_attribute("height", "600");
+    let mut y_offset = 20;
+    let bar_height = 20;
+    for histogram in histograms.iter() {
+        let sum = histogram.sum();
+        let domain_max = histogram.max().unwrap_or(1.0);
+        for bar in histogram.bars() {
+            let width = from_domain_to_range(bar.value, (0.0, domain_max), (0.0, 600.0));
+            let count_str = format!("{:>3}", bar.value);
+            let pct_str = format!("{:>6.2}%", (bar.value / sum) * 100.0);
+
+            let label_position = "10";
+            let count_position = "220";
+            let pct_position = "260";
+            let bar_start_position = "320";
+
+            let bar_fill = "█".repeat(width as usize / 10);
+            let bar_empty = " ".repeat((600 - width as usize) / 10);
+            let full_bar = format!("{}{}", bar_fill, bar_empty);
+
+            writer.start_element("text");
+            writer.write_attribute("x", label_position);
+            writer.write_attribute("y", &(y_offset + bar_height / 2).to_string());
+            writer.write_attribute("dy", ".35em");
+            writer.write_text(&bar.label);
+            writer.end_element();
+
+            writer.start_element("text");
+            writer.write_attribute("x", count_position);
+            writer.write_attribute("y", &(y_offset + bar_height / 2).to_string());
+            writer.write_attribute("dy", ".35em");
+            writer.write_text(&count_str);
+            writer.end_element();
+
+            writer.start_element("text");
+            writer.write_attribute("x", pct_position);
+            writer.write_attribute("y", &(y_offset + bar_height / 2).to_string());
+            writer.write_attribute("dy", ".35em");
+            writer.write_text(&pct_str);
+            writer.end_element();
+
+            writer.start_element("text");
+            writer.write_attribute("x", bar_start_position);
+            writer.write_attribute("y", &(y_offset + bar_height / 2).to_string());
+            writer.write_attribute("dy", ".35em");
+            writer.write_text(&full_bar);
+            writer.end_element();
+
+            y_offset += bar_height + 10;
+        }
+    }
+    writer.end_element();
+    std::fs::write(file_name, writer.end_document())?;
+    Ok(())
+}
+
+fn open_svg(file_path: &str) -> CliResult<()> {
+    let status = if cfg!(target_os = "windows") {
+        Command::new("cmd").args(&["/C", "start", file_path]).status()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").arg(file_path).status()
+    } else if cfg!(target_os = "linux") {
+        Command::new("xdg-open").arg(file_path).status()
+    } else {
+        return Err("could not open the file on your OS.".into());
+    };
+
+    match status {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Error while opening the file : {}", e).into()),
     }
 }
