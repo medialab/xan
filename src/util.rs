@@ -336,12 +336,8 @@ pub fn acquire_term_rows() -> Option<usize> {
 pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {
     let mut string = f.fmt2(x).to_string();
 
-    if string.ends_with(".0") {
-        string.truncate(string.len() - 2);
-    }
-
     if string.contains('.') {
-        string = string.trim_end_matches('0').to_string();
+        string.truncate(string.trim_end_matches(['0', '.']).len())
     }
 
     string
