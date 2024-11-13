@@ -414,11 +414,13 @@ pub fn highlight_trimmable_whitespace(string: &str) -> String {
     )
 }
 
+lazy_static! {
+    static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|\n\r|[\n\r\t\f]").unwrap();
+}
+
 pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
     // Replacing some nasty stuff that can break representation
-    let mut string = string.replace('\n', " ");
-    string = string.replace('\r', " ");
-    string = string.replace('\t', " ");
+    let string = WHITESPACE_REPLACER.replace_all(string, " ");
     // string = string.replace('\u{200F}', "");
     // string = string.replace('\u{200E}', "");
 
@@ -533,9 +535,12 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     width: usize,
     padding: &str,
 ) -> String {
+    // NOTE: in this particular case we need to replace problematic characters beforehand
+    let string = WHITESPACE_REPLACER.replace_all(string, " ");
+
     let mut string = unicode_aware_pad(
         left,
-        &highlight_trimmable_whitespace(&unicode_aware_ellipsis(string, width)),
+        &highlight_trimmable_whitespace(&unicode_aware_ellipsis(&string, width)),
         width,
         padding,
         Some(string.width()),
