@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use colored;
 use colored::Colorize;
 use csv;
+use indexmap::IndexMap;
 use numfmt::Formatter;
 use unicode_width::UnicodeWidthStr;
-use indexmap::IndexMap;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
-use crate::CliResult;
 use crate::util::ColorOrStyles;
+use crate::CliResult;
 
 const SIMPLE_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
 const COMPLEX_BAR_CHARS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
@@ -131,10 +131,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut category_colors: IndexMap<String, ColorOrStyles> = IndexMap::new();
 
     let category_column_index = args
-            .flag_category
-            .as_ref()
-            .map(|name| name.single_selection(headers, !args.flag_no_headers))
-            .transpose()?;
+        .flag_category
+        .as_ref()
+        .map(|name| name.single_selection(headers, !args.flag_no_headers))
+        .transpose()?;
 
     while rdr.read_record(&mut record)? {
         let field = match field_pos_option {
@@ -151,14 +151,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if !category_colors.contains_key(&category) {
                 let mut color = None;
                 for try_color in CATEGORY_COLORS.iter() {
-                    if !category_colors.values().any(|c| *c == util::ColorOrStyles::Color(*try_color)) {
+                    if !category_colors
+                        .values()
+                        .any(|c| *c == util::ColorOrStyles::Color(*try_color))
+                    {
                         color = Some(*try_color);
                         break;
                     }
                 }
-                
+
                 if let Some(color) = color {
-                    category_colors.insert(category.clone(), util::ColorOrStyles::Color(color));
+                    if !category.is_empty() {
+                        category_colors.insert(category.clone(), util::ColorOrStyles::Color(color));
+                    }
                 }
             }
             histograms.add(field, label, value, Some(category));
@@ -236,7 +241,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             &COMPLEX_BAR_CHARS
         };
-        
+
         for (i, bar) in histogram.bars().enumerate() {
             let bar_width =
                 from_domain_to_range(bar.value, (0.0, domain_max), (0.0, bar_cols as f64));
@@ -244,11 +249,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
             if let Some(category) = bar.category.clone() {
-                if !category.is_empty(){
-                    let try_color = category_colors.get(&category);
-                    if let Some(color) = try_color {
-                        bar_as_chars = util::colorize(color, &bar_as_chars);
-                    }
+                let try_color = category_colors.get(&category);
+                if let Some(color) = try_color {
+                    bar_as_chars = util::colorize(color, &bar_as_chars);
                 }
             } else if args.flag_rainbow {
                 bar_as_chars =
@@ -259,7 +262,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 odd = !odd;
-            }          
+            }
 
             let label = util::unicode_aware_rpad_with_ellipsis(&bar.label, label_cols, " ");
             let label = match bar.label.as_str() {
@@ -285,8 +288,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 bar_as_chars
             );
         }
-    }
 
+        let headers = rdr.headers();
+        if let Some(category_col) = category_column_index {
+            let category_name = headers?.get(category_col);
+            if let Some(category) = category_name {
+                println!(
+                    "\nColors by {}:",
+                    util::colorize(&ColorOrStyles::Color(colored::Color::Cyan), category)
+                );
+                for (key, value) in category_colors.iter() {
+                    println!(
+                        " {}  {}",
+                        util::colorize(value, "■"),
+                        util::colorize(value, key),
+                    );
+                }
+            }
+        }
+    }
+    println!();
     Ok(())
 }
 
@@ -391,10 +412,13 @@ impl Histograms {
             })
             .or_insert_with(|| Histogram {
                 field,
-                bars: vec![Bar { label, value, category }],
+                bars: vec![Bar {
+                    label,
+                    value,
+                    category,
+                }],
             });
     }
-
 
     pub fn iter(&self) -> impl Iterator<Item = &Histogram> {
         self.histograms.values()
