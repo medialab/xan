@@ -1279,6 +1279,18 @@ mod tests {
     }
 
     #[test]
+    fn test_year_month() {
+        assert_eq!(
+            eval_code("year_month('2024-07-11')"),
+            Ok(DynamicValue::from("2024-07"))
+        );
+        assert_eq!(
+            eval_code("ym('2024-07-11 03:14:00', timezone='Europe/Paris')"),
+            Ok(DynamicValue::from("2024-07"))
+        );
+    }
+
+    #[test]
     fn test_strftime() {
         assert_eq!(
             eval_code("strftime('2024-07-11T03:14:00', '%Y')"),

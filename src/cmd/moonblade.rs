@@ -483,6 +483,11 @@ use the operators in the previous section.
         If the input is a string, first parse it into datetime, and then extract the year.
         Equivalent to strftime(string, format = \"%Y\")
 
+    - year_month(target, timezone=?) -> string
+        Extract the year and month of a datetime.
+        If the input is a string, first parse it into datetime, and then extract the year and month.
+        Equivalent to strftime(string, format = \"%Y-%m\")
+
 ## Collections (list of maps) functions
 
     - index_by(collection, key) -> map
