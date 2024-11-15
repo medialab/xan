@@ -5,6 +5,7 @@
 // https://sciencespo.hal.science/tel-03626011v1/file/2017-cointet-hdr-la-cartographie-des-traces-textuelles-comme-methodologie-denquete-en-sciences-sociales.pdf
 // https://pbil.univ-lyon1.fr/R/pdf/tdr35.pdf
 
+use std::cmp::Ordering;
 use std::collections::{hash_map::Entry, HashMap};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
@@ -951,9 +952,14 @@ impl Cooccurrences {
                 let target_entry = &self.token_entries[*target_id];
 
                 // We do both entries at once and we optimize by intersection length
-                if source_entry.cooc.len() > target_entry.cooc.len() {
-                    continue;
-                }
+                match source_entry.cooc.len().cmp(&target_entry.cooc.len()) {
+                    // Ids serve as tie-breaker if needed
+                    Ordering::Equal if source_id > *target_id => continue,
+                    Ordering::Greater => continue,
+                    _ => (),
+                };
+
+                debug_assert!(source_entry.cooc.len() <= target_entry.cooc.len());
 
                 let mut min_pmi_sum = 0.0;
                 let mut min_g2_sum = 0.0;
