@@ -484,6 +484,7 @@ use the operators in the previous section.
         Equivalent to strftime(string, format = \"%Y\")
 
     - year_month(target, timezone=?) -> string
+    - ym(target, timezone=?) -> string
         Extract the year and month of a datetime.
         If the input is a string, first parse it into datetime, and then extract the year and month.
         Equivalent to strftime(string, format = \"%Y-%m\")
