@@ -78,11 +78,12 @@ vocab doc-token options:
     --b-value <value>      "b" factor for BM25 computation. [default: 0.75]
 
 vocab cooc options:
-    -w, --window <n>  Size of the co-occurrence window. If not given, co-occurrence will be based
-                      on the bag of word model where token are considered to co-occur with every
-                      other one in a same document.
+    -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
+                      considered token. If not given, co-occurrences will be computed using the bag of
+                      words model where tokens are considered to co-occur with every
+                      other one in the same document.
                       Set the window to "1" to compute bigram collocations. Set a larger window
-                      to get something similar to what word2vec considers.
+                      to get something similar to what word2vec would consider.
     -F, --forward     Whether to only consider a forward window when traversing token contexts.
     --distrib         Compute directed distributional similarity metrics instead.
     --min-count <n>   Minimum number of co-occurrence count to be included in the result.
