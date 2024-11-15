@@ -53,7 +53,7 @@ lazy_static! {
     static ref DIMMED_REGEX: Regex =
         Regex::new(r"\[?<[\w|]+>(?:\.{3})?\]?|\[[\w\s:§|]+\]|\s+[\$>][^\n]+").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
-    static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##.+").unwrap();
+    static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^#+.+").unwrap();
     static ref MAIN_COMMAND_REGEX: Regex = Regex::new(r"(?m)^\s{4}\w[\w\-]+").unwrap();
     static ref MAIN_ALIAS_REGEX: Regex = Regex::new(r"\([^\)\s]+\)").unwrap();
 }
@@ -62,6 +62,8 @@ pub fn colorize_help(help: &str) -> String {
     let help = FLAG_REGEX.replace_all(help, |caps: &Captures| {
         caps[1].to_string() + &caps[2].cyan().to_string()
     });
+    let help = MAIN_SECTION_REGEX
+        .replace_all(&help, |caps: &Captures| caps[0].yellow().bold().to_string());
     let help =
         SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().bold().to_string());
     let help = QUOTE_REGEX.replace_all(&help, |caps: &Captures| caps[0].green().to_string());

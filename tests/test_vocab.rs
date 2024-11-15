@@ -17,6 +17,7 @@ fn vocab_corpus() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("corpus")
         .args(["--doc", "doc"])
+        .arg("--implode")
         .arg("token")
         .arg("data.csv");
 
@@ -50,6 +51,7 @@ fn vocab_doc() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("doc")
         .args(["--doc", "doc"])
+        .arg("--implode")
         .arg("token")
         .arg("data.csv");
 
@@ -102,6 +104,7 @@ fn vocab_token() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("token")
+        .arg("--implode")
         .args(["--doc", "doc"])
         .arg("token")
         .arg("data.csv");
@@ -206,6 +209,7 @@ fn vocab_doc_token() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("doc-token")
+        .arg("--implode")
         .args(["--doc", "doc"])
         .arg("token")
         .arg("data.csv");
@@ -287,6 +291,7 @@ fn vocab_cooc_no_sep() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("cooc")
         .arg("token")
+        .arg("--implode")
         .args(["--doc", "doc"])
         .arg("data.csv");
 
@@ -327,6 +332,7 @@ fn vocab_cooc_no_sep_window() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("cooc")
         .arg("token")
+        .arg("--implode")
         .args(["--doc", "doc"])
         .args(["-w", "10"])
         .arg("data.csv");

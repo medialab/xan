@@ -60,6 +60,7 @@ static COMMANDS: [&str; 53] = [
     "vocab",
 ];
 
+static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
 fn find_csv_files_in_prompt() -> Vec<String> {
@@ -121,9 +122,15 @@ pub fn run() {
             }
         }
     } else if word_before == "vocab" && !to_complete.starts_with('-') {
-        for command in VOCAB_SUBCOMMANDS {
-            if command.starts_with(to_complete) {
-                println!("{}", command);
+        for subcommand in VOCAB_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
+            }
+        }
+    } else if word_before == "tokenize" && !to_complete.starts_with('-') {
+        for subcommand in TOKENIZE_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
             }
         }
     }

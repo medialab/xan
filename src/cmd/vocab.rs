@@ -20,16 +20,13 @@ use crate::CliError;
 use crate::CliResult;
 
 static USAGE: &str = "
-Compute vocabulary statistics over tokenized documents. Those documents
-must be given as a CSV with one or more column representing a document key
-and a column containing single tokens like so (typically an output from
-the \"tokenize\" command):
+Compute vocabulary statistics over tokenized documents (typically produced
+by the \"xan tokenize words\" subcommand), i.e. rows of CSV data containing
+a column of tokens separated by a single space (or any separator given to
+the --sep flag).
 
-doc,token
-1,the
-1,cat
-1,eats
-2,hello
+The command considers, by default, documents to be a single row of the input
+but can also be symbolized by the value of a column selection given to -D/--doc.
 
 This command can compute 5 kinds of differents vocabulary statistics:
 
@@ -90,10 +87,14 @@ Usage:
 vocab options:
     -D, --doc <doc-cols>  Optional selection of columns representing a row's document.
     --sep <delim>         Delimiter used to separate tokens in one row's token cell.
+                          Will default to a single space.
+    --implode             If given, will implode the file over the token column so that
+                          it becomes possible to process a file containing only one token
+                          per row. Cannot be used without -D, --doc.
 
 vocab doc-token options:
-    --k1-value <value>     \"k1\" factor for BM25 computation. [default: 1.2]
-    --b-value <value>      \"b\" factor for BM25 computation. [default: 0.75]
+    --k1-value <value>  \"k1\" factor for BM25 computation. [default: 1.2]
+    --b-value <value>   \"b\" factor for BM25 computation. [default: 0.75]
 
 vocab cooc options:
     -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
@@ -129,6 +130,7 @@ struct Args {
     arg_token_col: SelectColumns,
     flag_doc: Option<SelectColumns>,
     flag_sep: Option<String>,
+    flag_implode: bool,
     flag_k1_value: f64,
     flag_b_value: f64,
     flag_window: Option<NonZeroUsize>,
@@ -140,8 +142,19 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_implode {
+            self.flag_sep = None;
+        } else if self.flag_sep.is_none() {
+            self.flag_sep = Some(" ".to_string());
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     if args.flag_doc.is_none() && args.flag_sep.is_none() {
         return Err(CliError::Other(
