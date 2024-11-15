@@ -347,6 +347,7 @@ pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {
     string
 }
 
+#[derive(PartialEq)]
 pub enum ColorOrStyles {
     Color(Color),
     Styles(Styles),

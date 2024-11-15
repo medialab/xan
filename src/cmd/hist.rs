@@ -5,11 +5,13 @@ use colored::Colorize;
 use csv;
 use numfmt::Formatter;
 use unicode_width::UnicodeWidthStr;
+use indexmap::IndexMap;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
+use crate::util::ColorOrStyles;
 
 const SIMPLE_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
 const COMPLEX_BAR_CHARS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
@@ -51,6 +53,9 @@ hist options:
                              or make sure different histograms are represented using the
                              same scale.
                              [default: max]
+    -c, --category <col>     Name of the categorical column that will be used to
+                             assign distinct colors per category.
+                             Incompatible with -R, --rainbow.
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
     -P, --hide-percent       Don't show percentages.
@@ -80,7 +85,17 @@ struct Args {
     flag_name: String,
     flag_hide_percent: bool,
     flag_unit: Option<String>,
+    flag_category: Option<SelectColumns>,
 }
+
+const CATEGORY_COLORS: [colored::Color; 6] = [
+    colored::Color::Red,
+    colored::Color::Green,
+    colored::Color::Yellow,
+    colored::Color::Blue,
+    colored::Color::Magenta,
+    colored::Color::Cyan,
+];
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
@@ -90,6 +105,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_force_colors {
         colored::control::set_override(true);
+    }
+
+    if args.flag_category.is_some() && args.flag_rainbow {
+        Err("-c, --category cannot work with -R, --rainbow")?;
     }
 
     let mut rdr = conf.reader()?;
@@ -109,6 +128,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut histograms = Histograms::new();
 
     let mut record = csv::StringRecord::new();
+    let mut category_colors: IndexMap<String, ColorOrStyles> = IndexMap::new();
+
+    let category_column_index = args
+            .flag_category
+            .as_ref()
+            .map(|name| name.single_selection(headers, !args.flag_no_headers))
+            .transpose()?;
 
     while rdr.read_record(&mut record)? {
         let field = match field_pos_option {
@@ -120,7 +146,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .parse::<f64>()
             .map_err(|_| "could not parse value")?;
 
-        histograms.add(field, label, value);
+        if let Some(category_col) = category_column_index {
+            let category = record[category_col].to_string();
+            if !category_colors.contains_key(&category) {
+                let mut color = None;
+                for try_color in CATEGORY_COLORS.iter() {
+                    if !category_colors.values().any(|c| *c == util::ColorOrStyles::Color(*try_color)) {
+                        color = Some(*try_color);
+                        break;
+                    }
+                }
+                
+                if let Some(color) = color {
+                    category_colors.insert(category.clone(), util::ColorOrStyles::Color(color));
+                }
+            }
+            histograms.add(field, label, value, Some(category));
+        } else {
+            histograms.add(field, label, value, None);
+        }
     }
 
     let mut formatter = util::acquire_number_formatter();
@@ -192,15 +236,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             &COMPLEX_BAR_CHARS
         };
-
+        
         for (i, bar) in histogram.bars().enumerate() {
             let bar_width =
                 from_domain_to_range(bar.value, (0.0, domain_max), (0.0, bar_cols as f64));
 
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
-
-            if args.flag_rainbow {
+            if let Some(category) = bar.category.clone() {
+                if !category.is_empty(){
+                    let try_color = category_colors.get(&category);
+                    if let Some(color) = try_color {
+                        bar_as_chars = util::colorize(color, &bar_as_chars);
+                    }
+                }
+            } else if args.flag_rainbow {
                 bar_as_chars =
                     util::colorize(&util::colorizer_by_rainbow(i, &bar_as_chars), &bar_as_chars);
             } else if !args.flag_simple {
@@ -209,7 +259,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 odd = !odd;
-            }
+            }          
 
             let label = util::unicode_aware_rpad_with_ellipsis(&bar.label, label_cols, " ");
             let label = match bar.label.as_str() {
@@ -268,6 +318,7 @@ fn create_bar(chars: &[&str], width: f64) -> String {
 struct Bar {
     label: String,
     value: f64,
+    category: Option<String>,
 }
 
 #[derive(Debug)]
@@ -328,20 +379,22 @@ impl Histograms {
         }
     }
 
-    pub fn add(&mut self, field: String, label: String, value: f64) {
+    pub fn add(&mut self, field: String, label: String, value: f64, category: Option<String>) {
         self.histograms
             .entry(field.clone())
             .and_modify(|h| {
                 h.bars.push(Bar {
                     label: label.clone(),
                     value,
+                    category: category.clone(),
                 })
             })
             .or_insert_with(|| Histogram {
                 field,
-                bars: vec![Bar { label, value }],
+                bars: vec![Bar { label, value, category }],
             });
     }
+
 
     pub fn iter(&self) -> impl Iterator<Item = &Histogram> {
         self.histograms.values()
