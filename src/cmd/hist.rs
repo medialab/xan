@@ -88,15 +88,6 @@ struct Args {
     flag_category: Option<SelectColumns>,
 }
 
-const CATEGORY_COLORS: [colored::Color; 6] = [
-    colored::Color::Red,
-    colored::Color::Green,
-    colored::Color::Yellow,
-    colored::Color::Blue,
-    colored::Color::Magenta,
-    colored::Color::Cyan,
-];
-
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let conf = Config::new(&args.arg_input)
@@ -128,13 +119,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut histograms = Histograms::new();
 
     let mut record = csv::StringRecord::new();
-    let mut category_colors: IndexMap<String, ColorOrStyles> = IndexMap::new();
+    let mut category_colors: IndexMap<String, usize> = IndexMap::new();
 
     let category_column_index = args
         .flag_category
         .as_ref()
         .map(|name| name.single_selection(headers, !args.flag_no_headers))
         .transpose()?;
+
+    let mut cpt_category: usize = 0;
 
     while rdr.read_record(&mut record)? {
         let field = match field_pos_option {
@@ -149,21 +142,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some(category_col) = category_column_index {
             let category = record[category_col].to_string();
             if !category_colors.contains_key(&category) {
-                let mut color = None;
-                for try_color in CATEGORY_COLORS.iter() {
-                    if !category_colors
-                        .values()
-                        .any(|c| *c == util::ColorOrStyles::Color(*try_color))
-                    {
-                        color = Some(*try_color);
-                        break;
-                    }
-                }
-
-                if let Some(color) = color {
-                    if !category.is_empty() {
-                        category_colors.insert(category.clone(), util::ColorOrStyles::Color(color));
-                    }
+                if !category.is_empty() {
+                    cpt_category += 1;
+                    category_colors.insert(category.clone(), cpt_category);
                 }
             }
             histograms.add(field, label, value, Some(category));
@@ -251,7 +232,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some(category) = bar.category.clone() {
                 let try_color = category_colors.get(&category);
                 if let Some(color) = try_color {
-                    bar_as_chars = util::colorize(color, &bar_as_chars);
+                    bar_as_chars = util::colorize(
+                        &util::colorizer_by_rainbow(*color, &bar_as_chars),
+                        &bar_as_chars,
+                    );
                 }
             } else if args.flag_rainbow {
                 bar_as_chars =
@@ -300,8 +284,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 for (key, value) in category_colors.iter() {
                     println!(
                         " {}  {}",
-                        util::colorize(value, "■"),
-                        util::colorize(value, key),
+                        util::colorize(&util::colorizer_by_rainbow(*value, "■"), "■"),
+                        util::colorize(&util::colorizer_by_rainbow(*value, key), key),
                     );
                 }
             }
