@@ -241,11 +241,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| custom_strftime(args, "%Y"),
             FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
         ),
-        "year_month_day" => (
-            |args| custom_strftime(args, "%F"),
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
-        ),
-        "ymd" => (
+        "year_month_day" | "ymd" => (
             |args| custom_strftime(args, "%F"),
             FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
         ),
