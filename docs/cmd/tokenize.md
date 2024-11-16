@@ -15,7 +15,7 @@ tokens (that you can filter using --keep and --drop):
     "word", "number", "hashtag", "mention", "emoji",
     "punct", "url" and "email"
 
-The command will by default return one row per row in the input file, with
+The command will by default emit one row per row in the input file, with
 the tokens added in a new "tokens" column containing the processed and filtered
 tokens joined by a space (or any character given to --sep).
 
