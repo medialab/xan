@@ -1130,9 +1130,9 @@ dependencies = [
 
 [[package]]
 name = "paltoquet"
-version = "0.10.1"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b01c22b9b6688b2528f6772b557181b4d7e7b7b43e5b563c78d3b63c2ebc51f"
+checksum = "46d7e82e84411cf4d59131ba2d854d40b546712f727c262a92f8bbbb08675eb4"
 dependencies = [
  "enumset",
  "lazy_static",

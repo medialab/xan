@@ -148,6 +148,10 @@ tokenize words options:
                              [default: §]
     -u, --uniq               Sort and deduplicate the tokens.
 
+tokenize paragraphs options:
+    -A, --aerated  Force paragraphs to be separated by a blank line, instead
+                   of just a single line break.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -190,6 +194,7 @@ struct Args {
     flag_vocab_token: SelectColumns,
     flag_vocab_token_id: Option<SelectColumns>,
     flag_uniq: bool,
+    flag_aerated: bool,
 }
 
 impl Args {
@@ -364,7 +369,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // NOTE: everything in this function will be parallelized
     let tokenize = move |string: &str| -> Vec<(String, WordTokenKind)> {
         if args.cmd_paragraphs {
-            return split_paragraphs(string)
+            return split_paragraphs(string, args.flag_aerated)
                 .map(|paragraph| (paragraph.to_string(), WordTokenKind::Word))
                 .collect();
         } else if args.cmd_sentences {
