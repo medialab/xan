@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fs;
 use std::io;
 use std::num::NonZeroUsize;
@@ -280,13 +281,6 @@ pub fn acquire_rng(seed: Option<usize>) -> impl Rng {
     }
 }
 
-pub fn acquire_number_formatter() -> Formatter {
-    Formatter::new()
-        .precision(Precision::Significance(5))
-        .separator(',')
-        .unwrap()
-}
-
 pub fn acquire_stty_size() -> Option<termsize::Size> {
     if let Ok(output) = Command::new("/bin/sh")
         .arg("-c")
@@ -335,11 +329,22 @@ pub fn acquire_term_rows() -> Option<usize> {
     termsize::get().map(|size| size.rows as usize)
 }
 
-pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {
-    let mut string = f.fmt2(x).to_string();
+thread_local! {
+    static NUMBER_FORMATTER: RefCell<numfmt::Formatter> = RefCell::new(
+        Formatter::new()
+            .precision(Precision::Significance(5))
+            .separator(',')
+            .unwrap()
+    );
+}
 
-    if string.contains('.') {
-        string.truncate(string.trim_end_matches(['0', '.']).len())
+pub fn format_number<T: Numeric>(x: T) -> String {
+    let mut string = NUMBER_FORMATTER.with_borrow_mut(|f| f.fmt2(x).to_string());
+
+    if let Some(i) = string.find('.') {
+        if string[i + 1..].chars().all(|c| c == '0') {
+            string.truncate(i);
+        }
     }
 
     string

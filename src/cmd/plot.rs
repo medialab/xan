@@ -504,22 +504,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     })
                     .collect();
 
-                let mut formatter = util::acquire_number_formatter();
-
                 // Create the Y axis and define its properties
-                let y_ticks_labels = graduations_from_domain(
-                    &mut formatter,
-                    y_axis_info.axis_type,
-                    y_axis_info.domain,
-                    y_ticks,
-                );
-                let x_ticks = infer_x_ticks(
-                    args.flag_x_ticks,
-                    &mut formatter,
-                    &x_axis_info,
-                    &y_ticks_labels,
-                    cols,
-                );
+                let y_ticks_labels =
+                    graduations_from_domain(y_axis_info.axis_type, y_axis_info.domain, y_ticks);
+                let x_ticks = infer_x_ticks(args.flag_x_ticks, &x_axis_info, &y_ticks_labels, cols);
                 let y_axis = Axis::default()
                     .title(if !has_added_series && y_axis_info.can_be_displayed {
                         y_column_name.dim()
@@ -534,12 +522,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .labels(y_ticks_labels);
 
                 // Create the X axis and define its properties
-                let x_ticks_labels = graduations_from_domain(
-                    &mut formatter,
-                    x_axis_info.axis_type,
-                    x_axis_info.domain,
-                    x_ticks,
-                );
+                let x_ticks_labels =
+                    graduations_from_domain(x_axis_info.axis_type, x_axis_info.domain, x_ticks);
                 let x_axis = Axis::default()
                     .title(if x_axis_info.can_be_displayed {
                         x_column_name.dim()
@@ -635,18 +619,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             dataset = dataset.name(name.clone());
                         }
 
-                        let mut formatter = util::acquire_number_formatter();
-
                         // Create the Y axis and define its properties
                         let y_ticks_labels = graduations_from_domain(
-                            &mut formatter,
                             y_axis_info.axis_type,
                             y_axis_info.domain,
                             y_ticks,
                         );
                         let x_ticks = infer_x_ticks(
                             args.flag_x_ticks,
-                            &mut formatter,
                             &x_axis_info,
                             &y_ticks_labels,
                             cols / actual_grid_cols,
@@ -670,7 +650,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         // Create the X axis and define its properties
                         let x_ticks_labels = graduations_from_domain(
-                            &mut formatter,
                             x_axis_info.axis_type,
                             x_axis_info.domain,
                             x_ticks,
@@ -836,23 +815,19 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
     (1.0 - t) * min + t * max
 }
 
-fn format_graduation(formatter: &mut numfmt::Formatter, axis_type: AxisType, x: f64) -> String {
+fn format_graduation(axis_type: AxisType, x: f64) -> String {
     if let AxisType::Timestamp(granularity) = axis_type {
         return format_timestamp(x.trunc() as i64, granularity);
     }
 
-    util::pretty_print_float(
-        formatter,
-        match axis_type {
-            AxisType::Float => x,
-            AxisType::Int => x.trunc(),
-            _ => unreachable!(),
-        },
-    )
+    util::format_number(match axis_type {
+        AxisType::Float => x,
+        AxisType::Int => x.trunc(),
+        _ => unreachable!(),
+    })
 }
 
 fn graduations_from_domain(
-    formatter: &mut numfmt::Formatter,
     axis_type: AxisType,
     domain: (DynamicNumber, DynamicNumber),
     steps: usize,
@@ -874,18 +849,17 @@ fn graduations_from_domain(
     let mut t = 0.0;
     let fract = 1.0 / (steps - 1) as f64;
 
-    graduations.push(format_graduation(formatter, axis_type, domain.0.as_float()));
+    graduations.push(format_graduation(axis_type, domain.0.as_float()));
 
     for _ in 1..(steps - 1) {
         t += fract;
         graduations.push(format_graduation(
-            formatter,
             axis_type,
             lerp(domain.0.as_float(), domain.1.as_float(), t),
         ));
     }
 
-    graduations.push(format_graduation(formatter, axis_type, domain.1.as_float()));
+    graduations.push(format_graduation(axis_type, domain.1.as_float()));
 
     graduations
 }
@@ -1151,7 +1125,6 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
 
 fn infer_x_ticks(
     from_user: Option<NonZeroUsize>,
-    formatter: &mut numfmt::Formatter,
     x_axis_info: &AxisInfo,
     y_ticks_labels: &[String],
     mut cols: usize,
@@ -1160,7 +1133,7 @@ fn infer_x_ticks(
         return n.get().max(2);
     }
 
-    let sample = graduations_from_domain(formatter, x_axis_info.axis_type, x_axis_info.domain, 15);
+    let sample = graduations_from_domain(x_axis_info.axis_type, x_axis_info.domain, 15);
 
     let y_offset = y_ticks_labels.first().unwrap().width() + 1;
     cols = cols.saturating_sub(y_offset);

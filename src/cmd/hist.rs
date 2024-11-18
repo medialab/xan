@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use colored;
 use colored::Colorize;
 use csv;
-use numfmt::Formatter;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -123,8 +122,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         histograms.add(field, label, value);
     }
 
-    let mut formatter = util::acquire_number_formatter();
-
     let mut cols = util::acquire_term_cols(&None);
 
     if let Some(spec) = &args.flag_cols {
@@ -158,10 +155,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         println!(
             "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}):\n",
             histogram.field.green(),
-            util::pretty_print_float(&mut formatter, histogram.len()).cyan(),
-            util::pretty_print_float(&mut formatter, sum).cyan(),
+            util::format_number(histogram.len()).cyan(),
+            util::format_number(sum).cyan(),
             unit.cyan(),
-            util::pretty_print_float(&mut formatter, histogram.max().unwrap()).cyan(),
+            util::format_number(histogram.max().unwrap()).cyan(),
             unit.cyan(),
         );
 
@@ -177,7 +174,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         let remaining_cols = cols - pct_cols;
-        let count_cols = histogram.value_max_width(&mut formatter).unwrap();
+        let count_cols = histogram.value_max_width().unwrap();
         let label_cols = usize::min(
             (remaining_cols as f64 * 0.4).floor() as usize,
             histogram.label_max_width().unwrap(),
@@ -221,7 +218,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 "{} |{}{}{}|{}|",
                 label,
                 util::unicode_aware_lpad_with_ellipsis(
-                    &util::pretty_print_float(&mut formatter, bar.value),
+                    &util::format_number(bar.value),
                     count_cols,
                     " "
                 )
@@ -308,10 +305,10 @@ impl Histogram {
         self.bars.iter().map(|bar| bar.label.width()).max()
     }
 
-    fn value_max_width(&self, fmt: &mut Formatter) -> Option<usize> {
+    fn value_max_width(&self) -> Option<usize> {
         self.bars
             .iter()
-            .map(|bar| util::pretty_print_float(fmt, bar.value).len())
+            .map(|bar| util::format_number(bar.value).len())
             .max()
     }
 }

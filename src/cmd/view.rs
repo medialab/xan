@@ -425,20 +425,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut formatter = util::acquire_number_formatter();
-
-    let mut write_info = || -> Result<(), io::Error> {
+    let write_info = || -> Result<(), io::Error> {
         if args.flag_hide_info {
             return Ok(());
         }
 
         let len_offset = if args.flag_hide_index { 0 } else { 1 };
 
-        let pretty_records_len = util::pretty_print_float(&mut formatter, records.len());
-        let pretty_headers_len =
-            util::pretty_print_float(&mut formatter, headers.len() - len_offset);
+        let pretty_records_len = util::format_number(records.len());
+        let pretty_headers_len = util::format_number(headers.len() - len_offset);
         let pretty_displayed_headers_len =
-            util::pretty_print_float(&mut formatter, displayed_columns.len() - len_offset);
+            util::format_number(displayed_columns.len() - len_offset);
 
         writeln!(
             &output,
