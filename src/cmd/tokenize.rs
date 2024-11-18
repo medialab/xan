@@ -90,10 +90,10 @@ output unless you pass --keep-text to the command.
 Tips:
 
 You can easily pipe the command into \"xan vocab\" to create a vocabulary:
-    $ xan tokenize words text file.csv | xan vocab token token > vocab.csv
+    $ xan tokenize words text file.csv | xan vocab token tokens > vocab.csv
 
 You can easily keep the tokens in a separate file using the \"tee\" command:
-    $ xan tokenize words text file.csv | tee tokens.csv | xan vocab token token > vocab.csv
+    $ xan tokenize words text file.csv | tee tokens.csv | xan vocab token tokens > vocab.csv
 
 Usage:
     xan tokenize words [options] <column> [<input>]

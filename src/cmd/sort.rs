@@ -151,7 +151,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     match ordering {
                         cmp::Ordering::Less => {
-                            return fail!("file is not sorted!");
+                            return fail!("file is NOT sorted!");
                         }
                         cmp::Ordering::Equal => continue,
                         _ => last = Some(current_sel),
