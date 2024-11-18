@@ -148,10 +148,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     cpt_category += 1;
                     current_cpt
                 });
+                if let Some(color) = category_colors.get(&category) {
+                    histograms.add(field, label, value, Some(*color));
+                }
             } else {
                 bool_empty_category = true;
+                histograms.add(field, label, value, None);
             }
-            histograms.add(field, label, value, Some(category));
         } else {
             histograms.add(field, label, value, None);
         }
@@ -234,8 +237,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
             if let Some(category) = bar.category.clone() {
-                let try_color = category_colors.get(&category);
-                if let Some(color) = try_color {
+                if let Some((_, color)) = category_colors.get_index(category) {
                     bar_as_chars = util::colorize(
                         &colorizer_by_rainbow_category(*color, &bar_as_chars),
                         &bar_as_chars,
@@ -358,7 +360,7 @@ pub fn colorizer_by_rainbow_category(index: usize, string: &str) -> ColorOrStyle
 struct Bar {
     label: String,
     value: f64,
-    category: Option<String>,
+    category: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -419,14 +421,14 @@ impl Histograms {
         }
     }
 
-    pub fn add(&mut self, field: String, label: String, value: f64, category: Option<String>) {
+    pub fn add(&mut self, field: String, label: String, value: f64, category: Option<usize>) {
         self.histograms
             .entry(field.clone())
             .and_modify(|h| {
                 h.bars.push(Bar {
                     label: label.clone(),
                     value,
-                    category: category.clone(),
+                    category,
                 })
             })
             .or_insert_with(|| Histogram {
