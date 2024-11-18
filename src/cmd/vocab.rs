@@ -65,7 +65,6 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - chi2: chi2 score (approx. without the --complete flag)
     - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
-    - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
 
     or, using the --distrib flag:
@@ -353,8 +352,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             cooccurrences
                 .for_each_distrib_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
         } else {
-            let output_headers: [&[u8]; 8] = [
-                b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"ppmi", b"npmi",
+            let output_headers: [&[u8]; 7] = [
+                b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"npmi",
             ];
 
             wtr.write_record(output_headers)?;
@@ -755,11 +754,6 @@ fn compute_pmi(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 }
 
 #[inline]
-fn compute_ppmi(pmi: f64) -> f64 {
-    pmi.max(0.0)
-}
-
-#[inline]
 fn compute_npmi(xy: usize, n: usize, pmi: f64) -> f64 {
     // If probability is 1, then self-information is 0 and npmi must be 1, meaning full co-occurrence.
     if xy >= n {
@@ -792,7 +786,8 @@ fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
     2.0 * observed * (observed / expected).ln()
 }
 
-fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
+// NOTE: see code in issue https://github.com/medialab/xan/issues/295
+fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
     let not_x = (n - x) as f64;
     let not_y = (n - y) as f64;
     let nf = n as f64;
@@ -812,7 +807,15 @@ fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
     let chi2_21 = (observed_21 - expected_21).powi(2) / expected_21;
     let chi2_22 = (observed_22 - expected_22).powi(2) / expected_22;
 
-    chi2_11 + chi2_12 + chi2_21 + chi2_22
+    let g2_11 = observed_11 * (observed_11 / expected_11).ln();
+    let g2_12 = observed_12 * (observed_12 / expected_12).ln();
+    let g2_21 = observed_21 * (observed_21 / expected_21).ln();
+    let g2_22 = observed_22 * (observed_22 / expected_22).ln();
+
+    (
+        chi2_11 + chi2_12 + chi2_21 + chi2_22,
+        2.0 * (g2_11 + g2_12 + g2_21 + g2_22),
+    )
 }
 
 #[derive(Debug)]
@@ -936,14 +939,13 @@ impl Cooccurrences {
 
                 // chi2/G2 computations
                 let (chi2, g2) = if complete {
-                    (compute_chi2(x, y, xy, n), 0.0)
+                    compute_chi2_and_g2(x, y, xy, n)
                 } else {
                     compute_simplified_chi2_and_g2(x, y, xy, n)
                 };
 
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
-                let ppmi = compute_ppmi(pmi);
                 let npmi = compute_npmi(xy, n, pmi);
 
                 csv_record.clear();
@@ -951,9 +953,14 @@ impl Cooccurrences {
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(count.to_string().as_bytes());
                 csv_record.push_field(chi2.to_string().as_bytes());
-                csv_record.push_field(g2.to_string().as_bytes());
+
+                if g2.is_nan() {
+                    csv_record.push_field(b"");
+                } else {
+                    csv_record.push_field(g2.to_string().as_bytes());
+                }
+
                 csv_record.push_field(pmi.to_string().as_bytes());
-                csv_record.push_field(ppmi.to_string().as_bytes());
                 csv_record.push_field(npmi.to_string().as_bytes());
 
                 callback(&csv_record)?;

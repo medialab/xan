@@ -144,6 +144,7 @@ plot options:
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
     --y-max <n>                Force a maximum value for the y axis.
+    -i, --ignore               Ignore values that cannot be correctly parsed.
 
 Common options:
     -h, --help             Display this message
@@ -180,6 +181,7 @@ struct Args {
     flag_x_max: Option<String>,
     flag_y_min: Option<DynamicNumber>,
     flag_y_max: Option<DynamicNumber>,
+    flag_ignore: bool,
 }
 
 impl Args {
@@ -346,17 +348,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SeriesBuilder::new_single()
     };
 
+    macro_rules! try_parse {
+        ($as: ident, $value: expr) => {{
+            match $as($value) {
+                Err(e) => {
+                    if args.flag_ignore {
+                        continue;
+                    } else {
+                        Err(e)?
+                    }
+                }
+                Ok(v) => v,
+            }
+        }};
+    }
+
     while rdr.read_byte_record(&mut record)? {
         let x_cell = &record[x_column_index];
 
         let x = if args.flag_time {
-            parse_as_timestamp(x_cell)?
+            try_parse!(parse_as_timestamp, x_cell)
         } else {
-            parse_as_number(x_cell)?
+            try_parse!(parse_as_number, x_cell)
         };
 
         let y = match y_column_index_opt {
-            Some(y_column_index) => parse_as_number(&record[y_column_index])?,
+            Some(y_column_index) => try_parse!(parse_as_number, &record[y_column_index]),
             None => DynamicNumber::Integer(1),
         };
 
@@ -375,7 +392,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series_builder.add_with_index(0, x, y);
 
             for (i, (_, pos)) in additional_series_indices.iter().enumerate() {
-                let v = parse_as_number(&record[*pos])?;
+                let v = try_parse!(parse_as_number, &record[*pos]);
 
                 series_builder.add_with_index(i + 1, x, v);
             }
