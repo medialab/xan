@@ -140,34 +140,10 @@ fn vocab_token() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec![
-            "token",
-            "gf",
-            "df",
-            "df_ratio",
-            "idf",
-            "gfidf",
-            "pigeonhole"
-        ],
-        svec!["cat", "3", "2", "1", "0", "0", "1.1428571428571428"],
-        svec![
-            "dog",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
-        svec![
-            "rabbit",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
+        svec!["token", "gf", "df", "df_ratio", "idf", "gfidf", "pigeon"],
+        svec!["cat", "3", "2", "1", "0", "3", "0.875"],
+        svec!["dog", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
+        svec!["rabbit", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
     ];
     assert_eq!(got, expected);
 }
@@ -186,34 +162,10 @@ fn vocab_token_sep() {
     got[1..].sort();
 
     let expected = vec![
-        svec![
-            "token",
-            "gf",
-            "df",
-            "df_ratio",
-            "idf",
-            "gfidf",
-            "pigeonhole"
-        ],
-        svec!["cat", "3", "2", "1", "0", "0", "1.1428571428571428"],
-        svec![
-            "dog",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
-        svec![
-            "rabbit",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
+        svec!["token", "gf", "df", "df_ratio", "idf", "gfidf", "pigeon"],
+        svec!["cat", "3", "2", "1", "0", "3", "0.875"],
+        svec!["dog", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
+        svec!["rabbit", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
     ];
     assert_eq!(got, expected);
 }

@@ -41,9 +41,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
     - df_ratio: proportion of documents containing the token
-    - idf: inverse document frequency of the token
+    - idf: logarithm of the inverse document frequency of the token
     - gfidf: global frequency * idf for the token
-    - pigeonhole: ratio between df and expected df in random distribution
+    - pigeon: ratio between df and expected df in random distribution
 
 3. doc-level statistics (using the \"doc\" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -386,7 +386,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             b"df_ratio",
             b"idf",
             b"gfidf",
-            b"pigeonhole",
+            b"pigeon",
         ];
         wtr.write_record(headers)?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
@@ -466,16 +466,20 @@ impl TokenStats {
         (n as f64 / self.df as f64).ln()
     }
 
+    // NOTE: this metric does not "log" the idf
     fn gfidf(&self, n: usize) -> f64 {
-        self.gf as f64 * self.idf(n)
+        self.gf as f64 * (n as f64 / self.df as f64)
     }
 
-    fn pigeonhole(&self, n: usize) -> f64 {
+    fn pigeon(&self, n: usize) -> f64 {
         let n = n as f64;
 
         let expected = n - n * ((n - 1.0) / n).powf(self.gf as f64);
 
-        self.df as f64 / expected
+        // NOTE: the paper is not completely clear regarding what should
+        // be the divisor and the numerator here. I aligned it to the graph
+        // page 75, and with the gfidf metric.
+        expected / self.df as f64
     }
 }
 
@@ -668,7 +672,7 @@ impl Vocabulary {
             record.push_field((stats.df as f64 / n as f64).to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
             record.push_field(stats.gfidf(n).to_string().as_bytes());
-            record.push_field(stats.pigeonhole(n).to_string().as_bytes());
+            record.push_field(stats.pigeon(n).to_string().as_bytes());
 
             callback(&record)?;
         }
