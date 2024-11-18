@@ -103,17 +103,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut rdr = conf.reader()?;
-    let headers = rdr.byte_headers()?;
+    let headers = rdr.byte_headers()?.clone();
 
     let label_pos = args
         .flag_label
-        .single_selection(headers, !args.flag_no_headers)?;
+        .single_selection(&headers, !args.flag_no_headers)?;
     let value_pos = args
         .flag_value
-        .single_selection(headers, !args.flag_no_headers)?;
+        .single_selection(&headers, !args.flag_no_headers)?;
     let field_pos_option = args
         .flag_field
-        .single_selection(headers, !args.flag_no_headers)
+        .single_selection(&headers, !args.flag_no_headers)
         .ok();
 
     let mut histograms = Histograms::new();
@@ -124,7 +124,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let category_column_index = args
         .flag_category
         .as_ref()
-        .map(|name| name.single_selection(headers, !args.flag_no_headers))
+        .map(|name| name.single_selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
     let mut cpt_category: usize = 0;
@@ -141,14 +141,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map_err(|_| "could not parse value")?;
 
         if let Some(category_col) = category_column_index {
-            let category = record[category_col].to_string();
-            if !category_colors.contains_key(&category) {
-                if !category.is_empty() {
-                    category_colors.insert(category.clone(), cpt_category);
+            let category: String = record[category_col].to_string();
+            if !category.is_empty() {
+                category_colors.entry(category.clone()).or_insert_with(|| {
+                    let current_cpt = cpt_category;
                     cpt_category += 1;
-                } else {
-                    bool_empty_category = true;
-                }
+                    current_cpt
+                });
+            } else {
+                bool_empty_category = true;
             }
             histograms.add(field, label, value, Some(category));
         } else {
@@ -235,8 +236,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some(category) = bar.category.clone() {
                 let try_color = category_colors.get(&category);
                 if let Some(color) = try_color {
-                    bar_as_chars =
-                        util::colorize(&colorizer_by_rainbow(*color, &bar_as_chars), &bar_as_chars);
+                    bar_as_chars = util::colorize(
+                        &colorizer_by_rainbow_category(*color, &bar_as_chars),
+                        &bar_as_chars,
+                    );
                 }
             } else if args.flag_rainbow {
                 bar_as_chars =
@@ -274,44 +277,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             );
         }
 
-        let headers = rdr.headers();
         if let Some(category_col) = category_column_index {
-            let category_name = headers?.get(category_col);
-            if let Some(category) = category_name {
-                println!(
-                    "\nColors by {}:",
-                    util::colorize(&ColorOrStyles::Color(colored::Color::Cyan), category)
-                );
+            if let Some(category_byte) = headers.get(category_col) {
+                if let Ok(category_name) = std::str::from_utf8(category_byte) {
+                    println!("\nColors by {}:", category_name.cyan());
 
-                let (ref vec1, vec2): (Vec<_>, Vec<_>) = category_colors
-                    .clone()
-                    .into_iter()
-                    .partition(|&(_, value)| value < 6);
+                    let (vec1, vec2): (Vec<_>, Vec<_>) =
+                        category_colors.iter().partition(|&(_, value)| *value < 6);
 
-                for (label, value) in vec1 {
-                    println!(
-                        " {}  {}",
-                        util::colorize(&colorizer_by_rainbow(*value, "■"), "■"),
-                        util::colorize(&colorizer_by_rainbow(*value, label), label),
-                    );
-                }
+                    for (label, value) in vec1 {
+                        println!(
+                            " {}  {}",
+                            util::colorize(&util::colorizer_by_rainbow(*value, "■"), "■"),
+                            util::colorize(&util::colorizer_by_rainbow(*value, label), label),
+                        );
+                    }
 
-                if !vec2.is_empty() {
-                    let others = vec2
-                        .iter()
-                        .map(|(label, _)| label.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                    if !vec2.is_empty() {
+                        let others = vec2
+                            .iter()
+                            .map(|(label, _)| label.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ");
 
-                    println!(
-                        " {}  {}",
-                        util::colorize(&colorizer_by_rainbow(vec1.len(), "■"), "■"),
-                        util::colorize(&colorizer_by_rainbow(vec1.len(), &others), &others),
-                    );
-                }
+                        println!(" {}  {}", "■".bright_black(), &others.bright_black());
+                    }
 
-                if bool_empty_category {
-                    println!(" ■  No category");
+                    if bool_empty_category {
+                        println!(" ■  No category");
+                    }
                 }
             }
         }
@@ -344,7 +338,7 @@ fn create_bar(chars: &[&str], width: f64) -> String {
     }
 }
 
-pub fn colorizer_by_rainbow(index: usize, string: &str) -> ColorOrStyles {
+pub fn colorizer_by_rainbow_category(index: usize, string: &str) -> ColorOrStyles {
     if string == "<empty>" {
         return ColorOrStyles::Styles(colored::Styles::Dimmed);
     }
