@@ -45,10 +45,10 @@ output unless you pass --keep-text to the command.
 Tips:
 
 You can easily pipe the command into "xan vocab" to create a vocabulary:
-    $ xan tokenize words text file.csv | xan vocab token token > vocab.csv
+    $ xan tokenize words text file.csv | xan vocab doc-token > vocab.csv
 
 You can easily keep the tokens in a separate file using the "tee" command:
-    $ xan tokenize words text file.csv | tee tokens.csv | xan vocab token token > vocab.csv
+    $ xan tokenize words text file.csv | tee tokens.csv | xan vocab doc-token > vocab.csv
 
 Usage:
     xan tokenize words [options] <column> [<input>]
@@ -101,6 +101,14 @@ tokenize words options:
                              to a space.
     --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
                              [default: §]
+    -u, --uniq               Sort and deduplicate the tokens.
+
+tokenize paragraphs options:
+    -A, --aerated  Force paragraphs to be separated by a blank line, instead
+                   of just a single line break.
+
+tokenize sentences options:
+    --squeeze  Collapse consecutive whitespace to produce a tidy output.
 
 Common options:
     -h, --help             Display this message

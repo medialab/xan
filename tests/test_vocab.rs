@@ -18,7 +18,40 @@ fn vocab_corpus() {
     cmd.arg("corpus")
         .args(["--doc", "doc"])
         .arg("--implode")
-        .arg("token")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec![
+            "doc_count",
+            "token_count",
+            "distinct_token_count",
+            "average_doc_len"
+        ],
+        svec!["2", "5", "3", "2.5"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn vocab_corpus_token() {
+    let wrk = Workdir::new("vocab_corpus_token");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["doc", "word"],
+            svec!["1", "cat"],
+            svec!["1", "dog"],
+            svec!["1", "cat"],
+            svec!["2", "cat"],
+            svec!["2", "rabbit"],
+        ],
+    );
+    let mut cmd = wrk.command("vocab");
+    cmd.arg("corpus")
+        .args(["--doc", "doc"])
+        .arg("--implode")
+        .args(["-T", "word"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -52,7 +85,6 @@ fn vocab_doc() {
     cmd.arg("doc")
         .args(["--doc", "doc"])
         .arg("--implode")
-        .arg("token")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -73,10 +105,7 @@ fn vocab_doc_sep() {
         vec![svec!["tokens"], svec!["cat|dog|cat"], svec!["cat|rabbit"]],
     );
     let mut cmd = wrk.command("vocab");
-    cmd.arg("doc")
-        .args(["--sep", "|"])
-        .arg("tokens")
-        .arg("data.csv");
+    cmd.arg("doc").args(["--sep", "|"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
@@ -106,7 +135,6 @@ fn vocab_token() {
     cmd.arg("token")
         .arg("--implode")
         .args(["--doc", "doc"])
-        .arg("token")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -152,10 +180,7 @@ fn vocab_token_sep() {
         vec![svec!["tokens"], svec!["cat|dog|cat"], svec!["cat|rabbit"]],
     );
     let mut cmd = wrk.command("vocab");
-    cmd.arg("token")
-        .args(["--sep", "|"])
-        .arg("tokens")
-        .arg("data.csv");
+    cmd.arg("token").args(["--sep", "|"]).arg("data.csv");
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     got[1..].sort();
@@ -211,7 +236,6 @@ fn vocab_doc_token() {
     cmd.arg("doc-token")
         .arg("--implode")
         .args(["--doc", "doc"])
-        .arg("token")
         .arg("data.csv");
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -249,10 +273,7 @@ fn vocab_cooc_sep_no_doc() {
         vec![svec!["tokens"], svec!["cat|dog|cat"], svec!["cat|rabbit"]],
     );
     let mut cmd = wrk.command("vocab");
-    cmd.arg("cooc")
-        .args(["--sep", "|"])
-        .arg("tokens")
-        .arg("data.csv");
+    cmd.arg("cooc").args(["--sep", "|"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
@@ -290,7 +311,6 @@ fn vocab_cooc_no_sep() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("cooc")
-        .arg("token")
         .arg("--implode")
         .args(["--doc", "doc"])
         .arg("data.csv");
@@ -331,7 +351,6 @@ fn vocab_cooc_no_sep_window() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("cooc")
-        .arg("token")
         .arg("--implode")
         .args(["--doc", "doc"])
         .args(["-w", "10"])

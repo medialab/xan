@@ -16,6 +16,8 @@ Usage:
     xan dedup --help
 
 dedup options:
+    --check             Verify whether the selection has any duplicates, i.e. whether
+                        the selected columns satisfy a uniqueness constraint.
     -s, --select <arg>  Select a subset of columns to on which to deduplicate.
                         See 'xan select --help' for the format details.
     -S, --sorted        Use if you know your file is already sorted on the deduplication
