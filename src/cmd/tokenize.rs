@@ -8,6 +8,7 @@ use paltoquet::tokenizers::{
     WordTokenizerBuilder,
 };
 use pariter::IteratorExt;
+use regex::Regex;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -152,6 +153,9 @@ tokenize paragraphs options:
     -A, --aerated  Force paragraphs to be separated by a blank line, instead
                    of just a single line break.
 
+tokenize sentences options:
+    --squeeze  Collapse consecutive whitespace to produce a tidy output.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -195,6 +199,7 @@ struct Args {
     flag_vocab_token_id: Option<SelectColumns>,
     flag_uniq: bool,
     flag_aerated: bool,
+    flag_squeeze: bool,
 }
 
 impl Args {
@@ -225,6 +230,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     args.validate()?;
+
+    let squeeze_regex = Regex::new(r"\s+").unwrap();
 
     let sep = args.sep();
 
@@ -373,9 +380,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .map(|paragraph| (paragraph.to_string(), WordTokenKind::Word))
                 .collect();
         } else if args.cmd_sentences {
-            return split_sentences(string)
-                .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
-                .collect();
+            return if args.flag_squeeze {
+                split_sentences(&squeeze_regex.replace_all(string, " "))
+                    .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
+                    .collect()
+            } else {
+                split_sentences(string)
+                    .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
+                    .collect()
+            };
         }
 
         let mut tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
