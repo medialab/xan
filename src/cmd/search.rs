@@ -201,6 +201,23 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    let mut matchers_count: u8 = 0;
+
+    if args.flag_exact {
+        matchers_count += 1;
+    }
+    if args.flag_regex {
+        matchers_count += 1;
+    }
+    if args.flag_non_empty {
+        matchers_count += 1;
+    }
+
+    if matchers_count > 1 {
+        Err("must select only one of -e/--exact, -N,--non-empty, -r,--regex!")?;
+    }
+
     let matcher = args.get_matcher()?;
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
