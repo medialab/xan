@@ -62,8 +62,8 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - chi2: chi2 score
-    - G2: G2 score
+    - chi2: chi2 score (approx. without the --complete flag)
+    - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
     - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
@@ -111,6 +111,9 @@ vocab cooc options:
     --distrib         Compute directed distributional similarity metrics instead.
     --min-count <n>   Minimum number of co-occurrence count to be included in the result.
                       [default: 1]
+    --complete        Compute the complete chi2 & G2 metrics, instead of their approximation
+                      based on the first cell of the contingency matrix. This
+                      is of course more costly to compute.
 
 Common options:
     -h, --help             Display this message
@@ -141,6 +144,7 @@ struct Args {
     flag_forward: bool,
     flag_distrib: bool,
     flag_min_count: usize,
+    flag_complete: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -339,6 +343,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if args.flag_distrib {
+            if args.flag_complete {
+                unimplemented!();
+            }
+
             let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sdI", b"sdG2"];
 
             wtr.write_record(output_headers)?;
@@ -350,8 +358,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             ];
 
             wtr.write_record(output_headers)?;
-            cooccurrences
-                .for_each_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
+            cooccurrences.for_each_cooc_record(args.flag_min_count, args.flag_complete, |r| {
+                wtr.write_byte_record(r)
+            })?;
         }
 
         return Ok(wtr.flush()?);
@@ -783,6 +792,29 @@ fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
     2.0 * observed * (observed / expected).ln()
 }
 
+fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
+    let not_x = (n - x) as f64;
+    let not_y = (n - y) as f64;
+    let nf = n as f64;
+
+    let observed_11 = xy as f64;
+    let observed_12 = (x - xy) as f64;
+    let observed_21 = (y - xy) as f64;
+    let observed_22 = (n - (x + y) + xy) as f64;
+
+    let expected_11 = x as f64 * y as f64 / nf;
+    let expected_12 = x as f64 * not_y / nf;
+    let expected_21 = y as f64 * not_x / nf;
+    let expected_22 = not_x * not_y / nf;
+
+    let chi2_11 = (observed_11 - expected_11).powi(2) / expected_11;
+    let chi2_12 = (observed_12 - expected_12).powi(2) / expected_12;
+    let chi2_21 = (observed_21 - expected_21).powi(2) / expected_21;
+    let chi2_22 = (observed_22 - expected_22).powi(2) / expected_22;
+
+    chi2_11 + chi2_12 + chi2_21 + chi2_22
+}
+
 #[derive(Debug)]
 struct CooccurrenceTokenEntry {
     token: Rc<Token>,
@@ -877,7 +909,12 @@ impl Cooccurrences {
         target_entry.gcf += 1;
     }
 
-    fn for_each_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
+    fn for_each_cooc_record<F, E>(
+        self,
+        min_count: usize,
+        complete: bool,
+        mut callback: F,
+    ) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
@@ -898,7 +935,11 @@ impl Cooccurrences {
                 let xy = *count;
 
                 // chi2/G2 computations
-                let (chi2, g2) = compute_simplified_chi2_and_g2(x, y, xy, n);
+                let (chi2, g2) = if complete {
+                    (compute_chi2(x, y, xy, n), 0.0)
+                } else {
+                    compute_simplified_chi2_and_g2(x, y, xy, n)
+                };
 
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
