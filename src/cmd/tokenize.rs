@@ -146,6 +146,7 @@ tokenize words options:
                              to a space.
     --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
                              [default: §]
+    -u, --uniq               Sort and deduplicate the tokens.
 
 Common options:
     -h, --help             Display this message
@@ -188,6 +189,7 @@ struct Args {
     flag_vocab: Option<String>,
     flag_vocab_token: SelectColumns,
     flag_vocab_token_id: Option<SelectColumns>,
+    flag_uniq: bool,
 }
 
 impl Args {
@@ -422,7 +424,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some((text, pair.1))
         });
 
-        if let Some(range) = &ngrams {
+        let mut collected_tokens: Vec<(String, WordTokenKind)> = if let Some(range) = &ngrams {
             tokens
                 .map(|token| token.0)
                 .ngrams_range(range.clone())
@@ -430,7 +432,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .collect()
         } else {
             tokens.collect()
+        };
+
+        if args.flag_uniq {
+            collected_tokens.sort_by(|a, b| a.0.cmp(&b.0));
+            collected_tokens.dedup_by(|a, b| a.0 == b.0);
         }
+
+        collected_tokens
     };
 
     // NOTE: nothing here will be parallelized
