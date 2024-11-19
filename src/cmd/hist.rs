@@ -11,8 +11,9 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
-const SIMPLE_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
-const COMPLEX_BAR_CHARS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
+const SMALL_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
+const MEDIUM_BAR_CHARS: [&str; 1] = ["■"];
+const LARGE_BAR_CHARS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
 
 // TODO: log scales etc.
 
@@ -37,8 +38,8 @@ hist options:
                              label for a single bar of the histogram. [default: value].
     -v, --value <name>       Name of the count column. I.e. the one containing the value
                              for each bar. [default: count].
-    -S, --simple             Use simple characters to display the bars that will be less
-                             detailed but better suited to be written as raw text.
+    -B, --bar-size <size>    Size of the bar characters between \"small\", \"medium\" 
+                             and \"large\". [default: medium].
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if
                              terminal's size cannot be found (i.e. when piping to file).
@@ -78,12 +79,12 @@ struct Args {
     flag_cols: Option<String>,
     flag_force_colors: bool,
     flag_domain_max: String,
-    flag_simple: bool,
     flag_rainbow: bool,
     flag_name: String,
     flag_hide_percent: bool,
     flag_unit: Option<String>,
     flag_category: Option<SelectColumns>,
+    flag_bar_size: String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -231,10 +232,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut odd = false;
 
-        let chars: &[&str] = if args.flag_simple {
-            &SIMPLE_BAR_CHARS
-        } else {
-            &COMPLEX_BAR_CHARS
+        let chars: &[&str] = match args.flag_bar_size.as_str() {
+            "small" => &SMALL_BAR_CHARS,
+            "medium" => &MEDIUM_BAR_CHARS,
+            "large" => &LARGE_BAR_CHARS,
+            _ => {
+                return fail!(
+                    "unknown -B, --bar-size. Should be one of \"small\", \"medium\", \"large\"."
+                )
+            }
         };
 
         for (i, bar) in histogram.bars().enumerate() {
@@ -261,9 +267,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     util::colorize(&util::colorizer_by_rainbow(i, &bar_as_chars), &bar_as_chars);
             }
             // Stripes
-            else if !args.flag_simple {
+            else {
                 if odd {
-                    bar_as_chars = bar_as_chars.dimmed();
+                    bar_as_chars = match args.flag_bar_size.as_str() {
+                        "large" => bar_as_chars.dimmed(),
+                        _ => bar_as_chars.bright_black(),
+                    };
                 }
 
                 odd = !odd;
