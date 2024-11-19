@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use colored;
 use colored::Colorize;
 use csv;
+use indexmap::{map::Entry, IndexMap};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -50,6 +51,9 @@ hist options:
                              or make sure different histograms are represented using the
                              same scale.
                              [default: max]
+    -c, --category <col>     Name of the categorical column that will be used to
+                             assign distinct colors per category.
+                             Incompatible with -R, --rainbow.
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
     -P, --hide-percent       Don't show percentages.
@@ -79,6 +83,7 @@ struct Args {
     flag_name: String,
     flag_hide_percent: bool,
     flag_unit: Option<String>,
+    flag_category: Option<SelectColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -91,23 +96,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         colored::control::set_override(true);
     }
 
+    if args.flag_category.is_some() && args.flag_rainbow {
+        Err("-c, --category cannot work with -R, --rainbow")?;
+    }
+
     let mut rdr = conf.reader()?;
-    let headers = rdr.byte_headers()?;
+    let headers = rdr.byte_headers()?.clone();
 
     let label_pos = args
         .flag_label
-        .single_selection(headers, !args.flag_no_headers)?;
+        .single_selection(&headers, !args.flag_no_headers)?;
     let value_pos = args
         .flag_value
-        .single_selection(headers, !args.flag_no_headers)?;
+        .single_selection(&headers, !args.flag_no_headers)?;
     let field_pos_option = args
         .flag_field
-        .single_selection(headers, !args.flag_no_headers)
+        .single_selection(&headers, !args.flag_no_headers)
         .ok();
 
     let mut histograms = Histograms::new();
 
     let mut record = csv::StringRecord::new();
+
+    let category_column_index = args
+        .flag_category
+        .as_ref()
+        .map(|name| name.single_selection(&headers, !args.flag_no_headers))
+        .transpose()?;
+
+    let mut category_colors: IndexMap<String, usize> = IndexMap::new();
+    let mut categories_overflow: Vec<String> = Vec::new();
 
     while rdr.read_record(&mut record)? {
         let field = match field_pos_option {
@@ -119,7 +137,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .parse::<f64>()
             .map_err(|_| "could not parse value")?;
 
-        histograms.add(field, label, value);
+        if let Some(category_col) = category_column_index {
+            let category = record[category_col].to_string();
+
+            if !category.is_empty() {
+                let next_index = category_colors.len();
+
+                match category_colors.entry(category.clone()) {
+                    Entry::Vacant(entry) => {
+                        if next_index < 7 {
+                            entry.insert(next_index);
+                            histograms.add(field, label, value, Some(next_index));
+                        } else {
+                            // NOTE: beware O(n) lol
+                            if !categories_overflow.contains(&category) {
+                                categories_overflow.push(category);
+                            }
+
+                            histograms.add(field, label, value, None);
+                        }
+                    }
+                    Entry::Occupied(entry) => {
+                        histograms.add(field, label, value, Some(*entry.get()));
+                    }
+                };
+            } else {
+                histograms.add(field, label, value, None);
+            }
+        } else {
+            histograms.add(field, label, value, None);
+        }
     }
 
     let mut cols = util::acquire_term_cols(&None);
@@ -197,10 +244,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
 
-            if args.flag_rainbow {
+            // Categorical colors
+            if category_column_index.is_some() {
+                if let Some(color_index) = bar.category {
+                    bar_as_chars = util::colorize(
+                        &util::colorizer_by_rainbow(color_index, &bar_as_chars),
+                        &bar_as_chars,
+                    );
+                } else {
+                    bar_as_chars = bar_as_chars.dimmed();
+                }
+            }
+            // Rainbow
+            else if args.flag_rainbow {
                 bar_as_chars =
                     util::colorize(&util::colorizer_by_rainbow(i, &bar_as_chars), &bar_as_chars);
-            } else if !args.flag_simple {
+            }
+            // Stripes
+            else if !args.flag_simple {
                 if odd {
                     bar_as_chars = bar_as_chars.dimmed();
                 }
@@ -232,7 +293,38 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 bar_as_chars
             );
         }
+
+        // Printing the categorical legend
+        if let Some(category_col) = category_column_index {
+            let category_column_name =
+                std::str::from_utf8(&headers[category_col]).expect("could not decode header");
+
+            println!("\nColors by {}:", category_column_name.green());
+
+            for (category, color_index) in &category_colors {
+                println!(
+                    " {}  {}",
+                    util::colorize(&util::colorizer_by_rainbow(*color_index, "■"), "■"),
+                    util::colorize(
+                        &util::colorizer_by_rainbow(*color_index, category),
+                        category
+                    ),
+                );
+            }
+
+            if !categories_overflow.is_empty() {
+                let others = categories_overflow
+                    .iter()
+                    .map(|label| label.dimmed().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                println!(" {}  {}", "■".dimmed(), &others);
+            }
+        }
     }
+
+    println!();
 
     Ok(())
 }
@@ -265,6 +357,7 @@ fn create_bar(chars: &[&str], width: f64) -> String {
 struct Bar {
     label: String,
     value: f64,
+    category: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -325,18 +418,23 @@ impl Histograms {
         }
     }
 
-    pub fn add(&mut self, field: String, label: String, value: f64) {
+    pub fn add(&mut self, field: String, label: String, value: f64, category: Option<usize>) {
         self.histograms
             .entry(field.clone())
             .and_modify(|h| {
                 h.bars.push(Bar {
                     label: label.clone(),
                     value,
+                    category,
                 })
             })
             .or_insert_with(|| Histogram {
                 field,
-                bars: vec![Bar { label, value }],
+                bars: vec![Bar {
+                    label,
+                    value,
+                    category,
+                }],
             });
     }
 

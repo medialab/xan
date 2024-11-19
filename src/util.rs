@@ -350,6 +350,7 @@ pub fn format_number<T: Numeric>(x: T) -> String {
     string
 }
 
+#[derive(PartialEq, Debug)]
 pub enum ColorOrStyles {
     Color(Color),
     Styles(Styles),
@@ -382,7 +383,7 @@ pub fn colorizer_by_rainbow(index: usize, string: &str) -> ColorOrStyles {
         return ColorOrStyles::Styles(Styles::Dimmed);
     }
 
-    let index = index % 6;
+    let index = index % 7;
 
     match index {
         0 => ColorOrStyles::Color(Color::Red),
@@ -391,6 +392,7 @@ pub fn colorizer_by_rainbow(index: usize, string: &str) -> ColorOrStyles {
         3 => ColorOrStyles::Color(Color::Blue),
         4 => ColorOrStyles::Color(Color::Magenta),
         5 => ColorOrStyles::Color(Color::Cyan),
+        6 => ColorOrStyles::Color(Color::BrightBlack),
         _ => unreachable!(),
     }
 }
