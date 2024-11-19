@@ -368,9 +368,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SeriesBuilder::new_single()
     };
 
-    macro_rules! try_parse {
-        ($as: ident, $value: expr) => {{
-            match $as($value) {
+    macro_rules! try_parse_as_number {
+        ($scale: expr, $value: expr) => {{
+            match parse_as_number($value) {
+                Err(e) => {
+                    if args.flag_ignore {
+                        continue;
+                    } else {
+                        Err(e)?
+                    }
+                }
+                Ok(v) => {
+                    let v = $scale.convert(v);
+
+                    if v.is_nan() {
+                        if args.flag_ignore {
+                            continue;
+                        } else {
+                            Err("Scale produced a NaN value, like log(0)!")?
+                        }
+                    } else {
+                        v
+                    }
+                }
+            }
+        }};
+    }
+
+    macro_rules! try_parse_as_timestamp {
+        ($value: expr) => {{
+            match parse_as_timestamp($value) {
                 Err(e) => {
                     if args.flag_ignore {
                         continue;
@@ -387,16 +414,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let x_cell = &record[x_column_index];
 
         let x = if args.flag_time {
-            try_parse!(parse_as_timestamp, x_cell)
+            try_parse_as_timestamp!(x_cell)
         } else {
-            args.flag_x_scale
-                .convert(try_parse!(parse_as_number, x_cell))
+            try_parse_as_number!(args.flag_x_scale, x_cell)
         };
 
-        let y = args.flag_y_scale.convert(match y_column_index_opt {
-            Some(y_column_index) => try_parse!(parse_as_number, &record[y_column_index]),
-            None => DynamicNumber::Integer(1),
-        });
+        let y = match y_column_index_opt {
+            Some(y_column_index) => {
+                try_parse_as_number!(args.flag_y_scale, &record[y_column_index])
+            }
+            None => args.flag_y_scale.convert(DynamicNumber::Integer(1)),
+        };
 
         // Filtering out-of-bounds values
         if matches!(flag_x_min, Some(x_min) if x < x_min)
@@ -413,9 +441,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series_builder.add_with_index(0, x, y);
 
             for (i, (_, pos)) in additional_series_indices.iter().enumerate() {
-                let v = args
-                    .flag_y_scale
-                    .convert(try_parse!(parse_as_number, &record[*pos]));
+                let v = try_parse_as_number!(args.flag_y_scale, &record[*pos]);
 
                 series_builder.add_with_index(i + 1, x, v);
             }

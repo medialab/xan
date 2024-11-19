@@ -390,6 +390,13 @@ impl DynamicNumber {
         }
     }
 
+    pub fn is_nan(&self) -> bool {
+        match self {
+            Self::Float(f) => f.is_nan(),
+            Self::Integer(_) => false,
+        }
+    }
+
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))
     }
