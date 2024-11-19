@@ -17,7 +17,41 @@ fn vocab_corpus() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("corpus")
         .args(["--doc", "doc"])
-        .arg("token")
+        .arg("--implode")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec![
+            "doc_count",
+            "token_count",
+            "distinct_token_count",
+            "average_doc_len"
+        ],
+        svec!["2", "5", "3", "2.5"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn vocab_corpus_token() {
+    let wrk = Workdir::new("vocab_corpus_token");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["doc", "word"],
+            svec!["1", "cat"],
+            svec!["1", "dog"],
+            svec!["1", "cat"],
+            svec!["2", "cat"],
+            svec!["2", "rabbit"],
+        ],
+    );
+    let mut cmd = wrk.command("vocab");
+    cmd.arg("corpus")
+        .args(["--doc", "doc"])
+        .arg("--implode")
+        .args(["-T", "word"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -50,7 +84,7 @@ fn vocab_doc() {
     let mut cmd = wrk.command("vocab");
     cmd.arg("doc")
         .args(["--doc", "doc"])
-        .arg("token")
+        .arg("--implode")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -71,10 +105,7 @@ fn vocab_doc_sep() {
         vec![svec!["tokens"], svec!["cat|dog|cat"], svec!["cat|rabbit"]],
     );
     let mut cmd = wrk.command("vocab");
-    cmd.arg("doc")
-        .args(["--sep", "|"])
-        .arg("tokens")
-        .arg("data.csv");
+    cmd.arg("doc").args(["--sep", "|"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
@@ -102,41 +133,17 @@ fn vocab_token() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("token")
+        .arg("--implode")
         .args(["--doc", "doc"])
-        .arg("token")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec![
-            "token",
-            "gf",
-            "df",
-            "df_ratio",
-            "idf",
-            "gfidf",
-            "pigeonhole"
-        ],
-        svec!["cat", "3", "2", "1", "0", "0", "1.1428571428571428"],
-        svec![
-            "dog",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
-        svec![
-            "rabbit",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
+        svec!["token", "gf", "df", "df_ratio", "idf", "gfidf", "pigeon"],
+        svec!["cat", "3", "2", "1", "0", "3", "0.875"],
+        svec!["dog", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
+        svec!["rabbit", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
     ];
     assert_eq!(got, expected);
 }
@@ -149,43 +156,16 @@ fn vocab_token_sep() {
         vec![svec!["tokens"], svec!["cat|dog|cat"], svec!["cat|rabbit"]],
     );
     let mut cmd = wrk.command("vocab");
-    cmd.arg("token")
-        .args(["--sep", "|"])
-        .arg("tokens")
-        .arg("data.csv");
+    cmd.arg("token").args(["--sep", "|"]).arg("data.csv");
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     got[1..].sort();
 
     let expected = vec![
-        svec![
-            "token",
-            "gf",
-            "df",
-            "df_ratio",
-            "idf",
-            "gfidf",
-            "pigeonhole"
-        ],
-        svec!["cat", "3", "2", "1", "0", "0", "1.1428571428571428"],
-        svec![
-            "dog",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
-        svec![
-            "rabbit",
-            "1",
-            "1",
-            "0.5",
-            "0.6931471805599453",
-            "0.6931471805599453",
-            "1"
-        ],
+        svec!["token", "gf", "df", "df_ratio", "idf", "gfidf", "pigeon"],
+        svec!["cat", "3", "2", "1", "0", "3", "0.875"],
+        svec!["dog", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
+        svec!["rabbit", "1", "1", "0.5", "0.6931471805599453", "2", "1"],
     ];
     assert_eq!(got, expected);
 }
@@ -206,8 +186,8 @@ fn vocab_doc_token() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("doc-token")
+        .arg("--implode")
         .args(["--doc", "doc"])
-        .arg("token")
         .arg("data.csv");
 
     let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -245,27 +225,15 @@ fn vocab_cooc_sep_no_doc() {
         vec![svec!["tokens"], svec!["cat|dog|cat"], svec!["cat|rabbit"]],
     );
     let mut cmd = wrk.command("vocab");
-    cmd.arg("cooc")
-        .args(["--sep", "|"])
-        .arg("tokens")
-        .arg("data.csv");
+    cmd.arg("cooc").args(["--sep", "|"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "ppmi", "npmi"],
-        svec![
-            "cat",
-            "cat",
-            "1",
-            "2.25",
-            "-2.772588722239781",
-            "-2",
-            "0",
-            "-1"
-        ],
-        svec!["cat", "dog", "2", "0", "0", "0", "0", "0"],
-        svec!["cat", "rabbit", "1", "0", "0", "0", "0", "0"],
+        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
+        svec!["cat", "cat", "1", "2.25", "-2.772588722239781", "-2", "-1"],
+        svec!["cat", "dog", "2", "0", "0", "0", "0"],
+        svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -286,26 +254,17 @@ fn vocab_cooc_no_sep() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("cooc")
-        .arg("token")
+        .arg("--implode")
         .args(["--doc", "doc"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "ppmi", "npmi"],
-        svec![
-            "cat",
-            "cat",
-            "1",
-            "2.25",
-            "-2.772588722239781",
-            "-2",
-            "0",
-            "-1"
-        ],
-        svec!["cat", "dog", "2", "0", "0", "0", "0", "0"],
-        svec!["cat", "rabbit", "1", "0", "0", "0", "0", "0"],
+        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
+        svec!["cat", "cat", "1", "2.25", "-2.772588722239781", "-2", "-1"],
+        svec!["cat", "dog", "2", "0", "0", "0", "0"],
+        svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -326,7 +285,7 @@ fn vocab_cooc_no_sep_window() {
     );
     let mut cmd = wrk.command("vocab");
     cmd.arg("cooc")
-        .arg("token")
+        .arg("--implode")
         .args(["--doc", "doc"])
         .args(["-w", "10"])
         .arg("data.csv");
@@ -334,19 +293,10 @@ fn vocab_cooc_no_sep_window() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "ppmi", "npmi"],
-        svec![
-            "cat",
-            "cat",
-            "1",
-            "2.25",
-            "-2.772588722239781",
-            "-2",
-            "0",
-            "-1"
-        ],
-        svec!["cat", "dog", "2", "0", "0", "0", "0", "0"],
-        svec!["cat", "rabbit", "1", "0", "0", "0", "0", "0"],
+        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
+        svec!["cat", "cat", "1", "2.25", "-2.772588722239781", "-2", "-1"],
+        svec!["cat", "dog", "2", "0", "0", "0", "0"],
+        svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }

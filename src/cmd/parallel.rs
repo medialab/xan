@@ -406,7 +406,8 @@ parallel count options:
 
 parallel cat options:
     -B, --buffer-size <n>       Number of rows a thread is allowed to keep in memory
-                                before flushing to the output.
+                                before flushing to the output. Set <= 0 to flush only once per
+                                processed file. Keep in mind this could cost a lot of memory.
                                 [default: 1024]
     -I, --input-dir <dir>       When concatenating rows, root directory to resolve
                                 relative paths contained in the -i/--input file column.
@@ -455,7 +456,7 @@ struct Args {
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectColumns>,
-    flag_buffer_size: NonZeroUsize,
+    flag_buffer_size: isize,
     flag_input_dir: Option<PathBuf>,
     flag_source_column: Option<String>,
     flag_select: SelectColumns,
@@ -749,7 +750,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             false,
             Config::new(&args.flag_output).writer()?,
         )));
-        let buffer_size = args.flag_buffer_size.get();
+
+        let buffer_size_opt = if args.flag_buffer_size <= 0 {
+            None
+        } else {
+            Some(args.flag_buffer_size as usize)
+        };
 
         let flush = |headers: &csv::ByteRecord, records: &[csv::ByteRecord]| -> CliResult<()> {
             let mut guard = writer_mutex.lock().unwrap();
@@ -777,10 +783,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 headers.push_field(source_column.as_bytes());
             }
 
-            let mut buffer: Vec<csv::ByteRecord> = Vec::with_capacity(buffer_size);
+            let mut buffer: Vec<csv::ByteRecord> = if let Some(buffer_size) = buffer_size_opt {
+                Vec::with_capacity(buffer_size)
+            } else {
+                Vec::new()
+            };
 
             for result in reader.byte_records() {
-                if buffer.len() == buffer_size {
+                if matches!(buffer_size_opt, Some(buffer_size) if buffer.len() == buffer_size) {
                     flush(&headers, &buffer)?;
 
                     buffer.clear();

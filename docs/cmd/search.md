@@ -20,16 +20,19 @@ All search modes can also be case-insensitive using -i, --ignore-case.
 Finally, this command is also able to take a CSV file column containing multiple
 patterns to search for at once, using the --input flag:
 
-    $ xan search user_id --input user-ids.csv tweets.csv
+    $ xan search --input user-ids.csv user_id tweets.csv
 
 Usage:
-    xan search [options] <column> --input <index> [<input>]
+    xan search [options] --non-empty [<input>]
+    xan search [options] --input <index> <column> [<input>]
     xan search [options] <pattern> [<input>]
     xan search --help
 
 search options:
     -e, --exact            Perform an exact match.
     -r, --regex            Use a regex to perform the match.
+    -N, --non-empty        Search for non-empty cells, i.e. filter out
+                           any completely empty selection.
     --input <index>        CSV file containing a column of value to index & search.
     -i, --ignore-case      Case insensitive search. This is equivalent to
                            prefixing the regex with '(?i)'.

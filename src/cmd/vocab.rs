@@ -5,6 +5,7 @@
 // https://sciencespo.hal.science/tel-03626011v1/file/2017-cointet-hdr-la-cartographie-des-traces-textuelles-comme-methodologie-denquete-en-sciences-sociales.pdf
 // https://pbil.univ-lyon1.fr/R/pdf/tdr35.pdf
 
+use std::cmp::Ordering;
 use std::collections::{hash_map::Entry, HashMap};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
@@ -19,16 +20,13 @@ use crate::CliError;
 use crate::CliResult;
 
 static USAGE: &str = "
-Compute vocabulary statistics over tokenized documents. Those documents
-must be given as a CSV with one or more column representing a document key
-and a column containing single tokens like so (typically an output from
-the \"tokenize\" command):
+Compute vocabulary statistics over tokenized documents (typically produced
+by the \"xan tokenize words\" subcommand), i.e. rows of CSV data containing
+a \"tokens\" column containing word tokens separated by a single space (or
+any separator given to the --sep flag).
 
-doc,token
-1,the
-1,cat
-1,eats
-2,hello
+The command considers, by default, documents to be a single row of the input
+but can also be symbolized by the value of a column selection given to -D/--doc.
 
 This command can compute 5 kinds of differents vocabulary statistics:
 
@@ -43,9 +41,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
     - df_ratio: proportion of documents containing the token
-    - idf: inverse document frequency of the token
+    - idf: logarithm of the inverse document frequency of the token
     - gfidf: global frequency * idf for the token
-    - pigeonhole: ratio between df and expected df in random distribution
+    - pigeon: ratio between df and expected df in random distribution
 
 3. doc-level statistics (using the \"doc\" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -64,10 +62,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - chi2: chi2 score
-    - G2: G2 score
+    - chi2: chi2 score (approx. without the --complete flag)
+    - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
-    - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
 
     or, using the --distrib flag:
@@ -79,31 +76,43 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - sdG2: distributional score based on G2
 
 Usage:
-    xan vocab corpus <token-col> [options] [<input>]
-    xan vocab token <token-col> [options] [<input>]
-    xan vocab doc <token-col> [options] [<input>]
-    xan vocab doc-token <token-col> [options] [<input>]
-    xan vocab cooc <token-col> [options] [<input>]
+    xan vocab corpus [options] [<input>]
+    xan vocab token [options] [<input>]
+    xan vocab doc [options] [<input>]
+    xan vocab doc-token [options] [<input>]
+    xan vocab cooc [options] [<input>]
     xan vocab --help
 
 vocab options:
-    -D, --doc <doc-cols>  Optional selection of columns representing a row's document.
-    --sep <delim>         Delimiter used to separate tokens in one row's token cell.
+    -T, --token <token-col>  Name of column containing the tokens. Will default
+                             to \"tokens\" or \"token\" if --implode is given.
+    -D, --doc <doc-cols>     Optional selection of columns representing a row's document.
+                             Each row of input will be considered as its own document if
+                             the flag is not given.
+    --sep <delim>            Delimiter used to separate tokens in one row's token cell.
+                             Will default to a single space.
+    --implode                If given, will implode the file over the token column so that
+                             it becomes possible to process a file containing only one token
+                             per row. Cannot be used without -D, --doc.
 
 vocab doc-token options:
-    --k1-value <value>     \"k1\" factor for BM25 computation. [default: 1.2]
-    --b-value <value>      \"b\" factor for BM25 computation. [default: 0.75]
+    --k1-value <value>  \"k1\" factor for BM25 computation. [default: 1.2]
+    --b-value <value>   \"b\" factor for BM25 computation. [default: 0.75]
 
 vocab cooc options:
-    -w, --window <n>  Size of the co-occurrence window. If not given, co-occurrence will be based
-                      on the bag of word model where token are considered to co-occur with every
-                      other one in a same document.
+    -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
+                      considered token. If not given, co-occurrences will be computed using the bag of
+                      words model where tokens are considered to co-occur with every
+                      other one in the same document.
                       Set the window to \"1\" to compute bigram collocations. Set a larger window
-                      to get something similar to what word2vec considers.
+                      to get something similar to what word2vec would consider.
     -F, --forward     Whether to only consider a forward window when traversing token contexts.
     --distrib         Compute directed distributional similarity metrics instead.
     --min-count <n>   Minimum number of co-occurrence count to be included in the result.
                       [default: 1]
+    --complete        Compute the complete chi2 & G2 metrics, instead of their approximation
+                      based on the first cell of the contingency matrix. This
+                      is of course more costly to compute.
 
 Common options:
     -h, --help             Display this message
@@ -124,22 +133,35 @@ struct Args {
     cmd_corpus: bool,
     cmd_cooc: bool,
     arg_input: Option<String>,
-    arg_token_col: SelectColumns,
+    flag_token: Option<SelectColumns>,
     flag_doc: Option<SelectColumns>,
     flag_sep: Option<String>,
+    flag_implode: bool,
     flag_k1_value: f64,
     flag_b_value: f64,
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
     flag_distrib: bool,
     flag_min_count: usize,
+    flag_complete: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_implode {
+            self.flag_sep = None;
+        } else if self.flag_sep.is_none() {
+            self.flag_sep = Some(" ".to_string());
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     if args.flag_doc.is_none() && args.flag_sep.is_none() {
         return Err(CliError::Other(
@@ -160,9 +182,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let token_pos = args
-        .arg_token_col
-        .single_selection(&headers, !args.flag_no_headers)?;
+    let flag_token = args.flag_token.unwrap_or_else(|| {
+        SelectColumns::parse(if args.flag_implode { "token" } else { "tokens" }).unwrap()
+    });
+
+    let token_pos = flag_token.single_selection(&headers, !args.flag_no_headers)?;
 
     let doc_sel = args
         .flag_doc
@@ -318,19 +342,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if args.flag_distrib {
+            if args.flag_complete {
+                unimplemented!();
+            }
+
             let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sdI", b"sdG2"];
 
             wtr.write_record(output_headers)?;
             cooccurrences
                 .for_each_distrib_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
         } else {
-            let output_headers: [&[u8]; 8] = [
-                b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"ppmi", b"npmi",
+            let output_headers: [&[u8]; 7] = [
+                b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"npmi",
             ];
 
             wtr.write_record(output_headers)?;
-            cooccurrences
-                .for_each_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
+            cooccurrences.for_each_cooc_record(args.flag_min_count, args.flag_complete, |r| {
+                wtr.write_byte_record(r)
+            })?;
         }
 
         return Ok(wtr.flush()?);
@@ -365,7 +394,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             b"df_ratio",
             b"idf",
             b"gfidf",
-            b"pigeonhole",
+            b"pigeon",
         ];
         wtr.write_record(headers)?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
@@ -445,16 +474,20 @@ impl TokenStats {
         (n as f64 / self.df as f64).ln()
     }
 
+    // NOTE: this metric does not "log" the idf
     fn gfidf(&self, n: usize) -> f64 {
-        self.gf as f64 * self.idf(n)
+        self.gf as f64 * (n as f64 / self.df as f64)
     }
 
-    fn pigeonhole(&self, n: usize) -> f64 {
+    fn pigeon(&self, n: usize) -> f64 {
         let n = n as f64;
 
-        let expected = n - (n * ((n - 1.0) / n).powf(self.gf as f64));
+        let expected = n - n * ((n - 1.0) / n).powf(self.gf as f64);
 
-        self.df as f64 / expected
+        // NOTE: the paper is not completely clear regarding what should
+        // be the divisor and the numerator here. I aligned it to the graph
+        // page 75, and with the gfidf metric.
+        expected / self.df as f64
     }
 }
 
@@ -647,7 +680,7 @@ impl Vocabulary {
             record.push_field((stats.df as f64 / n as f64).to_string().as_bytes());
             record.push_field(stats.idf(n).to_string().as_bytes());
             record.push_field(stats.gfidf(n).to_string().as_bytes());
-            record.push_field(stats.pigeonhole(n).to_string().as_bytes());
+            record.push_field(stats.pigeon(n).to_string().as_bytes());
 
             callback(&record)?;
         }
@@ -721,11 +754,6 @@ fn compute_pmi(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 }
 
 #[inline]
-fn compute_ppmi(pmi: f64) -> f64 {
-    pmi.max(0.0)
-}
-
-#[inline]
 fn compute_npmi(xy: usize, n: usize, pmi: f64) -> f64 {
     // If probability is 1, then self-information is 0 and npmi must be 1, meaning full co-occurrence.
     if xy >= n {
@@ -756,6 +784,38 @@ fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
     let expected = x as f64 * y as f64 / n as f64;
 
     2.0 * observed * (observed / expected).ln()
+}
+
+// NOTE: see code in issue https://github.com/medialab/xan/issues/295
+fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
+    let not_x = (n - x) as f64;
+    let not_y = (n - y) as f64;
+    let nf = n as f64;
+
+    let observed_11 = xy as f64;
+    let observed_12 = (x - xy) as f64;
+    let observed_21 = (y - xy) as f64;
+    let observed_22 = (n - (x + y) + xy) as f64;
+
+    let expected_11 = x as f64 * y as f64 / nf;
+    let expected_12 = x as f64 * not_y / nf;
+    let expected_21 = y as f64 * not_x / nf;
+    let expected_22 = not_x * not_y / nf;
+
+    let chi2_11 = (observed_11 - expected_11).powi(2) / expected_11;
+    let chi2_12 = (observed_12 - expected_12).powi(2) / expected_12;
+    let chi2_21 = (observed_21 - expected_21).powi(2) / expected_21;
+    let chi2_22 = (observed_22 - expected_22).powi(2) / expected_22;
+
+    let g2_11 = observed_11 * (observed_11 / expected_11).ln();
+    let g2_12 = observed_12 * (observed_12 / expected_12).ln();
+    let g2_21 = observed_21 * (observed_21 / expected_21).ln();
+    let g2_22 = observed_22 * (observed_22 / expected_22).ln();
+
+    (
+        chi2_11 + chi2_12 + chi2_21 + chi2_22,
+        2.0 * (g2_11 + g2_12 + g2_21 + g2_22),
+    )
 }
 
 #[derive(Debug)]
@@ -852,7 +912,12 @@ impl Cooccurrences {
         target_entry.gcf += 1;
     }
 
-    fn for_each_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
+    fn for_each_cooc_record<F, E>(
+        self,
+        min_count: usize,
+        complete: bool,
+        mut callback: F,
+    ) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
@@ -873,11 +938,14 @@ impl Cooccurrences {
                 let xy = *count;
 
                 // chi2/G2 computations
-                let (chi2, g2) = compute_simplified_chi2_and_g2(x, y, xy, n);
+                let (chi2, g2) = if complete {
+                    compute_chi2_and_g2(x, y, xy, n)
+                } else {
+                    compute_simplified_chi2_and_g2(x, y, xy, n)
+                };
 
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
-                let ppmi = compute_ppmi(pmi);
                 let npmi = compute_npmi(xy, n, pmi);
 
                 csv_record.clear();
@@ -885,9 +953,14 @@ impl Cooccurrences {
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(count.to_string().as_bytes());
                 csv_record.push_field(chi2.to_string().as_bytes());
-                csv_record.push_field(g2.to_string().as_bytes());
+
+                if g2.is_nan() {
+                    csv_record.push_field(b"");
+                } else {
+                    csv_record.push_field(g2.to_string().as_bytes());
+                }
+
                 csv_record.push_field(pmi.to_string().as_bytes());
-                csv_record.push_field(ppmi.to_string().as_bytes());
                 csv_record.push_field(npmi.to_string().as_bytes());
 
                 callback(&csv_record)?;
@@ -950,9 +1023,14 @@ impl Cooccurrences {
                 let target_entry = &self.token_entries[*target_id];
 
                 // We do both entries at once and we optimize by intersection length
-                if source_entry.cooc.len() > target_entry.cooc.len() {
-                    continue;
-                }
+                match source_entry.cooc.len().cmp(&target_entry.cooc.len()) {
+                    // Ids serve as tie-breaker if needed
+                    Ordering::Equal if source_id > *target_id => continue,
+                    Ordering::Greater => continue,
+                    _ => (),
+                };
+
+                debug_assert!(source_entry.cooc.len() <= target_entry.cooc.len());
 
                 let mut min_pmi_sum = 0.0;
                 let mut min_g2_sum = 0.0;

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::cmp::max;
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::HashMap;
@@ -241,8 +240,12 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| custom_strftime(args, "%Y"),
             FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
         ),
-        "year_month_day" => (
+        "year_month_day" | "ymd" => (
             |args| custom_strftime(args, "%F"),
+            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+        ),
+        "year_month" | "ym" => (
+            |args| custom_strftime(args, "%Y-%m"),
             FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
         ),
         _ => return None,
@@ -440,17 +443,10 @@ fn fmt(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(formatted))
 }
 
-thread_local! {
-    static NUMBER_FORMATTER: RefCell<numfmt::Formatter> = RefCell::new(crate::util::acquire_number_formatter());
-}
-
 fn fmt_number(mut args: BoundArguments) -> FunctionResult {
     let number = args.pop1().try_as_number()?;
 
-    let formatted = NUMBER_FORMATTER
-        .with_borrow_mut(|formatter| crate::util::pretty_print_float(formatter, number));
-
-    Ok(DynamicValue::from(formatted))
+    Ok(DynamicValue::from(crate::util::format_number(number)))
 }
 
 // Lists & Sequences

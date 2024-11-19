@@ -81,8 +81,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "count",
     ])?;
 
-    let mut formatter = util::acquire_number_formatter();
-
     for series in all_series.iter_mut() {
         match series.bins(args.flag_bins, &args.flag_min, &args.flag_max) {
             None => continue,
@@ -95,8 +93,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         DataType::Integer => (bin.lower_bound.ceil(), bin.upper_bound.ceil()),
                     };
 
-                    let lower_bound = util::pretty_print_float(&mut formatter, lower_bound);
-                    let upper_bound = util::pretty_print_float(&mut formatter, upper_bound);
+                    let lower_bound = util::format_number(lower_bound);
+                    let upper_bound = util::format_number(upper_bound);
 
                     let label_format = if bin.is_constant() {
                         lower_bound.to_string()

@@ -67,8 +67,14 @@ macro_rules! command_list {
     join        Join CSV files
     merge       Merge multiple similar already sorted CSV files
 
-## Format, convert & recombobulate
+## Add, transform, drop and move columns
     select      Select columns from CSV
+    map         Create a new column by evaluating an expression on each CSV row
+    transform   Transform a column by evaluating an expression on each CSV row
+    enum        Enumerate CSV file by preprending an index column
+    flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
+
+## Format, convert & recombobulate
     behead      Drop header from CSV file
     rename      Rename columns of a CSV file
     input       Read CSV data with special quoting rules
@@ -79,12 +85,6 @@ macro_rules! command_list {
     from        Convert a variety of formats to CSV
     reverse     Reverse rows of CSV data
     transpose   Transpose CSV file
-
-## Add & transform columns
-    map         Create a new column by evaluating an expression on each CSV row
-    transform   Transform a column by evaluating an expression on each CSV row
-    enum        Enumerate CSV file by preprending an index column
-    flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
 
 ## Split a CSV file into multiple
     split       Split CSV data into chunks

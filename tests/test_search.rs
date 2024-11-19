@@ -385,3 +385,37 @@ fn search_input_regex() {
     let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_non_empty() {
+    let wrk = Workdir::new("search_non_empty");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["John"], svec![""], svec!["Suzy"]],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("data.csv").arg("--non-empty");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_non_empty_invert_match() {
+    let wrk = Workdir::new("search_non_empty_invert_match");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["John"], svec![""], svec!["Suzy"]],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("data.csv").arg("--non-empty").arg("-v");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec![""]];
+    assert_eq!(got, expected);
+}

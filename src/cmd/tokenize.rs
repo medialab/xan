@@ -8,6 +8,7 @@ use paltoquet::tokenizers::{
     WordTokenizerBuilder,
 };
 use pariter::IteratorExt;
+use regex::Regex;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -22,6 +23,24 @@ fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
     })
 }
 
+fn parse_range(text: &str) -> Result<RangeInclusive<usize>, &str> {
+    let split: Vec<&str> = text.split(',').collect();
+
+    let error_msg = "Could not parse --ngram!";
+
+    if split.len() == 1 {
+        let n: usize = split[0].parse().map_err(|_| error_msg)?;
+        Ok(n..=n)
+    } else if split.len() == 2 {
+        let s: usize = split[0].parse().map_err(|_| error_msg)?;
+        let e: usize = split[1].parse().map_err(|_| error_msg)?;
+
+        Ok(s..=e)
+    } else {
+        Err(error_msg)
+    }
+}
+
 #[derive(Clone)]
 enum TokenWhitelist {
     WithId(HashMap<String, String>),
@@ -29,62 +48,72 @@ enum TokenWhitelist {
 }
 
 static USAGE: &str = "
+Tokenize the given text column by splitting it either into words, sentences
+or paragraphs.
+
+# tokenize words
+
 Tokenize the given text column by splitting it into word pieces (think
-words, numbers, hashtags etc.) or paragraphs (using the --paragraphs flag)
-or sentences (using the --sentences) flag.
+words, numbers, hashtags etc.).
 
-This command will therefore emit one row
-per token written in a new column added at the end, all while dropping
-the original text column unless --sep or --keep-text is passed.
+This tokenizer is able to distinguish between the following types of
+tokens (that you can filter using --keep and --drop):
+    \"word\", \"number\", \"hashtag\", \"mention\", \"emoji\",
+    \"punct\", \"url\" and \"email\"
 
-For instance, given the following input:
+The command will by default emit one row per row in the input file, with
+the tokens added in a new \"tokens\" column containing the processed and filtered
+tokens joined by a space (or any character given to --sep).
 
-id,text
-1,one cat eats 2 mice! 😎
-2,hello
+However, when giving a column name to -T, --token-type, the command will
+instead emit one row per token with the token in a new \"token\" column, along
+with a new column containing the token's type.
 
-The following command:
-    $ xan tokenize text -T type file.csv
+This subcommand also exposes many ways to filter and process the resulting
+tokens as well as ways to refine a vocabulary iteratively in tandem with
+the \"xan vocab\" command.
 
-Will produce the following result:
+# tokenize sentences
 
-id,token,type
-1,one,word
-1,cat,word
-1,eats,word
-1,2,number
-1,mice,word
-1,!,punct
-1,😎,emoji
-2,hello,word
+Tokenize the given text by splitting it into sentences, emitting one row per
+sentence with a new \"sentence\" column at the end.
+
+# tokenize paragraphs
+
+Tokenize the given text by splitting it into paragraphs, emitting one row per
+paragraph, with a new \"paragraph\" column at the end.
+
+---
+
+Note that the command will always drop the text column from the
+output unless you pass --keep-text to the command.
+
+Tips:
 
 You can easily pipe the command into \"xan vocab\" to create a vocabulary:
-    $ xan tokenize text file.csv | xan vocab id token > vocab.csv
+    $ xan tokenize words text file.csv | xan vocab doc-token > vocab.csv
 
 You can easily keep the tokens in a separate file using the \"tee\" command:
-    $ xan tokenize text file.csv | tee tokens.csv | xan vocab id token > vocab.csv
-
-This tokenizer is able to distinguish between the following types of tokens:
-    - word
-    - number
-    - hashtag
-    - mention
-    - emoji
-    - punct
-    - url
-    - email
+    $ xan tokenize words text file.csv | tee tokens.csv | xan vocab doc-token > vocab.csv
 
 Usage:
-    xan tokenize [options] <column> [<input>]
+    xan tokenize words [options] <column> [<input>]
+    xan tokenize sentences [options] <column> [<input>]
+    xan tokenize paragraphs [options] <column> [<input>]
     xan tokenize --help
 
 tokenize options:
-    -c, --column <name>      Name for the token column. Will default to \"token\" or \"tokens\"
-                             if --sep is given, or \"paragraph\"/\"paragraphs\" respectively
-                             if --paragraphs is given, or \"sentence\"/\"sentences\" if --sentences
-                             is given.
-    --paragraphs             Split paragraphs instead of words.
-    --sentences              Split sentences instead of words.
+    -c, --column <name>      Name for the token column. Will default to \"tokens\", \"token\"
+                             when -T/--token-type is provided, \"paragraphs\" or \"sentences\".
+    -p, --parallel           Whether to use parallelization to speed up computations.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
+    --keep-text              Force keeping the text column in the output.
+
+tokenize words options:
     -S, --simple             Use a simpler, more performant variant of the tokenizer but unable
                              to infer token types, nor handle subtle cases.
     -N, --ngrams <n>         If given, will output token ngrams using the given n or the given
@@ -114,18 +143,18 @@ tokenize options:
                              [default: token]
     --vocab-token-id <col>   Column of vocabulary file containing a token id to emit in place of the
                              token itself.
-    --sep <delim>            If given, the command will output exactly one row per input row,
-                             keep the text column and join the tokens using the provided character.
-                             We recommend using \"§\" as a separator.
+    --sep <delim>            Character used to join tokens in the output cells. Will default
+                             to a space.
     --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
-                             [default: |]
-    --keep-text              Force keeping the text column in output.
-    -p, --parallel           Whether to use parallelization to speed up computations.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+                             [default: §]
+    -u, --uniq               Sort and deduplicate the tokens.
+
+tokenize paragraphs options:
+    -A, --aerated  Force paragraphs to be separated by a blank line, instead
+                   of just a single line break.
+
+tokenize sentences options:
+    --squeeze  Collapse consecutive whitespace to produce a tidy output.
 
 Common options:
     -h, --help             Display this message
@@ -140,6 +169,9 @@ Common options:
 struct Args {
     arg_column: SelectColumns,
     arg_input: Option<String>,
+    cmd_words: bool,
+    cmd_sentences: bool,
+    cmd_paragraphs: bool,
     flag_column: Option<String>,
     flag_token_type: Option<String>,
     flag_output: Option<String>,
@@ -159,41 +191,30 @@ struct Args {
     flag_unidecode: bool,
     flag_split_hyphens: bool,
     flag_simple: bool,
-    flag_paragraphs: bool,
-    flag_sentences: bool,
     flag_ngrams: Option<String>,
     flag_ngrams_sep: String,
     flag_stemmer: Option<String>,
     flag_vocab: Option<String>,
     flag_vocab_token: SelectColumns,
     flag_vocab_token_id: Option<SelectColumns>,
+    flag_uniq: bool,
+    flag_aerated: bool,
+    flag_squeeze: bool,
 }
 
 impl Args {
+    fn sep(&self) -> String {
+        self.flag_sep.clone().unwrap_or_else(|| " ".to_string())
+    }
+
     fn validate(&self) -> Result<(), &str> {
-        let mut tokenizer_count = 0;
-
-        if self.flag_simple {
-            tokenizer_count += 1;
-        }
-        if self.flag_paragraphs {
-            tokenizer_count += 1;
-        }
-        if self.flag_sentences {
-            tokenizer_count += 1;
-        }
-
-        if tokenizer_count > 1 {
-            return Err("must select only one of --simple, --paragraphs, --sentences!");
-        }
-
-        if self.flag_sentences || self.flag_paragraphs {
+        if self.cmd_sentences || self.cmd_paragraphs {
             if self.flag_ngrams.is_some() {
-                return Err("--ngrams cannot work with --paragraphs nor --sentences!");
+                return Err("--ngrams cannot work with paragraphs nor sentences!");
             }
 
             if self.flag_token_type.is_some() {
-                return Err("-T,--token-type cannot work with --paragraphs nor --sentences!");
+                return Err("-T,--token-type cannot work with paragraphs nor sentences!");
             }
         }
 
@@ -209,6 +230,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     args.validate()?;
+
+    let squeeze_regex = Regex::new(r"\s+").unwrap();
+
+    let sep = args.sep();
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -236,28 +261,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let token_column_name = match &args.flag_column {
         Some(name) => name,
         None => {
-            if args.flag_sep.is_some() {
-                if args.flag_paragraphs {
-                    "paragraphs"
-                } else if args.flag_sentences {
-                    "sentences"
-                } else {
-                    "tokens"
-                }
-            } else if args.flag_paragraphs {
+            if args.cmd_words && args.flag_token_type.is_some() {
+                "token"
+            } else if args.cmd_paragraphs {
                 "paragraph"
-            } else if args.flag_sentences {
+            } else if args.cmd_sentences {
                 "sentence"
             } else {
-                "token"
+                "tokens"
             }
         }
     };
 
     if !args.flag_no_headers {
-        if args.flag_sep.is_none() && !args.flag_keep_text {
+        if !args.flag_keep_text {
             headers = headers.remove(col_index);
         }
+
         headers.push_field(token_column_name.as_bytes());
 
         if let Some(name) = &args.flag_token_type {
@@ -355,14 +375,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // NOTE: everything in this function will be parallelized
     let tokenize = move |string: &str| -> Vec<(String, WordTokenKind)> {
-        if args.flag_paragraphs {
-            return split_paragraphs(string)
+        if args.cmd_paragraphs {
+            return split_paragraphs(string, args.flag_aerated)
                 .map(|paragraph| (paragraph.to_string(), WordTokenKind::Word))
                 .collect();
-        } else if args.flag_sentences {
-            return split_sentences(string)
-                .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
-                .collect();
+        } else if args.cmd_sentences {
+            return if args.flag_squeeze {
+                split_sentences(&squeeze_regex.replace_all(string, " "))
+                    .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
+                    .collect()
+            } else {
+                split_sentences(string)
+                    .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
+                    .collect()
+            };
         }
 
         let mut tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
@@ -416,7 +442,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some((text, pair.1))
         });
 
-        if let Some(range) = &ngrams {
+        let mut collected_tokens: Vec<(String, WordTokenKind)> = if let Some(range) = &ngrams {
             tokens
                 .map(|token| token.0)
                 .ngrams_range(range.clone())
@@ -424,29 +450,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .collect()
         } else {
             tokens.collect()
+        };
+
+        if args.flag_uniq {
+            collected_tokens.sort_by(|a, b| a.0.cmp(&b.0));
+            collected_tokens.dedup_by(|a, b| a.0 == b.0);
         }
+
+        collected_tokens
     };
 
     // NOTE: nothing here will be parallelized
     macro_rules! write_tokens {
         ($record:ident, $tokens:expr) => {{
-            if let Some(sep) = &args.flag_sep {
-                let joined_types_opt = args
-                    .flag_token_type
-                    .as_ref()
-                    .map(|_| $tokens.iter().map(|token| token.1.as_str()).join(sep));
-
-                let joined_tokens = $tokens.iter().map(|token| token.0.as_str()).join(sep);
-
-                // NOTE: if not -p, we are mutating the working record
-                $record.push_field(joined_tokens.as_bytes());
-
-                if let Some(joined_types) = joined_types_opt {
-                    $record.push_field(joined_types.as_bytes());
-                }
-
-                wtr.write_byte_record(&$record)?;
-            } else {
+            if args.cmd_paragraphs || args.cmd_sentences {
                 for token in $tokens {
                     let mut record_to_write = if args.flag_keep_text {
                         $record.clone()
@@ -456,12 +473,33 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     record_to_write.push_field(token.0.as_bytes());
 
-                    if args.flag_token_type.is_some() {
-                        record_to_write.push_field(token.1.as_str().as_bytes());
-                    }
+                    wtr.write_record(&record_to_write)?;
+                }
+            } else if args.flag_token_type.is_some() {
+                for token in $tokens {
+                    let mut record_to_write = if args.flag_keep_text {
+                        $record.clone()
+                    } else {
+                        $record.remove(col_index)
+                    };
+
+                    record_to_write.push_field(token.0.as_bytes());
+                    record_to_write.push_field(token.1.as_str().as_bytes());
 
                     wtr.write_record(&record_to_write)?;
                 }
+            } else {
+                let mut record_to_write = if args.flag_keep_text {
+                    $record.clone()
+                } else {
+                    $record.remove(col_index)
+                };
+
+                let joined_tokens = $tokens.iter().map(|token| token.0.as_str()).join(&sep);
+
+                record_to_write.push_field(joined_tokens.as_bytes());
+
+                wtr.write_byte_record(&record_to_write)?;
             }
         }};
     }
@@ -488,7 +526,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
-                let (mut record, tokens) = result?;
+                let (record, tokens) = result?;
 
                 write_tokens!(record, tokens);
 
@@ -506,22 +544,4 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     Ok(wtr.flush()?)
-}
-
-fn parse_range(text: &str) -> Result<RangeInclusive<usize>, &str> {
-    let split: Vec<&str> = text.split(',').collect();
-
-    let error_msg = "Could not parse --ngram!";
-
-    if split.len() == 1 {
-        let n: usize = split[0].parse().map_err(|_| error_msg)?;
-        Ok(n..=n)
-    } else if split.len() == 2 {
-        let s: usize = split[0].parse().map_err(|_| error_msg)?;
-        let e: usize = split[1].parse().map_err(|_| error_msg)?;
-
-        Ok(s..=e)
-    } else {
-        Err(error_msg)
-    }
 }

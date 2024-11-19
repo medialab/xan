@@ -484,9 +484,16 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**join**](./docs/cmd/join.md): Join CSV files
 - [**merge**](./docs/cmd/merge.md): Merge multiple similar already sorted CSV files
 
-*Format, convert & recombobulate*
+*Add, transform, drop and move columns*
 
 - [**select**](./docs/cmd/select.md): Select columns from CSV
+- [**map**](./docs/cmd/map.md): Create a new column by evaluating an expression on each CSV row
+- [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
+- [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
+- [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
+
+*Format, convert & recombobulate*
+
 - [**behead**](./docs/cmd/behead.md): Drop header from CSV file
 - [**rename**](./docs/cmd/rename.md): Rename columns of a CSV file
 - [**input**](./docs/cmd/input.md): Read CSV data with special quoting rules
@@ -497,13 +504,6 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**from**](./docs/cmd/from.md): Convert a variety of formats to CSV
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
 - [**transpose**](./docs/cmd/transpose.md): Transpose CSV file
-
-*Add & transform columns*
-
-- [**map**](./docs/cmd/map.md): Create a new column by evaluating an expression on each CSV row
-- [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
-- [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
-- [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
 
 *Split a CSV file into multiple*
 

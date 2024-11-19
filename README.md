@@ -484,9 +484,16 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**join**](./docs/cmd/join.md): Join CSV files
 - [**merge**](./docs/cmd/merge.md): Merge multiple similar already sorted CSV files
 
-*Format, convert & recombobulate*
+*Add, transform, drop and move columns*
 
 - [**select**](./docs/cmd/select.md): Select columns from CSV
+- [**map**](./docs/cmd/map.md): Create a new column by evaluating an expression on each CSV row
+- [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
+- [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
+- [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
+
+*Format, convert & recombobulate*
+
 - [**behead**](./docs/cmd/behead.md): Drop header from CSV file
 - [**rename**](./docs/cmd/rename.md): Rename columns of a CSV file
 - [**input**](./docs/cmd/input.md): Read CSV data with special quoting rules
@@ -497,13 +504,6 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**from**](./docs/cmd/from.md): Convert a variety of formats to CSV
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
 - [**transpose**](./docs/cmd/transpose.md): Transpose CSV file
-
-*Add & transform columns*
-
-- [**map**](./docs/cmd/map.md): Create a new column by evaluating an expression on each CSV row
-- [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
-- [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
-- [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
 
 *Split a CSV file into multiple*
 
@@ -804,6 +804,7 @@ use the operators in the previous section.
 
     - if(cond,  then,  else?) -> T
         Evaluate condition and switch to correct branch.
+        Will actually short-circuit. Contrary to "or" and "and".
 
     - unless(cond,  then,  else?) -> T
         Shorthand for `if(not(cond), then, else?)`.
@@ -942,25 +943,32 @@ use the operators in the previous section.
         (nb of milliseconds since 1970-01-01 00:00:00 UTC),
         and convert it to a datetime in local time.
 
-    - year_month_day(target,  timezone=?) -> date
+    - year_month_day(target,  timezone=?) -> string
+    - ymd(target,  timezone=?) -> string
         Extract the year, month and day of a datetime.
         If the input is a string, first parse it into datetime, and then extract the year, month and day.
-        Equivalent to strftime(string, format = "%Y-%m-%d", timezone = ?)
+        Equivalent to strftime(string, format = "%Y-%m-%d")
 
-    - month_day(target,  timezone=?) -> date
+    - month_day(target,  timezone=?) -> string
         Extract the month and day of a datetime.
         If the input is a string, first parse it into datetime, and then extract the month and day.
-        Equivalent to strftime(string, format = "%m-%d", timezone = ?)
+        Equivalent to strftime(string, format = "%m-%d")
 
-    - month(target,  timezone=?) -> date
+    - month(target,  timezone=?) -> string
         Extract the month of a datetime.
         If the input is a string, first parse it into datetime, and then extract the month.
-        Equivalent to strftime(string, format = "%m", timezone = ?)
+        Equivalent to strftime(string, format = "%m")
 
-    - year(target,  timezone=?) -> date
+    - year(target,  timezone=?) -> string
         Extract the year of a datetime.
         If the input is a string, first parse it into datetime, and then extract the year.
-        Equivalent to strftime(string, format = "%Y", timezone = ?)
+        Equivalent to strftime(string, format = "%Y")
+
+    - year_month(target,  timezone=?) -> string
+    - ym(target,  timezone=?) -> string
+        Extract the year and month of a datetime.
+        If the input is a string, first parse it into datetime, and then extract the year and month.
+        Equivalent to strftime(string, format = "%Y-%m")
 
 ## Collections (list of maps) functions
 

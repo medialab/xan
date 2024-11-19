@@ -2,62 +2,72 @@
 # xan tokenize
 
 ```txt
+Tokenize the given text column by splitting it either into words, sentences
+or paragraphs.
+
+# tokenize words
+
 Tokenize the given text column by splitting it into word pieces (think
-words, numbers, hashtags etc.) or paragraphs (using the --paragraphs flag)
-or sentences (using the --sentences) flag.
+words, numbers, hashtags etc.).
 
-This command will therefore emit one row
-per token written in a new column added at the end, all while dropping
-the original text column unless --sep or --keep-text is passed.
+This tokenizer is able to distinguish between the following types of
+tokens (that you can filter using --keep and --drop):
+    "word", "number", "hashtag", "mention", "emoji",
+    "punct", "url" and "email"
 
-For instance, given the following input:
+The command will by default emit one row per row in the input file, with
+the tokens added in a new "tokens" column containing the processed and filtered
+tokens joined by a space (or any character given to --sep).
 
-id,text
-1,one cat eats 2 mice! 😎
-2,hello
+However, when giving a column name to -T, --token-type, the command will
+instead emit one row per token with the token in a new "token" column, along
+with a new column containing the token's type.
 
-The following command:
-    $ xan tokenize text -T type file.csv
+This subcommand also exposes many ways to filter and process the resulting
+tokens as well as ways to refine a vocabulary iteratively in tandem with
+the "xan vocab" command.
 
-Will produce the following result:
+# tokenize sentences
 
-id,token,type
-1,one,word
-1,cat,word
-1,eats,word
-1,2,number
-1,mice,word
-1,!,punct
-1,😎,emoji
-2,hello,word
+Tokenize the given text by splitting it into sentences, emitting one row per
+sentence with a new "sentence" column at the end.
+
+# tokenize paragraphs
+
+Tokenize the given text by splitting it into paragraphs, emitting one row per
+paragraph, with a new "paragraph" column at the end.
+
+---
+
+Note that the command will always drop the text column from the
+output unless you pass --keep-text to the command.
+
+Tips:
 
 You can easily pipe the command into "xan vocab" to create a vocabulary:
-    $ xan tokenize text file.csv | xan vocab id token > vocab.csv
+    $ xan tokenize words text file.csv | xan vocab doc-token > vocab.csv
 
 You can easily keep the tokens in a separate file using the "tee" command:
-    $ xan tokenize text file.csv | tee tokens.csv | xan vocab id token > vocab.csv
-
-This tokenizer is able to distinguish between the following types of tokens:
-    - word
-    - number
-    - hashtag
-    - mention
-    - emoji
-    - punct
-    - url
-    - email
+    $ xan tokenize words text file.csv | tee tokens.csv | xan vocab doc-token > vocab.csv
 
 Usage:
-    xan tokenize [options] <column> [<input>]
+    xan tokenize words [options] <column> [<input>]
+    xan tokenize sentences [options] <column> [<input>]
+    xan tokenize paragraphs [options] <column> [<input>]
     xan tokenize --help
 
 tokenize options:
-    -c, --column <name>      Name for the token column. Will default to "token" or "tokens"
-                             if --sep is given, or "paragraph"/"paragraphs" respectively
-                             if --paragraphs is given, or "sentence"/"sentences" if --sentences
-                             is given.
-    --paragraphs             Split paragraphs instead of words.
-    --sentences              Split sentences instead of words.
+    -c, --column <name>      Name for the token column. Will default to "tokens", "token"
+                             when -T/--token-type is provided, "paragraphs" or "sentences".
+    -p, --parallel           Whether to use parallelization to speed up computations.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
+    --keep-text              Force keeping the text column in the output.
+
+tokenize words options:
     -S, --simple             Use a simpler, more performant variant of the tokenizer but unable
                              to infer token types, nor handle subtle cases.
     -N, --ngrams <n>         If given, will output token ngrams using the given n or the given
@@ -87,18 +97,18 @@ tokenize options:
                              [default: token]
     --vocab-token-id <col>   Column of vocabulary file containing a token id to emit in place of the
                              token itself.
-    --sep <delim>            If given, the command will output exactly one row per input row,
-                             keep the text column and join the tokens using the provided character.
-                             We recommend using "§" as a separator.
+    --sep <delim>            Character used to join tokens in the output cells. Will default
+                             to a space.
     --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
-                             [default: |]
-    --keep-text              Force keeping the text column in output.
-    -p, --parallel           Whether to use parallelization to speed up computations.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+                             [default: §]
+    -u, --uniq               Sort and deduplicate the tokens.
+
+tokenize paragraphs options:
+    -A, --aerated  Force paragraphs to be separated by a blank line, instead
+                   of just a single line break.
+
+tokenize sentences options:
+    --squeeze  Collapse consecutive whitespace to produce a tidy output.
 
 Common options:
     -h, --help             Display this message

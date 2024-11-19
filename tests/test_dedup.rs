@@ -197,3 +197,28 @@ fn dedup_sorted_no_headers() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn dedup_check() {
+    let wrk = Workdir::new("dedup_check");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b"],
+            svec!["1", "1"],
+            svec!["2", "2"],
+            svec!["2", "3"],
+            svec!["1", "4"],
+        ],
+    );
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").arg("--check").args(["-s", "a"]);
+
+    wrk.assert_err(&mut cmd);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").arg("--check").args(["-s", "b"]);
+
+    wrk.assert_success(&mut cmd);
+}

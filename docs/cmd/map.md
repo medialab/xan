@@ -14,7 +14,7 @@ a,b
 
 The following command:
 
-    $ xan map 'a + b' c > result.csv
+    $ xan map 'a + b' c file.csv > result.csv
 
 Will produce the following result:
 
@@ -31,11 +31,11 @@ Miscellaneous tricks:
 
 1. Copying a column:
 
-    $ xan map 'column_name' copy_name > result.csv
+    $ xan map 'column_name' copy_name file.csv > result.csv
 
 2. Create a column containing a constant value:
 
-    $ xan map '"john"' from > result.csv
+    $ xan map '"john"' from file.csv > result.csv
 
 Usage:
     xan map [options] <expression> <column> [<input>]

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fs;
 use std::io;
 use std::num::NonZeroUsize;
@@ -53,7 +54,7 @@ lazy_static! {
     static ref DIMMED_REGEX: Regex =
         Regex::new(r"\[?<[\w|]+>(?:\.{3})?\]?|\[[\w\s:§|]+\]|\s+[\$>][^\n]+").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
-    static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##.+").unwrap();
+    static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^#+.+").unwrap();
     static ref MAIN_COMMAND_REGEX: Regex = Regex::new(r"(?m)^\s{4}\w[\w\-]+").unwrap();
     static ref MAIN_ALIAS_REGEX: Regex = Regex::new(r"\([^\)\s]+\)").unwrap();
 }
@@ -62,6 +63,8 @@ pub fn colorize_help(help: &str) -> String {
     let help = FLAG_REGEX.replace_all(help, |caps: &Captures| {
         caps[1].to_string() + &caps[2].cyan().to_string()
     });
+    let help = MAIN_SECTION_REGEX
+        .replace_all(&help, |caps: &Captures| caps[0].yellow().bold().to_string());
     let help =
         SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().bold().to_string());
     let help = QUOTE_REGEX.replace_all(&help, |caps: &Captures| caps[0].green().to_string());
@@ -278,13 +281,6 @@ pub fn acquire_rng(seed: Option<usize>) -> impl Rng {
     }
 }
 
-pub fn acquire_number_formatter() -> Formatter {
-    Formatter::new()
-        .precision(Precision::Significance(5))
-        .separator(',')
-        .unwrap()
-}
-
 pub fn acquire_stty_size() -> Option<termsize::Size> {
     if let Ok(output) = Command::new("/bin/sh")
         .arg("-c")
@@ -333,15 +329,22 @@ pub fn acquire_term_rows() -> Option<usize> {
     termsize::get().map(|size| size.rows as usize)
 }
 
-pub fn pretty_print_float<T: Numeric>(f: &mut Formatter, x: T) -> String {
-    let mut string = f.fmt2(x).to_string();
+thread_local! {
+    static NUMBER_FORMATTER: RefCell<numfmt::Formatter> = RefCell::new(
+        Formatter::new()
+            .precision(Precision::Significance(5))
+            .separator(',')
+            .unwrap()
+    );
+}
 
-    if string.ends_with(".0") {
-        string.truncate(string.len() - 2);
-    }
+pub fn format_number<T: Numeric>(x: T) -> String {
+    let mut string = NUMBER_FORMATTER.with_borrow_mut(|f| f.fmt2(x).to_string());
 
-    if string.contains('.') {
-        string = string.trim_end_matches('0').to_string();
+    if let Some(i) = string.find('.') {
+        if string[i + 1..].chars().all(|c| c == '0') {
+            string.truncate(i);
+        }
     }
 
     string
@@ -415,11 +418,13 @@ pub fn highlight_trimmable_whitespace(string: &str) -> String {
     )
 }
 
+lazy_static! {
+    static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|\n\r|[\n\r\t\f]").unwrap();
+}
+
 pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
     // Replacing some nasty stuff that can break representation
-    let mut string = string.replace('\n', " ");
-    string = string.replace('\r', " ");
-    string = string.replace('\t', " ");
+    let string = WHITESPACE_REPLACER.replace_all(string, " ");
     // string = string.replace('\u{200F}', "");
     // string = string.replace('\u{200E}', "");
 
@@ -534,9 +539,12 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     width: usize,
     padding: &str,
 ) -> String {
+    // NOTE: in this particular case we need to replace problematic characters beforehand
+    let string = WHITESPACE_REPLACER.replace_all(string, " ");
+
     let mut string = unicode_aware_pad(
         left,
-        &highlight_trimmable_whitespace(&unicode_aware_ellipsis(string, width)),
+        &highlight_trimmable_whitespace(&unicode_aware_ellipsis(&string, width)),
         width,
         padding,
         Some(string.width()),
