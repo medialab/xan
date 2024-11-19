@@ -144,6 +144,10 @@ plot options:
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
     --y-max <n>                Force a maximum value for the y axis.
+    --x-scale <scale>          Apply a scale to the x axis. Can be one of \"lin\" or \"log\".
+                               [default: lin]
+    --y-scale <scale>          Apply a scale to the y axis. Can be one of \"lin\" or \"log\".
+                               [default: lin]
     -i, --ignore               Ignore values that cannot be correctly parsed.
 
 Common options:
@@ -181,6 +185,8 @@ struct Args {
     flag_x_max: Option<String>,
     flag_y_min: Option<DynamicNumber>,
     flag_y_max: Option<DynamicNumber>,
+    flag_x_scale: Scale,
+    flag_y_scale: Scale,
     flag_ignore: bool,
 }
 
@@ -202,13 +208,22 @@ impl Args {
                 self.flag_x_min
                     .as_ref()
                     .map(|cell| parse_as_number(cell.as_bytes()))
-                    .transpose()?,
+                    .transpose()?
+                    .map(|min| self.flag_x_scale.convert(min)),
                 self.flag_x_max
                     .as_ref()
                     .map(|cell| parse_as_number(cell.as_bytes()))
-                    .transpose()?,
+                    .transpose()?
+                    .map(|max| self.flag_x_scale.convert(max)),
             ))
         }
+    }
+
+    fn parse_y_bounds(&self) -> (Option<DynamicNumber>, Option<DynamicNumber>) {
+        (
+            self.flag_y_min.map(|min| self.flag_y_scale.convert(min)),
+            self.flag_y_max.map(|max| self.flag_y_scale.convert(max)),
+        )
     }
 
     fn infer_y_ticks(&self, rows: usize) -> usize {
@@ -242,6 +257,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
+    if args.flag_time && !args.flag_x_scale.is_linear() {
+        Err("--x-scale cannot be customized when using -T,--time")?;
+    }
+
     let share_x_scale = args.flag_share_x_scale == "yes";
     let share_y_scale = args
         .flag_share_y_scale
@@ -256,6 +275,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     });
 
     let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
+    let (flag_y_min, flag_y_max) = args.parse_y_bounds();
 
     if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
         Err("-c, --category cannot work with -Y, --add-series!")?;
@@ -369,19 +389,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let x = if args.flag_time {
             try_parse!(parse_as_timestamp, x_cell)
         } else {
-            try_parse!(parse_as_number, x_cell)
+            args.flag_x_scale
+                .convert(try_parse!(parse_as_number, x_cell))
         };
 
-        let y = match y_column_index_opt {
+        let y = args.flag_y_scale.convert(match y_column_index_opt {
             Some(y_column_index) => try_parse!(parse_as_number, &record[y_column_index]),
             None => DynamicNumber::Integer(1),
-        };
+        });
 
         // Filtering out-of-bounds values
         if matches!(flag_x_min, Some(x_min) if x < x_min)
             || matches!(flag_x_max, Some(x_max) if x > x_max)
-            || matches!(args.flag_y_min, Some(y_min) if y < y_min)
-            || matches!(args.flag_y_max, Some(y_max) if y > y_max)
+            || matches!(flag_y_min, Some(y_min) if y < y_min)
+            || matches!(flag_y_max, Some(y_max) if y > y_max)
         {
             continue;
         }
@@ -392,7 +413,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series_builder.add_with_index(0, x, y);
 
             for (i, (_, pos)) in additional_series_indices.iter().enumerate() {
-                let v = try_parse!(parse_as_number, &record[*pos]);
+                let v = args
+                    .flag_y_scale
+                    .convert(try_parse!(parse_as_number, &record[*pos]));
 
                 series_builder.add_with_index(i + 1, x, v);
             }
@@ -420,10 +443,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some(x_max) = flag_x_max {
             series.set_x_max(x_max);
         }
-        if let Some(y_min) = args.flag_y_min {
+        if let Some(y_min) = flag_y_min {
             series.set_y_min(y_min);
         }
-        if let Some(y_max) = args.flag_y_max {
+        if let Some(y_max) = flag_y_max {
             series.set_y_max(y_max);
         }
 
@@ -522,9 +545,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .collect();
 
                 // Create the Y axis and define its properties
-                let y_ticks_labels =
-                    graduations_from_domain(y_axis_info.axis_type, y_axis_info.domain, y_ticks);
-                let x_ticks = infer_x_ticks(args.flag_x_ticks, &x_axis_info, &y_ticks_labels, cols);
+                let y_ticks_labels = graduations_from_domain(
+                    y_axis_info.axis_type,
+                    &args.flag_y_scale,
+                    y_axis_info.domain,
+                    y_ticks,
+                );
+                let x_ticks = infer_x_ticks(
+                    args.flag_x_ticks,
+                    &x_axis_info,
+                    &args.flag_x_scale,
+                    &y_ticks_labels,
+                    cols,
+                );
                 let y_axis = Axis::default()
                     .title(if !has_added_series && y_axis_info.can_be_displayed {
                         y_column_name.dim()
@@ -539,8 +572,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .labels(y_ticks_labels);
 
                 // Create the X axis and define its properties
-                let x_ticks_labels =
-                    graduations_from_domain(x_axis_info.axis_type, x_axis_info.domain, x_ticks);
+                let x_ticks_labels = graduations_from_domain(
+                    x_axis_info.axis_type,
+                    &args.flag_x_scale,
+                    x_axis_info.domain,
+                    x_ticks,
+                );
                 let x_axis = Axis::default()
                     .title(if x_axis_info.can_be_displayed {
                         x_column_name.dim()
@@ -639,12 +676,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         // Create the Y axis and define its properties
                         let y_ticks_labels = graduations_from_domain(
                             y_axis_info.axis_type,
+                            &args.flag_y_scale,
                             y_axis_info.domain,
                             y_ticks,
                         );
                         let x_ticks = infer_x_ticks(
                             args.flag_x_ticks,
                             &x_axis_info,
+                            &args.flag_x_scale,
                             &y_ticks_labels,
                             cols / actual_grid_cols,
                         );
@@ -668,6 +707,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         // Create the X axis and define its properties
                         let x_ticks_labels = graduations_from_domain(
                             x_axis_info.axis_type,
+                            &args.flag_x_scale,
                             x_axis_info.domain,
                             x_ticks,
                         );
@@ -846,6 +886,7 @@ fn format_graduation(axis_type: AxisType, x: f64) -> String {
 
 fn graduations_from_domain(
     axis_type: AxisType,
+    scale: &Scale,
     domain: (DynamicNumber, DynamicNumber),
     steps: usize,
 ) -> Vec<String> {
@@ -866,17 +907,23 @@ fn graduations_from_domain(
     let mut t = 0.0;
     let fract = 1.0 / (steps - 1) as f64;
 
-    graduations.push(format_graduation(axis_type, domain.0.as_float()));
+    graduations.push(format_graduation(
+        axis_type,
+        scale.invert(domain.0.as_float()),
+    ));
 
     for _ in 1..(steps - 1) {
         t += fract;
         graduations.push(format_graduation(
             axis_type,
-            lerp(domain.0.as_float(), domain.1.as_float(), t),
+            scale.invert(lerp(domain.0.as_float(), domain.1.as_float(), t)),
         ));
     }
 
-    graduations.push(format_graduation(axis_type, domain.1.as_float()));
+    graduations.push(format_graduation(
+        axis_type,
+        scale.invert(domain.1.as_float()),
+    ));
 
     graduations
 }
@@ -1143,6 +1190,7 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
 fn infer_x_ticks(
     from_user: Option<NonZeroUsize>,
     x_axis_info: &AxisInfo,
+    scale: &Scale,
     y_ticks_labels: &[String],
     mut cols: usize,
 ) -> usize {
@@ -1150,7 +1198,7 @@ fn infer_x_ticks(
         return n.get().max(2);
     }
 
-    let sample = graduations_from_domain(x_axis_info.axis_type, x_axis_info.domain, 15);
+    let sample = graduations_from_domain(x_axis_info.axis_type, scale, x_axis_info.domain, 15);
 
     let y_offset = y_ticks_labels.first().unwrap().width() + 1;
     cols = cols.saturating_sub(y_offset);
@@ -1181,6 +1229,52 @@ impl AxisType {
 
     fn is_int(self) -> bool {
         matches!(self, AxisType::Int)
+    }
+}
+
+#[derive(Debug)]
+enum Scale {
+    Linear,
+    Ln,
+}
+
+impl Scale {
+    fn linear() -> Self {
+        Self::Linear
+    }
+
+    fn ln() -> Self {
+        Self::Ln
+    }
+
+    fn is_linear(&self) -> bool {
+        matches!(self, Self::Linear)
+    }
+
+    fn convert(&self, x: DynamicNumber) -> DynamicNumber {
+        match self {
+            Self::Linear => x,
+            Self::Ln => x.ln(),
+        }
+    }
+
+    fn invert(&self, x: f64) -> f64 {
+        match self {
+            Self::Linear => x,
+            Self::Ln => x.exp(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Scale {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "lin" => Self::linear(),
+            "log" => Self::ln(),
+            _ => return Err(D::Error::custom(format!("unknown scale type \"{}\"", raw))),
+        })
     }
 }
 

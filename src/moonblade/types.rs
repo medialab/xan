@@ -472,6 +472,10 @@ impl DynamicNumber {
         self.map_float(|n| n.ln())
     }
 
+    pub fn exp(self) -> Self {
+        self.map_float(|n| n.exp())
+    }
+
     pub fn sqrt(self) -> Self {
         self.map_float(|n| n.sqrt())
     }
