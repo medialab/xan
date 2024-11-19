@@ -19,6 +19,8 @@ fn agg() {
 
     test_single_agg_function(&wrk, "count() as count", "count", "4");
     test_single_agg_function(&wrk, "count(n > 2) as count", "count", "2");
+    test_single_agg_function(&wrk, "ratio(n > 2) as count", "count", "0.5");
+    test_single_agg_function(&wrk, "percentage(n > 2) as count", "count", "50%");
     test_single_agg_function(&wrk, "count(n eq '') as count", "count", "0");
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");

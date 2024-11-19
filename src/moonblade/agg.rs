@@ -57,6 +57,18 @@ impl Count {
         self.falsey
     }
 
+    fn get_total(&self) -> usize {
+        self.truthy + self.falsey
+    }
+
+    fn ratio(&self) -> f64 {
+        self.truthy as f64 / self.get_total() as f64
+    }
+
+    fn percentage(&self) -> String {
+        format!("{}%", ((self.ratio() * 100.0) as usize))
+    }
+
     fn merge(&mut self, other: Self) {
         self.truthy += other.truthy;
         self.falsey += other.falsey;
@@ -1104,6 +1116,12 @@ impl Aggregator {
             (ConcreteAggregationMethod::Count, Self::Count(inner)) => {
                 DynamicValue::from(inner.get_truthy())
             }
+            (ConcreteAggregationMethod::Ratio, Self::Count(inner)) => {
+                DynamicValue::from(inner.ratio())
+            }
+            (ConcreteAggregationMethod::Percentage, Self::Count(inner)) => {
+                DynamicValue::from(inner.percentage())
+            }
             (ConcreteAggregationMethod::DistinctValues(separator), Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.join(separator))
             }
@@ -1297,7 +1315,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::ApproxCardinality => {
                 upsert_aggregator!(ApproxCardinality)
             }
-            ConcreteAggregationMethod::Count => {
+            ConcreteAggregationMethod::Count
+            | ConcreteAggregationMethod::Ratio
+            | ConcreteAggregationMethod::Percentage => {
                 upsert_aggregator!(Count)
             }
             ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
@@ -1557,8 +1577,10 @@ enum ConcreteAggregationMethod {
     Modes(String),
     MostCommonValues(usize, String),
     MostCommonCounts(usize, String),
+    Percentage,
     Quartile(usize),
     Quantile(f64),
+    Ratio,
     Sum,
     Values(String),
     VarPop,
@@ -1639,6 +1661,7 @@ impl ConcreteAggregationMethod {
                     Some(separator) => separator,
                 },
             ),
+            "percentage" => Self::Percentage,
             "quantile" => match args.first().unwrap() {
                 ConcreteExpr::Value(v) => match v.try_as_f64() {
                     Ok(p) => Self::Quantile(p),
@@ -1655,6 +1678,7 @@ impl ConcreteAggregationMethod {
             }),
             "var" | "var_pop" => Self::VarPop,
             "var_sample" => Self::VarSample,
+            "ratio" => Self::Ratio,
             "stddev" | "stddev_pop" => Self::StddevPop,
             "stddev_sample" => Self::StddevSample,
             "sum" => Self::Sum,

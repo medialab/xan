@@ -713,6 +713,9 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         List of top k most common counts returned by expression
         joined by a pipe character ('|') or by the provided separator.
 
+    - percentage(<expr>) -> number
+        Return the percentage of truthy values returned by expression.
+
     - quantile(<expr>, p) -> number
         Return the desired quantile of numerical values.
 
@@ -724,6 +727,9 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
     - q3(<expr>) -> number
         Return the third quartile of numerical values.
+
+    - ratio(<expr>) -> number
+        Return the ratio of truthy values returned by expression.
 
     - stddev(<expr>) -> number
         Population standard deviation. Same as `stddev_pop`.
