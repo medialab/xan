@@ -38,8 +38,6 @@ hist options:
                              label for a single bar of the histogram. [default: value].
     -v, --value <name>       Name of the count column. I.e. the one containing the value
                              for each bar. [default: count].
-    -S, --simple             Use simple characters to display the bars that will be less
-                             detailed but better suited to be written as raw text.
     -B, --bar-size <size>    Size of the bar characters between \"small\", \"medium\" 
                              and \"large\". [default: medium].
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
@@ -81,7 +79,6 @@ struct Args {
     flag_cols: Option<String>,
     flag_force_colors: bool,
     flag_domain_max: String,
-    flag_simple: bool,
     flag_rainbow: bool,
     flag_name: String,
     flag_hide_percent: bool,
@@ -270,7 +267,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     util::colorize(&util::colorizer_by_rainbow(i, &bar_as_chars), &bar_as_chars);
             }
             // Stripes
-            else if !args.flag_simple {
+            else {
                 if odd {
                     bar_as_chars = bar_as_chars.dimmed();
                 }
