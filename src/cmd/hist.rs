@@ -38,7 +38,7 @@ hist options:
                              label for a single bar of the histogram. [default: value].
     -v, --value <name>       Name of the count column. I.e. the one containing the value
                              for each bar. [default: count].
-    -B, --bar-size <size>    Size of the bar characters between \"small\", \"medium\" 
+    -B, --bar-size <size>    Size of the bar characters between \"small\", \"medium\"
                              and \"large\". [default: medium].
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if
@@ -184,9 +184,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let unit = args.flag_unit.as_deref().unwrap_or("");
 
-    for histogram in histograms.iter() {
+    for histogram in histograms.iter_mut() {
         if histogram.len() == 0 {
             continue;
+        }
+
+        if args.flag_category.is_some() {
+            histogram.collapse();
         }
 
         let sum = histogram.sum();
@@ -413,6 +417,23 @@ impl Histogram {
             .map(|bar| util::format_number(bar.value).len())
             .max()
     }
+
+    fn collapse(&mut self) {
+        let mut last_label_opt: Option<&str> = None;
+
+        for bar in self.bars.iter_mut() {
+            match last_label_opt {
+                None => last_label_opt = Some(&bar.label),
+                Some(last_label) => {
+                    if last_label == bar.label {
+                        bar.label = "".to_string();
+                    } else {
+                        last_label_opt = Some(&bar.label);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -447,7 +468,7 @@ impl Histograms {
             });
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Histogram> {
-        self.histograms.values()
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Histogram> {
+        self.histograms.values_mut()
     }
 }
