@@ -26,6 +26,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::dates;
 use crate::select::SelectColumns;
 use crate::CliResult;
 
@@ -362,7 +363,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         Err(_) => {
             if string.starts_with("http://") || string.starts_with("https://") {
                 ColorOrStyles::Color(Color::Blue)
-            } else if string.parse::<DateTime>().is_ok() {
+            } else if string.parse::<DateTime>().is_ok() || dates::is_partial_date(string) {
                 ColorOrStyles::Color(Color::Magenta)
             } else {
                 match string {

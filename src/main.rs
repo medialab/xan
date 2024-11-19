@@ -114,6 +114,7 @@ macro_rules! command_list {
 mod cmd;
 mod collections;
 mod config;
+mod dates;
 mod index;
 mod json;
 mod moonblade;
