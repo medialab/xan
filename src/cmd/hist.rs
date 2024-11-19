@@ -269,7 +269,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             // Stripes
             else {
                 if odd {
-                    bar_as_chars = bar_as_chars.dimmed();
+                    bar_as_chars = match args.flag_bar_size.as_str() {
+                        "large" => bar_as_chars.dimmed(),
+                        _ => bar_as_chars.bright_black(),
+                    };
                 }
 
                 odd = !odd;
