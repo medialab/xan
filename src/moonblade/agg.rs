@@ -15,56 +15,51 @@ use super::parser::{parse_aggregations, Aggregation, Aggregations};
 use super::types::{Arity, DynamicNumber, DynamicValue};
 
 #[derive(Debug, Clone)]
-enum CountType {
-    Empty,
-    NonEmpty,
-}
-
-#[derive(Debug, Clone)]
 struct Count {
-    non_empty: usize,
-    empty: usize,
+    truthy: usize,
+    falsey: usize,
 }
 
 impl Count {
     fn new() -> Self {
         Self {
-            non_empty: 0,
-            empty: 0,
+            truthy: 0,
+            falsey: 0,
         }
     }
 
     fn clear(&mut self) {
-        self.non_empty = 0;
-        self.empty = 0;
+        self.truthy = 0;
+        self.falsey = 0;
     }
 
-    fn add_non_empty(&mut self) {
-        self.non_empty += 1;
-    }
-
-    fn add_empty(&mut self) {
-        self.empty += 1
-    }
-
-    fn get_non_empty(&self) -> usize {
-        self.non_empty
-    }
-
-    fn get_empty(&self) -> usize {
-        self.empty
-    }
-
-    fn get(&self, t: &CountType) -> usize {
-        match t {
-            CountType::Empty => self.get_empty(),
-            CountType::NonEmpty => self.get_non_empty(),
+    fn add(&mut self, truthy: bool) {
+        if truthy {
+            self.truthy += 1;
+        } else {
+            self.falsey += 1;
         }
     }
 
+    fn add_truthy(&mut self) {
+        self.truthy += 1;
+    }
+
+    fn add_falsey(&mut self) {
+        self.falsey += 1
+    }
+
+    fn get_truthy(&self) -> usize {
+        self.truthy
+    }
+
+    fn get_falsey(&self) -> usize {
+        self.falsey
+    }
+
     fn merge(&mut self, other: Self) {
-        self.non_empty += other.non_empty;
-        self.empty += other.empty;
+        self.truthy += other.truthy;
+        self.falsey += other.falsey;
     }
 }
 
@@ -1106,8 +1101,8 @@ impl Aggregator {
             (ConcreteAggregationMethod::Cardinality, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.cardinality())
             }
-            (ConcreteAggregationMethod::Count(count_type), Self::Count(inner)) => {
-                DynamicValue::from(inner.get(count_type))
+            (ConcreteAggregationMethod::Count, Self::Count(inner)) => {
+                DynamicValue::from(inner.get_truthy())
             }
             (ConcreteAggregationMethod::DistinctValues(separator), Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.join(separator))
@@ -1302,7 +1297,7 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::ApproxCardinality => {
                 upsert_aggregator!(ApproxCardinality)
             }
-            ConcreteAggregationMethod::Count(_) => {
+            ConcreteAggregationMethod::Count => {
                 upsert_aggregator!(Count)
             }
             ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
@@ -1401,11 +1396,7 @@ impl CompositeAggregator {
                         }
                     }
                     Aggregator::Count(count) => {
-                        if !value.is_nullish() {
-                            count.add_non_empty();
-                        } else {
-                            count.add_empty();
-                        }
+                        count.add(value.is_truthy());
                     }
                     Aggregator::Extent(extent) => {
                         if !value.is_nullish() {
@@ -1483,7 +1474,7 @@ impl CompositeAggregator {
                 },
                 None => match method {
                     Aggregator::Count(count) => {
-                        count.add_non_empty();
+                        count.add_truthy();
                     }
                     _ => unreachable!(),
                 },
@@ -1552,7 +1543,7 @@ enum ConcreteAggregationMethod {
     ArgMax(Option<ConcreteExpr>),
     ArgTop(usize, Option<ConcreteExpr>, String),
     Cardinality,
-    Count(CountType),
+    Count,
     DistinctValues(String),
     First,
     Last,
@@ -1602,8 +1593,7 @@ impl ConcreteAggregationMethod {
                 },
             ),
             "cardinality" => Self::Cardinality,
-            "count" => Self::Count(CountType::NonEmpty),
-            "count_empty" => Self::Count(CountType::Empty),
+            "count" => Self::Count,
             "distinct_values" => Self::DistinctValues(match get_separator_from_argument(args, 0) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
@@ -2140,8 +2130,8 @@ impl Stats {
         let mut record = ByteRecord::new();
 
         record.push_field(name);
-        record.push_field(self.count.get_non_empty().to_string().as_bytes());
-        record.push_field(self.count.get_empty().to_string().as_bytes());
+        record.push_field(self.count.get_truthy().to_string().as_bytes());
+        record.push_field(self.count.get_falsey().to_string().as_bytes());
         record.push_field(
             self.types
                 .most_likely_type()
@@ -2201,7 +2191,7 @@ impl Stats {
 
         if cell.is_empty() {
             self.types.set_empty();
-            self.count.add_empty();
+            self.count.add_falsey();
 
             if self.nulls {
                 self.welford.add(0.0);
@@ -2214,7 +2204,7 @@ impl Stats {
             return;
         }
 
-        self.count.add_non_empty();
+        self.count.add_truthy();
 
         let cell = std::str::from_utf8(cell).expect("could not decode as utf-8");
 

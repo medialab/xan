@@ -23,9 +23,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
     - df_ratio: proportion of documents containing the token
-    - idf: inverse document frequency of the token
+    - idf: logarithm of the inverse document frequency of the token
     - gfidf: global frequency * idf for the token
-    - pigeonhole: ratio between df and expected df in random distribution
+    - pigeon: ratio between df and expected df in random distribution
 
 3. doc-level statistics (using the "doc" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -44,10 +44,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - chi2: chi2 score
-    - G2: G2 score
+    - chi2: chi2 score (approx. without the --complete flag)
+    - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
-    - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
 
     or, using the --distrib flag:
@@ -93,6 +92,9 @@ vocab cooc options:
     --distrib         Compute directed distributional similarity metrics instead.
     --min-count <n>   Minimum number of co-occurrence count to be included in the result.
                       [default: 1]
+    --complete        Compute the complete chi2 & G2 metrics, instead of their approximation
+                      based on the first cell of the contingency matrix. This
+                      is of course more costly to compute.
 
 Common options:
     -h, --help             Display this message

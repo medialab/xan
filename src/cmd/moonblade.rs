@@ -663,12 +663,8 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Number of distinct values returned by given expression.
 
     - count(<expr>?) -> number
-        Count the number of row. Works like in SQL in that `count(<expr>)`
-        will count all non-empy values returned by given expression, while
-        `count()` without any expression will count every matching row.
-
-    - count_empty(<expr>) -> number
-        Count the number of empty values returned by given expression.
+        Count the number of truthy values returned by given expression.
+        Expression can also be omitted to count all rows.
 
     - distinct_values(<expr>, separator?) -> string
         List of sorted distinct values joined by a pipe character ('|') by default or by

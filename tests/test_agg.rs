@@ -18,7 +18,8 @@ fn agg() {
     );
 
     test_single_agg_function(&wrk, "count() as count", "count", "4");
-    test_single_agg_function(&wrk, "count_empty(n) as count", "count", "0");
+    test_single_agg_function(&wrk, "count(n > 2) as count", "count", "2");
+    test_single_agg_function(&wrk, "count(n eq '') as count", "count", "0");
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
     test_single_agg_function(&wrk, "avg(n) as mean", "mean", "2.5");
@@ -116,7 +117,7 @@ fn agg_sqlish_count() {
 
     let mut cmd = wrk.command("agg");
     cmd.arg(
-        "count() as total_count, count(n) as count_without_nulls, count_empty(n) as count_nulls",
+        "count() as total_count, count(n ne '') as count_without_nulls, count(n eq '') as count_nulls",
     )
     .arg("data.csv");
 

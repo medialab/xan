@@ -77,7 +77,8 @@ parallel count options:
 
 parallel cat options:
     -B, --buffer-size <n>       Number of rows a thread is allowed to keep in memory
-                                before flushing to the output.
+                                before flushing to the output. Set <= 0 to flush only once per
+                                processed file. Keep in mind this could cost a lot of memory.
                                 [default: 1024]
     -I, --input-dir <dir>       When concatenating rows, root directory to resolve
                                 relative paths contained in the -i/--input file column.
