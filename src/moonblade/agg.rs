@@ -489,11 +489,11 @@ impl LexicographicExtent {
             None => self.extent = Some((value.to_string(), value.to_string())),
             Some((min, max)) => {
                 if value < min.as_str() {
-                    *min = value.to_string();
+                    min.replace_range(.., value);
                 }
 
                 if value > max.as_str() {
-                    *max = value.to_string();
+                    max.replace_range(.., value);
                 }
             }
         }
