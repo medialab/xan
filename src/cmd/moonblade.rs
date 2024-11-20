@@ -666,6 +666,22 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Count the number of truthy values returned by given expression.
         Expression can also be omitted to count all rows.
 
+    - count_seconds(<expr>) -> number
+        Count the number of seconds between earliest and latest datetime
+        returned by given expression.
+
+    - count_hours(<expr>) -> number
+        Count the number of hours between earliest and latest datetime
+        returned by given expression.
+
+    - count_days(<expr>) -> number
+        Count the number of days between earliest and latest datetime
+        returned by given expression.
+
+    - count_years(<expr>) -> number
+        Count the number of years between earliest and latest datetime
+        returned by given expression.
+
     - distinct_values(<expr>, separator?) -> string
         List of sorted distinct values joined by a pipe character ('|') by default or by
         the provided separator.

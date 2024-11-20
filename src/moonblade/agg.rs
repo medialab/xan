@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use csv::ByteRecord;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
-use jiff::{civil::DateTime, Zoned};
+use jiff::{civil::DateTime, Unit, Zoned};
 use rayon::prelude::*;
 
 use crate::collections::{ClusteredInsertHashmap, FixedReverseHeap, FixedReverseHeapMap};
@@ -526,6 +526,10 @@ impl LexicographicExtent {
     }
 }
 
+const SECONDS_PER_HOUR: usize = 60 * 60;
+const SECONDS_PER_DAY: usize = SECONDS_PER_HOUR * 24;
+const SECONDS_PER_YEAR: usize = SECONDS_PER_DAY * 365;
+
 #[derive(Debug, Clone)]
 struct ZonedExtent {
     extent: Option<(Zoned, Zoned)>,
@@ -561,6 +565,40 @@ impl ZonedExtent {
 
     fn lastest(&self) -> Option<Zoned> {
         self.extent.as_ref().map(|(_, z)| z.clone())
+    }
+
+    fn count_seconds(&self) -> Option<usize> {
+        self.extent.as_ref().map(|(start, end)| {
+            let duration = start.duration_until(end);
+            let seconds = duration.as_secs();
+
+            seconds as usize
+        })
+    }
+
+    fn count_hours(&self) -> Option<usize> {
+        self.count_seconds()
+            .map(|seconds| (seconds as f64 / SECONDS_PER_HOUR as f64).ceil() as usize)
+    }
+
+    fn count_days(&self) -> Option<usize> {
+        self.count_seconds()
+            .map(|seconds| (seconds as f64 / SECONDS_PER_DAY as f64).ceil() as usize)
+    }
+
+    fn count_years(&self) -> Option<usize> {
+        self.count_seconds()
+            .map(|seconds| (seconds as f64 / SECONDS_PER_YEAR as f64).ceil() as usize)
+    }
+
+    fn count(&self, unit: Unit) -> Option<usize> {
+        match unit {
+            Unit::Second => self.count_seconds(),
+            Unit::Hour => self.count_hours(),
+            Unit::Day => self.count_days(),
+            Unit::Year => self.count_years(),
+            _ => unimplemented!(),
+        }
     }
 
     fn merge(&mut self, other: Self) {
@@ -1244,6 +1282,9 @@ impl Aggregator {
             (ConcreteAggregationMethod::Latest, Self::ZonedExtent(inner)) => {
                 DynamicValue::from(inner.lastest())
             }
+            (ConcreteAggregationMethod::CountTime(unit), Self::ZonedExtent(inner)) => {
+                DynamicValue::from(inner.count(*unit))
+            }
             (ConcreteAggregationMethod::Min, Self::NumericExtent(inner)) => {
                 DynamicValue::from(inner.min())
             }
@@ -1473,7 +1514,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
                 upsert_aggregator!(LexicographicExtent)
             }
-            ConcreteAggregationMethod::Earliest | ConcreteAggregationMethod::Latest => {
+            ConcreteAggregationMethod::Earliest
+            | ConcreteAggregationMethod::Latest
+            | ConcreteAggregationMethod::CountTime(_) => {
                 upsert_aggregator!(ZonedExtent)
             }
             ConcreteAggregationMethod::Median(_)
@@ -1679,6 +1722,7 @@ enum ConcreteAggregationMethod {
     ArgTop(usize, Option<ConcreteExpr>, String),
     Cardinality,
     Count,
+    CountTime(Unit),
     DistinctValues(String),
     Earliest,
     First,
@@ -1733,6 +1777,10 @@ impl ConcreteAggregationMethod {
             ),
             "cardinality" => Self::Cardinality,
             "count" => Self::Count,
+            "count_seconds" => Self::CountTime(Unit::Second),
+            "count_hours" => Self::CountTime(Unit::Hour),
+            "count_days" => Self::CountTime(Unit::Day),
+            "count_years" => Self::CountTime(Unit::Year),
             "distinct_values" => Self::DistinctValues(match get_separator_from_argument(args, 0) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
