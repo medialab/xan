@@ -291,11 +291,11 @@ impl Sum {
 }
 
 #[derive(Debug, Clone)]
-struct GenericExtent<T: Copy + PartialOrd> {
+struct Extent<T: Copy + PartialOrd> {
     extent: Option<(T, T)>,
 }
 
-impl<T: Copy + PartialOrd> GenericExtent<T> {
+impl<T: Copy + PartialOrd> Extent<T> {
     fn new() -> Self {
         Self { extent: None }
     }
@@ -346,7 +346,7 @@ impl<T: Copy + PartialOrd> GenericExtent<T> {
     }
 }
 
-type Extent = GenericExtent<DynamicNumber>;
+type NumericExtent = Extent<DynamicNumber>;
 
 type ArgExtentEntry = (DynamicNumber, (usize, ByteRecord));
 
@@ -1101,7 +1101,7 @@ build_aggregation_method_enum!(
     ArgExtent,
     ArgTop,
     Count,
-    Extent,
+    NumericExtent,
     First,
     Last,
     Values,
@@ -1181,7 +1181,7 @@ impl Aggregator {
             (ConcreteAggregationMethod::LexLast, Self::LexicographicExtent(inner)) => {
                 DynamicValue::from(inner.last())
             }
-            (ConcreteAggregationMethod::Min, Self::Extent(inner)) => {
+            (ConcreteAggregationMethod::Min, Self::NumericExtent(inner)) => {
                 DynamicValue::from(inner.min())
             }
             (ConcreteAggregationMethod::Min, Self::ArgExtent(inner)) => {
@@ -1209,7 +1209,7 @@ impl Aggregator {
             (ConcreteAggregationMethod::Quartile(idx), Self::Numbers(inner)) => {
                 DynamicValue::from(inner.quartiles().map(|q| q[*idx]))
             }
-            (ConcreteAggregationMethod::Max, Self::Extent(inner)) => {
+            (ConcreteAggregationMethod::Max, Self::NumericExtent(inner)) => {
                 DynamicValue::from(inner.max())
             }
             (ConcreteAggregationMethod::Max, Self::ArgExtent(inner)) => {
@@ -1371,7 +1371,7 @@ impl CompositeAggregator {
                     .iter()
                     .position(|item| matches!(item, Aggregator::ArgExtent(_)))
                 {
-                    None => upsert_aggregator!(Extent),
+                    None => upsert_aggregator!(NumericExtent),
                     Some(idx) => idx,
                 }
             }
@@ -1380,7 +1380,7 @@ impl CompositeAggregator {
                 match self
                     .methods
                     .iter()
-                    .position(|item| matches!(item, Aggregator::Extent(_)))
+                    .position(|item| matches!(item, Aggregator::NumericExtent(_)))
                 {
                     None => upsert_aggregator!(ArgExtent),
                     Some(idx) => {
@@ -1462,7 +1462,7 @@ impl CompositeAggregator {
                     Aggregator::Count(count) => {
                         count.add(value.is_truthy());
                     }
-                    Aggregator::Extent(extent) => {
+                    Aggregator::NumericExtent(extent) => {
                         if !value.is_nullish() {
                             extent.add(value.try_as_number()?);
                         }
@@ -2089,8 +2089,8 @@ fn map_to_field<T: ToString>(opt: Option<T>) -> Vec<u8> {
 pub struct Stats {
     nulls: bool,
     count: Count,
-    extent: Extent,
-    length_extent: GenericExtent<usize>,
+    extent: NumericExtent,
+    length_extent: Extent<usize>,
     lexicograhic_extent: LexicographicExtent,
     welford: Welford,
     sum: Sum,
@@ -2105,8 +2105,8 @@ impl Stats {
         Self {
             nulls: false,
             count: Count::new(),
-            extent: Extent::new(),
-            length_extent: GenericExtent::new(),
+            extent: NumericExtent::new(),
+            length_extent: Extent::new(),
             lexicograhic_extent: LexicographicExtent::new(),
             welford: Welford::new(),
             sum: Sum::new(),
