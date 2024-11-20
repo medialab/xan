@@ -22,7 +22,7 @@ hist options:
                              label for a single bar of the histogram. [default: value].
     -v, --value <name>       Name of the count column. I.e. the one containing the value
                              for each bar. [default: count].
-    -B, --bar-size <size>    Size of the bar characters between "small", "medium" 
+    -B, --bar-size <size>    Size of the bar characters between "small", "medium"
                              and "large". [default: medium].
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if

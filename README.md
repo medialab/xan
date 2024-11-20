@@ -1222,6 +1222,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
     - sum(<expr>) -> number
         Sum of numerical values. Will return nothing if the sum overflows.
+        Uses the Kahan-Babuska routine for precise float summation.
 
     - top(k,  <expr>,  separator?) -> any
         Find the top k values returned by the expression and join
