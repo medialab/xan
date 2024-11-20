@@ -1150,8 +1150,14 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         List of sorted distinct values joined by a pipe character ('|') by default or by
         the provided separator.
 
+    - earliest(<expr>) -> datetime
+        Earliest datetime returned by given expression.
+
     - first(<expr>) -> string
         Return first seen non empty element of the values returned by the given expression.
+
+    - latest(<expr>) -> datetime
+        Latest datetime returned by given expression.
 
     - last(<expr>) -> string
         Return last seen non empty element of the values returned by the given expression.

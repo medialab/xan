@@ -507,3 +507,23 @@ fn agg_argtop() {
     let expected = vec![svec!["top"], svec!["ochre,red,yellow"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_dates() {
+    let wrk = Workdir::new("agg_dates");
+    wrk.create(
+        "data.csv",
+        vec![svec!["date"], svec!["2023-01-12"], svec!["2020-10-22"]],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("earliest(date) as earliest, latest(date) as latest")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["earliest", "latest"],
+        svec!["2020-10-22T00:00:00[CEST]", "2023-01-12T00:00:00[CET]"],
+    ];
+    assert_eq!(got, expected);
+}

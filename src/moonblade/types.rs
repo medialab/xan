@@ -900,6 +900,23 @@ impl DynamicValue {
         }
     }
 
+    pub fn try_as_datetime(&self) -> Result<Cow<Zoned>, EvaluationError> {
+        match self {
+            DynamicValue::DateTime(value) => Ok(Cow::Borrowed(value)),
+            DynamicValue::String(value) => match value.parse::<Zoned>() {
+                Ok(zoned_datetime) => Ok(Cow::Owned(zoned_datetime)),
+                Err(_) => match value.parse::<DateTime>() {
+                    Ok(datetime) => Ok(Cow::Owned(datetime.to_zoned(TimeZone::system()).unwrap())),
+                    Err(_) => Err(EvaluationError::DateTime(format!(
+                        "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                        value
+                    )))
+                }
+            },
+            _ => Err(EvaluationError::from_cast(&self, "datetime"))
+        }
+    }
+
     pub fn try_as_timezone(&self) -> Result<TimeZone, EvaluationError> {
         let name = self.try_as_str()?;
 

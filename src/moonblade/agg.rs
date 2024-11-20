@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use csv::ByteRecord;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
-use jiff::civil::DateTime;
+use jiff::{civil::DateTime, Zoned};
 use rayon::prelude::*;
 
 use crate::collections::{ClusteredInsertHashmap, FixedReverseHeap, FixedReverseHeapMap};
@@ -505,6 +505,62 @@ impl LexicographicExtent {
 
     fn last(&self) -> Option<String> {
         self.extent.as_ref().map(|e| e.1.clone())
+    }
+
+    fn merge(&mut self, other: Self) {
+        match self.extent.as_mut() {
+            None => {
+                self.extent = other.extent;
+            }
+            Some((min, max)) => {
+                if let Some((other_min, other_max)) = other.extent {
+                    if other_min < *min {
+                        *min = other_min;
+                    }
+                    if other_max > *max {
+                        *max = other_max;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ZonedExtent {
+    extent: Option<(Zoned, Zoned)>,
+}
+
+impl ZonedExtent {
+    fn new() -> Self {
+        Self { extent: None }
+    }
+
+    fn clear(&mut self) {
+        self.extent = None;
+    }
+
+    fn add(&mut self, value: &Zoned) {
+        match &mut self.extent {
+            None => self.extent = Some((value.clone(), value.clone())),
+            Some((min, max)) => {
+                if value < *min {
+                    *min = value.clone();
+                }
+
+                if value > *max {
+                    *max = value.clone();
+                }
+            }
+        }
+    }
+
+    fn earliest(&self) -> Option<Zoned> {
+        self.extent.as_ref().map(|(z, _)| z.clone())
+    }
+
+    fn lastest(&self) -> Option<Zoned> {
+        self.extent.as_ref().map(|(_, z)| z.clone())
     }
 
     fn merge(&mut self, other: Self) {
@@ -1111,6 +1167,7 @@ build_aggregation_method_enum!(
     Sum,
     Types,
     Welford,
+    ZonedExtent,
 );
 
 impl Aggregator {
@@ -1180,6 +1237,12 @@ impl Aggregator {
             }
             (ConcreteAggregationMethod::LexLast, Self::LexicographicExtent(inner)) => {
                 DynamicValue::from(inner.last())
+            }
+            (ConcreteAggregationMethod::Earliest, Self::ZonedExtent(inner)) => {
+                DynamicValue::from(inner.earliest())
+            }
+            (ConcreteAggregationMethod::Latest, Self::ZonedExtent(inner)) => {
+                DynamicValue::from(inner.lastest())
             }
             (ConcreteAggregationMethod::Min, Self::NumericExtent(inner)) => {
                 DynamicValue::from(inner.min())
@@ -1410,6 +1473,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::LexFirst | ConcreteAggregationMethod::LexLast => {
                 upsert_aggregator!(LexicographicExtent)
             }
+            ConcreteAggregationMethod::Earliest | ConcreteAggregationMethod::Latest => {
+                upsert_aggregator!(ZonedExtent)
+            }
             ConcreteAggregationMethod::Median(_)
             | ConcreteAggregationMethod::Quantile(_)
             | ConcreteAggregationMethod::Quartile(_) => {
@@ -1490,6 +1556,11 @@ impl CompositeAggregator {
                     Aggregator::LexicographicExtent(extent) => {
                         if !value.is_nullish() {
                             extent.add(&value.try_as_str()?);
+                        }
+                    }
+                    Aggregator::ZonedExtent(extent) => {
+                        if !value.is_nullish() {
+                            extent.add(value.try_as_datetime()?.as_ref());
                         }
                     }
                     Aggregator::Frequencies(frequencies) => {
@@ -1609,7 +1680,9 @@ enum ConcreteAggregationMethod {
     Cardinality,
     Count,
     DistinctValues(String),
+    Earliest,
     First,
+    Latest,
     Last,
     LexFirst,
     LexLast,
@@ -1664,7 +1737,9 @@ impl ConcreteAggregationMethod {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
             }),
+            "earliest" => Self::Earliest,
             "first" => Self::First,
+            "latest" => Self::Latest,
             "last" => Self::Last,
             "lex_first" => Self::LexFirst,
             "lex_last" => Self::LexLast,
