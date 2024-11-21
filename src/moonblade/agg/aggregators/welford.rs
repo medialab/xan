@@ -1,7 +1,7 @@
 // NOTE: this is an implementation of Welford's online algorithm
 // Ref: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
 // Ref: https://en.wikipedia.org/wiki/Standard_deviation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Welford {
     count: usize,
     mean: f64,
@@ -10,11 +10,7 @@ pub struct Welford {
 
 impl Welford {
     pub fn new() -> Self {
-        Self {
-            count: 0,
-            mean: 0.0,
-            m2: 0.0,
-        }
+        Self::default()
     }
 
     pub fn clear(&mut self) {
@@ -83,3 +79,29 @@ impl Welford {
             + ((count1 * count2 * mean_diff_squared) / (total * total));
     }
 }
+
+// NOTE: https://stackoverflow.com/questions/45773857/merging-covariance-from-two-sets-to-create-new-covariance
+// #[derive(Debug, Clone, Default)]
+// pub struct CovarianceWelford {
+//     count: usize,
+//     mean_x: f64,
+//     mean_y: f64,
+//     m2_x: f64,
+//     m2_y: f64,
+//     c: f64,
+// }
+
+// impl CovarianceWelford {
+//     pub fn new() -> Self {
+//         Self::default()
+//     }
+
+//     pub fn clear(&mut self) {
+//         self.count = 0;
+//         self.mean_x = 0.0;
+//         self.mean_y = 0.0;
+//         self.m2_x = 0.0;
+//         self.m2_y = 0.0;
+//         self.c = 0.0;
+//     }
+// }
