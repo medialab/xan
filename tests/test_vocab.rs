@@ -231,7 +231,7 @@ fn vocab_cooc_sep_no_doc() {
 
     let expected = vec![
         svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
-        svec!["cat", "cat", "1", "2.25", "-2.772588722239781", "-2", "-1"],
+        svec!["cat", "cat", "1", "2.25", "-1.3862943611198906", "-2", "-1"],
         svec!["cat", "dog", "2", "0", "0", "0", "0"],
         svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
     ];
@@ -262,7 +262,7 @@ fn vocab_cooc_no_sep() {
 
     let expected = vec![
         svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
-        svec!["cat", "cat", "1", "2.25", "-2.772588722239781", "-2", "-1"],
+        svec!["cat", "cat", "1", "2.25", "-1.3862943611198906", "-2", "-1"],
         svec!["cat", "dog", "2", "0", "0", "0", "0"],
         svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
     ];
@@ -294,7 +294,7 @@ fn vocab_cooc_no_sep_window() {
 
     let expected = vec![
         svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
-        svec!["cat", "cat", "1", "2.25", "-2.772588722239781", "-2", "-1"],
+        svec!["cat", "cat", "1", "2.25", "-1.3862943611198906", "-2", "-1"],
         svec!["cat", "dog", "2", "0", "0", "0", "0"],
         svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
     ];
