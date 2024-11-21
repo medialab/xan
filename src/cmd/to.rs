@@ -66,7 +66,10 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_ndjson<R: Read>(mut rdr: csv::Reader<R>) -> CliResult<()> {
+    fn convert_to_ndjson<R: Read, W: Write>(
+        mut rdr: csv::Reader<R>,
+        mut writer: W,
+    ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
 
         for result in rdr.records() {
@@ -83,10 +86,11 @@ impl Args {
                 json_object.insert(header.to_string(), json!(value));
             }
 
-            println!(
+            writeln!(
+                writer,
                 "{}",
                 serde_json::to_string(&json_object).map_err(|e| CliError::Other(e.to_string()))?
-            );
+            )?;
         }
 
         Ok(())
@@ -98,15 +102,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let conf = Config::new(&args.arg_input);
     let rdr = conf.reader()?;
 
-    if args.cmd_json {
-        let writer: Box<dyn Write> = match &args.flag_output {
-            Some(output_path) => Box::new(fs::File::create(output_path)?),
-            None => Box::new(io::stdout()),
-        };
+    let writer: Box<dyn Write> = match &args.flag_output {
+        Some(output_path) => Box::new(fs::File::create(output_path)?),
+        None => Box::new(io::stdout()),
+    };
 
+    if args.cmd_json {
         Args::convert_to_json(rdr, writer)?;
     } else if args.cmd_ndjson || args.cmd_jsonl {
-        Args::convert_to_ndjson(rdr)?;
+        Args::convert_to_ndjson(rdr, writer)?;
     }
 
     Ok(())
