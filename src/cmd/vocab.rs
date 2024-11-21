@@ -72,8 +72,8 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - sdI: distributional score based on PMI
-    - sdG2: distributional score based on G2
+    - sd_I: distributional score based on PMI
+    - sd_G2: distributional score based on G2
 
 Usage:
     xan vocab corpus [options] [<input>]
@@ -338,7 +338,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if args.flag_distrib {
-            let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sdI", b"sdG2"];
+            let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sd_I", b"sd_G2"];
 
             wtr.write_record(output_headers)?;
             cooccurrences
@@ -829,6 +829,10 @@ fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
     } else {
         observed_21 * (observed_21 / expected_21).ln()
     };
+
+    // NOTE: in the case when observed_22 is negative, I am not entirely
+    // sure it is mathematically sound to clamp to 0. But since this case
+    // is mostly useless, I will allow it...
     let g2_22 = if observed_22 <= 0.0 {
         0.0
     } else {
