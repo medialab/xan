@@ -913,7 +913,7 @@ impl DynamicValue {
                     )))
                 }
             },
-            _ => Err(EvaluationError::from_cast(&self, "datetime"))
+            _ => Err(EvaluationError::from_cast(self, "datetime"))
         }
     }
 
