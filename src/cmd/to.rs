@@ -3,7 +3,7 @@ use std::{
     io::{self, Read, Write},
 };
 
-use csv;
+use csv::{self, StringRecord};
 use serde_json::{json, Value};
 
 use crate::config::Config;
@@ -24,6 +24,9 @@ Supported formats:
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
 
+to options:
+    -E, --empty            Convert empty string to a null value.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -34,10 +37,40 @@ struct Args {
     arg_format: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
+    flag_empty: bool,
 }
 
 impl Args {
-    fn convert_to_json<R: Read, W: Write>(mut rdr: csv::Reader<R>, writer: W) -> CliResult<()> {
+    fn make_json(
+        &self,
+        record: &mut StringRecord,
+        headers: &StringRecord,
+        mut json_object: serde_json::Map<String, Value>,
+    ) -> serde_json::Map<String, Value> {
+        for (header, value) in headers.iter().zip(record.iter()) {
+            if let Ok(parsed_value) = value.parse::<i64>() {
+                if parsed_value.abs() < MAX_SAFE_INTEGER {
+                    json_object.insert(header.to_string(), json!(parsed_value as f64));
+                    continue;
+                }
+            } else if let Ok(parsed_value) = value.parse::<f64>() {
+                json_object.insert(header.to_string(), json!(parsed_value));
+                continue;
+            }
+            if self.flag_empty && value == "" {
+                json_object.insert(header.to_string(), json!(Value::Null));
+                continue;
+            }
+            json_object.insert(header.to_string(), json!(value));
+        }
+        json_object
+    }
+
+    fn convert_to_json<R: Read, W: Write>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        writer: W,
+    ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
         let mut record = csv::StringRecord::new();
         let mut json_object = serde_json::Map::new();
@@ -45,16 +78,7 @@ impl Args {
         let mut json_array = Vec::new();
 
         while rdr.read_record(&mut record)? {
-            for (header, value) in headers.iter().zip(record.iter()) {
-                if let Ok(parsed_value) = value.parse::<i64>() {
-                    if parsed_value.abs() < MAX_SAFE_INTEGER {
-                        json_object
-                            .insert(header.to_string(), json!(value.parse::<f64>().unwrap()));
-                        continue;
-                    }
-                }
-                json_object.insert(header.to_string(), json!(value));
-            }
+            json_object = Args::make_json(&self, &mut record, &headers, json_object);
 
             json_array.push(Value::Object(json_object.clone()));
         }
@@ -64,31 +88,22 @@ impl Args {
     }
 
     fn convert_to_ndjson<R: Read, W: Write>(
+        &self,
         mut rdr: csv::Reader<R>,
         mut writer: W,
     ) -> CliResult<()> {
-        let mut record = csv::StringRecord::new();
         let headers = rdr.headers()?.clone();
+        let mut record = csv::StringRecord::new();
         let mut json_object = serde_json::Map::new();
 
         while rdr.read_record(&mut record)? {
-            for (header, value) in headers.iter().zip(record.iter()) {
-                if let Ok(parsed_value) = value.parse::<i64>() {
-                    if parsed_value.abs() < MAX_SAFE_INTEGER {
-                        json_object
-                            .insert(header.to_string(), json!(value.parse::<f64>().unwrap()));
-                        continue;
-                    }
-                }
-                json_object.insert(header.to_string(), json!(value));
-            }
+            json_object = Args::make_json(&self, &mut record, &headers, json_object);
 
             writeln!(
                 writer,
                 "{}",
                 serde_json::to_string(&json_object).map_err(|e| CliError::Other(e.to_string()))?
             )?;
-            //maybe adding a clear for json_object for keys with no values ?
         }
 
         Ok(())
@@ -106,8 +121,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     match args.arg_format.as_str() {
-        "json" => Args::convert_to_json(rdr, writer)?,
-        "jsonl" | "ndjson" => Args::convert_to_ndjson(rdr, writer)?,
+        "json" => Args::convert_to_json(&args, rdr, writer)?,
+        "jsonl" | "ndjson" => Args::convert_to_ndjson(&args, rdr, writer)?,
         _ => return fail!("could not export the file into this format!"),
     }
 
