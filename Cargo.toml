@@ -96,6 +96,7 @@ unidecode = "0.3.0"
 unicode-segmentation = "1.12.0"
 unicode-width = "0.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
+rust_xlsxwriter = "0.79.4"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]

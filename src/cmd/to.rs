@@ -4,6 +4,7 @@ use std::{
 };
 
 use csv::{self, StringRecord};
+use rust_xlsxwriter::Workbook;
 use serde_json::{json, Value};
 
 use crate::config::Config;
@@ -23,6 +24,7 @@ Supported formats:
     json    - JSON array or object
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
+    xlsx    
 
 to options:
     -E, --empty            Convert empty string to a null value.
@@ -108,6 +110,29 @@ impl Args {
 
         Ok(())
     }
+
+    fn convert_to_xlsx<R: Read>(mut rdr: csv::Reader<R>, path: String) -> CliResult<()> {
+        let mut workbook = Workbook::new();
+        let headers = rdr.headers()?.clone();
+        let worksheet = workbook.add_worksheet();
+        for (col, header) in headers.iter().enumerate() {
+            worksheet
+                .write_string(0, col as u16, header)
+                .map_err(|e| CliError::Other(e.to_string()))?;
+        }
+        for (row, value) in rdr.records().enumerate() {
+            let record = value?;
+            for (col, field) in record.iter().enumerate() {
+                worksheet
+                    .write_string((row + 1) as u32, col as u16, field)
+                    .map_err(|e| CliError::Other(e.to_string()))?;
+            }
+        }
+        workbook
+            .save(path)
+            .map_err(|e| CliError::Other(e.to_string()))?;
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -123,6 +148,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match args.arg_format.as_str() {
         "json" => Args::convert_to_json(&args, rdr, writer)?,
         "jsonl" | "ndjson" => Args::convert_to_ndjson(&args, rdr, writer)?,
+        "xlsx" => {
+            if let Some(path) = args.flag_output {
+                Args::convert_to_xlsx(rdr, path)?;
+            } else {
+                return fail!("could not export in xlsx without a path, use -o, --output!");
+            }
+        }
         _ => return fail!("could not export the file into this format!"),
     }
 
