@@ -46,7 +46,7 @@ impl SupportedFormat {
 }
 
 impl<'de> Deserialize<'de> for SupportedFormat {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<SupportedFormat, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(d)?;
 
         SupportedFormat::parse(&raw)

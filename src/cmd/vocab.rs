@@ -11,6 +11,7 @@ use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use bstr::ByteSlice;
+// use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -18,6 +19,35 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
+
+// struct Chi2Threshold(f64);
+
+// impl Chi2Threshold {
+//     fn get(&self) -> f64 {
+//         self.0
+//     }
+// }
+
+// impl<'de> Deserialize<'de> for Chi2Threshold {
+//     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+//         let raw = String::deserialize(d)?;
+
+//         // Thresholds for k=1
+//         Ok(Chi2Threshold(match raw.as_str() {
+//             ".1" | "0.1" => 2.71,
+//             ".05" | "0.05" => 3.84,
+//             ".025" | "0.025" => 5.02,
+//             ".005" | "0.005" => 6.63,
+//             ".001" | "0.001" => 7.88,
+//             _ => {
+//                 return Err(D::Error::custom(format!(
+//                     "unsupported significance threshold \"{}\"",
+//                     &raw
+//                 )))
+//             }
+//         }))
+//     }
+// }
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents (typically produced
