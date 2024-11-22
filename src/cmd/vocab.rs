@@ -11,7 +11,7 @@ use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use bstr::ByteSlice;
-// use serde::de::{Deserialize, Deserializer, Error};
+use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -20,34 +20,36 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-// struct Chi2Threshold(f64);
+#[derive(Clone, Copy)]
+struct Chi2SignificanceLevel(f64);
 
-// impl Chi2Threshold {
-//     fn get(&self) -> f64 {
-//         self.0
-//     }
-// }
+impl Chi2SignificanceLevel {
+    fn get(&self) -> f64 {
+        self.0
+    }
+}
 
-// impl<'de> Deserialize<'de> for Chi2Threshold {
-//     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-//         let raw = String::deserialize(d)?;
+impl<'de> Deserialize<'de> for Chi2SignificanceLevel {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
 
-//         // Thresholds for k=1
-//         Ok(Chi2Threshold(match raw.as_str() {
-//             ".1" | "0.1" => 2.71,
-//             ".05" | "0.05" => 3.84,
-//             ".025" | "0.025" => 5.02,
-//             ".005" | "0.005" => 6.63,
-//             ".001" | "0.001" => 7.88,
-//             _ => {
-//                 return Err(D::Error::custom(format!(
-//                     "unsupported significance threshold \"{}\"",
-//                     &raw
-//                 )))
-//             }
-//         }))
-//     }
-// }
+        // Thresholds for k=1
+        Ok(Chi2SignificanceLevel(match raw.as_str() {
+            ".5" | "0.5" => 0.45,
+            ".1" | "0.1" => 2.71,
+            ".05" | "0.05" => 3.84,
+            ".025" | "0.025" => 5.02,
+            ".005" | "0.005" => 6.63,
+            ".001" | "0.001" => 7.88,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unsupported significance threshold \"{}\"",
+                    &raw
+                )))
+            }
+        }))
+    }
+}
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents (typically produced
@@ -126,8 +128,12 @@ vocab options:
                              per row. Cannot be used without -D, --doc.
 
 vocab doc-token options:
-    --k1-value <value>  \"k1\" factor for BM25 computation. [default: 1.2]
-    --b-value <value>   \"b\" factor for BM25 computation. [default: 0.75]
+    --k1-value <value>  \"k1\"   Factor for BM25 computation. [default: 1.2]
+    --b-value <value>   \"b\"    Factor for BM25 computation. [default: 0.75]
+    --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
+                                 chi2 score that must be above the given significance level. Accepted
+                                 levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.005\"
+                                 and \"0.001\".
 
 vocab cooc options:
     -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
@@ -166,6 +172,7 @@ struct Args {
     flag_implode: bool,
     flag_k1_value: f64,
     flag_b_value: f64,
+    flag_chi2_significance: Option<Chi2SignificanceLevel>,
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
     flag_distrib: bool,
@@ -437,9 +444,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output_headers.push_field(b"chi2");
 
         wtr.write_byte_record(&output_headers)?;
-        vocab.for_each_doc_token_level_record(args.flag_k1_value, args.flag_b_value, |r| {
-            wtr.write_byte_record(r)
-        })?;
+        vocab.for_each_doc_token_level_record(
+            args.flag_k1_value,
+            args.flag_b_value,
+            args.flag_chi2_significance.map(|s| s.get()),
+            |r| wtr.write_byte_record(r),
+        )?;
     } else if args.cmd_doc {
         let mut output_headers = csv::ByteRecord::new();
 
@@ -713,6 +723,7 @@ impl Vocabulary {
         self,
         k1: f64,
         b: f64,
+        chi2_significance: Option<f64>,
         mut callback: F,
     ) -> Result<(), E>
     where
@@ -737,8 +748,17 @@ impl Vocabulary {
 
                 let token_stats = &self.tokens[token_id];
 
-                let idf = token_stats.idf(n);
                 let expected = token_stats.gf as f64 / voc_stats.total_token_count as f64;
+
+                let chi2 = doc_token_stats.chi2(doc_len, expected);
+
+                if let Some(level) = chi2_significance {
+                    if chi2 < level {
+                        continue;
+                    }
+                }
+
+                let idf = token_stats.idf(n);
 
                 for cell in doc.iter() {
                     record.push_field(cell);
@@ -753,12 +773,7 @@ impl Vocabulary {
                         .to_string()
                         .as_bytes(),
                 );
-                record.push_field(
-                    doc_token_stats
-                        .chi2(doc_len, expected)
-                        .to_string()
-                        .as_bytes(),
-                );
+                record.push_field(chi2.to_string().as_bytes());
 
                 callback(&record)?;
             }
