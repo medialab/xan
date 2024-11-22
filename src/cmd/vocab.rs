@@ -39,8 +39,9 @@ impl<'de> Deserialize<'de> for Chi2SignificanceLevel {
             ".1" | "0.1" => 2.71,
             ".05" | "0.05" => 3.84,
             ".025" | "0.025" => 5.02,
-            ".005" | "0.005" => 6.63,
-            ".001" | "0.001" => 7.88,
+            ".01" | "0.01" => 6.63,
+            ".005" | "0.005" => 7.88,
+            ".001" | "0.001" => 10.83,
             _ => {
                 return Err(D::Error::custom(format!(
                     "unsupported significance threshold \"{}\"",
@@ -132,8 +133,8 @@ vocab doc-token options:
     --b-value <value>   \"b\"    Factor for BM25 computation. [default: 0.75]
     --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
                                  chi2 score that must be above the given significance level. Accepted
-                                 levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.005\"
-                                 and \"0.001\".
+                                 levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.01\",
+                                 \"0.005\" and \"0.001\".
 
 vocab cooc options:
     -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
