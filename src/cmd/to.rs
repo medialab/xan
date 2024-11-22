@@ -38,11 +38,11 @@ struct Args {
 impl Args {
     fn convert_to_json<R: Read, W: Write>(mut rdr: csv::Reader<R>, writer: W) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
+        let mut record = csv::StringRecord::new();
 
         let mut json_array = Vec::new();
 
-        for result in rdr.records() {
-            let record = result?;
+        while rdr.read_record(&mut record)? {
             let mut json_object = serde_json::Map::new();
             for (header, value) in headers.iter().zip(record.iter()) {
                 if let Ok(parsed_value) = value.parse::<i64>() {
@@ -66,10 +66,10 @@ impl Args {
         mut rdr: csv::Reader<R>,
         mut writer: W,
     ) -> CliResult<()> {
+        let mut record = csv::StringRecord::new();
         let headers = rdr.headers()?.clone();
 
-        for result in rdr.records() {
-            let record = result?;
+        while rdr.read_record(&mut record)? {
             let mut json_object = serde_json::Map::new();
             for (header, value) in headers.iter().zip(record.iter()) {
                 if let Ok(parsed_value) = value.parse::<i64>() {
