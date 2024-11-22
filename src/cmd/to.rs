@@ -15,9 +15,7 @@ static USAGE: &str = "
 Convert a CSV file to a variety of data formats.
 
 Usage:
-    xan to json [options] [<input>]
-    xan to ndjson [options] [<input>]
-    xan to jsonl [options] [<input>]
+    xan to [<format>] [options] [<input>]
     xan to --help
 
 Supported formats:
@@ -32,10 +30,8 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
+    arg_format: String,
     arg_input: Option<String>,
-    cmd_json: bool,
-    cmd_ndjson: bool,
-    cmd_jsonl: bool,
     flag_output: Option<String>,
 }
 
@@ -107,10 +103,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         None => Box::new(io::stdout()),
     };
 
-    if args.cmd_json {
-        Args::convert_to_json(rdr, writer)?;
-    } else if args.cmd_ndjson || args.cmd_jsonl {
-        Args::convert_to_ndjson(rdr, writer)?;
+    match args.arg_format.as_str() {
+        "json" => Args::convert_to_json(rdr, writer)?,
+        "jsonl" | "ndjson" => Args::convert_to_ndjson(rdr, writer)?,
+        _ => return fail!("could not export the file into this format!"),
     }
 
     Ok(())
