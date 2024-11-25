@@ -28,8 +28,9 @@ Supported formats:
     jsonl   - Newline-delimited JSON
     xlsx    - Excel spreasheet
 
-to options:
-    -E, --empty            Convert empty string to a null value.
+JSON options:
+    --null            Convert empty string to a null value.
+    --ignore          Ignore the empty values.
 
 Common options:
     -h, --help             Display this message
@@ -41,7 +42,8 @@ struct Args {
     arg_format: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
-    flag_empty: bool,
+    flag_null: bool,
+    flag_ignore: bool,
 }
 
 impl Args {
@@ -61,8 +63,11 @@ impl Args {
                 json_object.insert(header.to_string(), json!(parsed_value));
                 continue;
             }
-            if self.flag_empty && value == "" {
+            if self.flag_null && value == "" {
                 json_object.insert(header.to_string(), json!(Value::Null));
+                continue;
+            } else if self.flag_ignore && value == "" {
+                json_object.remove(header);
                 continue;
             }
             json_object.insert(header.to_string(), json!(value));
