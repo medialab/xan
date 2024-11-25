@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use aho_corasick::AhoCorasick;
+use bstr::ByteSlice;
 use csv;
 use regex::bytes::{RegexBuilder, RegexSetBuilder};
 
@@ -10,19 +11,13 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-fn lowercase(cell: &[u8]) -> String {
-    std::str::from_utf8(cell).unwrap().to_lowercase()
-}
-
 enum Matcher {
     NonEmpty,
     Substring(AhoCorasick, bool),
-    Exact(Vec<u8>),
-    ExactCaseInsensitive(String),
+    Exact(Vec<u8>, bool),
     Regex(regex::bytes::Regex),
     ManyRegex(regex::bytes::RegexSet),
-    ManyExact(HashSet<Vec<u8>>),
-    ManyExactCaseInsensitive(HashSet<String>),
+    ManyExact(HashSet<Vec<u8>>, bool),
 }
 
 impl Matcher {
@@ -31,17 +26,27 @@ impl Matcher {
             Self::NonEmpty => !cell.is_empty(),
             Self::Substring(pattern, case_insensitive) => {
                 if *case_insensitive {
-                    pattern.is_match(&lowercase(cell))
+                    pattern.is_match(&cell.to_lowercase())
                 } else {
                     pattern.is_match(cell)
                 }
             }
             Self::Regex(pattern) => pattern.is_match(cell),
-            Self::Exact(pattern) => pattern == cell,
-            Self::ExactCaseInsensitive(pattern) => &lowercase(cell) == pattern,
+            Self::Exact(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    &cell.to_lowercase() == pattern
+                } else {
+                    cell == pattern
+                }
+            }
             Self::ManyRegex(set) => set.is_match(cell),
-            Self::ManyExact(patterns) => patterns.contains(cell),
-            Self::ManyExactCaseInsensitive(patterns) => patterns.contains(&lowercase(cell)),
+            Self::ManyExact(patterns, case_insensitive) => {
+                if *case_insensitive {
+                    patterns.contains(&cell.to_lowercase())
+                } else {
+                    patterns.contains(cell)
+                }
+            }
         }
     }
 }
@@ -128,9 +133,9 @@ impl Args {
 
                 Ok(if self.flag_exact {
                     if self.flag_ignore_case {
-                        Matcher::ExactCaseInsensitive(pattern.to_lowercase())
+                        Matcher::Exact(pattern.as_bytes().to_lowercase(), true)
                     } else {
-                        Matcher::Exact(pattern.as_bytes().to_vec())
+                        Matcher::Exact(pattern.as_bytes().to_vec(), false)
                     }
                 } else if self.flag_regex {
                     Matcher::Regex(
@@ -162,7 +167,6 @@ impl Args {
                 let mut record = csv::ByteRecord::new();
 
                 let mut set: HashSet<Vec<u8>> = HashSet::new();
-                let mut lower_set: HashSet<String> = HashSet::new();
                 let mut patterns: Vec<String> = Vec::new();
 
                 while rdr.read_byte_record(&mut record)? {
@@ -170,7 +174,7 @@ impl Args {
 
                     if self.flag_exact {
                         if self.flag_ignore_case {
-                            lower_set.insert(lowercase(pattern));
+                            set.insert(pattern.to_lowercase());
                         } else {
                             set.insert(pattern.to_vec());
                         }
@@ -180,11 +184,7 @@ impl Args {
                 }
 
                 Ok(if self.flag_exact {
-                    if self.flag_ignore_case {
-                        Matcher::ManyExactCaseInsensitive(lower_set)
-                    } else {
-                        Matcher::ManyExact(set)
-                    }
+                    Matcher::ManyExact(set, self.flag_ignore_case)
                 } else if self.flag_regex {
                     Matcher::ManyRegex(
                         RegexSetBuilder::new(&patterns)
