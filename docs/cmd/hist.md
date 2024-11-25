@@ -22,8 +22,8 @@ hist options:
                              label for a single bar of the histogram. [default: value].
     -v, --value <name>       Name of the count column. I.e. the one containing the value
                              for each bar. [default: count].
-    -S, --simple             Use simple characters to display the bars that will be less
-                             detailed but better suited to be written as raw text.
+    -B, --bar-size <size>    Size of the bar characters between "small", "medium"
+                             and "large". [default: medium].
     --cols <num>             Width of the graph in terminal columns, i.e. characters.
                              Defaults to using all your terminal's width or 80 if
                              terminal's size cannot be found (i.e. when piping to file).
@@ -36,6 +36,9 @@ hist options:
                              or make sure different histograms are represented using the
                              same scale.
                              [default: max]
+    -c, --category <col>     Name of the categorical column that will be used to
+                             assign distinct colors per category.
+                             Incompatible with -R, --rainbow.
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
     -P, --hide-percent       Don't show percentages.

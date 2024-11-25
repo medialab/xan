@@ -18,7 +18,10 @@ fn agg() {
     );
 
     test_single_agg_function(&wrk, "count() as count", "count", "4");
-    test_single_agg_function(&wrk, "count_empty(n) as count", "count", "0");
+    test_single_agg_function(&wrk, "count(n > 2) as count", "count", "2");
+    test_single_agg_function(&wrk, "ratio(n > 2) as count", "count", "0.5");
+    test_single_agg_function(&wrk, "percentage(n > 2) as count", "count", "50%");
+    test_single_agg_function(&wrk, "count(n eq '') as count", "count", "0");
     test_single_agg_function(&wrk, "sum(n) as sum", "sum", "10");
     test_single_agg_function(&wrk, "mean(n) as mean", "mean", "2.5");
     test_single_agg_function(&wrk, "avg(n) as mean", "mean", "2.5");
@@ -116,7 +119,7 @@ fn agg_sqlish_count() {
 
     let mut cmd = wrk.command("agg");
     cmd.arg(
-        "count() as total_count, count(n) as count_without_nulls, count_empty(n) as count_nulls",
+        "count() as total_count, count(n ne '') as count_without_nulls, count(n eq '') as count_nulls",
     )
     .arg("data.csv");
 
@@ -502,5 +505,25 @@ fn agg_argtop() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["top"], svec!["ochre,red,yellow"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn agg_dates() {
+    let wrk = Workdir::new("agg_dates");
+    wrk.create(
+        "data.csv",
+        vec![svec!["date"], svec!["2023-01-12"], svec!["2020-10-22"]],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("earliest(date) as earliest, latest(date) as latest")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["earliest", "latest"],
+        svec!["2020-10-22T00:00:00[CEST]", "2023-01-12T00:00:00[CET]"],
+    ];
     assert_eq!(got, expected);
 }

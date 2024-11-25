@@ -23,9 +23,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - gf: global frequency of the token across corpus
     - df: document frequency of the token
     - df_ratio: proportion of documents containing the token
-    - idf: inverse document frequency of the token
+    - idf: logarithm of the inverse document frequency of the token
     - gfidf: global frequency * idf for the token
-    - pigeonhole: ratio between df and expected df in random distribution
+    - pigeon: ratio between df and expected df in random distribution
 
 3. doc-level statistics (using the "doc" subcommand):
     - (*doc): columns representing the document (named like the input)
@@ -44,10 +44,9 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - chi2: chi2 score
-    - G2: G2 score
+    - chi2: chi2 score (approx. without the --complete flag)
+    - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
-    - ppmi: positive pointwise mutual information
     - npmi: normalized pointwise mutual information
 
     or, using the --distrib flag:
@@ -55,8 +54,8 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - sdI: distributional score based on PMI
-    - sdG2: distributional score based on G2
+    - sd_I: distributional score based on PMI
+    - sd_G2: distributional score based on G2
 
 Usage:
     xan vocab corpus [options] [<input>]
@@ -79,8 +78,14 @@ vocab options:
                              per row. Cannot be used without -D, --doc.
 
 vocab doc-token options:
-    --k1-value <value>  "k1" factor for BM25 computation. [default: 1.2]
-    --b-value <value>   "b" factor for BM25 computation. [default: 0.75]
+    --tf-weight <weight>         TF weighting scheme. One of "count", "binary", "ratio",
+                                 or "log-normal". [default: count]
+    --k1-value <value>  "k1"   Factor for BM25 computation. [default: 1.2]
+    --b-value <value>   "b"    Factor for BM25 computation. [default: 0.75]
+    --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
+                                 chi2 score that must be above the given significance level. Accepted
+                                 levels include "0.5", "0.1", "0.05", "0.025", "0.01",
+                                 "0.005" and "0.001".
 
 vocab cooc options:
     -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently

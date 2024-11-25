@@ -390,6 +390,13 @@ impl DynamicNumber {
         }
     }
 
+    pub fn is_nan(&self) -> bool {
+        match self {
+            Self::Float(f) => f.is_nan(),
+            Self::Integer(_) => false,
+        }
+    }
+
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))
     }
@@ -470,6 +477,10 @@ impl DynamicNumber {
 
     pub fn ln(self) -> Self {
         self.map_float(|n| n.ln())
+    }
+
+    pub fn exp(self) -> Self {
+        self.map_float(|n| n.exp())
     }
 
     pub fn sqrt(self) -> Self {
@@ -886,6 +897,23 @@ impl DynamicValue {
                 }
             },
             _ => Err(EvaluationError::from_cast(&self, "datetime"))
+        }
+    }
+
+    pub fn try_as_datetime(&self) -> Result<Cow<Zoned>, EvaluationError> {
+        match self {
+            DynamicValue::DateTime(value) => Ok(Cow::Borrowed(value)),
+            DynamicValue::String(value) => match value.parse::<Zoned>() {
+                Ok(zoned_datetime) => Ok(Cow::Owned(zoned_datetime)),
+                Err(_) => match value.parse::<DateTime>() {
+                    Ok(datetime) => Ok(Cow::Owned(datetime.to_zoned(TimeZone::system()).unwrap())),
+                    Err(_) => Err(EvaluationError::DateTime(format!(
+                        "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                        value
+                    )))
+                }
+            },
+            _ => Err(EvaluationError::from_cast(self, "datetime"))
         }
     }
 

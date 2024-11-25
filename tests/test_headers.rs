@@ -52,16 +52,3 @@ h2
 h3";
     assert_eq!(got, expected.to_string());
 }
-
-#[test]
-fn headers_intersect() {
-    let (wrk, mut cmd) = setup("headers_intersect");
-    cmd.arg("in2.csv").arg("--intersect");
-
-    let got: String = wrk.stdout(&mut cmd);
-    let expected = "\
-h1
-h2
-h3";
-    assert_eq!(got, expected.to_string());
-}

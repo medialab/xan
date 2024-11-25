@@ -23,8 +23,6 @@ headers options:
     -j, --just-names       Only show the header names (hide column index).
                            This is automatically enabled if more than one
                            input is given.
-    --intersect            Shows the intersection of all headers in all of
-                           the inputs given.
 
 Common options:
     -h, --help             Display this message
@@ -36,7 +34,6 @@ Common options:
 struct Args {
     arg_input: Vec<String>,
     flag_just_names: bool,
-    flag_intersect: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
@@ -51,9 +48,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for conf in configs.into_iter() {
         let mut rdr = conf.reader()?;
         for header in rdr.headers()?.iter() {
-            if !args.flag_intersect || !headers.iter().any(|h| h == header) {
-                headers.push(header.to_string());
-            }
+            headers.push(header.to_string());
         }
     }
 

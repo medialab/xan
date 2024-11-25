@@ -663,19 +663,37 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Number of distinct values returned by given expression.
 
     - count(<expr>?) -> number
-        Count the number of row. Works like in SQL in that `count(<expr>)`
-        will count all non-empy values returned by given expression, while
-        `count()` without any expression will count every matching row.
+        Count the number of truthy values returned by given expression.
+        Expression can also be omitted to count all rows.
 
-    - count_empty(<expr>) -> number
-        Count the number of empty values returned by given expression.
+    - count_seconds(<expr>) -> number
+        Count the number of seconds between earliest and latest datetime
+        returned by given expression.
+
+    - count_hours(<expr>) -> number
+        Count the number of hours between earliest and latest datetime
+        returned by given expression.
+
+    - count_days(<expr>) -> number
+        Count the number of days between earliest and latest datetime
+        returned by given expression.
+
+    - count_years(<expr>) -> number
+        Count the number of years between earliest and latest datetime
+        returned by given expression.
 
     - distinct_values(<expr>, separator?) -> string
         List of sorted distinct values joined by a pipe character ('|') by default or by
         the provided separator.
 
+    - earliest(<expr>) -> datetime
+        Earliest datetime returned by given expression.
+
     - first(<expr>) -> string
         Return first seen non empty element of the values returned by the given expression.
+
+    - latest(<expr>) -> datetime
+        Latest datetime returned by given expression.
 
     - last(<expr>) -> string
         Return last seen non empty element of the values returned by the given expression.
@@ -717,6 +735,9 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         List of top k most common counts returned by expression
         joined by a pipe character ('|') or by the provided separator.
 
+    - percentage(<expr>) -> number
+        Return the percentage of truthy values returned by expression.
+
     - quantile(<expr>, p) -> number
         Return the desired quantile of numerical values.
 
@@ -729,6 +750,9 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     - q3(<expr>) -> number
         Return the third quartile of numerical values.
 
+    - ratio(<expr>) -> number
+        Return the ratio of truthy values returned by expression.
+
     - stddev(<expr>) -> number
         Population standard deviation. Same as `stddev_pop`.
 
@@ -740,6 +764,7 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
 
     - sum(<expr>) -> number
         Sum of numerical values. Will return nothing if the sum overflows.
+        Uses the Kahan-Babuska routine for precise float summation.
 
     - top(k, <expr>, separator?) -> any
         Find the top k values returned by the expression and join

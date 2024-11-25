@@ -11,6 +11,7 @@ use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use bstr::ByteSlice;
+use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -18,6 +19,38 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
+
+#[derive(Clone, Copy)]
+struct Chi2SignificanceLevel(f64);
+
+impl Chi2SignificanceLevel {
+    fn get(&self) -> f64 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for Chi2SignificanceLevel {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        // Thresholds for k=1
+        Ok(Self(match raw.as_str() {
+            ".5" | "0.5" => 0.45,
+            ".1" | "0.1" => 2.71,
+            ".05" | "0.05" => 3.84,
+            ".025" | "0.025" => 5.02,
+            ".01" | "0.01" => 6.63,
+            ".005" | "0.005" => 7.88,
+            ".001" | "0.001" => 10.83,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unsupported significance threshold \"{}\"",
+                    &raw
+                )))
+            }
+        }))
+    }
+}
 
 static USAGE: &str = "
 Compute vocabulary statistics over tokenized documents (typically produced
@@ -72,8 +105,8 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: total number of co-occurrences
-    - sdI: distributional score based on PMI
-    - sdG2: distributional score based on G2
+    - sd_I: distributional score based on PMI
+    - sd_G2: distributional score based on G2
 
 Usage:
     xan vocab corpus [options] [<input>]
@@ -96,8 +129,14 @@ vocab options:
                              per row. Cannot be used without -D, --doc.
 
 vocab doc-token options:
-    --k1-value <value>  \"k1\" factor for BM25 computation. [default: 1.2]
-    --b-value <value>   \"b\" factor for BM25 computation. [default: 0.75]
+    --tf-weight <weight>         TF weighting scheme. One of \"count\", \"binary\", \"ratio\",
+                                 or \"log-normal\". [default: count]
+    --k1-value <value>  \"k1\"   Factor for BM25 computation. [default: 1.2]
+    --b-value <value>   \"b\"    Factor for BM25 computation. [default: 0.75]
+    --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
+                                 chi2 score that must be above the given significance level. Accepted
+                                 levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.01\",
+                                 \"0.005\" and \"0.001\".
 
 vocab cooc options:
     -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
@@ -110,9 +149,6 @@ vocab cooc options:
     --distrib         Compute directed distributional similarity metrics instead.
     --min-count <n>   Minimum number of co-occurrence count to be included in the result.
                       [default: 1]
-    --complete        Compute the complete chi2 & G2 metrics, instead of their approximation
-                      based on the first cell of the contingency matrix. This
-                      is of course more costly to compute.
 
 Common options:
     -h, --help             Display this message
@@ -137,13 +173,14 @@ struct Args {
     flag_doc: Option<SelectColumns>,
     flag_sep: Option<String>,
     flag_implode: bool,
+    flag_tf_weight: TfWeighting,
     flag_k1_value: f64,
     flag_b_value: f64,
+    flag_chi2_significance: Option<Chi2SignificanceLevel>,
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
     flag_distrib: bool,
     flag_min_count: usize,
-    flag_complete: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -342,11 +379,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if args.flag_distrib {
-            if args.flag_complete {
-                unimplemented!();
-            }
-
-            let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sdI", b"sdG2"];
+            let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sd_I", b"sd_G2"];
 
             wtr.write_record(output_headers)?;
             cooccurrences
@@ -357,9 +390,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             ];
 
             wtr.write_record(output_headers)?;
-            cooccurrences.for_each_cooc_record(args.flag_min_count, args.flag_complete, |r| {
-                wtr.write_byte_record(r)
-            })?;
+            cooccurrences
+                .for_each_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
         }
 
         return Ok(wtr.flush()?);
@@ -416,9 +448,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output_headers.push_field(b"chi2");
 
         wtr.write_byte_record(&output_headers)?;
-        vocab.for_each_doc_token_level_record(args.flag_k1_value, args.flag_b_value, |r| {
-            wtr.write_byte_record(r)
-        })?;
+        vocab.for_each_doc_token_level_record(
+            args.flag_k1_value,
+            args.flag_b_value,
+            args.flag_tf_weight,
+            args.flag_chi2_significance.map(|s| s.get()),
+            |r| wtr.write_byte_record(r),
+        )?;
     } else if args.cmd_doc {
         let mut output_headers = csv::ByteRecord::new();
 
@@ -445,13 +481,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ];
         wtr.write_record(headers)?;
 
-        let vocab_stats = vocab.compute_aggregated_stats();
-
         wtr.write_record([
             vocab.doc_count().to_string().as_bytes(),
-            vocab_stats.total_token_count.to_string().as_bytes(),
-            vocab.token_count().to_string().as_bytes(),
-            vocab_stats.average_doc_len.to_string().as_bytes(),
+            vocab.token_count.to_string().as_bytes(),
+            vocab.distinct_token_count().to_string().as_bytes(),
+            vocab.average_doc_len().to_string().as_bytes(),
         ])?;
     }
 
@@ -501,16 +535,51 @@ impl From<Token> for TokenStats {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+enum TfWeighting {
+    Count,
+    Binary,
+    Ratio,
+    LogNormal,
+}
+
+impl TfWeighting {
+    #[inline]
+    fn compute(&self, count: u64, doc_len: usize) -> f64 {
+        match self {
+            Self::Count => count as f64,
+            Self::Binary => 1.0,
+            Self::Ratio => count as f64 / doc_len as f64,
+            Self::LogNormal => (1.0 + count as f64).ln(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TfWeighting {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "count" => Self::Count,
+            "binary" => Self::Binary,
+            "ratio" => Self::Ratio,
+            "log-normal" => Self::LogNormal,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unsupported significance --tf-weight \"{}\"",
+                    &raw
+                )))
+            }
+        })
+    }
+}
+
 #[derive(Debug)]
 struct DocumentTokenStats {
     tf: u64,
 }
 
 impl DocumentTokenStats {
-    fn tfidf(&self, idf: f64) -> f64 {
-        self.tf as f64 * idf
-    }
-
     // NOTE: fancy idf log(1 + (N - tf + 0.5) / (tf + 0.5)) is the same as log(N / tf)
     // References:
     //   - https://fr.wikipedia.org/wiki/Okapi_BM25
@@ -526,11 +595,12 @@ impl DocumentTokenStats {
         idf * (numerator / denominator)
     }
 
-    fn chi2(&self, doc_len: usize, expected: f64) -> f64 {
-        let tf = self.tf as f64;
+    // NOTE: this function is a scaled version of the contingency matrix first cell
+    // fn chi2(&self, doc_len: usize, expected: f64) -> f64 {
+    //     let tf = self.tf as f64;
 
-        ((tf / doc_len as f64) - expected).powi(2) / expected
-    }
+    //     ((tf / doc_len as f64) - expected).powi(2) / expected
+    // }
 }
 
 #[derive(Default, Debug)]
@@ -565,15 +635,10 @@ impl DocumentStats {
 }
 
 #[derive(Default, Debug)]
-struct VocabularyStats {
-    average_doc_len: f64,
-    total_token_count: usize,
-}
-
-#[derive(Default, Debug)]
 struct Vocabulary {
     token_ids: HashMap<Token, TokenID>,
     tokens: Vec<TokenStats>,
+    token_count: usize,
     documents: ClusteredInsertHashmap<Document, DocumentStats>,
 }
 
@@ -586,24 +651,17 @@ impl Vocabulary {
         self.documents.len()
     }
 
-    fn token_count(&self) -> usize {
+    fn distinct_token_count(&self) -> usize {
         self.tokens.len()
     }
 
-    fn compute_aggregated_stats(&self) -> VocabularyStats {
-        let mut total_token_count: usize = 0;
-
-        for doc_stats in self.documents.values() {
-            total_token_count += doc_stats.doc_len();
-        }
-
-        VocabularyStats {
-            average_doc_len: total_token_count as f64 / self.doc_count() as f64,
-            total_token_count,
-        }
+    fn average_doc_len(&self) -> f64 {
+        self.token_count as f64 / self.doc_count() as f64
     }
 
     fn add(&mut self, document: Document, token: Token) {
+        self.token_count += 1;
+
         let next_id = self.token_ids.len();
 
         let token_id = match self.token_ids.entry(token.clone()) {
@@ -692,6 +750,8 @@ impl Vocabulary {
         self,
         k1: f64,
         b: f64,
+        tf_weighting: TfWeighting,
+        chi2_significance: Option<f64>,
         mut callback: F,
     ) -> Result<(), E>
     where
@@ -703,9 +763,9 @@ impl Vocabulary {
             return Ok(());
         }
 
-        // Aggregating stats for bm25 and chi2
-        let voc_stats = self.compute_aggregated_stats();
+        let average_doc_len = self.average_doc_len();
 
+        // Aggregating stats for bm25 and chi2
         let mut record = csv::ByteRecord::new();
 
         for (doc, doc_stats) in self.documents.into_iter() {
@@ -716,28 +776,36 @@ impl Vocabulary {
 
                 let token_stats = &self.tokens[token_id];
 
+                let (chi2, _) = compute_chi2_and_g2(
+                    token_stats.gf as usize,
+                    doc_len,
+                    doc_token_stats.tf as usize,
+                    self.token_count,
+                );
+
+                if let Some(level) = chi2_significance {
+                    if chi2 < level {
+                        continue;
+                    }
+                }
+
+                let tf = tf_weighting.compute(doc_token_stats.tf, doc_len);
                 let idf = token_stats.idf(n);
-                let expected = token_stats.gf as f64 / voc_stats.total_token_count as f64;
 
                 for cell in doc.iter() {
                     record.push_field(cell);
                 }
 
                 record.push_field(&token_stats.text);
-                record.push_field(doc_token_stats.tf.to_string().as_bytes());
-                record.push_field(doc_token_stats.tfidf(idf).to_string().as_bytes());
+                record.push_field(tf.to_string().as_bytes());
+                record.push_field((tf * idf).to_string().as_bytes());
                 record.push_field(
                     doc_token_stats
-                        .bm25(idf, doc_len, voc_stats.average_doc_len, k1, b)
+                        .bm25(idf, doc_len, average_doc_len, k1, b)
                         .to_string()
                         .as_bytes(),
                 );
-                record.push_field(
-                    doc_token_stats
-                        .chi2(doc_len, expected)
-                        .to_string()
-                        .as_bytes(),
-                );
+                record.push_field(chi2.to_string().as_bytes());
 
                 callback(&record)?;
             }
@@ -765,17 +833,17 @@ fn compute_npmi(xy: usize, n: usize, pmi: f64) -> f64 {
     }
 }
 
-#[inline]
-fn compute_simplified_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
-    // This version does not take into account the full contingency matrix.
-    let observed = xy as f64;
-    let expected = x as f64 * y as f64 / n as f64;
+// #[inline]
+// fn compute_simplified_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
+//     // This version does not take into account the full contingency matrix.
+//     let observed = xy as f64;
+//     let expected = x as f64 * y as f64 / n as f64;
 
-    (
-        (observed - expected).powi(2) / expected,
-        2.0 * observed * (observed / expected).ln(),
-    )
-}
+//     (
+//         (observed - expected).powi(2) / expected,
+//         2.0 * observed * (observed / expected).ln(),
+//     )
+// }
 
 #[inline]
 fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
@@ -787,20 +855,40 @@ fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 }
 
 // NOTE: see code in issue https://github.com/medialab/xan/issues/295
+// NOTE: it is possible to approximate chi2 and G2 for co-occurrences by
+// only computing the (observed_11, expected_11) part related to the first
+// cell of the contingency matrix. This works very well for chi2, but
+// is a little bit more fuzzy for G2.
 fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
+    // This can be 0 if some item is present in all co-occurrences!
     let not_x = (n - x) as f64;
     let not_y = (n - y) as f64;
-    let nf = n as f64;
 
     let observed_11 = xy as f64;
-    let observed_12 = (x - xy) as f64;
-    let observed_21 = (y - xy) as f64;
-    let observed_22 = (n - (x + y) + xy) as f64;
+    let observed_12 = (x - xy) as f64; // Is 0 if x only co-occurs with y
+    let observed_21 = (y - xy) as f64; // Is 0 if y only co-occurs with x
 
-    let expected_11 = x as f64 * y as f64 / nf;
+    // NOTE: with few co-occurrences, self loops can produce a negative
+    // outcome...
+    let observed_22 = ((n + xy) as i64 - (x + y) as i64) as f64;
+
+    let nf = n as f64;
+
+    let expected_11 = x as f64 * y as f64 / nf; // Cannot be 0
     let expected_12 = x as f64 * not_y / nf;
     let expected_21 = y as f64 * not_x / nf;
     let expected_22 = not_x * not_y / nf;
+
+    debug_assert!(
+        observed_11 >= 0.0
+            && observed_12 >= 0.0
+            && observed_21 >= 0.0
+            // && observed_22 >= 0.0
+            && expected_11 >= 0.0
+            && expected_12 >= 0.0
+            && expected_21 >= 0.0
+            && expected_22 >= 0.0
+    );
 
     let chi2_11 = (observed_11 - expected_11).powi(2) / expected_11;
     let chi2_12 = (observed_12 - expected_12).powi(2) / expected_12;
@@ -808,14 +896,45 @@ fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
     let chi2_22 = (observed_22 - expected_22).powi(2) / expected_22;
 
     let g2_11 = observed_11 * (observed_11 / expected_11).ln();
-    let g2_12 = observed_12 * (observed_12 / expected_12).ln();
-    let g2_21 = observed_21 * (observed_21 / expected_21).ln();
-    let g2_22 = observed_22 * (observed_22 / expected_22).ln();
+    let g2_12 = if observed_12 == 0.0 {
+        0.0
+    } else {
+        observed_12 * (observed_12 / expected_12).ln()
+    };
+    let g2_21 = if observed_21 == 0.0 {
+        0.0
+    } else {
+        observed_21 * (observed_21 / expected_21).ln()
+    };
 
-    (
-        chi2_11 + chi2_12 + chi2_21 + chi2_22,
-        2.0 * (g2_11 + g2_12 + g2_21 + g2_22),
-    )
+    // NOTE: in the case when observed_22 is negative, I am not entirely
+    // sure it is mathematically sound to clamp to 0. But since this case
+    // is mostly useless, I will allow it...
+    let g2_22 = if observed_22 <= 0.0 {
+        0.0
+    } else {
+        observed_22 * (observed_22 / expected_22).ln()
+    };
+
+    let mut chi2 = chi2_11 + chi2_12 + chi2_21 + chi2_22;
+    let mut g2 = 2.0 * (g2_11 + g2_12 + g2_21 + g2_22);
+
+    // Dealing with degenerate cases that happen when the number
+    // of co-occurrences is very low, or when some item dominates
+    // the distribution.
+    if chi2.is_nan() {
+        chi2 = 0.0;
+    }
+
+    if chi2.is_infinite() {
+        chi2 = chi2_11;
+    }
+
+    if g2.is_infinite() {
+        g2 = g2_11;
+    }
+
+    (chi2, g2)
 }
 
 #[derive(Debug)]
@@ -912,12 +1031,7 @@ impl Cooccurrences {
         target_entry.gcf += 1;
     }
 
-    fn for_each_cooc_record<F, E>(
-        self,
-        min_count: usize,
-        complete: bool,
-        mut callback: F,
-    ) -> Result<(), E>
+    fn for_each_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
@@ -938,11 +1052,7 @@ impl Cooccurrences {
                 let xy = *count;
 
                 // chi2/G2 computations
-                let (chi2, g2) = if complete {
-                    compute_chi2_and_g2(x, y, xy, n)
-                } else {
-                    compute_simplified_chi2_and_g2(x, y, xy, n)
-                };
+                let (chi2, g2) = compute_chi2_and_g2(x, y, xy, n);
 
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
@@ -953,13 +1063,7 @@ impl Cooccurrences {
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(count.to_string().as_bytes());
                 csv_record.push_field(chi2.to_string().as_bytes());
-
-                if g2.is_nan() {
-                    csv_record.push_field(b"");
-                } else {
-                    csv_record.push_field(g2.to_string().as_bytes());
-                }
-
+                csv_record.push_field(g2.to_string().as_bytes());
                 csv_record.push_field(pmi.to_string().as_bytes());
                 csv_record.push_field(npmi.to_string().as_bytes());
 

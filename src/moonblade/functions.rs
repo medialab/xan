@@ -23,7 +23,7 @@ use rand::Rng;
 use unidecode::unidecode;
 use uuid::Uuid;
 
-use super::agg::Welford;
+use super::agg::aggregators::Welford;
 use super::error::EvaluationError;
 use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
