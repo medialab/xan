@@ -124,19 +124,24 @@ impl Args {
         let mut workbook = Workbook::new();
         let headers = rdr.headers()?.clone();
         let worksheet = workbook.add_worksheet();
+
         for (col, header) in headers.iter().enumerate() {
             worksheet.write_string(0, col as u16, header)?;
         }
+
         for (row, value) in rdr.records().enumerate() {
             let record = value?;
             for (col, field) in record.iter().enumerate() {
                 worksheet.write_string((row + 1) as u32, col as u16, field)?;
             }
         }
+
         let mut cursor = io::Cursor::new(Vec::new());
         workbook.save_to_writer(&mut cursor)?;
         let buf = cursor.into_inner();
         writer.write_all(&buf)?;
+
+        writer.flush()?;
         Ok(())
     }
 }
