@@ -4,6 +4,7 @@ use std::io;
 use std::iter::repeat;
 use std::str;
 
+use bstr::ByteSlice;
 use byteorder::{BigEndian, WriteBytesExt};
 use csv;
 use pariter::IteratorExt;
@@ -601,9 +602,6 @@ fn transform(bs: &[u8], case_insensitive: bool) -> ByteString {
     if !case_insensitive {
         bs.to_vec()
     } else {
-        match str::from_utf8(bs) {
-            Err(_) => bs.to_vec(),
-            Ok(s) => s.to_lowercase().into_bytes(),
-        }
+        bs.to_lowercase()
     }
 }
