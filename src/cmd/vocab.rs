@@ -1217,6 +1217,7 @@ impl Cooccurrences {
         Ok(())
     }
 
+    // NOTE: currently we avoid self loops because they are fiddly
     fn for_each_distrib_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
@@ -1232,12 +1233,16 @@ impl Cooccurrences {
 
         let mut sums: Vec<Metrics> = Vec::with_capacity(self.token_entries.len());
 
-        for source_entry in self.token_entries.iter() {
+        for (source_id, source_entry) in self.token_entries.iter().enumerate() {
             let x = source_entry.gcf;
 
             let mut sum = Metrics::default();
 
             for (target_id, count) in source_entry.cooc.iter() {
+                if source_id == *target_id {
+                    continue;
+                }
+
                 let target_entry = &self.token_entries[*target_id];
 
                 let y = target_entry.gcf;
@@ -1283,6 +1288,10 @@ impl Cooccurrences {
                 let mut min_g2_sum = 0.0;
 
                 for (other_id, source_other_count) in source_entry.cooc.iter() {
+                    if source_id == *other_id {
+                        continue;
+                    }
+
                     let target_other_count = match target_entry.cooc.get(other_id) {
                         Some(c) => c,
                         None => continue,
