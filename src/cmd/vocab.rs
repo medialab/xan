@@ -34,7 +34,7 @@ impl<'de> Deserialize<'de> for Chi2SignificanceLevel {
         let raw = String::deserialize(d)?;
 
         // Thresholds for k=1
-        Ok(Chi2SignificanceLevel(match raw.as_str() {
+        Ok(Self(match raw.as_str() {
             ".5" | "0.5" => 0.45,
             ".1" | "0.1" => 2.71,
             ".05" | "0.05" => 3.84,
@@ -129,6 +129,8 @@ vocab options:
                              per row. Cannot be used without -D, --doc.
 
 vocab doc-token options:
+    --tf-weight <weight>         TF weighting scheme. One of \"count\", \"binary\", \"ratio\",
+                                 or \"log-normal\". [default: count]
     --k1-value <value>  \"k1\"   Factor for BM25 computation. [default: 1.2]
     --b-value <value>   \"b\"    Factor for BM25 computation. [default: 0.75]
     --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
@@ -171,6 +173,7 @@ struct Args {
     flag_doc: Option<SelectColumns>,
     flag_sep: Option<String>,
     flag_implode: bool,
+    flag_tf_weight: TfWeighting,
     flag_k1_value: f64,
     flag_b_value: f64,
     flag_chi2_significance: Option<Chi2SignificanceLevel>,
@@ -448,6 +451,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         vocab.for_each_doc_token_level_record(
             args.flag_k1_value,
             args.flag_b_value,
+            args.flag_tf_weight,
             args.flag_chi2_significance.map(|s| s.get()),
             |r| wtr.write_byte_record(r),
         )?;
@@ -531,16 +535,51 @@ impl From<Token> for TokenStats {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+enum TfWeighting {
+    Count,
+    Binary,
+    Ratio,
+    LogNormal,
+}
+
+impl TfWeighting {
+    #[inline]
+    fn compute(&self, count: u64, doc_len: usize) -> f64 {
+        match self {
+            Self::Count => count as f64,
+            Self::Binary => 1.0,
+            Self::Ratio => count as f64 / doc_len as f64,
+            Self::LogNormal => (1.0 + count as f64).ln(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TfWeighting {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "count" => Self::Count,
+            "binary" => Self::Binary,
+            "ratio" => Self::Ratio,
+            "log-normal" => Self::LogNormal,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unsupported significance --tf-weight \"{}\"",
+                    &raw
+                )))
+            }
+        })
+    }
+}
+
 #[derive(Debug)]
 struct DocumentTokenStats {
     tf: u64,
 }
 
 impl DocumentTokenStats {
-    fn tfidf(&self, idf: f64) -> f64 {
-        self.tf as f64 * idf
-    }
-
     // NOTE: fancy idf log(1 + (N - tf + 0.5) / (tf + 0.5)) is the same as log(N / tf)
     // References:
     //   - https://fr.wikipedia.org/wiki/Okapi_BM25
@@ -710,6 +749,7 @@ impl Vocabulary {
         self,
         k1: f64,
         b: f64,
+        tf_weighting: TfWeighting,
         chi2_significance: Option<f64>,
         mut callback: F,
     ) -> Result<(), E>
@@ -736,7 +776,6 @@ impl Vocabulary {
                 let token_stats = &self.tokens[token_id];
 
                 let expected = token_stats.gf as f64 / self.token_count as f64;
-
                 let chi2 = doc_token_stats.chi2(doc_len, expected);
 
                 if let Some(level) = chi2_significance {
@@ -745,6 +784,7 @@ impl Vocabulary {
                     }
                 }
 
+                let tf = tf_weighting.compute(doc_token_stats.tf, doc_len);
                 let idf = token_stats.idf(n);
 
                 for cell in doc.iter() {
@@ -752,8 +792,8 @@ impl Vocabulary {
                 }
 
                 record.push_field(&token_stats.text);
-                record.push_field(doc_token_stats.tf.to_string().as_bytes());
-                record.push_field(doc_token_stats.tfidf(idf).to_string().as_bytes());
+                record.push_field(tf.to_string().as_bytes());
+                record.push_field((tf * idf).to_string().as_bytes());
                 record.push_field(
                     doc_token_stats
                         .bm25(idf, doc_len, average_doc_len, k1, b)
