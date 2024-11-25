@@ -20,16 +20,16 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-#[derive(Clone, Copy)]
-struct Chi2SignificanceLevel(f64);
+#[derive(Clone, Copy, Debug)]
+struct SignificanceLevel(f64);
 
-impl Chi2SignificanceLevel {
+impl SignificanceLevel {
     fn get(&self) -> f64 {
         self.0
     }
 }
 
-impl<'de> Deserialize<'de> for Chi2SignificanceLevel {
+impl<'de> Deserialize<'de> for SignificanceLevel {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(d)?;
 
@@ -131,24 +131,32 @@ vocab options:
 vocab doc-token options:
     --tf-weight <weight>         TF weighting scheme. One of \"count\", \"binary\", \"ratio\",
                                  or \"log-normal\". [default: count]
-    --k1-value <value>  \"k1\"   Factor for BM25 computation. [default: 1.2]
-    --b-value <value>   \"b\"    Factor for BM25 computation. [default: 0.75]
+    --k1-value <value>           \"k1\" Factor for BM25 computation. [default: 1.2]
+    --b-value <value>            \"b\"  Factor for BM25 computation. [default: 0.75]
     --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
                                  chi2 score that must be above the given significance level. Accepted
                                  levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.01\",
                                  \"0.005\" and \"0.001\".
 
 vocab cooc options:
-    -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
-                      considered token. If not given, co-occurrences will be computed using the bag of
-                      words model where tokens are considered to co-occur with every
-                      other one in the same document.
-                      Set the window to \"1\" to compute bigram collocations. Set a larger window
-                      to get something similar to what word2vec would consider.
-    -F, --forward     Whether to only consider a forward window when traversing token contexts.
-    --distrib         Compute directed distributional similarity metrics instead.
-    --min-count <n>   Minimum number of co-occurrence count to be included in the result.
-                      [default: 1]
+    -w, --window <n>             Size of the co-occurrence window, in number of tokens around the currently
+                                 considered token. If not given, co-occurrences will be computed using the bag
+                                 of words model where tokens are considered to co-occur with every
+                                 other one in the same document.
+                                 Set the window to \"1\" to compute bigram collocations. Set a larger window
+                                 to get something similar to what word2vec would consider.
+    -F, --forward                Whether to only consider a forward window when traversing token contexts.
+    --distrib                    Compute directed distributional similarity metrics instead.
+    --min-count <n>              Minimum number of co-occurrence count to be included in the result.
+                                 [default: 1]
+    --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
+                                 chi2 score that must be above the given significance level. Accepted
+                                 levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.01\",
+                                 \"0.005\" and \"0.001\".
+    --G2-significance <value>    Filter doc,token pairs by only keeping significant ones wrt their
+                                 G2 score that must be above the given significance level. Accepted
+                                 levels include \"0.5\", \"0.1\", \"0.05\", \"0.025\", \"0.01\",
+                                 \"0.005\" and \"0.001\".
 
 Common options:
     -h, --help             Display this message
@@ -176,7 +184,9 @@ struct Args {
     flag_tf_weight: TfWeighting,
     flag_k1_value: f64,
     flag_b_value: f64,
-    flag_chi2_significance: Option<Chi2SignificanceLevel>,
+    flag_chi2_significance: Option<SignificanceLevel>,
+    #[serde(rename = "flag_G2_significance")]
+    flag_g2_significance: Option<SignificanceLevel>,
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
     flag_distrib: bool,
@@ -211,6 +221,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             "-D, --distrib does not make sense with -F, --forward".to_string(),
         ));
     }
+
+    let chi2_significance = args.flag_chi2_significance.map(|s| s.get());
+    let g2_significance = args.flag_g2_significance.map(|s| s.get());
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -390,8 +403,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             ];
 
             wtr.write_record(output_headers)?;
-            cooccurrences
-                .for_each_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
+            cooccurrences.for_each_cooc_record(
+                args.flag_min_count,
+                chi2_significance,
+                g2_significance,
+                |r| wtr.write_byte_record(r),
+            )?;
         }
 
         return Ok(wtr.flush()?);
@@ -452,7 +469,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             args.flag_k1_value,
             args.flag_b_value,
             args.flag_tf_weight,
-            args.flag_chi2_significance.map(|s| s.get()),
+            chi2_significance,
             |r| wtr.write_byte_record(r),
         )?;
     } else if args.cmd_doc {
@@ -1031,7 +1048,13 @@ impl Cooccurrences {
         target_entry.gcf += 1;
     }
 
-    fn for_each_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
+    fn for_each_cooc_record<F, E>(
+        self,
+        min_count: usize,
+        chi2_significance: Option<f64>,
+        g2_significance: Option<f64>,
+        mut callback: F,
+    ) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
     {
@@ -1053,6 +1076,18 @@ impl Cooccurrences {
 
                 // chi2/G2 computations
                 let (chi2, g2) = compute_chi2_and_g2(x, y, xy, n);
+
+                if let Some(level) = chi2_significance {
+                    if chi2 < level {
+                        continue;
+                    }
+                }
+
+                if let Some(level) = g2_significance {
+                    if g2 < level {
+                        continue;
+                    }
+                }
 
                 // PMI-related computations
                 let pmi = compute_pmi(x, y, xy, n);
