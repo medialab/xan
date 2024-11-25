@@ -94,7 +94,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
 5. token-cooccurrence-level statistics (using the \"cooc\" subcommand):
     - token1: the first token
     - token2: the second token
-    - count: total number of co-occurrences
+    - count: number of co-occurrences
     - chi2: chi2 score (approx. without the --complete flag)
     - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
@@ -104,9 +104,15 @@ This command can compute 5 kinds of differents vocabulary statistics:
 
     - token1: the first token
     - token2: the second token
-    - count: total number of co-occurrences
+    - count: number of co-occurrences
     - sd_I: distributional score based on PMI
     - sd_G2: distributional score based on G2
+
+    or, using the --specificity flag:
+
+    - token: the token
+    - count: total number of co-occurrences
+    - lgl: the specificity score (ratio of statistically relevant co-occurrences)
 
 Usage:
     xan vocab corpus [options] [<input>]
@@ -147,6 +153,7 @@ vocab cooc options:
                                  to get something similar to what word2vec would consider.
     -F, --forward                Whether to only consider a forward window when traversing token contexts.
     --distrib                    Compute directed distributional similarity metrics instead.
+    --specificity                Compute the lgl specificity score per token instead.
     --min-count <n>              Minimum number of co-occurrence count to be included in the result.
                                  [default: 1]
     --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
@@ -190,6 +197,7 @@ struct Args {
     flag_window: Option<NonZeroUsize>,
     flag_forward: bool,
     flag_distrib: bool,
+    flag_specificity: bool,
     flag_min_count: usize,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -216,7 +224,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ));
     }
 
-    if args.flag_distrib && args.flag_forward {
+    if (args.flag_distrib || args.flag_specificity) && args.flag_forward {
         return Err(CliError::Other(
             "-D, --distrib does not make sense with -F, --forward".to_string(),
         ));
@@ -253,7 +261,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let cooccurrence_mode = if args.flag_forward {
             CooccurrenceMode::Forward
-        } else if args.flag_distrib {
+        } else if args.flag_distrib || args.flag_specificity {
             CooccurrenceMode::Full
         } else {
             CooccurrenceMode::Symmetrical
@@ -397,6 +405,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(output_headers)?;
             cooccurrences
                 .for_each_distrib_cooc_record(args.flag_min_count, |r| wtr.write_byte_record(r))?;
+        } else if args.flag_specificity {
+            let output_headers: [&[u8]; 3] = [b"token", b"count", b"lgl"];
+
+            wtr.write_record(output_headers)?;
+            cooccurrences.for_each_specificity_record(
+                args.flag_min_count,
+                g2_significance,
+                |r| wtr.write_byte_record(r),
+            )?;
         } else {
             let output_headers: [&[u8]; 7] = [
                 b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"npmi",
@@ -1351,6 +1368,52 @@ impl Cooccurrences {
 
                 callback(&csv_record)?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn for_each_specificity_record<F, E>(
+        self,
+        min_count: usize,
+        g2_significance: Option<f64>,
+        mut callback: F,
+    ) -> Result<(), E>
+    where
+        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+    {
+        let mut csv_record = csv::ByteRecord::new();
+        let n = self.cooccurrences_count;
+
+        let g2_significance = g2_significance.unwrap_or(3.84);
+
+        for source_entry in self.token_entries.iter() {
+            if source_entry.gcf < min_count {
+                continue;
+            }
+
+            csv_record.clear();
+
+            let mut statistically_significant: usize = 0;
+
+            for (target_id, source_target_count) in source_entry.cooc.iter() {
+                let target_entry = &self.token_entries[*target_id];
+
+                let g2 = compute_g2(source_entry.gcf, target_entry.gcf, *source_target_count, n);
+
+                // 5% test
+                if g2 >= g2_significance {
+                    statistically_significant += 1;
+                }
+            }
+
+            let lgl = statistically_significant as f64 / n as f64;
+
+            csv_record.push_field(&source_entry.token);
+            csv_record.push_field(source_entry.gcf.to_string().as_bytes());
+            csv_record.push_field(lgl.to_string().as_bytes());
+
+            callback(&csv_record)?;
         }
 
         Ok(())
