@@ -13,7 +13,7 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-static MAX_SAFE_INTEGER: i64 = 9007199254740991;
+const MAX_SAFE_INTEGER: i64 = 9007199254740991;
 
 static USAGE: &str = "
 Convert a CSV file to a variety of data formats.
@@ -29,8 +29,8 @@ Supported formats:
     xlsx    - Excel spreasheet
 
 JSON options:
-    --null            Convert empty string to a null value.
-    --ignore          Ignore the empty values.
+    --nulls            Convert empty string to a null value.
+    --omit          Ignore the empty values.
 
 Common options:
     -h, --help             Display this message
@@ -42,8 +42,8 @@ struct Args {
     arg_format: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
-    flag_null: bool,
-    flag_ignore: bool,
+    flag_nulls: bool,
+    flag_omit: bool,
 }
 
 impl Args {
@@ -63,10 +63,10 @@ impl Args {
                 json_object.insert(header.to_string(), json!(parsed_value));
                 continue;
             }
-            if self.flag_null && value == "" {
+            if self.flag_nulls && value == "" {
                 json_object.insert(header.to_string(), json!(Value::Null));
                 continue;
-            } else if self.flag_ignore && value == "" {
+            } else if self.flag_omit && value == "" {
                 json_object.remove(header);
                 continue;
             }
@@ -136,7 +136,7 @@ impl Args {
         let mut cursor = io::Cursor::new(Vec::new());
         workbook.save_to_writer(&mut cursor)?;
         let buf = cursor.into_inner();
-        Write::write_all(&mut writer, &buf)?;
+        writer.write_all(&buf)?;
         Ok(())
     }
 }

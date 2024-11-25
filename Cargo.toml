@@ -82,6 +82,7 @@ rand_seeder = "0.2.3"
 ratatui = { version = "0.28.1", default-features = false }
 rayon = "1.8.0"
 regex = "1"
+rust_xlsxwriter = "0.79.4"
 serde = "1"
 serde_derive = "1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
@@ -96,7 +97,6 @@ unidecode = "0.3.0"
 unicode-segmentation = "1.12.0"
 unicode-width = "0.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
-rust_xlsxwriter = "0.79.4"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
