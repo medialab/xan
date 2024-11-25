@@ -793,7 +793,7 @@ impl Vocabulary {
 
                 let token_stats = &self.tokens[token_id];
 
-                let (chi2, _) = compute_chi2_and_g2(
+                let chi2 = compute_chi2(
                     token_stats.gf as usize,
                     doc_len,
                     doc_token_stats.tf as usize,
@@ -861,15 +861,6 @@ fn compute_npmi(xy: usize, n: usize, pmi: f64) -> f64 {
 //         2.0 * observed * (observed / expected).ln(),
 //     )
 // }
-
-#[inline]
-fn compute_simplified_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
-    // This version does not take into account the full contingency matrix.
-    let observed = xy as f64;
-    let expected = x as f64 * y as f64 / n as f64;
-
-    2.0 * observed * (observed / expected).ln()
-}
 
 // NOTE: see code in issue https://github.com/medialab/xan/issues/295
 // NOTE: it is possible to approximate chi2 and G2 for co-occurrences by
@@ -952,6 +943,123 @@ fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
     }
 
     (chi2, g2)
+}
+
+fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
+    // This can be 0 if some item is present in all co-occurrences!
+    let not_x = (n - x) as f64;
+    let not_y = (n - y) as f64;
+
+    let observed_11 = xy as f64;
+    let observed_12 = (x - xy) as f64; // Is 0 if x only co-occurs with y
+    let observed_21 = (y - xy) as f64; // Is 0 if y only co-occurs with x
+
+    // NOTE: with few co-occurrences, self loops can produce a negative
+    // outcome...
+    let observed_22 = ((n + xy) as i64 - (x + y) as i64) as f64;
+
+    let nf = n as f64;
+
+    let expected_11 = x as f64 * y as f64 / nf; // Cannot be 0
+    let expected_12 = x as f64 * not_y / nf;
+    let expected_21 = y as f64 * not_x / nf;
+    let expected_22 = not_x * not_y / nf;
+
+    debug_assert!(
+        observed_11 >= 0.0
+            && observed_12 >= 0.0
+            && observed_21 >= 0.0
+            // && observed_22 >= 0.0
+            && expected_11 >= 0.0
+            && expected_12 >= 0.0
+            && expected_21 >= 0.0
+            && expected_22 >= 0.0
+    );
+
+    let chi2_11 = (observed_11 - expected_11).powi(2) / expected_11;
+    let chi2_12 = (observed_12 - expected_12).powi(2) / expected_12;
+    let chi2_21 = (observed_21 - expected_21).powi(2) / expected_21;
+    let chi2_22 = (observed_22 - expected_22).powi(2) / expected_22;
+
+    let mut chi2 = chi2_11 + chi2_12 + chi2_21 + chi2_22;
+
+    // Dealing with degenerate cases that happen when the number
+    // of co-occurrences is very low, or when some item dominates
+    // the distribution.
+    if chi2.is_nan() {
+        chi2 = 0.0;
+    }
+
+    if chi2.is_infinite() {
+        chi2 = chi2_11;
+    }
+
+    chi2
+}
+
+fn compute_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
+    // This can be 0 if some item is present in all co-occurrences!
+    let not_x = (n - x) as f64;
+    let not_y = (n - y) as f64;
+
+    let observed_11 = xy as f64;
+    let observed_12 = (x - xy) as f64; // Is 0 if x only co-occurs with y
+    let observed_21 = (y - xy) as f64; // Is 0 if y only co-occurs with x
+
+    // NOTE: with few co-occurrences, self loops can produce a negative
+    // outcome...
+    let observed_22 = ((n + xy) as i64 - (x + y) as i64) as f64;
+
+    let nf = n as f64;
+
+    let expected_11 = x as f64 * y as f64 / nf; // Cannot be 0
+    let expected_12 = x as f64 * not_y / nf;
+    let expected_21 = y as f64 * not_x / nf;
+    let expected_22 = not_x * not_y / nf;
+
+    debug_assert!(
+        observed_11 >= 0.0
+            && observed_12 >= 0.0
+            && observed_21 >= 0.0
+            // && observed_22 >= 0.0
+            && expected_11 >= 0.0
+            && expected_12 >= 0.0
+            && expected_21 >= 0.0
+            && expected_22 >= 0.0
+    );
+
+    let g2_11 = observed_11 * (observed_11 / expected_11).ln();
+    let g2_12 = if observed_12 == 0.0 {
+        0.0
+    } else {
+        observed_12 * (observed_12 / expected_12).ln()
+    };
+    let g2_21 = if observed_21 == 0.0 {
+        0.0
+    } else {
+        observed_21 * (observed_21 / expected_21).ln()
+    };
+
+    // NOTE: in the case when observed_22 is negative, I am not entirely
+    // sure it is mathematically sound to clamp to 0. But since this case
+    // is mostly useless, I will allow it...
+    let g2_22 = if observed_22 <= 0.0 {
+        0.0
+    } else {
+        observed_22 * (observed_22 / expected_22).ln()
+    };
+
+    let mut g2 = 2.0 * (g2_11 + g2_12 + g2_21 + g2_22);
+
+    // Dealing with degenerate cases that happen when the number
+    // of co-occurrences is very low, or when some item dominates
+    // the distribution.
+
+    if g2.is_infinite() {
+        g2 = g2_11;
+    }
+
+    g2
 }
 
 #[derive(Debug)]
@@ -1143,7 +1251,7 @@ impl Cooccurrences {
                 }
 
                 // G2 computations
-                let g2 = compute_simplified_g2(x, y, xy, n);
+                let g2 = compute_g2(x, y, xy, n);
 
                 if g2 > 0.0 {
                     sum.g2 += g2;
@@ -1191,18 +1299,10 @@ impl Cooccurrences {
                         min_pmi_sum += pmi_source_other.min(pmi_target_other);
                     }
 
-                    let g2_source_other = compute_simplified_g2(
-                        source_entry.gcf,
-                        other_entry.gcf,
-                        *source_other_count,
-                        n,
-                    );
-                    let g2_target_other = compute_simplified_g2(
-                        target_entry.gcf,
-                        other_entry.gcf,
-                        *target_other_count,
-                        n,
-                    );
+                    let g2_source_other =
+                        compute_g2(source_entry.gcf, other_entry.gcf, *source_other_count, n);
+                    let g2_target_other =
+                        compute_g2(target_entry.gcf, other_entry.gcf, *target_other_count, n);
 
                     if g2_source_other > 0.0 && g2_target_other > 0.0 {
                         min_g2_sum += g2_source_other.min(g2_target_other);
