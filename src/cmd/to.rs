@@ -3,6 +3,7 @@ use std::{
     io::{self, Read, Write},
 };
 
+use atty::Stream;
 use csv::{self, StringRecord};
 use rust_xlsxwriter::Workbook;
 use serde_json::{json, Value};
@@ -13,6 +14,7 @@ use crate::CliError;
 use crate::CliResult;
 
 static MAX_SAFE_INTEGER: i64 = 9007199254740991;
+
 static USAGE: &str = "
 Convert a CSV file to a variety of data formats.
 
@@ -24,7 +26,7 @@ Supported formats:
     json    - JSON array or object
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
-    xlsx    
+    xlsx    - Excel spreasheet
 
 to options:
     -E, --empty            Convert empty string to a null value.
@@ -45,7 +47,7 @@ struct Args {
 impl Args {
     fn make_json(
         &self,
-        record: &mut StringRecord,
+        record: &StringRecord,
         headers: &StringRecord,
         mut json_object: serde_json::Map<String, Value>,
     ) -> serde_json::Map<String, Value> {
@@ -80,7 +82,7 @@ impl Args {
         let mut json_array = Vec::new();
 
         while rdr.read_record(&mut record)? {
-            json_object = Args::make_json(&self, &mut record, &headers, json_object);
+            json_object = self.make_json(&record, &headers, json_object);
 
             json_array.push(Value::Object(json_object.clone()));
         }
@@ -99,7 +101,7 @@ impl Args {
         let mut json_object = serde_json::Map::new();
 
         while rdr.read_record(&mut record)? {
-            json_object = Args::make_json(&self, &mut record, &headers, json_object);
+            json_object = self.make_json(&record, &headers, json_object);
 
             writeln!(
                 writer,
@@ -111,26 +113,26 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_xlsx<R: Read>(mut rdr: csv::Reader<R>, path: String) -> CliResult<()> {
+    fn convert_to_xlsx<R: Read>(
+        mut rdr: csv::Reader<R>,
+        mut writer: Box<dyn Write>,
+    ) -> CliResult<()> {
         let mut workbook = Workbook::new();
         let headers = rdr.headers()?.clone();
         let worksheet = workbook.add_worksheet();
         for (col, header) in headers.iter().enumerate() {
-            worksheet
-                .write_string(0, col as u16, header)
-                .map_err(|e| CliError::Other(e.to_string()))?;
+            worksheet.write_string(0, col as u16, header)?;
         }
         for (row, value) in rdr.records().enumerate() {
             let record = value?;
             for (col, field) in record.iter().enumerate() {
-                worksheet
-                    .write_string((row + 1) as u32, col as u16, field)
-                    .map_err(|e| CliError::Other(e.to_string()))?;
+                worksheet.write_string((row + 1) as u32, col as u16, field)?;
             }
         }
-        workbook
-            .save(path)
-            .map_err(|e| CliError::Other(e.to_string()))?;
+        let mut cursor = io::Cursor::new(Vec::new());
+        workbook.save_to_writer(&mut cursor)?;
+        let buf = cursor.into_inner();
+        Write::write_all(&mut writer, &buf)?;
         Ok(())
     }
 }
@@ -149,10 +151,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "json" => Args::convert_to_json(&args, rdr, writer)?,
         "jsonl" | "ndjson" => Args::convert_to_ndjson(&args, rdr, writer)?,
         "xlsx" => {
-            if let Some(path) = args.flag_output {
-                Args::convert_to_xlsx(rdr, path)?;
+            if !atty::is(Stream::Stdout) || args.flag_output.is_some() {
+                Args::convert_to_xlsx(rdr, writer)?;
             } else {
-                return fail!("could not export in xlsx without a path, use -o, --output!");
+                return fail!(
+                    "could not export in xlsx without a path, use -o, --output or pipe the result!"
+                );
             }
         }
         _ => return fail!("could not export the file into this format!"),

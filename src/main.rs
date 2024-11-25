@@ -456,6 +456,12 @@ impl From<transient_btree_index::Error> for CliError {
     }
 }
 
+impl From<rust_xlsxwriter::XlsxError> for CliError {
+    fn from(value: rust_xlsxwriter::XlsxError) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
 impl From<()> for CliError {
     fn from(_: ()) -> CliError {
         CliError::Other("unknown error".to_string())
