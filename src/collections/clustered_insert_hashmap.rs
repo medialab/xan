@@ -147,9 +147,9 @@ impl<K: Eq + Hash, V> ClusteredInsertHashmap<K, V> {
         self.map.get(key)
     }
 
-    pub fn values(&self) -> impl Iterator<Item = &V> {
-        self.map.values()
-    }
+    // pub fn values(&self) -> impl Iterator<Item = &V> {
+    //     self.map.values()
+    // }
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
         self.map.iter()
