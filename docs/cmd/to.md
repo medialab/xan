@@ -12,6 +12,11 @@ Supported formats:
     json    - JSON array or object
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
+    xlsx    - Excel spreasheet
+
+JSON options:
+    --null            Convert empty string to a null value.
+    --ignore          Ignore the empty values.
 
 Common options:
     -h, --help             Display this message
