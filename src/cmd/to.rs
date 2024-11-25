@@ -49,8 +49,8 @@ impl Args {
         &self,
         record: &StringRecord,
         headers: &StringRecord,
-        mut json_object: serde_json::Map<String, Value>,
-    ) -> serde_json::Map<String, Value> {
+        json_object: &mut serde_json::Map<String, Value>,
+    ) {
         for (header, value) in headers.iter().zip(record.iter()) {
             if let Ok(parsed_value) = value.parse::<i64>() {
                 if parsed_value.abs() < MAX_SAFE_INTEGER {
@@ -67,7 +67,6 @@ impl Args {
             }
             json_object.insert(header.to_string(), json!(value));
         }
-        json_object
     }
 
     fn convert_to_json<R: Read, W: Write>(
@@ -82,7 +81,7 @@ impl Args {
         let mut json_array = Vec::new();
 
         while rdr.read_record(&mut record)? {
-            json_object = self.make_json(&record, &headers, json_object);
+            self.make_json(&record, &headers, &mut json_object);
 
             json_array.push(Value::Object(json_object.clone()));
         }
@@ -101,7 +100,7 @@ impl Args {
         let mut json_object = serde_json::Map::new();
 
         while rdr.read_record(&mut record)? {
-            json_object = self.make_json(&record, &headers, json_object);
+            self.make_json(&record, &headers, &mut json_object);
 
             writeln!(
                 writer,
