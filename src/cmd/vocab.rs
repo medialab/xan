@@ -595,11 +595,12 @@ impl DocumentTokenStats {
         idf * (numerator / denominator)
     }
 
-    fn chi2(&self, doc_len: usize, expected: f64) -> f64 {
-        let tf = self.tf as f64;
+    // NOTE: this function is a scaled version of the contingency matrix first cell
+    // fn chi2(&self, doc_len: usize, expected: f64) -> f64 {
+    //     let tf = self.tf as f64;
 
-        ((tf / doc_len as f64) - expected).powi(2) / expected
-    }
+    //     ((tf / doc_len as f64) - expected).powi(2) / expected
+    // }
 }
 
 #[derive(Default, Debug)]
@@ -775,8 +776,12 @@ impl Vocabulary {
 
                 let token_stats = &self.tokens[token_id];
 
-                let expected = token_stats.gf as f64 / self.token_count as f64;
-                let chi2 = doc_token_stats.chi2(doc_len, expected);
+                let (chi2, _) = compute_chi2_and_g2(
+                    token_stats.gf as usize,
+                    doc_len,
+                    doc_token_stats.tf as usize,
+                    self.token_count,
+                );
 
                 if let Some(level) = chi2_significance {
                     if chi2 < level {
