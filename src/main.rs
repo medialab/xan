@@ -83,6 +83,7 @@ macro_rules! command_list {
     explode     Explode rows based on some column separator
     implode     Collapse consecutive identical rows based on a diverging column
     from        Convert a variety of formats to CSV
+    to          Convert a CSV file to a variety of data formats
     reverse     Reverse rows of CSV data
     transpose   Transpose CSV file
 
@@ -245,6 +246,7 @@ enum Command {
     Sort,
     Split,
     Stats,
+    To,
     Tokenize,
     Top,
     Transform,
@@ -322,6 +324,7 @@ impl Command {
             Command::Sort => cmd::sort::run(argv),
             Command::Split => cmd::split::run(argv),
             Command::Stats => cmd::stats::run(argv),
+            Command::To => cmd::to::run(argv),
             Command::Tokenize => cmd::tokenize::run(argv),
             Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
@@ -450,6 +453,12 @@ impl From<glob::PatternError> for CliError {
 
 impl From<transient_btree_index::Error> for CliError {
     fn from(value: transient_btree_index::Error) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
+impl From<rust_xlsxwriter::XlsxError> for CliError {
+    fn from(value: rust_xlsxwriter::XlsxError) -> Self {
         CliError::Other(value.to_string())
     }
 }

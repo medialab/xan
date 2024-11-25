@@ -502,6 +502,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**explode**](./docs/cmd/explode.md): Explode rows based on some column separator
 - [**implode**](./docs/cmd/implode.md): Collapse consecutive identical rows based on a diverging column
 - [**from**](./docs/cmd/from.md): Convert a variety of formats to CSV
+- [**to**](./docs/cmd/to.md): Convert a CSV file to a variety of data formats
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
 - [**transpose**](./docs/cmd/transpose.md): Transpose CSV file
 

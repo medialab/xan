@@ -53,6 +53,7 @@ mod test_slice;
 mod test_sort;
 mod test_split;
 mod test_stats;
+mod test_to;
 mod test_tokenize;
 mod test_top;
 mod test_transform;
