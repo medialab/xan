@@ -15,8 +15,8 @@ Supported formats:
     xlsx    - Excel spreasheet
 
 JSON options:
-    --null            Convert empty string to a null value.
-    --ignore          Ignore the empty values.
+    --nulls            Convert empty string to a null value.
+    --omit          Ignore the empty values.
 
 Common options:
     -h, --help             Display this message

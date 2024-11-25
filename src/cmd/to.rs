@@ -63,10 +63,11 @@ impl Args {
                 json_object.insert(header.to_string(), json!(parsed_value));
                 continue;
             }
-            if self.flag_nulls && value == "" {
+
+            if self.flag_nulls && value.is_empty() {
                 json_object.insert(header.to_string(), json!(Value::Null));
                 continue;
-            } else if self.flag_omit && value == "" {
+            } else if self.flag_omit && value.is_empty() {
                 json_object.remove(header);
                 continue;
             }

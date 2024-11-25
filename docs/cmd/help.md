@@ -65,6 +65,7 @@ Commands:
     explode     Explode rows based on some column separator
     implode     Collapse consecutive identical rows based on a diverging column
     from        Convert a variety of formats to CSV
+    to          Convert a CSV file to a variety of data formats
     reverse     Reverse rows of CSV data
     transpose   Transpose CSV file
 
