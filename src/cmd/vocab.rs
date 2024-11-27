@@ -87,6 +87,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - (*doc): columns representing the document (named like the input)
     - token: some distinct documnet token (the column will be named like the input)
     - tf: term frequency for the token in the document
+    - expected_tf: expected absolute term frequency (does not follow --tf-weight)
     - tfidf: term frequency * idf for the token in the document
     - bm25: BM25 score for the token in the document
     - chi2: chi2 score for the token in the document
@@ -477,6 +478,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         output_headers.push_field(b"token");
         output_headers.push_field(b"tf");
+        output_headers.push_field(b"expected_tf");
         output_headers.push_field(b"tfidf");
         output_headers.push_field(b"bm25");
         output_headers.push_field(b"chi2");
@@ -826,12 +828,16 @@ impl Vocabulary {
                 let tf = tf_weighting.compute(doc_token_stats.tf, doc_len);
                 let idf = token_stats.idf(n);
 
+                let expected_tf =
+                    (token_stats.gf as usize * doc_len) as f64 / self.token_count as f64;
+
                 for cell in doc.iter() {
                     record.push_field(cell);
                 }
 
                 record.push_field(&token_stats.text);
                 record.push_field(tf.to_string().as_bytes());
+                record.push_field(expected_tf.to_string().as_bytes());
                 record.push_field((tf * idf).to_string().as_bytes());
                 record.push_field(
                     doc_token_stats
