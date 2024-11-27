@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::env;
-use std::io;
+use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -500,7 +500,7 @@ impl Args {
         if !self.arg_inputs.is_empty() {
             Ok(self.arg_inputs.clone())
         } else {
-            if atty::is(atty::Stream::Stdin) {
+            if io::stdin().is_terminal() {
                 return Ok(vec![]);
             }
 

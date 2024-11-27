@@ -2126,7 +2126,6 @@ version = "0.33.0"
 dependencies = [
  "aho-corasick",
  "arrayvec 0.7.4",
- "atty",
  "bstr",
  "byteorder",
  "bytesize",

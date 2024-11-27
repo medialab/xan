@@ -1,9 +1,8 @@
 use std::{
     fs,
-    io::{self, Read, Write},
+    io::{self, IsTerminal, Read, Write},
 };
 
-use atty::Stream;
 use csv::{self, StringRecord};
 use rust_xlsxwriter::Workbook;
 use serde_json::{json, Value};
@@ -161,7 +160,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "json" => Args::convert_to_json(&args, rdr, writer)?,
         "jsonl" | "ndjson" => Args::convert_to_ndjson(&args, rdr, writer)?,
         "xlsx" => {
-            if !atty::is(Stream::Stdout) || args.flag_output.is_some() {
+            if args.flag_output.is_some() || !io::stdout().is_terminal() {
                 Args::convert_to_xlsx(rdr, writer)?;
             } else {
                 return fail!(

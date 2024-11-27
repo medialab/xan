@@ -41,7 +41,6 @@ name = "tests"
 [dependencies]
 aho-corasick = "1.1.3"
 arrayvec = "0.7.4"
-atty = "0.2.14"
 bstr = "1.10.0"
 byteorder = "1"
 bytesize = "1.3.0"

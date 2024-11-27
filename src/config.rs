@@ -3,7 +3,7 @@ use std::ascii::AsciiExt;
 use std::borrow::{Borrow, ToOwned};
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, prelude::*, Read, SeekFrom};
+use std::io::{self, prelude::*, IsTerminal, Read, SeekFrom};
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -335,7 +335,7 @@ impl Config {
     pub fn io_reader(&self) -> io::Result<Box<dyn io::Read + Send + 'static>> {
         Ok(match self.path {
             None => {
-                if atty::is(atty::Stream::Stdin) {
+                if io::stdin().is_terminal() {
                     return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"));
                 } else {
                     Box::new(io::stdin())
