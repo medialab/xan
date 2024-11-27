@@ -111,7 +111,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - sd_I: distributional score based on PMI
     - sd_G2: distributional score based on G2
 
-    or, using the --specificity flag:
+    or, using the --specificity flag (NOT CORRECT YET! DO NOT USE!):
 
     - token: the token
     - count: total number of co-occurrences

@@ -36,6 +36,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - (*doc): columns representing the document (named like the input)
     - token: some distinct documnet token (the column will be named like the input)
     - tf: term frequency for the token in the document
+    - expected_tf: expected absolute term frequency (does not follow --tf-weight)
     - tfidf: term frequency * idf for the token in the document
     - bm25: BM25 score for the token in the document
     - chi2: chi2 score for the token in the document
@@ -43,7 +44,8 @@ This command can compute 5 kinds of differents vocabulary statistics:
 5. token-cooccurrence-level statistics (using the "cooc" subcommand):
     - token1: the first token
     - token2: the second token
-    - count: total number of co-occurrences
+    - count: number of co-occurrences
+    - expected_count: expected number of co-occurrences
     - chi2: chi2 score (approx. without the --complete flag)
     - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
@@ -53,9 +55,16 @@ This command can compute 5 kinds of differents vocabulary statistics:
 
     - token1: the first token
     - token2: the second token
-    - count: total number of co-occurrences
+    - count: number of co-occurrences
+    - expected_count: expected number of co-occurrences
     - sd_I: distributional score based on PMI
     - sd_G2: distributional score based on G2
+
+    or, using the --specificity flag (NOT CORRECT YET! DO NOT USE!):
+
+    - token: the token
+    - count: total number of co-occurrences
+    - lgl: the specificity score (ratio of statistically relevant co-occurrences)
 
 Usage:
     xan vocab corpus [options] [<input>]
@@ -80,24 +89,33 @@ vocab options:
 vocab doc-token options:
     --tf-weight <weight>         TF weighting scheme. One of "count", "binary", "ratio",
                                  or "log-normal". [default: count]
-    --k1-value <value>  "k1"   Factor for BM25 computation. [default: 1.2]
-    --b-value <value>   "b"    Factor for BM25 computation. [default: 0.75]
+    --k1-value <value>           "k1" Factor for BM25 computation. [default: 1.2]
+    --b-value <value>            "b"  Factor for BM25 computation. [default: 0.75]
     --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
                                  chi2 score that must be above the given significance level. Accepted
                                  levels include "0.5", "0.1", "0.05", "0.025", "0.01",
                                  "0.005" and "0.001".
 
 vocab cooc options:
-    -w, --window <n>  Size of the co-occurrence window, in number of tokens around the currently
-                      considered token. If not given, co-occurrences will be computed using the bag of
-                      words model where tokens are considered to co-occur with every
-                      other one in the same document.
-                      Set the window to "1" to compute bigram collocations. Set a larger window
-                      to get something similar to what word2vec would consider.
-    -F, --forward     Whether to only consider a forward window when traversing token contexts.
-    --distrib         Compute directed distributional similarity metrics instead.
-    --min-count <n>   Minimum number of co-occurrence count to be included in the result.
-                      [default: 1]
+    -w, --window <n>             Size of the co-occurrence window, in number of tokens around the currently
+                                 considered token. If not given, co-occurrences will be computed using the bag
+                                 of words model where tokens are considered to co-occur with every
+                                 other one in the same document.
+                                 Set the window to "1" to compute bigram collocations. Set a larger window
+                                 to get something similar to what word2vec would consider.
+    -F, --forward                Whether to only consider a forward window when traversing token contexts.
+    --distrib                    Compute directed distributional similarity metrics instead.
+    --specificity                Compute the lgl specificity score per token instead.
+    --min-count <n>              Minimum number of co-occurrence count to be included in the result.
+                                 [default: 1]
+    --chi2-significance <value>  Filter doc,token pairs by only keeping significant ones wrt their
+                                 chi2 score that must be above the given significance level. Accepted
+                                 levels include "0.5", "0.1", "0.05", "0.025", "0.01",
+                                 "0.005" and "0.001".
+    --G2-significance <value>    Filter doc,token pairs by only keeping significant ones wrt their
+                                 G2 score that must be above the given significance level. Accepted
+                                 levels include "0.5", "0.1", "0.05", "0.025", "0.01",
+                                 "0.005" and "0.001".
 
 Common options:
     -h, --help             Display this message
