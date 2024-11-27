@@ -232,10 +232,28 @@ fn vocab_cooc_sep_no_doc() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
-        svec!["cat", "cat", "1", "2.25", "-1.3862943611198906", "-2", "-1"],
-        svec!["cat", "dog", "2", "0", "0", "0", "0"],
-        svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
+        svec![
+            "token1",
+            "token2",
+            "count",
+            "expected_count",
+            "chi2",
+            "G2",
+            "pmi",
+            "npmi"
+        ],
+        svec![
+            "cat",
+            "cat",
+            "1",
+            "4",
+            "2.25",
+            "-1.3862943611198906",
+            "-2",
+            "-1"
+        ],
+        svec!["cat", "dog", "2", "2", "0", "0", "0", "0"],
+        svec!["cat", "rabbit", "1", "1", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -263,10 +281,28 @@ fn vocab_cooc_no_sep() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
-        svec!["cat", "cat", "1", "2.25", "-1.3862943611198906", "-2", "-1"],
-        svec!["cat", "dog", "2", "0", "0", "0", "0"],
-        svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
+        svec![
+            "token1",
+            "token2",
+            "count",
+            "expected_count",
+            "chi2",
+            "G2",
+            "pmi",
+            "npmi"
+        ],
+        svec![
+            "cat",
+            "cat",
+            "1",
+            "4",
+            "2.25",
+            "-1.3862943611198906",
+            "-2",
+            "-1"
+        ],
+        svec!["cat", "dog", "2", "2", "0", "0", "0", "0"],
+        svec!["cat", "rabbit", "1", "1", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -295,10 +331,28 @@ fn vocab_cooc_no_sep_window() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 
     let expected = vec![
-        svec!["token1", "token2", "count", "chi2", "G2", "pmi", "npmi"],
-        svec!["cat", "cat", "1", "2.25", "-1.3862943611198906", "-2", "-1"],
-        svec!["cat", "dog", "2", "0", "0", "0", "0"],
-        svec!["cat", "rabbit", "1", "0", "0", "0", "0"],
+        svec![
+            "token1",
+            "token2",
+            "count",
+            "expected_count",
+            "chi2",
+            "G2",
+            "pmi",
+            "npmi"
+        ],
+        svec![
+            "cat",
+            "cat",
+            "1",
+            "4",
+            "2.25",
+            "-1.3862943611198906",
+            "-2",
+            "-1"
+        ],
+        svec!["cat", "dog", "2", "2", "0", "0", "0", "0"],
+        svec!["cat", "rabbit", "1", "1", "0", "0", "0", "0"],
     ];
     assert_eq!(got, expected);
 }

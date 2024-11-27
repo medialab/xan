@@ -96,6 +96,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: number of co-occurrences
+    - expected_count: expected number of co-occurrences
     - chi2: chi2 score (approx. without the --complete flag)
     - G2: G2 score (approx. without the --complete flag)
     - pmi: pointwise mutual information
@@ -106,6 +107,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - token1: the first token
     - token2: the second token
     - count: number of co-occurrences
+    - expected_count: expected number of co-occurrences
     - sd_I: distributional score based on PMI
     - sd_G2: distributional score based on G2
 
@@ -401,7 +403,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if args.flag_distrib {
-            let output_headers: [&[u8]; 5] = [b"token1", b"token2", b"count", b"sd_I", b"sd_G2"];
+            let output_headers: [&[u8]; 6] = [
+                b"token1",
+                b"token2",
+                b"count",
+                b"expected_count",
+                b"sd_I",
+                b"sd_G2",
+            ];
 
             wtr.write_record(output_headers)?;
             cooccurrences
@@ -416,8 +425,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 |r| wtr.write_byte_record(r),
             )?;
         } else {
-            let output_headers: [&[u8]; 7] = [
-                b"token1", b"token2", b"count", b"chi2", b"G2", b"pmi", b"npmi",
+            let output_headers: [&[u8]; 8] = [
+                b"token1",
+                b"token2",
+                b"count",
+                b"expected_count",
+                b"chi2",
+                b"G2",
+                b"pmi",
+                b"npmi",
             ];
 
             wtr.write_record(output_headers)?;
@@ -892,8 +908,8 @@ fn compute_npmi(xy: usize, n: usize, pmi: f64) -> f64 {
 // is a little bit more fuzzy for G2.
 fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
     // This can be 0 if some item is present in all co-occurrences!
-    let not_x = (n - x) as f64;
-    let not_y = (n - y) as f64;
+    let not_x = n - x;
+    let not_y = n - y;
 
     let observed_11 = xy as f64;
     let observed_12 = (x - xy) as f64; // Is 0 if x only co-occurs with y
@@ -905,10 +921,10 @@ fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
 
     let nf = n as f64;
 
-    let expected_11 = x as f64 * y as f64 / nf; // Cannot be 0
-    let expected_12 = x as f64 * not_y / nf;
-    let expected_21 = y as f64 * not_x / nf;
-    let expected_22 = not_x * not_y / nf;
+    let expected_11 = (x * y) as f64 / nf; // Cannot be 0
+    let expected_12 = (x * not_y) as f64 / nf;
+    let expected_21 = (y * not_x) as f64 / nf;
+    let expected_22 = (not_x * not_y) as f64 / nf;
 
     debug_assert!(
         observed_11 >= 0.0
@@ -970,8 +986,8 @@ fn compute_chi2_and_g2(x: usize, y: usize, xy: usize, n: usize) -> (f64, f64) {
 
 fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
     // This can be 0 if some item is present in all co-occurrences!
-    let not_x = (n - x) as f64;
-    let not_y = (n - y) as f64;
+    let not_x = n - x;
+    let not_y = n - y;
 
     let observed_11 = xy as f64;
     let observed_12 = (x - xy) as f64; // Is 0 if x only co-occurs with y
@@ -983,10 +999,10 @@ fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 
     let nf = n as f64;
 
-    let expected_11 = x as f64 * y as f64 / nf; // Cannot be 0
-    let expected_12 = x as f64 * not_y / nf;
-    let expected_21 = y as f64 * not_x / nf;
-    let expected_22 = not_x * not_y / nf;
+    let expected_11 = (x * y) as f64 / nf; // Cannot be 0
+    let expected_12 = (x * not_y) as f64 / nf;
+    let expected_21 = (y * not_x) as f64 / nf;
+    let expected_22 = (not_x * not_y) as f64 / nf;
 
     debug_assert!(
         observed_11 >= 0.0
@@ -1022,8 +1038,8 @@ fn compute_chi2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 
 fn compute_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
     // This can be 0 if some item is present in all co-occurrences!
-    let not_x = (n - x) as f64;
-    let not_y = (n - y) as f64;
+    let not_x = n - x;
+    let not_y = n - y;
 
     let observed_11 = xy as f64;
     let observed_12 = (x - xy) as f64; // Is 0 if x only co-occurs with y
@@ -1035,10 +1051,10 @@ fn compute_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 
     let nf = n as f64;
 
-    let expected_11 = x as f64 * y as f64 / nf; // Cannot be 0
-    let expected_12 = x as f64 * not_y / nf;
-    let expected_21 = y as f64 * not_x / nf;
-    let expected_22 = not_x * not_y / nf;
+    let expected_11 = (x * y) as f64 / nf; // Cannot be 0
+    let expected_12 = (x * not_y) as f64 / nf;
+    let expected_21 = (y * not_x) as f64 / nf;
+    let expected_22 = (not_x * not_y) as f64 / nf;
 
     debug_assert!(
         observed_11 >= 0.0
@@ -1205,6 +1221,8 @@ impl Cooccurrences {
                 let y = target_entry.gcf;
                 let xy = *count;
 
+                let expected = (x * y) as f64 / n as f64;
+
                 // chi2/G2 computations
                 let (chi2, g2) = compute_chi2_and_g2(x, y, xy, n);
 
@@ -1228,6 +1246,7 @@ impl Cooccurrences {
                 csv_record.push_field(&source_entry.token);
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(count.to_string().as_bytes());
+                csv_record.push_field(expected.to_string().as_bytes());
                 csv_record.push_field(chi2.to_string().as_bytes());
                 csv_record.push_field(g2.to_string().as_bytes());
                 csv_record.push_field(pmi.to_string().as_bytes());
@@ -1348,6 +1367,8 @@ impl Cooccurrences {
 
                 let source_sum = &sums[source_id];
 
+                let expected = (source_entry.gcf * target_entry.gcf) as f64 / n as f64;
+
                 let sd_i = min_pmi_sum / source_sum.pmi;
                 let sd_g2 = min_g2_sum / source_sum.g2;
 
@@ -1355,6 +1376,7 @@ impl Cooccurrences {
                 csv_record.push_field(&source_entry.token);
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(source_target_count.to_string().as_bytes());
+                csv_record.push_field(expected.to_string().as_bytes());
                 csv_record.push_field(sd_i.to_string().as_bytes());
                 csv_record.push_field(sd_g2.to_string().as_bytes());
 
@@ -1369,6 +1391,7 @@ impl Cooccurrences {
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(&source_entry.token);
                 csv_record.push_field(source_target_count.to_string().as_bytes());
+                csv_record.push_field(expected.to_string().as_bytes());
                 csv_record.push_field(sd_i.to_string().as_bytes());
                 csv_record.push_field(sd_g2.to_string().as_bytes());
 
