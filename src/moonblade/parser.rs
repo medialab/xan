@@ -38,8 +38,9 @@ impl Rule {
             Self::pow => "pow",
             Self::rem => "mod",
             Self::concat => "concat",
-            Self::and => "and",
-            Self::or => "or",
+            // NOTE: and & or operators need to be resolved using if statements
+            // Self::and => "and",
+            // Self::or => "or",
             Self::not => "not",
             Self::neg => "neg",
 
@@ -306,6 +307,28 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     },
                     rest => rest,
                 },
+
+                // Short-circuiting and
+                Rule::and => {
+                    let lhs_res = lhs?;
+
+                    // a && b => if(a, b, a)
+                    Expr::Func(FunctionCall::new(
+                        "if",
+                        vec![lhs_res.clone(), rhs?, lhs_res],
+                    ))
+                }
+
+                // Short-circuiting or
+                Rule::or => {
+                    let lhs_res = lhs?;
+
+                    // a || b => if(a, a, b)
+                    Expr::Func(FunctionCall::new(
+                        "if",
+                        vec![lhs_res.clone(), lhs_res, rhs?],
+                    ))
+                }
 
                 // General case
                 rule => Expr::Func(FunctionCall::new(rule.as_fn_op_str(), vec![lhs?, rhs?])),
