@@ -37,6 +37,7 @@ dedup options:
                         if -S/--sorted is not used.
     -e, --external      Use an external btree index to keep the index on disk and avoid
                         overflowing RAM. Does not work with -l/--keep-last.
+    --keep-duplicates   Retrieve only the duplicated rows.
 
 Common options:
     -h, --help               Display this message
@@ -58,6 +59,7 @@ struct Args {
     flag_sorted: bool,
     flag_keep_last: bool,
     flag_external: bool,
+    flag_keep_duplicates: bool,
 }
 
 type DeduplicationKey = Vec<Vec<u8>>;
@@ -110,6 +112,45 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
+
+    if args.flag_keep_duplicates {
+        let mut map: HashMap<Vec<Vec<u8>>, Option<(usize, csv::ByteRecord)>> = HashMap::new();
+        let mut rows: Vec<Option<csv::ByteRecord>> = vec![];
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            let key = sel.collect(&record);
+            match map.entry(key) {
+                Entry::Occupied(mut entry) => {
+                    if let Some((ind, row)) = entry.get_mut().take() {
+                        if rows.len() <= ind {
+                            rows.resize(ind + 1, None);
+                        }
+                        rows[ind] = Some(row);
+                    }
+                    if rows.len() <= index {
+                        rows.resize(index + 1, None);
+                    }
+                    rows[index] = Some(record.clone());
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(Some((index, record.clone())));
+                    if rows.len() <= index {
+                        rows.resize(index + 1, None);
+                    }
+                    rows[index] = None;
+                }
+            }
+            index += 1;
+        }
+        for row_option in &rows {
+            if let Some(row) = row_option {
+                wtr.write_byte_record(row)?;
+            }
+        }
+        return Ok(());
+    }
 
     if args.flag_external {
         let mut record = csv::ByteRecord::new();
