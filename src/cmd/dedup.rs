@@ -81,6 +81,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if args.flag_keep_last && args.flag_keep_duplicates {
+        Err("-l/--keep-last does not work with --keep-duplicates!")?;
+    }
+
     if args.flag_sorted {
         args.flag_external = false;
     }
