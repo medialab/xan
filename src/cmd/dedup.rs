@@ -132,22 +132,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             match map.entry(key) {
                 Entry::Occupied(mut entry) => {
                     if let Some((ind, row)) = entry.get_mut().take() {
-                        if rows.len() <= ind {
-                            rows.resize(ind + 1, None);
-                        }
                         rows[ind] = Some(row);
                     }
-                    if rows.len() <= index {
-                        rows.resize(index + 1, None);
-                    }
-                    rows[index] = Some(record.clone());
+                    rows.push(Some(record.clone()));
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(Some((index, record.clone())));
-                    if rows.len() <= index {
-                        rows.resize(index + 1, None);
-                    }
-                    rows[index] = None;
+                    rows.push(None);
                 }
             }
             index += 1;
