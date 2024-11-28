@@ -175,10 +175,8 @@ vocab cooc options:
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
-    -n, --no-headers       When set, the first row will NOT be included
-                           in the frequency table. Additionally, the 'field'
-                           column will be 1-based indices instead of header
-                           names.
+    -n, --no-headers       When set, the first row will not be interpreted
+                           as headers.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character.
 ";

@@ -27,7 +27,8 @@ dedup options:
                         no rows will be flushed before the whole file has been read
                         if -S/--sorted is not used.
     -e, --external      Use an external btree index to keep the index on disk and avoid
-                        overflowing RAM. Does not work with -l/--keep-last.
+                        overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
+    --keep-duplicates   Retrieve only the duplicated rows.
 
 Common options:
     -h, --help               Display this message
