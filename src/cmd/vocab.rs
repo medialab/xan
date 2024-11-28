@@ -117,6 +117,10 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - count: total number of co-occurrences
     - lgl: the specificity score (ratio of statistically relevant co-occurrences)
 
+Note that you should generally avoid giving too much importance wrt
+the statistical relevance of both chi2 & G2 scores when considering
+less than 5 items (absolute term frequencies or co-occurrence counts).
+
 Usage:
     xan vocab corpus [options] [<input>]
     xan vocab token [options] [<input>]
@@ -828,6 +832,9 @@ impl Vocabulary {
 
                 let token_stats = &self.tokens[token_id];
 
+                let expected_tf =
+                    (token_stats.gf as usize * doc_len) as f64 / self.token_count as f64;
+
                 let chi2 = compute_chi2(
                     token_stats.gf as usize,
                     doc_len,
@@ -835,17 +842,16 @@ impl Vocabulary {
                     self.token_count,
                 );
 
+                let under_represented = (doc_token_stats.tf as f64) < expected_tf;
+
                 if let Some(level) = chi2_significance {
-                    if chi2 < level {
+                    if under_represented || chi2 < level {
                         continue;
                     }
                 }
 
                 let tf = tf_weighting.compute(doc_token_stats.tf, doc_len);
                 let idf = token_stats.idf(n);
-
-                let expected_tf =
-                    (token_stats.gf as usize * doc_len) as f64 / self.token_count as f64;
 
                 for cell in doc.iter() {
                     record.push_field(cell);
@@ -861,7 +867,12 @@ impl Vocabulary {
                         .to_string()
                         .as_bytes(),
                 );
-                record.push_field(chi2.to_string().as_bytes());
+
+                if !under_represented {
+                    record.push_field(chi2.to_string().as_bytes());
+                } else {
+                    record.push_field(b"");
+                }
 
                 callback(&record)?;
             }
@@ -1222,12 +1233,13 @@ impl Cooccurrences {
                 let xy = *count;
 
                 let expected = (x * y) as f64 / n as f64;
+                let under_represented = (*count as f64) < expected;
 
                 // chi2/G2 computations
                 let (chi2, g2) = compute_chi2_and_g2(x, y, xy, n);
 
                 if let Some(level) = chi2_significance {
-                    if chi2 < level {
+                    if under_represented || chi2 < level {
                         continue;
                     }
                 }
@@ -1247,7 +1259,13 @@ impl Cooccurrences {
                 csv_record.push_field(&target_entry.token);
                 csv_record.push_field(count.to_string().as_bytes());
                 csv_record.push_field(expected.to_string().as_bytes());
-                csv_record.push_field(chi2.to_string().as_bytes());
+
+                if !under_represented {
+                    csv_record.push_field(chi2.to_string().as_bytes());
+                } else {
+                    csv_record.push_field(b"");
+                }
+
                 csv_record.push_field(g2.to_string().as_bytes());
                 csv_record.push_field(pmi.to_string().as_bytes());
                 csv_record.push_field(npmi.to_string().as_bytes());

@@ -66,6 +66,10 @@ This command can compute 5 kinds of differents vocabulary statistics:
     - count: total number of co-occurrences
     - lgl: the specificity score (ratio of statistically relevant co-occurrences)
 
+Note that you should generally avoid giving too much importance wrt
+the statistical relevance of both chi2 & G2 scores when considering
+less than 5 items (absolute term frequencies or co-occurrence counts).
+
 Usage:
     xan vocab corpus [options] [<input>]
     xan vocab token [options] [<input>]
