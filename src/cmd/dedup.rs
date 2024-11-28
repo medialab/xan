@@ -36,7 +36,7 @@ dedup options:
                         no rows will be flushed before the whole file has been read
                         if -S/--sorted is not used.
     -e, --external      Use an external btree index to keep the index on disk and avoid
-                        overflowing RAM. Does not work with -l/--keep-last.
+                        overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
     --keep-duplicates   Retrieve only the duplicated rows.
 
 Common options:
@@ -74,6 +74,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if args.flag_check {
             Err("--check does not work with -e/--external yet!")?;
+        }
+
+        if args.flag_keep_duplicates {
+            Err("--keep-duplicates does not work with -e/--external!")?;
         }
     }
 
@@ -144,8 +148,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
             index += 1;
         }
-        for row_option in &rows {
-            if let Some(row) = row_option {
+        for row in &rows {
+            if let Some(row) = row {
                 wtr.write_byte_record(row)?;
             }
         }
