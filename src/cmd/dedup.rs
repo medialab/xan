@@ -81,10 +81,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    if args.flag_keep_last && args.flag_keep_duplicates {
-        Err("-l/--keep-last does not work with --keep-duplicates!")?;
-    }
-
     if args.flag_sorted {
         args.flag_external = false;
     }
@@ -121,36 +117,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
-    if args.flag_keep_duplicates {
-        let mut map: HashMap<Vec<Vec<u8>>, Option<(usize, csv::ByteRecord)>> = HashMap::new();
-        let mut rows: Vec<Option<csv::ByteRecord>> = vec![];
-        let mut record = csv::ByteRecord::new();
-        let mut index: usize = 0;
-
-        while rdr.read_byte_record(&mut record)? {
-            let key = sel.collect(&record);
-            match map.entry(key) {
-                Entry::Occupied(mut entry) => {
-                    if let Some((ind, row)) = entry.get_mut().take() {
-                        rows[ind] = Some(row);
-                    }
-                    rows.push(Some(record.clone()));
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(Some((index, record.clone())));
-                    rows.push(None);
-                }
-            }
-            index += 1;
-        }
-        for row in &rows {
-            if let Some(row) = row {
-                wtr.write_byte_record(row)?;
-            }
-        }
-        return Ok(());
-    }
-
     if args.flag_external {
         let mut record = csv::ByteRecord::new();
 
@@ -168,9 +134,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    match (args.flag_sorted, args.flag_keep_last) {
+    match (
+        args.flag_sorted,
+        args.flag_keep_last,
+        args.flag_keep_duplicates,
+    ) {
         // Unsorted, keep first
-        (false, false) => {
+        (false, false, false) => {
             let mut record = csv::ByteRecord::new();
             let mut already_seen = HashSet::<DeduplicationKey>::new();
 
@@ -184,7 +154,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Unsorted, keep last
-        (false, true) => {
+        (false, true, false) => {
             let mut set = KeepLastSet::new();
 
             for result in rdr.byte_records() {
@@ -199,7 +169,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep first
-        (true, false) => {
+        (true, false, false) => {
             let mut record = csv::ByteRecord::new();
             let mut current: Option<DeduplicationKey> = None;
 
@@ -221,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep last
-        (true, true) => {
+        (true, true, false) => {
             let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
 
             for result in rdr.byte_records() {
@@ -241,6 +211,60 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some((_, record_to_flush)) = current {
                 wtr.write_byte_record(&record_to_flush)?;
             }
+        }
+
+        (false, false, true) => {
+            let mut map: HashMap<Vec<Vec<u8>>, Option<(usize, csv::ByteRecord)>> = HashMap::new();
+            let mut rows: Vec<Option<csv::ByteRecord>> = vec![];
+            let mut record = csv::ByteRecord::new();
+            let mut index: usize = 0;
+
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
+                match map.entry(key) {
+                    Entry::Occupied(mut entry) => {
+                        if let Some((ind, row)) = entry.get_mut().take() {
+                            rows[ind] = Some(row);
+                        }
+                        rows.push(Some(record.clone()));
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(Some((index, record.clone())));
+                        rows.push(None);
+                    }
+                }
+                index += 1;
+            }
+            for row in &rows {
+                if let Some(row) = row {
+                    wtr.write_byte_record(row)?;
+                }
+            }
+        }
+
+        (true, false, true) => {
+            let mut record = csv::ByteRecord::new();
+            let mut previous_record: (Vec<Vec<u8>>, csv::ByteRecord, bool) =
+                (vec![], csv::ByteRecord::new(), false);
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
+                if previous_record.0 == key {
+                    wtr.write_byte_record(&previous_record.1)?;
+                    previous_record = (key.clone(), record.clone(), true);
+                } else {
+                    if previous_record.2 == true {
+                        wtr.write_byte_record(&previous_record.1)?;
+                    }
+                    previous_record = (key.clone(), record.clone(), false);
+                }
+            }
+            if previous_record.2 == true {
+                wtr.write_byte_record(&previous_record.1)?;
+            }
+        }
+
+        _ => {
+            Err("-l/--keep-last does not work with --keep-duplicates!")?;
         }
     }
 

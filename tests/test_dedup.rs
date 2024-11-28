@@ -222,3 +222,27 @@ fn dedup_check() {
 
     wrk.assert_success(&mut cmd);
 }
+
+#[test]
+fn dedup_keep_duplicates() {
+    let wrk = Workdir::new("dedup_check");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b"],
+            svec!["1", "1"],
+            svec!["2", "2"],
+            svec!["2", "3"],
+            svec!["3", "4"],
+        ],
+    );
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv")
+        .arg("--keep-duplicates")
+        .args(["-s", "a"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["a", "b"], svec!["2", "2"], svec!["2", "3"]];
+    assert_eq!(got, expected);
+}
