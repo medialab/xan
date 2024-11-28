@@ -36,7 +36,8 @@ dedup options:
                         no rows will be flushed before the whole file has been read
                         if -S/--sorted is not used.
     -e, --external      Use an external btree index to keep the index on disk and avoid
-                        overflowing RAM. Does not work with -l/--keep-last.
+                        overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
+    --keep-duplicates   Retrieve only the duplicated rows.
 
 Common options:
     -h, --help               Display this message
@@ -58,6 +59,7 @@ struct Args {
     flag_sorted: bool,
     flag_keep_last: bool,
     flag_external: bool,
+    flag_keep_duplicates: bool,
 }
 
 type DeduplicationKey = Vec<Vec<u8>>;
@@ -72,6 +74,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if args.flag_check {
             Err("--check does not work with -e/--external yet!")?;
+        }
+
+        if args.flag_keep_duplicates {
+            Err("--keep-duplicates does not work with -e/--external!")?;
         }
     }
 
@@ -128,9 +134,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    match (args.flag_sorted, args.flag_keep_last) {
+    match (
+        args.flag_sorted,
+        args.flag_keep_last,
+        args.flag_keep_duplicates,
+    ) {
         // Unsorted, keep first
-        (false, false) => {
+        (false, false, false) => {
             let mut record = csv::ByteRecord::new();
             let mut already_seen = HashSet::<DeduplicationKey>::new();
 
@@ -144,7 +154,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Unsorted, keep last
-        (false, true) => {
+        (false, true, false) => {
             let mut set = KeepLastSet::new();
 
             for result in rdr.byte_records() {
@@ -159,7 +169,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep first
-        (true, false) => {
+        (true, false, false) => {
             let mut record = csv::ByteRecord::new();
             let mut current: Option<DeduplicationKey> = None;
 
@@ -181,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep last
-        (true, true) => {
+        (true, true, false) => {
             let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
 
             for result in rdr.byte_records() {
@@ -201,6 +211,85 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some((_, record_to_flush)) = current {
                 wtr.write_byte_record(&record_to_flush)?;
             }
+        }
+
+        // Unsorted, keep duplicates
+        (false, false, true) => {
+            let mut map: HashMap<DeduplicationKey, Option<(usize, csv::ByteRecord)>> =
+                HashMap::new();
+            let mut rows: Vec<Option<csv::ByteRecord>> = Vec::new();
+            let mut record = csv::ByteRecord::new();
+            let mut index: usize = 0;
+
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
+
+                match map.entry(key) {
+                    Entry::Occupied(mut entry) => {
+                        if let Some((ind, row)) = entry.get_mut().take() {
+                            rows[ind] = Some(row);
+                        }
+                        rows.push(Some(record.clone()));
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(Some((index, record.clone())));
+                        rows.push(None);
+                    }
+                }
+                index += 1;
+            }
+
+            for row in rows.into_iter().flatten() {
+                wtr.write_byte_record(&row)?;
+            }
+        }
+
+        // Sorted, keep duplicates
+        (true, false, true) => {
+            let mut record = csv::ByteRecord::new();
+
+            struct PreviousEntry {
+                key: DeduplicationKey,
+                record: csv::ByteRecord,
+                already_emitted: bool,
+            }
+
+            let mut previous_entry_opt: Option<PreviousEntry> = None;
+
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
+
+                match previous_entry_opt.as_mut() {
+                    None => {
+                        previous_entry_opt = Some(PreviousEntry {
+                            key,
+                            record: record.clone(),
+                            already_emitted: false,
+                        })
+                    }
+                    Some(previous_entry) => {
+                        if previous_entry.key == key {
+                            if !previous_entry.already_emitted {
+                                wtr.write_byte_record(&previous_entry.record)?;
+                                previous_entry.already_emitted = true;
+                            }
+
+                            wtr.write_byte_record(&record)?;
+                        } else {
+                            previous_entry_opt = Some(PreviousEntry {
+                                key,
+                                record: record.clone(),
+                                already_emitted: false,
+                            })
+                        }
+                    }
+                };
+            }
+        }
+
+        // Invalid options
+        (false, true, true) | (true, true, true) => {
+            Err("-l/--keep-last does not work with --keep-duplicates!")?;
         }
     }
 
