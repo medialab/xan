@@ -225,7 +225,7 @@ fn dedup_check() {
 
 #[test]
 fn dedup_keep_duplicates() {
-    let wrk = Workdir::new("dedup_check");
+    let wrk = Workdir::new("dedup_keep_duplicates");
     wrk.create(
         "data.csv",
         vec![
@@ -249,7 +249,7 @@ fn dedup_keep_duplicates() {
 
 #[test]
 fn dedup_keep_duplicates_sorted() {
-    let wrk = Workdir::new("dedup_check");
+    let wrk = Workdir::new("dedup_keep_duplicates_sorted");
     wrk.create(
         "data.csv",
         vec![
@@ -269,5 +269,37 @@ fn dedup_keep_duplicates_sorted() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["2", "2"], svec!["2", "3"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn dedup_keep_duplicates_sorted_trailing() {
+    let wrk = Workdir::new("dedup_keep_duplicates_sorted_trailing");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b"],
+            svec!["1", "1"],
+            svec!["2", "2"],
+            svec!["2", "3"],
+            svec!["3", "4"],
+            svec!["3", "5"],
+        ],
+    );
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv")
+        .arg("--keep-duplicates")
+        .args(["-s", "a"])
+        .arg("-S");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "b"],
+        svec!["2", "2"],
+        svec!["2", "3"],
+        svec!["3", "4"],
+        svec!["3", "5"],
+    ];
     assert_eq!(got, expected);
 }

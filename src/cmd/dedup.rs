@@ -213,14 +213,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
+        // Unsorted, keep duplicates
         (false, false, true) => {
-            let mut map: HashMap<Vec<Vec<u8>>, Option<(usize, csv::ByteRecord)>> = HashMap::new();
-            let mut rows: Vec<Option<csv::ByteRecord>> = vec![];
+            let mut map: HashMap<DeduplicationKey, Option<(usize, csv::ByteRecord)>> =
+                HashMap::new();
+            let mut rows: Vec<Option<csv::ByteRecord>> = Vec::new();
             let mut record = csv::ByteRecord::new();
             let mut index: usize = 0;
 
             while rdr.read_byte_record(&mut record)? {
                 let key = sel.collect(&record);
+
                 match map.entry(key) {
                     Entry::Occupied(mut entry) => {
                         if let Some((ind, row)) = entry.get_mut().take() {
@@ -235,35 +238,57 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 index += 1;
             }
-            for row in &rows {
-                if let Some(row) = row {
-                    wtr.write_byte_record(row)?;
-                }
+
+            for row in rows.into_iter().flatten() {
+                wtr.write_byte_record(&row)?;
             }
         }
 
+        // Sorted, keep duplicates
         (true, false, true) => {
             let mut record = csv::ByteRecord::new();
-            let mut previous_record: (Vec<Vec<u8>>, csv::ByteRecord, bool) =
-                (vec![], csv::ByteRecord::new(), false);
+
+            struct PreviousEntry {
+                key: DeduplicationKey,
+                record: csv::ByteRecord,
+                already_emitted: bool,
+            }
+
+            let mut previous_entry_opt: Option<PreviousEntry> = None;
+
             while rdr.read_byte_record(&mut record)? {
                 let key = sel.collect(&record);
-                if previous_record.0 == key {
-                    wtr.write_byte_record(&previous_record.1)?;
-                    previous_record = (key.clone(), record.clone(), true);
-                } else {
-                    if previous_record.2 == true {
-                        wtr.write_byte_record(&previous_record.1)?;
+
+                match previous_entry_opt.as_mut() {
+                    None => {
+                        previous_entry_opt = Some(PreviousEntry {
+                            key,
+                            record: record.clone(),
+                            already_emitted: false,
+                        })
                     }
-                    previous_record = (key.clone(), record.clone(), false);
-                }
-            }
-            if previous_record.2 == true {
-                wtr.write_byte_record(&previous_record.1)?;
+                    Some(previous_entry) => {
+                        if previous_entry.key == key {
+                            if !previous_entry.already_emitted {
+                                wtr.write_byte_record(&previous_entry.record)?;
+                                previous_entry.already_emitted = true;
+                            }
+
+                            wtr.write_byte_record(&record)?;
+                        } else {
+                            previous_entry_opt = Some(PreviousEntry {
+                                key,
+                                record: record.clone(),
+                                already_emitted: false,
+                            })
+                        }
+                    }
+                };
             }
         }
 
-        _ => {
+        // Invalid options
+        (false, true, true) | (true, true, true) => {
             Err("-l/--keep-last does not work with --keep-duplicates!")?;
         }
     }
