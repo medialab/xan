@@ -42,12 +42,15 @@ h2";
 #[test]
 fn headers_multiple() {
     let (wrk, mut cmd) = setup("headers_multiple");
-    cmd.arg("in2.csv");
+    cmd.arg("in2.csv").arg("-j");
 
     let got: String = wrk.stdout(&mut cmd);
     let expected = "\
+in1.csv
 h1
 h2
+
+in2.csv
 h2
 h3";
     assert_eq!(got, expected.to_string());
