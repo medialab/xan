@@ -60,6 +60,7 @@ Usage:
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
     xan parallel --help
+    xan p --help
 
 parallel options:
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.

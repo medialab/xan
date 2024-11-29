@@ -12,9 +12,6 @@ Prints the fields of the first row in the CSV data.
 These names can be used in commands like 'select' to refer to columns in the
 CSV data.
 
-Note that multiple CSV files may be given to this command. This is useful with
-the --intersect flag.
-
 Usage:
     xan headers [options] [<input>...]
     xan h [options] [<input>...]
