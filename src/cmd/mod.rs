@@ -8,6 +8,7 @@ pub mod compgen;
 pub mod completions;
 pub mod count;
 pub mod dedup;
+pub mod drop;
 pub mod enumerate;
 pub mod eval;
 pub mod explode;

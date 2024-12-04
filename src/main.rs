@@ -68,7 +68,8 @@ macro_rules! command_list {
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns
-    select      Select columns from CSV
+    select      Select columns from a CSV file
+    drop        Drop columns from a CSV file
     map         Create a new column by evaluating an expression on each CSV row
     transform   Transform a column by evaluating an expression on each CSV row
     enum        Enumerate CSV file by preprending an index column
@@ -204,6 +205,7 @@ enum Command {
     Completions,
     Count,
     Dedup,
+    Drop,
     Enum,
     Eval,
     Explode,
@@ -284,6 +286,7 @@ impl Command {
             Command::Completions => cmd::completions::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
+            Command::Drop => cmd::drop::run(argv),
             Command::Enum => cmd::enumerate::run(argv),
             Command::Eval => cmd::eval::run(argv),
             Command::Explode => cmd::explode::run(argv),

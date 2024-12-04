@@ -14,10 +14,6 @@ pub struct SelectColumns {
 }
 
 impl SelectColumns {
-    pub fn is_empty(&self) -> bool {
-        self.selectors.is_empty()
-    }
-
     pub fn parse(mut s: &str) -> Result<Self, String> {
         let invert = if !s.is_empty() && s.as_bytes()[0] == b'!' {
             s = &s[1..];
@@ -29,6 +25,14 @@ impl SelectColumns {
             selectors: SelectorParser::new(s).parse()?,
             invert,
         })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.selectors.is_empty()
+    }
+
+    pub fn invert(&mut self) {
+        self.invert = !self.invert;
     }
 
     pub fn selection(

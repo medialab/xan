@@ -486,7 +486,8 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *Add, transform, drop and move columns*
 
-- [**select**](./docs/cmd/select.md): Select columns from CSV
+- [**select**](./docs/cmd/select.md): Select columns from a CSV file
+- [**drop**](./docs/cmd/drop.md): Drop columns from a CSV file
 - [**map**](./docs/cmd/map.md): Create a new column by evaluating an expression on each CSV row
 - [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
 - [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column

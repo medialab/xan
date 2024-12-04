@@ -50,7 +50,8 @@ Commands:
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns
-    select      Select columns from CSV
+    select      Select columns from a CSV file
+    drop        Drop columns from a CSV file
     map         Create a new column by evaluating an expression on each CSV row
     transform   Transform a column by evaluating an expression on each CSV row
     enum        Enumerate CSV file by preprending an index column
