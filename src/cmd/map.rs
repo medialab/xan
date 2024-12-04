@@ -104,7 +104,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         print_cheatsheet: args.flag_cheatsheet,
         print_functions: args.flag_functions,
         target_column: Some(args.arg_column),
-        rename_column: None,
         map_expr: args.arg_expression,
         input: args.arg_input,
         output: args.flag_output,
@@ -114,6 +113,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         error_policy: MoonbladeErrorPolicy::try_from(args.flag_errors)?,
         error_column_name: Some(args.flag_error_column),
         mode: MoonbladeMode::Map,
+        ..Default::default()
     };
 
     run_moonblade_cmd(moonblade_args)

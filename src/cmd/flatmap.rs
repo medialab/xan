@@ -126,8 +126,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         delimiter: args.flag_delimiter,
         parallelization,
         error_policy: MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
-        error_column_name: None,
         mode: MoonbladeMode::Flatmap,
+        ..Default::default()
     };
 
     run_moonblade_cmd(moonblade_args)

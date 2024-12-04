@@ -794,7 +794,9 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
     colorize_functions_help(help)
 }
 
+#[derive(Default)]
 pub enum MoonbladeMode {
+    #[default]
     Map,
     Foreach,
     Filter(bool),
@@ -820,7 +822,9 @@ impl MoonbladeMode {
     }
 }
 
+#[derive(Default)]
 pub enum MoonbladeErrorPolicy {
+    #[default]
     Panic,
     Report,
     Ignore,
@@ -900,6 +904,7 @@ impl TryFrom<String> for MoonbladeErrorPolicy {
     }
 }
 
+#[derive(Default)]
 pub struct MoonbladeCmdArgs {
     pub print_cheatsheet: bool,
     pub print_functions: bool,

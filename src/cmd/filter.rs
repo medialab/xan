@@ -87,8 +87,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let moonblade_args = MoonbladeCmdArgs {
         print_cheatsheet: args.flag_cheatsheet,
         print_functions: args.flag_functions,
-        target_column: None,
-        rename_column: None,
         map_expr: args.arg_expression,
         input: args.arg_input,
         output: args.flag_output,
@@ -96,8 +94,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         delimiter: args.flag_delimiter,
         parallelization,
         error_policy: MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
-        error_column_name: None,
         mode: MoonbladeMode::Filter(args.flag_invert_match),
+        ..Default::default()
     };
 
     run_moonblade_cmd(moonblade_args)
