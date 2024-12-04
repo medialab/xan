@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::num::NonZeroUsize;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
@@ -51,6 +52,9 @@ impl Matcher {
     }
 }
 
+// NOTE: a -U, --unbuffered flag that flushes on each match does not solve
+// early termination when piping to `xan slice` because flush won't get a broken
+// pipe when writing nothing.
 static USAGE: &str = "
 Filter rows of given CSV file if some of its cells contains a desired substring.
 
@@ -92,6 +96,9 @@ search options:
     -f, --flag <column>    If given, the command will not filter rows
                            but will instead flag the found rows in a new
                            column with given name.
+    -l, --limit <n>        Maximum of rows to return. Useful to avoid downstream
+                           buffering some times (e.g. when searching for very few
+                           rows in a big file before piping to `view` or `flatten`).
 
 Common options:
     -h, --help             Display this message
@@ -118,6 +125,7 @@ struct Args {
     flag_exact: bool,
     flag_regex: bool,
     flag_flag: Option<String>,
+    flag_limit: Option<NonZeroUsize>,
     flag_input: Option<String>,
 }
 
@@ -239,6 +247,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = csv::ByteRecord::new();
+    let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
         let mut is_match = sel.select(&record).any(|cell| matcher.is_match(cell));
@@ -253,6 +262,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else if is_match {
             wtr.write_byte_record(&record)?;
         }
+
+        if let Some(limit) = args.flag_limit {
+            if is_match {
+                i += 1;
+            }
+
+            if i >= limit.get() {
+                break;
+            }
+        }
     }
+
     Ok(wtr.flush()?)
 }
