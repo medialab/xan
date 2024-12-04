@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
 use csv::StringRecord;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 // NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys efficiently
 #[derive(Debug, Clone)]
@@ -212,4 +212,34 @@ where
     }
 
     Ok(())
+}
+
+const JSON_MAX_SAFE_INTEGER: i64 = 9007199254740991;
+
+#[derive(Debug, Clone, Copy)]
+pub enum JSONTypeInferrenceMode {
+    Null,
+    Empty,
+    Omit,
+}
+
+pub fn infer_json_type(cell: &str, mode: JSONTypeInferrenceMode) -> Option<Value> {
+    if let Ok(integer) = cell.parse::<i64>() {
+        if integer.abs() < JSON_MAX_SAFE_INTEGER {
+            return Some(json!(integer as f64));
+        }
+        return Some(json!(cell));
+    } else if let Ok(float) = cell.parse::<f64>() {
+        return Some(json!(float));
+    }
+
+    if cell.is_empty() {
+        match mode {
+            JSONTypeInferrenceMode::Empty => Some(json!("")),
+            JSONTypeInferrenceMode::Null => Some(Value::Null),
+            JSONTypeInferrenceMode::Omit => None,
+        }
+    } else {
+        Some(json!(cell))
+    }
 }

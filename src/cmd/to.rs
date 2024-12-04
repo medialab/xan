@@ -5,14 +5,13 @@ use std::{
 
 use csv::{self, StringRecord};
 use rust_xlsxwriter::Workbook;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use crate::config::Config;
+use crate::json::{infer_json_type, JSONTypeInferrenceMode};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
-
-const MAX_SAFE_INTEGER: i64 = 9007199254740991;
 
 static USAGE: &str = "
 Convert a CSV file to a variety of data formats.
@@ -46,31 +45,29 @@ struct Args {
 }
 
 impl Args {
+    fn json_type_inferrence_mode(&self) -> JSONTypeInferrenceMode {
+        if self.flag_nulls {
+            JSONTypeInferrenceMode::Null
+        } else if self.flag_omit {
+            JSONTypeInferrenceMode::Omit
+        } else {
+            JSONTypeInferrenceMode::Empty
+        }
+    }
+
     fn make_json(
         &self,
         record: &StringRecord,
         headers: &StringRecord,
         json_object: &mut serde_json::Map<String, Value>,
+        mode: JSONTypeInferrenceMode,
     ) {
         for (header, value) in headers.iter().zip(record.iter()) {
-            if let Ok(parsed_value) = value.parse::<i64>() {
-                if parsed_value.abs() < MAX_SAFE_INTEGER {
-                    json_object.insert(header.to_string(), json!(parsed_value as f64));
-                    continue;
-                }
-            } else if let Ok(parsed_value) = value.parse::<f64>() {
-                json_object.insert(header.to_string(), json!(parsed_value));
-                continue;
-            }
-
-            if self.flag_nulls && value.is_empty() {
-                json_object.insert(header.to_string(), json!(Value::Null));
-                continue;
-            } else if self.flag_omit && value.is_empty() {
+            if let Some(json_value) = infer_json_type(value, mode) {
+                json_object.insert(header.to_string(), json_value);
+            } else {
                 json_object.remove(header);
-                continue;
             }
-            json_object.insert(header.to_string(), json!(value));
         }
     }
 
@@ -82,11 +79,12 @@ impl Args {
         let headers = rdr.headers()?.clone();
         let mut record = csv::StringRecord::new();
         let mut json_object = serde_json::Map::new();
+        let mode = self.json_type_inferrence_mode();
 
         let mut json_array = Vec::new();
 
         while rdr.read_record(&mut record)? {
-            self.make_json(&record, &headers, &mut json_object);
+            self.make_json(&record, &headers, &mut json_object, mode);
 
             json_array.push(Value::Object(json_object.clone()));
         }
@@ -103,9 +101,10 @@ impl Args {
         let headers = rdr.headers()?.clone();
         let mut record = csv::StringRecord::new();
         let mut json_object = serde_json::Map::new();
+        let mode = self.json_type_inferrence_mode();
 
         while rdr.read_record(&mut record)? {
-            self.make_json(&record, &headers, &mut json_object);
+            self.make_json(&record, &headers, &mut json_object, mode);
 
             writeln!(
                 writer,
