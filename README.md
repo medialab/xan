@@ -2,7 +2,7 @@
 
 `xan` is a command line tool that can be used to process CSV files directly from the shell.
 
-It has been written in Rust to be as performant as possible and can easily handle very large CSV files (Gigabytes). It is also able to leverage parallelism (through multithreading) to make some tasks complete as fast as your computer can allow.
+It has been written in Rust to be as fast as possible, use as little memory as possible, and can easily handle very large CSV files (Gigabytes). It is also able to leverage parallelism (through multithreading) to make some tasks complete as fast as your computer can allow.
 
 It can easily preview, filter, slice, aggregate, sort, join CSV files, and exposes a large collection of composable commands that can be chained together to perform a wide variety of typical tasks.
 
