@@ -146,6 +146,7 @@ pub fn run() {
         || word_before == "groupby"
         || word_before == "partition"
         || word_before == "plot"
+        || word_before == "top"
     {
         let mut all_headers = Vec::<String>::new();
 
