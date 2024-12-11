@@ -11,7 +11,7 @@ By default, joins are done case sensitively, but this can be disabled using
 the --ignore-case flag.
 
 The column arguments specify the columns to join for each input. Columns can
-selected using the same syntax as the 'xan select' command. Both selections
+be selected using the same syntax as the 'xan select' command. Both selections
 must return a same number of columns in proper order.
 
 Note that this command is able to consume streams such as stdin (in which case
