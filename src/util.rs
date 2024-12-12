@@ -339,8 +339,8 @@ thread_local! {
     );
 }
 
-pub fn format_number<T: Numeric>(x: T) -> String {
-    let mut string = NUMBER_FORMATTER.with_borrow_mut(|f| f.fmt2(x).to_string());
+fn format_number_with_formatter<T: Numeric>(formatter: &mut numfmt::Formatter, x: T) -> String {
+    let mut string = formatter.fmt2(x).to_string();
 
     if let Some(i) = string.find('.') {
         if string[i + 1..].chars().all(|c| c == '0') {
@@ -349,6 +349,10 @@ pub fn format_number<T: Numeric>(x: T) -> String {
     }
 
     string
+}
+
+pub fn format_number<T: Numeric>(x: T) -> String {
+    NUMBER_FORMATTER.with_borrow_mut(|f| format_number_with_formatter(f, x))
 }
 
 #[derive(PartialEq, Debug)]
