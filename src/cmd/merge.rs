@@ -1,6 +1,8 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
+use colored::Colorize;
+
 use crate::cmd::sort::{ComparableByteRecord, NumericallyComparableByteRecord};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -10,7 +12,7 @@ use crate::CliResult;
 static USAGE: &str = "
 Merge multiple CSV files already sorted the same way. Those files MUST:
 
-1. have the same columns (they don't have to be in the same order, though)
+1. have the same columns in the same order.
 2. have the same row order wrt -s/--select, -R/--reverse & -N/--numeric
 
 If those conditions are not met, the result will be in arbitrary order.
@@ -84,8 +86,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .collect::<Result<Vec<_>, _>>()?;
 
     if !args.flag_no_headers {
-        if !headers.iter().skip(1).all(|h| *h == headers[0]) {
-            return fail!("all given files should have identical headers!");
+        if let Some(i) = headers.iter().skip(1).position(|h| *h != headers[0]) {
+            let path = &paths[i + 1];
+
+            Err(format!("All given files should have identical headers, and in the same order!\nFirst diverging file: {}", path.cyan()))?;
         }
 
         if let Some(name) = &args.flag_source_column {
