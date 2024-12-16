@@ -228,7 +228,7 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                 Rule::underscore => Expr::Underscore,
                 Rule::ident => Expr::Identifier(
                     primary.as_str().trim_end_matches('?').to_string(),
-                    primary.as_str().ends_with("?"),
+                    primary.as_str().ends_with('?'),
                 ),
                 Rule::true_lit => Expr::Bool(true),
                 Rule::false_lit => Expr::Bool(false),

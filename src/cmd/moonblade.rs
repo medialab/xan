@@ -78,7 +78,7 @@ fn colorize_functions_help(help: &str) -> String {
         "x".red().to_string()
             + "["
             + &caps[1]
-                .split(":")
+                .split(':')
                 .map(|part| part.cyan().to_string())
                 .collect::<Vec<_>>()
                 .join(":")
