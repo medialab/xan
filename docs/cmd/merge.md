@@ -4,7 +4,7 @@
 ```txt
 Merge multiple CSV files already sorted the same way. Those files MUST:
 
-1. have the same columns (they don't have to be in the same order, though)
+1. have the same columns in the same order.
 2. have the same row order wrt -s/--select, -R/--reverse & -N/--numeric
 
 If those conditions are not met, the result will be in arbitrary order.
