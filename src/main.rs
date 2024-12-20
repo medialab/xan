@@ -9,12 +9,6 @@ use std::process;
 
 use docopt::Docopt;
 
-macro_rules! fail {
-    ($e:expr) => {
-        Err(::std::convert::From::from($e))
-    };
-}
-
 macro_rules! command_list {
     () => {
         "

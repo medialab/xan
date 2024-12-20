@@ -112,7 +112,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let count = &args.flag_count;
 
     if !count.is_none() && !args.flag_uniq {
-        return fail!("--count can only be used with --uniq");
+        Err("--count can only be used with --uniq")?;
     };
 
     let mut rdr = rconfig.reader()?;
@@ -151,7 +151,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     match ordering {
                         cmp::Ordering::Less => {
-                            return fail!("file is NOT sorted!");
+                            Err("file is NOT sorted!")?;
                         }
                         cmp::Ordering::Equal => continue,
                         _ => last = Some(current_sel),

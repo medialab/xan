@@ -51,7 +51,7 @@ impl<R: io::Read + io::Seek, I: io::Read + io::Seek> Indexed<R, I> {
                 i,
                 self.count()
             );
-            return fail!(io::Error::new(io::ErrorKind::Other, msg));
+            Err(io::Error::new(io::ErrorKind::Other, msg))?;
         }
         if self.csv_rdr.has_headers() {
             i += 1;

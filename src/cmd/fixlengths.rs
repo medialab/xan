@@ -50,16 +50,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let length = match args.flag_length {
         Some(length) => {
             if length == 0 {
-                return fail!("Length must be greater than 0.");
+                Err("Length must be greater than 0.")?;
             }
             length
         }
         None => {
             if config.is_std() {
-                return fail!(
-                    "<stdin> cannot be used in this command. \
-                              Please specify a file path."
-                );
+                Err("<stdin> cannot be used in this command. \
+                              Please specify a file path.")?;
             }
             let mut maxlen = 0usize;
             let mut rdr = config.reader()?;

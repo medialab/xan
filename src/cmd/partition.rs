@@ -89,7 +89,7 @@ impl Args {
         if select_cols.len() == 1 {
             Ok(select_cols[0])
         } else {
-            fail!("can only partition on one column")
+            Err("can only partition on one column")?
         }
     }
 

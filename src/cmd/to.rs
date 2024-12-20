@@ -162,12 +162,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if args.flag_output.is_some() || !io::stdout().is_terminal() {
                 Args::convert_to_xlsx(rdr, writer)?;
             } else {
-                return fail!(
-                    "could not export in xlsx without a path, use -o, --output or pipe the result!"
-                );
+                Err(
+                    "could not export in xlsx without a path, use -o, --output or pipe the result!",
+                )?;
             }
         }
-        _ => return fail!("could not export the file into this format!"),
+        _ => Err("could not export the file into this format!")?,
     }
 
     Ok(())

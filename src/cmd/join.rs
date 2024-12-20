@@ -148,7 +148,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     .count()
         > 1
     {
-        return fail!("Please pick exactly one join operation.");
+        Err("Please pick exactly one join operation.")?;
     }
 
     state.write_headers()?;
@@ -492,12 +492,12 @@ impl Args {
         let select1 = rconf1.selection(headers1)?;
         let select2 = rconf2.selection(headers2)?;
         if select1.len() != select2.len() {
-            return fail!(format!(
+            Err(format!(
                 "Column selections must have the same number of columns, \
                  but found column selections with {} and {} columns.",
                 select1.len(),
                 select2.len()
-            ));
+            ))?;
         }
         Ok((select1, select2))
     }

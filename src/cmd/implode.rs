@@ -83,11 +83,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let new_names = util::str_to_csv_byte_record(&new_names);
 
         if new_names.len() != sel.len() {
-            return fail!(format!(
+            Err(format!(
                 "Renamed columns alignement error. Expected {} names and got {}.",
                 sel.len(),
                 new_names.len(),
-            ));
+            ))?;
         }
 
         headers = headers

@@ -200,7 +200,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             "sum" => sum,
             d => match d.parse::<f64>() {
                 Ok(f) => f,
-                _ => return fail!("unknown --domain-max. Should be one of \"sum\", \"max\"."),
+                _ => Err("unknown --domain-max. Should be one of \"sum\", \"max\".")?,
             },
         };
 
@@ -217,7 +217,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let pct_cols: usize = if args.flag_hide_percent { 0 } else { 8 };
 
         if cols < 30 {
-            return fail!("You did not provide enough --cols to print anything!");
+            Err("You did not provide enough --cols to print anything!")?;
         }
 
         let value_max_width_unit_addendum = match &args.flag_unit {
@@ -240,11 +240,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             "small" => &SMALL_BAR_CHARS,
             "medium" => &MEDIUM_BAR_CHARS,
             "large" => &LARGE_BAR_CHARS,
-            _ => {
-                return fail!(
-                    "unknown -B, --bar-size. Should be one of \"small\", \"medium\", \"large\"."
-                )
-            }
+            _ => Err("unknown -B, --bar-size. Should be one of \"small\", \"medium\", \"large\".")?,
         };
 
         for (i, bar) in histogram.bars().enumerate() {

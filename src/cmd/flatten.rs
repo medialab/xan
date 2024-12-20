@@ -94,7 +94,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .ok_or("file is empty")?;
 
     if cols < max_header_width + 2 {
-        return fail!("not enough cols provided to safely print data!");
+        Err("not enough cols provided to safely print data!")?;
     }
 
     let mut record = csv::StringRecord::new();

@@ -81,7 +81,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_no_headers {
         if args.flag_prefix.is_some() {
-            return fail!("Cannot use --prefix with --no-headers!");
+            Err("Cannot use --prefix with --no-headers!")?;
         }
 
         let rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
@@ -93,11 +93,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if expected_len != rename_as.len() {
-            return fail!(format!(
+            Err(format!(
                 "Renamed columns alignement error. Expected {} names and got {}.",
                 expected_len,
                 rename_as.len(),
-            ));
+            ))?;
         }
 
         if expected_len > 0 {
@@ -133,7 +133,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     if selection.has_duplicates() {
-        return fail!("Cannot rename a column selection where some columns appear multiple times!");
+        Err("Cannot rename a column selection where some columns appear multiple times!")?;
     }
 
     let renamed_headers: csv::ByteRecord = if nothing_to_do {
@@ -162,11 +162,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if selection.len() != rename_as.len() {
-            return fail!(format!(
+            Err(format!(
                 "Renamed columns alignement error. Expected {} names and got {}.",
                 selection.len(),
                 rename_as.len(),
-            ));
+            ))?;
         }
 
         headers

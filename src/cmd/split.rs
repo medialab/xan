@@ -60,7 +60,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     if args.flag_size == 0 {
-        return fail!("--size must be greater than 0.");
+        Err("--size must be greater than 0.")?;
     }
     fs::create_dir_all(&args.arg_outdir)?;
 
