@@ -141,10 +141,11 @@ fn main() {
         None => {
             eprintln!(
                 "{}",
-                util::colorize_main_help(concat!(
-                    "xan is a suite of CSV command line utilities.
+                util::colorize_main_help(&format!(
+                    "xan (v{}) is a suite of CSV command line utilities.
 
-Please choose one of the following commands:",
+Please choose one of the following commands:{}",
+                    util::version(),
                     command_list!()
                 ))
             );
