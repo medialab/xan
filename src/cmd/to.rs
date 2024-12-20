@@ -1,23 +1,20 @@
-use std::{
-    fs,
-    io::{self, IsTerminal, Read, Write},
-};
+use std::fs;
+use std::io::{self, IsTerminal, Read, Write};
+use std::num::NonZeroUsize;
 
-use csv::{self, StringRecord};
 use rust_xlsxwriter::Workbook;
 use serde_json::Value;
 
 use crate::config::Config;
-use crate::json::{infer_json_type, JSONTypeInferrenceMode};
+use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer};
 use crate::util;
-use crate::CliError;
 use crate::CliResult;
 
 static USAGE: &str = "
 Convert a CSV file to a variety of data formats.
 
 Usage:
-    xan to [<format>] [options] [<input>]
+    xan to <format> [options] [<input>]
     xan to --help
 
 Supported formats:
@@ -27,8 +24,10 @@ Supported formats:
     xlsx    - Excel spreasheet
 
 JSON options:
-    --nulls            Convert empty string to a null value.
-    --omit          Ignore the empty values.
+    -B, --buffer-size <size>  Number of CSV rows to sample to infer column types.
+                              [default: 512]
+    --nulls                   Convert empty string to a null value.
+    --omit                    Ignore the empty values.
 
 Common options:
     -h, --help             Display this message
@@ -40,34 +39,19 @@ struct Args {
     arg_format: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
+    flag_buffer_size: NonZeroUsize,
     flag_nulls: bool,
     flag_omit: bool,
 }
 
 impl Args {
-    fn json_type_inferrence_mode(&self) -> JSONTypeInferrenceMode {
+    fn json_empty_mode(&self) -> JSONEmptyMode {
         if self.flag_nulls {
-            JSONTypeInferrenceMode::Null
+            JSONEmptyMode::Null
         } else if self.flag_omit {
-            JSONTypeInferrenceMode::Omit
+            JSONEmptyMode::Omit
         } else {
-            JSONTypeInferrenceMode::Empty
-        }
-    }
-
-    fn make_json(
-        &self,
-        record: &StringRecord,
-        headers: &StringRecord,
-        json_object: &mut serde_json::Map<String, Value>,
-        mode: JSONTypeInferrenceMode,
-    ) {
-        for (header, value) in headers.iter().zip(record.iter()) {
-            if let Some(json_value) = infer_json_type(value, mode) {
-                json_object.insert(header.to_string(), json_value);
-            } else {
-                json_object.remove(header);
-            }
+            JSONEmptyMode::Empty
         }
     }
 
@@ -77,18 +61,31 @@ impl Args {
         writer: W,
     ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
-        let mut record = csv::StringRecord::new();
-        let mut json_object = serde_json::Map::new();
-        let mode = self.json_type_inferrence_mode();
 
+        let mut inferrence_buffer = JSONTypeInferrenceBuffer::new(
+            headers.len(),
+            self.flag_buffer_size.get(),
+            self.json_empty_mode(),
+        );
+
+        inferrence_buffer.read(&mut rdr)?;
+
+        let mut json_object = serde_json::Map::new();
         let mut json_array = Vec::new();
 
-        while rdr.read_record(&mut record)? {
-            self.make_json(&record, &headers, &mut json_object, mode);
-
+        for record in inferrence_buffer.records() {
+            inferrence_buffer.mutate_json_map(&mut json_object, &headers, record);
             json_array.push(Value::Object(json_object.clone()));
         }
-        let _ = serde_json::to_writer_pretty(writer, &json_array);
+
+        let mut record = csv::StringRecord::new();
+
+        while rdr.read_record(&mut record)? {
+            inferrence_buffer.mutate_json_map(&mut json_object, &headers, &record);
+            json_array.push(Value::Object(json_object.clone()));
+        }
+
+        serde_json::to_writer_pretty(writer, &json_array)?;
 
         Ok(())
     }
@@ -99,18 +96,26 @@ impl Args {
         mut writer: W,
     ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
-        let mut record = csv::StringRecord::new();
+        let mut inferrence_buffer = JSONTypeInferrenceBuffer::new(
+            headers.len(),
+            self.flag_buffer_size.get(),
+            self.json_empty_mode(),
+        );
+
+        inferrence_buffer.read(&mut rdr)?;
+
         let mut json_object = serde_json::Map::new();
-        let mode = self.json_type_inferrence_mode();
+
+        for record in inferrence_buffer.records() {
+            inferrence_buffer.mutate_json_map(&mut json_object, &headers, record);
+            writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
+        }
+
+        let mut record = csv::StringRecord::new();
 
         while rdr.read_record(&mut record)? {
-            self.make_json(&record, &headers, &mut json_object, mode);
-
-            writeln!(
-                writer,
-                "{}",
-                serde_json::to_string(&json_object).map_err(|e| CliError::Other(e.to_string()))?
-            )?;
+            inferrence_buffer.mutate_json_map(&mut json_object, &headers, &record);
+            writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
 
         Ok(())

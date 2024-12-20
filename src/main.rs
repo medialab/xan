@@ -447,6 +447,12 @@ impl From<rust_xlsxwriter::XlsxError> for CliError {
     }
 }
 
+impl From<serde_json::Error> for CliError {
+    fn from(value: serde_json::Error) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
 impl From<()> for CliError {
     fn from(_: ()) -> CliError {
         CliError::Other("unknown error".to_string())

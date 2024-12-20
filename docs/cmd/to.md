@@ -5,7 +5,7 @@
 Convert a CSV file to a variety of data formats.
 
 Usage:
-    xan to [<format>] [options] [<input>]
+    xan to <format> [options] [<input>]
     xan to --help
 
 Supported formats:
@@ -15,8 +15,10 @@ Supported formats:
     xlsx    - Excel spreasheet
 
 JSON options:
-    --nulls            Convert empty string to a null value.
-    --omit          Ignore the empty values.
+    -B, --buffer-size <size>  Number of CSV rows to sample to infer column types.
+                              [default: 512]
+    --nulls                   Convert empty string to a null value.
+    --omit                    Ignore the empty values.
 
 Common options:
     -h, --help             Display this message

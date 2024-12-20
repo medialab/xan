@@ -1,8 +1,9 @@
 use std::borrow::Cow;
+use std::io::Read;
 use std::num::NonZeroUsize;
 
 use csv::StringRecord;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 // NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys efficiently
 #[derive(Debug, Clone)]
@@ -217,29 +218,191 @@ where
 const JSON_MAX_SAFE_INTEGER: i64 = 9007199254740991;
 
 #[derive(Debug, Clone, Copy)]
-pub enum JSONTypeInferrenceMode {
+pub enum JSONEmptyMode {
     Null,
     Empty,
     Omit,
 }
 
-pub fn infer_json_type(cell: &str, mode: JSONTypeInferrenceMode) -> Option<Value> {
-    if let Ok(integer) = cell.parse::<i64>() {
-        if integer.abs() < JSON_MAX_SAFE_INTEGER {
-            return Some(json!(integer as f64));
+impl JSONEmptyMode {
+    fn is_omit(&self) -> bool {
+        matches!(self, Self::Omit)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum JSONType {
+    Null,
+    String,
+    Integer,
+    Float,
+}
+
+impl JSONType {
+    fn merge(self, other: Self) -> Self {
+        match self {
+            Self::Null => other,
+            Self::String => self,
+            Self::Integer => match other {
+                Self::Float | Self::String => other,
+                Self::Integer | Self::Null => self,
+            },
+            Self::Float => match other {
+                Self::Float | Self::Integer | Self::Null => self,
+                Self::String => other,
+            },
         }
-        return Some(json!(cell));
-    } else if let Ok(float) = cell.parse::<f64>() {
-        return Some(json!(float));
+    }
+}
+
+#[derive(Debug)]
+struct JSONTypeInferrence {
+    json_types: Vec<JSONType>,
+    empty_mode: JSONEmptyMode,
+}
+
+impl JSONTypeInferrence {
+    pub fn new(columns: usize, empty_mode: JSONEmptyMode) -> Self {
+        let mut json_types = Vec::with_capacity(columns);
+
+        for _ in 0..columns {
+            json_types.push(JSONType::Null);
+        }
+
+        Self {
+            json_types,
+            empty_mode,
+        }
     }
 
-    if cell.is_empty() {
-        match mode {
-            JSONTypeInferrenceMode::Empty => Some(json!("")),
-            JSONTypeInferrenceMode::Null => Some(Value::Null),
-            JSONTypeInferrenceMode::Omit => None,
+    fn infer(value: &str) -> JSONType {
+        if value.is_empty() {
+            return JSONType::Null;
         }
-    } else {
-        Some(json!(cell))
+
+        if let Ok(integer) = value.parse::<i64>() {
+            if integer.abs() <= JSON_MAX_SAFE_INTEGER {
+                return JSONType::Integer;
+            } else {
+                return JSONType::String;
+            }
+        }
+
+        if value.parse::<f64>().is_ok() {
+            return JSONType::Float;
+        }
+
+        JSONType::String
+    }
+
+    fn cast(&self, value: &str, json_type: JSONType) -> Option<Value> {
+        if value.is_empty() {
+            return match self.empty_mode {
+                JSONEmptyMode::Omit => None,
+                JSONEmptyMode::Null => Some(Value::Null),
+                JSONEmptyMode::Empty => Some(json!("")),
+            };
+        }
+
+        match json_type {
+            JSONType::String | JSONType::Null => Some(json!(value)),
+            JSONType::Float => {
+                if let Ok(float) = value.parse::<f64>() {
+                    Some(json!(float))
+                } else {
+                    Some(json!(value))
+                }
+            }
+            JSONType::Integer => {
+                if let Ok(integer) = value.parse::<i64>() {
+                    if integer.abs() <= JSON_MAX_SAFE_INTEGER {
+                        return Some(json!(integer));
+                    }
+                }
+
+                Some(json!(value))
+            }
+        }
+    }
+
+    fn process<'a>(&mut self, values: impl Iterator<Item = &'a str>) {
+        for (json_type, value) in self.json_types.iter_mut().zip(values) {
+            let new_json_type = Self::infer(value);
+            *json_type = json_type.merge(new_json_type);
+        }
+    }
+}
+
+pub struct JSONTypeInferrenceBuffer {
+    inferrence: JSONTypeInferrence,
+    buffer: Vec<StringRecord>,
+    capacity: usize,
+}
+
+impl JSONTypeInferrenceBuffer {
+    pub fn new(columns: usize, buffer_size: usize, empty_mode: JSONEmptyMode) -> Self {
+        Self {
+            inferrence: JSONTypeInferrence::new(columns, empty_mode),
+            buffer: Vec::with_capacity(buffer_size),
+            capacity: buffer_size,
+        }
+    }
+
+    pub fn read<R: Read>(&mut self, reader: &mut csv::Reader<R>) -> Result<(), csv::Error> {
+        for result in reader.records().take(self.capacity) {
+            self.process(result?);
+        }
+
+        Ok(())
+    }
+
+    pub fn process(&mut self, record: StringRecord) {
+        self.inferrence.process(record.iter());
+        self.buffer.push(record);
+    }
+
+    pub fn mutate_json_map(
+        &self,
+        map: &mut Map<String, Value>,
+        headers: &StringRecord,
+        record: &StringRecord,
+    ) {
+        if self.inferrence.empty_mode.is_omit() {
+            map.clear();
+        }
+
+        for (i, (header, value)) in headers.iter().zip(record.iter()).enumerate() {
+            if let Some(json_value) = self.inferrence.cast(value, self.inferrence.json_types[i]) {
+                map.insert(header.to_string(), json_value);
+            }
+        }
+    }
+
+    pub fn records(&self) -> impl Iterator<Item = &StringRecord> {
+        self.buffer.iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_inferrence() {
+        let mut inferrence = JSONTypeInferrence::new(4, JSONEmptyMode::Null);
+
+        inferrence.process(["1", "1", "", "5"].into_iter());
+        inferrence.process(["2", "george", "", "6"].into_iter());
+        inferrence.process(["3", "", "", "3.8"].into_iter());
+
+        assert_eq!(
+            inferrence.json_types,
+            vec![
+                JSONType::Integer,
+                JSONType::String,
+                JSONType::Null,
+                JSONType::Float
+            ]
+        );
     }
 }
