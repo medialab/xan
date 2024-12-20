@@ -9,20 +9,6 @@ use std::process;
 
 use docopt::Docopt;
 
-macro_rules! wout {
-    ($($arg:tt)*) => ({
-        use std::io::Write;
-        (writeln!(&mut ::std::io::stdout(), $($arg)*)).unwrap();
-    });
-}
-
-macro_rules! werr {
-    ($($arg:tt)*) => ({
-        use std::io::Write;
-        (writeln!(&mut ::std::io::stderr(), $($arg)*)).unwrap();
-    });
-}
-
 macro_rules! fail {
     ($e:expr) => {
         Err(::std::convert::From::from($e))
@@ -154,12 +140,12 @@ fn main() {
         })
         .unwrap_or_else(|e| e.exit());
     if args.flag_list {
-        wout!(concat!("Installed commands:", command_list!()));
+        println!(concat!("Installed commands:", command_list!()));
         return;
     }
     match args.arg_command {
         None => {
-            werr!(
+            eprintln!(
                 "{}",
                 util::colorize_main_help(concat!(
                     "xan is a suite of CSV command line utilities.
@@ -174,18 +160,18 @@ Please choose one of the following commands:",
             Ok(()) => process::exit(0),
             Err(CliError::Flag(err)) => err.exit(),
             Err(CliError::Csv(err)) => {
-                werr!("{}", err);
+                eprintln!("{}", err);
                 process::exit(1);
             }
             Err(CliError::Io(ref err)) if err.kind() == io::ErrorKind::BrokenPipe => {
                 process::exit(0);
             }
             Err(CliError::Io(err)) => {
-                werr!("{}", err);
+                eprintln!("{}", err);
                 process::exit(1);
             }
             Err(CliError::Other(msg)) => {
-                werr!("{}", msg);
+                eprintln!("{}", msg);
                 process::exit(1);
             }
         },
@@ -302,7 +288,7 @@ impl Command {
             Command::Groupby => cmd::groupby::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),
             Command::Help => {
-                wout!("{}", util::colorize_main_help(USAGE));
+                println!("{}", util::colorize_main_help(USAGE));
                 Ok(())
             }
             Command::Hist => cmd::hist::run(argv),
