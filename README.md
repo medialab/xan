@@ -632,6 +632,10 @@ available functions & operators):
         '"hello"'
         "'hello'"
 
+  . Binary string literals (can use single or double quotes):
+        'b"hello"'
+        "b'hello'"
+
   . Regex literals:
         '/john/'
         '/john/i' (case-insensitive)
@@ -1031,7 +1035,7 @@ use the operators in the previous section.
     - index() -> integer?
         Return the row's index, if applicable.
 
-    - json_parse(string) -> any
+    - parse_json(string) -> any
         Parse the given string as JSON.
 
     - typeof(value) -> string

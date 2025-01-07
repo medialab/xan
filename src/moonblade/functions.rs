@@ -120,7 +120,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "index_by" => (index_by, FunctionArguments::binary()),
         "isfile" => (isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
-        "json_parse" => (json_parse, FunctionArguments::unary()),
         "keys" => (keys, FunctionArguments::unary()),
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
@@ -158,6 +157,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "not" => (not, FunctionArguments::unary()),
         "or" => (or, FunctionArguments::variadic(2)),
+        "parse_json" => (parse_json, FunctionArguments::unary()),
         "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
         "pow" => (
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
@@ -1482,7 +1482,7 @@ fn err(args: BoundArguments) -> FunctionResult {
     Err(EvaluationError::Custom(arg.to_string()))
 }
 
-fn json_parse(args: BoundArguments) -> FunctionResult {
+fn parse_json(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
     serde_json::from_str(arg.as_ref()).map_err(|_| EvaluationError::JSONParseError)

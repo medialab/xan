@@ -1081,12 +1081,12 @@ mod tests {
     #[test]
     fn test_json() {
         assert_eq!(
-            eval_code("json_parse('[1, 2, 3]') | get(_, 1)"),
+            eval_code("parse_json('[1, 2, 3]') | get(_, 1)"),
             Ok(DynamicValue::from(2))
         );
 
         assert_eq!(
-            eval_code("json_parse('{\"one\": 34}') | get(_, 'one')"),
+            eval_code("parse_json('{\"one\": 34}') | get(_, 'one')"),
             Ok(DynamicValue::from(34))
         );
     }
