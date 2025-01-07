@@ -74,9 +74,7 @@ pub fn get_special_function(
         "headers" => (
             Some(|call: &FunctionCall, headers: &ByteRecord| {
                 comptime_cols_headers(call, headers, |i| {
-                    ConcreteExpr::Value(DynamicValue::from(
-                        std::str::from_utf8(&headers[i]).unwrap(),
-                    ))
+                    ConcreteExpr::Value(DynamicValue::from_bytes(&headers[i]))
                 })
             }),
             None,
@@ -254,13 +252,7 @@ fn runtime_col(
                 "col",
                 EvaluationError::ColumnNotFound(indexation),
             )),
-            Some(index) => match std::str::from_utf8(&record[index]) {
-                Err(_) => Err(SpecifiedEvaluationError::new(
-                    "col",
-                    EvaluationError::UnicodeDecodeError,
-                )),
-                Ok(value) => Ok(DynamicValue::from(value)),
-            },
+            Some(index) => Ok(DynamicValue::from_bytes(&record[index])),
         },
     }
 }

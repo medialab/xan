@@ -831,6 +831,14 @@ impl<'de> Deserialize<'de> for DynamicValue {
 }
 
 impl DynamicValue {
+    pub fn from_owned_bytes(bytes: Vec<u8>) -> Self {
+        Self::Bytes(Arc::new(bytes))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self::from_owned_bytes(bytes.to_vec())
+    }
+
     pub fn type_of(&self) -> &str {
         match self {
             Self::List(_) => "list",
@@ -1260,6 +1268,7 @@ impl PartialEq for DynamicValue {
             (Self::Regex(a), Self::Regex(b)) => a.as_str() == b.as_str(),
             (Self::Boolean(a), Self::Boolean(b)) => a == b,
             (Self::String(a), Self::String(b)) => a == b,
+            (Self::Bytes(a), Self::Bytes(b)) => a == b,
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,

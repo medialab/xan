@@ -101,10 +101,7 @@ impl ConcreteExpr {
             Self::Value(value) => value.clone(),
             Self::Column(index) => match record.get(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
-                Some(cell) => match std::str::from_utf8(cell) {
-                    Err(_) => return Err(EvaluationError::UnicodeDecodeError),
-                    Ok(value) => DynamicValue::from(value),
-                },
+                Some(cell) => DynamicValue::from_bytes(cell),
             },
             Self::LambdaBinding(name) => lambda_variables
                 .expect("lambda_variables MUST be set")
@@ -539,6 +536,10 @@ mod tests {
 
     type TestResult = Result<DynamicValue, RunError>;
 
+    fn b(string: &str) -> DynamicValue {
+        DynamicValue::from_bytes(string.as_bytes())
+    }
+
     fn concretize_code(code: &str) -> Result<ConcreteExpr, ConcretizationError> {
         let mut headers = ByteRecord::new();
         headers.push_field(b"name");
@@ -606,8 +607,8 @@ mod tests {
 
     #[test]
     fn test_identifiers() {
-        assert_eq!(eval_code("name"), Ok(DynamicValue::from("john")));
-        assert_eq!(eval_code("name?"), Ok(DynamicValue::from("john")));
+        assert_eq!(eval_code("name"), Ok(b("john")));
+        assert_eq!(eval_code("name?"), Ok(b("john")));
         assert_eq!(eval_code("full_name?"), Ok(DynamicValue::None));
     }
 
@@ -618,8 +619,12 @@ mod tests {
 
     #[test]
     fn test_typeof() {
-        assert_eq!(eval_code("typeof(name)"), Ok(DynamicValue::from("string")));
-        assert_eq!(eval_code("TYPEOF(name)"), Ok(DynamicValue::from("string")));
+        assert_eq!(eval_code("typeof(name)"), Ok(DynamicValue::from("bytes")));
+        assert_eq!(eval_code("TYPEOF(name)"), Ok(DynamicValue::from("bytes")));
+        assert_eq!(
+            eval_code("typeof(first(name))"),
+            Ok(DynamicValue::from("string"))
+        );
     }
 
     #[test]
@@ -660,12 +665,12 @@ mod tests {
 
     #[test]
     fn test_lower() {
-        assert_eq!(eval_code("lower(surname)"), Ok(DynamicValue::from("smith")));
+        assert_eq!(eval_code("lower(surname)"), Ok(b("smith")));
     }
 
     #[test]
     fn test_upper() {
-        assert_eq!(eval_code("upper(name)"), Ok(DynamicValue::from("JOHN")));
+        assert_eq!(eval_code("upper(name)"), Ok(b("JOHN")));
     }
 
     #[test]
@@ -896,26 +901,20 @@ mod tests {
 
     #[test]
     fn test_col() {
-        assert_eq!(eval_code("col('name')"), Ok(DynamicValue::from("john")));
-        assert_eq!(eval_code("col(1)"), Ok(DynamicValue::from("SMITH")));
-        assert_eq!(eval_code("col(1.0)"), Ok(DynamicValue::from("SMITH")));
-        assert_eq!(
-            eval_code("col('surname', 0)"),
-            Ok(DynamicValue::from("SMITH"))
-        );
+        assert_eq!(eval_code("col('name')"), Ok(b("john")));
+        assert_eq!(eval_code("col(1)"), Ok(b("SMITH")));
+        assert_eq!(eval_code("col(1.0)"), Ok(b("SMITH")));
+        assert_eq!(eval_code("col('surname', 0)"), Ok(b("SMITH")));
         assert_eq!(
             eval_code("col('surname', 1)"),
             Err(RunError::Prepare(ConcretizationError::ColumnNotFound(
                 ColumIndexationBy::NameAndNth(("surname".to_string(), 1))
             )))
         );
-        assert_eq!(
-            eval_code("col(concat('sur', 'name'))"),
-            Ok(DynamicValue::from("SMITH"))
-        );
+        assert_eq!(eval_code("col(concat('sur', 'name'))"), Ok(b("SMITH")));
         assert_eq!(
             eval_code("col(concat('sur', 'name'), 1 - 1)"),
-            Ok(DynamicValue::from("SMITH"))
+            Ok(b("SMITH"))
         );
     }
 
@@ -1075,10 +1074,7 @@ mod tests {
             Ok(DynamicValue::from("world"))
         );
 
-        assert_eq!(
-            eval_code("{hello: name} | get(_, 'hello')"),
-            Ok(DynamicValue::from("john"))
-        );
+        assert_eq!(eval_code("{hello: name} | get(_, 'hello')"), Ok(b("john")));
     }
 
     #[test]

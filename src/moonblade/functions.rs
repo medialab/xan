@@ -9,6 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use bstr::ByteSlice;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
@@ -321,11 +322,17 @@ fn split(args: BoundArguments) -> FunctionResult {
 }
 
 fn lower(args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.get1_str()?.to_lowercase()))
+    Ok(match args.get1() {
+        DynamicValue::Bytes(bytes) => DynamicValue::from_owned_bytes(bytes.to_lowercase()),
+        value => DynamicValue::from(value.try_as_str()?.to_lowercase()),
+    })
 }
 
 fn upper(args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(args.get1_str()?.to_uppercase()))
+    Ok(match args.get1() {
+        DynamicValue::Bytes(bytes) => DynamicValue::from_owned_bytes(bytes.to_uppercase()),
+        value => DynamicValue::from(value.try_as_str()?.to_uppercase()),
+    })
 }
 
 fn len(mut args: BoundArguments) -> FunctionResult {
@@ -334,7 +341,7 @@ fn len(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(match arg {
         DynamicValue::List(list) => list.len(),
         DynamicValue::Map(map) => map.len(),
-        _ => arg.try_as_str()?.len(),
+        _ => arg.try_as_str()?.chars().count(),
     }))
 }
 
@@ -455,6 +462,12 @@ fn first(mut args: BoundArguments) -> FunctionResult {
 
     Ok(match arg {
         DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
+        DynamicValue::Bytes(bytes) => DynamicValue::from(
+            std::str::from_utf8(&bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .chars()
+                .next(),
+        ),
         DynamicValue::List(list) => match list.first() {
             None => DynamicValue::None,
             Some(value) => value.clone(),
@@ -468,6 +481,12 @@ fn last(mut args: BoundArguments) -> FunctionResult {
 
     Ok(match arg {
         DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
+        DynamicValue::Bytes(bytes) => DynamicValue::from(
+            std::str::from_utf8(&bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .chars()
+                .next_back(),
+        ),
         DynamicValue::List(list) => match list.last() {
             None => DynamicValue::None,
             Some(value) => value.clone(),

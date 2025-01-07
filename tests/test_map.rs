@@ -103,7 +103,7 @@ fn map_errors_report() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["a", "b", "c", "error"],
-        svec!["1", "test", "", "error when calling function \"add\": cannot safely cast from type \"string\" to type \"number\""],
+        svec!["1", "test", "", "error when calling function \"add\": cannot safely cast from type \"bytes\" to type \"number\""],
         svec!["2", "3", "5", ""],
     ];
     assert_eq!(got, expected);
