@@ -674,6 +674,7 @@ pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
     String(Arc<String>),
+    Bytes(Arc<Vec<u8>>),
     Float(f64),
     Integer(i64),
     Boolean(bool),
@@ -683,6 +684,19 @@ pub enum DynamicValue {
 }
 
 const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T[%Z]";
+
+fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
+    match value.parse::<Zoned>() {
+        Ok(zoned_datetime) => Ok(zoned_datetime),
+        Err(_) => match value.parse::<DateTime>() {
+            Ok(datetime) => Ok(datetime.to_zoned(TimeZone::system()).unwrap()),
+            Err(_) => Err(EvaluationError::DateTime(format!(
+                "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                value
+            ))),
+        },
+    }
+}
 
 impl Default for DynamicValue {
     fn default() -> Self {
@@ -700,6 +714,7 @@ impl Serialize for DynamicValue {
             Self::Integer(v) => v.serialize(serializer),
             Self::Boolean(v) => v.serialize(serializer),
             Self::String(v) => v.serialize(serializer),
+            Self::Bytes(v) => v.serialize(serializer),
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
@@ -821,6 +836,7 @@ impl DynamicValue {
             Self::List(_) => "list",
             Self::Map(_) => "map",
             Self::String(_) => "string",
+            Self::Bytes(_) => "bytes",
             Self::Float(_) => "float",
             Self::Integer(_) => "integer",
             Self::Boolean(_) => "boolean",
@@ -865,6 +881,7 @@ impl DynamicValue {
             }
             Self::Map(_) => Cow::Owned(serde_json::to_string(self).unwrap().into_bytes()),
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
+            Self::Bytes(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Integer(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Boolean(value) => Cow::Borrowed(if *value { b"true" } else { b"false" }),
@@ -886,34 +903,21 @@ impl DynamicValue {
     pub fn try_into_datetime(self) -> Result<Zoned, EvaluationError> {
         match self {
             DynamicValue::DateTime(value) => Ok(*value),
-            DynamicValue::String(value) => match value.parse::<Zoned>() {
-                Ok(zoned_datetime) => Ok(zoned_datetime),
-                Err(_) => match value.parse::<DateTime>() {
-                    Ok(datetime) => Ok(datetime.to_zoned(TimeZone::system()).unwrap()),
-                    Err(_) => Err(EvaluationError::DateTime(format!(
-                        "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
-                        value
-                    )))
-                }
-            },
-            _ => Err(EvaluationError::from_cast(&self, "datetime"))
+            DynamicValue::Bytes(value) => parse_datetime(std::str::from_utf8(&value).unwrap()),
+            DynamicValue::String(value) => parse_datetime(&value),
+            _ => Err(EvaluationError::from_cast(&self, "datetime")),
         }
     }
 
     pub fn try_as_datetime(&self) -> Result<Cow<Zoned>, EvaluationError> {
         match self {
             DynamicValue::DateTime(value) => Ok(Cow::Borrowed(value)),
-            DynamicValue::String(value) => match value.parse::<Zoned>() {
-                Ok(zoned_datetime) => Ok(Cow::Owned(zoned_datetime)),
-                Err(_) => match value.parse::<DateTime>() {
-                    Ok(datetime) => Ok(Cow::Owned(datetime.to_zoned(TimeZone::system()).unwrap())),
-                    Err(_) => Err(EvaluationError::DateTime(format!(
-                        "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
-                        value
-                    )))
-                }
-            },
-            _ => Err(EvaluationError::from_cast(self, "datetime"))
+            DynamicValue::String(value) => parse_datetime(value).map(Cow::Owned),
+            DynamicValue::Bytes(value) => parse_datetime(
+                std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?,
+            )
+            .map(Cow::Owned),
+            _ => Err(EvaluationError::from_cast(self, "datetime")),
         }
     }
 
@@ -927,6 +931,9 @@ impl DynamicValue {
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
+            Self::Bytes(value) => Cow::Borrowed(
+                std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?,
+            ),
             Self::Float(value) => Cow::Owned(value.to_string()),
             Self::Integer(value) => Cow::Owned(value.to_string()),
             Self::DateTime(value) => Cow::Owned(value.to_string()),
@@ -971,6 +978,13 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
+            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .parse::<DynamicNumber>()
+            {
+                Err(_) => return Err(EvaluationError::from_cast(self, "number")),
+                Ok(number) => number,
+            },
             Self::Integer(value) => DynamicNumber::Integer(*value),
             Self::Float(value) => DynamicNumber::Float(*value),
             Self::Boolean(value) => DynamicNumber::Integer(*value as i64),
@@ -981,6 +995,13 @@ impl DynamicValue {
     pub fn try_as_usize(&self) -> Result<usize, EvaluationError> {
         Ok(match self {
             Self::String(string) => match string.parse::<usize>() {
+                Err(_) => return Err(EvaluationError::from_cast(self, "unsigned_number")),
+                Ok(value) => value,
+            },
+            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .parse::<usize>()
+            {
                 Err(_) => return Err(EvaluationError::from_cast(self, "unsigned_number")),
                 Ok(value) => value,
             },
@@ -1012,6 +1033,13 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "integer")),
                 Ok(value) => value,
             },
+            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .parse::<i64>()
+            {
+                Err(_) => return Err(EvaluationError::from_cast(self, "integer")),
+                Ok(value) => value,
+            },
             Self::Float(value) => match downgrade_float(*value) {
                 Some(safe_downgraded_value) => safe_downgraded_value,
                 None => return Err(EvaluationError::from_cast(self, "integer")),
@@ -1028,6 +1056,13 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "float")),
                 Ok(value) => value,
             },
+            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .parse::<f64>()
+            {
+                Err(_) => return Err(EvaluationError::from_cast(self, "float")),
+                Ok(value) => value,
+            },
             Self::Float(value) => *value,
             Self::Integer(value) => *value as f64,
             Self::Boolean(value) => *value as usize as f64,
@@ -1040,6 +1075,7 @@ impl DynamicValue {
             Self::List(value) => !value.is_empty(),
             Self::Map(value) => !value.is_empty(),
             Self::String(value) => !value.is_empty(),
+            Self::Bytes(value) => !value.is_empty(),
             Self::Float(value) => value == &0.0,
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
@@ -1056,6 +1092,7 @@ impl DynamicValue {
     pub fn is_nullish(&self) -> bool {
         match self {
             Self::String(value) => value.is_empty(),
+            Self::Bytes(value) => value.is_empty(),
             Self::None => true,
             _ => false,
         }
