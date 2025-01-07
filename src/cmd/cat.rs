@@ -21,6 +21,11 @@ If you need to rearrange the columns or fix the lengths of records, use the
 data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
+When concatenating a large number of CSV files use the '--input' options to pass
+a list of path as a CSV file. This path CSV file must contain path in the <column>
+argument. It can be passed as a path `--input ./all_my_CSV.csv` or in stdin `--input '-'`.
+The later is often used with `glob`: `xan glob '/home/*/*.csv' | xan cat rows path --input '-'`
+
 Usage:
     xan cat rows <column> --input <input> [options]
     xan cat rows    [options] [<inputs>...]
@@ -31,8 +36,9 @@ cat options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
-    --input <input>             When concatenating rows, path to a CSV file containing
-                                a column of paths to other CSV files to concatenate.
+    --input <input>             When concatenating rows, indicate path to a CSV file (or stdin as '-') 
+                                containing paths to other CSV files to concatenate.
+                                The paths must be in a column named as indicated by the `column` argument.
     -I, --input-dir <dir>       When concatenating rows, root directory to resolve
                                 relative paths contained in the -i/--input file column.
     -S, --source-column <name>  Name of a column to prepend in the output of \"cat rows\"
