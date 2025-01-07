@@ -1035,6 +1035,12 @@ use the operators in the previous section.
     - index() -> integer?
         Return the row's index, if applicable.
 
+    - mime_ext(string) -> string
+        Return the extension related to given mime type.
+
+    - parse_dataurl(string) -> [string, bytes]
+        Parse the given data url and return its mime type and decoded binary data.
+
     - parse_json(string) -> any
         Parse the given string as JSON.
 

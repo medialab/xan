@@ -552,6 +552,12 @@ use the operators in the previous section.
     - index() -> integer?
         Return the row's index, if applicable.
 
+    - mime_ext(string) -> string
+        Return the extension related to given mime type.
+
+    - parse_dataurl(string) -> [string, bytes]
+        Parse the given data url and return its mime type and decoded binary data.
+
     - parse_json(string) -> any
         Parse the given string as JSON.
 
@@ -821,6 +827,10 @@ impl MoonbladeMode {
         matches!(self, Self::Transform)
     }
 
+    fn should_not_emit_headers(&self) -> bool {
+        matches!(self, Self::Foreach)
+    }
+
     fn cannot_report(&self) -> bool {
         matches!(self, Self::Filter(_) | Self::Flatmap | Self::Foreach)
     }
@@ -1058,7 +1068,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         modified_headers = headers.clone();
 
         if !headers.is_empty() {
-            must_write_headers = true;
+            must_write_headers = !args.mode.should_not_emit_headers();
 
             if args.mode.is_map() {
                 if let Some(target_column) = &args.target_column {

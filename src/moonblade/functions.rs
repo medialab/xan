@@ -1,20 +1,20 @@
 use std::borrow::Cow;
-use std::cmp::max;
-use std::cmp::{Ordering, PartialOrd};
+use std::cmp::{max, Ordering, PartialOrd};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use base64::prelude::*;
 use bstr::ByteSlice;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::GzDecoder;
 use jiff::{civil::DateTime, fmt::strtime, tz::TimeZone, Timestamp, Zoned};
 use lazy_static::lazy_static;
+use mime2ext::mime2ext;
 use namedlock::{AutoCleanup, LockSpace};
 use paltoquet::{
     stemmers::{fr::carry_stemmer, s_stemmer},
@@ -133,6 +133,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "max" => (variadic_max, FunctionArguments::variadic(2)),
         "md5" => (md5, FunctionArguments::unary()),
         "mean" => (mean, FunctionArguments::unary()),
+        "mime_ext" => (mime_ext, FunctionArguments::unary()),
         "min" => (variadic_min, FunctionArguments::variadic(2)),
         "mod" => (
             |args| binary_arithmetic_op(args, Rem::rem),
@@ -157,6 +158,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "not" => (not, FunctionArguments::unary()),
         "or" => (or, FunctionArguments::variadic(2)),
+        "parse_dataurl" => (parse_dataurl, FunctionArguments::unary()),
         "parse_json" => (parse_json, FunctionArguments::unary()),
         "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
         "pow" => (
@@ -1486,4 +1488,45 @@ fn parse_json(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
     serde_json::from_str(arg.as_ref()).map_err(|_| EvaluationError::JSONParseError)
+}
+
+fn parse_dataurl(args: BoundArguments) -> FunctionResult {
+    let bytes = args.get1().try_as_bytes()?;
+
+    if !bytes.starts_with(b"data:") {
+        return Err(EvaluationError::Custom(
+            "data url does not start with \"data:\"".to_string(),
+        ));
+    }
+
+    match bytes[5..].split_once_str(b",") {
+        Some((spec, data)) => {
+            if spec.ends_with(b";base64") {
+                let mime = &spec[..spec.len() - 7];
+
+                Ok(DynamicValue::from(vec![
+                    DynamicValue::from(std::str::from_utf8(mime).unwrap()),
+                    DynamicValue::from_owned_bytes(BASE64_STANDARD.decode(data).map_err(|_| {
+                        EvaluationError::Custom("data url contains invalid base64".to_string())
+                    })?),
+                ]))
+            } else {
+                Err(EvaluationError::NotImplemented(
+                    "url-encoded data url is not implemented yet".to_string(),
+                ))
+            }
+        }
+        None => Err(EvaluationError::Custom(
+            "data url is misformatted".to_string(),
+        )),
+    }
+}
+
+fn mime_ext(args: BoundArguments) -> FunctionResult {
+    let target = args.get1_str()?;
+
+    match mime2ext(target) {
+        Some(ext) => Ok(DynamicValue::from(ext)),
+        None => Err(EvaluationError::Custom("unknown MIME type".to_string())),
+    }
 }
