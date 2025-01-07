@@ -8,6 +8,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
+use bstr::BString;
 use csv::ByteRecord;
 use jiff::{civil::DateTime, tz::TimeZone, Zoned};
 use regex::Regex;
@@ -674,7 +675,7 @@ pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
     String(Arc<String>),
-    Bytes(Arc<Vec<u8>>),
+    Bytes(Arc<BString>),
     Float(f64),
     Integer(i64),
     Boolean(bool),
@@ -832,7 +833,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
 
 impl DynamicValue {
     pub fn from_owned_bytes(bytes: Vec<u8>) -> Self {
-        Self::Bytes(Arc::new(bytes))
+        Self::Bytes(Arc::new(BString::from(bytes)))
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {

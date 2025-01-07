@@ -443,6 +443,7 @@ pub fn concretize_expression(
         Expr::Float(v) => ConcreteExpr::Value(DynamicValue::Float(v)),
         Expr::Int(v) => ConcreteExpr::Value(DynamicValue::Integer(v)),
         Expr::Str(v) => ConcreteExpr::Value(DynamicValue::from(v)),
+        Expr::BStr(v) => ConcreteExpr::Value(DynamicValue::from_owned_bytes(v)),
         Expr::Identifier(name, unsure) => {
             let indexation = ColumIndexationBy::Name(name);
 

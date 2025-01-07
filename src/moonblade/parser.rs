@@ -216,6 +216,7 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     Expr::Slice(Slice::End(end))
                 }
                 Rule::string => Expr::Str(build_string(primary)),
+                Rule::binary_string => Expr::BStr(build_string(primary).into_bytes()),
                 Rule::regex => {
                     let case_insensitive =
                         primary.clone().into_inner().any(|t| match t.as_rule() {
@@ -397,6 +398,7 @@ pub enum Expr {
     Float(f64),
     Identifier(String, bool),
     Str(String),
+    BStr(Vec<u8>),
     List(Vec<Expr>),
     Map(Vec<(String, Expr)>),
     Regex(String, bool),

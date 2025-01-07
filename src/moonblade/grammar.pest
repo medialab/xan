@@ -29,6 +29,7 @@ escape               =  { "\\" ~ predefined }
 single_quoted_string = _{ "'" ~ (raw_single_quoted_string | escape)* ~ "'" }
 double_quoted_string = _{ "\"" ~ (raw_double_quoted_string | escape | " ")* ~ "\"" }
 string               = ${ single_quoted_string | double_quoted_string }
+binary_string        = ${ ("b" ~ single_quoted_string) | ("b" ~ double_quoted_string) }
 
 // Regexes
 raw_regex_string = { (!("\\" | "/") ~ ANY)+ }
@@ -125,6 +126,7 @@ term        = _{
   | bool
   | null
   | regex
+  | binary_string
   | string
   | float
   | int
