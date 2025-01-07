@@ -159,7 +159,7 @@ On unix, don't hesitate to use the `-p` flag to automagically forward the full o
 
 ```bash
 # NOTE: drop -c to avoid truncating the values
-xan flatten -c
+xan flatten -c medias.csv
 ```
 
 ```
@@ -245,7 +245,7 @@ Displaying 2 cols from 10 first rows of <stdin>
 ### Sorting the file
 
 ```bash
-xan sort -s foundation_year medias.csv | xan select name,foundation_year | xan view -l 10
+xan sort -s foundation_year medias.csv | xan view -s name,foundation_year
 ```
 
 ```
