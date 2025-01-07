@@ -15,6 +15,20 @@ If you need to rearrange the columns or fix the lengths of records, use the
 data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
+When concatenating a large number of CSV files exceeding your shell's
+command argument limit, prefer using the --input flag to read the list of file
+paths from a CSV file. The file must contain paths in a column given to the
+command through the <column> argument, while the file itself must be given
+using the --input flag.
+
+Example using the --input flag:
+
+    $ xan cat rows --input filepaths.csv path > concatenated.csv
+
+Feeding stdin ("-") to the --input flag (typically using `xan glob`):
+
+    $ xan glob '**/*.csv' | xan cat rows --input - path
+
 Usage:
     xan cat rows <column> --input <input> [options]
     xan cat rows    [options] [<inputs>...]
@@ -25,8 +39,9 @@ cat options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
-    --input <input>             When concatenating rows, path to a CSV file containing
-                                a column of paths to other CSV files to concatenate.
+    --input <input>             When concatenating rows, indicate path to a CSV file (or stdin as '-')
+                                containing paths to other CSV files to concatenate.
+                                The paths must be in a column named as indicated by the <column> argument.
     -I, --input-dir <dir>       When concatenating rows, root directory to resolve
                                 relative paths contained in the -i/--input file column.
     -S, --source-column <name>  Name of a column to prepend in the output of "cat rows"
