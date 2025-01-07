@@ -110,6 +110,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         error_policy: MoonbladeErrorPolicy::try_from(args.flag_errors)?,
         error_column_name: Some(args.flag_error_column),
         mode: MoonbladeMode::Transform,
+        ..Default::default()
     };
 
     run_moonblade_cmd(moonblade_args)

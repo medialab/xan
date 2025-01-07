@@ -41,6 +41,10 @@ filter options:
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
     -v, --invert-match         If set, will invert the evaluated value.
+    -l, --limit <n>            Maximum number of rows to return. Useful to avoid downstream
+                               buffering some times (e.g. when searching for very few
+                               rows in a big file before piping to `view` or `flatten`).
+                               Does not work when parallelizing.
     -E, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "ignore": coerce result for row to null

@@ -933,6 +933,7 @@ pub struct MoonbladeCmdArgs {
     pub error_policy: MoonbladeErrorPolicy,
     pub error_column_name: Option<String>,
     pub mode: MoonbladeMode,
+    pub limit: Option<usize>,
 }
 
 pub fn handle_eval_result<'b>(
@@ -1156,6 +1157,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
     let mut i: usize = 0;
+    let mut emitted: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
         let eval_result = program.run_with_record(i, &record);
@@ -1164,10 +1166,17 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
             handle_eval_result(&args, i, &mut record, eval_result, column_to_replace)?;
 
         for record_to_emit in records_to_emit {
+            emitted += 1;
             wtr.write_byte_record(&record_to_emit)?;
         }
 
         i += 1;
+
+        if let Some(limit) = args.limit {
+            if emitted >= limit {
+                break;
+            }
+        }
     }
 
     Ok(wtr.flush()?)

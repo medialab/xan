@@ -42,7 +42,7 @@ search options:
     -f, --flag <column>    If given, the command will not filter rows
                            but will instead flag the found rows in a new
                            column with given name.
-    -l, --limit <n>        Maximum of rows to return. Useful to avoid downstream
+    -l, --limit <n>        Maximum of number rows to return. Useful to avoid downstream
                            buffering some times (e.g. when searching for very few
                            rows in a big file before piping to `view` or `flatten`).
 

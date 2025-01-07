@@ -45,6 +45,10 @@ filter options:
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
     -v, --invert-match         If set, will invert the evaluated value.
+    -l, --limit <n>            Maximum number of rows to return. Useful to avoid downstream
+                               buffering some times (e.g. when searching for very few
+                               rows in a big file before piping to `view` or `flatten`).
+                               Does not work when parallelizing.
     -E, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
                                  - "ignore": coerce result for row to null
@@ -70,6 +74,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
+    flag_limit: Option<usize>,
     flag_threads: Option<usize>,
     flag_errors: String,
     flag_invert_match: bool,
@@ -84,6 +89,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
+    if args.flag_limit.is_some() && parallelization.is_some() {
+        Err("-l, --limit does not work when parallelizing!")?;
+    }
+
     let moonblade_args = MoonbladeCmdArgs {
         print_cheatsheet: args.flag_cheatsheet,
         print_functions: args.flag_functions,
@@ -95,6 +104,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         parallelization,
         error_policy: MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
         mode: MoonbladeMode::Filter(args.flag_invert_match),
+        limit: args.flag_limit,
         ..Default::default()
     };
 
