@@ -24,14 +24,14 @@ Usage:
     xan slice [options] [<input>]
 
 slice options:
-    -s, --start <arg>      The index of the record to slice from.
-    -e, --end <arg>        The index of the record to slice to.
-    -l, --len <arg>        The length of the slice (can be used instead
-                           of --end).
-    -i, --index <arg>      Slice a single record (shortcut for -s N -l 1).
-                           You can also provide multiples indices separated by
-                           commas, e.g. \"1,4,67,89\". Note that selected records
-                           will be emitted in file order.
+    -s, --start <n>  The index of the record to slice from.
+    -e, --end <n>    The index of the record to slice to.
+    -l, --len <n>    The length of the slice (can be used instead
+                     of --end).
+    -i, --index <i>  Slice a single record (shortcut for -s N -l 1).
+                     You can also provide multiples indices separated by
+                     commas, e.g. \"1,4,67,89\". Note that selected records
+                     will be emitted in file order.
 
 Common options:
     -h, --help             Display this message
