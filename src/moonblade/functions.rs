@@ -1188,7 +1188,7 @@ lazy_static! {
 }
 
 fn write(args: BoundArguments) -> FunctionResult {
-    let data = args.get(0).unwrap().try_as_str()?;
+    let data = args.get1();
     let path = PathBuf::from(args.get(1).unwrap().try_as_str()?.as_ref());
 
     // mkdir -p
@@ -1203,7 +1203,7 @@ fn write(args: BoundArguments) -> FunctionResult {
         .lock(path.clone(), || ())
         .map_err(|_| EvaluationError::Custom("write file lock is poisoned".to_string()))?;
 
-    fs::write(&path, data.as_bytes()).map_err(|_| {
+    fs::write(&path, data.try_as_bytes()?).map_err(|_| {
         EvaluationError::IO(format!("cannot write file {}", path.to_string_lossy()))
     })?;
 

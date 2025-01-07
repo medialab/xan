@@ -953,6 +953,14 @@ impl DynamicValue {
         })
     }
 
+    pub fn try_as_bytes(&self) -> Result<&[u8], EvaluationError> {
+        match self {
+            Self::String(value) => Ok(value.as_bytes()),
+            Self::Bytes(value) => Ok(value),
+            _ => Err(EvaluationError::from_cast(self, "bytes")),
+        }
+    }
+
     pub fn try_as_regex(&self) -> Result<&Regex, EvaluationError> {
         match self {
             Self::Regex(regex) => Ok(regex),
