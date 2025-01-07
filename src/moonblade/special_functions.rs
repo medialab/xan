@@ -74,8 +74,8 @@ pub fn get_special_function(
         "headers" => (
             Some(|call: &FunctionCall, headers: &ByteRecord| {
                 comptime_cols_headers(call, headers, |i| {
-                    ConcreteExpr::Value(DynamicValue::String(
-                        std::str::from_utf8(&headers[i]).unwrap().to_string(),
+                    ConcreteExpr::Value(DynamicValue::from(
+                        std::str::from_utf8(&headers[i]).unwrap(),
                     ))
                 })
             }),

@@ -445,7 +445,7 @@ pub fn concretize_expression(
         Expr::Bool(v) => ConcreteExpr::Value(DynamicValue::Boolean(v)),
         Expr::Float(v) => ConcreteExpr::Value(DynamicValue::Float(v)),
         Expr::Int(v) => ConcreteExpr::Value(DynamicValue::Integer(v)),
-        Expr::Str(v) => ConcreteExpr::Value(DynamicValue::String(v)),
+        Expr::Str(v) => ConcreteExpr::Value(DynamicValue::from(v)),
         Expr::Identifier(name, unsure) => {
             let indexation = ColumIndexationBy::Name(name);
 
@@ -523,7 +523,10 @@ impl Program {
             Ok(String::from_utf8(record[index].to_vec()).unwrap())
         } else {
             let value = self.run_with_record(index, record)?;
-            Ok(value.try_into_string().map_err(|err| err.anonymous())?)
+            Ok(value
+                .try_as_str()
+                .map(|s| s.to_string())
+                .map_err(|err| err.anonymous())?)
         }
     }
 }

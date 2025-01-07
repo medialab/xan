@@ -668,12 +668,12 @@ impl numfmt::Numeric for DynamicNumber {
 
 // NOTE: a DynamicValue should always be:
 //   1. cheap to clone (notice the Arcs)
-//   2. 24 bytes large max
+//   2. 16 bytes large max
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
-    String(String),
+    String(Arc<String>),
     Float(f64),
     Integer(i64),
     Boolean(bool),
@@ -756,7 +756,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
             }
 
             fn visit_string<E>(self, value: String) -> Result<DynamicValue, E> {
-                Ok(DynamicValue::String(value))
+                Ok(DynamicValue::from(value))
             }
 
             #[inline]
@@ -937,18 +937,6 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_into_string(self) -> Result<String, EvaluationError> {
-        Ok(match self {
-            Self::String(value) => value,
-            Self::Float(value) => value.to_string(),
-            Self::Integer(value) => value.to_string(),
-            Self::Boolean(value) => (if value { "true" } else { "false" }).to_string(),
-            Self::Regex(pattern) => pattern.as_str().to_owned(),
-            Self::None => "".to_string(),
-            _ => return Err(EvaluationError::from_cast(&self, "string")),
-        })
-    }
-
     pub fn try_as_regex(&self) -> Result<&Regex, EvaluationError> {
         match self {
             Self::Regex(regex) => Ok(regex),
@@ -1120,25 +1108,25 @@ impl<'a> Iterator for DynamicValueFlatIter<'a> {
 
 impl From<&str> for DynamicValue {
     fn from(value: &str) -> Self {
-        DynamicValue::String(value.to_string())
+        DynamicValue::String(Arc::new(value.to_string()))
     }
 }
 
 impl<'a> From<Cow<'a, str>> for DynamicValue {
     fn from(value: Cow<str>) -> Self {
-        DynamicValue::String(value.into_owned())
+        DynamicValue::String(Arc::new(value.into_owned()))
     }
 }
 
 impl From<String> for DynamicValue {
     fn from(value: String) -> Self {
-        DynamicValue::String(value)
+        DynamicValue::String(Arc::new(value))
     }
 }
 
 impl From<char> for DynamicValue {
     fn from(value: char) -> Self {
-        DynamicValue::String(value.to_string())
+        DynamicValue::String(Arc::new(value.to_string()))
     }
 }
 
@@ -1423,7 +1411,7 @@ mod tests {
     fn test_dynamic_value_flat_iter() {
         let integer = DynamicValue::Integer(3);
         let float = DynamicValue::Float(3.5);
-        let string = DynamicValue::String("test".to_string());
+        let string = DynamicValue::from("test");
         let list = DynamicValue::List(Arc::new(vec![
             DynamicValue::Integer(1),
             DynamicValue::Integer(2),
