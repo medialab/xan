@@ -149,6 +149,10 @@ available functions & operators):
         '\"hello\"'
         \"'hello'\"
 
+  . Binary string literals (can use single or double quotes):
+        'b\"hello\"'
+        \"b'hello'\"
+
   . Regex literals:
         '/john/'
         '/john/i' (case-insensitive)
