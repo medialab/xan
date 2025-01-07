@@ -1004,9 +1004,19 @@ where
     F: FnOnce(Ordering) -> bool,
 {
     // TODO: deal with lists
-    let (a, b) = args.get2_str()?;
+    let ordering = match args.get2() {
+        (DynamicValue::Bytes(b1), DynamicValue::Bytes(b2)) => b1.partial_cmp(b2),
+        (DynamicValue::String(s1), DynamicValue::String(s2)) => s1.partial_cmp(s2),
+        (DynamicValue::Bytes(b1), DynamicValue::String(s2)) => std::str::from_utf8(b1)
+            .map_err(|_| EvaluationError::UnicodeDecodeError)?
+            .partial_cmp(s2.as_str()),
+        (DynamicValue::String(s1), DynamicValue::Bytes(b2)) => s1
+            .as_str()
+            .partial_cmp(std::str::from_utf8(b2).map_err(|_| EvaluationError::UnicodeDecodeError)?),
+        (u1, u2) => u1.try_as_str()?.partial_cmp(&u2.try_as_str()?),
+    };
 
-    Ok(DynamicValue::from(match a.partial_cmp(&b) {
+    Ok(DynamicValue::from(match ordering {
         Some(ordering) => validate(ordering),
         None => false,
     }))
