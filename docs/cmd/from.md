@@ -18,6 +18,8 @@ Supported formats:
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
 
+    txt - text lines
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading
@@ -33,6 +35,10 @@ JSON options:
     --key-column <name>    Name for the key column when parsing a JSON map.
                            [default: key]
     --value-column <name>  Name for the value column when parsing a JSON map.
+                           [default: value]
+
+Text lines options:
+    -c, --column <name>    Name of the column to create.
                            [default: value]
 
 Common options:

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use csv;
 
 use crate::config::{Config, Delimiter};
@@ -48,8 +46,6 @@ cat options:
     --input <input>             When concatenating rows, indicate path to a CSV file (or stdin as '-')
                                 containing paths to other CSV files to concatenate.
                                 The paths must be in a column named as indicated by the <column> argument.
-    -I, --input-dir <dir>       When concatenating rows, root directory to resolve
-                                relative paths contained in the -i/--input file column.
     -S, --source-column <name>  Name of a column to prepend in the output of \"cat rows\"
                                 indicating the path to source file.
 
@@ -70,7 +66,6 @@ struct Args {
     arg_inputs: Vec<String>,
     arg_column: Option<SelectColumns>,
     flag_input: Option<String>,
-    flag_input_dir: Option<PathBuf>,
     flag_pad: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -150,25 +145,18 @@ impl Args {
 
         let column_index = rconf.single_selection(headers)?;
 
-        let mut record = csv::StringRecord::new();
+        let mut record = csv::ByteRecord::new();
         let mut sub_record = csv::ByteRecord::new();
 
         let mut wtr = Config::new(&self.flag_output).writer()?;
 
         let mut headers_written = self.flag_no_headers;
 
-        while rdr.read_record(&mut record)? {
-            let original_path = record[column_index].to_string();
+        while rdr.read_byte_record(&mut record)? {
+            let path =
+                String::from_utf8(record[column_index].to_vec()).expect("could not decode utf-8");
 
-            let path = if let Some(root_dir) = &self.flag_input_dir {
-                let mut buf = root_dir.clone();
-                buf.push(&original_path);
-                buf.to_string_lossy().into_owned()
-            } else {
-                original_path.clone()
-            };
-
-            let sub_rconf = Config::new(&Some(path))
+            let sub_rconf = Config::new(&Some(path.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -196,9 +184,7 @@ impl Args {
                     }
 
                     while sub_rdr.read_byte_record(&mut sub_record)? {
-                        wtr.write_record(
-                            [original_path.as_bytes()].into_iter().chain(&sub_record),
-                        )?;
+                        wtr.write_record([path.as_bytes()].into_iter().chain(&sub_record))?;
                     }
                 }
             }

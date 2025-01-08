@@ -169,37 +169,6 @@ fn parallel_cat_source_column() {
 }
 
 #[test]
-fn parallel_cat_source_column_input_dir() {
-    let wrk = Workdir::new("parallel_cat_source_column_input_dir");
-    wrk.create(
-        "data1.csv",
-        vec![svec!["color"], svec!["blue"], svec!["yellow"]],
-    );
-    wrk.create(
-        "data2.csv",
-        vec![svec!["color"], svec!["red"], svec!["red"], svec!["blue"]],
-    );
-
-    let mut cmd = wrk.command("parallel");
-    cmd.arg("cat")
-        .args(["-P", "search -e 'blue'"])
-        .args(["--source-column", "file"])
-        .args(["--input-dir", "root"])
-        .arg("data1.csv")
-        .arg("data2.csv");
-
-    let mut got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    got[1..].sort_by_key(|r| r[1].to_owned());
-
-    let expected = vec![
-        svec!["color", "file"],
-        svec!["blue", "root/data1.csv"],
-        svec!["blue", "root/data2.csv"],
-    ];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn parallel_agg() {
     let wrk = Workdir::new("parallel_agg");
     wrk.create("data1.csv", vec![svec!["n"], svec!["4"], svec!["7"]]);

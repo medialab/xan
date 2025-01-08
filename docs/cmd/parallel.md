@@ -81,8 +81,6 @@ parallel cat options:
                                 before flushing to the output. Set <= 0 to flush only once per
                                 processed file. Keep in mind this could cost a lot of memory.
                                 [default: 1024]
-    -I, --input-dir <dir>       When concatenating rows, root directory to resolve
-                                relative paths contained in the -i/--input file column.
     -S, --source-column <name>  Name of a column to prepend in the output of indicating the
                                 path to source file.
 
@@ -92,7 +90,7 @@ parallel freq options:
                          provided separator.
 
 parallel stats options:
-    -s, --select <cols>  Columns for which to build statistics.
+    -s, --select <cols>    Columns for which to build statistics.
     -A, --all              Shorthand for -cq.
     -c, --cardinality      Show cardinality and modes.
                            This requires storing all CSV data in memory.

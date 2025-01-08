@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::env;
 use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -410,8 +409,6 @@ parallel cat options:
                                 before flushing to the output. Set <= 0 to flush only once per
                                 processed file. Keep in mind this could cost a lot of memory.
                                 [default: 1024]
-    -I, --input-dir <dir>       When concatenating rows, root directory to resolve
-                                relative paths contained in the -i/--input file column.
     -S, --source-column <name>  Name of a column to prepend in the output of indicating the
                                 path to source file.
 
@@ -458,7 +455,6 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectColumns>,
     flag_buffer_size: isize,
-    flag_input_dir: Option<PathBuf>,
     flag_source_column: Option<String>,
     flag_select: SelectColumns,
     flag_sep: Option<String>,
@@ -770,13 +766,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut record = result?;
 
                 if args.flag_source_column.is_some() {
-                    if let Some(root_dir) = &args.flag_input_dir {
-                        let mut buf = root_dir.clone();
-                        buf.push(path);
-                        record.push_field(buf.to_string_lossy().as_bytes());
-                    } else {
-                        record.push_field(path.as_bytes());
-                    }
+                    record.push_field(path.as_bytes());
                 }
 
                 buffer.push(record);

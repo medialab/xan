@@ -42,8 +42,6 @@ cat options:
     --input <input>             When concatenating rows, indicate path to a CSV file (or stdin as '-')
                                 containing paths to other CSV files to concatenate.
                                 The paths must be in a column named as indicated by the <column> argument.
-    -I, --input-dir <dir>       When concatenating rows, root directory to resolve
-                                relative paths contained in the -i/--input file column.
     -S, --source-column <name>  Name of a column to prepend in the output of "cat rows"
                                 indicating the path to source file.
 
