@@ -3,7 +3,7 @@ use std::ascii::AsciiExt;
 use std::borrow::{Borrow, ToOwned};
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, prelude::*, IsTerminal, Read, SeekFrom};
+use std::io::{self, prelude::*, BufReader, IsTerminal, Read, SeekFrom};
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -13,7 +13,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::select::{SelectColumns, Selection};
 use crate::util;
-use crate::CliResult;
+use crate::{CliError, CliResult};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Delimiter(pub u8);
@@ -355,6 +355,71 @@ impl Config {
                 }
             },
         })
+    }
+
+    pub fn io_buf_reader(&self) -> io::Result<Box<dyn io::BufRead + Send + 'static>> {
+        Ok(match self.path {
+            None => {
+                if io::stdin().is_terminal() {
+                    return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"));
+                } else {
+                    Box::new(BufReader::new(io::stdin()))
+                }
+            }
+            Some(ref p) => match fs::File::open(p) {
+                Ok(x) => {
+                    if p.to_string_lossy().ends_with(".gz") {
+                        Box::new(BufReader::new(GzDecoder::new(x)))
+                    } else {
+                        Box::new(BufReader::new(x))
+                    }
+                }
+                Err(err) => {
+                    let msg = format!("failed to open {}: {}", p.display(), err);
+                    return Err(io::Error::new(io::ErrorKind::NotFound, msg));
+                }
+            },
+        })
+    }
+
+    pub fn lines(
+        &self,
+        select: &Option<SelectColumns>,
+    ) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
+        if let Some(sel) = select {
+            let mut csv_reader = self.reader()?;
+            let headers = csv_reader.byte_headers()?;
+            let column_index = sel.single_selection(headers, !self.no_headers)?;
+
+            return Ok(Box::new(csv_reader.into_byte_records().map(
+                move |result| match result {
+                    Err(e) => Err(e)?,
+                    Ok(record) => {
+                        let line = String::from_utf8(record[column_index].to_vec())
+                            .expect("could not decode utf8");
+
+                        Ok(line)
+                    }
+                },
+            )));
+        }
+
+        let lines_reader = self.io_buf_reader()?;
+
+        Ok(Box::new(lines_reader.lines().filter_map(
+            |result| match result {
+                Err(e) => Some(Err(CliError::from(e))),
+                Ok(mut line) => {
+                    line.truncate(line.trim_end().len());
+
+                    if line.is_empty() {
+                        None
+                    } else {
+                        Some(Ok(line))
+                    }
+                }
+            },
+        )))
     }
 
     pub fn io_reader_for_random_access(&self) -> io::Result<Box<dyn SeekRead + 'static>> {

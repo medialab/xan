@@ -421,7 +421,7 @@ parallel freq options:
                          provided separator.
 
 parallel stats options:
-    -s, --select <cols>  Columns for which to build statistics.
+    -s, --select <cols>    Columns for which to build statistics.
     -A, --all              Shorthand for -cq.
     -c, --cardinality      Show cardinality and modes.
                            This requires storing all CSV data in memory.
@@ -505,39 +505,9 @@ impl Args {
                 return Ok(vec![]);
             }
 
-            if let Some(col_name) = &self.flag_path_column {
-                let config = Config::empty().select(col_name.clone());
-                let mut reader = config.reader()?;
-                let headers = reader.byte_headers()?;
-                let path_column_index = config.single_selection(headers)?;
-
-                let mut paths = Vec::new();
-                let mut record = csv::ByteRecord::new();
-
-                while reader.read_byte_record(&mut record)? {
-                    let path = String::from_utf8(record[path_column_index].to_vec())
-                        .expect("could not decode path column as utf8");
-
-                    paths.push(path);
-                }
-
-                Ok(paths)
-            } else {
-                Ok(io::stdin()
-                    .lines()
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_iter()
-                    .filter_map(|line| {
-                        let line = line.trim();
-
-                        if !line.is_empty() {
-                            Some(line.to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect())
-            }
+            Ok(Config::empty()
+                .lines(&self.flag_path_column)?
+                .collect::<Result<Vec<_>, _>>()?)
         }
     }
 

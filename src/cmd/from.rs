@@ -251,13 +251,13 @@ impl Args {
         };
 
         let mut wtr = self.writer()?;
-        wtr.write_record(&[&self.flag_column])?;
+        wtr.write_record([&self.flag_column])?;
 
         let mut record = csv::ByteRecord::new();
 
         for result in rdr.lines() {
             let line = result?;
-            let line = line.trim();
+            let line = line.trim_end();
 
             if line.is_empty() {
                 continue;
