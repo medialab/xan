@@ -257,40 +257,49 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
 
 // Strings
 fn trim(args: BoundArguments) -> FunctionResult {
-    let string = args.get(0).unwrap().try_as_str()?;
     let chars_opt = args.get(1);
 
     Ok(match chars_opt {
-        None => DynamicValue::from(string.trim()),
+        None => match args.get1() {
+            DynamicValue::Bytes(bytes) => DynamicValue::from_bytes(bytes.trim()),
+            value => DynamicValue::from(value.try_as_str()?.trim()),
+        },
         Some(chars) => {
             let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-            DynamicValue::from(string.trim_matches(|c| pattern.contains(&c)))
+            DynamicValue::from(args.get1_str()?.trim_matches(|c| pattern.contains(&c)))
         }
     })
 }
 
 fn ltrim(args: BoundArguments) -> FunctionResult {
-    let string = args.get(0).unwrap().try_as_str()?;
     let chars_opt = args.get(1);
 
     Ok(match chars_opt {
-        None => DynamicValue::from(string.trim_start()),
+        None => match args.get1() {
+            DynamicValue::Bytes(bytes) => DynamicValue::from_bytes(bytes.trim_start()),
+            value => DynamicValue::from(value.try_as_str()?.trim_start()),
+        },
         Some(chars) => {
             let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-            DynamicValue::from(string.trim_start_matches(|c| pattern.contains(&c)))
+            DynamicValue::from(
+                args.get1_str()?
+                    .trim_start_matches(|c| pattern.contains(&c)),
+            )
         }
     })
 }
 
 fn rtrim(args: BoundArguments) -> FunctionResult {
-    let string = args.get(0).unwrap().try_as_str()?;
     let chars_opt = args.get(1);
 
     Ok(match chars_opt {
-        None => DynamicValue::from(string.trim_end()),
+        None => match args.get1() {
+            DynamicValue::Bytes(bytes) => DynamicValue::from_bytes(bytes.trim_end()),
+            value => DynamicValue::from(value.try_as_str()?.trim_end()),
+        },
         Some(chars) => {
             let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-            DynamicValue::from(string.trim_end_matches(|c| pattern.contains(&c)))
+            DynamicValue::from(args.get1_str()?.trim_end_matches(|c| pattern.contains(&c)))
         }
     })
 }
@@ -302,7 +311,7 @@ fn escape_regex(args: BoundArguments) -> FunctionResult {
 fn md5(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(format!(
         "{:x}",
-        md5::compute(args.get1_str()?.as_bytes())
+        md5::compute(args.get1().try_as_bytes()?)
     )))
 }
 
@@ -569,78 +578,76 @@ fn get(mut args: BoundArguments) -> FunctionResult {
 fn slice(args: BoundArguments) -> FunctionResult {
     let target = args.get(0).unwrap();
 
-    match target {
-        DynamicValue::String(string) => {
-            let mut lo = args.get(1).unwrap().try_as_i64()?;
-            let opt_hi = args.get(2);
+    if let DynamicValue::List(list) = target {
+        // TODO: can be implemented through Arc::try_unwrap
+        let mut lo = args.get(1).unwrap().try_as_i64()?;
+        let opt_hi = args.get(2);
 
-            let chars = string.chars();
+        let sublist: Vec<DynamicValue> = match opt_hi {
+            None => {
+                if lo < 0 {
+                    let l = list.len();
+                    lo = max(0, l as i64 + lo);
 
-            let substring: String = match opt_hi {
-                None => {
-                    if lo < 0 {
-                        let l = string.chars().count();
-                        lo = max(0, l as i64 + lo);
-
-                        chars.skip(lo as usize).collect()
-                    } else {
-                        chars.skip(lo as usize).collect()
-                    }
+                    list[..lo as usize].to_vec()
+                } else {
+                    list[..lo as usize].to_vec()
                 }
-                Some(hi_value) => {
-                    let mut hi = hi_value.try_as_i64()?;
+            }
+            Some(hi_value) => {
+                let mut hi = hi_value.try_as_i64()?;
 
-                    if lo < 0 {
-                        "".to_string()
-                    } else {
-                        if hi < 0 {
-                            let l = string.chars().count();
-                            hi = max(0, l as i64 + hi);
-                        }
-
-                        chars.skip(lo as usize).take((hi - lo) as usize).collect()
-                    }
-                }
-            };
-
-            Ok(DynamicValue::from(substring))
-        }
-        DynamicValue::List(list) => {
-            // TODO: can be implemented through Arc::try_unwrap
-            let mut lo = args.get(1).unwrap().try_as_i64()?;
-            let opt_hi = args.get(2);
-
-            let sublist: Vec<DynamicValue> = match opt_hi {
-                None => {
-                    if lo < 0 {
+                if lo < 0 {
+                    Vec::new()
+                } else {
+                    if hi < 0 {
                         let l = list.len();
-                        lo = max(0, l as i64 + lo);
-
-                        list[..lo as usize].to_vec()
-                    } else {
-                        list[..lo as usize].to_vec()
+                        hi = max(0, l as i64 + hi);
                     }
+
+                    list[lo as usize..(hi - lo) as usize].to_vec()
                 }
-                Some(hi_value) => {
-                    let mut hi = hi_value.try_as_i64()?;
+            }
+        };
 
-                    if lo < 0 {
-                        Vec::new()
-                    } else {
-                        if hi < 0 {
-                            let l = list.len();
-                            hi = max(0, l as i64 + hi);
-                        }
-
-                        list[lo as usize..(hi - lo) as usize].to_vec()
-                    }
-                }
-            };
-
-            Ok(DynamicValue::from(sublist))
-        }
-        value => Err(EvaluationError::from_cast(value, "sequence")),
+        return Ok(DynamicValue::from(sublist));
     }
+
+    let string = target.try_as_str()?;
+
+    let mut lo = args.get(1).unwrap().try_as_i64()?;
+    let opt_hi = args.get(2);
+
+    let chars = string.chars();
+
+    let substring: String = match opt_hi {
+        None => {
+            if lo < 0 {
+                let l = string.chars().count();
+                lo = max(0, l as i64 + lo);
+
+                chars.skip(lo as usize).collect()
+            } else {
+                chars.skip(lo as usize).collect()
+            }
+        }
+        Some(hi_value) => {
+            let mut hi = hi_value.try_as_i64()?;
+
+            if lo < 0 {
+                "".to_string()
+            } else {
+                if hi < 0 {
+                    let l = string.chars().count();
+                    hi = max(0, l as i64 + hi);
+                }
+
+                chars.skip(lo as usize).take((hi - lo) as usize).collect()
+            }
+        }
+    };
+
+    Ok(DynamicValue::from(substring))
 }
 
 fn join(args: BoundArguments) -> FunctionResult {
@@ -669,6 +676,18 @@ fn contains(args: BoundArguments) -> FunctionResult {
                 Ok(DynamicValue::from(text.contains(pattern.as_ref())))
             }
         },
+        DynamicValue::Bytes(bytes) => {
+            let text =
+                std::str::from_utf8(bytes).map_err(|_| EvaluationError::UnicodeDecodeError)?;
+
+            match arg2 {
+                DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(text))),
+                _ => {
+                    let pattern = arg2.try_as_str()?;
+                    Ok(DynamicValue::from(text.contains(pattern.as_ref())))
+                }
+            }
+        }
         DynamicValue::List(list) => {
             let needle = arg2.try_as_str()?;
 
