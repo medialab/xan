@@ -16,21 +16,27 @@ data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
 When concatenating a large number of CSV files exceeding your shell's
-command argument limit, prefer using the --input flag to read the list of file
-paths from a CSV file. The file must contain paths in a column given to the
-command through the <column> argument, while the file itself must be given
-using the --input flag.
+command arguments limit, prefer using the --input flag to read the list of CSV
+files to concatenate from input lines or from a CSV file containing paths in a
+column given to the --path-column flag.
 
-Example using the --input flag:
+Feeding --input lines:
 
-    $ xan cat rows --input filepaths.csv path > concatenated.csv
+    $ xan cat rows --input paths.txt > concatenated.csv
 
-Feeding stdin ("-") to the --input flag (typically using `xan glob`):
+Feeding --input CSV file:
 
-    $ xan glob '**/*.csv' | xan cat rows --input - path
+    $ xan cat rows --input files.csv --path-column path > concatenated.csv
+
+Feeding stdin ("-") to --input:
+
+    $ find . -name '*.csv' | xan cat rows --input - > concatenated.csv
+
+Feeding CSV as stdin ("-") to --input (typically using `xan glob`):
+
+    $ xan glob '**/*.csv' | xan cat rows --input - --path-column path > concatenated.csv
 
 Usage:
-    xan cat rows <column> --input <input> [options]
     xan cat rows    [options] [<inputs>...]
     xan cat columns [options] [<inputs>...]
     xan cat --help
@@ -39,8 +45,10 @@ cat options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
-    --input <input>             When concatenating rows, indicate path to a CSV file (or stdin as '-')
-                                containing paths to other CSV files to concatenate.
+    --input <input>             When concatenating rows, indicate path to a text file (or stdin as '-')
+                                containing one path of CSV file to concatenate per line.
+    --path-column <name>        When given a column name, --input will be considered as CSV, and paths
+                                to CSV files to concatenate will be given from the selected column.
                                 The paths must be in a column named as indicated by the <column> argument.
     -S, --source-column <name>  Name of a column to prepend in the output of "cat rows"
                                 indicating the path to source file.

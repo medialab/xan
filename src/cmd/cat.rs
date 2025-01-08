@@ -20,21 +20,27 @@ data given are used. Headers in subsequent inputs are ignored. (This behavior
 can be disabled with --no-headers.)
 
 When concatenating a large number of CSV files exceeding your shell's
-command argument limit, prefer using the --input flag to read the list of file
-paths from a CSV file. The file must contain paths in a column given to the
-command through the <column> argument, while the file itself must be given
-using the --input flag.
+command arguments limit, prefer using the --input flag to read the list of CSV
+files to concatenate from input lines or from a CSV file containing paths in a
+column given to the --path-column flag.
 
-Example using the --input flag:
+Feeding --input lines:
 
-    $ xan cat rows --input filepaths.csv path > concatenated.csv
+    $ xan cat rows --input paths.txt > concatenated.csv
 
-Feeding stdin (\"-\") to the --input flag (typically using `xan glob`):
+Feeding --input CSV file:
 
-    $ xan glob '**/*.csv' | xan cat rows --input - path
+    $ xan cat rows --input files.csv --path-column path > concatenated.csv
+
+Feeding stdin (\"-\") to --input:
+
+    $ find . -name '*.csv' | xan cat rows --input - > concatenated.csv
+
+Feeding CSV as stdin (\"-\") to --input (typically using `xan glob`):
+
+    $ xan glob '**/*.csv' | xan cat rows --input - --path-column path > concatenated.csv
 
 Usage:
-    xan cat rows <column> --input <input> [options]
     xan cat rows    [options] [<inputs>...]
     xan cat columns [options] [<inputs>...]
     xan cat --help
@@ -43,8 +49,10 @@ cat options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
-    --input <input>             When concatenating rows, indicate path to a CSV file (or stdin as '-')
-                                containing paths to other CSV files to concatenate.
+    --input <input>             When concatenating rows, indicate path to a text file (or stdin as '-')
+                                containing one path of CSV file to concatenate per line.
+    --path-column <name>        When given a column name, --input will be considered as CSV, and paths
+                                to CSV files to concatenate will be given from the selected column.
                                 The paths must be in a column named as indicated by the <column> argument.
     -S, --source-column <name>  Name of a column to prepend in the output of \"cat rows\"
                                 indicating the path to source file.
@@ -64,8 +72,8 @@ struct Args {
     cmd_rows: bool,
     cmd_columns: bool,
     arg_inputs: Vec<String>,
-    arg_column: Option<SelectColumns>,
     flag_input: Option<String>,
+    flag_path_column: Option<SelectColumns>,
     flag_pad: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -76,8 +84,12 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    if args.flag_input.is_some() && !args.arg_inputs.is_empty() {
+        Err("--input cannot be used with other positional arguments!")?;
+    }
+
     if args.cmd_rows {
-        if args.arg_column.is_some() {
+        if args.flag_input.is_some() {
             args.cat_rows_with_input()
         } else {
             args.cat_rows()
@@ -136,55 +148,45 @@ impl Args {
     }
 
     fn cat_rows_with_input(&self) -> CliResult<()> {
-        let rconf = Config::new(&self.flag_input)
-            .delimiter(self.flag_delimiter)
-            .select(self.arg_column.clone().unwrap());
-
-        let mut rdr = rconf.reader()?;
-        let headers = rdr.byte_headers()?;
-
-        let column_index = rconf.single_selection(headers)?;
+        let paths =
+            Config::new(&Some(self.flag_input.clone().unwrap())).lines(&self.flag_path_column)?;
 
         let mut record = csv::ByteRecord::new();
-        let mut sub_record = csv::ByteRecord::new();
-
         let mut wtr = Config::new(&self.flag_output).writer()?;
 
         let mut headers_written = self.flag_no_headers;
 
-        while rdr.read_byte_record(&mut record)? {
-            let path =
-                String::from_utf8(record[column_index].to_vec()).expect("could not decode utf-8");
+        for result in paths {
+            let path = result?;
 
-            let sub_rconf = Config::new(&Some(path.clone()))
+            let mut reader = Config::new(&Some(path.clone()))
                 .delimiter(self.flag_delimiter)
-                .no_headers(self.flag_no_headers);
-
-            let mut sub_rdr = sub_rconf.reader()?;
+                .no_headers(self.flag_no_headers)
+                .reader()?;
 
             match &self.flag_source_column {
                 None => {
                     if !headers_written {
-                        let headers = sub_rdr.byte_headers()?;
+                        let headers = reader.byte_headers()?;
                         wtr.write_byte_record(headers)?;
                         headers_written = true;
                     }
 
-                    while sub_rdr.read_byte_record(&mut sub_record)? {
-                        wtr.write_byte_record(&sub_record)?;
+                    while reader.read_byte_record(&mut record)? {
+                        wtr.write_byte_record(&record)?;
                     }
                 }
                 Some(source_column) => {
                     if !headers_written {
-                        let headers = sub_rdr.byte_headers()?;
+                        let headers = reader.byte_headers()?;
                         wtr.write_record(
                             [source_column.as_bytes()].into_iter().chain(headers.iter()),
                         )?;
                         headers_written = true;
                     }
 
-                    while sub_rdr.read_byte_record(&mut sub_record)? {
-                        wtr.write_record([path.as_bytes()].into_iter().chain(&sub_record))?;
+                    while reader.read_byte_record(&mut record)? {
+                        wtr.write_record([path.as_bytes()].into_iter().chain(&record))?;
                     }
                 }
             }
