@@ -17,34 +17,52 @@ To restrict the columns that will be searched you can use the -s, --select flag.
 
 All search modes can also be case-insensitive using -i, --ignore-case.
 
-Finally, this command is also able to take a CSV file column containing multiple
-patterns to search for at once, using the --input flag:
+Finally, this command is also able to search for multiple patterns at once.
+To do so, you must give a text file with one pattern per line to the --patterns
+flag, or a CSV file containing a column of to indicate using --pattern-column.
 
-    $ xan search --input user-ids.csv user_id tweets.csv
+One pattern per line of text file:
+
+    $ xan search --patterns patterns.txt file.csv > matches.csv
+
+CSV column containing patterns:
+
+    $ xan search --patterns people.csv --pattern-column name tweets.csv > matches.csv
+
+Feeding patterns through stdin (using "-"):
+
+    $ cat patterns.txt | xan search --patterns - file.csv > matches.csv
+
+Feeding CSV column as patterns through stdin (using "-"):
+
+    $ xan slice -l 10 people.csv | xan search --patterns - --path-column name file.csv > matches.csv
 
 Usage:
     xan search [options] --non-empty [<input>]
-    xan search [options] --input <index> <column> [<input>]
+    xan search [options] --patterns <index> [<input>]
     xan search [options] <pattern> [<input>]
     xan search --help
 
 search options:
-    -e, --exact            Perform an exact match.
-    -r, --regex            Use a regex to perform the match.
-    -N, --non-empty        Search for non-empty cells, i.e. filter out
-                           any completely empty selection.
-    --input <index>        CSV file containing a column of value to index & search.
-    -i, --ignore-case      Case insensitive search. This is equivalent to
-                           prefixing the regex with '(?i)'.
-    -s, --select <arg>     Select the columns to search. See 'xan select -h'
-                           for the full syntax.
-    -v, --invert-match     Select only rows that did not match
-    -f, --flag <column>    If given, the command will not filter rows
-                           but will instead flag the found rows in a new
-                           column with given name.
-    -l, --limit <n>        Maximum of number rows to return. Useful to avoid downstream
-                           buffering some times (e.g. when searching for very few
-                           rows in a big file before piping to `view` or `flatten`).
+    -e, --exact              Perform an exact match.
+    -r, --regex              Use a regex to perform the match.
+    -N, --non-empty          Search for non-empty cells, i.e. filter out
+                             any completely empty selection.
+    --patterns <path>        Path to a text file (use "-" for stdin), containing multiple
+                             patterns, one per line, to search at once.
+    --pattern-column <name>  When given a column name, --patterns file will be considered a CSV
+                             and patterns to search will be extracted from the given column.
+    -i, --ignore-case        Case insensitive search. This is equivalent to
+                             prefixing the regex with '(?i)'.
+    -s, --select <arg>       Select the columns to search. See 'xan select -h'
+                             for the full syntax.
+    -v, --invert-match       Select only rows that did not match
+    -f, --flag <column>      If given, the command will not filter rows
+                             but will instead flag the found rows in a new
+                             column with given name.
+    -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
+                             buffering some times (e.g. when searching for very few
+                             rows in a big file before piping to `view` or `flatten`).
 
 Common options:
     -h, --help             Display this message

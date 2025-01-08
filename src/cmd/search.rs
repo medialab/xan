@@ -71,34 +71,52 @@ To restrict the columns that will be searched you can use the -s, --select flag.
 
 All search modes can also be case-insensitive using -i, --ignore-case.
 
-Finally, this command is also able to take a CSV file column containing multiple
-patterns to search for at once, using the --input flag:
+Finally, this command is also able to search for multiple patterns at once.
+To do so, you must give a text file with one pattern per line to the --patterns
+flag, or a CSV file containing a column of to indicate using --pattern-column.
 
-    $ xan search --input user-ids.csv user_id tweets.csv
+One pattern per line of text file:
+
+    $ xan search --patterns patterns.txt file.csv > matches.csv
+
+CSV column containing patterns:
+
+    $ xan search --patterns people.csv --pattern-column name tweets.csv > matches.csv
+
+Feeding patterns through stdin (using \"-\"):
+
+    $ cat patterns.txt | xan search --patterns - file.csv > matches.csv
+
+Feeding CSV column as patterns through stdin (using \"-\"):
+
+    $ xan slice -l 10 people.csv | xan search --patterns - --path-column name file.csv > matches.csv
 
 Usage:
     xan search [options] --non-empty [<input>]
-    xan search [options] --input <index> <column> [<input>]
+    xan search [options] --patterns <index> [<input>]
     xan search [options] <pattern> [<input>]
     xan search --help
 
 search options:
-    -e, --exact            Perform an exact match.
-    -r, --regex            Use a regex to perform the match.
-    -N, --non-empty        Search for non-empty cells, i.e. filter out
-                           any completely empty selection.
-    --input <index>        CSV file containing a column of value to index & search.
-    -i, --ignore-case      Case insensitive search. This is equivalent to
-                           prefixing the regex with '(?i)'.
-    -s, --select <arg>     Select the columns to search. See 'xan select -h'
-                           for the full syntax.
-    -v, --invert-match     Select only rows that did not match
-    -f, --flag <column>    If given, the command will not filter rows
-                           but will instead flag the found rows in a new
-                           column with given name.
-    -l, --limit <n>        Maximum of number rows to return. Useful to avoid downstream
-                           buffering some times (e.g. when searching for very few
-                           rows in a big file before piping to `view` or `flatten`).
+    -e, --exact              Perform an exact match.
+    -r, --regex              Use a regex to perform the match.
+    -N, --non-empty          Search for non-empty cells, i.e. filter out
+                             any completely empty selection.
+    --patterns <path>        Path to a text file (use \"-\" for stdin), containing multiple
+                             patterns, one per line, to search at once.
+    --pattern-column <name>  When given a column name, --patterns file will be considered a CSV
+                             and patterns to search will be extracted from the given column.
+    -i, --ignore-case        Case insensitive search. This is equivalent to
+                             prefixing the regex with '(?i)'.
+    -s, --select <arg>       Select the columns to search. See 'xan select -h'
+                             for the full syntax.
+    -v, --invert-match       Select only rows that did not match
+    -f, --flag <column>      If given, the command will not filter rows
+                             but will instead flag the found rows in a new
+                             column with given name.
+    -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
+                             buffering some times (e.g. when searching for very few
+                             rows in a big file before piping to `view` or `flatten`).
 
 Common options:
     -h, --help             Display this message
@@ -114,7 +132,6 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_pattern: Option<String>,
-    arg_column: Option<SelectColumns>,
     flag_select: SelectColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -126,16 +143,17 @@ struct Args {
     flag_regex: bool,
     flag_flag: Option<String>,
     flag_limit: Option<NonZeroUsize>,
-    flag_input: Option<String>,
+    flag_patterns: Option<String>,
+    flag_patterns_column: Option<SelectColumns>,
 }
 
 impl Args {
-    fn get_matcher(&self) -> Result<Matcher, CliError> {
+    fn build_matcher(&self) -> Result<Matcher, CliError> {
         if self.flag_non_empty {
             return Ok(Matcher::NonEmpty);
         }
 
-        match self.arg_column.as_ref() {
+        match self.flag_patterns.as_ref() {
             None => {
                 let pattern = self.arg_pattern.as_ref().unwrap();
 
@@ -162,32 +180,25 @@ impl Args {
                     )
                 })
             }
-            Some(column) => {
-                let rconf = Config::new(&self.flag_input)
+            Some(_) => {
+                let patterns = Config::new(&self.flag_patterns)
                     .delimiter(self.flag_delimiter)
-                    .select(column.clone());
-
-                let mut rdr = rconf.reader()?;
-
-                let headers = rdr.byte_headers()?;
-                let column_index = rconf.single_selection(headers)?;
-
-                let mut record = csv::ByteRecord::new();
+                    .lines(&self.flag_patterns_column)?;
 
                 let mut set: HashSet<Vec<u8>> = HashSet::new();
-                let mut patterns: Vec<String> = Vec::new();
+                let mut list: Vec<String> = Vec::new();
 
-                while rdr.read_byte_record(&mut record)? {
-                    let pattern = &record[column_index];
+                for result in patterns {
+                    let pattern = result?;
 
                     if self.flag_exact {
                         if self.flag_ignore_case {
-                            set.insert(pattern.to_lowercase());
+                            set.insert(pattern.to_lowercase().into_bytes());
                         } else {
-                            set.insert(pattern.to_vec());
+                            set.insert(pattern.into_bytes());
                         }
                     } else {
-                        patterns.push(std::str::from_utf8(pattern).unwrap().to_string());
+                        list.push(pattern);
                     }
                 }
 
@@ -195,12 +206,12 @@ impl Args {
                     Matcher::ManyExact(set, self.flag_ignore_case)
                 } else if self.flag_regex {
                     Matcher::ManyRegex(
-                        RegexSetBuilder::new(&patterns)
+                        RegexSetBuilder::new(&list)
                             .case_insensitive(self.flag_ignore_case)
                             .build()?,
                     )
                 } else {
-                    Matcher::Substring(AhoCorasick::new(&patterns)?, self.flag_ignore_case)
+                    Matcher::Substring(AhoCorasick::new(&list)?, self.flag_ignore_case)
                 })
             }
         }
@@ -226,7 +237,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("must select only one of -e/--exact, -N,--non-empty, -r,--regex!")?;
     }
 
-    let matcher = args.get_matcher()?;
+    let matcher = args.build_matcher()?;
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)

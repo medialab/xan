@@ -285,8 +285,8 @@ fn search_input_substring() {
     );
 
     let mut cmd = wrk.command("search");
-    cmd.arg("name")
-        .args(["--input", "index.csv"])
+    cmd.args(["--patterns", "index.csv"])
+        .args(["--pattern-column", "name"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -314,8 +314,8 @@ fn search_input_exact() {
     );
 
     let mut cmd = wrk.command("search");
-    cmd.arg("name")
-        .args(["--input", "index.csv"])
+    cmd.args(["--patterns", "index.csv"])
+        .args(["--pattern-column", "name"])
         .arg("data.csv")
         .arg("--exact");
 
@@ -344,8 +344,8 @@ fn search_input_exact_case_insensitive() {
     );
 
     let mut cmd = wrk.command("search");
-    cmd.arg("name")
-        .args(["--input", "index.csv"])
+    cmd.args(["--patterns", "index.csv"])
+        .args(["--pattern-column", "name"])
         .arg("data.csv")
         .arg("--exact")
         .arg("-i");
@@ -375,9 +375,9 @@ fn search_input_regex() {
     );
 
     let mut cmd = wrk.command("search");
-    cmd.arg("name")
-        .arg("-r")
-        .args(["--input", "index.csv"])
+    cmd.arg("-r")
+        .args(["--patterns", "index.csv"])
+        .args(["--pattern-column", "name"])
         .arg("data.csv")
         .arg("-i");
 

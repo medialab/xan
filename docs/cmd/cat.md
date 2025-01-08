@@ -45,7 +45,7 @@ cat options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
-    --input <input>             When concatenating rows, indicate path to a text file (or stdin as '-')
+    --input <input>             When concatenating rows, indicate path to a text file (use "-" for stdin)
                                 containing one path of CSV file to concatenate per line.
     --path-column <name>        When given a column name, --input will be considered as CSV, and paths
                                 to CSV files to concatenate will be given from the selected column.
