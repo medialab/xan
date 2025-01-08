@@ -63,7 +63,7 @@ fn cat_rows_input() {
     let mut cmd = wrk.command("cat");
     cmd.arg("rows")
         .args(["--path-column", "path"])
-        .args(["--input", "p.csv"]);
+        .args(["--paths", "p.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["name"], svec!["John"], svec!["Suzy"]];
@@ -102,7 +102,7 @@ fn cat_rows_input_source_column() {
     cmd.arg("rows")
         .args(["--source-column", "source"])
         .args(["--path-column", "path"])
-        .args(["--input", "p.csv"]);
+        .args(["--paths", "p.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
