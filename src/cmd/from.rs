@@ -23,6 +23,7 @@ enum SupportedFormat {
     Xls,
     NdJSON,
     JSONArray,
+    Text,
 }
 
 impl SupportedFormat {
@@ -31,6 +32,7 @@ impl SupportedFormat {
             "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
             "jsonl" | "ndjson" => Self::NdJSON,
             "json" => Self::JSONArray,
+            "txt" => Self::Text,
             _ => return None,
         })
     }
@@ -71,6 +73,8 @@ Supported formats:
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
 
+    txt - text lines
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading
@@ -88,6 +92,10 @@ JSON options:
     --value-column <name>  Name for the value column when parsing a JSON map.
                            [default: value]
 
+Text lines options:
+    -c, --column <name>    Name of the column to create.
+                           [default: value]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -102,6 +110,7 @@ struct Args {
     flag_sample_size: NonZeroUsize,
     flag_key_column: String,
     flag_value_column: String,
+    flag_column: String,
 }
 
 impl Args {
@@ -234,6 +243,34 @@ impl Args {
             ))
         }
     }
+
+    fn convert_text_lines(&self) -> CliResult<()> {
+        let rdr: Box<dyn BufRead> = match self.arg_input.as_ref() {
+            None => Box::new(BufReader::new(io::stdin())),
+            Some(p) => Box::new(BufReader::new(fs::File::open(p)?)),
+        };
+
+        let mut wtr = self.writer()?;
+        wtr.write_record(&[&self.flag_column])?;
+
+        let mut record = csv::ByteRecord::new();
+
+        for result in rdr.lines() {
+            let line = result?;
+            let line = line.trim();
+
+            if line.is_empty() {
+                continue;
+            }
+
+            record.clear();
+            record.push_field(line.as_bytes());
+
+            wtr.write_byte_record(&record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -262,5 +299,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::Xls => args.convert_xls(),
         SupportedFormat::NdJSON => args.convert_ndjson(),
         SupportedFormat::JSONArray => args.convert_json_array(),
+        SupportedFormat::Text => args.convert_text_lines(),
     }
 }
