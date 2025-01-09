@@ -174,38 +174,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut record = csv::ByteRecord::new();
 
-        let mut insert = |g: &Vec<Vec<u8>>, i: usize, c: &[u8]| {
-            groups_to_fields_to_counter.insert_with_or_else(
-                g.clone(),
-                || {
-                    let mut list = Vec::with_capacity(sel.len());
-
-                    for _ in 0..sel.len() {
-                        list.push(HashMap::new());
-                    }
-
-                    list[i]
-                        .entry(c.to_vec())
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
-
-                    list
-                },
-                |list| {
-                    list[i]
-                        .entry(c.to_vec())
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
-                },
-            );
-        };
-
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
             let group: Vec<_> = groupby_sel
                 .select(&record)
                 .map(|cell| cell.to_vec())
                 .collect();
+
+            let fields_to_counter = groups_to_fields_to_counter.insert_with(group, || {
+                let mut list = Vec::with_capacity(sel.len());
+
+                for _ in 0..sel.len() {
+                    list.push(HashMap::new());
+                }
+
+                list
+            });
 
             for (i, cell) in sel.select(&record).enumerate() {
                 if let Some(sep) = &args.flag_sep {
@@ -215,7 +199,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             None => continue,
                         };
 
-                        insert(&group, i, sub_cell);
+                        fields_to_counter[i]
+                            .entry(sub_cell.to_vec())
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
                     }
                 } else {
                     let cell = match coerce_cell(cell, args.flag_no_extra) {
@@ -223,7 +210,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         None => continue,
                     };
 
-                    insert(&group, i, cell);
+                    fields_to_counter[i]
+                        .entry(cell.to_vec())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
                 }
             }
         }
