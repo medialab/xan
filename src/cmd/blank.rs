@@ -5,10 +5,10 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
-// TODO: blank down should be hierarchical possibly
+// TODO: some --pivot option, that blanks hierarchically
 
 static USAGE: &str = "
-Blank down the selected columns of a CSV file. That is to say, this
+Blank down selected columns of a CSV file. That is to say, this
 command will redact any consecutive identical cells as per column selection.
 
 This can be useful as a presentation trick or a compression scheme.
@@ -16,10 +16,11 @@ This can be useful as a presentation trick or a compression scheme.
 The \"blank\" term comes from OpenRefine and does the same thing.
 
 Usage:
-    xan blank <columns> [options] [<input>]
+    xan blank [options] [<input>]
     xan blank --help
 
 blank options:
+    -s, --select <cols>    Selection of columns to blank down.
     -r, --redact <value>   Redact the blanked down values using the provided
                            replacement string. Will default to an empty string.
 
@@ -34,8 +35,8 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_columns: SelectColumns,
     arg_input: Option<String>,
+    flag_select: SelectColumns,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -47,7 +48,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_columns);
+        .select(args.flag_select);
 
     let redacted_string = args.flag_redact.unwrap_or("".to_string());
 

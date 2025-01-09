@@ -492,6 +492,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
 - [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
 - [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
+- [**blank**](./docs/cmd/blank.md): Blank down contiguous identical cell values
 
 *Format, convert & recombobulate*
 
@@ -514,7 +515,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *Parallel operation over multiple CSV files*
 
-- [**parallel (p)**](./docs/cmd/parallel.md): Map-reduce-like parallel computation
+- [**parallel (p)**](./docs/cmd/parallel.md): Map-reduce-like parallel computation over multiple CSV files
 
 *Generate CSV files*
 

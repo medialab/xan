@@ -54,6 +54,7 @@ macro_rules! command_list {
     transform   Transform a column by evaluating an expression on each CSV row
     enum        Enumerate CSV file by preprending an index column
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
+    blank       Blank down contiguous identical cell values
 
 ## Format, convert & recombobulate
     behead      Drop header from CSV file
@@ -73,7 +74,7 @@ macro_rules! command_list {
     partition   Partition CSV data based on a column value
 
 ## Parallel operation over multiple CSV files
-    parallel (p) Map-reduce-like parallel computation
+    parallel (p) Map-reduce-like parallel computation over multiple CSV files
 
 ## Generate CSV files
     glob        Create a CSV file with paths matching a glob pattern
