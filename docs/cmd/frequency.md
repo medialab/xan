@@ -46,7 +46,7 @@ frequency options:
                            this given threshold. It is combined with -l/--limit.
     -N, --no-extra         Don't include empty cells & remaining counts.
     -p, --parallel         Allow sorting to be done in parallel. This is only
-                           useful with -l/--limit set to 0, i.e. no limit.
+                           useful with -l/--limit set to 0, or with -A, --all.
 
 Hidden options:
     --no-limit-we-reach-for-the-sky  Nothing to see here...
