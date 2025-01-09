@@ -299,14 +299,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         tokenizer_builder = tokenizer_builder.token_kind_blacklist(
             kinds
                 .split(',')
-                .map(|name| name.parse())
+                .map(|name| name.trim_end_matches('s').parse())
                 .collect::<Result<Vec<WordTokenKind>, _>>()?,
         );
     } else if let Some(kinds) = args.flag_keep {
         tokenizer_builder = tokenizer_builder.token_kind_whitelist(
             kinds
                 .split(',')
-                .map(|name| name.parse())
+                .map(|name| name.trim_end_matches('s').parse())
                 .collect::<Result<Vec<WordTokenKind>, _>>()?,
         );
     }
