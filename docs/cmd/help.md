@@ -56,6 +56,7 @@ Commands:
     transform   Transform a column by evaluating an expression on each CSV row
     enum        Enumerate CSV file by preprending an index column
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
+    fill        Fill empty cells
     blank       Blank down contiguous identical cell values
 
 ## Format, convert & recombobulate

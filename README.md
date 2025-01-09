@@ -492,6 +492,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**transform**](./docs/cmd/transform.md): Transform a column by evaluating an expression on each CSV row
 - [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
 - [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
+- [**fill**](./docs/cmd/fill.md): Fill empty cells
 - [**blank**](./docs/cmd/blank.md): Blank down contiguous identical cell values
 
 *Format, convert & recombobulate*

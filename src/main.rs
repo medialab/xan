@@ -54,6 +54,7 @@ macro_rules! command_list {
     transform   Transform a column by evaluating an expression on each CSV row
     enum        Enumerate CSV file by preprending an index column
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
+    fill        Fill empty cells
     blank       Blank down contiguous identical cell values
 
 ## Format, convert & recombobulate
@@ -193,6 +194,7 @@ enum Command {
     Explode,
     ForEach,
     F,
+    Fill,
     Filter,
     FixLengths,
     Flatmap,
@@ -272,6 +274,7 @@ impl Command {
             Command::Enum => cmd::enumerate::run(argv),
             Command::Eval => cmd::eval::run(argv),
             Command::Explode => cmd::explode::run(argv),
+            Command::Fill => cmd::fill::run(argv),
             Command::Filter => cmd::filter::run(argv),
             Command::FixLengths => cmd::fixlengths::run(argv),
             Command::Flatmap => cmd::flatmap::run(argv),

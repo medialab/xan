@@ -362,6 +362,15 @@ pub enum ColorOrStyles {
 }
 
 pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
+    match string {
+        "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
+            return ColorOrStyles::Color(Color::Cyan)
+        }
+        "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>" | "<null>"
+        | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
+        _ => (),
+    };
+
     match string.parse::<f64>() {
         Ok(_) => ColorOrStyles::Color(Color::Red),
         Err(_) => {
@@ -370,14 +379,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
             } else if string.parse::<DateTime>().is_ok() || dates::is_partial_date(string) {
                 ColorOrStyles::Color(Color::Magenta)
             } else {
-                match string {
-                    "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
-                        ColorOrStyles::Color(Color::Cyan)
-                    }
-                    "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "<empty>" | "<null>"
-                    | "<rest>" => ColorOrStyles::Styles(Styles::Dimmed),
-                    _ => ColorOrStyles::Color(Color::Green),
-                }
+                ColorOrStyles::Color(Color::Green)
             }
         }
     }

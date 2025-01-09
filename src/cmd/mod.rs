@@ -12,6 +12,7 @@ pub mod drop;
 pub mod enumerate;
 pub mod eval;
 pub mod explode;
+pub mod fill;
 pub mod filter;
 pub mod fixlengths;
 pub mod flatmap;
