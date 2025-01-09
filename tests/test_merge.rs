@@ -230,3 +230,31 @@ fn merge_source_column() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn merge_paths() {
+    let wrk = Workdir::new("merge_paths");
+    wrk.create(
+        "a.csv",
+        vec![svec!["name"], svec!["bautista"], svec!["caroline"]],
+    );
+    wrk.create(
+        "b.csv",
+        vec![svec!["name"], svec!["anna"], svec!["delphine"]],
+    );
+    wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);
+
+    let mut cmd = wrk.command("merge");
+    cmd.args(["--paths", "p.csv"])
+        .args(["--path-column", "path"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name"],
+        svec!["anna"],
+        svec!["bautista"],
+        svec!["caroline"],
+        svec!["delphine"],
+    ];
+    assert_eq!(got, expected);
+}

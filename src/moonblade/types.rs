@@ -1166,7 +1166,7 @@ impl From<&str> for DynamicValue {
     }
 }
 
-impl<'a> From<Cow<'a, str>> for DynamicValue {
+impl From<Cow<'_, str>> for DynamicValue {
     fn from(value: Cow<str>) -> Self {
         DynamicValue::String(Arc::new(value.into_owned()))
     }

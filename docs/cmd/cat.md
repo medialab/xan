@@ -50,8 +50,7 @@ cat rows options:
     --paths <input>             When concatenating rows, give a text file (use "-" for stdin)
                                 containing one path of CSV file to concatenate per line.
     --path-column <name>        When given a column name, --paths will be considered as CSV, and paths
-                                to CSV files to concatenate will be given from the selected column.
-                                The paths must be in a column named as indicated by the <column> argument.
+                                to CSV files to concatenate will be extracted from the selected column.
     -S, --source-column <name>  Name of a column to prepend in the output of "cat rows"
                                 indicating the path to source file.
 

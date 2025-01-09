@@ -54,8 +54,8 @@ fn cat_rows_headers() {
 }
 
 #[test]
-fn cat_rows_input() {
-    let wrk = Workdir::new("cat_rows_input");
+fn cat_rows_paths() {
+    let wrk = Workdir::new("cat_rows_paths");
     wrk.create("a.csv", vec![svec!["name"], svec!["John"]]);
     wrk.create("b.csv", vec![svec!["name"], svec!["Suzy"]]);
     wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);
@@ -92,8 +92,8 @@ fn cat_rows_source_column() {
 }
 
 #[test]
-fn cat_rows_input_source_column() {
-    let wrk = Workdir::new("cat_rows_input_source_column");
+fn cat_rows_paths_source_column() {
+    let wrk = Workdir::new("cat_rows_paths_source_column");
     wrk.create("a.csv", vec![svec!["name"], svec!["John"]]);
     wrk.create("b.csv", vec![svec!["name"], svec!["Suzy"]]);
     wrk.create("p.csv", vec![svec!["path"], svec!["a.csv"], svec!["b.csv"]]);

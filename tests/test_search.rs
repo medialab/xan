@@ -269,8 +269,8 @@ fn search_flag_exact_case_insensitive() {
 }
 
 #[test]
-fn search_input_substring() {
-    let wrk = Workdir::new("search_input_substring");
+fn search_patterns_substring() {
+    let wrk = Workdir::new("search_patterns_substring");
 
     wrk.create("index.csv", vec![svec!["name"], svec!["suz"], svec!["jo"]]);
 
@@ -295,8 +295,8 @@ fn search_input_substring() {
 }
 
 #[test]
-fn search_input_exact() {
-    let wrk = Workdir::new("search_input_exact");
+fn search_patterns_exact() {
+    let wrk = Workdir::new("search_patterns_exact");
 
     wrk.create(
         "index.csv",
@@ -325,8 +325,8 @@ fn search_input_exact() {
 }
 
 #[test]
-fn search_input_exact_case_insensitive() {
-    let wrk = Workdir::new("search_input_exact_case_insensitive");
+fn search_patterns_exact_case_insensitive() {
+    let wrk = Workdir::new("search_patterns_exact_case_insensitive");
 
     wrk.create(
         "index.csv",
@@ -356,8 +356,8 @@ fn search_input_exact_case_insensitive() {
 }
 
 #[test]
-fn search_input_regex() {
-    let wrk = Workdir::new("search_input_regex");
+fn search_patterns_regex() {
+    let wrk = Workdir::new("search_patterns_regex");
 
     wrk.create(
         "index.csv",

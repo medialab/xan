@@ -702,7 +702,7 @@ fn contains(args: BoundArguments) -> FunctionResult {
         DynamicValue::Map(map) => {
             let needle = arg2.try_as_str()?;
 
-            return Ok(DynamicValue::from(map.contains_key(needle.as_ref())));
+            Ok(DynamicValue::from(map.contains_key(needle.as_ref())))
         }
         value => Err(EvaluationError::from_cast(value, "sequence")),
     }

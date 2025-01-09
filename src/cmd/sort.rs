@@ -376,7 +376,7 @@ impl<'a> ComparableByteRecord<'a> {
     }
 }
 
-impl<'a> cmp::Ord for ComparableByteRecord<'a> {
+impl cmp::Ord for ComparableByteRecord<'_> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         let s1 = self.sel.select(&self.record);
         let s2 = other.sel.select(&other.record);
@@ -385,19 +385,19 @@ impl<'a> cmp::Ord for ComparableByteRecord<'a> {
     }
 }
 
-impl<'a> cmp::PartialOrd for ComparableByteRecord<'a> {
+impl cmp::PartialOrd for ComparableByteRecord<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> cmp::PartialEq for ComparableByteRecord<'a> {
+impl cmp::PartialEq for ComparableByteRecord<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other).is_eq()
     }
 }
 
-impl<'a> cmp::Eq for ComparableByteRecord<'a> {}
+impl cmp::Eq for ComparableByteRecord<'_> {}
 
 // Numerically comparable byte record abstraction
 pub struct NumericallyComparableByteRecord<'a> {
@@ -415,7 +415,7 @@ impl<'a> NumericallyComparableByteRecord<'a> {
     }
 }
 
-impl<'a> cmp::Ord for NumericallyComparableByteRecord<'a> {
+impl cmp::Ord for NumericallyComparableByteRecord<'_> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         let s1 = self.sel.select(&self.record);
         let s2 = other.sel.select(&other.record);
@@ -424,16 +424,16 @@ impl<'a> cmp::Ord for NumericallyComparableByteRecord<'a> {
     }
 }
 
-impl<'a> cmp::PartialOrd for NumericallyComparableByteRecord<'a> {
+impl cmp::PartialOrd for NumericallyComparableByteRecord<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> cmp::PartialEq for NumericallyComparableByteRecord<'a> {
+impl cmp::PartialEq for NumericallyComparableByteRecord<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other).is_eq()
     }
 }
 
-impl<'a> cmp::Eq for NumericallyComparableByteRecord<'a> {}
+impl cmp::Eq for NumericallyComparableByteRecord<'_> {}
