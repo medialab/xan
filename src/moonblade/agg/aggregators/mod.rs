@@ -1,5 +1,6 @@
 mod all_any;
 mod approx_cardinality;
+mod approx_quantile;
 mod count;
 mod dates;
 mod extent;
@@ -13,6 +14,7 @@ mod welford;
 
 pub use all_any::AllAny;
 pub use approx_cardinality::ApproxCardinality;
+pub use approx_quantile::ApproxQuantiles;
 pub use count::Count;
 pub use dates::ZonedExtent;
 pub use extent::{ArgExtent, ArgTop, Extent, LexicographicExtent, NumericExtent};

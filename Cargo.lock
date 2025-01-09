@@ -1161,6 +1161,15 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
+version = "2.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "ordered-float"
 version = "4.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a91171844676f8c7990ce64959210cd2eaef32c2612c50f9fae9f8aaa6065a6"
@@ -1734,6 +1743,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tdigest"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c45d225a08ebccf0e0c7d46db4066ea8ab05b29d3750ecc1a04f1675978bf3c8"
+dependencies = [
+ "ordered-float 2.10.1",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2182,7 +2200,7 @@ dependencies = [
  "num_cpus",
  "numfmt",
  "opener",
- "ordered-float",
+ "ordered-float 4.2.2",
  "pager",
  "paltoquet",
  "pariter",
@@ -2199,6 +2217,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "shlex",
+ "tdigest",
  "termsize",
  "textwrap",
  "thread_local",

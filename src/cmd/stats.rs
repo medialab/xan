@@ -37,6 +37,9 @@ stddev             (default) - Population standard deviation of numerical values
 min                (default) - Minimum numerical value
 max                (default) - Maximum numerical value
 approx_cardinality (-a)      - Approximation of the number of distinct string values
+approx_q1          (-a)      - Approximation of the first quartile of numerical values
+approx_median      (-a)      - Approximation of the median of numerical values
+approx_q3          (-a)      - Approximation of the third quartile of numerical values
 cardinality        (-c, -A)  - Number of distinct string values
 mode               (-c, -A)  - Most frequent string value (tie breaking is arbitrary & random!)
 tied_for_mode      (-c, -A)  - Number of values tied for mode
@@ -60,7 +63,7 @@ stats options:
                            This requires storing all CSV data in memory.
     -q, --quartiles        Show quartiles.
                            This requires storing all CSV data in memory.
-    -a, --approx           Show approximated statistics.
+    -a, --approx           Compute approximated statistics.
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
 

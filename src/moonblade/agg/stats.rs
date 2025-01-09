@@ -2,8 +2,8 @@ use csv::ByteRecord;
 use jiff::civil::DateTime;
 
 use super::aggregators::{
-    ApproxCardinality, Count, Extent, Frequencies, LexicographicExtent, Numbers, NumericExtent,
-    Sum, Types, Welford,
+    ApproxCardinality, ApproxQuantiles, Count, Extent, Frequencies, LexicographicExtent, Numbers,
+    NumericExtent, Sum, Types, Welford,
 };
 use crate::moonblade::types::DynamicNumber;
 
@@ -25,6 +25,7 @@ pub struct Stats {
     frequencies: Option<Frequencies>,
     numbers: Option<Numbers>,
     approx_cardinality: Option<ApproxCardinality>,
+    approx_quantiles: Option<ApproxQuantiles>,
 }
 
 impl Stats {
@@ -41,6 +42,7 @@ impl Stats {
             frequencies: None,
             numbers: None,
             approx_cardinality: None,
+            approx_quantiles: None,
         }
     }
 
@@ -63,6 +65,10 @@ impl Stats {
         if let Some(approx_cardinality) = &mut self.approx_cardinality {
             approx_cardinality.merge(other.approx_cardinality.unwrap());
         }
+
+        if let Some(approx_quantiles) = &mut self.approx_quantiles {
+            approx_quantiles.merge(other.approx_quantiles.unwrap());
+        }
     }
 
     pub fn include_nulls(&mut self) {
@@ -79,6 +85,7 @@ impl Stats {
 
     pub fn compute_approx(&mut self) {
         self.approx_cardinality = Some(ApproxCardinality::new());
+        self.approx_quantiles = Some(ApproxQuantiles::new());
     }
 
     pub fn headers(&self) -> ByteRecord {
@@ -105,6 +112,9 @@ impl Stats {
 
         if self.approx_cardinality.is_some() {
             headers.push_field(b"approx_cardinality");
+            headers.push_field(b"approx_q1");
+            headers.push_field(b"approx_median");
+            headers.push_field(b"approx_q3");
         }
 
         if self.frequencies.is_some() {
@@ -164,6 +174,13 @@ impl Stats {
             record.push_field(approx_cardinality.get().to_string().as_bytes());
         }
 
+        if let Some(mut approx_quantiles) = self.approx_quantiles {
+            approx_quantiles.finalize();
+            record.push_field(approx_quantiles.get(0.25).to_string().as_bytes());
+            record.push_field(approx_quantiles.get(0.5).to_string().as_bytes());
+            record.push_field(approx_quantiles.get(0.75).to_string().as_bytes());
+        }
+
         if let Some(frequencies) = self.frequencies.as_ref() {
             record.push_field(frequencies.cardinality().to_string().as_bytes());
 
@@ -204,8 +221,10 @@ impl Stats {
         let cell = std::str::from_utf8(cell).expect("could not decode as utf-8");
 
         if let Ok(number) = cell.parse::<DynamicNumber>() {
+            let float = number.as_float();
+
             self.sum.add(number);
-            self.welford.add(number.as_float());
+            self.welford.add(float);
             self.extent.add(number);
 
             match number {
@@ -215,6 +234,10 @@ impl Stats {
 
             if let Some(numbers) = self.numbers.as_mut() {
                 numbers.add(number);
+            }
+
+            if let Some(approx_quantiles) = self.approx_quantiles.as_mut() {
+                approx_quantiles.add(float);
             }
         } else if cell.parse::<DateTime>().is_ok() {
             self.types.set_date();

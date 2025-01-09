@@ -2,7 +2,7 @@ use csv::ByteRecord;
 use jiff::{civil::DateTime, Unit};
 
 use super::aggregators::{
-    AllAny, ApproxCardinality, ArgExtent, ArgTop, Count, First, Frequencies, Last,
+    AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, First, Frequencies, Last,
     LexicographicExtent, MedianType, Numbers, NumericExtent, Sum, Types, Values, Welford,
     ZonedExtent,
 };
@@ -48,6 +48,9 @@ macro_rules! build_aggregation_method_enum {
                     Self::ApproxCardinality(inner) => {
                         inner.finalize();
                     }
+                    Self::ApproxQuantiles(inner) => {
+                        inner.finalize();
+                    }
                     Self::Numbers(inner) => {
                         inner.finalize(parallel);
                     }
@@ -61,6 +64,7 @@ macro_rules! build_aggregation_method_enum {
 build_aggregation_method_enum!(
     AllAny,
     ApproxCardinality,
+    ApproxQuantiles,
     ArgExtent,
     ArgTop,
     Count,
@@ -92,6 +96,9 @@ impl Aggregator {
             }
             (ConcreteAggregationMethod::ApproxCardinality, Self::ApproxCardinality(inner)) => {
                 DynamicValue::from(inner.get())
+            }
+            (ConcreteAggregationMethod::ApproxQuantile(q), Self::ApproxQuantiles(inner)) => {
+                DynamicValue::from(inner.get(*q))
             }
             (ConcreteAggregationMethod::ArgTop(_, expr_opt, separator), Self::ArgTop(inner)) => {
                 DynamicValue::from(match expr_opt {
@@ -332,6 +339,9 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::ApproxCardinality => {
                 upsert_aggregator!(ApproxCardinality)
             }
+            ConcreteAggregationMethod::ApproxQuantile(_) => {
+                upsert_aggregator!(ApproxQuantiles)
+            }
             ConcreteAggregationMethod::Count
             | ConcreteAggregationMethod::Ratio
             | ConcreteAggregationMethod::Percentage => {
@@ -435,6 +445,11 @@ impl CompositeAggregator {
                     Aggregator::ApproxCardinality(approx_cardinality) => {
                         if !value.is_nullish() {
                             approx_cardinality.add(&value.try_as_str()?);
+                        }
+                    }
+                    Aggregator::ApproxQuantiles(approx_quantiles) => {
+                        if !value.is_nullish() {
+                            approx_quantiles.add(value.try_as_f64()?);
                         }
                     }
                     Aggregator::Count(count) => {
@@ -554,7 +569,7 @@ fn validate_aggregation_function_arity(
 
     let range = match aggregation.func_name.as_str() {
         "count" => 0..=1,
-        "quantile" => 2..=2,
+        "quantile" | "approx_quantile" => 2..=2,
         "values" | "distinct_values" | "argmin" | "argmax" | "modes" => 1..=2,
         "most_common" | "most_common_counts" | "top" => 1..=3,
         "argtop" => 1..=4,
@@ -586,6 +601,7 @@ enum ConcreteAggregationMethod {
     All,
     Any,
     ApproxCardinality,
+    ApproxQuantile(f64),
     ArgMin(Option<ConcreteExpr>),
     ArgMax(Option<ConcreteExpr>),
     ArgTop(usize, Option<ConcreteExpr>, String),
@@ -628,6 +644,13 @@ impl ConcreteAggregationMethod {
             "all" => Self::All,
             "any" => Self::Any,
             "approx_cardinality" => Self::ApproxCardinality,
+            "approx_quantile" => match args.first().unwrap() {
+                ConcreteExpr::Value(v) => match v.try_as_f64() {
+                    Ok(p) => Self::ApproxQuantile(p),
+                    Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+                _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+            },
             "argmin" => Self::ArgMin(args.pop()),
             "argmax" => Self::ArgMax(args.pop()),
             "argtop" => Self::ArgTop(

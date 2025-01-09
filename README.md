@@ -1132,6 +1132,10 @@ Example: considering null values when computing a mean => 'mean(coalesce(number,
         Returns the approximate cardinality of the set of values returned by given
         expression using the HyperLogLog+ algorithm.
 
+    - approx_quantile(<expr>,  p) -> number
+        Returns an approximation of the desired quantile of values returned by given
+        expression using t-digests.
+
     - argmin(<expr>,  <expr>?) -> any
         Return the index of the row where the first expression is minimized, or
         the result of the second expression where the first expression is minimized.
