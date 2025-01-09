@@ -219,6 +219,43 @@ fn frequency_groubby() {
 }
 
 #[test]
+fn frequency_groubby_multiselect() {
+    let wrk = Workdir::new("frequency_groubby_multiselect");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color", "animal"],
+            svec!["john", "blue", "yak"],
+            svec!["mary", "red", "yak"],
+            svec!["mary", "red", "yak"],
+            svec!["mary", "red", "snake"],
+            svec!["mary", "purple", "snake"],
+            svec!["john", "yellow", "chicken"],
+            svec!["john", "blue", "crocodile"],
+        ],
+    );
+
+    let mut cmd = wrk.command("frequency");
+    cmd.args(["-g", "name"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let expected = vec![
+        svec!["field", "name", "value", "count"],
+        svec!["animal", "mary", "snake", "2"],
+        svec!["animal", "mary", "yak", "2"],
+        svec!["animal", "john", "chicken", "1"],
+        svec!["animal", "john", "crocodile", "1"],
+        svec!["animal", "john", "yak", "1"],
+        svec!["color", "mary", "red", "3"],
+        svec!["color", "mary", "purple", "1"],
+        svec!["color", "john", "blue", "2"],
+        svec!["color", "john", "yellow", "1"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn frequency_all() {
     let wrk = Workdir::new("frequency_all");
     wrk.create(

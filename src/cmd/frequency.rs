@@ -1,10 +1,7 @@
-use std::{cmp::Reverse, collections::HashMap};
-
 use bstr::ByteSlice;
 use csv::{self, ByteRecord};
-use rayon::prelude::*;
 
-use crate::collections::{ClusteredInsertHashmap, FixedReverseHeap};
+use crate::collections::{ClusteredInsertHashmap, ExactCounter};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -154,7 +151,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(groupby_sel) = groupby_sel_opt {
         let mut groups_to_fields_to_counter: ClusteredInsertHashmap<
             GroupKey,
-            Vec<HashMap<ValueKey, u64>>,
+            Vec<ExactCounter<ValueKey>>,
         > = ClusteredInsertHashmap::new();
 
         let output_headers = {
@@ -185,7 +182,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut list = Vec::with_capacity(sel.len());
 
                 for _ in 0..sel.len() {
-                    list.push(HashMap::new());
+                    list.push(ExactCounter::new());
                 }
 
                 list
@@ -199,10 +196,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             None => continue,
                         };
 
-                        fields_to_counter[i]
-                            .entry(sub_cell.to_vec())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
+                        fields_to_counter[i].add(sub_cell.to_vec());
                     }
                 } else {
                     let cell = match coerce_cell(cell, args.flag_no_extra) {
@@ -210,61 +204,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         None => continue,
                     };
 
-                    fields_to_counter[i]
-                        .entry(cell.to_vec())
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
+                    fields_to_counter[i].add(cell.to_vec());
                 }
             }
         }
 
         // Writing output
-        for (i, name) in field_names.into_iter().enumerate() {
-            for (group, counters) in groups_to_fields_to_counter.iter() {
-                let counter = &counters[i];
+        for name in field_names.into_iter().rev() {
+            for (group, counters) in groups_to_fields_to_counter.iter_mut() {
+                let counter = counters.pop().unwrap();
 
-                let mut total: u64 = 0;
-
-                // NOTE: if the limit is less than half of the dataset, we fallback to a heap
-                let items = if args.flag_limit != 0
-                    && args.flag_limit < (counter.len() as f64 / 2.0).floor() as usize
-                {
-                    let mut heap: FixedReverseHeap<(u64, Reverse<&ValueKey>)> =
-                        FixedReverseHeap::with_capacity(args.flag_limit);
-
-                    for (value, count) in counter {
-                        total += count;
-
-                        heap.push((*count, Reverse(value)));
-                    }
-
-                    heap.into_sorted_vec()
-                        .into_iter()
-                        .map(|(count, Reverse(value))| (value, count))
-                        .collect()
-                } else {
-                    let mut items = counter
-                        .iter()
-                        .map(|(v, c)| (v, *c))
-                        .inspect(|(_, c)| total += c)
-                        .collect::<Vec<_>>();
-
-                    if args.flag_parallel {
-                        items.par_sort_unstable_by(|a, b| {
-                            a.1.cmp(&b.1).reverse().then_with(|| a.0.cmp(b.0))
-                        });
+                let (total, items) = counter.into_total_and_items(
+                    if args.flag_limit == 0 {
+                        None
                     } else {
-                        items.sort_unstable_by(|a, b| {
-                            a.1.cmp(&b.1).reverse().then_with(|| a.0.cmp(b.0))
-                        });
-                    }
-
-                    if args.flag_limit != 0 {
-                        items.truncate(args.flag_limit);
-                    }
-
-                    items
-                };
+                        Some(args.flag_limit)
+                    },
+                    args.flag_parallel,
+                );
 
                 let mut emitted: u64 = 0;
 
@@ -284,7 +241,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         record.push_field(cell);
                     }
 
-                    record.push_field(value);
+                    record.push_field(&value);
                     record.push_field(count.to_string().as_bytes());
                     wtr.write_byte_record(&record)?;
                 }
@@ -306,8 +263,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     } else {
-        let mut fields: Vec<HashMap<ValueKey, u64>> =
-            (0..sel.len()).map(|_| HashMap::new()).collect();
+        let mut fields: Vec<ExactCounter<ValueKey>> =
+            (0..sel.len()).map(|_| ExactCounter::new()).collect();
 
         let output_headers = {
             let mut r = ByteRecord::new();
@@ -331,10 +288,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             None => continue,
                         };
 
-                        counter
-                            .entry(sub_cell.to_vec())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
+                        counter.add(sub_cell.to_vec());
                     }
                 } else {
                     let cell = match coerce_cell(cell, args.flag_no_extra) {
@@ -342,57 +296,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         None => continue,
                     };
 
-                    counter
-                        .entry(cell.to_vec())
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
+                    counter.add(cell.to_vec());
                 }
             }
         }
 
         // Writing output
         for (name, counter) in field_names.into_iter().zip(fields.into_iter()) {
-            let mut total: u64 = 0;
-
-            // NOTE: if the limit is less than half of the dataset, we fallback to a heap
-            let items = if args.flag_limit != 0
-                && args.flag_limit < (counter.len() as f64 / 2.0).floor() as usize
-            {
-                let mut heap: FixedReverseHeap<(u64, Reverse<ValueKey>)> =
-                    FixedReverseHeap::with_capacity(args.flag_limit);
-
-                for (value, count) in counter {
-                    total += count;
-
-                    heap.push((count, Reverse(value)));
-                }
-
-                heap.into_sorted_vec()
-                    .into_iter()
-                    .map(|(count, Reverse(value))| (value, count))
-                    .collect()
-            } else {
-                let mut items = counter
-                    .into_iter()
-                    .inspect(|(_, c)| total += c)
-                    .collect::<Vec<_>>();
-
-                if args.flag_parallel {
-                    items.par_sort_unstable_by(|a, b| {
-                        a.1.cmp(&b.1).reverse().then_with(|| a.0.cmp(&b.0))
-                    });
+            let (total, items) = counter.into_total_and_items(
+                if args.flag_limit == 0 {
+                    None
                 } else {
-                    items.sort_unstable_by(|a, b| {
-                        a.1.cmp(&b.1).reverse().then_with(|| a.0.cmp(&b.0))
-                    });
-                }
-
-                if args.flag_limit != 0 {
-                    items.truncate(args.flag_limit);
-                }
-
-                items
-            };
+                    Some(args.flag_limit)
+                },
+                args.flag_parallel,
+            );
 
             let mut emitted: u64 = 0;
 

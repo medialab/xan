@@ -155,6 +155,10 @@ impl<K: Eq + Hash, V> ClusteredInsertHashmap<K, V> {
         self.map.iter()
     }
 
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
+        self.map.iter_mut()
+    }
+
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
         self.map.into_iter()
     }
