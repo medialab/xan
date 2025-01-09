@@ -15,7 +15,8 @@ data. The number of values can be tweaked with --limit and --threshold flags
 respectively.
 
 Since this computes an exact frequency table, memory proportional to the
-cardinality of each selected column is required.
+cardinality of each selected column is required. If you expect this will overflow
+your memory, you can compute an approximate top-k using the -a, --approx flag.
 
 To compute custom aggregations per group, beyond just counting, please be sure to
 check the `xan groupby` command instead.
@@ -37,6 +38,10 @@ frequency options:
                            items. Use -A, -all or set to 0 to disable the limit.
                            It will be combined with -t/--threshold.
                            [default: 10]
+    -a, --approx           If set, return the items most likely having the top counts,
+                           as per given --limit. Won't work if --limit is 0 or
+                           with -A, --all. Accuracy of results increases with the given
+                           limit.
     -t, --threshold <arg>  If set, won't return items having a count less than
                            this given threshold. It is combined with -l/--limit.
     -N, --no-extra         Don't include empty cells & remaining counts.

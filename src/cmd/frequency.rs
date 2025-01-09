@@ -1,7 +1,7 @@
 use bstr::ByteSlice;
 use csv::{self, ByteRecord};
 
-use crate::collections::{ClusteredInsertHashmap, ExactCounter};
+use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -24,7 +24,8 @@ data. The number of values can be tweaked with --limit and --threshold flags
 respectively.
 
 Since this computes an exact frequency table, memory proportional to the
-cardinality of each selected column is required.
+cardinality of each selected column is required. If you expect this will overflow
+your memory, you can compute an approximate top-k using the -a, --approx flag.
 
 To compute custom aggregations per group, beyond just counting, please be sure to
 check the `xan groupby` command instead.
@@ -46,11 +47,15 @@ frequency options:
                            items. Use -A, -all or set to 0 to disable the limit.
                            It will be combined with -t/--threshold.
                            [default: 10]
+    -a, --approx           If set, return the items most likely having the top counts,
+                           as per given --limit. Won't work if --limit is 0 or
+                           with -A, --all. Accuracy of results increases with the given
+                           limit.
     -t, --threshold <arg>  If set, won't return items having a count less than
                            this given threshold. It is combined with -l/--limit.
     -N, --no-extra         Don't include empty cells & remaining counts.
     -p, --parallel         Allow sorting to be done in parallel. This is only
-                           useful with -l/--limit set to 0, i.e. no limit.
+                           useful with -l/--limit set to 0, or with -A, --all.
 
 Hidden options:
     --no-limit-we-reach-for-the-sky  Nothing to see here...
@@ -73,6 +78,7 @@ struct Args {
     flag_sep: Option<String>,
     flag_all: bool,
     flag_limit: usize,
+    flag_approx: bool,
     flag_threshold: Option<u64>,
     flag_no_extra: bool,
     flag_output: Option<String>,
@@ -95,11 +101,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
+    if args.flag_approx && args.flag_limit == 0 {
+        Err("-a, --approx cannot work with --limit=0 or -A, --all!")?;
+    }
+
     if args.flag_no_limit_we_reach_for_the_sky {
         opener::open_browser("https://www.youtube.com/watch?v=7kmEEkECFQw")
             .expect("could not easter egg");
         return Ok(());
     }
+
+    let approx_k = if args.flag_approx {
+        Some(args.flag_limit)
+    } else {
+        None
+    };
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -151,7 +167,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(groupby_sel) = groupby_sel_opt {
         let mut groups_to_fields_to_counter: ClusteredInsertHashmap<
             GroupKey,
-            Vec<ExactCounter<ValueKey>>,
+            Vec<Counter<ValueKey>>,
         > = ClusteredInsertHashmap::new();
 
         let output_headers = {
@@ -182,7 +198,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut list = Vec::with_capacity(sel.len());
 
                 for _ in 0..sel.len() {
-                    list.push(ExactCounter::new());
+                    list.push(Counter::new(approx_k));
                 }
 
                 list
@@ -263,8 +279,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     } else {
-        let mut fields: Vec<ExactCounter<ValueKey>> =
-            (0..sel.len()).map(|_| ExactCounter::new()).collect();
+        let mut fields: Vec<Counter<ValueKey>> =
+            (0..sel.len()).map(|_| Counter::new(approx_k)).collect();
 
         let output_headers = {
             let mut r = ByteRecord::new();

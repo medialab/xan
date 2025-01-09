@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use rayon::prelude::*;
-// use topk::FilteredSpaceSaving;
+use topk::FilteredSpaceSaving;
 
 use super::fixed_reverse_heap::FixedReverseHeap;
 
@@ -85,28 +85,65 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
     }
 }
 
-// pub enum Counter<K: Eq + Hash + Send + Ord> {
-//     Exact(ExactCounter<K>),
-//     Approximate(Box<FilteredSpaceSaving<K>>),
-// }
+pub struct ApproxCounter<K: Eq + Hash + Send + Ord> {
+    map: FilteredSpaceSaving<K>,
+}
 
-// impl<K: Eq + Hash + Send + Ord> Counter<K> {
-//     pub fn new() -> Self {
-//         Self::Exact(ExactCounter::new())
-//     }
+impl<K: Eq + Hash + Send + Ord> ApproxCounter<K> {
+    pub fn new(k: usize) -> Self {
+        Self {
+            map: FilteredSpaceSaving::new(k),
+        }
+    }
 
-//     pub fn new_approx(k: usize) -> Self {
-//         Self::Approximate(Box::new(FilteredSpaceSaving::new(k)))
-//     }
+    pub fn add(&mut self, key: K) {
+        self.map.insert(key, 1);
+    }
 
-//     pub fn add(&mut self, key: K) {
-//         match self {
-//             Self::Exact(inner) => {
-//                 inner.add(key);
-//             }
-//             Self::Approximate(inner) => {
-//                 inner.insert(key, 1);
-//             }
-//         }
-//     }
-// }
+    pub fn into_total_and_top(self) -> (u64, Vec<(K, u64)>) {
+        let total = self.map.count();
+        let items = self
+            .map
+            .into_sorted_iter()
+            .map(|(k, c)| (k, c.estimated_count()))
+            .collect();
+
+        (total, items)
+    }
+}
+
+pub enum Counter<K: Eq + Hash + Send + Ord> {
+    Exact(ExactCounter<K>),
+    Approximate(Box<ApproxCounter<K>>),
+}
+
+impl<K: Eq + Hash + Send + Ord> Counter<K> {
+    pub fn new(approx_capacity: Option<usize>) -> Self {
+        match approx_capacity {
+            Some(k) => Self::Approximate(Box::new(ApproxCounter::new(k))),
+            None => Self::Exact(ExactCounter::new()),
+        }
+    }
+
+    pub fn add(&mut self, key: K) {
+        match self {
+            Self::Exact(inner) => {
+                inner.add(key);
+            }
+            Self::Approximate(inner) => {
+                inner.add(key);
+            }
+        }
+    }
+
+    pub fn into_total_and_items(
+        self,
+        limit: Option<usize>,
+        parallel: bool,
+    ) -> (u64, Vec<(K, u64)>) {
+        match self {
+            Self::Exact(inner) => inner.into_total_and_items(limit, parallel),
+            Self::Approximate(inner) => inner.into_total_and_top(),
+        }
+    }
+}
