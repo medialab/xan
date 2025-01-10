@@ -158,7 +158,7 @@ impl FromStr for ViewTheme {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_ascii_lowercase().as_str() {
-            "default" => Self::default(),
+            "table" => Self::default(),
             "borderless" => Self::borderless(),
             "compact" => Self::compact(),
             "rounded" => Self::rounded(),
@@ -185,6 +185,16 @@ the -e/--expand and -C/--force-colors flags before piping like so:
 
     $ xan view -eC file.csv | less -SR
 
+Finally, it is possible to customize the default behavior of this command through
+the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
+supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
+and -S/--significance, -I/--hide-index.
+
+So if you want, for instance, to use the borderles theme, hide the index column and
+restrict the number of floating points decimals to be shown by default:
+
+    $ XAN_VIEW_ARGS=\"-t borderless -S 5 -I\"
+
 Usage:
     xan view [options] [<input>]
     xan v [options] [<input>]
@@ -193,9 +203,9 @@ Usage:
 view options:
     -s, --select <arg>      Select the columns to visualize. See 'xan select -h'
                             for the full syntax.
-    -t, --theme <name>      Theme for the table display, one of: \"default\", \"borderless\",
+    -t, --theme <name>      Theme for the table display, one of: \"table\", \"borderless\",
                             \"compact\", \"rounded\", \"slim\" or \"striped\".
-                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
+                            [default: table]
     -p, --pager             Automatically use the \"less\" command to page the results.
                             This flag does not work on windows!
     -A, --all               Remove the row limit and display everything.
@@ -226,12 +236,12 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
     flag_select: SelectColumns,
     flag_pager: bool,
-    flag_theme: Option<String>,
+    flag_theme: String,
     flag_cols: Option<usize>,
     flag_delimiter: Option<Delimiter>,
     flag_no_headers: bool,
@@ -262,11 +272,56 @@ impl Args {
     fn infer_force_colors(&self) -> bool {
         self.flag_pager || self.flag_force_colors
     }
+
+    fn merge(from_env: Self, mut from_argv: Self) -> Self {
+        if from_argv.flag_theme == "table" && from_env.flag_theme != "table" {
+            from_argv.flag_theme = from_env.flag_theme;
+        }
+
+        if !from_argv.flag_hide_index && from_env.flag_hide_index {
+            from_argv.flag_hide_index = true;
+        }
+
+        if !from_argv.flag_pager && from_env.flag_pager {
+            from_argv.flag_pager = true;
+        }
+
+        if !from_argv.flag_rainbow && from_env.flag_rainbow {
+            from_argv.flag_rainbow = true;
+        }
+
+        if !from_argv.flag_sanitize_emojis && from_env.flag_sanitize_emojis {
+            from_argv.flag_sanitize_emojis = true;
+        }
+
+        if from_argv.flag_limit == 100 && from_env.flag_limit != 100 {
+            from_argv.flag_limit = from_env.flag_limit;
+        }
+
+        if from_argv.flag_significance.is_none() && from_env.flag_significance.is_some() {
+            from_argv.flag_significance = from_env.flag_significance;
+        }
+
+        from_argv
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
+
+    let mut env_var_argv = vec!["xan", "view"];
+    let env_var_split =
+        shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or(vec![]);
+
+    for env_arg in env_var_split.iter() {
+        env_var_argv.push(env_arg);
+    }
+
+    let mut env_args: Args = util::get_args(USAGE, &env_var_argv)?;
+    env_args.resolve();
+
+    let args = Args::merge(env_args, args);
 
     if args.infer_force_colors() {
         colored::control::set_override(true);
@@ -280,14 +335,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rows = util::acquire_term_rows();
 
     // Theme
-    let theme = match &args.flag_theme {
-        Some(name) => name.to_string(),
-        None => match env::var("XAN_VIEW_THEME") {
-            Ok(name) if !name.is_empty() => name,
-            _ => "default".to_string(),
-        },
-    }
-    .parse::<ViewTheme>()?;
+    let theme = args.flag_theme.parse::<ViewTheme>()?;
 
     let padding = theme.padding;
     let horizontal_box = theme.horizontal_box();
