@@ -549,7 +549,9 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     highlight: bool,
 ) -> String {
     // NOTE: in this particular case we need to replace problematic characters beforehand
-    let string = WHITESPACE_REPLACER.replace_all(string, " ");
+    let string = WHITESPACE_REPLACER
+        .replace_all(string, " ")
+        .replace('\u{00ad}', ""); // soft hyphens
 
     let mut string = unicode_aware_pad(
         left,
