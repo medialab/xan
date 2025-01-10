@@ -125,7 +125,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
 
             let cell = if args.flag_condense {
-                util::unicode_aware_highlighted_pad_with_ellipsis(false, cell, max_value_width, " ")
+                util::unicode_aware_highlighted_pad_with_ellipsis(
+                    false,
+                    cell,
+                    max_value_width,
+                    " ",
+                    true,
+                )
             } else if args.flag_wrap {
                 util::unicode_aware_wrap(cell, max_value_width, max_header_width + 1)
             } else {

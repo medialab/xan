@@ -757,6 +757,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             cell,
                             col.allowed_width,
                             " ",
+                            true,
                         ),
                     )
                 }

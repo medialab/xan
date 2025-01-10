@@ -371,7 +371,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         _ => (),
     };
 
-    match string.parse::<f64>() {
+    match string.trim_start().parse::<f64>() {
         Ok(_) => ColorOrStyles::Color(Color::Red),
         Err(_) => {
             if string.starts_with("http://") || string.starts_with("https://") {
@@ -546,13 +546,18 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     string: &str,
     width: usize,
     padding: &str,
+    highlight: bool,
 ) -> String {
     // NOTE: in this particular case we need to replace problematic characters beforehand
     let string = WHITESPACE_REPLACER.replace_all(string, " ");
 
     let mut string = unicode_aware_pad(
         left,
-        &highlight_trimmable_whitespace(&unicode_aware_ellipsis(&string, width)),
+        &(if highlight {
+            highlight_trimmable_whitespace(&unicode_aware_ellipsis(&string, width))
+        } else {
+            unicode_aware_ellipsis(&string, width)
+        }),
         width,
         padding,
         Some(string.width()),
