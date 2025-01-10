@@ -183,3 +183,27 @@ fn implode_multiple_columns_rename() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn implode_cmp() {
+    let wrk = Workdir::new("implode_cmp");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "n", "colors"],
+            svec!["Mary", "0", "yellow"],
+            svec!["John", "1", "blue"],
+            svec!["John", "2", "orange"],
+        ],
+    );
+    let mut cmd = wrk.command("implode");
+    cmd.arg("colors").args(["--cmp", "name"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "n", "colors"],
+        svec!["Mary", "0", "yellow"],
+        svec!["John", "2", "blue|orange"],
+    ];
+    assert_eq!(got, expected);
+}

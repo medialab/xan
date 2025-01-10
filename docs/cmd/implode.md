@@ -38,6 +38,12 @@ implode options:
                          Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
                          Does not work with -P, --plural.
+    --cmp <column>       Restrict the columns to compare to assert whether
+                         consecutive rows must be merged. Be aware that this will
+                         ignore all other columns to in the given selection so
+                         only use this as an optimization trick (because you have some
+                         column containing a unique id and/or can guarantee all other
+                         cells will be identical).
 
 Common options:
     -h, --help             Display this message

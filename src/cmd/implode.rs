@@ -1,11 +1,9 @@
 use csv;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
-
-// TODO: restrict key to compare as optim
 
 static USAGE: &str = "
 Implode a CSV file by merging multiple consecutive rows into a single one, where
@@ -44,6 +42,12 @@ implode options:
                          Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
                          Does not work with -P, --plural.
+    --cmp <column>       Restrict the columns to compare to assert whether
+                         consecutive rows must be merged. Be aware that this will
+                         ignore all other columns to in the given selection so
+                         only use this as an optimization trick (because you have some
+                         column containing a unique id and/or can guarantee all other
+                         cells will be identical).
 
 Common options:
     -h, --help             Display this message
@@ -61,6 +65,7 @@ struct Args {
     flag_sep: String,
     flag_plural: bool,
     flag_rename: Option<String>,
+    flag_cmp: Option<SelectColumns>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -76,6 +81,12 @@ fn compare_but_for_sel(
         .zip(second.iter())
         .zip(except.iter())
         .all(|((a, b), mask)| if mask.is_some() { true } else { a == b })
+}
+
+fn compare_sel(first: &csv::ByteRecord, second: &csv::ByteRecord, sel: &Selection) -> bool {
+    sel.select(first)
+        .zip(sel.select(second))
+        .all(|(a, b)| a == b)
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -95,6 +106,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
+    let cmp_sel_opt = args
+        .flag_cmp
+        .map(|s| s.selection(&headers, !args.flag_no_headers))
+        .transpose()?;
 
     // NOTE: the mask deduplicates
     let sel_mask = sel.indexed_mask(headers.len());
@@ -143,7 +158,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let record = result?;
 
         if let Some(previous_record) = previous {
-            if !compare_but_for_sel(&record, &previous_record, &sel_mask) {
+            let should_flush = if let Some(cmp_sel) = &cmp_sel_opt {
+                !compare_sel(&record, &previous_record, cmp_sel)
+            } else {
+                !compare_but_for_sel(&record, &previous_record, &sel_mask)
+            };
+
+            if should_flush {
                 // Flushing
                 let imploded_record: csv::ByteRecord = previous_record
                     .iter()
