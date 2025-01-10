@@ -5,7 +5,7 @@
 Implode a CSV file by collapsing multiple consecutive rows into a single one
 where the values of some columns are joined using the given separator.
 
-This is the reverse of the 'explode' command.
+This is the reverse of the "explode" command.
 
 For instance the following CSV:
 

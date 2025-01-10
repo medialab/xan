@@ -13,7 +13,7 @@ fn explode() {
         ],
     );
     let mut cmd = wrk.command("explode");
-    cmd.arg("colors").arg("|").arg("data.csv");
+    cmd.arg("colors").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -28,7 +28,7 @@ fn explode() {
 
 #[test]
 fn explode_rename() {
-    let wrk = Workdir::new("explode");
+    let wrk = Workdir::new("explode_rename");
     wrk.create(
         "data.csv",
         vec![
@@ -41,7 +41,6 @@ fn explode_rename() {
     let mut cmd = wrk.command("explode");
     cmd.arg("colors")
         .args(["--rename", "color"])
-        .arg("|")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -56,8 +55,34 @@ fn explode_rename() {
 }
 
 #[test]
+fn explode_singular() {
+    let wrk = Workdir::new("explode_singular");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "colors"],
+            svec!["Mary", "yellow"],
+            svec!["John", "blue|orange"],
+            svec!["Jack", ""],
+        ],
+    );
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors").arg("-S").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "color"],
+        svec!["Mary", "yellow"],
+        svec!["John", "blue"],
+        svec!["John", "orange"],
+        svec!["Jack", ""],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn explode_no_headers() {
-    let wrk = Workdir::new("explode");
+    let wrk = Workdir::new("explode_no_headers");
     wrk.create(
         "data.csv",
         vec![
@@ -67,7 +92,7 @@ fn explode_no_headers() {
         ],
     );
     let mut cmd = wrk.command("explode");
-    cmd.arg("1").arg("|").arg("--no-headers").arg("data.csv");
+    cmd.arg("1").arg("--no-headers").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -91,7 +116,7 @@ fn explode_multichar_sep() {
         ],
     );
     let mut cmd = wrk.command("explode");
-    cmd.arg("colors").arg("[x]").arg("data.csv");
+    cmd.arg("colors").args(["--sep", "[x]"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -117,7 +142,7 @@ fn explode_multipe_columns() {
         ],
     );
     let mut cmd = wrk.command("explode");
-    cmd.arg("colors,letters").arg("|").arg("data.csv");
+    cmd.arg("colors,letters").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -142,7 +167,6 @@ fn explode_multipe_columns_rename() {
     );
     let mut cmd = wrk.command("explode");
     cmd.arg("colors,letters")
-        .arg("|")
         .args(["-r", "color,letter"])
         .arg("data.csv");
 

@@ -43,6 +43,8 @@ hist options:
                              handle them.
     -P, --hide-percent       Don't show percentages.
     -u, --unit <unit>        Value unit.
+    -D, --dates              Set to indicate your values are dates (supporting year, year-month or
+                             year-month-day). This will sort the bars by date, and add missing dates.
 
 Common options:
     -h, --help             Display this message

@@ -5,31 +5,41 @@
 Explode CSV rows into multiple ones by splitting column values by using the
 provided separator.
 
-This is the reverse of the 'implode' command.
+This is the reverse of the "implode" command.
 
 For instance the following CSV:
 
+*file.csv*
 name,colors
 John,blue|yellow
 Mary,red
 
-Can be exploded on the "colors" column using the "|" <separator> to produce:
+Can be exploded on the "colors" column:
 
+    $ xan explode colors file.csv > exploded.csv
+
+*exploded.csv*
 name,colors
 John,blue
 John,yellow
 Mary,red
 
-Note finally that the file can be exploded on multiple well-aligned columns.
+Note finally that the file can be exploded on multiple well-aligned columns (that
+is to say cell must all be splitted into the same number of values).
 
 Usage:
-    xan explode [options] <columns> <separator> [<input>]
+    xan explode [options] <columns> [<input>]
     xan explode --help
 
 explode options:
-    -r, --rename <name>    New names for the exploded columns. Must be written
-                           in CSV format if exploding multiple columns.
-                           See 'xan rename' help for more details.
+    --sep <sep>          Separator to split the cells.
+                         [default: |]
+    -S, --singular       Drop a final s if present in the exploded column names.
+                         Does not work with -r, --rename.
+    -r, --rename <name>  New names for the exploded columns. Must be written
+                         in CSV format if exploding multiple columns.
+                         See 'xan rename' help for more details.
+                         Does not work with -S, --singular.
 
 Common options:
     -h, --help             Display this message

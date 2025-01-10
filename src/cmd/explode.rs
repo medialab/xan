@@ -11,31 +11,41 @@ static USAGE: &str = "
 Explode CSV rows into multiple ones by splitting column values by using the
 provided separator.
 
-This is the reverse of the 'implode' command.
+This is the reverse of the \"implode\" command.
 
 For instance the following CSV:
 
+*file.csv*
 name,colors
 John,blue|yellow
 Mary,red
 
-Can be exploded on the \"colors\" column using the \"|\" <separator> to produce:
+Can be exploded on the \"colors\" column:
 
+    $ xan explode colors file.csv > exploded.csv
+
+*exploded.csv*
 name,colors
 John,blue
 John,yellow
 Mary,red
 
-Note finally that the file can be exploded on multiple well-aligned columns.
+Note finally that the file can be exploded on multiple well-aligned columns (that
+is to say cell must all be splitted into the same number of values).
 
 Usage:
-    xan explode [options] <columns> <separator> [<input>]
+    xan explode [options] <columns> [<input>]
     xan explode --help
 
 explode options:
-    -r, --rename <name>    New names for the exploded columns. Must be written
-                           in CSV format if exploding multiple columns.
-                           See 'xan rename' help for more details.
+    --sep <sep>          Separator to split the cells.
+                         [default: |]
+    -S, --singular       Drop a final s if present in the exploded column names.
+                         Does not work with -r, --rename.
+    -r, --rename <name>  New names for the exploded columns. Must be written
+                         in CSV format if exploding multiple columns.
+                         See 'xan rename' help for more details.
+                         Does not work with -S, --singular.
 
 Common options:
     -h, --help             Display this message
@@ -49,8 +59,9 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_columns: SelectColumns,
-    arg_separator: String,
     arg_input: Option<String>,
+    flag_sep: String,
+    flag_singular: bool,
     flag_rename: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -59,6 +70,11 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_singular && args.flag_rename.is_some() {
+        Err("-S/--singular cannot work with -r/--rename!")?;
+    }
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -97,6 +113,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect();
     }
 
+    if args.flag_singular {
+        headers = headers
+            .iter()
+            .zip(sel_mask.iter())
+            .map(|(h, m)| {
+                if m.is_some() {
+                    if h.ends_with(b"s") {
+                        &h[..h.len().saturating_sub(1)]
+                    } else {
+                        h
+                    }
+                } else {
+                    h
+                }
+            })
+            .collect();
+    }
+
     if !rconfig.no_headers {
         wtr.write_byte_record(&headers)?;
     }
@@ -106,7 +140,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_byte_record(&mut record)? {
         let splits: Vec<Vec<&[u8]>> = sel
             .select(&record)
-            .map(|cell| cell.split_str(&args.arg_separator).collect())
+            .map(|cell| cell.split_str(&args.flag_sep).collect())
             .collect();
 
         if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
