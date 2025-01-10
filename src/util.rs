@@ -339,7 +339,7 @@ thread_local! {
     );
 }
 
-fn format_number_with_formatter<T: Numeric>(formatter: &mut numfmt::Formatter, x: T) -> String {
+pub fn format_number_with_formatter<T: Numeric>(formatter: &mut numfmt::Formatter, x: T) -> String {
     let mut string = formatter.fmt2(x).to_string();
 
     if let Some(i) = string.find('.') {

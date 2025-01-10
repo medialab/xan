@@ -1,16 +1,16 @@
 use std::env;
 use std::io::{self, Write};
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 
 use colored::{self, Colorize};
 use csv;
+use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
-#[cfg(windows)]
-use crate::CliError;
 use crate::CliResult;
 
 const HEADERS_ROWS: usize = 8;
@@ -191,31 +191,32 @@ Usage:
     xan view --help
 
 view options:
-    -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
-                           for the full syntax.
-    -t, --theme <name>     Theme for the table display, one of: \"default\", \"borderless\", \"compact\",
-                           \"rounded\", \"slim\" or \"striped\".
-                           Can also be set through the \"XAN_VIEW_THEME\" environment variable.
-    -p, --pager            Automatically use the \"less\" command to page the results.
-                           This flag does not work on windows!
-    -A, --all              Remove the line limit to display everything.
-    -l, --limit <number>   Maximum of lines of files to read into memory. Use -A, --all or
-                           set to 0 to disable the limit.
-                           [default: 100]
-    -R, --rainbow          Alternating colors for columns, rather than color by value type.
-    --cols <num>           Width of the graph in terminal columns, i.e. characters.
-                           Defaults to using all your terminal's width or 80 if
-                           terminal's size cannot be found (i.e. when piping to file).
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
-    -e, --expand           Expand the table so that in can be easily piped to
-                           a pager such as \"less\", with larger width constraints.
-    -E, --sanitize-emojis  Replace emojis by their shortcode to avoid formatting issues.
-    -I, --hide-index       Hide the row index on the left.
-    -H, --hide-headers     Hide the headers.
-    -M, --hide-info        Hide information about number of displayed columns, rows etc.
-    -g, --groupby <cols>   Isolate and emphasize groups of rows, represented by consecutive
-                           rows with identical values in selected columns.
+    -s, --select <arg>      Select the columns to visualize. See 'xan select -h'
+                            for the full syntax.
+    -t, --theme <name>      Theme for the table display, one of: \"default\", \"borderless\",
+                            \"compact\", \"rounded\", \"slim\" or \"striped\".
+                            Can also be set through the \"XAN_VIEW_THEME\" environment variable.
+    -p, --pager             Automatically use the \"less\" command to page the results.
+                            This flag does not work on windows!
+    -A, --all               Remove the row limit and display everything.
+    -l, --limit <number>    Maximum of rows to read into memory. Use -A, --all or
+                            set to 0 to disable the limit.
+                            [default: 100]
+    -R, --rainbow           Alternating colors for columns, rather than color by value type.
+    --cols <num>            Width of the graph in terminal columns, i.e. characters.
+                            Defaults to using all your terminal's width or 80 if
+                            terminal's size cannot be found (i.e. when piping to file).
+    -C, --force-colors      Force colors even if output is not supposed to be able to
+                            handle them.
+    -e, --expand            Expand the table so that in can be easily piped to
+                            a pager such as \"less\", with larger width constraints.
+    -E, --sanitize-emojis   Replace emojis by their shortcode to avoid formatting issues.
+    -S, --significance <n>  Maximum floating point significance used to format numbers.
+    -I, --hide-index        Hide the row index on the left.
+    -H, --hide-headers      Hide the headers.
+    -M, --hide-info         Hide information about number of displayed columns, rows etc.
+    -g, --groupby <cols>    Isolate and emphasize groups of rows, represented by consecutive
+                            rows with identical values in selected columns.
 
 Common options:
     -h, --help             Display this message
@@ -244,6 +245,7 @@ struct Args {
     flag_hide_headers: bool,
     flag_hide_info: bool,
     flag_groupby: Option<SelectColumns>,
+    flag_significance: Option<NonZeroUsize>,
 }
 
 impl Args {
@@ -336,6 +338,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut all_records_buffered = false;
 
+    let mut number_formatter = args.flag_significance.map(|s| {
+        Formatter::new()
+            .precision(Precision::Significance(s.get() as u8))
+            .separator(',')
+            .unwrap()
+    });
+
     let records = {
         let limit = args.flag_limit;
 
@@ -349,11 +358,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Some((i, record)) => {
                     let mut record = sel
                         .select_string_record(&record?)
-                        .collect::<csv::StringRecord>();
+                        .map(|cell| {
+                            let mut cell = cell.to_string();
 
-                    if args.flag_sanitize_emojis {
-                        record = sanitize_emojis(&emoji_sanitizer, &record);
-                    }
+                            if args.flag_sanitize_emojis {
+                                cell = emoji_sanitizer.sanitize(&cell);
+                            }
+
+                            if let Some(fmt) = number_formatter.as_mut() {
+                                if let Ok(f) = cell.parse::<f64>() {
+                                    cell = util::format_number_with_formatter(fmt, f);
+                                }
+                            }
+
+                            cell
+                        })
+                        .collect::<csv::StringRecord>();
 
                     if !args.flag_hide_index {
                         record = record.prepend(&i.to_string());
@@ -419,9 +439,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         #[cfg(windows)]
         {
-            return Err(CliError::Other(
-                "The -p/--pager flag does not work on windows, sorry :'(".to_string(),
-            ));
+            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?;
         }
     }
 
@@ -724,13 +742,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     Ok(())
-}
-
-fn sanitize_emojis(
-    sanitizer: &util::EmojiSanitizer,
-    record: &csv::StringRecord,
-) -> csv::StringRecord {
-    record.iter().map(|cell| sanitizer.sanitize(cell)).collect()
 }
 
 fn adjust_column_widths(widths: &[usize], max_width: usize) -> Vec<usize> {
