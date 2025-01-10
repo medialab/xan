@@ -26,7 +26,7 @@ that is on the other side of --left/--right.
 Finally, the command can also perform a 'regex' join, matching efficiently a CSV file containing
 a column of regex patterns with another file. But if you only need to filter out a file
 based on a set of regex patterns and don't need the auxilliary columns to be concatenated
-to the joined result, please be sure to check out the search command --input flag before.
+to the joined result, please be sure to check out the search command --patterns flag before.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>

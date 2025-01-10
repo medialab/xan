@@ -1115,14 +1115,19 @@ This help can be found in the terminal by executing `xan agg --aggs`.
 
 (use --cheatsheet for a reminder of how the scripting language works)
 
-Note that most functions ignore null values (empty strings), but that functions
-operating on numbers will yield an error if encountering a string that cannot
-be safely parsed as a number.
+Note that most functions ignore empty values. This said, functions working on
+number will yield an error when encountering a string that cannot be safely
+parsed as a suitable number.
 
-You can always use `coalesce` to nudge values around and force aggregation functions to
-consider null values or make them avoid non-numerical values altogether.
+You can always cast values around and force aggregation functions to
+consider empty values or make them avoid non-numerical values altogether.
 
-Example: considering null values when computing a mean => 'mean(coalesce(number, 0))'
+For instance, considering null values when computing a mean is as easy
+as `mean(number || 0)`.
+
+Finally, note that expressions returning lists will be understood as multiplexed rows.
+This means that computing `cardinality([source, target])`, for instance, will return
+the number of nodes in a graph represented by a CSV edge list.
 
     - all(<expr>) -> bool
         Returns true if all elements returned by given expression are truthy.

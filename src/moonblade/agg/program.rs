@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use csv::ByteRecord;
 use jiff::{civil::DateTime, Unit};
 
@@ -939,9 +941,17 @@ fn run_with_record_on_aggregators(
             Some(expr) => Some(eval_expression(expr, Some(index), record, context)?),
         };
 
-        aggregator
-            .process_value(index, value, record)
-            .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)))?;
+        if let Some(DynamicValue::List(list)) = value {
+            for v in Arc::into_inner(list).unwrap() {
+                aggregator
+                    .process_value(index, Some(v), record)
+                    .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)))?;
+            }
+        } else {
+            aggregator
+                .process_value(index, value, record)
+                .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)))?;
+        }
     }
 
     Ok(())
