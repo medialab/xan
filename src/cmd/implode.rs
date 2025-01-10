@@ -5,31 +5,45 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
-static USAGE: &str = "
-Implode a CSV file by collapsing multiple consecutive rows into a single one
-where the values of some columns are joined using the given separator.
+// TODO: restrict key to compare as optim
 
-This is the reverse of the \"explode\" command.
+static USAGE: &str = "
+Implode a CSV file by merging multiple consecutive rows into a single one, where
+diverging cells will be joined by the pipe character (\"|\") or any separator
+given to the --sep flag.
+
+This is the inverse of the \"explode\" command.
 
 For instance the following CSV:
 
+*file.csv*
 name,color
 John,blue
 John,yellow
 Mary,red
 
-Can be imploded on the \"color\" column using the \"|\" <separator> to produce:
+Can be imploded on the \"color\" column:
 
+    $ xan implode color --plural file.csv > imploded.csv
+
+To produce the following file:
+
+*imploded.csv*
 name,color
 John,blue|yellow
 Mary,red
 
 Usage:
-    xan implode [options] <columns> <separator> [<input>]
+    xan implode [options] <columns> [<input>]
     xan implode --help
 
 implode options:
-    -r, --rename <name>    New name for the diverging column.
+    --sep <sep>          Separator that will be used to join the diverging cells.
+                         [default: |]
+    -P, --plural         Adding a final \"s\" to the imploded column names.
+                         Does not work with -r, --rename.
+    -r, --rename <name>  New name for the diverging column.
+                         Does not work with -P, --plural.
 
 Common options:
     -h, --help             Display this message
@@ -43,8 +57,9 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_columns: SelectColumns,
-    arg_separator: String,
     arg_input: Option<String>,
+    flag_sep: String,
+    flag_plural: bool,
     flag_rename: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -65,6 +80,11 @@ fn compare_but_for_sel(
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_plural && args.flag_rename.is_some() {
+        Err("-P/--plural cannot work with -r/--rename!")?;
+    }
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -97,11 +117,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect();
     }
 
+    if args.flag_plural {
+        headers = headers
+            .iter()
+            .zip(sel_mask.iter())
+            .map(|(h, m)| {
+                if m.is_some() {
+                    [h, b"s"].concat()
+                } else {
+                    h.to_vec()
+                }
+            })
+            .collect()
+    }
+
     if !rconfig.no_headers {
         wtr.write_byte_record(&headers)?;
     }
 
-    let sep = args.arg_separator.as_bytes();
+    let sep = args.flag_sep.as_bytes();
     let mut previous: Option<csv::ByteRecord> = None;
     let mut accumulator: Vec<Vec<Vec<u8>>> = Vec::with_capacity(sel.len());
 

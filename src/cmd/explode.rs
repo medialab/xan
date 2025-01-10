@@ -8,10 +8,10 @@ use crate::CliError;
 use crate::CliResult;
 
 static USAGE: &str = "
-Explode CSV rows into multiple ones by splitting column values by using the
-provided separator.
+Explode CSV rows into multiple ones by splitting selected cell using the pipe
+character (\"|\") or any separator given to the --sep flag.
 
-This is the reverse of the \"implode\" command.
+This is conceptually the inverse of the \"implode\" command.
 
 For instance the following CSV:
 
@@ -22,16 +22,18 @@ Mary,red
 
 Can be exploded on the \"colors\" column:
 
-    $ xan explode colors file.csv > exploded.csv
+    $ xan explode colors --singular file.csv > exploded.csv
+
+To produce the following file:
 
 *exploded.csv*
-name,colors
+name,color
 John,blue
 John,yellow
 Mary,red
 
 Note finally that the file can be exploded on multiple well-aligned columns (that
-is to say cell must all be splitted into the same number of values).
+is to say selected cells must all be splitted into a same number of values).
 
 Usage:
     xan explode [options] <columns> [<input>]
@@ -40,7 +42,7 @@ Usage:
 explode options:
     --sep <sep>          Separator to split the cells.
                          [default: |]
-    -S, --singular       Drop a final s if present in the exploded column names.
+    -S, --singular       Drop a final \"s\" if present in the exploded column names.
                          Does not work with -r, --rename.
     -r, --rename <name>  New names for the exploded columns. Must be written
                          in CSV format if exploding multiple columns.
