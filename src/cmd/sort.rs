@@ -1,6 +1,5 @@
 use std::cmp;
 use std::path::Path;
-use std::str::from_utf8;
 
 use bytesize::MB;
 use csv;
@@ -347,17 +346,15 @@ fn next_num<'a, X>(xs: &mut X) -> Option<Number>
 where
     X: Iterator<Item = &'a [u8]>,
 {
-    xs.next()
-        .and_then(|bytes| from_utf8(bytes).ok())
-        .and_then(|s| {
-            if let Ok(i) = s.parse::<i64>() {
-                Some(Number::Int(i))
-            } else if let Ok(f) = s.parse::<f64>() {
-                Some(Number::Float(f))
-            } else {
-                None
-            }
-        })
+    xs.next().and_then(|bytes| {
+        if let Ok(i) = btoi::btoi::<i64>(bytes) {
+            Some(Number::Int(i))
+        } else if let Ok(f) = fast_float::parse(bytes) {
+            Some(Number::Float(f))
+        } else {
+            None
+        }
+    })
 }
 
 // Standard comparable byte record abstraction

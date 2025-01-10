@@ -810,11 +810,12 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<DynamicNumber, CliError> {
 }
 
 fn parse_as_number(cell: &[u8]) -> Result<DynamicNumber, CliError> {
-    let string = String::from_utf8_lossy(cell);
-
-    string
-        .parse::<DynamicNumber>()
-        .map_err(|_| CliError::Other(format!("could not parse \"{}\" as number!", string)))
+    DynamicNumber::try_from(cell).map_err(|_| {
+        CliError::Other(format!(
+            "could not parse \"{}\" as number!",
+            std::str::from_utf8(cell).unwrap_or("cannot decode")
+        ))
+    })
 }
 
 impl DynamicNumber {

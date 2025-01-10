@@ -278,8 +278,7 @@ fn sample_weighted_reservoir<R: io::Read>(
     for result in rdr.byte_records() {
         let record = result?;
 
-        let weight: f64 = String::from_utf8_lossy(&record[weight_column_index])
-            .parse()
+        let weight: f64 = fast_float::parse(&record[weight_column_index])
             .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
 
         let score = rng.gen::<f64>().powf(1.0 / weight);
@@ -313,8 +312,7 @@ fn sample_weighted_reservoir_grouped<R: io::Read>(
 
         let group_key = group_sel.collect(&record);
 
-        let weight: f64 = String::from_utf8_lossy(&record[weight_column_index])
-            .parse()
+        let weight: f64 = fast_float::parse(&record[weight_column_index])
             .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
 
         let reservoir = global_reservoir.insert_with(group_key, || BinaryHeap::with_capacity(1));

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::collections::{btree_map::Entry, BTreeMap, HashMap, VecDeque};
-use std::convert::From;
+use std::convert::{From, TryFrom};
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul, Neg, RangeInclusive, Rem, Sub};
 use std::str::FromStr;
@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use bstr::BString;
+use btoi::btoi;
 use csv::ByteRecord;
 use jiff::{civil::DateTime, tz::TimeZone, Zoned};
 use regex::Regex;
@@ -647,6 +648,7 @@ impl Div for DynamicNumber {
 impl FromStr for DynamicNumber {
     type Err = ();
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.parse::<i64>() {
             Err(_) => match s.parse::<f64>() {
@@ -654,6 +656,21 @@ impl FromStr for DynamicNumber {
                 Ok(n) => Ok(DynamicNumber::Float(n)),
             },
             Ok(n) => Ok(DynamicNumber::Integer(n)),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for DynamicNumber {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match btoi::<i64>(value) {
+            Ok(i) => Ok(DynamicNumber::Integer(i)),
+            Err(_) => match fast_float::parse(value) {
+                Ok(f) => Ok(DynamicNumber::Float(f)),
+                Err(_) => Err(()),
+            },
         }
     }
 }
@@ -995,10 +1012,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
-            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
-                .map_err(|_| EvaluationError::UnicodeDecodeError)?
-                .parse::<DynamicNumber>()
-            {
+            Self::Bytes(bytes) => match DynamicNumber::try_from(bytes.as_ref().as_ref()) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
@@ -1015,10 +1029,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "unsigned_number")),
                 Ok(value) => value,
             },
-            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
-                .map_err(|_| EvaluationError::UnicodeDecodeError)?
-                .parse::<usize>()
-            {
+            Self::Bytes(bytes) => match btoi::<usize>(bytes) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "unsigned_number")),
                 Ok(value) => value,
             },
@@ -1050,10 +1061,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "integer")),
                 Ok(value) => value,
             },
-            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
-                .map_err(|_| EvaluationError::UnicodeDecodeError)?
-                .parse::<i64>()
-            {
+            Self::Bytes(bytes) => match btoi::<i64>(bytes) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "integer")),
                 Ok(value) => value,
             },
@@ -1073,10 +1081,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "float")),
                 Ok(value) => value,
             },
-            Self::Bytes(bytes) => match std::str::from_utf8(bytes)
-                .map_err(|_| EvaluationError::UnicodeDecodeError)?
-                .parse::<f64>()
-            {
+            Self::Bytes(bytes) => match fast_float::parse::<f64, &[u8]>(bytes.as_ref().as_ref()) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "float")),
                 Ok(value) => value,
             },

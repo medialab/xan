@@ -135,6 +135,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "btoi"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dd6407f73a9b8b6162d8a2ef999fe6afd7cc15902ebf42c5cd296addf17e0ad"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -753,6 +762,12 @@ dependencies = [
  "serde",
  "tempfile",
 ]
+
+[[package]]
+name = "fast-float"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95765f67b4b18863968b4a1bd5bb576f732b29a4a28c7cd84c09fa3e2875f33c"
 
 [[package]]
 name = "fastrand"
@@ -2208,6 +2223,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "base64",
  "bstr",
+ "btoi",
  "byteorder",
  "bytesize",
  "calamine",
@@ -2223,6 +2239,7 @@ dependencies = [
  "emojis",
  "encoding",
  "ext-sort",
+ "fast-float",
  "filetime",
  "flate2",
  "glob",

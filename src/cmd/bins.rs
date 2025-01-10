@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use csv;
 
 use crate::config::{Config, Delimiter};
@@ -68,7 +69,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_byte_record(&mut record)? {
         for (cell, series) in sel.select(&record).zip(all_series.iter_mut()) {
-            let cell = std::str::from_utf8(cell).unwrap();
             series.add(cell, &args.flag_min, &args.flag_max);
         }
     }
@@ -230,7 +230,7 @@ impl Series {
         }
     }
 
-    pub fn add(&mut self, cell: &str, min: &Option<f64>, max: &Option<f64>) {
+    pub fn add(&mut self, cell: &[u8], min: &Option<f64>, max: &Option<f64>) {
         self.count += 1;
 
         let cell = cell.trim();
@@ -240,7 +240,7 @@ impl Series {
             return;
         }
 
-        match cell.parse::<f64>() {
+        match fast_float::parse::<f64, &[u8]>(cell) {
             Ok(float) => {
                 if let Some(m) = min {
                     if float < *m {
