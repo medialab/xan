@@ -4,9 +4,11 @@ use colored;
 use colored::Colorize;
 use csv;
 use indexmap::{map::Entry, IndexMap};
+use jiff::{civil::Date, Unit};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::dates;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
@@ -59,6 +61,8 @@ hist options:
                              handle them.
     -P, --hide-percent       Don't show percentages.
     -u, --unit <unit>        Value unit.
+    -D, --dates              Set to indicate your values are dates (supporting year, year-month or
+                             year-month-day). This will sort the bars by date, and add missing dates.
 
 Common options:
     -h, --help             Display this message
@@ -85,6 +89,7 @@ struct Args {
     flag_unit: Option<String>,
     flag_category: Option<SelectColumns>,
     flag_bar_size: String,
+    flag_dates: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -187,6 +192,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for histogram in histograms.iter_mut() {
         if histogram.len() == 0 {
             continue;
+        }
+
+        if args.flag_dates {
+            histogram.complete_dates()?;
         }
 
         if args.flag_category.is_some() {
@@ -429,6 +438,70 @@ impl Histogram {
                 }
             }
         }
+    }
+
+    fn complete_dates(&mut self) -> Result<(), String> {
+        if self.bars.is_empty() {
+            return Ok(());
+        }
+
+        let mut dates: Vec<(Date, Bar)> = Vec::with_capacity(self.bars.len());
+        let mut current_unit_opt: Option<Unit> = None;
+
+        for bar in self.bars.drain(0..) {
+            if let Some((unit, date)) = dates::parse_partial_date(&bar.label) {
+                match current_unit_opt {
+                    None => {
+                        current_unit_opt = Some(unit);
+                    }
+                    Some(current_unit) if unit != current_unit => {
+                        return Err("date formats are not homogeneous!".to_string());
+                    }
+                    _ => (),
+                };
+
+                dates.push((date, bar));
+            } else {
+                return Err(format!("could not parse date \"{}\"!", &bar.label));
+            }
+        }
+
+        let unit = current_unit_opt.unwrap();
+
+        dates.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut previous_date_opt: Option<Date> = None;
+
+        for (date, bar) in dates {
+            match previous_date_opt {
+                None => {
+                    previous_date_opt = Some(date);
+                }
+                Some(mut previous_date) => {
+                    loop {
+                        let expected_date = dates::next_partial_date(unit, &previous_date);
+
+                        if expected_date == date {
+                            break;
+                        }
+
+                        self.bars.push(Bar {
+                            label: dates::format_partial_date(unit, &expected_date),
+                            value: 0.0,
+                            category: None,
+                        });
+
+                        previous_date = expected_date;
+                    }
+
+                    previous_date_opt = Some(date);
+                }
+            }
+
+            self.bars.push(bar);
+        }
+
+        Ok(())
     }
 }
 

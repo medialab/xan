@@ -312,7 +312,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut env_var_argv = vec!["xan", "view"];
     let env_var_split =
-        shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or(vec![]);
+        shlex::split(&env::var("XAN_VIEW_ARGS").unwrap_or("".to_string())).unwrap_or_default();
 
     for env_arg in env_var_split.iter() {
         env_var_argv.push(env_arg);
