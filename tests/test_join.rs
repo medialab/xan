@@ -277,6 +277,44 @@ fn join_regex() {
 }
 
 #[test]
+fn join_regex_multiselect() {
+    let wrk = Workdir::new("join_regex_multiselect");
+    wrk.create(
+        "people.csv",
+        vec![
+            svec!["pattern", "name"],
+            svec!["john", "John"],
+            svec!["lisa", "Lisa"],
+        ],
+    );
+    wrk.create(
+        "colors.csv",
+        vec![
+            svec!["person", "color", "surname"],
+            svec!["jack laurel", "brown", "bear"],
+            svec!["john cannon", "blue", "gladys"],
+            svec!["lisa eckart", "purple", "john"],
+            svec!["lil john", "red", "bear"],
+            svec!["mina harker", "yellow", "lisa"],
+        ],
+    );
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("--regex")
+        .args(["person,surname", "colors.csv", "pattern", "people.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["person", "color", "surname", "pattern", "name"],
+        svec!["john cannon", "blue", "gladys", "john", "John"],
+        svec!["lisa eckart", "purple", "john", "john", "John"],
+        svec!["lisa eckart", "purple", "john", "lisa", "Lisa"],
+        svec!["lil john", "red", "bear", "john", "John"],
+        svec!["mina harker", "yellow", "lisa", "lisa", "Lisa"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn join_regex_parallel() {
     let wrk = Workdir::new("join_regex_parallel");
     wrk.create(

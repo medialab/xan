@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::hash_map::{Entry, HashMap};
 use std::fmt;
 use std::io;
@@ -14,6 +15,49 @@ use crate::index::Indexed;
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
+
+fn union_of_sorted_lists(a: &[usize], b: &[usize]) -> Vec<usize> {
+    let n = a.len();
+    let m = b.len();
+
+    let mut r: Vec<usize> = Vec::with_capacity(n.max(m));
+
+    let mut i: usize = 0;
+    let mut j: usize = 0;
+
+    while i < n && j < m {
+        let a_item = a[i];
+        let b_item = b[j];
+
+        match a_item.cmp(&b_item) {
+            Ordering::Less => {
+                r.push(a_item);
+                i += 1;
+            }
+            Ordering::Greater => {
+                r.push(b_item);
+                j += 1;
+            }
+            Ordering::Equal => {
+                r.push(a_item);
+                i += 1;
+                j += 1;
+            }
+        };
+    }
+
+    while i < n {
+        r.push(a[i]);
+        i += 1;
+    }
+
+    while j < m {
+        r.push(b[j]);
+        j += 1;
+    }
+
+    r
+}
 
 static USAGE: &str = "
 Joins two sets of CSV data on the specified columns.
@@ -40,7 +84,7 @@ that is on the other side of --left/--right.
 Finally, the command can also perform a 'regex' join, matching efficiently a CSV file containing
 a column of regex patterns with another file. But if you only need to filter out a file
 based on a set of regex patterns and don't need the auxilliary columns to be concatenated
-to the joined result, please be sure to check out the search command --input flag before.
+to the joined result, please be sure to check out the search command --patterns flag before.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
@@ -240,12 +284,6 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
     }
 
     fn regex_join(mut self, inner: bool, parallelization: Option<Option<usize>>) -> CliResult<()> {
-        if self.sel1.len() > 1 {
-            return Err(crate::CliError::Other(
-                "Cannot select multiple columns for first CSV file when using the --regex flag."
-                    .to_string(),
-            ));
-        }
         if self.sel2.len() > 1 {
             return Err(crate::CliError::Other("Cannot select multiple columns for second CSV file containing regex patterns when using the --regex flag.".to_string()));
         }
@@ -291,17 +329,25 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
 
                         let mut rows_to_emit: Vec<csv::ByteRecord> = Vec::new();
 
-                        let mut any_match = false;
+                        let mut total_matches: Vec<usize> = Vec::new();
 
-                        for m in regex_set.matches(sel1.select(&row).next().unwrap()) {
-                            any_match = true;
+                        for cell in sel1.select(&row) {
+                            let matches = regex_set.matches(cell).into_iter().collect::<Vec<_>>();
 
+                            if total_matches.is_empty() {
+                                total_matches = matches;
+                            } else {
+                                total_matches = union_of_sorted_lists(&total_matches, &matches);
+                            }
+                        }
+
+                        for i in total_matches.iter() {
                             let mut row_to_write = row.clone();
-                            row_to_write.extend(&regex_rows[m]);
+                            row_to_write.extend(&regex_rows[*i]);
                             rows_to_emit.push(row_to_write);
                         }
 
-                        if !inner && !any_match {
+                        if !inner && total_matches.is_empty() {
                             row.extend(&pad_right);
                             rows_to_emit.push(row);
                         }
@@ -324,17 +370,25 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
             let mut row = csv::ByteRecord::new();
 
             while self.rdr1.read_byte_record(&mut row)? {
-                let mut any_match = false;
+                let mut total_matches: Vec<usize> = Vec::new();
 
-                for m in regex_set.matches(self.sel1.select(&row).next().unwrap()) {
-                    any_match = true;
+                for cell in self.sel1.select(&row) {
+                    let matches = regex_set.matches(cell).into_iter().collect::<Vec<_>>();
 
+                    if total_matches.is_empty() {
+                        total_matches = matches;
+                    } else {
+                        total_matches = union_of_sorted_lists(&total_matches, &matches);
+                    }
+                }
+
+                for i in total_matches.iter() {
                     let mut row_to_write = row.clone();
-                    row_to_write.extend(&regex_rows[m]);
+                    row_to_write.extend(&regex_rows[*i]);
                     self.wtr.write_byte_record(&row_to_write)?;
                 }
 
-                if !inner && !any_match {
+                if !inner && total_matches.is_empty() {
                     row.extend(&pad_right);
                     self.wtr.write_byte_record(&row)?;
                 }
@@ -491,7 +545,7 @@ impl Args {
         let headers2 = rdr2.byte_headers()?;
         let select1 = rconf1.selection(headers1)?;
         let select2 = rconf2.selection(headers2)?;
-        if select1.len() != select2.len() {
+        if !self.flag_regex && !self.flag_regex_left && select1.len() != select2.len() {
             Err(format!(
                 "Column selections must have the same number of columns, \
                  but found column selections with {} and {} columns.",
@@ -603,5 +657,18 @@ fn transform(bs: &[u8], case_insensitive: bool) -> ByteString {
         bs.to_vec()
     } else {
         bs.to_lowercase()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_union_of_sorted_lists() {
+        assert_eq!(
+            union_of_sorted_lists(&[1, 2, 3], &[2, 5, 7]),
+            vec![1, 2, 3, 5, 7]
+        );
     }
 }
