@@ -10,15 +10,19 @@ It can easily preview, filter, slice, aggregate, sort, join CSV files, and expos
 
 Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences (you might think CSV is outdated by now, but read our [love letter](./docs/LOVE_LETTER.md) to the format before judging too quickly).
 
-Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations.
+Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations:
 
-|||
-|---|---|
+|*view command*|*flatten command*|
+|:---:|:---:|
 |![view](./docs/img/grid/view.png)|![flatten](./docs/img/grid/flatten.png)|
+|*categorical histogram*|*plotting a correlation*|
 |![categ-hist](./docs/img/grid/categ-hist.png)|![correlation](./docs/img/grid/correlation.png)|
+|*scatterplot*|*histograms*|
 |![scatter](./docs/img/grid/scatter.png)|![hist](./docs/img/grid/hist.png)|
+|*parallel processing*|*time series*|
 |![parallel](./docs/img/grid/parallel.png)|![series](./docs/img/grid/series.png)|
-|![small-multiples](./docs/img/grid/small-multiples.png)||
+|*small multiples*|*grouped view*|
+|![small-multiples](./docs/img/grid/small-multiples.png)|![view-grid](./docs/img/grid/view-grid.png)|
 
 ## Summary
 
