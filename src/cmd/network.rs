@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::mem::swap;
 use std::ops::Not;
 use std::rc::Rc;
 
@@ -103,11 +104,15 @@ impl Args {
         let mut edges: HashMap<(Rc<String>, Rc<String>), Edge> = HashMap::new();
 
         while edge_reader.read_byte_record(&mut record)? {
-            let source = Rc::new(String::from_utf8(record[source_column_index].to_vec()).unwrap());
-            let target = Rc::new(String::from_utf8(record[target_column_index].to_vec()).unwrap());
+            let mut source =
+                Rc::new(String::from_utf8(record[source_column_index].to_vec()).unwrap());
+            let mut target =
+                Rc::new(String::from_utf8(record[target_column_index].to_vec()).unwrap());
 
             if source == target {
                 graph_options.allow_self_loops = true;
+            } else if self.flag_undirected && source > target {
+                swap(&mut source, &mut target);
             }
 
             nodes.entry(source.clone()).or_insert_with(|| Node {
