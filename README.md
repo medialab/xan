@@ -12,37 +12,11 @@ Note that this tool is originally a fork of [BurntSushi](https://github.com/Burn
 
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations.
 
-*Displaying a CSV file in the terminal using `xan view`*
-
-![view.png](./docs/img/view.png)
-
-*Showing a flattened view of CSV records using `xan flatten`*
-
-![flatten.png](./docs/img/flatten.png)
-
-*Drawing a histogram of values using `xan hist`*
-
-<p align="center">
-  <img alt="hist.png" src="./docs/img/hist.png" height="100">
-</p>
-
-*Drawing a scatterplot using `xan plot`*
-
-<p align="center">
-  <img alt="scatter.png" src="./docs/img/scatter.png" height="400">
-</p>
-
-*Drawing a time series using `xan plot`*
-
-<p align="center">
-  <img alt="line.png" src="./docs/img/line.png" height="300">
-</p>
-
-*Displaying a progress bar using `xan progress`*
-
-<p align="center">
-  <img alt="progress.gif" src="./docs/img/progress.gif" width="90%">
-</p>
+||||
+|---|---|---|
+|![view](./docs/img/grid/view.png)|![flatten](./docs/img/grid/flatten.png)|![categ-hist](./docs/img/grid/categ-hist.png)|
+|![correlation](./docs/img/grid/correlation.png)|![scatter](./docs/img/grid/scatter.png)|![hist](./docs/img/grid/hist.png)|
+|![parallel](./docs/img/grid/parallel.png)|![series](./docs/img/grid/series.png)|![small-multiples](./docs/img/grid/small-multiples.png)|
 
 ## Summary
 
