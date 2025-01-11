@@ -1,7 +1,5 @@
 use std::cmp;
 
-use csv;
-
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;

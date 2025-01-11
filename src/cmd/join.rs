@@ -7,7 +7,6 @@ use std::str;
 
 use bstr::ByteSlice;
 use byteorder::{BigEndian, WriteBytesExt};
-use csv;
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter, SeekRead};

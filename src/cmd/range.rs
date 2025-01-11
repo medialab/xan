@@ -1,5 +1,3 @@
-use csv;
-
 use crate::config::Config;
 use crate::util;
 use crate::CliResult;

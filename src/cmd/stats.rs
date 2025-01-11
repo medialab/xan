@@ -2,7 +2,6 @@ use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-use csv;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::Stats;

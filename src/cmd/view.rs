@@ -4,7 +4,6 @@ use std::num::NonZeroUsize;
 use std::str::FromStr;
 
 use colored::{self, Colorize};
-use csv;
 use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 

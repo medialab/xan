@@ -1,5 +1,3 @@
-use csv;
-
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;

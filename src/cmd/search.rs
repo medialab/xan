@@ -3,7 +3,6 @@ use std::num::NonZeroUsize;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
-use csv;
 use regex::bytes::{RegexBuilder, RegexSetBuilder};
 
 use crate::config::{Config, Delimiter};

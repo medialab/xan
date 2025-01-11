@@ -3,7 +3,6 @@ use std::io;
 use std::path::Path;
 
 use crossbeam_channel as channel;
-use csv;
 use threadpool::ThreadPool;
 
 use crate::config::{Config, Delimiter};

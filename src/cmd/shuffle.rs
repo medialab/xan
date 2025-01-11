@@ -1,4 +1,3 @@
-use csv;
 use rand::seq::SliceRandom;
 use std::io::SeekFrom;
 

@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bytesize::MB;
-use csv;
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
 use crate::config::{Config, Delimiter};

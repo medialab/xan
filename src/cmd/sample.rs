@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
 
-use csv;
 use rand::seq::SliceRandom;
 use rand::Rng;
 

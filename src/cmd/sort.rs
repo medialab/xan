@@ -2,7 +2,6 @@ use std::cmp;
 use std::path::Path;
 
 use bytesize::MB;
-use csv;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
 

@@ -4,7 +4,6 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use csv;
 use regex::Regex;
 
 use crate::config::{Config, Delimiter};

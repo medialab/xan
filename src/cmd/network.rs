@@ -1,9 +1,19 @@
-// use csv;
+// use std::rc::Rc;
 
 // use crate::config::Delimiter;
 // use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
+
+// struct Node {
+//     key: Rc<String>,
+// }
+
+// struct Edge {
+//     source: Rc<String>,
+//     target: Rc<String>,
+//     undirected: bool,
+// }
 
 static USAGE: &str = "
 TODO...
@@ -11,8 +21,6 @@ TODO...
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network --help
-
-network edgelist options:
 
 Common options:
     -h, --help             Display this message
@@ -35,6 +43,10 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    // let rconf = Config::new(&args.arg_input)
+    //     .delimiter(args.flag_delimiter)
+    //     .no_headers(args.flag_no_headers);
 
     dbg!(&args);
 

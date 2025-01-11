@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use csv;
 use rayon::prelude::*;
 use thread_local::ThreadLocal;
 

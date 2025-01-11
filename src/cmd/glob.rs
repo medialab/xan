@@ -1,4 +1,3 @@
-use csv;
 use glob::glob;
 
 use crate::config::Config;

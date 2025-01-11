@@ -1,7 +1,6 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 // NOTE: keep this library in check: https://github.com/sweet-security/candystore
-use csv;
 use dlv_list::{Index, VecList};
 use transient_btree_index::{BtreeConfig, BtreeIndex};
 

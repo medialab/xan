@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 
-use colored;
 use colored::Colorize;
-use csv;
 use indexmap::{map::Entry, IndexMap};
 use jiff::{civil::Date, Unit};
 use unicode_width::UnicodeWidthStr;

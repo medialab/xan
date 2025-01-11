@@ -6,7 +6,6 @@ use std::{
 };
 
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
-use csv;
 use serde::de::{Deserialize, Deserializer, Error};
 use serde_json::{Map, Value};
 
