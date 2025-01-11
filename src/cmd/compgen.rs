@@ -62,6 +62,7 @@ static COMMANDS: [&str; 55] = [
     "vocab",
 ];
 
+static NETWORK_SUBCOMMANDS: [&str; 1] = ["edgelist"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
@@ -121,6 +122,12 @@ pub fn run() {
                 if command.starts_with(to_complete) {
                     println!("{}", command);
                 }
+            }
+        }
+    } else if word_before == "network" && !to_complete.starts_with('-') {
+        for subcommand in NETWORK_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
             }
         }
     } else if word_before == "vocab" && !to_complete.starts_with('-') {
