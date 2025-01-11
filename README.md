@@ -12,11 +12,13 @@ Note that this tool is originally a fork of [BurntSushi](https://github.com/Burn
 
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations.
 
-||||
-|---|---|---|
-|![view](./docs/img/grid/view.png)|![flatten](./docs/img/grid/flatten.png)|![categ-hist](./docs/img/grid/categ-hist.png)|
-|![correlation](./docs/img/grid/correlation.png)|![scatter](./docs/img/grid/scatter.png)|![hist](./docs/img/grid/hist.png)|
-|![parallel](./docs/img/grid/parallel.png)|![series](./docs/img/grid/series.png)|![small-multiples](./docs/img/grid/small-multiples.png)|
+|||
+|---|---|
+|![view](./docs/img/grid/view.png)|![flatten](./docs/img/grid/flatten.png)|
+|![categ-hist](./docs/img/grid/categ-hist.png)|![correlation](./docs/img/grid/correlation.png)|
+|![scatter](./docs/img/grid/scatter.png)|![hist](./docs/img/grid/hist.png)|
+|![parallel](./docs/img/grid/parallel.png)|![series](./docs/img/grid/series.png)|
+|![small-multiples](./docs/img/grid/small-multiples.png)||
 
 ## Summary
 
