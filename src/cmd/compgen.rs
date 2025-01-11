@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 53] = [
+static COMMANDS: [&str; 55] = [
     "agg",
     "behead",
     "bins",
@@ -17,6 +17,7 @@ static COMMANDS: [&str; 53] = [
     "eval",
     "explode",
     "foreach",
+    "fill",
     "filter",
     "fixlengths",
     "flatmap",
@@ -36,6 +37,7 @@ static COMMANDS: [&str; 53] = [
     "join",
     "map",
     "merge",
+    "network",
     "parallel",
     "partition",
     "plot",

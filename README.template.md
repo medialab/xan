@@ -535,6 +535,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 *Graph algorithms*
 
+- [**network**](./docs/cmd/network.md): Convert CSV data to network data
 - [**union-find**](./docs/cmd/union-find.md): Apply the union-find algorithm on a CSV edge list
 
 ## General flags and IO model

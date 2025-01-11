@@ -89,7 +89,8 @@ macro_rules! command_list {
     vocab       Build a vocabulary over tokenized documents
     cluster     Cluster CSV data to find near-duplicates
 
-## Graph algorithms
+## Network-related commands
+    network     Convert CSV data to network data
     union-find  Apply the union-find algorithm on a CSV edge list
 "
     };
@@ -216,6 +217,7 @@ enum Command {
     Join,
     Map,
     Merge,
+    Network,
     P,
     Parallel,
     Partition,
@@ -295,6 +297,7 @@ impl Command {
             Command::Index => cmd::index::run(argv),
             Command::Input => cmd::input::run(argv),
             Command::Join => cmd::join::run(argv),
+            Command::Network => cmd::network::run(argv),
             Command::Map => cmd::map::run(argv),
             Command::Merge => cmd::merge::run(argv),
             Command::Parallel | Command::P => cmd::parallel::run(argv),

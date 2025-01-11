@@ -91,6 +91,7 @@ Commands:
     vocab       Build a vocabulary over tokenized documents
     cluster     Cluster CSV data to find near-duplicates
 
-## Graph algorithms
+## Network-related commands
+    network     Convert CSV data to network data
     union-find  Apply the union-find algorithm on a CSV edge list
 ```
