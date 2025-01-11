@@ -117,14 +117,15 @@ impl Args {
                 key: target.clone(),
             });
 
-            // TODO: deal with multigraphs
             let edge = Edge {
                 source: source.clone(),
                 target: target.clone(),
                 undirected: false,
             };
 
-            edges.insert((source, target), edge);
+            if edges.insert((source, target), edge).is_some() {
+                graph_options.multi = true;
+            }
         }
 
         let graph = Graph {
