@@ -115,12 +115,20 @@ impl Args {
                 swap(&mut source, &mut target);
             }
 
-            nodes.entry(source.clone()).or_insert_with(|| Node {
-                key: source.clone(),
-            });
-            nodes.entry(target.clone()).or_insert_with(|| Node {
-                key: target.clone(),
-            });
+            let source = nodes
+                .entry(source.clone())
+                .or_insert_with(|| Node {
+                    key: source.clone(),
+                })
+                .key
+                .clone();
+            let target = nodes
+                .entry(target.clone())
+                .or_insert_with(|| Node {
+                    key: target.clone(),
+                })
+                .key
+                .clone();
 
             let edge = Edge {
                 source: source.clone(),
