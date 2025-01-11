@@ -38,13 +38,13 @@ $($XAN map --cheatsheet | tail -n +2)
 
 ## Functions & Operators
 
-\`\`\`txt
+\`\`\`md
 $($XAN map --functions | tail -n +2)
 \`\`\`
 
 ## Aggregation functions
 
-\`\`\`txt
+\`\`\`md
 $($XAN agg --aggs | tail -n +2)
 \`\`\`
 

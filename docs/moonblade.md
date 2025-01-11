@@ -82,7 +82,7 @@ be read/parsed once per row.
 
 ## Functions & Operators
 
-```txt
+```md
 # Available functions & operators
 
 (use --cheatsheet for a reminder of the expression language's basics)
@@ -526,7 +526,7 @@ use the operators in the previous section.
 
 ## Aggregation functions
 
-```txt
+```md
 # Available aggregation functions
 
 (use --cheatsheet for a reminder of how the scripting language works)
