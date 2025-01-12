@@ -8,18 +8,18 @@ struct UnionFindEntry {
 }
 
 #[derive(Debug)]
-struct UnionFind {
+pub struct UnionFind {
     entries: Vec<UnionFindEntry>,
 }
 
 impl UnionFind {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             entries: Vec::new(),
         }
     }
 
-    fn make_set(&mut self) -> usize {
+    pub fn make_set(&mut self) -> usize {
         let i = self.entries.len();
 
         self.entries.push(UnionFindEntry { parent: i, size: 1 });
@@ -27,7 +27,23 @@ impl UnionFind {
         i
     }
 
-    fn find(&mut self, mut x: usize) -> usize {
+    pub fn find(&self, x: usize) -> usize {
+        let mut root = x;
+
+        loop {
+            let parent = self.entries[root].parent;
+
+            if parent == root {
+                break;
+            }
+
+            root = parent;
+        }
+
+        root
+    }
+
+    fn find_mut(&mut self, mut x: usize) -> usize {
         let mut root = x;
 
         loop {
@@ -56,9 +72,9 @@ impl UnionFind {
         root
     }
 
-    fn union(&mut self, mut x: usize, mut y: usize) {
-        x = self.find(x);
-        y = self.find(y);
+    pub fn union(&mut self, mut x: usize, mut y: usize) {
+        x = self.find_mut(x);
+        y = self.find_mut(y);
 
         if x == y {
             return;
@@ -86,7 +102,7 @@ impl UnionFind {
         })
     }
 
-    fn largest(&self) -> Option<usize> {
+    pub fn largest(&self) -> Option<usize> {
         let mut max: Option<&UnionFindEntry> = None;
 
         for entry in self.leaders() {
@@ -147,10 +163,8 @@ impl<K: Hash + Eq> UnionFindMap<K> {
     }
 
     pub fn nodes(self) -> impl Iterator<Item = (K, usize)> {
-        let mut inner = self.inner;
-
         self.map.into_iter().map(move |(node, i)| {
-            let label = inner.find(i);
+            let label = self.inner.find(i);
 
             (node, label)
         })
@@ -158,10 +172,9 @@ impl<K: Hash + Eq> UnionFindMap<K> {
 
     pub fn largest_component(self) -> impl Iterator<Item = K> {
         let largest = self.inner.largest().unwrap();
-        let mut inner = self.inner;
 
         self.map.into_iter().flat_map(move |(node, i)| {
-            if inner.find(i) == largest {
+            if self.inner.find(i) == largest {
                 Some(node)
             } else {
                 None

@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use indexmap::{map::Entry, IndexMap};
 
+use crate::collections::UnionFind;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -48,6 +49,7 @@ struct Graph {
 #[derive(Default)]
 struct GraphBuilder {
     options: GraphOptions,
+    disjoint_sets: Option<UnionFind>,
     nodes: IndexMap<Rc<String>, Node>,
     edges: HashMap<(usize, usize), Edge>,
 }
@@ -55,6 +57,10 @@ struct GraphBuilder {
 impl GraphBuilder {
     fn mark_as_undirected(&mut self) {
         self.options.graph_type = GraphType::Undirected;
+    }
+
+    fn keep_largest_component(&mut self) {
+        self.disjoint_sets = Some(UnionFind::new());
     }
 
     fn add_node(&mut self, key: String) -> usize {
@@ -65,6 +71,11 @@ impl GraphBuilder {
             Entry::Occupied(entry) => entry.index(),
             Entry::Vacant(entry) => {
                 entry.insert(Node { key: rc_key });
+
+                if let Some(sets) = self.disjoint_sets.as_mut() {
+                    sets.make_set();
+                }
+
                 next_id
             }
         }
@@ -92,13 +103,50 @@ impl GraphBuilder {
         if self.edges.insert((source, target), edge).is_some() {
             self.options.multi = true;
         }
+
+        if let Some(sets) = self.disjoint_sets.as_mut() {
+            sets.union(source, target);
+        }
     }
 
     fn build(self) -> Graph {
+        let (nodes, edges) = if let Some(sets) = self.disjoint_sets {
+            let largest_component = sets.largest();
+
+            (
+                self.nodes
+                    .into_values()
+                    .enumerate()
+                    .filter_map(|(i, node)| {
+                        if matches!(largest_component, Some(c) if c != sets.find(i)) {
+                            None
+                        } else {
+                            Some(node)
+                        }
+                    })
+                    .collect(),
+                self.edges
+                    .into_iter()
+                    .filter_map(|((source_id, _), edge)| {
+                        if matches!(largest_component, Some(c) if c != sets.find(source_id)) {
+                            None
+                        } else {
+                            Some(edge)
+                        }
+                    })
+                    .collect(),
+            )
+        } else {
+            (
+                self.nodes.into_values().collect(),
+                self.edges.into_values().collect(),
+            )
+        };
+
         Graph {
             options: self.options,
-            nodes: self.nodes.into_values().collect(),
-            edges: self.edges.into_values().collect(),
+            nodes,
+            edges,
         }
     }
 }
@@ -109,6 +157,10 @@ TODO...
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network --help
+
+xan network options:
+    -L, --largest-component  Only keep the largest connected component
+                             in the resulting graph.
 
 xan network edgelist options:
     -U, --undirected  Whether the graph is undirected.
@@ -127,6 +179,7 @@ struct Args {
     arg_input: Option<String>,
     arg_source: Option<SelectColumns>,
     arg_target: Option<SelectColumns>,
+    flag_largest_component: bool,
     flag_undirected: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -156,6 +209,10 @@ impl Args {
 
         if self.flag_undirected {
             graph_builder.mark_as_undirected();
+        }
+
+        if self.flag_largest_component {
+            graph_builder.keep_largest_component();
         }
 
         while edge_reader.read_byte_record(&mut record)? {
