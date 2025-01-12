@@ -62,7 +62,7 @@ impl Args {
     ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
 
-        let mut inferrence_buffer = JSONTypeInferrenceBuffer::new(
+        let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
             self.flag_buffer_size.get(),
             self.json_empty_mode(),
@@ -96,7 +96,7 @@ impl Args {
         mut writer: W,
     ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
-        let mut inferrence_buffer = JSONTypeInferrenceBuffer::new(
+        let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
             self.flag_buffer_size.get(),
             self.json_empty_mode(),

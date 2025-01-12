@@ -1,14 +1,83 @@
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap, HashMap};
 use std::ops::Not;
 use std::rc::Rc;
 
-use indexmap::{map::Entry, IndexMap};
+use indexmap::{map::Entry as IndexMapEntry, IndexMap};
+use serde::ser::{Serialize, SerializeMap, Serializer};
+use serde_json::Value;
 
 use crate::collections::UnionFind;
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer};
+use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
+
+#[derive(Default)]
+struct AttributeNameInterner {
+    strings: Vec<Rc<String>>,
+    map: BTreeMap<Rc<String>, usize>,
+}
+
+impl AttributeNameInterner {
+    fn register(&mut self, name: String) -> usize {
+        use BTreeMapEntry::*;
+
+        let name = Rc::new(name);
+        let next_id = self.strings.len();
+
+        match self.map.entry(name.clone()) {
+            Occupied(entry) => *entry.get(),
+            Vacant(entry) => {
+                self.strings.push(name.clone());
+                entry.insert(next_id);
+                next_id
+            }
+        }
+    }
+
+    fn get(&self, id: usize) -> &str {
+        &self.strings[id]
+    }
+}
+
+thread_local! {
+    static INTERNER: RefCell<AttributeNameInterner> = RefCell::new(AttributeNameInterner::default());
+}
+
+#[derive(Debug)]
+struct Attributes {
+    entries: Vec<(usize, Value)>,
+}
+
+impl Attributes {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(capacity),
+        }
+    }
+
+    fn insert(&mut self, key: &str, value: Value) {
+        let attr_name_id = INTERNER.with_borrow_mut(|interner| interner.register(key.to_string()));
+        self.entries.push((attr_name_id, value));
+    }
+}
+
+impl Serialize for Attributes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.entries.len()))?;
+
+        for (k, v) in self.entries.iter() {
+            INTERNER.with_borrow(|interner| map.serialize_entry(interner.get(*k), v))?;
+        }
+
+        map.end()
+    }
+}
 
 #[derive(Serialize)]
 struct Node {
@@ -21,6 +90,7 @@ struct Edge {
     target: Rc<String>,
     #[serde(skip_serializing_if = "Not::not")]
     undirected: bool,
+    attributes: Attributes,
 }
 
 #[derive(Default, Serialize)]
@@ -64,12 +134,14 @@ impl GraphBuilder {
     }
 
     fn add_node(&mut self, key: String) -> usize {
+        use IndexMapEntry::*;
+
         let rc_key = Rc::new(key);
         let next_id = self.nodes.len();
 
         match self.nodes.entry(rc_key.clone()) {
-            Entry::Occupied(entry) => entry.index(),
-            Entry::Vacant(entry) => {
+            Occupied(entry) => entry.index(),
+            Vacant(entry) => {
                 entry.insert(Node { key: rc_key });
 
                 if let Some(sets) = self.disjoint_sets.as_mut() {
@@ -81,7 +153,7 @@ impl GraphBuilder {
         }
     }
 
-    fn add_edge(&mut self, source: usize, target: usize, undirected: bool) {
+    fn add_edge(&mut self, source: usize, target: usize, attributes: Attributes, undirected: bool) {
         let (source, target) = if source == target {
             self.options.allow_self_loops = true;
             (source, target)
@@ -98,6 +170,7 @@ impl GraphBuilder {
             source: source_node.key.clone(),
             target: target_node.key.clone(),
             undirected,
+            attributes,
         };
 
         if self.edges.insert((source, target), edge).is_some() {
@@ -204,7 +277,17 @@ impl Args {
             .unwrap()
             .single_selection(&edge_headers, !self.flag_no_headers)?;
 
-        let mut record = csv::ByteRecord::new();
+        let edge_attr_sel = Selection::without_indices(
+            edge_headers.len(),
+            &[source_column_index, target_column_index],
+        );
+
+        let mut edge_attr_inferrence =
+            JSONTypeInferrenceBuffer::new(edge_attr_sel.clone(), 512, JSONEmptyMode::Omit);
+
+        edge_attr_inferrence.read(&mut edge_reader)?;
+
+        let mut record = csv::StringRecord::new();
         let mut graph_builder = GraphBuilder::default();
 
         if self.flag_undirected {
@@ -215,14 +298,30 @@ impl Args {
             graph_builder.keep_largest_component();
         }
 
-        while edge_reader.read_byte_record(&mut record)? {
-            let source = String::from_utf8(record[source_column_index].to_vec()).unwrap();
-            let target = String::from_utf8(record[target_column_index].to_vec()).unwrap();
+        let edge_headers = edge_reader.headers()?.clone();
+
+        let mut process_edge_record = |record: &csv::StringRecord| {
+            let source = record[source_column_index].to_string();
+            let target = record[target_column_index].to_string();
 
             let source_id = graph_builder.add_node(source);
             let target_id = graph_builder.add_node(target);
 
-            graph_builder.add_edge(source_id, target_id, self.flag_undirected);
+            let mut attributes = Attributes::with_capacity(edge_attr_sel.len());
+
+            for (k, v) in edge_attr_inferrence.cast(&edge_headers, record).flatten() {
+                attributes.insert(k, v);
+            }
+
+            graph_builder.add_edge(source_id, target_id, attributes, self.flag_undirected);
+        };
+
+        for buffered_record in edge_attr_inferrence.records() {
+            process_edge_record(buffered_record);
+        }
+
+        while edge_reader.read_record(&mut record)? {
+            process_edge_record(&record);
         }
 
         Ok(graph_builder)

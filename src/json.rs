@@ -5,6 +5,8 @@ use std::num::NonZeroUsize;
 use csv::StringRecord;
 use serde_json::{json, Map, Value};
 
+use crate::select::Selection;
+
 // NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys efficiently
 #[derive(Debug, Clone)]
 enum JSONTraversalState {
@@ -333,19 +335,26 @@ impl JSONTypeInferrence {
     }
 }
 
+#[derive(Debug)]
 pub struct JSONTypeInferrenceBuffer {
     inferrence: JSONTypeInferrence,
     buffer: Vec<StringRecord>,
     capacity: usize,
+    selection: Selection,
 }
 
 impl JSONTypeInferrenceBuffer {
-    pub fn new(columns: usize, buffer_size: usize, empty_mode: JSONEmptyMode) -> Self {
+    pub fn new(selection: Selection, buffer_size: usize, empty_mode: JSONEmptyMode) -> Self {
         Self {
-            inferrence: JSONTypeInferrence::new(columns, empty_mode),
+            inferrence: JSONTypeInferrence::new(selection.len(), empty_mode),
             buffer: Vec::with_capacity(buffer_size),
             capacity: buffer_size,
+            selection,
         }
+    }
+
+    pub fn with_columns(columns: usize, buffer_size: usize, empty_mode: JSONEmptyMode) -> Self {
+        Self::new(Selection::full(columns), buffer_size, empty_mode)
     }
 
     pub fn read<R: Read>(&mut self, reader: &mut csv::Reader<R>) -> Result<(), csv::Error> {
@@ -357,8 +366,28 @@ impl JSONTypeInferrenceBuffer {
     }
 
     pub fn process(&mut self, record: StringRecord) {
-        self.inferrence.process(record.iter());
+        self.inferrence
+            .process(self.selection.select_string_record(&record));
         self.buffer.push(record);
+    }
+
+    pub fn cast<'a, 'b>(
+        &'a self,
+        headers: &'b StringRecord,
+        record: &'b StringRecord,
+    ) -> impl Iterator<Item = Option<(&'a str, Value)>> + 'a
+    where
+        'b: 'a,
+    {
+        self.selection
+            .select_string_record(headers)
+            .zip(self.selection.select_string_record(record))
+            .enumerate()
+            .map(|(i, (header, value))| {
+                self.inferrence
+                    .cast(value, self.inferrence.json_types[i])
+                    .map(|json_value| (header, json_value))
+            })
     }
 
     pub fn mutate_json_map(
@@ -371,7 +400,11 @@ impl JSONTypeInferrenceBuffer {
             map.clear();
         }
 
-        for (i, (header, value)) in headers.iter().zip(record.iter()).enumerate() {
+        for (i, (header, value)) in headers
+            .iter()
+            .zip(self.selection.select_string_record(record))
+            .enumerate()
+        {
             if let Some(json_value) = self.inferrence.cast(value, self.inferrence.json_types[i]) {
                 map.insert(header.to_string(), json_value);
             }

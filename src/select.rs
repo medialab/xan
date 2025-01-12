@@ -432,6 +432,14 @@ impl Selection {
         Self((0..len).collect())
     }
 
+    pub fn without_indices(len: usize, indices: &[usize]) -> Self {
+        let mut sel = Self::full(len);
+
+        sel.0.retain(|i| !indices.contains(i));
+
+        sel
+    }
+
     pub fn offset_by(&mut self, by: usize) {
         for i in self.0.iter_mut() {
             *i += by;
