@@ -24,4 +24,4 @@ pub use numbers::{MedianType, Numbers};
 pub use sum::Sum;
 pub use types::Types;
 pub use values::Values;
-pub use welford::Welford;
+pub use welford::{CovarianceWelford, Welford};
