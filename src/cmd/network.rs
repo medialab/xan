@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::mem::swap;
 use std::ops::Not;
 use std::rc::Rc;
+
+use indexmap::{map::Entry, IndexMap};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -44,6 +45,64 @@ struct Graph {
     edges: Vec<Edge>,
 }
 
+#[derive(Default)]
+struct GraphBuilder {
+    options: GraphOptions,
+    nodes: IndexMap<Rc<String>, Node>,
+    edges: HashMap<(usize, usize), Edge>,
+}
+
+impl GraphBuilder {
+    fn mark_as_undirected(&mut self) {
+        self.options.graph_type = GraphType::Undirected;
+    }
+
+    fn add_node(&mut self, key: String) -> usize {
+        let rc_key = Rc::new(key);
+        let next_id = self.nodes.len();
+
+        match self.nodes.entry(rc_key.clone()) {
+            Entry::Occupied(entry) => entry.index(),
+            Entry::Vacant(entry) => {
+                entry.insert(Node { key: rc_key });
+                next_id
+            }
+        }
+    }
+
+    fn add_edge(&mut self, source: usize, target: usize, undirected: bool) {
+        let (source, target) = if source == target {
+            self.options.allow_self_loops = true;
+            (source, target)
+        } else if undirected && source > target {
+            (target, source)
+        } else {
+            (source, target)
+        };
+
+        let source_node = self.nodes.get_index(source).unwrap().1;
+        let target_node = self.nodes.get_index(target).unwrap().1;
+
+        let edge = Edge {
+            source: source_node.key.clone(),
+            target: target_node.key.clone(),
+            undirected,
+        };
+
+        if self.edges.insert((source, target), edge).is_some() {
+            self.options.multi = true;
+        }
+    }
+
+    fn build(self) -> Graph {
+        Graph {
+            options: self.options,
+            nodes: self.nodes.into_values().collect(),
+            edges: self.edges.into_values().collect(),
+        }
+    }
+}
+
 static USAGE: &str = "
 TODO...
 
@@ -59,7 +118,7 @@ Common options:
     -o, --output <file>    Write output to <file> instead of stdout.
     -n, --no-headers       When set, the file will be considered as having no
                            headers.
-    -d, --delimiter <arg>  The field delimiter for reading CSV data.
+    -d, --delimiter <arg>  The field delimiter foDirectedr reading CSV data.
                            Must be a single character.
 ";
 
@@ -75,7 +134,7 @@ struct Args {
 }
 
 impl Args {
-    fn edgelist(self) -> CliResult<Graph> {
+    fn edgelist(self) -> CliResult<GraphBuilder> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
@@ -93,61 +152,23 @@ impl Args {
             .single_selection(&edge_headers, !self.flag_no_headers)?;
 
         let mut record = csv::ByteRecord::new();
-
-        let mut graph_options = GraphOptions::default();
+        let mut graph_builder = GraphBuilder::default();
 
         if self.flag_undirected {
-            graph_options.graph_type = GraphType::Undirected;
+            graph_builder.mark_as_undirected();
         }
-
-        let mut nodes: HashMap<Rc<String>, Node> = HashMap::new();
-        let mut edges: HashMap<(Rc<String>, Rc<String>), Edge> = HashMap::new();
 
         while edge_reader.read_byte_record(&mut record)? {
-            let mut source =
-                Rc::new(String::from_utf8(record[source_column_index].to_vec()).unwrap());
-            let mut target =
-                Rc::new(String::from_utf8(record[target_column_index].to_vec()).unwrap());
+            let source = String::from_utf8(record[source_column_index].to_vec()).unwrap();
+            let target = String::from_utf8(record[target_column_index].to_vec()).unwrap();
 
-            if source == target {
-                graph_options.allow_self_loops = true;
-            } else if self.flag_undirected && source > target {
-                swap(&mut source, &mut target);
-            }
+            let source_id = graph_builder.add_node(source);
+            let target_id = graph_builder.add_node(target);
 
-            let source = nodes
-                .entry(source.clone())
-                .or_insert_with(|| Node {
-                    key: source.clone(),
-                })
-                .key
-                .clone();
-            let target = nodes
-                .entry(target.clone())
-                .or_insert_with(|| Node {
-                    key: target.clone(),
-                })
-                .key
-                .clone();
-
-            let edge = Edge {
-                source: source.clone(),
-                target: target.clone(),
-                undirected: false,
-            };
-
-            if edges.insert((source, target), edge).is_some() {
-                graph_options.multi = true;
-            }
+            graph_builder.add_edge(source_id, target_id, self.flag_undirected);
         }
 
-        let graph = Graph {
-            options: graph_options,
-            nodes: nodes.into_values().collect(),
-            edges: edges.into_values().collect(),
-        };
-
-        Ok(graph)
+        Ok(graph_builder)
     }
 }
 
@@ -155,9 +176,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let mut writer = Config::new(&args.flag_output).io_writer()?;
 
-    let graph = args.edgelist()?;
+    let graph_builder = args.edgelist()?;
 
-    serde_json::to_writer_pretty(&mut writer, &graph)?;
+    serde_json::to_writer_pretty(&mut writer, &graph_builder.build())?;
     writeln!(&mut writer)?;
 
     Ok(())
