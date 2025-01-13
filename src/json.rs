@@ -414,6 +414,10 @@ impl JSONTypeInferrenceBuffer {
     pub fn records(&self) -> impl Iterator<Item = &StringRecord> {
         self.buffer.iter()
     }
+
+    pub fn types(&self) -> impl Iterator<Item = JSONType> + '_ {
+        self.inferrence.json_types.iter().copied()
+    }
 }
 
 #[cfg(test)]

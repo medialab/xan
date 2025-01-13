@@ -81,6 +81,11 @@ impl Args {
 
         let edge_headers = edge_reader.headers()?.clone();
 
+        graph_builder.set_edge_model(
+            edge_attr_sel.select_string_record(&edge_headers),
+            edge_attr_inferrence.types(),
+        );
+
         let mut process_edge_record = |record: &csv::StringRecord| {
             let source = record[source_column_index].to_string();
             let target = record[target_column_index].to_string();

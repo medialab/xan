@@ -8,6 +8,7 @@ use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde_json::Value;
 
 use crate::collections::UnionFind;
+use crate::json::JSONType;
 
 #[derive(Default)]
 struct AttributeNameInterner {
@@ -115,6 +116,7 @@ pub struct Graph {
 pub struct GraphBuilder {
     options: GraphOptions,
     disjoint_sets: Option<UnionFind>,
+    edge_model: Vec<(String, JSONType)>,
     nodes: IndexMap<Rc<String>, Node>,
     edges: HashMap<(usize, usize), Edge>,
 }
@@ -126,6 +128,17 @@ impl GraphBuilder {
 
     pub fn keep_largest_component(&mut self) {
         self.disjoint_sets = Some(UnionFind::new());
+    }
+
+    pub fn set_edge_model<'a>(
+        &mut self,
+        headers: impl Iterator<Item = &'a str>,
+        model: impl Iterator<Item = JSONType>,
+    ) {
+        self.edge_model = headers
+            .zip(model)
+            .map(|(header, json_type)| (header.to_string(), json_type))
+            .collect();
     }
 
     pub fn add_node(&mut self, key: String) -> usize {
