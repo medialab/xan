@@ -2,13 +2,17 @@ use std::num::NonZeroUsize;
 
 use colored::Colorize;
 use colorgrad::Gradient;
+use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
-// TODO: degraded ratio version where the number is printed
+// Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
+fn text_should_be_black(color: &[u8; 4]) -> bool {
+    (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
+}
 
 #[derive(Debug)]
 struct Matrix {
@@ -81,6 +85,8 @@ heatmap options:
     -S, --scale <n>     Size of the heatmap square in terminal rows.
                         [default: 1]
     -D, --diverging     Use a diverging color gradient.
+    -N, --show-numbers  Whether to attempt to show numbers in the cells.
+                        Usually only useful when -S, --scale > 1.
     -C, --force-colors  Force colors even if output is not supposed to be able to
                         handle them.
 
@@ -99,6 +105,7 @@ struct Args {
     flag_max: Option<f64>,
     flag_scale: NonZeroUsize,
     flag_diverging: bool,
+    flag_show_numbers: bool,
     flag_force_colors: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -129,6 +136,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .skip(1)
         .map(String::from)
         .collect::<Vec<_>>();
+
+    let mut formatter = args
+        .flag_show_numbers
+        .then(|| Formatter::new().precision(Precision::Significance(args.flag_scale.get() as u8)));
 
     let mut matrix = Matrix::from_column_labels(column_labels);
 
@@ -195,6 +206,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     println!();
 
+    let midpoint = scale / 2;
+
     for (row_label, row) in matrix.rows() {
         for i in 0..scale {
             if i == 0 {
@@ -217,10 +230,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let normalized = (f - min) / domain_width;
 
                         let color = gradient.at(normalized as f32).to_rgba8();
+
                         print!(
                             "{}",
-                            "  ".repeat(scale)
-                                .on_truecolor(color[0], color[1], color[2])
+                            (match formatter.as_mut() {
+                                Some(fmt) if i == midpoint => {
+                                    let formatted = util::format_number_with_formatter(fmt, *f);
+
+                                    format!(
+                                        "{:^width$}",
+                                        if text_should_be_black(&color) {
+                                            formatted.black()
+                                        } else {
+                                            formatted.white()
+                                        },
+                                        width = scale * 2
+                                    )
+                                }
+                                _ => " ".repeat(scale * 2),
+                            })
+                            .on_truecolor(color[0], color[1], color[2])
                         );
                     }
                 }

@@ -16,6 +16,8 @@ heatmap options:
     -S, --scale <n>     Size of the heatmap square in terminal rows.
                         [default: 1]
     -D, --diverging     Use a diverging color gradient.
+    -N, --show-numbers  Whether to attempt to show numbers in the cells.
+                        Usually only useful when -S, --scale > 1.
     -C, --force-colors  Force colors even if output is not supposed to be able to
                         handle them.
 
