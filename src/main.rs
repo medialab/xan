@@ -19,6 +19,7 @@ mod json;
 mod moonblade;
 mod select;
 mod util;
+mod xml;
 
 macro_rules! command_list {
     () => {

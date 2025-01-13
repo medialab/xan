@@ -1,14 +1,53 @@
 use std::cell::RefCell;
 use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap, HashMap};
+use std::io::Write;
 use std::ops::Not;
 use std::rc::Rc;
 
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
+use jiff::Zoned;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde_json::Value;
 
 use crate::collections::UnionFind;
 use crate::json::JSONType;
+use crate::xml::XMLWriter;
+use crate::CliResult;
+
+impl JSONType {
+    fn as_gexf_type(&self) -> &str {
+        match self {
+            Self::Float => "double",
+            Self::Integer => "long",
+            Self::String => "string",
+            Self::Null => "string",
+        }
+    }
+}
+
+struct GexfNamespace {
+    version: &'static str,
+    xmlns: &'static str,
+    schema_location: &'static str,
+}
+
+impl GexfNamespace {
+    fn one_point_two() -> Self {
+        Self {
+            version: "1.2",
+            xmlns: "http://www.gexf.net/1.2draft",
+            schema_location: "http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd",
+        }
+    }
+
+    fn one_point_three() -> Self {
+        Self {
+            version: "1.3",
+            xmlns: "http://gexf.net/1.3",
+            schema_location: "http://gexf.net/1.3 http://gexf.net/1.3/gexf.xsd",
+        }
+    }
+}
 
 #[derive(Default)]
 struct AttributeNameInterner {
@@ -48,6 +87,10 @@ pub struct Attributes {
 }
 
 impl Attributes {
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             entries: Vec::with_capacity(capacity),
@@ -57,6 +100,10 @@ impl Attributes {
     pub fn insert(&mut self, key: &str, value: Value) {
         let attr_name_id = INTERNER.with_borrow_mut(|interner| interner.register(key.to_string()));
         self.entries.push((attr_name_id, value));
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &(usize, Value)> {
+        self.entries.iter()
     }
 }
 
@@ -95,6 +142,15 @@ enum GraphType {
     #[default]
     Directed,
     Undirected,
+}
+
+impl GraphType {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Directed => "directed",
+            Self::Undirected => "undirected",
+        }
+    }
 }
 
 #[derive(Default, Serialize)]
@@ -235,5 +291,111 @@ impl GraphBuilder {
             nodes,
             edges,
         }
+    }
+
+    pub fn write_json<W: Write>(self, mut writer: W) -> CliResult<()> {
+        serde_json::to_writer_pretty(&mut writer, &self.build())?;
+        writeln!(&mut writer)?;
+
+        Ok(())
+    }
+
+    pub fn write_gexf<W: Write>(self, writer: W, version: &str) -> CliResult<()> {
+        let mut xml_writer = XMLWriter::new(writer);
+
+        xml_writer.write_declaration()?;
+
+        let gexf_namespace = match version {
+            "1.3" => GexfNamespace::one_point_three(),
+            "1.2" => GexfNamespace::one_point_two(),
+            _ => panic!("unsupported gexf version"),
+        };
+
+        let today = Zoned::now().strftime("%F").to_string();
+        let edge_model = self.edge_model.clone();
+        let graph = self.build();
+
+        xml_writer.open(
+            "gexf",
+            [
+                ("xmlns", gexf_namespace.xmlns),
+                ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+                ("xsi:schemaLocation", gexf_namespace.schema_location),
+                ("version", gexf_namespace.version),
+            ],
+        )?;
+
+        // Meta
+        xml_writer.open("meta", [("lastmodifieddate", today.as_str())])?;
+
+        xml_writer.open_no_attributes("creator")?;
+        xml_writer.write_text("xan")?;
+        xml_writer.close("creator")?;
+
+        xml_writer.close("meta")?;
+
+        // Graph data
+        xml_writer.open(
+            "graph",
+            [("defaultedgetype", graph.options.graph_type.as_str())],
+        )?;
+
+        // Edge model
+        xml_writer.open("attributes", [("class", "edge")])?;
+        for (i, (name, json_type)) in edge_model.iter().enumerate() {
+            xml_writer.open_empty(
+                "attribute",
+                [
+                    ("id", i.to_string().as_str()),
+                    ("title", name.as_str()),
+                    ("type", json_type.as_gexf_type()),
+                ],
+            )?;
+        }
+        xml_writer.close("attributes")?;
+
+        // Node data
+        xml_writer.open_no_attributes("nodes")?;
+        for node in graph.nodes.iter() {
+            xml_writer.open_empty("node", [("id", node.key.as_str())])?;
+        }
+        xml_writer.close("nodes")?;
+
+        // Edge data
+        xml_writer.open_no_attributes("edges")?;
+        for edge in graph.edges.iter() {
+            let tag_attributes = [
+                ("source", edge.source.as_str()),
+                ("target", edge.target.as_str()),
+            ];
+
+            if edge.attributes.is_empty() {
+                xml_writer.open_empty("edge", tag_attributes)?;
+            } else {
+                xml_writer.open("edge", tag_attributes)?;
+                xml_writer.open_no_attributes("attvalues")?;
+
+                for (i, (_, value)) in edge.attributes.iter().enumerate() {
+                    xml_writer.open_empty(
+                        "attvalue",
+                        [
+                            ("for", i.to_string().as_str()),
+                            ("value", &value.to_string()),
+                        ],
+                    )?;
+                }
+
+                xml_writer.close("attvalues")?;
+                xml_writer.close("edge")?;
+            }
+        }
+        xml_writer.close("edges")?;
+
+        xml_writer.close("graph")?;
+
+        xml_writer.close("gexf")?;
+        xml_writer.writeln()?;
+
+        Ok(())
     }
 }

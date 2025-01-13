@@ -171,7 +171,7 @@ dependencies = [
  "codepage",
  "encoding_rs",
  "log",
- "quick-xml",
+ "quick-xml 0.31.0",
  "serde",
  "zip 0.6.6",
 ]
@@ -1401,6 +1401,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.37.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "165859e9e55f79d67b96c5d96f4e88b6f2695a1972849c15a6a3f5c59fc2c003"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2260,6 +2269,7 @@ dependencies = [
  "pariter",
  "pest",
  "pest_derive",
+ "quick-xml 0.37.2",
  "rand 0.8.5",
  "rand_chacha",
  "rand_seeder",

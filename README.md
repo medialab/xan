@@ -15,9 +15,9 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 |*view command*|*flatten command*|
 |:---:|:---:|
 |![view](./docs/img/grid/view.png)|![flatten](./docs/img/grid/flatten.png)|
-|__*categorical histogram*__|__*plotting a correlation*__|
+|__*categorical histogram*__|__*scatterplot*__|
 |![categ-hist](./docs/img/grid/categ-hist.png)|![correlation](./docs/img/grid/correlation.png)|
-|__*scatterplot*__|__*histograms*__|
+|__*categorical scatterplot*__|__*histograms*__|
 |![scatter](./docs/img/grid/scatter.png)|![hist](./docs/img/grid/hist.png)|
 |__*parallel processing*__|__*time series*__|
 |![parallel](./docs/img/grid/parallel.png)|![series](./docs/img/grid/series.png)|

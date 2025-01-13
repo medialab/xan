@@ -13,8 +13,13 @@ Usage:
     xan network --help
 
 xan network options:
-    -L, --largest-component  Only keep the largest connected component
-                             in the resulting graph.
+    --gexf                    Whether to output GEXF instead of graphology
+                              JSON data.
+    --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
+                              or \"1.3\".
+                              [default: 1.2]
+    -L, --largest-component   Only keep the largest connected component
+                              in the resulting graph.
 
 xan network edgelist options:
     -U, --undirected  Whether the graph is undirected.
@@ -33,6 +38,8 @@ struct Args {
     arg_input: Option<String>,
     arg_source: Option<SelectColumns>,
     arg_target: Option<SelectColumns>,
+    flag_gexf: bool,
+    flag_gexf_version: String,
     flag_largest_component: bool,
     flag_undirected: bool,
     flag_no_headers: bool,
@@ -41,7 +48,7 @@ struct Args {
 }
 
 impl Args {
-    fn edgelist(self) -> CliResult<GraphBuilder> {
+    fn edgelist(&self) -> CliResult<GraphBuilder> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
@@ -51,10 +58,12 @@ impl Args {
 
         let source_column_index = self
             .arg_source
+            .as_ref()
             .unwrap()
             .single_selection(&edge_headers, !self.flag_no_headers)?;
         let target_column_index = self
             .arg_target
+            .as_ref()
             .unwrap()
             .single_selection(&edge_headers, !self.flag_no_headers)?;
 
@@ -118,10 +127,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
     let mut writer = Config::new(&args.flag_output).io_writer()?;
 
+    if !["1.2", "1.3"].contains(&args.flag_gexf_version.as_str()) {
+        Err(format!(
+            "unsupported gexf version: {}",
+            args.flag_gexf_version
+        ))?;
+    }
+
     let graph_builder = args.edgelist()?;
 
-    serde_json::to_writer_pretty(&mut writer, &graph_builder.build())?;
-    writeln!(&mut writer)?;
+    if args.flag_gexf {
+        graph_builder.write_gexf(&mut writer, &args.flag_gexf_version)?;
+    } else {
+        graph_builder.write_json(&mut writer)?;
+    }
 
     Ok(())
 }
