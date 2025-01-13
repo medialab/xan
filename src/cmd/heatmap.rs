@@ -8,12 +8,11 @@ use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
-// TODO: column labels, degraded ratio version where the number is printed
-// TODO: optional cells
+// TODO: degraded ratio version where the number is printed
 
 #[derive(Debug)]
 struct Matrix {
-    array: Vec<f64>,
+    array: Vec<Option<f64>>,
     column_labels: Vec<String>,
     row_labels: Vec<String>,
     extent: Option<(f64, f64)>,
@@ -31,29 +30,31 @@ impl Matrix {
 
     fn push_row<I>(&mut self, label: String, row: I)
     where
-        I: IntoIterator<Item = f64>,
+        I: IntoIterator<Item = Option<f64>>,
     {
         self.row_labels.push(label);
 
         for cell in row {
             self.array.push(cell);
 
-            match self.extent.as_mut() {
-                None => self.extent = Some((cell, cell)),
-                Some((min, max)) => {
-                    if cell < *min {
-                        *min = cell;
-                    }
+            if let Some(f) = cell {
+                match self.extent.as_mut() {
+                    None => self.extent = Some((f, f)),
+                    Some((min, max)) => {
+                        if f < *min {
+                            *min = f;
+                        }
 
-                    if cell > *max {
-                        *max = cell;
+                        if f > *max {
+                            *max = f;
+                        }
                     }
                 }
             }
         }
     }
 
-    fn rows(&self) -> impl Iterator<Item = (&String, &[f64])> {
+    fn rows(&self) -> impl Iterator<Item = (&String, &[Option<f64>])> {
         self.array
             .chunks(self.column_labels.len())
             .enumerate()
@@ -125,8 +126,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let row = record
             .iter()
             .skip(1)
-            .map(|cell| fast_float::parse::<f64, &[u8]>(cell).map_err(|_| "could not parse float"))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|cell| fast_float::parse::<f64, &[u8]>(cell).ok())
+            .collect::<Vec<_>>();
 
         matrix.push_row(label, row);
     }
@@ -180,14 +181,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             for cell in row {
-                let normalized = (cell - min) / domain_width;
+                match cell {
+                    None => print!("{}", "  ".repeat(scale)),
+                    Some(f) => {
+                        let normalized = (f - min) / domain_width;
 
-                let color = gradient.at(normalized as f32).to_rgba8();
-                print!(
-                    "{}",
-                    "  ".repeat(scale)
-                        .on_truecolor(color[0], color[1], color[2])
-                );
+                        let color = gradient.at(normalized as f32).to_rgba8();
+                        print!(
+                            "{}",
+                            "  ".repeat(scale)
+                                .on_truecolor(color[0], color[1], color[2])
+                        );
+                    }
+                }
             }
             println!();
         }
