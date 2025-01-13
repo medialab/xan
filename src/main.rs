@@ -9,6 +9,17 @@ use std::process;
 
 use docopt::Docopt;
 
+mod cmd;
+mod collections;
+mod config;
+mod dates;
+mod graph;
+mod index;
+mod json;
+mod moonblade;
+mod select;
+mod util;
+
 macro_rules! command_list {
     () => {
         "
@@ -95,16 +106,6 @@ macro_rules! command_list {
 "
     };
 }
-
-mod cmd;
-mod collections;
-mod config;
-mod dates;
-mod index;
-mod json;
-mod moonblade;
-mod select;
-mod util;
 
 static USAGE: &str = concat!(
     "
