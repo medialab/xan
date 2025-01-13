@@ -33,6 +33,7 @@ macro_rules! command_list {
     flatten (f) Display a flattened version of each row of a file
     hist        Print a histogram with rows of CSV file as bars
     plot        Draw a scatter plot or line chart
+    heatmap     Draw a heatmap of a CSV matrix
     progress    Display a progress bar while reading CSV data
 
 ## Search & filter
@@ -211,6 +212,7 @@ enum Command {
     Guillotine,
     H,
     Headers,
+    Heatmap,
     Help,
     Hist,
     Implode,
@@ -290,6 +292,7 @@ impl Command {
             Command::Glob => cmd::glob::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),
+            Command::Heatmap => cmd::heatmap::run(argv),
             Command::Help => {
                 println!("{}", util::colorize_main_help(USAGE));
                 Ok(())

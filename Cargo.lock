@@ -247,6 +247,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "colorgrad"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b8d55c12145df1b7c4b9a5e8741101c405461f9025add91fd9a54223711cba2"
+dependencies = [
+ "csscolorparser",
+]
+
+[[package]]
 name = "compact_str"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -425,6 +434,12 @@ dependencies = [
  "generic-array",
  "typenum",
 ]
+
+[[package]]
+name = "csscolorparser"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46f9a16a848a7fb95dd47ce387ac1ee9a6df879ba784b815537fcd388a1a8288"
 
 [[package]]
 name = "csv"
@@ -2237,6 +2252,7 @@ dependencies = [
  "bytesize",
  "calamine",
  "colored",
+ "colorgrad",
  "console",
  "crossbeam-channel 0.2.6",
  "csv",

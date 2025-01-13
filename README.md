@@ -431,6 +431,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 - [**flatten**](./docs/cmd/flatten.md): Display a flattened version of each row of a file
 - [**hist**](./docs/cmd/hist.md): Print a histogram with rows of CSV file as bars
 - [**plot**](./docs/cmd/plot.md): Draw a scatter plot or line chart
+- [**heatmap**](./docs/cmd/heatmap.md): Draw a heatmap of a CSV matrix
 - [**progress**](./docs/cmd/progress.md): Display a progress bar while reading CSV data
 
 *Search & filter*

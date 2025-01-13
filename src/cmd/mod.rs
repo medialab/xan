@@ -25,6 +25,7 @@ pub mod from;
 pub mod glob;
 pub mod groupby;
 pub mod headers;
+pub mod heatmap;
 pub mod hist;
 pub mod implode;
 pub mod index;
