@@ -1,32 +1,40 @@
+use std::num::NonZeroUsize;
+
 use colored::Colorize;
 use colorgrad::Gradient;
+use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
+// TODO: column labels, degraded ratio version where the number is printed
+// TODO: optional cells
+
 #[derive(Debug)]
 struct Matrix {
     array: Vec<f64>,
-    columns: usize,
-    rows: usize,
+    column_labels: Vec<String>,
+    row_labels: Vec<String>,
     extent: Option<(f64, f64)>,
 }
 
 impl Matrix {
-    fn with_columns(columns: usize) -> Self {
+    fn from_column_labels(column_labels: Vec<String>) -> Self {
         Self {
             array: Vec::new(),
-            columns,
-            rows: 0,
+            column_labels,
+            row_labels: Vec::new(),
             extent: None,
         }
     }
 
-    fn push_row<I>(&mut self, row: I)
+    fn push_row<I>(&mut self, label: String, row: I)
     where
         I: IntoIterator<Item = f64>,
     {
+        self.row_labels.push(label);
+
         for cell in row {
             self.array.push(cell);
 
@@ -43,16 +51,17 @@ impl Matrix {
                 }
             }
         }
-
-        self.rows += 1;
     }
 
-    fn rows(&self) -> std::slice::Chunks<f64> {
-        self.array.chunks(self.columns)
+    fn rows(&self) -> impl Iterator<Item = (&String, &[f64])> {
+        self.array
+            .chunks(self.column_labels.len())
+            .enumerate()
+            .map(|(i, chunk)| (&self.row_labels[i], chunk))
     }
 
-    fn max(&self) -> Option<f64> {
-        self.extent.map(|e| e.1)
+    fn max_row_label_width(&self) -> Option<usize> {
+        self.row_labels.iter().map(|label| label.width()).max()
     }
 }
 
@@ -64,6 +73,8 @@ Usage:
     xan heatmap --help
 
 heatmap options:
+    -S, --scale <n>          Size of the heatmap square in terminal rows.
+                             [default: 1]
     -C, --force-colors       Force colors even if output is not supposed to be able to
                              handle them.
 
@@ -78,6 +89,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_scale: NonZeroUsize,
     flag_force_colors: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -97,28 +109,91 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = conf.reader()?;
     let mut record = csv::ByteRecord::new();
-    let headers = rdr.byte_headers()?.clone();
 
-    let mut matrix = Matrix::with_columns(headers.len());
+    let column_labels = rdr
+        .headers()?
+        .iter()
+        .skip(1)
+        .map(String::from)
+        .collect::<Vec<_>>();
+
+    let mut matrix = Matrix::from_column_labels(column_labels);
 
     while rdr.read_byte_record(&mut record)? {
+        let label = String::from_utf8(record[0].to_vec()).expect("could not decode utf8");
+
         let row = record
             .iter()
+            .skip(1)
             .map(|cell| fast_float::parse::<f64, &[u8]>(cell).map_err(|_| "could not parse float"))
             .collect::<Result<Vec<_>, _>>()?;
 
-        matrix.push_row(row);
+        matrix.push_row(label, row);
     }
 
-    let max = matrix.max().unwrap();
+    let cols = util::acquire_term_cols(&None);
+    let label_cols =
+        ((cols as f64 * 0.3).floor() as usize).min(matrix.max_row_label_width().unwrap() + 1);
+    let left_padding = " ".repeat(label_cols);
 
-    for row in matrix.rows() {
-        for cell in row {
-            let color = gradient.at((cell / max) as f32).to_rgba8();
-            print!("{}", "██".truecolor(color[0], color[1], color[2]));
+    let (min, max) = matrix.extent.unwrap();
+    let domain_width = max - min;
+    let scale = args.flag_scale.get();
+
+    let column_info = matrix
+        .column_labels
+        .iter()
+        .enumerate()
+        .map(|(i, label)| format!("{}: {}", (i + 1).to_string().dimmed(), label))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    println!(
+        "{}{}",
+        left_padding,
+        util::unicode_aware_wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
+    );
+    println!();
+
+    print!("{}", left_padding);
+    for i in 0..matrix.column_labels.len() {
+        print!(
+            "{}",
+            util::unicode_aware_rpad(&(i + 1).to_string(), 2 * scale, " "),
+        );
+    }
+    println!();
+
+    for (row_label, row) in matrix.rows() {
+        for i in 0..scale {
+            if i == 0 {
+                print!(
+                    "{} ",
+                    util::unicode_aware_rpad_with_ellipsis(
+                        row_label,
+                        label_cols.saturating_sub(1),
+                        " "
+                    )
+                );
+            } else {
+                print!("{}", left_padding);
+            }
+
+            for cell in row {
+                let normalized = (cell - min) / domain_width;
+
+                let color = gradient.at(normalized as f32).to_rgba8();
+                print!(
+                    "{}",
+                    "  ".repeat(scale)
+                        .on_truecolor(color[0], color[1], color[2])
+                );
+            }
+            println!();
         }
-        println!();
     }
+
+    println!();
 
     Ok(())
 }
