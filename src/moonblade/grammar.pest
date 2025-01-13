@@ -144,12 +144,20 @@ map_entry =  { (string | ident) ~ ":" ~ expr }
 map_body  = _{ map_entry ~ ("," ~ map_entry)* }
 map       =  { "{" ~ map_body* ~ "}" }
 
+// Star selection
+star_slice_int   = @{ minus? ~ positive_int }
+star_slice_item  =  { string | star_slice_int }
+full_star_slice  =  { star_slice_item ~ ":" ~ star_slice_item }
+start_star_slice =  { star_slice_item ~ ":" }
+end_star_slice   =  { ":" ~ star_slice_item }
+star_slice       =  { "*" ~ ("[" ~ (full_star_slice | start_star_slice | end_star_slice) ~ "]")? }
+
 // End-chain parsers
 full_expr = _{ SOI ~ expr ~ EOI }
 
 expr_name      =  { ident | string }
 named_expr     =  { expr ~ "as" ~ expr_name }
-opt_named_expr = _{ named_expr | expr }
+opt_named_expr = _{ star_slice | named_expr | expr }
 named_exprs    = _{ SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
 
 named_func     =  { func ~ "as" ~ expr_name }

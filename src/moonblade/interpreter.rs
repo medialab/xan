@@ -472,7 +472,7 @@ pub fn concretize_expression(
             ConcreteExpr::Lambda(names, Box::new(concretize_expression(*expr, headers)?))
         }
         Expr::LambdaBinding(name) => ConcreteExpr::LambdaBinding(name),
-        Expr::Slice(_) => unreachable!(),
+        Expr::Slice(_) | Expr::StarSlice(_) => unreachable!(),
     })
 }
 
