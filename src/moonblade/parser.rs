@@ -620,7 +620,6 @@ pub struct Aggregation {
     pub agg_name: String,
     pub args: Vec<Expr>,
     pub func_name: String,
-    pub expr_key: String,
 }
 
 pub type Aggregations = Vec<Aggregation>;
@@ -631,17 +630,8 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
     pairs
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
         .map(|p| {
-            let (agg_name, expr_key, p) = match p.as_rule() {
-                Rule::func => (
-                    p.as_span().as_str().to_string(),
-                    p.clone()
-                        .into_inner()
-                        .skip(1)
-                        .take(1)
-                        .map(|s| s.as_span().as_str())
-                        .collect::<String>(),
-                    p,
-                ),
+            let (agg_name, p) = match p.as_rule() {
+                Rule::func => (p.as_span().as_str().to_string(), p),
                 Rule::named_func => {
                     let mut inner = p.into_inner();
 
@@ -662,16 +652,7 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 
                     debug_assert!(matches!(func.as_rule(), Rule::func));
 
-                    (
-                        name,
-                        func.clone()
-                            .into_inner()
-                            .skip(1)
-                            .take(1)
-                            .map(|s| s.as_span().as_str())
-                            .collect::<String>(),
-                        func,
-                    )
+                    (name, func)
                 }
                 _ => unreachable!(),
             };
@@ -683,7 +664,6 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                     agg_name,
                     args: call.args.into_iter().map(|(_, arg)| arg).collect(),
                     func_name: call.name,
-                    expr_key,
                 }),
                 _ => unreachable!(),
             }
@@ -1027,7 +1007,6 @@ mod tests {
             Ok(vec![Aggregation {
                 agg_name: "count(add(A, B) + 1)".to_string(),
                 func_name: "count".to_string(),
-                expr_key: "add(A, B) + 1".to_string(),
                 args: vec![func(
                     "add",
                     vec![func("add", vec![id("A"), id("B")]), Int(1)]
@@ -1040,7 +1019,6 @@ mod tests {
             Ok(vec![Aggregation {
                 agg_name: "join(name, '|')".to_string(),
                 func_name: "join".to_string(),
-                expr_key: "name".to_string(),
                 args: vec![id("name"), s("|")]
             }])
         );
@@ -1051,13 +1029,11 @@ mod tests {
                 Aggregation {
                     agg_name: "c".to_string(),
                     func_name: "count".to_string(),
-                    expr_key: "a".to_string(),
                     args: vec![id("a")]
                 },
                 Aggregation {
                     agg_name: "Sum".to_string(),
                     func_name: "sum".to_string(),
-                    expr_key: "b".to_string(),
                     args: vec![id("b")]
                 }
             ])

@@ -629,7 +629,7 @@ fn validate_aggregation_function_arity(
     Ok(())
 }
 
-fn get_separator_from_argument(args: Vec<ConcreteExpr>, pos: usize) -> Option<String> {
+fn get_separator_from_argument(args: &[ConcreteExpr], pos: usize) -> Option<String> {
     Some(match args.get(pos) {
         None => "|".to_string(),
         Some(arg) => match arg {
@@ -685,7 +685,7 @@ enum ConcreteAggregationMethod {
 }
 
 impl ConcreteAggregationMethod {
-    fn parse(name: &str, mut args: Vec<ConcreteExpr>) -> Result<Self, ConcretizationError> {
+    fn parse(name: &str, args: &[ConcreteExpr]) -> Result<Self, ConcretizationError> {
         let arity = args.len();
 
         let method = match name {
@@ -699,8 +699,8 @@ impl ConcreteAggregationMethod {
                 },
                 _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
             },
-            "argmin" => Self::ArgMin(args.pop()),
-            "argmax" => Self::ArgMax(args.pop()),
+            "argmin" => Self::ArgMin(args.last().cloned()),
+            "argmax" => Self::ArgMax(args.last().cloned()),
             "argtop" => Self::ArgTop(
                 match args.first().unwrap() {
                     ConcreteExpr::Value(v) => match v.try_as_usize() {
@@ -821,9 +821,13 @@ struct ConcreteAggregation {
     agg_name: String,
     method: ConcreteAggregationMethod,
     expr: Option<ConcreteExpr>,
-    expr_key: String,
     pair_expr: Option<ConcreteExpr>,
-    // args: Vec<ConcreteExpr>,
+}
+
+impl ConcreteAggregation {
+    fn key(&self) -> (&Option<ConcreteExpr>, &Option<ConcreteExpr>) {
+        (&self.expr, &self.pair_expr)
+    }
 }
 
 type ConcreteAggregations = Vec<ConcreteAggregation>;
@@ -873,12 +877,11 @@ fn concretize_aggregations(
             args.push(concretize_expression(arg, headers)?);
         }
 
-        let method = ConcreteAggregationMethod::parse(&aggregation.func_name, args)?;
+        let method = ConcreteAggregationMethod::parse(&aggregation.func_name, &args)?;
 
         let concrete_aggregation = ConcreteAggregation {
             agg_name: aggregation.agg_name,
             method,
-            expr_key: aggregation.expr_key,
             expr,
             pair_expr,
         };
@@ -901,10 +904,15 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 // keys and 2. composite aggregation atom).
 #[derive(Debug, Clone)]
 struct PlannerExecutionUnit {
-    expr_key: String,
     expr: Option<ConcreteExpr>,
     pair_expr: Option<ConcreteExpr>,
     aggregator_blueprint: CompositeAggregator,
+}
+
+impl PlannerExecutionUnit {
+    fn key(&self) -> (&Option<ConcreteExpr>, &Option<ConcreteExpr>) {
+        (&self.expr, &self.pair_expr)
+    }
 }
 
 // NOTE: output unit are aligned with the list of concrete aggregations and
@@ -932,7 +940,7 @@ impl From<ConcreteAggregations> for ConcreteAggregationPlanner {
         for agg in aggregations {
             if let Some(expr_index) = execution_plan
                 .iter()
-                .position(|unit| unit.expr_key == agg.expr_key)
+                .position(|unit| unit.key() == agg.key())
             {
                 let aggregator_index = execution_plan[expr_index]
                     .aggregator_blueprint
@@ -950,7 +958,6 @@ impl From<ConcreteAggregations> for ConcreteAggregationPlanner {
                 let aggregator_index = aggregator_blueprint.add_method(&agg.method);
 
                 execution_plan.push(PlannerExecutionUnit {
-                    expr_key: agg.expr_key,
                     expr: agg.expr,
                     pair_expr: agg.pair_expr,
                     aggregator_blueprint,
@@ -1020,19 +1027,19 @@ fn run_with_record_on_aggregators(
 
             return aggregator
                 .process_pair(index, value.unwrap(), second_value)
-                .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)));
+                .map_err(|err| err.specify("<agg-expr>"));
         }
 
         if let Some(DynamicValue::List(list)) = value {
             for v in Arc::into_inner(list).unwrap() {
                 aggregator
                     .process_value(index, Some(v), record)
-                    .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)))?;
+                    .map_err(|err| err.specify("<agg-expr>"))?;
             }
         } else {
             aggregator
                 .process_value(index, value, record)
-                .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)))?;
+                .map_err(|err| err.specify("<agg-expr>"))?;
         }
     }
 
