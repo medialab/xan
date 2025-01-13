@@ -39,7 +39,7 @@ fn colorize_functions_help(help: &str) -> String {
             + &caps[1].cyan().to_string()
             + &"(".yellow().to_string()
             + &caps[2]
-                .split(',')
+                .split(", ")
                 .map(|arg| {
                     (if arg == "<expr>" || arg == "<expr>?" {
                         arg.dimmed()
@@ -681,6 +681,10 @@ the number of nodes in a graph represented by a CSV edge list.
     - cardinality(<expr>) -> number
         Number of distinct values returned by given expression.
 
+    - correlation(<expr>, <expr>) -> number
+        Return the correlation (covariance divided by the product of standard
+        deviations) of series represented by the two given expressions.
+
     - count(<expr>?) -> number
         Count the number of truthy values returned by given expression.
         Expression can also be omitted to count all rows.
@@ -700,6 +704,18 @@ the number of nodes in a graph represented by a CSV edge list.
     - count_years(<expr>) -> number
         Count the number of years between earliest and latest datetime
         returned by given expression.
+
+    - covariance(<expr>, <expr>) -> number
+        Return the population covariance of series represented by
+        the two given expressions. Same as `covariance_pop`.
+
+    - covariance_pop(<expr>, <expr>) -> number
+        Return the population covariance of series represented by
+        the two given expressions. Same as `covariance`.
+
+    - covariance_sample(<expr>, <expr>) -> number
+        Return the sample covariance of series represented by
+        the two given expressions.
 
     - distinct_values(<expr>, separator?) -> string
         List of sorted distinct values joined by a pipe character ('|') by default or by

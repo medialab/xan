@@ -9,6 +9,7 @@ fn format_column_indexation_error(
     match indexation {
         ColumIndexationBy::Name(name) => write!(f, "cannot find column \"{}\"", name),
         ColumIndexationBy::Pos(pos) => write!(f, "column {} out of range", pos),
+        ColumIndexationBy::ReversePos(pos) => write!(f, "column {} out of range", -(*pos as isize)),
         ColumIndexationBy::NameAndNth((name, nth)) => {
             write!(f, "cannot find column (\"{}\", {})", name, nth)
         }

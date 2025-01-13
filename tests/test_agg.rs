@@ -527,3 +527,28 @@ fn agg_dates() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_correlation() {
+    let wrk = Workdir::new("agg_correlation");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["x", "y"],
+            svec!["1", "0"],
+            svec!["4", "6"],
+            svec!["5", "7"],
+            svec!["7", "9"],
+            svec!["", ""],
+            svec!["9", "3"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("covariance(x, y) as c, correlation(x, y) as r")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["c", "r"], svec!["3.8", "0.442939783914149"]];
+    assert_eq!(got, expected);
+}

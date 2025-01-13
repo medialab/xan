@@ -471,6 +471,14 @@ impl Expr {
         };
     }
 
+    pub fn try_to_isize(&self) -> Option<isize> {
+        match self {
+            Self::Int(n) => Some(*n as isize),
+            Self::Float(f) => downgrade_float(*f).map(|n| n as isize),
+            _ => None,
+        }
+    }
+
     pub fn try_to_usize(&self) -> Option<usize> {
         match self {
             Self::Int(n) => {

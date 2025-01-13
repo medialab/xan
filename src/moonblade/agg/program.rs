@@ -4,9 +4,9 @@ use csv::ByteRecord;
 use jiff::{civil::DateTime, Unit};
 
 use super::aggregators::{
-    AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, First, Frequencies, Last,
-    LexicographicExtent, MedianType, Numbers, NumericExtent, Sum, Types, Values, Welford,
-    ZonedExtent,
+    AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
+    Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, Sum, Types, Values,
+    Welford, ZonedExtent,
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{
@@ -15,7 +15,7 @@ use crate::moonblade::error::{
 use crate::moonblade::interpreter::{
     concretize_expression, eval_expression, ConcreteExpr, EvaluationContext,
 };
-use crate::moonblade::parser::{parse_aggregations, Aggregation, Aggregations};
+use crate::moonblade::parser::{parse_aggregations, Aggregations};
 use crate::moonblade::types::{Arity, DynamicNumber, DynamicValue};
 
 macro_rules! build_aggregation_method_enum {
@@ -70,6 +70,7 @@ build_aggregation_method_enum!(
     ArgExtent,
     ArgTop,
     Count,
+    CovarianceWelford,
     NumericExtent,
     First,
     Last,
@@ -130,8 +131,17 @@ impl Aggregator {
             (ConcreteAggregationMethod::Cardinality, Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.cardinality())
             }
+            (ConcreteAggregationMethod::Correlation, Self::CovarianceWelford(inner)) => {
+                DynamicValue::from(inner.correlation())
+            }
             (ConcreteAggregationMethod::Count, Self::Count(inner)) => {
                 DynamicValue::from(inner.get_truthy())
+            }
+            (ConcreteAggregationMethod::CovariancePop, Self::CovarianceWelford(inner)) => {
+                DynamicValue::from(inner.covariance())
+            }
+            (ConcreteAggregationMethod::CovarianceSample, Self::CovarianceWelford(inner)) => {
+                DynamicValue::from(inner.sample_covariance())
             }
             (ConcreteAggregationMethod::Ratio, Self::Count(inner)) => {
                 DynamicValue::from(inner.ratio())
@@ -349,6 +359,11 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::Percentage => {
                 upsert_aggregator!(Count)
             }
+            ConcreteAggregationMethod::CovariancePop
+            | ConcreteAggregationMethod::CovarianceSample
+            | ConcreteAggregationMethod::Correlation => {
+                upsert_aggregator!(CovarianceWelford)
+            }
             ConcreteAggregationMethod::Min | ConcreteAggregationMethod::Max => {
                 // NOTE: if some ArgExtent already exists, we merge into it.
                 match self
@@ -457,6 +472,7 @@ impl CompositeAggregator {
                     Aggregator::Count(count) => {
                         count.add(value.is_truthy());
                     }
+                    Aggregator::CovarianceWelford(_) => unreachable!(),
                     Aggregator::NumericExtent(extent) => {
                         if !value.is_nullish() {
                             extent.add(value.try_as_number()?);
@@ -548,6 +564,30 @@ impl CompositeAggregator {
         Ok(())
     }
 
+    fn process_pair(
+        &mut self,
+        _index: usize,
+        first: DynamicValue,
+        second: DynamicValue,
+    ) -> Result<(), EvaluationError> {
+        for method in self.methods.iter_mut() {
+            match method {
+                Aggregator::CovarianceWelford(covariance_welford) => {
+                    match (first.is_nullish(), second.is_nullish()) {
+                        (true, false) | (false, true) => return Err(EvaluationError::Custom("unaligned series where given to covariance or correlation functions (both series must have the same number of data points)".to_string())),
+                        (false, false) => {
+                            covariance_welford.add(first.try_as_f64()?, second.try_as_f64()?);
+                        }
+                        _ => ()
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        Ok(())
+    }
+
     fn finalize(&mut self, parallel: bool) {
         for method in self.methods.iter_mut() {
             method.finalize(parallel);
@@ -566,8 +606,10 @@ impl CompositeAggregator {
 
 fn validate_aggregation_function_arity(
     name: &str,
-    arity: usize,
+    mut arity: usize,
 ) -> Result<(), ConcretizationError> {
+    arity += 1;
+
     let range = match name {
         "count" => 0..=1,
         "quantile" | "approx_quantile" => 2..=2,
@@ -607,8 +649,11 @@ enum ConcreteAggregationMethod {
     ArgMax(Option<ConcreteExpr>),
     ArgTop(usize, Option<ConcreteExpr>, String),
     Cardinality,
+    Correlation,
     Count,
     CountTime(Unit),
+    CovariancePop,
+    CovarianceSample,
     DistinctValues(String),
     Earliest,
     First,
@@ -671,11 +716,14 @@ impl ConcreteAggregationMethod {
                 },
             ),
             "cardinality" => Self::Cardinality,
+            "correlation" => Self::Correlation,
             "count" => Self::Count,
             "count_seconds" => Self::CountTime(Unit::Second),
             "count_hours" => Self::CountTime(Unit::Hour),
             "count_days" => Self::CountTime(Unit::Day),
             "count_years" => Self::CountTime(Unit::Year),
+            "covariance" | "covariance_pop" => Self::CovariancePop,
+            "covariance_sample" => Self::CovarianceSample,
             "distinct_values" => Self::DistinctValues(match get_separator_from_argument(args, 0) {
                 None => return Err(ConcretizationError::NotStaticallyAnalyzable),
                 Some(separator) => separator,
@@ -799,9 +847,29 @@ fn concretize_aggregations(
             .map(|arg| concretize_expression(arg.clone(), headers))
             .transpose()?;
 
+        let mut skip: usize = 1;
+
+        let pair_expr = if aggregation.args.len() > 1
+            && [
+                "covariance",
+                "covariance_pop",
+                "covariance_sample",
+                "correlation",
+            ]
+            .contains(&aggregation.func_name.as_str())
+        {
+            skip = 2;
+            Some(concretize_expression(
+                aggregation.args.get(1).unwrap().clone(),
+                headers,
+            )?)
+        } else {
+            None
+        };
+
         let mut args: Vec<ConcreteExpr> = Vec::new();
 
-        for arg in aggregation.args.into_iter().skip(1) {
+        for arg in aggregation.args.into_iter().skip(skip) {
             args.push(concretize_expression(arg, headers)?);
         }
 
@@ -812,7 +880,7 @@ fn concretize_aggregations(
             method,
             expr_key: aggregation.expr_key,
             expr,
-            pair_expr: None, // args,
+            pair_expr,
         };
 
         concrete_aggregations.push(concrete_aggregation);
@@ -835,6 +903,7 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 struct PlannerExecutionUnit {
     expr_key: String,
     expr: Option<ConcreteExpr>,
+    pair_expr: Option<ConcreteExpr>,
     aggregator_blueprint: CompositeAggregator,
 }
 
@@ -883,6 +952,7 @@ impl From<ConcreteAggregations> for ConcreteAggregationPlanner {
                 execution_plan.push(PlannerExecutionUnit {
                     expr_key: agg.expr_key,
                     expr: agg.expr,
+                    pair_expr: agg.pair_expr,
                     aggregator_blueprint,
                 });
 
@@ -944,6 +1014,14 @@ fn run_with_record_on_aggregators(
             None => None,
             Some(expr) => Some(eval_expression(expr, Some(index), record, context)?),
         };
+
+        if let Some(pair_expr) = &unit.pair_expr {
+            let second_value = eval_expression(pair_expr, Some(index), record, context)?;
+
+            return aggregator
+                .process_pair(index, value.unwrap(), second_value)
+                .map_err(|err| err.specify(&format!("<agg-expr: {}>", unit.expr_key)));
+        }
 
         if let Some(DynamicValue::List(list)) = value {
             for v in Arc::into_inner(list).unwrap() {

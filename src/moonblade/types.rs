@@ -27,6 +27,7 @@ pub enum ColumIndexationBy {
     Name(String),
     NameAndNth((String, usize)),
     Pos(usize),
+    ReversePos(usize),
 }
 
 impl ColumIndexationBy {
@@ -35,7 +36,13 @@ impl ColumIndexationBy {
             let first_arg = arguments.first().unwrap();
             match first_arg {
                 Expr::Str(column_name) => Some(Self::Name(column_name.clone())),
-                Expr::Float(_) | Expr::Int(_) => first_arg.try_to_usize().map(Self::Pos),
+                Expr::Float(_) | Expr::Int(_) => first_arg.try_to_isize().map(|i| {
+                    if i >= 0 {
+                        Self::Pos(i as usize)
+                    } else {
+                        Self::ReversePos(i.unsigned_abs())
+                    }
+                }),
                 _ => None,
             }
         } else if arguments.len() == 2 {
@@ -71,12 +78,16 @@ impl ColumIndexationBy {
                 },
             }
         } else {
-            match name_or_pos.try_as_usize() {
+            match name_or_pos.try_as_i64() {
                 Err(_) => match name_or_pos.try_as_str() {
                     Err(_) => None,
                     Ok(name) => Some(Self::Name(name.into_owned())),
                 },
-                Ok(i) => Some(Self::Pos(i)),
+                Ok(i) => Some(if i < 0 {
+                    Self::ReversePos(i.unsigned_abs() as usize)
+                } else {
+                    Self::Pos(i as usize)
+                }),
             }
         }
     }
@@ -88,6 +99,13 @@ impl ColumIndexationBy {
                     None
                 } else {
                     Some(*i)
+                }
+            }
+            Self::ReversePos(i) => {
+                if *i > headers.len() {
+                    None
+                } else {
+                    Some(headers.len() - i)
                 }
             }
             Self::Name(name) => {
@@ -165,6 +183,13 @@ impl HeadersIndex {
                     None
                 } else {
                     Some(*pos)
+                }
+            }
+            ColumIndexationBy::ReversePos(pos) => {
+                if *pos > self.mapping.len() {
+                    None
+                } else {
+                    Some(self.mapping.len() - pos)
                 }
             }
             ColumIndexationBy::NameAndNth((name, pos)) => self
