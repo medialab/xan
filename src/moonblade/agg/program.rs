@@ -565,11 +565,10 @@ impl CompositeAggregator {
 }
 
 fn validate_aggregation_function_arity(
-    aggregation: &Aggregation,
+    name: &str,
+    arity: usize,
 ) -> Result<(), ConcretizationError> {
-    let arity = aggregation.args.len();
-
-    let range = match aggregation.func_name.as_str() {
+    let range = match name {
         "count" => 0..=1,
         "quantile" | "approx_quantile" => 2..=2,
         "values" | "distinct_values" | "argmin" | "argmax" | "modes" => 1..=2,
@@ -580,7 +579,7 @@ fn validate_aggregation_function_arity(
 
     if !range.contains(&arity) {
         return Err(ConcretizationError::InvalidArity(
-            aggregation.func_name.clone(),
+            name.to_string(),
             InvalidArity::from_arity(Arity::Range(range), arity),
         ));
     }
@@ -642,7 +641,9 @@ enum ConcreteAggregationMethod {
 
 impl ConcreteAggregationMethod {
     fn parse(name: &str, mut args: Vec<ConcreteExpr>) -> Result<Self, ConcretizationError> {
-        Ok(match name {
+        let arity = args.len();
+
+        let method = match name {
             "all" => Self::All,
             "any" => Self::Any,
             "approx_cardinality" => Self::ApproxCardinality,
@@ -759,7 +760,11 @@ impl ConcreteAggregationMethod {
             "type" => Self::Type,
             "types" => Self::Types,
             _ => return Err(ConcretizationError::UnknownFunction(name.to_string())),
-        })
+        };
+
+        validate_aggregation_function_arity(name, arity)?;
+
+        Ok(method)
     }
 }
 
@@ -769,6 +774,7 @@ struct ConcreteAggregation {
     method: ConcreteAggregationMethod,
     expr: Option<ConcreteExpr>,
     expr_key: String,
+    pair_expr: Option<ConcreteExpr>,
     // args: Vec<ConcreteExpr>,
 }
 
@@ -781,8 +787,6 @@ fn concretize_aggregations(
     let mut concrete_aggregations = ConcreteAggregations::new();
 
     for mut aggregation in aggregations {
-        validate_aggregation_function_arity(&aggregation)?;
-
         if ["most_common", "most_common_counts", "top", "argtop"]
             .contains(&aggregation.func_name.as_str())
         {
@@ -808,7 +812,7 @@ fn concretize_aggregations(
             method,
             expr_key: aggregation.expr_key,
             expr,
-            // args,
+            pair_expr: None, // args,
         };
 
         concrete_aggregations.push(concrete_aggregation);
