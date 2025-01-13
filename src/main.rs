@@ -102,7 +102,8 @@ macro_rules! command_list {
     vocab       Build a vocabulary over tokenized documents
     cluster     Cluster CSV data to find near-duplicates
 
-## Network-related commands
+## Matrix & network-related commands
+    matrix      Convert CSV data to matrix data
     network     Convert CSV data to network data
     union-find  Apply the union-find algorithm on a CSV edge list
 "
@@ -220,6 +221,7 @@ enum Command {
     Input,
     Join,
     Map,
+    Matrix,
     Merge,
     Network,
     P,
@@ -304,6 +306,7 @@ impl Command {
             Command::Join => cmd::join::run(argv),
             Command::Network => cmd::network::run(argv),
             Command::Map => cmd::map::run(argv),
+            Command::Matrix => cmd::matrix::run(argv),
             Command::Merge => cmd::merge::run(argv),
             Command::Parallel | Command::P => cmd::parallel::run(argv),
             Command::Partition => cmd::partition::run(argv),

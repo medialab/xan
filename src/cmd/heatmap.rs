@@ -67,17 +67,22 @@ impl Matrix {
 }
 
 static USAGE: &str = "
-TODO...
+Draw a heatmap from CSV data.
 
 Usage:
     xan heatmap [options] [<input>]
     xan heatmap --help
 
 heatmap options:
-    -S, --scale <n>          Size of the heatmap square in terminal rows.
-                             [default: 1]
-    -C, --force-colors       Force colors even if output is not supposed to be able to
-                             handle them.
+    -m, --min <n>       Minimum value for a cell in the heatmap. Will clamp
+                        irrelevant values and use this min for normalization.
+    -M, --max <n>       Maximum value for a cell in the heatmap. Will clamp
+                        irrelevant values and use this max for normalization.
+    -S, --scale <n>     Size of the heatmap square in terminal rows.
+                        [default: 1]
+    -D, --diverging     Use a diverging color gradient.
+    -C, --force-colors  Force colors even if output is not supposed to be able to
+                        handle them.
 
 Common options:
     -h, --help             Display this message
@@ -90,7 +95,10 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_min: Option<f64>,
+    flag_max: Option<f64>,
     flag_scale: NonZeroUsize,
+    flag_diverging: bool,
     flag_force_colors: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -106,7 +114,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         colored::control::set_override(true);
     }
 
-    let gradient = colorgrad::preset::or_rd();
+    let gradient = if args.flag_diverging {
+        colorgrad::preset::rd_bu()
+    } else {
+        colorgrad::preset::or_rd()
+    };
 
     let mut rdr = conf.reader()?;
     let mut record = csv::ByteRecord::new();
@@ -126,10 +138,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let row = record
             .iter()
             .skip(1)
-            .map(|cell| fast_float::parse::<f64, &[u8]>(cell).ok())
+            .map(|cell| match fast_float::parse::<f64, &[u8]>(cell) {
+                Ok(f) => match args.flag_min {
+                    Some(min) if f < min => None,
+                    _ => match args.flag_max {
+                        Some(max) if f > max => None,
+                        _ => Some(f),
+                    },
+                },
+                Err(_) => None,
+            })
             .collect::<Vec<_>>();
 
         matrix.push_row(label, row);
+    }
+
+    if let Some(extent) = matrix.extent.as_mut() {
+        if let Some(min) = args.flag_min {
+            extent.0 = min;
+        }
+        if let Some(max) = args.flag_max {
+            extent.1 = max;
+        }
     }
 
     let cols = util::acquire_term_cols(&None);

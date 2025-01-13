@@ -23,6 +23,7 @@ Commands:
     flatten (f) Display a flattened version of each row of a file
     hist        Print a histogram with rows of CSV file as bars
     plot        Draw a scatter plot or line chart
+    heatmap     Draw a heatmap of a CSV matrix
     progress    Display a progress bar while reading CSV data
 
 ## Search & filter
@@ -91,7 +92,8 @@ Commands:
     vocab       Build a vocabulary over tokenized documents
     cluster     Cluster CSV data to find near-duplicates
 
-## Network-related commands
+## Matrix & network-related commands
+    matrix      Convert CSV data to matrix data
     network     Convert CSV data to network data
     union-find  Apply the union-find algorithm on a CSV edge list
 ```

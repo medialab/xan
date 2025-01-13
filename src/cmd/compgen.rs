@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 55] = [
+static COMMANDS: [&str; 57] = [
     "agg",
     "behead",
     "bins",
@@ -30,12 +30,14 @@ static COMMANDS: [&str; 55] = [
     "guillotine",
     "headers",
     "help",
+    "heatmap",
     "hist",
     "implode",
     "index",
     "input",
     "join",
     "map",
+    "matrix",
     "merge",
     "network",
     "parallel",
@@ -62,6 +64,7 @@ static COMMANDS: [&str; 55] = [
     "vocab",
 ];
 
+static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 1] = ["edgelist"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
@@ -122,6 +125,12 @@ pub fn run() {
                 if command.starts_with(to_complete) {
                     println!("{}", command);
                 }
+            }
+        }
+    } else if word_before == "matrix" && !to_complete.starts_with('-') {
+        for subcommand in MATRIX_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
             }
         }
     } else if word_before == "network" && !to_complete.starts_with('-') {

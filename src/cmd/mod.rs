@@ -32,6 +32,7 @@ pub mod index;
 pub mod input;
 pub mod join;
 pub mod map;
+pub mod matrix;
 pub mod merge;
 mod moonblade;
 pub mod network;

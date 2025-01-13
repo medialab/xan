@@ -31,7 +31,7 @@ xan network options:
     -L, --largest-component   Only keep the largest connected component
                               in the resulting graph.
 
-xan network edgelist options:
+network edgelist options:
     -U, --undirected  Whether the graph is undirected.
 
 Common options:
