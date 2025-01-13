@@ -9,8 +9,13 @@ Usage:
     xan network --help
 
 xan network options:
-    -L, --largest-component  Only keep the largest connected component
-                             in the resulting graph.
+    --gexf                    Whether to output GEXF instead of graphology
+                              JSON data.
+    --gexf-version <version>  GEXF version to output. Can be one of "1.2"
+                              or "1.3".
+                              [default: 1.2]
+    -L, --largest-component   Only keep the largest connected component
+                              in the resulting graph.
 
 xan network edgelist options:
     -U, --undirected  Whether the graph is undirected.

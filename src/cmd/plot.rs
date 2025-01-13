@@ -122,10 +122,11 @@ plot options:
                                Defaults to using all your terminal's height minus 2 or 30 if
                                terminal size cannot be found (i.e. when piping to file).
                                Can also be given as a ratio of the terminal's height e.g. \"0.5\".
-    -S, --small-multiples <n>  Display small multiples of datasets given by -c, --category
-                               or -Y, --add-series using the provided number of grid columns.
-                               The plot will all share the same x scale but use a different y scale by
-                               default. See --share-y-scale and --separate-x-scale to tweak this behavior.
+    -S, --small-multiples <n>  Display small multiples (also called facet grids) of datasets
+                               given by -c, --category or -Y, --add-series using the provided number
+                               of grid columns. The plot will all share the same x scale but use a different
+                               y scale by default. See --share-y-scale and --separate-x-scale to tweak
+                               this behavior.
     --share-x-scale <yes|no>   Give \"yes\" to share x scale for all plot when drawing small multiples with -S,
                                or \"no\" to keep them separate.
                                [default: yes]
