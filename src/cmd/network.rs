@@ -6,15 +6,25 @@ use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = "
-TODO...
+Convert CSV data to graph data.
+
+Supported formats:
+    json - Graphology JSON serialization format
+           ref: https://graphology.github.io/serialization.html
+    gexf - Graph eXchange XML Format
+           ref: https://gexf.net/
+
+Supported modes:
+    edgelist: converts a CSV of edges with a column representing
+              sources and another column targets.
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network --help
 
 xan network options:
-    --gexf                    Whether to output GEXF instead of graphology
-                              JSON data.
+    -f, --format <format>     One of \"json\" or \"gexf\".
+                              [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
                               or \"1.3\".
                               [default: 1.2]
@@ -38,7 +48,7 @@ struct Args {
     arg_input: Option<String>,
     arg_source: Option<SelectColumns>,
     arg_target: Option<SelectColumns>,
-    flag_gexf: bool,
+    flag_format: String,
     flag_gexf_version: String,
     flag_largest_component: bool,
     flag_undirected: bool,
@@ -136,11 +146,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let graph_builder = args.edgelist()?;
 
-    if args.flag_gexf {
-        graph_builder.write_gexf(&mut writer, &args.flag_gexf_version)?;
-    } else {
-        graph_builder.write_json(&mut writer)?;
+    match args.flag_format.as_str() {
+        "gexf" => graph_builder.write_gexf(&mut writer, &args.flag_gexf_version),
+        "json" => graph_builder.write_json(&mut writer),
+        _ => Err(format!("unsupported format: {}!", &args.flag_format))?,
     }
-
-    Ok(())
 }

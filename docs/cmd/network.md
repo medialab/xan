@@ -2,15 +2,25 @@
 # xan network
 
 ```txt
-TODO...
+Convert CSV data to graph data.
+
+Supported formats:
+    json - Graphology JSON serialization format
+           ref: https://graphology.github.io/serialization.html
+    gexf - Graph eXchange XML Format
+           ref: https://gexf.net/
+
+Supported modes:
+    edgelist: converts a CSV of edges with a column representing
+              sources and another column targets.
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network --help
 
 xan network options:
-    --gexf                    Whether to output GEXF instead of graphology
-                              JSON data.
+    -f, --format <format>     One of "json" or "gexf".
+                              [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of "1.2"
                               or "1.3".
                               [default: 1.2]
