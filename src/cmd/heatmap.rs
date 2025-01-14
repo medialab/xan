@@ -10,6 +10,7 @@ use crate::util;
 use crate::CliResult;
 
 // TODO: finish normalize modes
+// TODO: failure when input file is emptyish
 
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
 fn text_should_be_black(color: &[u8; 4]) -> bool {
@@ -117,6 +118,8 @@ heatmap options:
     -S, --scale <n>     Size of the heatmap square in terminal rows.
                         [default: 1]
     -D, --diverging     Use a diverging color gradient.
+    --cram              Attempt to cram column labels over the columns.
+                        Usually works better when -S, --scale > 1.
     -N, --show-numbers  Whether to attempt to show numbers in the cells.
                         Usually only useful when -S, --scale > 1.
     -C, --force-colors  Force colors even if output is not supposed to be able to
@@ -138,6 +141,7 @@ struct Args {
     flag_scale: NonZeroUsize,
     flag_normalize: String,
     flag_diverging: bool,
+    flag_cram: bool,
     flag_show_numbers: bool,
     flag_force_colors: bool,
     flag_no_headers: bool,
@@ -221,6 +225,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let full_extent = matrix.extent.unwrap();
     let scale = args.flag_scale.get();
 
+    // Printing column info
     let column_info = matrix
         .column_labels
         .iter()
@@ -229,22 +234,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .collect::<Vec<_>>()
         .join(" ");
 
-    println!(
-        "{}{}",
-        left_padding,
-        util::unicode_aware_wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
-    );
-    println!();
+    if !args.flag_cram {
+        println!(
+            "{}{}",
+            left_padding,
+            util::unicode_aware_wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
+        );
+        println!();
+    }
 
     print!("{}", left_padding);
-    for i in 0..matrix.column_labels.len() {
+    for (i, col_label) in matrix.column_labels.iter().enumerate() {
+        let label = if !args.flag_cram {
+            &(i + 1).to_string()
+        } else {
+            col_label
+        };
+
         print!(
             "{}",
-            util::unicode_aware_rpad(&(i + 1).to_string(), 2 * scale, " "),
+            util::unicode_aware_rpad_with_ellipsis(&label, 2 * scale, " "),
         );
     }
     println!();
 
+    // Printing rows
     let midpoint = scale / 2;
 
     let col_extents = (args.flag_normalize == "col").then(|| matrix.extent_per_column());
