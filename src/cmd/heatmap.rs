@@ -9,6 +9,8 @@ use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
+// TODO: finish normalize modes
+
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
 fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
@@ -68,6 +70,32 @@ impl Matrix {
     fn max_row_label_width(&self) -> Option<usize> {
         self.row_labels.iter().map(|label| label.width()).max()
     }
+
+    fn extent_per_column(&self) -> Vec<Option<(f64, f64)>> {
+        let mut cols = vec![None; self.column_labels.len()];
+
+        for rows in self.rows() {
+            for (i, cell) in rows.1.iter().enumerate() {
+                let current = &mut cols[i];
+
+                if let Some(f) = cell {
+                    match current {
+                        None => *current = Some((*f, *f)),
+                        Some((min, max)) => {
+                            if f < min {
+                                *min = *f;
+                            }
+                            if f > max {
+                                *max = *f;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        cols
+    }
 }
 
 static USAGE: &str = "
@@ -83,6 +111,9 @@ heatmap options:
                         irrelevant values and use this min for normalization.
     -M, --max <n>       Maximum value for a cell in the heatmap. Will clamp
                         irrelevant values and use this max for normalization.
+    --normalize <mode>  How to normalize the heatmap's values. Can be one of
+                        \"full\", \"row\" or \"col\".
+                        [default: full]
     -S, --scale <n>     Size of the heatmap square in terminal rows.
                         [default: 1]
     -D, --diverging     Use a diverging color gradient.
@@ -105,6 +136,7 @@ struct Args {
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_scale: NonZeroUsize,
+    flag_normalize: String,
     flag_diverging: bool,
     flag_show_numbers: bool,
     flag_force_colors: bool,
@@ -186,8 +218,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ((cols as f64 * 0.3).floor() as usize).min(matrix.max_row_label_width().unwrap() + 1);
     let left_padding = " ".repeat(label_cols);
 
-    let (min, max) = matrix.extent.unwrap();
-    let domain_width = max - min;
+    let full_extent = matrix.extent.unwrap();
     let scale = args.flag_scale.get();
 
     let column_info = matrix
@@ -216,7 +247,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let midpoint = scale / 2;
 
+    let col_extents = (args.flag_normalize == "col").then(|| matrix.extent_per_column());
+
     for (row_label, row) in matrix.rows() {
+        // TODO: computations are not required each scale rows
         for i in 0..scale {
             if i == 0 {
                 print!(
@@ -231,11 +265,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 print!("{}", left_padding);
             }
 
-            for cell in row {
+            for (col_i, cell) in row.iter().enumerate() {
                 match cell {
                     None => print!("{}", "  ".repeat(scale)),
                     Some(f) => {
-                        let normalized = (f - min) / domain_width;
+                        // TODO: if the column has no value, things will get messy...
+                        let (min, max) = col_extents
+                            .as_ref()
+                            .and_then(|extents| extents[col_i])
+                            .unwrap_or(full_extent);
+
+                        let normalized = (f - min) / (max - min);
 
                         let color = gradient.at(normalized as f32).to_rgba8();
 
@@ -313,7 +353,7 @@ fn resolve_green_hill_code(code: u8, string: &str) -> ColoredString {
 fn print_green_hills() {
     for row in GREEN_HILLS
         .trim_ascii()
-        .into_iter()
+        .iter()
         .filter(|c| **c != 10)
         .cloned()
         .collect::<Vec<_>>()
