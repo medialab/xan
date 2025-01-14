@@ -304,7 +304,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                         if text_should_be_black(&color) {
                                             formatted.black()
                                         } else {
-                                            formatted.white()
+                                            formatted.normal()
                                         },
                                         width = scale * 2
                                     )
