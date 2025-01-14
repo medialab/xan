@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use colorgrad::Gradient;
 use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
@@ -75,6 +75,7 @@ Draw a heatmap from CSV data.
 
 Usage:
     xan heatmap [options] [<input>]
+    xan heatmap --green-hills
     xan heatmap --help
 
 heatmap options:
@@ -109,10 +110,17 @@ struct Args {
     flag_force_colors: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_green_hills: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_green_hills {
+        print_green_hills();
+        return Ok(());
+    }
+
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
@@ -261,4 +269,61 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     println!();
 
     Ok(())
+}
+
+static GREEN_HILLS: &[u8] = b"
+gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
+rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+cccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkk
+kkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccckkkkcccc
+bbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmm
+mmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbb
+mmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbb
+bbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmm
+bbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmm
+mmmmbbbbmmmmkkkkcccckkkkcccckkkkccccbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbb
+mmmmbbbbmmmmkkkkcccckkkkcccckkkkccccbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbb
+bbbbmmmmbbbbcccckkkkcccckkkkcccckkkkmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmm
+bbbbmmmmbbbbcccckkkkcccckkkkcccckkkkmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmm
+mmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbcccckkkkcccckkkkcccckkkk
+mmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbcccckkkkcccckkkkcccckkkk
+bbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmkkkkcccckkkkcccckkkkcccc
+bbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmbbbbmmmmkkkkcccckkkkcccckkkkcccc
+";
+
+const GREEN_HILLS_COLS: u8 = 80;
+
+fn resolve_green_hill_code(code: u8, string: &str) -> ColoredString {
+    match code {
+        // greens
+        b'g' => string.on_truecolor(128, 244, 0),
+        b'r' => string.on_truecolor(64, 160, 0),
+        b'e' => string.on_truecolor(0, 96, 0),
+        // browns
+        b'b' => string.on_truecolor(96, 32, 0),
+        b'm' => string.on_truecolor(191, 95, 0),
+        // dark browns
+        b'c' => string.on_truecolor(101, 48, 0),
+        b'k' => string.on_truecolor(48, 16, 0),
+        _ => unreachable!(),
+    }
+}
+
+fn print_green_hills() {
+    for row in GREEN_HILLS
+        .trim_ascii()
+        .into_iter()
+        .filter(|c| **c != 10)
+        .cloned()
+        .collect::<Vec<_>>()
+        .chunks(GREEN_HILLS_COLS as usize)
+    {
+        for code in row.trim_ascii() {
+            print!("{}", resolve_green_hill_code(*code, " "));
+        }
+        println!();
+    }
+
+    println!();
 }
