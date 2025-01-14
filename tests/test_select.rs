@@ -203,3 +203,52 @@ fn select_evaluate() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn select_append() {
+    let wrk = Workdir::new("select_append");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "count1", "count2"],
+            svec!["john", "2", "3"],
+            svec!["mary", "5", "7"],
+        ],
+    );
+    let mut cmd = wrk.command("select");
+    cmd.arg("-A").arg("name").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "count1", "count2", "name"],
+        svec!["john", "2", "3", "john"],
+        svec!["mary", "5", "7", "mary"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn select_evaluate_append() {
+    let wrk = Workdir::new("select_evaluate_append");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "count1", "count2"],
+            svec!["john", "2", "3"],
+            svec!["mary", "5", "7"],
+        ],
+    );
+    let mut cmd = wrk.command("select");
+    cmd.arg("-e")
+        .arg("-A")
+        .arg("count1 + count2 as total")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "count1", "count2", "total"],
+        svec!["john", "2", "3", "5"],
+        svec!["mary", "5", "7", "12"],
+    ];
+    assert_eq!(got, expected);
+}

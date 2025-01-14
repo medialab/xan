@@ -253,7 +253,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         print!(
             "{}",
-            util::unicode_aware_rpad_with_ellipsis(&label, 2 * scale, " "),
+            util::unicode_aware_rpad_with_ellipsis(label, 2 * scale, " "),
         );
     }
     println!();

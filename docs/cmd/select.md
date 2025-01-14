@@ -65,12 +65,14 @@ Usage:
     xan select --functions
 
 select options:
-    -e, --evaluate           Toggle expression evaluation rather than using the DSL.
-    -E, --errors <policy>    What to do with evaluation errors. One of:
-                               - "panic": exit on first error
-                               - "ignore": ignore row altogether
-                               - "log": print error to stderr
-                             [default: panic].
+    -A, --append           Append the selection to the rows instead of
+                           replacing them.
+    -e, --evaluate         Toggle expression evaluation rather than using the DSL.
+    -E, --errors <policy>  What to do with evaluation errors. One of:
+                             - "panic": exit on first error
+                             - "ignore": ignore row altogether
+                             - "log": print error to stderr
+                           [default: panic].
 
 Common options:
     -h, --help             Display this message

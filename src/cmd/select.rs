@@ -73,12 +73,14 @@ Usage:
     xan select --functions
 
 select options:
-    -e, --evaluate           Toggle expression evaluation rather than using the DSL.
-    -E, --errors <policy>    What to do with evaluation errors. One of:
-                               - \"panic\": exit on first error
-                               - \"ignore\": ignore row altogether
-                               - \"log\": print error to stderr
-                             [default: panic].
+    -A, --append           Append the selection to the rows instead of
+                           replacing them.
+    -e, --evaluate         Toggle expression evaluation rather than using the DSL.
+    -E, --errors <policy>  What to do with evaluation errors. One of:
+                             - \"panic\": exit on first error
+                             - \"ignore\": ignore row altogether
+                             - \"log\": print error to stderr
+                           [default: panic].
 
 Common options:
     -h, --help             Display this message
@@ -94,6 +96,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_selection: String,
+    flag_append: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -119,7 +122,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
-    // .select(args.arg_selection);
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -134,18 +136,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let sel = rconfig.selection(&headers)?;
 
         if !rconfig.no_headers {
-            wtr.write_record(sel.iter().map(|&i| &headers[i]))?;
+            let headers_to_write = sel.select(&headers);
+
+            if args.flag_append {
+                wtr.write_record(headers.iter().chain(headers_to_write))?;
+            } else {
+                wtr.write_record(headers_to_write)?;
+            }
         }
 
         while rdr.read_byte_record(&mut record)? {
-            wtr.write_record(sel.iter().map(|&i| &record[i]))?;
+            if args.flag_append {
+                wtr.write_record(record.iter().chain(sel.select(&record)))?;
+            } else {
+                wtr.write_record(sel.select(&record))?;
+            }
         }
     } else {
         let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
         let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
 
-        wtr.write_record(program.headers())?;
+        if args.flag_append {
+            wtr.write_record(headers.iter().chain(program.headers()))?;
+        } else {
+            wtr.write_record(program.headers())?;
+        }
 
         let index: usize = 0;
 
@@ -153,7 +169,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let output_record =
                 error_policy.handle_error(program.run_with_record(index, &record))?;
 
-            wtr.write_byte_record(&output_record)?;
+            if args.flag_append {
+                wtr.write_record(record.iter().chain(output_record.iter()))?;
+            } else {
+                wtr.write_byte_record(&output_record)?;
+            }
         }
     }
 
