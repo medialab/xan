@@ -460,12 +460,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if let Some(sep) = &args.flag_sep {
             for token in record[token_pos].split_str(sep) {
-                let token: Token = token.to_vec();
-                vocab.add(document.clone(), token);
+                let token: Token = token.trim().to_vec();
+
+                if !token.is_empty() {
+                    vocab.add(document.clone(), token);
+                }
             }
         } else {
-            let token: Token = record[token_pos].to_vec();
-            vocab.add(document, token);
+            let token: Token = record[token_pos].trim().to_vec();
+
+            if !token.is_empty() {
+                vocab.add(document, token);
+            }
         }
 
         i += 1;
