@@ -129,6 +129,8 @@ struct Node {
 
 #[derive(Serialize)]
 struct Edge {
+    #[serde(skip_serializing)]
+    pair: (usize, usize),
     source: Rc<String>,
     target: Rc<String>,
     #[serde(skip_serializing_if = "Not::not")]
@@ -237,6 +239,7 @@ impl GraphBuilder {
         let target_node = self.nodes.get_index(target).unwrap().1;
 
         let edge = Edge {
+            pair: (source, target),
             source: source_node.key.clone(),
             target: target_node.key.clone(),
             undirected,
@@ -356,23 +359,36 @@ impl GraphBuilder {
 
         // Node data
         xml_writer.open_no_attributes("nodes")?;
-        for node in graph.nodes.iter() {
-            xml_writer.open_empty("node", [("id", node.key.as_str())])?;
+        for (node_id, node) in graph.nodes.iter().enumerate() {
+            xml_writer.open_empty(
+                "node",
+                [
+                    ("id", node_id.to_string().as_str()),
+                    ("label", node.key.as_str()),
+                ],
+            )?;
         }
         xml_writer.close("nodes")?;
 
         // Edge data
         xml_writer.open_no_attributes("edges")?;
         for edge in graph.edges.iter() {
-            let tag_attributes = [
-                ("source", edge.source.as_str()),
-                ("target", edge.target.as_str()),
-            ];
-
             if edge.attributes.is_empty() {
-                xml_writer.open_empty("edge", tag_attributes)?;
+                xml_writer.open_empty(
+                    "edge",
+                    [
+                        ("source", edge.pair.0.to_string().as_str()),
+                        ("target", edge.pair.1.to_string().as_str()),
+                    ],
+                )?;
             } else {
-                xml_writer.open("edge", tag_attributes)?;
+                xml_writer.open(
+                    "edge",
+                    [
+                        ("source", edge.pair.0.to_string().as_str()),
+                        ("target", edge.pair.1.to_string().as_str()),
+                    ],
+                )?;
                 xml_writer.open_no_attributes("attvalues")?;
 
                 for (i, (_, value)) in edge.attributes.iter().enumerate() {
