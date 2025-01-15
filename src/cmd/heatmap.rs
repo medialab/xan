@@ -297,7 +297,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             "{}",
                             (match formatter.as_mut() {
                                 Some(fmt) if i == midpoint => {
-                                    let formatted = util::format_number_with_formatter(fmt, *f);
+                                    let formatted = util::unicode_aware_ellipsis(
+                                        &util::format_number_with_formatter(fmt, *f),
+                                        scale * 2,
+                                    );
 
                                     format!(
                                         "{:^width$}",
