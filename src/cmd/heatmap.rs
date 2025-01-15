@@ -365,15 +365,17 @@ fn resolve_green_hill_code(code: u8, string: &str) -> ColoredString {
 }
 
 fn print_green_hills() {
+    use bstr::ByteSlice;
+
     for row in GREEN_HILLS
-        .trim_ascii()
+        .trim()
         .iter()
         .filter(|c| **c != 10)
         .cloned()
         .collect::<Vec<_>>()
         .chunks(GREEN_HILLS_COLS as usize)
     {
-        for code in row.trim_ascii() {
+        for code in row.trim() {
             print!("{}", resolve_green_hill_code(*code, " "));
         }
         println!();
