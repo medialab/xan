@@ -28,7 +28,11 @@ xan network options:
                               in the resulting graph.
 
 network edgelist options:
-    -U, --undirected  Whether the graph is undirected.
+    -U, --undirected       Whether the graph is undirected.
+    --nodes <path>         Path to a CSV file containing node metadata
+                           (use "-" to feed the file from stdin).
+    --node-column <name>   Name of the column containing node keys.
+                           [default: node]
 
 Common options:
     -h, --help             Display this message

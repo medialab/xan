@@ -10,9 +10,6 @@ use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
-// TODO: finish normalize modes
-// TODO: failure when input file is emptyish
-
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
 fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
@@ -27,6 +24,10 @@ enum Normalization {
 impl Normalization {
     fn is_column(&self) -> bool {
         matches!(self, Self::Column)
+    }
+
+    fn is_row(&self) -> bool {
+        matches!(self, Self::Row)
     }
 }
 
@@ -149,6 +150,39 @@ impl Matrix {
 
         cols
     }
+}
+
+fn compute_row_extent(
+    row: &[Option<f64>],
+    forced_extent: (Option<f64>, Option<f64>),
+) -> Option<(f64, f64)> {
+    let mut extent = None;
+
+    if let (Some(forced_min), Some(forced_max)) = forced_extent {
+        return Some((forced_min, forced_max));
+    }
+
+    for cell in row.iter().flatten() {
+        match extent.as_mut() {
+            None => extent = Some((*cell, *cell)),
+            Some((min, max)) => {
+                if cell < min {
+                    *min = *cell;
+                }
+                if cell > max {
+                    *max = *cell;
+                }
+            }
+        }
+    }
+
+    if let (Some((min, _)), Some(forced_min)) = (extent.as_mut(), forced_extent.0) {
+        *min = forced_min;
+    } else if let (Some((_, max)), Some(forced_max)) = (extent.as_mut(), forced_extent.1) {
+        *max = forced_max;
+    }
+
+    extent
 }
 
 static USAGE: &str = "
@@ -338,11 +372,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 match cell {
                     None => print!("{}", "  ".repeat(scale)),
                     Some(f) => {
-                        // TODO: if the column has no value, things will get messy...
-                        let (min, max) = col_extents
-                            .as_ref()
-                            .and_then(|extents| extents[col_i])
-                            .unwrap_or(full_extent);
+                        // TODO: deal with the case when no extent can be found
+                        // TODO: hoist extent computation
+                        let (min, max) = if args.flag_normalize.is_row() {
+                            compute_row_extent(row, (args.flag_min, args.flag_max)).unwrap()
+                        } else {
+                            col_extents
+                                .as_ref()
+                                .and_then(|extents| extents[col_i])
+                                .unwrap_or(full_extent)
+                        };
 
                         let normalized = (f - min) / (max - min);
 
