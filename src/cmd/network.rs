@@ -1,6 +1,6 @@
 use crate::config::{Config, Delimiter};
-use crate::graph::{Attributes, GraphBuilder};
-use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer};
+use crate::graph::GraphBuilder;
+use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;

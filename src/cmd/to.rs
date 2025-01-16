@@ -3,10 +3,9 @@ use std::io::{self, IsTerminal, Read, Write};
 use std::num::NonZeroUsize;
 
 use rust_xlsxwriter::Workbook;
-use serde_json::Value;
 
 use crate::config::Config;
-use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer};
+use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
 use crate::util;
 use crate::CliResult;
 
@@ -58,7 +57,7 @@ impl Args {
     fn convert_to_json<R: Read, W: Write>(
         &self,
         mut rdr: csv::Reader<R>,
-        writer: W,
+        mut writer: W,
     ) -> CliResult<()> {
         let headers = rdr.headers()?.clone();
 
@@ -70,22 +69,23 @@ impl Args {
 
         inferrence_buffer.read(&mut rdr)?;
 
-        let mut json_object = serde_json::Map::new();
+        let mut json_object = OmittableAttributes::from_headers(headers.iter());
         let mut json_array = Vec::new();
 
         for record in inferrence_buffer.records() {
-            inferrence_buffer.mutate_json_map(&mut json_object, &headers, record);
-            json_array.push(Value::Object(json_object.clone()));
+            inferrence_buffer.mutate_attributes(&mut json_object, record);
+            json_array.push(json_object.clone());
         }
 
         let mut record = csv::StringRecord::new();
 
         while rdr.read_record(&mut record)? {
-            inferrence_buffer.mutate_json_map(&mut json_object, &headers, &record);
-            json_array.push(Value::Object(json_object.clone()));
+            inferrence_buffer.mutate_attributes(&mut json_object, &record);
+            json_array.push(json_object.clone());
         }
 
-        serde_json::to_writer_pretty(writer, &json_array)?;
+        serde_json::to_writer_pretty(&mut writer, &json_array)?;
+        writeln!(&mut writer)?;
 
         Ok(())
     }
@@ -104,17 +104,17 @@ impl Args {
 
         inferrence_buffer.read(&mut rdr)?;
 
-        let mut json_object = serde_json::Map::new();
+        let mut json_object = OmittableAttributes::from_headers(headers.iter());
 
         for record in inferrence_buffer.records() {
-            inferrence_buffer.mutate_json_map(&mut json_object, &headers, record);
+            inferrence_buffer.mutate_attributes(&mut json_object, record);
             writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
 
         let mut record = csv::StringRecord::new();
 
         while rdr.read_record(&mut record)? {
-            inferrence_buffer.mutate_json_map(&mut json_object, &headers, &record);
+            inferrence_buffer.mutate_attributes(&mut json_object, &record);
             writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
 

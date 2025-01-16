@@ -1,11 +1,127 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap};
 use std::io::Read;
 use std::num::NonZeroUsize;
+use std::rc::Rc;
 
 use csv::StringRecord;
-use serde_json::{json, Map, Value};
+use serde::ser::{Serialize, SerializeMap, Serializer};
+use serde_json::{json, Value};
 
 use crate::select::Selection;
+
+#[derive(Default)]
+struct AttributeNameInterner {
+    strings: Vec<Rc<String>>,
+    map: BTreeMap<Rc<String>, usize>,
+}
+
+impl AttributeNameInterner {
+    fn register(&mut self, name: String) -> usize {
+        use BTreeMapEntry::*;
+
+        let name = Rc::new(name);
+        let next_id = self.strings.len();
+
+        match self.map.entry(name.clone()) {
+            Occupied(entry) => *entry.get(),
+            Vacant(entry) => {
+                self.strings.push(name.clone());
+                entry.insert(next_id);
+                next_id
+            }
+        }
+    }
+
+    fn get(&self, id: usize) -> &str {
+        &self.strings[id]
+    }
+}
+
+thread_local! {
+    static INTERNER: RefCell<AttributeNameInterner> = RefCell::new(AttributeNameInterner::default());
+}
+
+#[derive(Debug, Default)]
+pub struct Attributes {
+    entries: Vec<(usize, Value)>,
+}
+
+impl Attributes {
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn insert(&mut self, key: &str, value: Value) {
+        let attr_name_id = INTERNER.with_borrow_mut(|interner| interner.register(key.to_string()));
+        self.entries.push((attr_name_id, value));
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &(usize, Value)> {
+        self.entries.iter()
+    }
+}
+
+impl Serialize for Attributes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.entries.len()))?;
+
+        for (k, v) in self.entries.iter() {
+            INTERNER.with_borrow(|interner| map.serialize_entry(interner.get(*k), v))?;
+        }
+
+        map.end()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct OmittableAttributes {
+    entries: Vec<(usize, Option<Value>)>,
+}
+
+impl OmittableAttributes {
+    pub fn from_headers<'a>(headers: impl Iterator<Item = &'a str>) -> Self {
+        let mut entries = Vec::new();
+
+        for h in headers {
+            INTERNER
+                .with_borrow_mut(|interner| entries.push((interner.register(h.to_string()), None)));
+        }
+
+        Self { entries }
+    }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut Option<Value>> {
+        self.entries.iter_mut().map(|(_, v)| v)
+    }
+}
+
+impl Serialize for OmittableAttributes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.entries.len()))?;
+
+        for (k, opt) in self.entries.iter() {
+            if let Some(v) = opt {
+                INTERNER.with_borrow(|interner| map.serialize_entry(interner.get(*k), v))?;
+            }
+        }
+
+        map.end()
+    }
+}
 
 // NOTE: we keep a depth on `Delve` and `Pop` to be able to skip absent keys efficiently
 #[derive(Debug, Clone)]
@@ -226,12 +342,6 @@ pub enum JSONEmptyMode {
     Omit,
 }
 
-impl JSONEmptyMode {
-    fn is_omit(&self) -> bool {
-        matches!(self, Self::Omit)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum JSONType {
     Null,
@@ -390,24 +500,14 @@ impl JSONTypeInferrenceBuffer {
             })
     }
 
-    pub fn mutate_json_map(
-        &self,
-        map: &mut Map<String, Value>,
-        headers: &StringRecord,
-        record: &StringRecord,
-    ) {
-        if self.inferrence.empty_mode.is_omit() {
-            map.clear();
-        }
-
-        for (i, (header, value)) in headers
-            .iter()
-            .zip(self.selection.select_string_record(record))
-            .enumerate()
+    pub fn mutate_attributes(&self, attributes: &mut OmittableAttributes, record: &StringRecord) {
+        for ((cell, current_value), json_type) in self
+            .selection
+            .select_string_record(record)
+            .zip(attributes.values_mut())
+            .zip(self.inferrence.json_types.iter())
         {
-            if let Some(json_value) = self.inferrence.cast(value, self.inferrence.json_types[i]) {
-                map.insert(header.to_string(), json_value);
-            }
+            *current_value = self.inferrence.cast(cell, *json_type);
         }
     }
 

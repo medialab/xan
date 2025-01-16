@@ -1,16 +1,13 @@
-use std::cell::RefCell;
-use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Not;
 use std::rc::Rc;
 
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use jiff::Zoned;
-use serde::ser::{Serialize, SerializeMap, Serializer};
-use serde_json::Value;
 
 use crate::collections::UnionFind;
-use crate::json::JSONType;
+use crate::json::{Attributes, JSONType};
 use crate::xml::XMLWriter;
 use crate::CliResult;
 
@@ -46,79 +43,6 @@ impl GexfNamespace {
             xmlns: "http://gexf.net/1.3",
             schema_location: "http://gexf.net/1.3 http://gexf.net/1.3/gexf.xsd",
         }
-    }
-}
-
-#[derive(Default)]
-struct AttributeNameInterner {
-    strings: Vec<Rc<String>>,
-    map: BTreeMap<Rc<String>, usize>,
-}
-
-impl AttributeNameInterner {
-    fn register(&mut self, name: String) -> usize {
-        use BTreeMapEntry::*;
-
-        let name = Rc::new(name);
-        let next_id = self.strings.len();
-
-        match self.map.entry(name.clone()) {
-            Occupied(entry) => *entry.get(),
-            Vacant(entry) => {
-                self.strings.push(name.clone());
-                entry.insert(next_id);
-                next_id
-            }
-        }
-    }
-
-    fn get(&self, id: usize) -> &str {
-        &self.strings[id]
-    }
-}
-
-thread_local! {
-    static INTERNER: RefCell<AttributeNameInterner> = RefCell::new(AttributeNameInterner::default());
-}
-
-#[derive(Debug, Default)]
-pub struct Attributes {
-    entries: Vec<(usize, Value)>,
-}
-
-impl Attributes {
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            entries: Vec::with_capacity(capacity),
-        }
-    }
-
-    pub fn insert(&mut self, key: &str, value: Value) {
-        let attr_name_id = INTERNER.with_borrow_mut(|interner| interner.register(key.to_string()));
-        self.entries.push((attr_name_id, value));
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &(usize, Value)> {
-        self.entries.iter()
-    }
-}
-
-impl Serialize for Attributes {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.entries.len()))?;
-
-        for (k, v) in self.entries.iter() {
-            INTERNER.with_borrow(|interner| map.serialize_entry(interner.get(*k), v))?;
-        }
-
-        map.end()
     }
 }
 
