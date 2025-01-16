@@ -81,7 +81,7 @@ thread_local! {
     static INTERNER: RefCell<AttributeNameInterner> = RefCell::new(AttributeNameInterner::default());
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Attributes {
     entries: Vec<(usize, Value)>,
 }
@@ -125,12 +125,11 @@ impl Serialize for Attributes {
 #[derive(Serialize)]
 struct Node {
     key: Rc<String>,
+    attributes: Attributes,
 }
 
 #[derive(Serialize)]
 struct Edge {
-    #[serde(skip_serializing)]
-    pair: (usize, usize),
     source: Rc<String>,
     target: Rc<String>,
     #[serde(skip_serializing_if = "Not::not")]
@@ -174,6 +173,7 @@ pub struct Graph {
 pub struct GraphBuilder {
     options: GraphOptions,
     disjoint_sets: Option<UnionFind>,
+    node_model: Vec<(String, JSONType)>,
     edge_model: Vec<(String, JSONType)>,
     nodes: IndexMap<Rc<String>, Node>,
     edges: HashMap<(usize, usize), Edge>,
@@ -188,6 +188,17 @@ impl GraphBuilder {
         self.disjoint_sets = Some(UnionFind::new());
     }
 
+    pub fn set_node_model<'a>(
+        &mut self,
+        headers: impl Iterator<Item = &'a str>,
+        model: impl Iterator<Item = JSONType>,
+    ) {
+        self.node_model = headers
+            .zip(model)
+            .map(|(header, json_type)| (header.to_string(), json_type))
+            .collect();
+    }
+
     pub fn set_edge_model<'a>(
         &mut self,
         headers: impl Iterator<Item = &'a str>,
@@ -199,7 +210,7 @@ impl GraphBuilder {
             .collect();
     }
 
-    pub fn add_node(&mut self, key: String) -> usize {
+    pub fn add_node(&mut self, key: String, attributes: Attributes) -> usize {
         use IndexMapEntry::*;
 
         let rc_key = Rc::new(key);
@@ -208,7 +219,10 @@ impl GraphBuilder {
         match self.nodes.entry(rc_key.clone()) {
             Occupied(entry) => entry.index(),
             Vacant(entry) => {
-                entry.insert(Node { key: rc_key });
+                entry.insert(Node {
+                    key: rc_key,
+                    attributes,
+                });
 
                 if let Some(sets) = self.disjoint_sets.as_mut() {
                     sets.make_set();
@@ -239,7 +253,6 @@ impl GraphBuilder {
         let target_node = self.nodes.get_index(target).unwrap().1;
 
         let edge = Edge {
-            pair: (source, target),
             source: source_node.key.clone(),
             target: target_node.key.clone(),
             undirected,
@@ -315,6 +328,7 @@ impl GraphBuilder {
         };
 
         let today = Zoned::now().strftime("%F").to_string();
+        let node_model = self.node_model.clone();
         let edge_model = self.edge_model.clone();
         let graph = self.build();
 
@@ -343,6 +357,20 @@ impl GraphBuilder {
             [("defaultedgetype", graph.options.graph_type.as_str())],
         )?;
 
+        // Node model
+        xml_writer.open("attributes", [("class", "node")])?;
+        for (i, (name, json_type)) in node_model.iter().enumerate() {
+            xml_writer.open_empty(
+                "attribute",
+                [
+                    ("id", i.to_string().as_str()),
+                    ("title", name.as_str()),
+                    ("type", json_type.as_gexf_type()),
+                ],
+            )?;
+        }
+        xml_writer.close("attributes")?;
+
         // Edge model
         xml_writer.open("attributes", [("class", "edge")])?;
         for (i, (name, json_type)) in edge_model.iter().enumerate() {
@@ -359,14 +387,32 @@ impl GraphBuilder {
 
         // Node data
         xml_writer.open_no_attributes("nodes")?;
-        for (node_id, node) in graph.nodes.iter().enumerate() {
-            xml_writer.open_empty(
-                "node",
-                [
-                    ("id", node_id.to_string().as_str()),
-                    ("label", node.key.as_str()),
-                ],
-            )?;
+        for node in graph.nodes.iter() {
+            if node.attributes.is_empty() {
+                xml_writer.open_empty(
+                    "node",
+                    [("id", node.key.as_str()), ("label", node.key.as_str())],
+                )?;
+            } else {
+                xml_writer.open(
+                    "node",
+                    [("id", node.key.as_str()), ("label", node.key.as_str())],
+                )?;
+
+                xml_writer.open_no_attributes("attvalues")?;
+                for (i, (_, value)) in node.attributes.iter().enumerate() {
+                    xml_writer.open_empty(
+                        "attvalue",
+                        [
+                            ("for", i.to_string().as_str()),
+                            ("value", &value.to_string()),
+                        ],
+                    )?;
+                }
+                xml_writer.close("attvalues")?;
+
+                xml_writer.close("node")?;
+            }
         }
         xml_writer.close("nodes")?;
 
@@ -377,20 +423,20 @@ impl GraphBuilder {
                 xml_writer.open_empty(
                     "edge",
                     [
-                        ("source", edge.pair.0.to_string().as_str()),
-                        ("target", edge.pair.1.to_string().as_str()),
+                        ("source", edge.source.as_str()),
+                        ("target", edge.target.as_str()),
                     ],
                 )?;
             } else {
                 xml_writer.open(
                     "edge",
                     [
-                        ("source", edge.pair.0.to_string().as_str()),
-                        ("target", edge.pair.1.to_string().as_str()),
+                        ("source", edge.source.as_str()),
+                        ("target", edge.target.as_str()),
                     ],
                 )?;
-                xml_writer.open_no_attributes("attvalues")?;
 
+                xml_writer.open_no_attributes("attvalues")?;
                 for (i, (_, value)) in edge.attributes.iter().enumerate() {
                     xml_writer.open_empty(
                         "attvalue",
@@ -400,8 +446,8 @@ impl GraphBuilder {
                         ],
                     )?;
                 }
-
                 xml_writer.close("attvalues")?;
+
                 xml_writer.close("edge")?;
             }
         }
