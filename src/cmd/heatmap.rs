@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 use colored::{ColoredString, Colorize};
 use colorgrad::Gradient;
 use numfmt::{Formatter, Precision};
+use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -15,6 +16,36 @@ use crate::CliResult;
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
 fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
+}
+
+enum Normalization {
+    Full,
+    Column,
+    Row,
+}
+
+impl Normalization {
+    fn is_column(&self) -> bool {
+        matches!(self, Self::Column)
+    }
+}
+
+impl<'de> Deserialize<'de> for Normalization {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "all" | "full" => Self::Full,
+            "col" | "cols" | "column" | "columns" => Self::Column,
+            "row" | "rows" => Self::Row,
+            _ => {
+                return Err(D::Error::custom(format!(
+                    "unsupported normalization \"{}\"",
+                    &raw
+                )))
+            }
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -72,8 +103,19 @@ impl Matrix {
         self.row_labels.iter().map(|label| label.width()).max()
     }
 
-    fn extent_per_column(&self) -> Vec<Option<(f64, f64)>> {
+    fn extent_per_column(
+        &self,
+        forced_extent: (Option<f64>, Option<f64>),
+    ) -> Vec<Option<(f64, f64)>> {
         let mut cols = vec![None; self.column_labels.len()];
+
+        if let (Some(forced_min), Some(forced_max)) = forced_extent {
+            for col in cols.iter_mut() {
+                *col = Some((forced_min, forced_max));
+            }
+
+            return cols;
+        }
 
         for rows in self.rows() {
             for (i, cell) in rows.1.iter().enumerate() {
@@ -92,6 +134,16 @@ impl Matrix {
                         }
                     }
                 }
+            }
+        }
+
+        if let Some(forced_min) = forced_extent.0 {
+            for (min, _) in cols.iter_mut().flatten() {
+                *min = forced_min;
+            }
+        } else if let Some(forced_max) = forced_extent.1 {
+            for (_, max) in cols.iter_mut().flatten() {
+                *max = forced_max;
             }
         }
 
@@ -139,7 +191,7 @@ struct Args {
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_scale: NonZeroUsize,
-    flag_normalize: String,
+    flag_normalize: Normalization,
     flag_diverging: bool,
     flag_cram: bool,
     flag_show_numbers: bool,
@@ -261,7 +313,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Printing rows
     let midpoint = scale / 2;
 
-    let col_extents = (args.flag_normalize == "col").then(|| matrix.extent_per_column());
+    let col_extents = args
+        .flag_normalize
+        .is_column()
+        .then(|| matrix.extent_per_column((args.flag_min, args.flag_max)));
 
     for (row_label, row) in matrix.rows() {
         // TODO: computations are not required each scale rows
