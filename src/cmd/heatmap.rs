@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
-use colorgrad::Gradient;
+use colorgrad::{BasisGradient, Gradient};
 use numfmt::{Formatter, Precision};
 use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
@@ -45,6 +45,117 @@ impl<'de> Deserialize<'de> for Normalization {
                     &raw
                 )))
             }
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+enum GradientName {
+    // Sequential
+    OrRd,
+    Viridis,
+    Inferno,
+    Magma,
+    Plasma,
+
+    // Diverging
+    BrBg,
+    PiYg,
+    PuOr,
+    RdBu,
+    RdGy,
+    RdYlBu,
+    RdYlGn,
+    Spectral,
+}
+
+impl GradientName {
+    fn as_str(&self) -> &str {
+        use GradientName::*;
+
+        match self {
+            OrRd => "or_rd",
+            Viridis => "viridis",
+            Inferno => "inferno",
+            Magma => "magma",
+            Plasma => "plasma",
+            BrBg => "br_bg",
+            PiYg => "pi_yg",
+            PuOr => "pu_or",
+            RdBu => "rd_bu",
+            RdGy => "rd_gy",
+            RdYlBu => "rd_yl_bu",
+            RdYlGn => "rd_yl_gn",
+            Spectral => "spectral",
+        }
+    }
+
+    fn to_gradient(&self) -> BasisGradient {
+        use colorgrad::preset::*;
+        use GradientName::*;
+
+        match self {
+            OrRd => or_rd(),
+            Viridis => viridis(),
+            Inferno => inferno(),
+            Magma => magma(),
+            Plasma => plasma(),
+            BrBg => br_bg(),
+            PiYg => pi_yg(),
+            PuOr => pu_or(),
+            RdBu => rd_bu(),
+            RdGy => rd_gy(),
+            RdYlBu => rd_yl_bu(),
+            RdYlGn => rd_yl_gn(),
+            Spectral => spectral(),
+        }
+    }
+
+    fn sample(&self) -> String {
+        self.to_gradient()
+            .colors(30)
+            .into_iter()
+            .map(|c| {
+                let rgb = c.to_rgba8();
+                "  ".on_truecolor(rgb[0], rgb[1], rgb[2]).to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    }
+
+    fn sequential_iter() -> impl Iterator<Item = Self> {
+        use GradientName::*;
+        [OrRd, Viridis, Inferno, Magma, Plasma].iter().copied()
+    }
+
+    fn diverging_iter() -> impl Iterator<Item = Self> {
+        use GradientName::*;
+        [BrBg, PiYg, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral]
+            .iter()
+            .copied()
+    }
+}
+
+impl<'de> Deserialize<'de> for GradientName {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use GradientName::*;
+
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "or_rd" => OrRd,
+            "viridis" => Viridis,
+            "inferno" => Inferno,
+            "magma" => Magma,
+            "plasma" => Plasma,
+            "pi_yg" => PiYg,
+            "pu_or" => PuOr,
+            "rd_bu" => RdBu,
+            "rd_gy" => RdGy,
+            "rd_yl_bu" => RdYlBu,
+            "rd_yl_gn" => RdYlGn,
+            "spectral" => Spectral,
+            _ => return Err(D::Error::custom(format!("unknown gradient \"{}\"", &raw))),
         })
     }
 }
@@ -188,12 +299,19 @@ fn compute_row_extent(
 static USAGE: &str = "
 Draw a heatmap from CSV data.
 
+Use the --show-gradients flag to display a showcase of available
+color gradients.
+
 Usage:
     xan heatmap [options] [<input>]
+    xan heatmap --show-gradients
     xan heatmap --green-hills
     xan heatmap --help
 
 heatmap options:
+    --gradient <name>   Gradient to use. Use --show-gradients to see what is
+                        available.
+                        [default: or_rd]
     -m, --min <n>       Minimum value for a cell in the heatmap. Will clamp
                         irrelevant values and use this min for normalization.
     -M, --max <n>       Maximum value for a cell in the heatmap. Will clamp
@@ -203,13 +321,15 @@ heatmap options:
                         [default: full]
     -S, --scale <n>     Size of the heatmap square in terminal rows.
                         [default: 1]
-    -D, --diverging     Use a diverging color gradient.
+    -D, --diverging     Use a diverging color gradient. Currently only shorthand
+                        for \"--gradient rd_bu\".
     --cram              Attempt to cram column labels over the columns.
                         Usually works better when -S, --scale > 1.
     -N, --show-numbers  Whether to attempt to show numbers in the cells.
                         Usually only useful when -S, --scale > 1.
     -C, --force-colors  Force colors even if output is not supposed to be able to
                         handle them.
+    --show-gradients    Display a showcase of available gradients.
 
 Common options:
     -h, --help             Display this message
@@ -222,6 +342,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_gradient: GradientName,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_scale: NonZeroUsize,
@@ -232,11 +353,41 @@ struct Args {
     flag_force_colors: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_show_gradients: bool,
     flag_green_hills: bool,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_diverging && self.flag_gradient.as_str() == "or_rd" {
+            self.flag_gradient = GradientName::RdBu;
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
+
+    if args.flag_show_gradients {
+        println!("{}", "Sequential scales".bold());
+        println!();
+        for gradient_name in GradientName::sequential_iter() {
+            println!("{}", gradient_name.as_str());
+            println!("{}", gradient_name.sample());
+        }
+        println!("\n");
+
+        println!("{}", "Diverging scales".bold());
+        println!();
+        for gradient_name in GradientName::diverging_iter() {
+            println!("{}", gradient_name.as_str());
+            println!("{}", gradient_name.sample());
+        }
+        println!();
+
+        return Ok(());
+    }
 
     if args.flag_green_hills {
         print_green_hills();
@@ -251,11 +402,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         colored::control::set_override(true);
     }
 
-    let gradient = if args.flag_diverging {
-        colorgrad::preset::rd_bu()
-    } else {
-        colorgrad::preset::or_rd()
-    };
+    let gradient = args.flag_gradient.to_gradient();
 
     let mut rdr = conf.reader()?;
     let mut record = csv::ByteRecord::new();

@@ -4,12 +4,19 @@
 ```txt
 Draw a heatmap from CSV data.
 
+Use the --show-gradients flag to display a showcase of available
+color gradients.
+
 Usage:
     xan heatmap [options] [<input>]
+    xan heatmap --show-gradients
     xan heatmap --green-hills
     xan heatmap --help
 
 heatmap options:
+    --gradient <name>   Gradient to use. Use --show-gradients to see what is
+                        available.
+                        [default: or_rd]
     -m, --min <n>       Minimum value for a cell in the heatmap. Will clamp
                         irrelevant values and use this min for normalization.
     -M, --max <n>       Maximum value for a cell in the heatmap. Will clamp
@@ -19,13 +26,15 @@ heatmap options:
                         [default: full]
     -S, --scale <n>     Size of the heatmap square in terminal rows.
                         [default: 1]
-    -D, --diverging     Use a diverging color gradient.
+    -D, --diverging     Use a diverging color gradient. Currently only shorthand
+                        for "--gradient rd_bu".
     --cram              Attempt to cram column labels over the columns.
                         Usually works better when -S, --scale > 1.
     -N, --show-numbers  Whether to attempt to show numbers in the cells.
                         Usually only useful when -S, --scale > 1.
     -C, --force-colors  Force colors even if output is not supposed to be able to
                         handle them.
+    --show-gradients    Display a showcase of available gradients.
 
 Common options:
     -h, --help             Display this message
