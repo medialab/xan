@@ -308,6 +308,7 @@ impl Series {
             self.freedman_diaconis(width, stats)
                 .unwrap_or_else(|| self.naive_optimal_bin_count()),
         )
+        .min(50)
     }
 
     pub fn bins(
