@@ -20,6 +20,9 @@ enum options:
                              in the file instead. Can be useful to perform
                              constant time slicing with `xan slice --byte-offset`
                              later on.
+    -A, --accumulate         When use with -B, --byte-offset, will accumulate the
+                             written offset size in bytes to create an autodescriptive
+                             file that can be seen as a means of indexation.
 
 Common options:
     -h, --help             Display this message
@@ -39,6 +42,7 @@ struct Args {
     flag_start: i64,
     flag_column_name: Option<String>,
     flag_byte_offset: bool,
+    flag_accumulate: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -67,10 +71,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
     let mut counter = args.flag_start;
+    let mut accumulator: u64 = 0;
 
     while rdr.read_byte_record(&mut record)? {
         let new_record = if args.flag_byte_offset {
-            record.prepend(record.position().unwrap().byte().to_string().as_bytes())
+            let offset = (record.position().unwrap().byte() + accumulator).to_string();
+
+            if args.flag_accumulate {
+                accumulator += offset.len() as u64 + 1;
+            }
+
+            record.prepend(offset.as_bytes())
         } else {
             record.prepend(counter.to_string().as_bytes())
         };
