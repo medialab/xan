@@ -17,7 +17,7 @@ enum options:
     -S, --start <arg>        Number to count from. [default: 0].
     -B, --byte-offset        Whether to indicate the byte offset of the row
                              in the file instead. Can be useful to perform
-                             constant time slicing with `xan slice --byte-start`
+                             constant time slicing with `xan slice --byte-offset`
                              later on.
 
 Common options:

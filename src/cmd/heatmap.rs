@@ -90,7 +90,7 @@ impl GradientName {
         }
     }
 
-    fn to_gradient(&self) -> BasisGradient {
+    fn build(&self) -> BasisGradient {
         use colorgrad::preset::*;
         use GradientName::*;
 
@@ -112,7 +112,7 @@ impl GradientName {
     }
 
     fn sample(&self) -> String {
-        self.to_gradient()
+        self.build()
             .colors(30)
             .into_iter()
             .map(|c| {
@@ -402,7 +402,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         colored::control::set_override(true);
     }
 
-    let gradient = args.flag_gradient.to_gradient();
+    let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.reader()?;
     let mut record = csv::ByteRecord::new();

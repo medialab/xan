@@ -196,3 +196,26 @@ fn slice_indices_indexed() {
     let expected = vec![svec!["n"], svec!["zero"], svec!["two"], svec!["four"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn slice_byte_offset() {
+    let wrk = Workdir::new("slice_byte_offset");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["zero"],
+            svec!["one"],
+            svec!["two"],
+            svec!["three"],
+            svec!["four"],
+            svec!["five"],
+        ],
+    );
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-B", "10"]).args(["-l", "1"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["two"]];
+    assert_eq!(got, expected);
+}

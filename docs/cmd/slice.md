@@ -16,18 +16,28 @@ first. Namely, a slice on an index requires parsing just the rows that are
 sliced. Without an index, all rows up to the first row in the slice must be
 parsed.
 
+Finally, this command is also able to find the first record to slice in
+constant time using the -B, --byte-offset if you know its byte offset in
+the file. This only works with seekable inputs, e.g. files but no stdin or
+gzipped files.
+
 Usage:
     xan slice [options] [<input>]
 
 slice options:
-    -s, --start <n>  The index of the record to slice from.
-    -e, --end <n>    The index of the record to slice to.
-    -l, --len <n>    The length of the slice (can be used instead
-                     of --end).
-    -i, --index <i>  Slice a single record (shortcut for -s N -l 1).
-                     You can also provide multiples indices separated by
-                     commas, e.g. "1,4,67,89". Note that selected records
-                     will be emitted in file order.
+    -s, --start <n>        The index of the record to slice from.
+    -e, --end <n>          The index of the record to slice to.
+    -l, --len <n>          The length of the slice (can be used instead
+                           of --end).
+    -i, --index <i>        Slice a single record (shortcut for -s N -l 1).
+                           You can also provide multiples indices separated by
+                           commas, e.g. "1,4,67,89". Note that selected records
+                           will be emitted in file order.
+    -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
+                           be useful to access a particular slice of records in
+                           constant time, without needing to read preceding bytes.
+                           This requires the input to be seekable (stdin or gzipped
+                           files are not supported, for instance).
 
 Common options:
     -h, --help             Display this message

@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{Read, SeekFrom};
 
 use crate::config::{Config, Delimiter};
 use crate::index::Indexed;
@@ -20,18 +21,28 @@ first. Namely, a slice on an index requires parsing just the rows that are
 sliced. Without an index, all rows up to the first row in the slice must be
 parsed.
 
+Finally, this command is also able to find the first record to slice in
+constant time using the -B, --byte-offset if you know its byte offset in
+the file. This only works with seekable inputs, e.g. files but no stdin or
+gzipped files.
+
 Usage:
     xan slice [options] [<input>]
 
 slice options:
-    -s, --start <n>  The index of the record to slice from.
-    -e, --end <n>    The index of the record to slice to.
-    -l, --len <n>    The length of the slice (can be used instead
-                     of --end).
-    -i, --index <i>  Slice a single record (shortcut for -s N -l 1).
-                     You can also provide multiples indices separated by
-                     commas, e.g. \"1,4,67,89\". Note that selected records
-                     will be emitted in file order.
+    -s, --start <n>        The index of the record to slice from.
+    -e, --end <n>          The index of the record to slice to.
+    -l, --len <n>          The length of the slice (can be used instead
+                           of --end).
+    -i, --index <i>        Slice a single record (shortcut for -s N -l 1).
+                           You can also provide multiples indices separated by
+                           commas, e.g. \"1,4,67,89\". Note that selected records
+                           will be emitted in file order.
+    -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
+                           be useful to access a particular slice of records in
+                           constant time, without needing to read preceding bytes.
+                           This requires the input to be seekable (stdin or gzipped
+                           files are not supported, for instance).
 
 Common options:
     -h, --help             Display this message
@@ -50,6 +61,7 @@ struct Args {
     flag_end: Option<usize>,
     flag_len: Option<usize>,
     flag_index: Option<String>,
+    flag_byte_offset: Option<usize>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -61,7 +73,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match &args.flag_index {
         Some(indices) if indices.contains(',') => {
             return match args.rconfig().indexed()? {
-                None => args.no_index_plural(),
+                None => {
+                    let rconf = args.rconfig();
+
+                    if let Some(offset) = args.flag_byte_offset {
+                        let inner = rconf.io_reader_for_random_access()?;
+                        let mut rdr = rconf.csv_reader_from_reader(inner);
+
+                        let mut pos = csv::Position::new();
+                        pos.set_byte(offset as u64);
+
+                        rdr.seek_raw(SeekFrom::Start(offset as u64), pos)?;
+
+                        args.no_index_plural(rdr)
+                    } else {
+                        let rdr = rconf.reader()?;
+                        args.no_index_plural(rdr)
+                    }
+                }
                 Some(idx) => args.with_index_plural(idx),
             };
         }
@@ -69,25 +98,60 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     match args.rconfig().indexed()? {
-        None => args.no_index(),
+        None => {
+            let rconf = args.rconfig();
+
+            if let Some(offset) = args.flag_byte_offset {
+                let inner = rconf.io_reader_for_random_access()?;
+                let mut rdr = rconf.csv_reader_from_reader(inner);
+
+                let mut pos = csv::Position::new();
+                pos.set_byte(offset as u64);
+
+                rdr.seek_raw(SeekFrom::Start(offset as u64), pos)?;
+
+                args.no_index(rdr)
+            } else {
+                let rdr = rconf.reader()?;
+                args.no_index(rdr)
+            }
+        }
         Some(idx) => args.with_index(idx),
     }
 }
 
 impl Args {
-    fn no_index(&self) -> CliResult<()> {
-        let mut rdr = self.rconfig().reader()?;
+    fn no_index<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
         self.rconfig().write_headers(&mut rdr, &mut wtr)?;
 
+        let mut record = csv::ByteRecord::new();
+
         let (start, end) = self.range()?;
-        for r in rdr.byte_records().skip(start).take(end - start) {
-            wtr.write_byte_record(&r?)?;
+        let mut i: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            i += 1;
+
+            if i <= start {
+                continue;
+            }
+
+            wtr.write_byte_record(&record)?;
+
+            if i == end {
+                break;
+            }
         }
+
         Ok(wtr.flush()?)
     }
 
     fn with_index(&self, mut idx: Indexed<fs::File, fs::File>) -> CliResult<()> {
+        if self.flag_byte_offset.is_some() {
+            Err("-B/--byte-offset is pointless with indexed files!")?;
+        }
+
         let mut wtr = self.wconfig().writer()?;
         self.rconfig().write_headers(&mut *idx, &mut wtr)?;
 
@@ -103,8 +167,7 @@ impl Args {
         Ok(())
     }
 
-    fn no_index_plural(&self) -> CliResult<()> {
-        let mut rdr = self.rconfig().reader()?;
+    fn no_index_plural<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
         self.rconfig().write_headers(&mut rdr, &mut wtr)?;
 
