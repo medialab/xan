@@ -333,7 +333,7 @@ impl Series {
             }]);
         }
 
-        let width = (max - min).abs();
+        let width = max - min;
 
         let count = count.unwrap_or_else(|| self.optimal_bin_count(width, &stats));
         let mut bins: Vec<Bin> = Vec::with_capacity(count);

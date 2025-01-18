@@ -238,6 +238,9 @@ impl Aggregator {
                 ConcreteAggregationMethod::MostCommonValues(k, separator),
                 Self::Frequencies(inner),
             ) => DynamicValue::from(inner.most_common(*k).join(separator)),
+            (ConcreteAggregationMethod::Sparkline(bins), Self::Numbers(inner)) => {
+                DynamicValue::from(inner.sparkline(*bins))
+            }
             (ConcreteAggregationMethod::Sum, Self::Sum(inner)) => DynamicValue::from(inner.get()),
             (ConcreteAggregationMethod::VarPop, Self::Welford(inner)) => {
                 DynamicValue::from(inner.variance())
@@ -417,7 +420,8 @@ impl CompositeAggregator {
             }
             ConcreteAggregationMethod::Median(_)
             | ConcreteAggregationMethod::Quantile(_)
-            | ConcreteAggregationMethod::Quartile(_) => {
+            | ConcreteAggregationMethod::Quartile(_)
+            | ConcreteAggregationMethod::Sparkline(_) => {
                 upsert_aggregator!(Numbers)
             }
             ConcreteAggregationMethod::Mode
@@ -613,7 +617,7 @@ fn validate_aggregation_function_arity(
     let range = match name {
         "count" => 0..=1,
         "quantile" | "approx_quantile" => 2..=2,
-        "values" | "distinct_values" | "argmin" | "argmax" | "modes" => 1..=2,
+        "values" | "distinct_values" | "argmin" | "argmax" | "modes" | "sparkline" => 1..=2,
         "most_common" | "most_common_counts" | "top" => 1..=3,
         "argtop" => 1..=4,
         _ => 1..=1,
@@ -673,6 +677,7 @@ enum ConcreteAggregationMethod {
     Quartile(usize),
     Quantile(f64),
     Ratio,
+    Sparkline(usize),
     Sum,
     Values(String),
     VarPop,
@@ -789,6 +794,16 @@ impl ConcreteAggregationMethod {
             "var" | "var_pop" => Self::VarPop,
             "var_sample" => Self::VarSample,
             "ratio" => Self::Ratio,
+            "sparkline" => match args.first() {
+                None => Self::Sparkline(10),
+                Some(arg) => match arg {
+                    ConcreteExpr::Value(v) => match v.try_as_usize() {
+                        Ok(bins) => Self::Sparkline(bins),
+                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                    },
+                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
+                },
+            },
             "stddev" | "stddev_pop" => Self::StddevPop,
             "stddev_sample" => Self::StddevSample,
             "sum" => Self::Sum,
