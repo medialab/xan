@@ -133,12 +133,22 @@ pub struct GraphBuilder {
 }
 
 impl GraphBuilder {
-    pub fn mark_as_undirected(&mut self) {
-        self.options.graph_type = GraphType::Undirected;
+    pub fn new(track_largest_component: bool) -> Self {
+        let mut builder = Self::default();
+
+        if track_largest_component {
+            builder.disjoint_sets = Some(UnionFind::new());
+        }
+
+        builder
     }
 
-    pub fn keep_largest_component(&mut self) {
-        self.disjoint_sets = Some(UnionFind::new());
+    fn is_undirected(&self) -> bool {
+        matches!(self.options.graph_type, GraphType::Undirected)
+    }
+
+    pub fn mark_as_undirected(&mut self) {
+        self.options.graph_type = GraphType::Undirected;
     }
 
     pub fn set_node_model<'a>(
@@ -186,13 +196,9 @@ impl GraphBuilder {
         }
     }
 
-    pub fn add_edge(
-        &mut self,
-        source: usize,
-        target: usize,
-        attributes: Attributes,
-        undirected: bool,
-    ) {
+    pub fn add_edge(&mut self, source: usize, target: usize, attributes: Attributes) {
+        let undirected = self.is_undirected();
+
         let (source, target) = if source == target {
             self.options.allow_self_loops = true;
             (source, target)

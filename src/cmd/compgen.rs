@@ -65,7 +65,7 @@ static COMMANDS: [&str; 57] = [
 ];
 
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
-static NETWORK_SUBCOMMANDS: [&str; 1] = ["edgelist"];
+static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 

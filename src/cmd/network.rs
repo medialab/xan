@@ -17,11 +17,14 @@ Supported formats:
            ref: https://gexf.net/
 
 Supported modes:
-    edgelist: converts a CSV of edges with a column representing
-              sources and another column targets.
+    edgelist:  converts a CSV of edges with a column representing
+               sources and another column targets.
+    bipartite: converts a CSV with two columns representing the
+               edges between both parts of a bipartite graph.
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
+    xan network bipartite [options] <part1> <part2> [<input>]
     xan network --help
 
 xan network options:
@@ -53,9 +56,13 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
+    cmd_edgelist: bool,
+    cmd_bipartite: bool,
     arg_input: Option<String>,
     arg_source: Option<SelectColumns>,
     arg_target: Option<SelectColumns>,
+    arg_part1: Option<SelectColumns>,
+    arg_part2: Option<SelectColumns>,
     flag_format: String,
     flag_gexf_version: String,
     flag_largest_component: bool,
@@ -74,7 +81,8 @@ impl Args {
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
 
-        let mut graph_builder = GraphBuilder::default();
+        let mut graph_builder = GraphBuilder::new(self.flag_largest_component);
+
         let mut record = csv::StringRecord::new();
 
         if let Some(nodes_path) = &self.flag_nodes {
@@ -153,10 +161,6 @@ impl Args {
             graph_builder.mark_as_undirected();
         }
 
-        if self.flag_largest_component {
-            graph_builder.keep_largest_component();
-        }
-
         let edge_headers = edge_reader.headers()?.clone();
 
         graph_builder.set_edge_model(
@@ -177,7 +181,7 @@ impl Args {
                 attributes.insert(k, v);
             }
 
-            graph_builder.add_edge(source_id, target_id, attributes, self.flag_undirected);
+            graph_builder.add_edge(source_id, target_id, attributes);
         };
 
         for buffered_record in edge_attr_inferrence.records() {
@@ -186,6 +190,51 @@ impl Args {
 
         while edge_reader.read_record(&mut record)? {
             process_edge_record(&record);
+        }
+
+        Ok(graph_builder)
+    }
+
+    fn bipartite(&self) -> CliResult<GraphBuilder> {
+        let rconf = Config::new(&self.arg_input)
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers);
+
+        let mut graph_builder = GraphBuilder::new(self.flag_largest_component);
+
+        graph_builder.mark_as_undirected();
+
+        let mut reader = rconf.reader()?;
+        let mut record = csv::StringRecord::new();
+
+        let headers = reader.byte_headers()?.clone();
+
+        let first_part_index = self
+            .arg_part1
+            .as_ref()
+            .unwrap()
+            .single_selection(&headers, !self.flag_no_headers)?;
+
+        let second_part_index = self
+            .arg_part2
+            .as_ref()
+            .unwrap()
+            .single_selection(&headers, !self.flag_no_headers)?;
+
+        while reader.read_record(&mut record)? {
+            // TODO: solve ids
+            let first_part_node = record[first_part_index].to_string();
+            let second_part_node = record[second_part_index].to_string();
+
+            let first_part_node_id = graph_builder.add_node(first_part_node, Attributes::default());
+            let second_part_node_id =
+                graph_builder.add_node(second_part_node, Attributes::default());
+
+            graph_builder.add_edge(
+                first_part_node_id,
+                second_part_node_id,
+                Attributes::default(),
+            );
         }
 
         Ok(graph_builder)
@@ -203,7 +252,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ))?;
     }
 
-    let graph = args.edgelist()?.build();
+    let graph = (if args.cmd_edgelist {
+        args.edgelist()
+    } else if args.cmd_bipartite {
+        args.bipartite()
+    } else {
+        unreachable!()
+    })?
+    .build();
 
     if args.flag_stats {
         colored::control::set_override(true);
@@ -239,11 +295,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             "edges      ".cyan(),
             util::format_number(stats.edges)
         );
-        eprintln!(
-            "{} {}",
-            "density    ".cyan(),
-            util::format_number(stats.density)
-        );
+        eprintln!("{} {}", "density    ".cyan(), stats.density);
     }
 
     match args.flag_format.as_str() {
