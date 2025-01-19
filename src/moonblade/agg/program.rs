@@ -9,14 +9,12 @@ use super::aggregators::{
     Welford, ZonedExtent,
 };
 use crate::collections::ClusteredInsertHashmap;
-use crate::moonblade::error::{
-    ConcretizationError, EvaluationError, InvalidArity, SpecifiedEvaluationError,
-};
+use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use crate::moonblade::interpreter::{
     concretize_expression, eval_expression, ConcreteExpr, EvaluationContext,
 };
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
-use crate::moonblade::types::{Arity, DynamicNumber, DynamicValue};
+use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments};
 
 macro_rules! build_aggregation_method_enum {
     ($($variant: ident,)+) => {
@@ -608,38 +606,138 @@ impl CompositeAggregator {
     }
 }
 
-fn validate_aggregation_function_arity(
-    name: &str,
-    mut arity: usize,
-) -> Result<(), ConcretizationError> {
-    arity += 1;
-
-    let range = match name {
-        "count" => 0..=1,
-        "quantile" | "approx_quantile" => 2..=2,
-        "values" | "distinct_values" | "argmin" | "argmax" | "modes" | "sparkline" => 1..=2,
-        "most_common" | "most_common_counts" | "top" => 1..=3,
-        "argtop" => 1..=4,
-        _ => 1..=1,
-    };
-
-    if !range.contains(&arity) {
-        return Err(ConcretizationError::InvalidArity(
-            name.to_string(),
-            InvalidArity::from_arity(Arity::Range(range), arity),
-        ));
+fn cast_as_static_value<T>(
+    arg: &ConcreteExpr,
+    cast_fn: fn(&DynamicValue) -> Result<T, EvaluationError>,
+) -> Result<T, ConcretizationError> {
+    if let ConcreteExpr::Value(v) = arg {
+        cast_fn(v).map_err(|_| ConcretizationError::NotStaticallyAnalyzable)
+    } else {
+        Err(ConcretizationError::NotStaticallyAnalyzable)
     }
-
-    Ok(())
 }
 
-fn get_separator_from_argument(args: &[ConcreteExpr], pos: usize) -> Option<String> {
-    Some(match args.get(pos) {
-        None => "|".to_string(),
-        Some(arg) => match arg {
-            ConcreteExpr::Value(separator) => separator.try_as_str().expect("").into_owned(),
-            _ => return None,
-        },
+fn cast_as_separator(arg_opt: Option<&ConcreteExpr>) -> Result<String, ConcretizationError> {
+    match arg_opt {
+        None => Ok("|".to_string()),
+        Some(arg) => {
+            if let ConcreteExpr::Value(v) = arg {
+                let sep = v
+                    .try_as_str()
+                    .map_err(|_| ConcretizationError::NotStaticallyAnalyzable)?;
+
+                Ok(sep.into_owned())
+            } else {
+                Err(ConcretizationError::NotStaticallyAnalyzable)
+            }
+        }
+    }
+}
+
+type ArgumentParser = fn(&[ConcreteExpr]) -> Result<ConcreteAggregationMethod, ConcretizationError>;
+
+fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, ArgumentParser)> {
+    use ConcreteAggregationMethod::*;
+
+    Some(match name {
+        "all" => (FunctionArguments::unary(), |_| Ok(All)),
+        "any" => (FunctionArguments::unary(), |_| Ok(Any)),
+        "approx_cardinality" => (FunctionArguments::unary(), |_| Ok(ApproxCardinality)),
+        "approx_quantile" => (FunctionArguments::binary(), |args| {
+            Ok(ApproxQuantile(cast_as_static_value(
+                args.first().unwrap(),
+                DynamicValue::try_as_f64,
+            )?))
+        }),
+        "argmin" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(ArgMin(args.last().cloned()))
+        }),
+        "argmax" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(ArgMax(args.last().cloned()))
+        }),
+        "argtop" => (FunctionArguments::with_range(1..=4), |args| {
+            Ok(ArgTop(
+                cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
+                args.get(1).cloned(),
+                cast_as_separator(args.get(2))?,
+            ))
+        }),
+        "cardinality" => (FunctionArguments::unary(), |_| Ok(Cardinality)),
+        "correlation" => (FunctionArguments::unary(), |_| Ok(Correlation)),
+        "count" => (FunctionArguments::unary(), |_| Ok(Count)),
+        "count_seconds" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Second))),
+        "count_hours" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Hour))),
+        "count_days" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Day))),
+        "count_years" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Year))),
+        "covariance" | "covariance_pop" => (FunctionArguments::unary(), |_| Ok(CovariancePop)),
+        "covariance_sample" => (FunctionArguments::unary(), |_| Ok(CovarianceSample)),
+        "distinct_values" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(DistinctValues(cast_as_separator(args.first())?))
+        }),
+        "earliest" => (FunctionArguments::unary(), |_| Ok(Earliest)),
+        "first" => (FunctionArguments::unary(), |_| Ok(First)),
+        "latest" => (FunctionArguments::unary(), |_| Ok(Latest)),
+        "last" => (FunctionArguments::unary(), |_| Ok(Last)),
+        "lex_first" => (FunctionArguments::unary(), |_| Ok(LexFirst)),
+        "lex_last" => (FunctionArguments::unary(), |_| Ok(LexLast)),
+        "min" => (FunctionArguments::unary(), |_| Ok(Min)),
+        "max" => (FunctionArguments::unary(), |_| Ok(Max)),
+        "avg" | "mean" => (FunctionArguments::unary(), |_| Ok(Mean)),
+        "median" => (FunctionArguments::unary(), |_| {
+            Ok(Median(MedianType::Interpolation))
+        }),
+        "median_high" => (FunctionArguments::unary(), |_| Ok(Median(MedianType::High))),
+        "median_low" => (FunctionArguments::unary(), |_| Ok(Median(MedianType::Low))),
+        "mode" => (FunctionArguments::unary(), |_| Ok(Mode)),
+        "modes" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(Modes(cast_as_separator(args.first())?))
+        }),
+        "most_common" => (FunctionArguments::with_range(1..=3), |args| {
+            Ok(MostCommonValues(
+                cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
+                cast_as_separator(args.get(1))?,
+            ))
+        }),
+        "most_common_counts" => (FunctionArguments::with_range(1..=3), |args| {
+            Ok(MostCommonCounts(
+                cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
+                cast_as_separator(args.get(1))?,
+            ))
+        }),
+        "percentage" => (FunctionArguments::unary(), |_| Ok(Percentage)),
+        "quantile" => (FunctionArguments::binary(), |args| {
+            Ok(Quantile(cast_as_static_value(
+                args.first().unwrap(),
+                DynamicValue::try_as_f64,
+            )?))
+        }),
+        "q1" => (FunctionArguments::unary(), |_| Ok(Quartile(0))),
+        "q2" => (FunctionArguments::unary(), |_| Ok(Quartile(1))),
+        "q3" => (FunctionArguments::unary(), |_| Ok(Quartile(2))),
+        "values" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(Values(cast_as_separator(args.first())?))
+        }),
+        "var" | "var_pop" => (FunctionArguments::unary(), |_| Ok(VarPop)),
+        "var_sample" => (FunctionArguments::unary(), |_| Ok(VarSample)),
+        "ratio" => (FunctionArguments::unary(), |_| Ok(Ratio)),
+        "sparkline" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(Sparkline(match args.first() {
+                Some(arg) => cast_as_static_value(arg, DynamicValue::try_as_usize)?,
+                None => 10,
+            }))
+        }),
+        "stddev" | "stddev_pop" => (FunctionArguments::unary(), |_| Ok(StddevPop)),
+        "stddev_sample" => (FunctionArguments::unary(), |_| Ok(StddevSample)),
+        "sum" => (FunctionArguments::unary(), |_| Ok(Sum)),
+        "top" => (FunctionArguments::with_range(1..=3), |args| {
+            Ok(Top(
+                cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?,
+                cast_as_separator(args.get(1))?,
+            ))
+        }),
+        "type" => (FunctionArguments::unary(), |_| Ok(Type)),
+        "types" => (FunctionArguments::unary(), |_| Ok(Types)),
+        _ => return None,
     })
 }
 
@@ -691,143 +789,18 @@ enum ConcreteAggregationMethod {
 
 impl ConcreteAggregationMethod {
     fn parse(name: &str, args: &[ConcreteExpr]) -> Result<Self, ConcretizationError> {
-        let arity = args.len();
+        match get_function_arguments_parser(name) {
+            None => Err(ConcretizationError::UnknownFunction(name.to_string())),
+            Some((function_arguments, parser)) => {
+                function_arguments
+                    .validate_arity(args.len() + 1)
+                    .map_err(|invalid_arity| {
+                        ConcretizationError::InvalidArity(name.to_string(), invalid_arity)
+                    })?;
 
-        let method = match name {
-            "all" => Self::All,
-            "any" => Self::Any,
-            "approx_cardinality" => Self::ApproxCardinality,
-            "approx_quantile" => match args.first().unwrap() {
-                ConcreteExpr::Value(v) => match v.try_as_f64() {
-                    Ok(p) => Self::ApproxQuantile(p),
-                    Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-            },
-            "argmin" => Self::ArgMin(args.last().cloned()),
-            "argmax" => Self::ArgMax(args.last().cloned()),
-            "argtop" => Self::ArgTop(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                args.get(1).cloned(),
-                match get_separator_from_argument(args, 2) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                },
-            ),
-            "cardinality" => Self::Cardinality,
-            "correlation" => Self::Correlation,
-            "count" => Self::Count,
-            "count_seconds" => Self::CountTime(Unit::Second),
-            "count_hours" => Self::CountTime(Unit::Hour),
-            "count_days" => Self::CountTime(Unit::Day),
-            "count_years" => Self::CountTime(Unit::Year),
-            "covariance" | "covariance_pop" => Self::CovariancePop,
-            "covariance_sample" => Self::CovarianceSample,
-            "distinct_values" => Self::DistinctValues(match get_separator_from_argument(args, 0) {
-                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                Some(separator) => separator,
-            }),
-            "earliest" => Self::Earliest,
-            "first" => Self::First,
-            "latest" => Self::Latest,
-            "last" => Self::Last,
-            "lex_first" => Self::LexFirst,
-            "lex_last" => Self::LexLast,
-            "min" => Self::Min,
-            "max" => Self::Max,
-            "avg" | "mean" => Self::Mean,
-            "median" => Self::Median(MedianType::Interpolation),
-            "median_high" => Self::Median(MedianType::High),
-            "median_low" => Self::Median(MedianType::Low),
-            "mode" => Self::Mode,
-            "modes" => Self::Modes(match get_separator_from_argument(args, 0) {
-                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                Some(separator) => separator,
-            }),
-            "most_common" => Self::MostCommonValues(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                match get_separator_from_argument(args, 1) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                },
-            ),
-            "most_common_counts" => Self::MostCommonCounts(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                match get_separator_from_argument(args, 1) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                },
-            ),
-            "percentage" => Self::Percentage,
-            "quantile" => match args.first().unwrap() {
-                ConcreteExpr::Value(v) => match v.try_as_f64() {
-                    Ok(p) => Self::Quantile(p),
-                    Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-            },
-            "q1" => Self::Quartile(0),
-            "q2" => Self::Quartile(1),
-            "q3" => Self::Quartile(2),
-            "values" => Self::Values(match get_separator_from_argument(args, 0) {
-                None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                Some(separator) => separator,
-            }),
-            "var" | "var_pop" => Self::VarPop,
-            "var_sample" => Self::VarSample,
-            "ratio" => Self::Ratio,
-            "sparkline" => match args.first() {
-                None => Self::Sparkline(10),
-                Some(arg) => match arg {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(bins) => Self::Sparkline(bins),
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-            },
-            "stddev" | "stddev_pop" => Self::StddevPop,
-            "stddev_sample" => Self::StddevSample,
-            "sum" => Self::Sum,
-            "top" => Self::Top(
-                match args.first().unwrap() {
-                    ConcreteExpr::Value(v) => match v.try_as_usize() {
-                        Ok(k) => k,
-                        Err(_) => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    },
-                    _ => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                },
-                match get_separator_from_argument(args, 1) {
-                    None => return Err(ConcretizationError::NotStaticallyAnalyzable),
-                    Some(separator) => separator,
-                },
-            ),
-            "type" => Self::Type,
-            "types" => Self::Types,
-            _ => return Err(ConcretizationError::UnknownFunction(name.to_string())),
-        };
-
-        validate_aggregation_function_arity(name, arity)?;
-
-        Ok(method)
+                parser(args)
+            }
+        }
     }
 }
 
