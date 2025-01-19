@@ -1,3 +1,5 @@
+use colored::Colorize;
+
 use crate::config::{Config, Delimiter};
 use crate::graph::GraphBuilder;
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
@@ -30,6 +32,8 @@ xan network options:
                               [default: 1.2]
     -L, --largest-component   Only keep the largest connected component
                               in the resulting graph.
+    --stats                   Print useful statistics about the generated graph
+                              in stderr.
 
 network edgelist options:
     -U, --undirected       Whether the graph is undirected.
@@ -55,6 +59,7 @@ struct Args {
     flag_format: String,
     flag_gexf_version: String,
     flag_largest_component: bool,
+    flag_stats: bool,
     flag_undirected: bool,
     flag_nodes: Option<String>,
     flag_node_column: SelectColumns,
@@ -198,11 +203,52 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ))?;
     }
 
-    let graph_builder = args.edgelist()?;
+    let graph = args.edgelist()?.build();
+
+    if args.flag_stats {
+        colored::control::set_override(true);
+
+        let stats = graph.compute_stats();
+
+        eprintln!(
+            "{} {}",
+            "type       ".cyan(),
+            graph.options.graph_type.as_str()
+        );
+        eprintln!(
+            "{} {}",
+            "self-loops?".cyan(),
+            if graph.options.allow_self_loops {
+                "yes"
+            } else {
+                "no"
+            }
+        );
+        eprintln!(
+            "{} {}",
+            "multi?     ".cyan(),
+            if graph.options.multi { "yes" } else { "no" }
+        );
+        eprintln!(
+            "{} {}",
+            "nodes      ".cyan(),
+            util::format_number(stats.nodes)
+        );
+        eprintln!(
+            "{} {}",
+            "edges      ".cyan(),
+            util::format_number(stats.edges)
+        );
+        eprintln!(
+            "{} {}",
+            "density    ".cyan(),
+            util::format_number(stats.density)
+        );
+    }
 
     match args.flag_format.as_str() {
-        "gexf" => graph_builder.write_gexf(&mut writer, &args.flag_gexf_version),
-        "json" => graph_builder.write_json(&mut writer),
+        "gexf" => graph.write_gexf(&mut writer, &args.flag_gexf_version),
+        "json" => graph.write_json(&mut writer),
         _ => Err(format!("unsupported format: {}!", &args.flag_format))?,
     }
 }

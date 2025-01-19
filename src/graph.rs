@@ -63,14 +63,14 @@ struct Edge {
 
 #[derive(Default, Serialize)]
 #[serde(rename_all = "lowercase")]
-enum GraphType {
+pub enum GraphType {
     #[default]
     Directed,
     Undirected,
 }
 
 impl GraphType {
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Directed => "directed",
             Self::Undirected => "undirected",
@@ -80,17 +80,46 @@ impl GraphType {
 
 #[derive(Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct GraphOptions {
-    allow_self_loops: bool,
-    multi: bool,
-    graph_type: GraphType,
+pub struct GraphOptions {
+    pub allow_self_loops: bool,
+    pub multi: bool,
+    pub graph_type: GraphType,
 }
 
 #[derive(Default, Serialize)]
 pub struct Graph {
-    options: GraphOptions,
+    pub options: GraphOptions,
+    #[serde(skip_serializing)]
+    node_model: Vec<(String, JSONType)>,
+    #[serde(skip_serializing)]
+    edge_model: Vec<(String, JSONType)>,
     nodes: Vec<Node>,
     edges: Vec<Edge>,
+}
+
+#[derive(Debug)]
+pub struct GraphStats {
+    pub nodes: usize,
+    pub edges: usize,
+    pub density: f64,
+}
+
+impl Graph {
+    pub fn compute_stats(&self) -> GraphStats {
+        let nodes = self.nodes.len();
+        let edges = self.edges.len();
+
+        let density = match self.options.graph_type {
+            GraphType::Directed => edges as f64 / (nodes * nodes.saturating_sub(1)) as f64,
+            GraphType::Undirected => edges as f64 / (nodes * nodes.saturating_sub(1) / 2) as f64,
+        };
+
+        GraphStats {
+            nodes,
+            edges,
+            density,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -228,19 +257,23 @@ impl GraphBuilder {
 
         Graph {
             options: self.options,
+            node_model: self.node_model,
+            edge_model: self.edge_model,
             nodes,
             edges,
         }
     }
+}
 
-    pub fn write_json<W: Write>(self, mut writer: W) -> CliResult<()> {
-        serde_json::to_writer_pretty(&mut writer, &self.build())?;
+impl Graph {
+    pub fn write_json<W: Write>(&self, mut writer: W) -> CliResult<()> {
+        serde_json::to_writer_pretty(&mut writer, &self)?;
         writeln!(&mut writer)?;
 
         Ok(())
     }
 
-    pub fn write_gexf<W: Write>(self, writer: W, version: &str) -> CliResult<()> {
+    pub fn write_gexf<W: Write>(&self, writer: W, version: &str) -> CliResult<()> {
         let mut xml_writer = XMLWriter::new(writer);
 
         xml_writer.write_declaration()?;
@@ -252,9 +285,9 @@ impl GraphBuilder {
         };
 
         let today = Zoned::now().strftime("%F").to_string();
-        let node_model = self.node_model.clone();
-        let edge_model = self.edge_model.clone();
-        let graph = self.build();
+        let node_model = &self.node_model;
+        let edge_model = &self.edge_model;
+        let graph = self;
 
         xml_writer.open(
             "gexf",
