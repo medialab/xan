@@ -2,35 +2,36 @@
 # xan select
 
 ```txt
-Select columns from CSV data efficiently using either a handy DSL or by
+Select columns from CSV data using a shorthand notation or by
 evaluating an expression on each row (using the -e, --evaluate flag).
 
-This command lets you manipulate the columns in CSV data. You can re-order
-them, duplicate them, transform them or drop them.
+This command lets you manipulate columns of CSV data. You can re-order
+them, duplicate them, transform them or even drop them in the process.
 
-1. Selection DSL:
------------------
+# Shorthand notation
 
-Columns can be referenced by zero-based index, by negative index starting
-from the end, by name (if the file has headers) and by name and nth, so you
-can easily select columns by duplicate names.
+Columns can be referenced using a zero-based index, or a negative index starting
+from the end, or a name (if the file has headers) or a name and nth, so you
+can easily select columns with duplicate names.
 
-Finally, this is also possible to select ranges of columns using the `:`
-character. Note that column range are inclusive.
+You can also select columns by prefix or suffix using `*` in the column name.
+
+Finally, it is also possible to select ranges of columns using the `:`
+character. Note that column ranges are always inclusive.
 
 Examples:
 
   Select the first and fourth columns:
     $ xan select 0,3
 
-  Select the last column using negative indexing (mind the `--`
-  to avoid shell issues with values starting with hyphens):
+  Select the last column using negative indexing (notice the `--`
+  to avoid shell issues with arguments starting with hyphens):
     $ xan select -- -1
 
   Select first and next to last:
     $ xan select 0,-2
 
-  Select the first 4 columns (by index and by name):
+  Select the first 4 columns (by index or by name):
     $ xan select 0:3
     $ xan select Header1:Header4
 
@@ -57,19 +58,25 @@ Examples:
     $ xan select 3:1,Header3:Header1,Header1,Foo[2],Header1
 
   Quote column names that conflict with selector syntax,
-  (mind the double quoting, problematic characters being `:`, `!`, `[` and `]`):
+  (mind the double quoting, problematic characters being `*`, `:`, `!`, `[` and `]`):
     $ xan select '"Start:datetime","Count:int"'
 
   Select all the columns which is useful to add some copies of columns
-  (notice the simple quotes to avoid shell-side globbing):
+  (notice the simple quotes to avoid shell globbing):
     $ xan select '*'
     $ xan select '*,name'
     $ xan select '*,1'
     $ xan select '0:'
     $ xan select ':0'
 
-2. Evaluating a expression:
----------------------------
+  Select all columns starting by "dim_"
+  (notice the simple quotes again):
+    $ xan select 'dim_*'
+
+  Select all columns ending by "_count":
+    $ xan select '*_count'
+
+# Evaluating a expression
 
 Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
 commands, you can wrangle the rows and perform a custom selection.
@@ -95,7 +102,8 @@ Usage:
 select options:
     -A, --append           Append the selection to the rows instead of
                            replacing them.
-    -e, --evaluate         Toggle expression evaluation rather than using the DSL.
+    -e, --evaluate         Toggle expression evaluation rather than using the
+                           shorthand notation.
     -E, --errors <policy>  What to do with evaluation errors. One of:
                              - "panic": exit on first error
                              - "ignore": ignore row altogether

@@ -254,3 +254,47 @@ fn select_evaluate_append() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn select_glob() {
+    let wrk = Workdir::new("select_glob");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "vec_1", "vec_2", "1_vec", "2_vec"],
+            svec!["john", "1", "2", "3", "4"],
+        ],
+    );
+
+    // Prefix
+    let mut cmd = wrk.command("select");
+    cmd.arg("vec_*").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["vec_1", "vec_2"], svec!["1", "2"]];
+    assert_eq!(got, expected);
+
+    // Name, with prefix
+    let mut cmd = wrk.command("select");
+    cmd.arg("name,vec_*").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "vec_1", "vec_2"], svec!["john", "1", "2"]];
+    assert_eq!(got, expected);
+
+    // Suffix
+    let mut cmd = wrk.command("select");
+    cmd.arg("*_vec").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["1_vec", "2_vec"], svec!["3", "4"]];
+    assert_eq!(got, expected);
+
+    // Suffix, with name
+    let mut cmd = wrk.command("select");
+    cmd.arg("*_vec,name").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["1_vec", "2_vec", "name"], svec!["3", "4", "john"]];
+    assert_eq!(got, expected);
+}

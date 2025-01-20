@@ -155,12 +155,21 @@ impl SelectorParser {
             }
 
             if self.cur() == Some('*') {
-                sels.push(Selector::All);
+                self.bump();
+
+                if self.is_end_of_selector() {
+                    sels.push(Selector::All);
+                } else {
+                    let suffix = self.parse_name()?;
+
+                    if self.cur() == Some(':') {
+                        return Err("Prefix name selection cannot work with range.".to_string());
+                    }
+
+                    sels.push(Selector::GlobSuffix(suffix));
+                }
 
                 self.bump();
-                if self.is_end_of_selector() {
-                    self.bump();
-                }
 
                 continue;
             }
@@ -171,13 +180,24 @@ impl SelectorParser {
                 self.parse_one()?
             };
 
+            if let OneSelector::IndexedName(name, None) = &f1 {
+                if name.ends_with('*') {
+                    sels.push(Selector::GlobPrefix(name[..name.len() - 1].to_string()));
+                    self.bump();
+                    continue;
+                }
+            }
+
             let f2: Option<OneSelector> = if self.cur() == Some(':') {
                 self.bump();
-                Some(if self.is_end_of_selector() {
+
+                let sel = if self.is_end_of_selector() {
                     OneSelector::End
                 } else {
                     self.parse_one()?
-                })
+                };
+
+                Some(sel)
             } else {
                 None
             };
@@ -208,10 +228,10 @@ impl SelectorParser {
         };
         Ok(if self.cur() == Some('[') {
             let idx = self.parse_index()?;
-            OneSelector::IndexedName(name, idx)
+            OneSelector::IndexedName(name, Some(idx))
         } else {
             match FromStr::from_str(&name) {
-                Err(_) => OneSelector::IndexedName(name, 0),
+                Err(_) => OneSelector::IndexedName(name, None),
                 Ok(idx) => OneSelector::Index(idx),
             }
         })
@@ -302,6 +322,8 @@ impl SelectorParser {
 enum Selector {
     One(OneSelector),
     Range(OneSelector, OneSelector),
+    GlobPrefix(String),
+    GlobSuffix(String),
     All,
 }
 
@@ -310,7 +332,7 @@ enum OneSelector {
     Start,
     End,
     Index(isize),
-    IndexedName(String, isize),
+    IndexedName(String, Option<isize>),
 }
 
 impl Selector {
@@ -338,6 +360,60 @@ impl Selector {
                         inds
                     }
                 })
+            }
+            Selector::GlobPrefix(ref prefix) => {
+                if !use_names {
+                    return Err(format!(
+                        "Cannot use prefix ('{}') in selection \
+                                        with --no-headers set.",
+                        prefix
+                    ));
+                }
+
+                let inds: Vec<usize> = first_record
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, h)| {
+                        if h.starts_with(prefix.as_bytes()) {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if inds.is_empty() {
+                    return Err(format!("Prefix '{}' selected nothing.", prefix));
+                }
+
+                Ok(inds)
+            }
+            Selector::GlobSuffix(ref suffix) => {
+                if !use_names {
+                    return Err(format!(
+                        "Cannot use suffix ('{}') in selection \
+                                        with --no-headers set.",
+                        suffix
+                    ));
+                }
+
+                let inds: Vec<usize> = first_record
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, h)| {
+                        if h.ends_with(suffix.as_bytes()) {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if inds.is_empty() {
+                    return Err(format!("Suffix '{}' selected nothing.", suffix));
+                }
+
+                Ok(inds)
             }
         }
     }
@@ -381,6 +457,8 @@ impl OneSelector {
                 }
             }
             OneSelector::IndexedName(ref s, sidx) => {
+                let sidx = sidx.unwrap_or(0);
+
                 if !use_names {
                     return Err(format!(
                         "Cannot use names ('{}') in selection \
@@ -417,22 +495,20 @@ impl OneSelector {
                                  data.",
                         s
                     ))
-                } else {
-                    if sidx < 0 {
-                        Err(format!(
-                            "Selector index '{}' for name '{}' is \
+                } else if sidx < 0 {
+                    Err(format!(
+                        "Selector index '{}' for name '{}' is \
                                      out of bounds. Must be between -{} and -1.",
-                            sidx, s, num_found
-                        ))
-                    } else {
-                        Err(format!(
-                            "Selector index '{}' for name '{}' is \
+                        sidx, s, num_found
+                    ))
+                } else {
+                    Err(format!(
+                        "Selector index '{}' for name '{}' is \
                                  out of bounds. Must be between 0 and {}.",
-                            sidx,
-                            s,
-                            num_found - 1
-                        ))
-                    }
+                        sidx,
+                        s,
+                        num_found - 1
+                    ))
                 }
             }
         }
@@ -445,6 +521,8 @@ impl fmt::Debug for Selector {
             Selector::All => write!(f, "All"),
             Selector::One(ref sel) => sel.fmt(f),
             Selector::Range(ref s, ref e) => write!(f, "Range({:?}, {:?})", s, e),
+            Selector::GlobPrefix(ref prefix) => write!(f, "Prefix({:?})", prefix),
+            Selector::GlobSuffix(ref suffix) => write!(f, "Suffix({:?})", suffix),
         }
     }
 }
@@ -455,7 +533,10 @@ impl fmt::Debug for OneSelector {
             OneSelector::Start => write!(f, "Start"),
             OneSelector::End => write!(f, "End"),
             OneSelector::Index(idx) => write!(f, "Index({})", idx),
-            OneSelector::IndexedName(ref s, idx) => write!(f, "IndexedName({}[{}])", s, idx),
+            OneSelector::IndexedName(ref s, idx) => match idx {
+                None => write!(f, "IndexedName({})", s),
+                Some(i) => write!(f, "IndexedName({}[{}])", s, i),
+            },
         }
     }
 }
