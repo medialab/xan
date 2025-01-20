@@ -21,12 +21,12 @@ Examples:
     $ xan select 0,3
 
   Select the first 4 columns (by index and by name):
-    $ xan select 0-3
-    $ xan select Header1-Header4
+    $ xan select 0:3
+    $ xan select Header1:Header4
 
   Ignore the first 2 columns (by range and by omission):
-    $ xan select 2-
-    $ xan select '!0-1'
+    $ xan select 2:
+    $ xan select '!0:1'
 
   Select the third column named 'Foo':
     $ xan select 'Foo[2]'
@@ -36,18 +36,18 @@ Examples:
     $ xan select 1,"Revenues in millions",year
 
   Re-order and duplicate columns arbitrarily:
-    $ xan select 3-1,Header3-Header1,Header1,Foo[2],Header1
+    $ xan select 3:1,Header3:Header1,Header1,Foo[2],Header1
 
   Quote column names that conflict with selector syntax (using double quoting):
-    $ xan select '"Date - Opening","Date - Actual Closing"'
+    $ xan select '"Start:datetime","Count:int"'
 
   Select all the columns (useful to add some copies of columns),
   notice the simple quotes to avoid shell-side globbing:
     $ xan select '*'
     $ xan select '*,name'
     $ xan select '*,1'
-    $ xan select '0-'
-    $ xan select '-0'
+    $ xan select '0:'
+    $ xan select ':0'
 
 2. Evaluating a expression:
 ---------------------------

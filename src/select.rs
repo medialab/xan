@@ -165,13 +165,13 @@ impl SelectorParser {
                 continue;
             }
 
-            let f1: OneSelector = if self.cur() == Some('-') {
+            let f1: OneSelector = if self.cur() == Some(':') {
                 OneSelector::Start
             } else {
                 self.parse_one()?
             };
 
-            let f2: Option<OneSelector> = if self.cur() == Some('-') {
+            let f2: Option<OneSelector> = if self.cur() == Some(':') {
                 self.bump();
                 Some(if self.is_end_of_selector() {
                     OneSelector::End
@@ -284,7 +284,7 @@ impl SelectorParser {
     }
 
     fn is_end_of_field(&self) -> bool {
-        self.cur().map_or(true, |c| c == ',' || c == '-')
+        self.cur().map_or(true, |c| c == ',' || c == ':')
     }
 
     fn is_end_of_selector(&self) -> bool {

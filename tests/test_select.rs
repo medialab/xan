@@ -98,31 +98,31 @@ select_test!(select_quoted_idx, r#""h[]3"[0]"#, "2", ["h[]3"], ["c"]);
 
 select_test!(
     select_range,
-    "h1-h4",
-    "0-3",
+    "h1:h4",
+    "0:3",
     ["h1", "h2", "h[]3", "h4"],
     ["a", "b", "c", "d"]
 );
 
 select_test!(
     select_range_multi,
-    r#"h1-h2,"h[]3"-h4"#,
-    "0-1,2-3",
+    r#"h1:h2,"h[]3":h4"#,
+    "0:1,2:3",
     ["h1", "h2", "h[]3", "h4"],
     ["a", "b", "c", "d"]
 );
 select_test!(
     select_range_multi_idx,
-    r#"h1-h2,"h[]3"[0]-h4"#,
-    "0-1,2-3",
+    r#"h1:h2,"h[]3"[0]:h4"#,
+    "0:1,2:3",
     ["h1", "h2", "h[]3", "h4"],
     ["a", "b", "c", "d"]
 );
 
 select_test!(
     select_reverse,
-    "h1[1]-h1[0]",
-    "4-0",
+    "h1[1]:h1[0]",
+    "4:0",
     ["h1", "h4", "h[]3", "h2", "h1"],
     ["e", "d", "c", "b", "a"]
 );
@@ -134,37 +134,37 @@ select_test!(
     ["h1", "h2", "h4", "h1"],
     ["a", "b", "d", "e"]
 );
-select_test!(select_not_range, "!h1[1]-h2", "!4-1", ["h1"], ["a"]);
+select_test!(select_not_range, "!h1[1]:h2", "!4:1", ["h1"], ["a"]);
 
 select_test!(select_duplicate, "h1,h1", "0,0", ["h1", "h1"], ["a", "a"]);
 select_test!(
     select_duplicate_range,
-    "h1-h2,h1-h2",
-    "0-1,0-1",
+    "h1:h2,h1:h2",
+    "0:1,0:1",
     ["h1", "h2", "h1", "h2"],
     ["a", "b", "a", "b"]
 );
 select_test!(
     select_duplicate_range_reverse,
-    "h1-h2,h2-h1",
-    "0-1,1-0",
+    "h1:h2,h2:h1",
+    "0:1,1:0",
     ["h1", "h2", "h2", "h1"],
     ["a", "b", "b", "a"]
 );
 
-select_test!(select_range_no_end, "h4-", "3-", ["h4", "h1"], ["d", "e"]);
-select_test!(select_range_no_start, "-h2", "-1", ["h1", "h2"], ["a", "b"]);
+select_test!(select_range_no_end, "h4:", "3:", ["h4", "h1"], ["d", "e"]);
+select_test!(select_range_no_start, ":h2", ":1", ["h1", "h2"], ["a", "b"]);
 select_test!(
     select_range_no_end_cat,
-    "h4-,h1",
-    "3-,0",
+    "h4:,h1",
+    "3:,0",
     ["h4", "h1", "h1"],
     ["d", "e", "a"]
 );
 select_test!(
     select_range_no_start_cat,
-    "-h2,h1[1]",
-    "-1,4",
+    ":h2,h1[1]",
+    ":1,4",
     ["h1", "h2", "h1"],
     ["a", "b", "e"]
 );
@@ -177,7 +177,7 @@ select_test_err!(select_err_idx_not_int, "h1[2.0]");
 select_test_err!(select_err_idx_not_int_2, "h1[a]");
 select_test_err!(select_err_unclosed_quote, r#""h1"#);
 select_test_err!(select_err_unclosed_bracket, r#""h1"[1"#);
-select_test_err!(select_err_expected_end_of_field, "a-b-");
+select_test_err!(select_err_expected_end_of_field, "a:b:");
 
 #[test]
 fn select_evaluate() {
