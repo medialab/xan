@@ -255,7 +255,7 @@ impl SelectorParser {
         Ok(name)
     }
 
-    fn parse_index(&mut self) -> Result<usize, String> {
+    fn parse_index(&mut self) -> Result<isize, String> {
         assert_eq!(self.cur().unwrap(), '[');
         self.bump();
 
@@ -309,8 +309,8 @@ enum Selector {
 enum OneSelector {
     Start,
     End,
-    Index(usize),
-    IndexedName(String, usize),
+    Index(isize),
+    IndexedName(String, isize),
 }
 
 impl Selector {
@@ -353,16 +353,31 @@ impl OneSelector {
                 first_record.len() - 1
             }),
             OneSelector::Index(i) => {
-                if i >= first_record.len() {
-                    Err(format!(
-                        "Selector index {} is out of \
-                                 bounds. Index must be >= 0 \
-                                 and <= {}.",
-                        i,
-                        first_record.len()
-                    ))
+                if i < 0 {
+                    if i.unsigned_abs() > first_record.len() {
+                        Err(format!(
+                            "Selector index {} is out of \
+                                 bounds. Index must be between -1 \
+                                 and -{}.",
+                            i,
+                            first_record.len()
+                        ))
+                    } else {
+                        Ok(first_record.len() - i.unsigned_abs())
+                    }
                 } else {
-                    Ok(i)
+                    let i = i as usize;
+                    if i >= first_record.len() {
+                        Err(format!(
+                            "Selector index {} is out of \
+                                 bounds. Index must be between 0 \
+                                 and {}.",
+                            i,
+                            first_record.len()
+                        ))
+                    } else {
+                        Ok(i)
+                    }
                 }
             }
             OneSelector::IndexedName(ref s, sidx) => {
@@ -374,14 +389,27 @@ impl OneSelector {
                     ));
                 }
                 let mut num_found = 0;
-                for (i, field) in first_record.iter().enumerate() {
-                    if field == s.as_bytes() {
-                        if num_found == sidx {
-                            return Ok(i);
+
+                if sidx < 0 {
+                    for (i, field) in first_record.iter().enumerate().rev() {
+                        if field == s.as_bytes() {
+                            if num_found == sidx.abs() - 1 {
+                                return Ok(i);
+                            }
+                            num_found += 1;
                         }
-                        num_found += 1;
+                    }
+                } else {
+                    for (i, field) in first_record.iter().enumerate() {
+                        if field == s.as_bytes() {
+                            if num_found == sidx {
+                                return Ok(i);
+                            }
+                            num_found += 1;
+                        }
                     }
                 }
+
                 if num_found == 0 {
                     Err(format!(
                         "Selector name '{}' does not exist \
@@ -390,13 +418,21 @@ impl OneSelector {
                         s
                     ))
                 } else {
-                    Err(format!(
-                        "Selector index '{}' for name '{}' is \
-                                 out of bounds. Must be >= 0 and <= {}.",
-                        sidx,
-                        s,
-                        num_found - 1
-                    ))
+                    if sidx < 0 {
+                        Err(format!(
+                            "Selector index '{}' for name '{}' is \
+                                     out of bounds. Must be between -{} and -1.",
+                            sidx, s, num_found
+                        ))
+                    } else {
+                        Err(format!(
+                            "Selector index '{}' for name '{}' is \
+                                 out of bounds. Must be between 0 and {}.",
+                            sidx,
+                            s,
+                            num_found - 1
+                        ))
+                    }
                 }
             }
         }

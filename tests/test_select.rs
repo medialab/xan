@@ -75,8 +75,10 @@ fn data(headers: bool) -> Vec<Vec<String>> {
 }
 
 select_test!(select_simple, "h1", "0", ["h1"], ["a"]);
+select_test!(select_negative, "h1[1]", "-1", ["h1"], ["e"]);
 select_test!(select_simple_idx, "h1[0]", "0", ["h1"], ["a"]);
 select_test!(select_simple_idx_2, "h1[1]", "4", ["h1"], ["e"]);
+select_test!(select_simple_idx_negative, "h1[-1]", "-1", ["h1"], ["e"]);
 
 select_test!(
     select_all,
