@@ -8,8 +8,8 @@ the distinct number of row identities.
 If your file is already sorted on the deduplication selection, use the -S/--sorted flag
 to run in O(1) memory instead.
 
-Note that it will be the first row having a specific identity that will be emitted in
-the output and not any subsequent one.
+Note that, by default, this command will write the first row having
+a specific identity to the output, unless you use -l/--keep-last.
 
 Usage:
     xan dedup [options] [<input>]
@@ -21,14 +21,15 @@ dedup options:
     -s, --select <arg>  Select a subset of columns to on which to deduplicate.
                         See 'xan select --help' for the format details.
     -S, --sorted        Use if you know your file is already sorted on the deduplication
-                        selection to avoid storing unique values in memory.
-    -l, --keep-last     Keep the last row having a specific identiy, rather than
+                        selection to avoid needing to keep a hashmap of values
+                        in memory.
+    -l, --keep-last     Keep the last row having a specific identity, rather than
                         the first one. Note that it will cost more memory and that
                         no rows will be flushed before the whole file has been read
                         if -S/--sorted is not used.
     -e, --external      Use an external btree index to keep the index on disk and avoid
                         overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
-    --keep-duplicates   Retrieve only the duplicated rows.
+    --keep-duplicates   Emit only the duplicated rows.
 
 Common options:
     -h, --help               Display this message
