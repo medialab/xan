@@ -145,7 +145,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let field_names: Vec<Vec<u8>> = if args.flag_no_headers {
-        sel.indices()
+        sel.iter()
             .map(|i| i.to_string().as_bytes().to_vec())
             .collect()
     } else {

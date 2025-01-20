@@ -495,10 +495,6 @@ impl Selection {
         self.len() == 0
     }
 
-    pub fn indices(&self) -> impl Iterator<Item = usize> + '_ {
-        self.0.iter().copied()
-    }
-
     pub fn contains(&self, i: usize) -> bool {
         self.0.iter().any(|j| i == *j)
     }
