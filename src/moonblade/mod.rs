@@ -2,6 +2,7 @@ pub mod agg;
 mod error;
 mod functions;
 mod interpreter;
+// mod merge;
 mod parser;
 mod select;
 mod special_functions;
