@@ -11,11 +11,14 @@ Supported formats:
            ref: https://gexf.net/
 
 Supported modes:
-    edgelist: converts a CSV of edges with a column representing
-              sources and another column targets.
+    edgelist:  converts a CSV of edges with a column representing
+               sources and another column targets.
+    bipartite: converts a CSV with two columns representing the
+               edges between both parts of a bipartite graph.
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
+    xan network bipartite [options] <part1> <part2> [<input>]
     xan network --help
 
 xan network options:
@@ -26,6 +29,8 @@ xan network options:
                               [default: 1.2]
     -L, --largest-component   Only keep the largest connected component
                               in the resulting graph.
+    --stats                   Print useful statistics about the generated graph
+                              in stderr.
 
 network edgelist options:
     -U, --undirected       Whether the graph is undirected.

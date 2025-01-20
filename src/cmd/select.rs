@@ -20,9 +20,10 @@ them, duplicate them, transform them or drop them.
 -----------------
 
 Columns can be referenced by index or byname if there is a header row (duplicate
-column names can be disambiguated with more indexing).
+column names can be disambiguated with more indexing). Finally, column ranges can
+be specified.
 
-Finally, column ranges can be specified.
+Examples:
 
   Select the first and fourth columns:
     $ xan select 0,3
@@ -38,13 +39,18 @@ Finally, column ranges can be specified.
   Select the third column named 'Foo':
     $ xan select 'Foo[2]'
 
+  Select column names containing spaces:
+    $ xan select \"Revenues in millions\"
+    $ xan select 1,\"Revenues in millions\",year
+
   Re-order and duplicate columns arbitrarily:
     $ xan select 3-1,Header3-Header1,Header1,Foo[2],Header1
 
-  Quote column names that conflict with selector syntax:
+  Quote column names that conflict with selector syntax (using double quoting):
     $ xan select '\"Date - Opening\",\"Date - Actual Closing\"'
 
-  Select all the columns (useful to add some copies of columns):
+  Select all the columns (useful to add some copies of columns),
+  notice the simple quotes to avoid shell-side globbing:
     $ xan select '*'
     $ xan select '*,name'
     $ xan select '*,1'
@@ -61,8 +67,6 @@ commands, you can wrangle the rows and perform a custom selection.
 
 For a quick review of the capabilities of the script language, use
 the --cheatsheet flag.
-
-For a list of available aggregation functions, use the --aggs flag.
 
 If you want to list available functions, use the --functions flag.
 

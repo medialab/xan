@@ -19,6 +19,9 @@ enum options:
                              in the file instead. Can be useful to perform
                              constant time slicing with `xan slice --byte-offset`
                              later on.
+    -A, --accumulate         When use with -B, --byte-offset, will accumulate the
+                             written offset size in bytes to create an autodescriptive
+                             file that can be seen as a means of indexation.
 
 Common options:
     -h, --help             Display this message
