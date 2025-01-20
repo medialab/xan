@@ -132,6 +132,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 wtr.write_byte_record(&record)?;
             }
         }
+
+        return Ok(wtr.flush()?);
     }
 
     match (
