@@ -1,10 +1,11 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-// NOTE: keep this library in check: https://github.com/sweet-security/candystore
 use dlv_list::{Index, VecList};
+use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use transient_btree_index::{BtreeConfig, BtreeIndex};
 
 use crate::config::{Config, Delimiter};
+use crate::moonblade::MergeProgram;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
@@ -18,6 +19,8 @@ to run in O(1) memory instead.
 
 Note that, by default, this command will write the first row having
 a specific identity to the output, unless you use -l/--keep-last.
+
+TODO: examples for --merge and --choose
 
 Usage:
     xan dedup [options] [<input>]
@@ -38,6 +41,11 @@ dedup options:
     -e, --external      Use an external btree index to keep the index on disk and avoid
                         overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
     --keep-duplicates   Emit only the duplicated rows.
+    --merge <expr>      Evaluate an expression to merge two duplicate records.
+                        The expression can add new columns as well as transform
+                        existing ones.
+    --choose <expr>     Evaluate an expression that must return whether to
+                        keep the newly seen row or not.
 
 Common options:
     -h, --help               Display this message
@@ -60,6 +68,8 @@ struct Args {
     flag_keep_last: bool,
     flag_external: bool,
     flag_keep_duplicates: bool,
+    flag_merge: Option<String>,
+    flag_choose: Option<String>,
 }
 
 type DeduplicationKey = Vec<Vec<u8>>;
@@ -79,6 +89,33 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_keep_duplicates {
             Err("--keep-duplicates does not work with -e/--external!")?;
         }
+
+        if args.flag_choose.is_some() {
+            Err("--choose does not work with -e/--external!")?;
+        }
+
+        if args.flag_merge.is_some() {
+            Err("--merge does not work with -e/--external!")?;
+        }
+    }
+
+    let mut mutually_exclusive_count: usize = 0;
+
+    if args.flag_keep_last {
+        mutually_exclusive_count += 1;
+    }
+    if args.flag_keep_duplicates {
+        mutually_exclusive_count += 1;
+    }
+    if args.flag_merge.is_some() {
+        mutually_exclusive_count += 1;
+    }
+    if args.flag_choose.is_some() {
+        mutually_exclusive_count += 1;
+    }
+
+    if mutually_exclusive_count > 1 {
+        Err("must select only one of --merge, --choose, -l/--keep-last, --keep-duplicates")?;
     }
 
     if args.flag_sorted {
@@ -91,7 +128,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.flag_select);
 
     let mut rdr = rconf.reader()?;
-    let sel = rconf.selection(rdr.byte_headers()?)?;
+    let headers = rdr.byte_headers()?.clone();
+    let sel = rconf.selection(&headers)?;
 
     if args.flag_check {
         let mut record = csv::ByteRecord::new();
@@ -115,8 +153,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
+    // TODO: --merge should work with inexisting stuff at init
+    // TODO: test and docs
+
+    // Merge
+    if let Some(merge_expr) = &args.flag_merge {
+        let mut program = MergeProgram::parse(merge_expr, &headers)?;
+
+        if !args.flag_no_headers {
+            wtr.write_byte_record(&program.headers())?;
+        }
+
+        if args.flag_sorted {
+            unimplemented!()
+        } else {
+            let mut index: IndexMap<DeduplicationKey, Vec<Vec<u8>>> = IndexMap::new();
+
+            let mut i: usize = 0;
+            let mut record = csv::ByteRecord::new();
+
+            while rdr.read_byte_record(&mut record)? {
+                match index.entry(sel.collect(&record)) {
+                    IndexMapEntry::Vacant(entry) => {
+                        let mut owned = program.allocate(&record);
+                        program.run_with_record(i, &mut owned, &record)?;
+                        entry.insert(owned);
+                    }
+                    IndexMapEntry::Occupied(mut entry) => {
+                        program.run_with_record(i, entry.get_mut(), &record)?;
+                    }
+                }
+
+                i += 1;
+            }
+
+            for final_record in index.values() {
+                wtr.write_record(final_record.into_iter())?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Choose
+    if let Some(choose_expr) = &args.flag_choose {
+        return Ok(wtr.flush()?);
+    }
+
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
+    // External
     if args.flag_external {
         let mut record = csv::ByteRecord::new();
 
