@@ -11,6 +11,22 @@ to run in O(1) memory instead.
 Note that, by default, this command will write the first row having
 a specific identity to the output, unless you use -l/--keep-last.
 
+The command can also write only the duplicated rows with --keep-duplicates.
+
+Finally, it is also possible to specify which rows to keep by evaluating
+an expression (see `xan map --cheatsheet` and `xan map --functions` for
+the documentation of the expression language).
+
+For instance, if you want to deduplicate a CSV of events on the `id`
+column but want to keep the row having the maximum value in the `count`
+column instead of the first row found with any given identity:
+
+    $ xan dedup -s id --choose 'new_count > current_count' events.csv > deduped.csv
+
+Notice how the column names of the currently kept row were prefixed
+with "current_", while the ones of the new row were prefixed
+with "new_" instead.
+
 Usage:
     xan dedup [options] [<input>]
     xan dedup --help
@@ -30,6 +46,10 @@ dedup options:
     -e, --external      Use an external btree index to keep the index on disk and avoid
                         overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
     --keep-duplicates   Emit only the duplicated rows.
+    --choose <expr>     Evaluate an expression that must return whether to
+                        keep a newly seen row or not. Column name in the given
+                        expression will be prefixed with "current_" for the
+                        currently kept row and "new_" for the new row to consider.
 
 Common options:
     -h, --help               Display this message

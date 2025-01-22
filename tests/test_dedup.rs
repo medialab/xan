@@ -303,3 +303,66 @@ fn dedup_keep_duplicates_sorted_trailing() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn dedup_choose() {
+    let wrk = Workdir::new("dedup_choose");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "count"],
+            svec!["mary", "1"],
+            svec!["john", "2"],
+            svec!["mary", "8"],
+            svec!["mary", "7"],
+            svec!["john", "1"],
+            svec!["lucy", "1"],
+        ],
+    );
+
+    let mut cmd = wrk.command("dedup");
+    cmd.args(["-s", "name"])
+        .args(["--choose", "new_count > current_count"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "count"],
+        svec!["mary", "8"],
+        svec!["john", "2"],
+        svec!["lucy", "1"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn dedup_choose_sorted() {
+    let wrk = Workdir::new("dedup_choose_sorted");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "count"],
+            svec!["mary", "1"],
+            svec!["mary", "8"],
+            svec!["mary", "7"],
+            svec!["john", "2"],
+            svec!["john", "1"],
+            svec!["lucy", "1"],
+        ],
+    );
+
+    let mut cmd = wrk.command("dedup");
+    cmd.args(["-s", "name"])
+        .arg("-S")
+        .args(["--choose", "new_count > current_count"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "count"],
+        svec!["mary", "8"],
+        svec!["john", "2"],
+        svec!["lucy", "1"],
+    ];
+    assert_eq!(got, expected);
+}

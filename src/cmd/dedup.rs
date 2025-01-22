@@ -5,7 +5,7 @@ use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use transient_btree_index::{BtreeConfig, BtreeIndex};
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::MergeProgram;
+use crate::moonblade::ChooseProgram;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
@@ -20,7 +20,21 @@ to run in O(1) memory instead.
 Note that, by default, this command will write the first row having
 a specific identity to the output, unless you use -l/--keep-last.
 
-TODO: examples for --merge and --choose
+The command can also write only the duplicated rows with --keep-duplicates.
+
+Finally, it is also possible to specify which rows to keep by evaluating
+an expression (see `xan map --cheatsheet` and `xan map --functions` for
+the documentation of the expression language).
+
+For instance, if you want to deduplicate a CSV of events on the `id`
+column but want to keep the row having the maximum value in the `count`
+column instead of the first row found with any given identity:
+
+    $ xan dedup -s id --choose 'new_count > current_count' events.csv > deduped.csv
+
+Notice how the column names of the currently kept row were prefixed
+with \"current_\", while the ones of the new row were prefixed
+with \"new_\" instead.
 
 Usage:
     xan dedup [options] [<input>]
@@ -41,11 +55,10 @@ dedup options:
     -e, --external      Use an external btree index to keep the index on disk and avoid
                         overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
     --keep-duplicates   Emit only the duplicated rows.
-    --merge <expr>      Evaluate an expression to merge two duplicate records.
-                        The expression can add new columns as well as transform
-                        existing ones.
     --choose <expr>     Evaluate an expression that must return whether to
-                        keep the newly seen row or not.
+                        keep a newly seen row or not. Column name in the given
+                        expression will be prefixed with \"current_\" for the
+                        currently kept row and \"new_\" for the new row to consider.
 
 Common options:
     -h, --help               Display this message
@@ -68,7 +81,6 @@ struct Args {
     flag_keep_last: bool,
     flag_external: bool,
     flag_keep_duplicates: bool,
-    flag_merge: Option<String>,
     flag_choose: Option<String>,
 }
 
@@ -93,10 +105,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_choose.is_some() {
             Err("--choose does not work with -e/--external!")?;
         }
-
-        if args.flag_merge.is_some() {
-            Err("--merge does not work with -e/--external!")?;
-        }
     }
 
     let mut mutually_exclusive_count: usize = 0;
@@ -107,15 +115,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_keep_duplicates {
         mutually_exclusive_count += 1;
     }
-    if args.flag_merge.is_some() {
-        mutually_exclusive_count += 1;
-    }
     if args.flag_choose.is_some() {
         mutually_exclusive_count += 1;
     }
 
     if mutually_exclusive_count > 1 {
-        Err("must select only one of --merge, --choose, -l/--keep-last, --keep-duplicates")?;
+        Err("must select only one of --choose, -l/--keep-last, --keep-duplicates")?;
     }
 
     if args.flag_sorted {
@@ -153,53 +158,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    // TODO: --merge should work with inexisting stuff at init
-    // TODO: test and docs
-
-    // Merge
-    if let Some(merge_expr) = &args.flag_merge {
-        let mut program = MergeProgram::parse(merge_expr, &headers)?;
-
-        if !args.flag_no_headers {
-            wtr.write_byte_record(&program.headers())?;
-        }
-
-        if args.flag_sorted {
-            unimplemented!()
-        } else {
-            let mut index: IndexMap<DeduplicationKey, Vec<Vec<u8>>> = IndexMap::new();
-
-            let mut i: usize = 0;
-            let mut record = csv::ByteRecord::new();
-
-            while rdr.read_byte_record(&mut record)? {
-                match index.entry(sel.collect(&record)) {
-                    IndexMapEntry::Vacant(entry) => {
-                        let mut owned = program.allocate(&record);
-                        program.run_with_record(i, &mut owned, &record)?;
-                        entry.insert(owned);
-                    }
-                    IndexMapEntry::Occupied(mut entry) => {
-                        program.run_with_record(i, entry.get_mut(), &record)?;
-                    }
-                }
-
-                i += 1;
-            }
-
-            for final_record in index.values() {
-                wtr.write_record(final_record.into_iter())?;
-            }
-        }
-
-        return Ok(wtr.flush()?);
-    }
-
-    // Choose
-    if let Some(choose_expr) = &args.flag_choose {
-        return Ok(wtr.flush()?);
-    }
-
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
     // External
@@ -222,13 +180,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
-    match (
-        args.flag_sorted,
-        args.flag_keep_last,
-        args.flag_keep_duplicates,
-    ) {
+    enum DedupMode {
+        KeepFirst,
+        KeepLast,
+        KeepDuplicates,
+        Choose(String),
+    }
+
+    let dedup_mode = if args.flag_keep_last {
+        DedupMode::KeepLast
+    } else if args.flag_keep_duplicates {
+        DedupMode::KeepDuplicates
+    } else if let Some(expr) = args.flag_choose.take() {
+        DedupMode::Choose(expr)
+    } else {
+        DedupMode::KeepFirst
+    };
+
+    match (args.flag_sorted, dedup_mode) {
         // Unsorted, keep first
-        (false, false, false) => {
+        (false, DedupMode::KeepFirst) => {
             let mut record = csv::ByteRecord::new();
             let mut already_seen = HashSet::<DeduplicationKey>::new();
 
@@ -242,7 +213,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Unsorted, keep last
-        (false, true, false) => {
+        (false, DedupMode::KeepLast) => {
             let mut set = KeepLastSet::new();
 
             for result in rdr.byte_records() {
@@ -257,7 +228,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep first
-        (true, false, false) => {
+        (true, DedupMode::KeepFirst) => {
             let mut record = csv::ByteRecord::new();
             let mut current: Option<DeduplicationKey> = None;
 
@@ -279,7 +250,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep last
-        (true, true, false) => {
+        (true, DedupMode::KeepLast) => {
             let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
 
             for result in rdr.byte_records() {
@@ -302,7 +273,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Unsorted, keep duplicates
-        (false, false, true) => {
+        (false, DedupMode::KeepDuplicates) => {
             let mut map: HashMap<DeduplicationKey, Option<(usize, csv::ByteRecord)>> =
                 HashMap::new();
             let mut rows: Vec<Option<csv::ByteRecord>> = Vec::new();
@@ -333,7 +304,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         // Sorted, keep duplicates
-        (true, false, true) => {
+        (true, DedupMode::KeepDuplicates) => {
             let mut record = csv::ByteRecord::new();
 
             struct PreviousEntry {
@@ -375,9 +346,74 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        // Invalid options
-        (false, true, true) | (true, true, true) => {
-            Err("-l/--keep-last does not work with --keep-duplicates!")?;
+        // Unsorted choose
+        (false, DedupMode::Choose(expr)) => {
+            let mut map: IndexMap<DeduplicationKey, csv::ByteRecord> = IndexMap::new();
+            let mut program = ChooseProgram::parse(&expr, &headers)?;
+            let mut record = csv::ByteRecord::new();
+            let mut index: usize = 0;
+
+            while rdr.read_byte_record(&mut record)? {
+                match map.entry(sel.collect(&record)) {
+                    IndexMapEntry::Vacant(entry) => {
+                        entry.insert(record.clone());
+                    }
+                    IndexMapEntry::Occupied(mut entry) => {
+                        program.prepare_current_record(entry.get());
+
+                        if program.run_with_record(index, &record)? {
+                            record.clone_into(entry.get_mut());
+                        };
+                    }
+                }
+
+                index += 1;
+            }
+
+            for output_record in map.into_values() {
+                wtr.write_byte_record(&output_record)?;
+            }
+        }
+
+        // Sorted choose
+        (true, DedupMode::Choose(expr)) => {
+            let mut current_opt: Option<(DeduplicationKey, csv::ByteRecord)> = None;
+            let mut program = ChooseProgram::parse(&expr, &headers)?;
+            let mut record = csv::ByteRecord::new();
+            let mut index: usize = 0;
+
+            while rdr.read_byte_record(&mut record)? {
+                let key = sel.collect(&record);
+
+                match current_opt.as_mut() {
+                    None => {
+                        program.prepare_current_record(&record);
+                        current_opt = Some((key, record.clone()));
+                    }
+                    Some((current_key, current_record)) => {
+                        if &key == current_key {
+                            if program.run_with_record(index, &record)? {
+                                // Swap
+                                record.clone_into(current_record);
+                                program.prepare_current_record(current_record);
+                            }
+                        } else {
+                            // Flush
+                            wtr.write_byte_record(current_record)?;
+                            program.prepare_current_record(&record);
+                            *current_key = key;
+                            record.clone_into(current_record);
+                        }
+                    }
+                }
+
+                index += 1;
+            }
+
+            // Flush
+            if let Some((_, current_record)) = current_opt {
+                wtr.write_byte_record(&current_record)?;
+            }
         }
     }
 

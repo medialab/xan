@@ -485,7 +485,7 @@ pub fn eval_expression(
     expr.evaluate(index, record, context, None)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Program {
     pub expr: ConcreteExpr,
     context: EvaluationContext,
