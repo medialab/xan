@@ -286,3 +286,33 @@ fn groupby_most_common() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn groupby_complex_keep() {
+    let wrk = Workdir::new("groupby_complex_keep");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color", "count"],
+            svec!["john", "blue", "1"],
+            svec!["mary", "orange", "3"],
+            svec!["mary", "red", "2"],
+            svec!["john", "yellow", "9"],
+            svec!["john", "blue", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("groupby");
+    cmd.arg("name")
+        .args(["--keep", "color"])
+        .arg("sum(count) as sum")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "color", "sum"],
+        svec!["mary", "orange", "5"],
+        svec!["john", "blue", "12"],
+    ];
+    assert_eq!(got, expected);
+}

@@ -584,12 +584,16 @@ impl Selection {
         self.select(row).map(|f| f.to_vec()).collect()
     }
 
-    pub fn has_duplicates(&self) -> bool {
-        let mut indices = self.0.clone();
-        indices.sort();
-        indices.dedup();
+    pub fn sort_and_dedup(&mut self) {
+        self.0.sort();
+        self.0.dedup();
+    }
 
-        indices.len() != self.len()
+    pub fn has_duplicates(&self) -> bool {
+        let mut deduplicated = self.clone();
+        deduplicated.sort_and_dedup();
+
+        deduplicated.len() != self.len()
     }
 
     pub fn indexed_mask(&self, alignment: usize) -> Vec<Option<usize>> {

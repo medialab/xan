@@ -27,6 +27,10 @@ Notice how the column names of the currently kept row were prefixed
 with "current_", while the ones of the new row were prefixed
 with "new_" instead.
 
+Note that if you need to aggregate cell values from duplicated
+rows, you should probably check out `xan groupby` instead, that can
+be used for this very purpose, especially with the --keep flag.
+
 Usage:
     xan dedup [options] [<input>]
     xan dedup --help

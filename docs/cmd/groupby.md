@@ -43,6 +43,9 @@ Usage:
     xan groupby --functions
 
 groupby options:
+    --keep <cols>           Keep this selection of columns, in addition to
+                            the ones representing groups, in the output. Only
+                            values from the first seen row per group will be kept.
     -S, --sorted            Use this flag to indicate that the file is already sorted on the
                             group columns, in which case the command will be able to considerably
                             optimize memory usage.

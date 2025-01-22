@@ -69,6 +69,9 @@ Usage:
     xan groupby --functions
 
 groupby options:
+    --keep <cols>           Keep this selection of columns, in addition to
+                            the ones representing groups, in the output. Only
+                            values from the first seen row per group will be kept.
     -S, --sorted            Use this flag to indicate that the file is already sorted on the
                             group columns, in which case the command will be able to considerably
                             optimize memory usage.
@@ -101,13 +104,14 @@ struct Args {
     flag_aggs: bool,
     flag_cheatsheet: bool,
     flag_functions: bool,
+    flag_keep: Option<SelectColumns>,
     flag_sorted: bool,
     flag_errors: String,
     flag_parallel: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_aggs {
         println!("{}", get_moonblade_aggregations_function_help());
@@ -136,6 +140,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?;
 
     let sel = rconf.selection(headers)?;
+
+    // Lol, what a hack...
+    if let Some(selection) = args.flag_keep.take() {
+        let mut keep_sel = selection.selection(headers, !args.flag_no_headers)?;
+        keep_sel.sort_and_dedup();
+
+        let addendum = keep_sel
+            .iter()
+            .filter(|i| !sel.contains(**i))
+            .copied()
+            .map(|i| {
+                format!(
+                    "first(col({})) as \"{}\"",
+                    i,
+                    std::str::from_utf8(&headers[i]).unwrap()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if !addendum.is_empty() {
+            args.arg_expression = addendum + ", " + &args.arg_expression;
+        }
+    }
 
     let mut record = csv::ByteRecord::new();
 
