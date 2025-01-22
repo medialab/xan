@@ -83,6 +83,7 @@ impl GraphType {
 pub struct GraphOptions {
     pub allow_self_loops: bool,
     pub multi: bool,
+    #[serde(rename = "type")]
     pub graph_type: GraphType,
 }
 
