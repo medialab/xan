@@ -9,3 +9,4 @@
 5. [March 2024](./xanzines/5_2024_mar.md)
 6. [May 2024](./xanzines//6_2024_may.md)
 7. [September 2024](./xanzines/7_2024_sep.md)
+8. [February 2025](./xanzines//8_2025_feb.md)
