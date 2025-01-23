@@ -36,6 +36,8 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 
 ## How to install
 
+### Cargo
+
 `xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
 
 ```
@@ -47,6 +49,17 @@ You can also install the latest dev version thusly:
 ```
 cargo install --git https://github.com/medialab/xan
 ```
+
+### Arch Linux
+
+[xan](https://aur.archlinux.org/packages/xan) is available as an AUR package.
+It can be installed using an AUR helper (e.g. paru):
+
+```
+paru -S xan
+```
+
+---
 
 Note that `xan` also exposes handy automatic completions for command and header names that you can install through the `xan completions` command.
 
