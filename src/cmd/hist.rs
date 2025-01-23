@@ -136,7 +136,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(field_pos) => record[field_pos].to_string(),
             None => args.flag_name.clone(),
         };
-        let label = record[label_pos].to_string();
+        let label = util::sanitize_text_for_single_line_printing(&record[label_pos]);
         let value = record[value_pos]
             .parse::<f64>()
             .map_err(|_| "could not parse value")?;

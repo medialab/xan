@@ -447,12 +447,26 @@ lazy_static! {
     static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|\n\r|[\n\r\t\f]").unwrap();
 }
 
-pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
-    // Replacing some nasty stuff that can break representation
-    let string = WHITESPACE_REPLACER.replace_all(string, " ");
-    // string = string.replace('\u{200F}', "");
-    // string = string.replace('\u{200E}', "");
+pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
+    // Soft-hyphens
+    let mut string = string.replace('\u{00ad}', "");
 
+    // Control characters
+    string.retain(|c| c > '\x1f');
+
+    string
+}
+
+pub fn sanitize_text_for_single_line_printing(string: &str) -> String {
+    let sanitized = sanitize_text_for_multi_line_printing(string);
+
+    match WHITESPACE_REPLACER.replace_all(&sanitized, " ") {
+        Cow::Borrowed(_) => sanitized,
+        Cow::Owned(s) => s,
+    }
+}
+
+pub fn unicode_aware_ellipsis(string: &str, max_width: usize) -> String {
     let mut width: usize = 0;
     let graphemes = string.graphemes(true).collect::<Vec<_>>();
     let graphemes_count = graphemes.len();
@@ -565,17 +579,12 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     padding: &str,
     highlight: bool,
 ) -> String {
-    // NOTE: in this particular case we need to replace problematic characters beforehand
-    let string = WHITESPACE_REPLACER
-        .replace_all(string, " ")
-        .replace('\u{00ad}', ""); // soft hyphens
-
     let mut string = unicode_aware_pad(
         left,
         &(if highlight {
-            highlight_trimmable_whitespace(&unicode_aware_ellipsis(&string, width))
+            highlight_trimmable_whitespace(&unicode_aware_ellipsis(string, width))
         } else {
-            unicode_aware_ellipsis(&string, width)
+            unicode_aware_ellipsis(string, width)
         }),
         width,
         padding,

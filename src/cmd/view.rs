@@ -409,6 +409,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .map(|cell| {
                             let mut cell = cell.to_string();
 
+                            cell = util::sanitize_text_for_single_line_printing(&cell);
+
                             if args.flag_sanitize_emojis {
                                 cell = emoji_sanitizer.sanitize(&cell);
                             }

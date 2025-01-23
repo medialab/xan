@@ -135,14 +135,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let cell = if args.flag_condense {
             util::unicode_aware_highlighted_pad_with_ellipsis(
                 false,
-                cell,
+                &util::sanitize_text_for_single_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 " ",
                 true,
             )
         } else if args.flag_wrap {
             util::unicode_aware_wrap(
-                cell,
+                &util::sanitize_text_for_multi_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 max_header_width + 1 + offset,
             )
@@ -174,15 +174,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 );
 
                 for sub_cell in cell.split(&args.flag_sep) {
-                    let sub_cell = prepare_cell(i, sub_cell, 4);
+                    let sub_cell = prepare_cell(i, sub_cell, 2);
 
                     if first {
                         first = false;
-                        println!("  - {}", sub_cell);
+                        println!("- {}", sub_cell);
                     } else {
-                        println!("{}  - {}", " ".repeat(max_header_width + 1), sub_cell);
+                        println!("{}- {}", " ".repeat(max_header_width + 1), sub_cell);
                     }
                 }
+
+                println!();
 
                 continue;
             }

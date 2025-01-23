@@ -421,7 +421,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut matrix = Matrix::from_column_labels(column_labels);
 
     while rdr.read_byte_record(&mut record)? {
-        let label = String::from_utf8(record[0].to_vec()).expect("could not decode utf8");
+        let label = util::sanitize_text_for_single_line_printing(
+            std::str::from_utf8(&record[0]).expect("could not decode utf8"),
+        );
 
         let row = record
             .iter()
