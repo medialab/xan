@@ -26,9 +26,14 @@ flatten options:
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
+                           Can also be given as a ratio of the terminal's width e.g. "0.5".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
     -C, --force-colors     Force colors even if output is not supposed to be able to
                            handle them.
+    -S, --split <cols>     Split columns containing multiple values separated by --sep
+                           to be displayed as a list.
+    --sep <sep>            Delimiter separating multiple values in cells splitted
+                           by --plural. [default: |]
 
 Common options:
     -h, --help             Display this message

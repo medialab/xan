@@ -215,6 +215,7 @@ view options:
     --cols <num>            Width of the graph in terminal columns, i.e. characters.
                             Defaults to using all your terminal's width or 80 if
                             terminal's size cannot be found (i.e. when piping to file).
+                            Can also be given as a ratio of the terminal's width e.g. \"0.5\".
     -C, --force-colors      Force colors even if output is not supposed to be able to
                             handle them.
     -e, --expand            Expand the table so that in can be easily piped to
@@ -241,7 +242,7 @@ struct Args {
     flag_select: SelectColumns,
     flag_pager: bool,
     flag_theme: String,
-    flag_cols: Option<usize>,
+    flag_cols: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_no_headers: bool,
     flag_force_colors: bool,
@@ -330,7 +331,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let output = io::stdout();
 
-    let cols = util::acquire_term_cols(&args.flag_cols);
+    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
     let rows = util::acquire_term_rows();
 
     // Theme

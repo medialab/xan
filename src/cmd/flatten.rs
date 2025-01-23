@@ -1,10 +1,11 @@
+use colored;
+use colored::Colorize;
+use unicode_width::UnicodeWidthStr;
+
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-use colored;
-use colored::Colorize;
-use unicode_width::UnicodeWidthStr;
 
 static USAGE: &str = "
 Prints flattened records such that fields are labeled separated by a new line.
@@ -31,9 +32,14 @@ flatten options:
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
+                           Can also be given as a ratio of the terminal's width e.g. \"0.5\".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
     -C, --force-colors     Force colors even if output is not supposed to be able to
                            handle them.
+    -S, --split <cols>     Split columns containing multiple values separated by --sep
+                           to be displayed as a list.
+    --sep <sep>            Delimiter separating multiple values in cells splitted
+                           by --plural. [default: |]
 
 Common options:
     -h, --help             Display this message
@@ -50,9 +56,11 @@ struct Args {
     flag_select: SelectColumns,
     flag_condense: bool,
     flag_wrap: bool,
-    flag_cols: Option<usize>,
+    flag_cols: Option<String>,
     flag_rainbow: bool,
     flag_force_colors: bool,
+    flag_split: Option<SelectColumns>,
+    flag_sep: String,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
@@ -67,11 +75,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let byte_headers = rdr.byte_headers()?;
     let sel = rconfig.selection(byte_headers)?;
 
+    let split_sel_opt = args
+        .flag_split
+        .map(|cols| {
+            cols.selection(
+                &sel.select(byte_headers).collect::<csv::ByteRecord>(),
+                !args.flag_no_headers,
+            )
+        })
+        .transpose()?;
+
     if args.flag_force_colors {
         colored::control::set_override(true);
     }
 
-    let cols = util::acquire_term_cols(&args.flag_cols);
+    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
     let potential_headers = rdr.headers()?.clone();
     let potential_headers = sel
@@ -102,6 +120,39 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let max_value_width = cols - max_header_width - 1;
 
+    let prepare_cell = |i: usize, cell: &str, offset: usize| -> colored::ColoredString {
+        let cell = match cell.trim() {
+            "" => "<empty>",
+            _ => cell,
+        };
+
+        let cell_colorizer = if args.flag_rainbow {
+            util::colorizer_by_rainbow(i, cell)
+        } else {
+            util::colorizer_by_type(cell)
+        };
+
+        let cell = if args.flag_condense {
+            util::unicode_aware_highlighted_pad_with_ellipsis(
+                false,
+                cell,
+                max_value_width.saturating_sub(offset),
+                " ",
+                true,
+            )
+        } else if args.flag_wrap {
+            util::unicode_aware_wrap(
+                cell,
+                max_value_width.saturating_sub(offset),
+                max_header_width + 1 + offset,
+            )
+        } else {
+            util::highlight_trimmable_whitespace(cell)
+        };
+
+        util::colorize(&cell_colorizer, &cell)
+    };
+
     while rdr.read_record(&mut record)? {
         let record = sel
             .select_string_record(&record)
@@ -113,32 +164,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         println!("{}", "─".repeat(cols).dimmed());
 
         for (i, (header, cell)) in headers.iter().zip(record.iter()).enumerate() {
-            let cell = match cell.trim() {
-                "" => "<empty>",
-                _ => cell,
-            };
+            if matches!(&split_sel_opt, Some(split_sel) if !cell.is_empty() && split_sel.contains(i))
+            {
+                let mut first: bool = true;
 
-            let cell_colorizer = if args.flag_rainbow {
-                util::colorizer_by_rainbow(i, cell)
-            } else {
-                util::colorizer_by_type(cell)
-            };
+                print!(
+                    "{}",
+                    util::unicode_aware_rpad(header, max_header_width + 1, " ")
+                );
 
-            let cell = if args.flag_condense {
-                util::unicode_aware_highlighted_pad_with_ellipsis(
-                    false,
-                    cell,
-                    max_value_width,
-                    " ",
-                    true,
-                )
-            } else if args.flag_wrap {
-                util::unicode_aware_wrap(cell, max_value_width, max_header_width + 1)
-            } else {
-                util::highlight_trimmable_whitespace(cell)
-            };
+                for sub_cell in cell.split(&args.flag_sep) {
+                    let sub_cell = prepare_cell(i, sub_cell, 4);
 
-            let cell = util::colorize(&cell_colorizer, &cell);
+                    if first {
+                        first = false;
+                        println!("  - {}", sub_cell);
+                    } else {
+                        println!("{}  - {}", " ".repeat(max_header_width + 1), sub_cell);
+                    }
+                }
+
+                continue;
+            }
+
+            let cell = prepare_cell(i, cell, 0);
 
             println!(
                 "{}{}",

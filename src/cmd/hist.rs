@@ -173,17 +173,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut cols = util::acquire_term_cols(&None);
-
-    if let Some(spec) = &args.flag_cols {
-        if spec.contains('.') {
-            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid! ")?;
-
-            cols = (cols as f64 * ratio).trunc().abs() as usize;
-        } else {
-            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid! ")?;
-        }
-    }
+    let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
     let unit = args.flag_unit.as_deref().unwrap_or("");
 

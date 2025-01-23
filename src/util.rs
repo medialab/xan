@@ -327,6 +327,22 @@ pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
     }
 }
 
+pub fn acquire_term_cols_ratio(cols_override: &Option<String>) -> Result<usize, &str> {
+    let mut cols = acquire_term_cols(&None);
+
+    if let Some(spec) = cols_override {
+        if spec.contains('.') {
+            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid! ")?;
+
+            cols = (cols as f64 * ratio).trunc().abs() as usize;
+        } else {
+            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid! ")?;
+        }
+    }
+
+    Ok(cols)
+}
+
 pub fn acquire_term_rows() -> Option<usize> {
     termsize::get().map(|size| size.rows as usize)
 }
