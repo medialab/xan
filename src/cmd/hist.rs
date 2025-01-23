@@ -349,9 +349,9 @@ fn from_domain_to_range(x: f64, domain: (f64, f64), range: (f64, f64)) -> f64 {
     let domain_width = (domain.1 - domain.0).abs();
     let pct = (x - domain.0) / domain_width;
 
-    let range_widht = (range.1 - range.0).abs();
+    let range_width = (range.1 - range.0).abs();
 
-    pct * range_widht + range.0
+    pct * range_width + range.0
 }
 
 fn create_bar(chars: &[&str], width: f64) -> String {

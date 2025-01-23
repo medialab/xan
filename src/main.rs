@@ -17,6 +17,7 @@ mod graph;
 mod index;
 mod json;
 mod moonblade;
+// mod scales;
 mod select;
 mod util;
 mod xml;
