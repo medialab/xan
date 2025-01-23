@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use jiff::Zoned;
+use serde_json::Value;
 
 use crate::collections::UnionFind;
 use crate::json::{Attributes, JSONType};
@@ -49,6 +50,7 @@ impl GexfNamespace {
 #[derive(Serialize)]
 struct Node {
     key: Rc<String>,
+    #[serde(skip_serializing_if = "Attributes::is_empty")]
     attributes: Attributes,
 }
 
@@ -58,6 +60,7 @@ struct Edge {
     target: Rc<String>,
     #[serde(skip_serializing_if = "Not::not")]
     undirected: bool,
+    #[serde(skip_serializing_if = "Attributes::is_empty")]
     attributes: Attributes,
 }
 
@@ -349,6 +352,16 @@ impl Graph {
         }
         xml_writer.close("attributes")?;
 
+        fn serialize_value(value: &Value) -> String {
+            match value {
+                Value::Bool(b) => b.to_string(),
+                Value::Null => "".to_string(),
+                Value::Number(n) => n.to_string(),
+                Value::String(s) => s.to_string(),
+                _ => unreachable!(),
+            }
+        }
+
         // Node data
         xml_writer.open_no_attributes("nodes")?;
         for node in graph.nodes.iter() {
@@ -369,7 +382,7 @@ impl Graph {
                         "attvalue",
                         [
                             ("for", i.to_string().as_str()),
-                            ("value", &value.to_string()),
+                            ("value", &serialize_value(value)),
                         ],
                     )?;
                 }
@@ -406,7 +419,7 @@ impl Graph {
                         "attvalue",
                         [
                             ("for", i.to_string().as_str()),
-                            ("value", &value.to_string()),
+                            ("value", &serialize_value(value)),
                         ],
                     )?;
                 }
