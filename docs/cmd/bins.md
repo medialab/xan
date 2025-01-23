@@ -18,6 +18,10 @@ bins options:
                            details.
     --bins <number>        Number of bins. Will default to using Freedman-Diaconis.
                            rule.
+    --label <mode>         Label to choose for the bins (that will be placed in the
+                           `value` column). Mostly useful to tweak representation when
+                           piping to `xan hist`. Can be one of "full", "lower" or "upper".
+                           [default: full]
     --min <min>            Override min value.
     --max <max>            Override max value.
     -N, --no-extra         Don't include, nulls, nans and out-of-bounds counts.

@@ -60,6 +60,7 @@ Examples:
 
   Select column names containing spaces:
     $ xan select \"Revenues in millions\"
+    $ xan select Revenues\\ in\\ millions
     $ xan select 1,\"Revenues in millions\",year
 
   Re-order and duplicate columns arbitrarily:

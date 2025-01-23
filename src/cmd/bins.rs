@@ -23,6 +23,10 @@ bins options:
                            details.
     --bins <number>        Number of bins. Will default to using Freedman-Diaconis.
                            rule.
+    --label <mode>         Label to choose for the bins (that will be placed in the
+                           `value` column). Mostly useful to tweak representation when
+                           piping to `xan hist`. Can be one of \"full\", \"lower\" or \"upper\".
+                           [default: full]
     --min <min>            Override min value.
     --max <max>            Override max value.
     -N, --no-extra         Don't include, nulls, nans and out-of-bounds counts.
@@ -45,6 +49,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_extra: bool,
     flag_bins: Option<usize>,
+    flag_label: String,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
 }
@@ -55,6 +60,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
+
+    if !["full", "upper", "lower"].contains(&args.flag_label.as_str()) {
+        Err(format!(
+            "unknown --label {:?}, must be one of \"full\", \"upper\" or \"lower\".",
+            args.flag_label
+        ))?;
+    }
 
     let mut rdr = conf.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
@@ -96,11 +108,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let upper_bound = util::format_number(upper_bound);
 
                     let label_format = if bin.is_constant() {
-                        lower_bound.to_string()
+                        lower_bound
                     } else {
-                        match bins_iter.peek() {
-                            None => format!(">= {} <= {}", lower_bound, upper_bound),
-                            Some(_) => format!(">= {} < {}", lower_bound, upper_bound),
+                        match args.flag_label.as_str() {
+                            "full" => match bins_iter.peek() {
+                                None => format!(">= {} <= {}", lower_bound, upper_bound),
+                                Some(_) => format!(">= {} < {}", lower_bound, upper_bound),
+                            },
+                            "upper" => upper_bound,
+                            "lower" => lower_bound,
+                            _ => unreachable!(),
                         }
                     };
 
