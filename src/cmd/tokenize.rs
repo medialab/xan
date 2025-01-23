@@ -373,6 +373,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let tokenizer = tokenizer_builder.build();
 
+    let hyphen_splitter = Regex::new(r"-+").unwrap();
+
     // NOTE: everything in this function will be parallelized
     let tokenize = move |string: &str| -> Vec<(String, WordTokenKind)> {
         if args.cmd_paragraphs {
@@ -391,20 +393,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
         }
 
-        let mut tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
+        let string = if args.flag_split_hyphens {
+            &hyphen_splitter.replace_all(string, " ")
+        } else {
+            string
+        };
+
+        let tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
             Box::new(tokenizer.simple_tokenize(string))
         } else {
             Box::new(tokenizer.tokenize(string))
         };
-
-        if args.flag_split_hyphens {
-            tokens = Box::new(tokens.flat_map(|token| {
-                token.text.split('-').map(move |text| WordToken {
-                    text,
-                    kind: token.kind,
-                })
-            }));
-        }
 
         let tokens = tokens.filter_map(|token| {
             let pair = token.to_pair();
