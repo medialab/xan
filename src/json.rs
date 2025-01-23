@@ -12,13 +12,13 @@ use serde_json::{json, Value};
 use crate::select::Selection;
 
 #[derive(Default)]
-struct AttributeNameInterner {
+pub struct AttributeNameInterner {
     strings: Vec<Rc<String>>,
     map: BTreeMap<Rc<String>, usize>,
 }
 
 impl AttributeNameInterner {
-    fn register(&mut self, name: String) -> usize {
+    pub fn register(&mut self, name: String) -> usize {
         use BTreeMapEntry::*;
 
         let name = Rc::new(name);
@@ -40,7 +40,7 @@ impl AttributeNameInterner {
 }
 
 thread_local! {
-    static INTERNER: RefCell<AttributeNameInterner> = RefCell::new(AttributeNameInterner::default());
+    pub static INTERNER: RefCell<AttributeNameInterner> = RefCell::new(AttributeNameInterner::default());
 }
 
 #[derive(Debug, Default)]
@@ -66,6 +66,12 @@ impl Attributes {
 
     pub fn iter(&self) -> impl Iterator<Item = &(usize, Value)> {
         self.entries.iter()
+    }
+
+    pub fn get(&self, id: usize) -> Option<&Value> {
+        self.entries
+            .iter()
+            .find_map(|entry| if entry.0 == id { Some(&entry.1) } else { None })
     }
 }
 

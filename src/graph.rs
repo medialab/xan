@@ -8,7 +8,7 @@ use jiff::Zoned;
 use serde_json::Value;
 
 use crate::collections::UnionFind;
-use crate::json::{Attributes, JSONType};
+use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
 use crate::CliResult;
 
@@ -94,9 +94,9 @@ pub struct GraphOptions {
 pub struct Graph {
     pub options: GraphOptions,
     #[serde(skip_serializing)]
-    node_model: Vec<(String, JSONType)>,
+    node_model: Vec<ModelAttribute>,
     #[serde(skip_serializing)]
-    edge_model: Vec<(String, JSONType)>,
+    edge_model: Vec<ModelAttribute>,
     nodes: Vec<Node>,
     edges: Vec<Edge>,
 }
@@ -126,12 +126,19 @@ impl Graph {
     }
 }
 
+#[derive(Debug)]
+struct ModelAttribute {
+    interner_id: usize,
+    name: String,
+    json_type: JSONType,
+}
+
 #[derive(Default)]
 pub struct GraphBuilder {
     options: GraphOptions,
     disjoint_sets: Option<UnionFind>,
-    node_model: Vec<(String, JSONType)>,
-    edge_model: Vec<(String, JSONType)>,
+    node_model: Vec<ModelAttribute>,
+    edge_model: Vec<ModelAttribute>,
     nodes: IndexMap<Rc<String>, Node>,
     edges: HashMap<(usize, usize), Edge>,
 }
@@ -162,7 +169,12 @@ impl GraphBuilder {
     ) {
         self.node_model = headers
             .zip(model)
-            .map(|(header, json_type)| (header.to_string(), json_type))
+            .map(|(header, json_type)| ModelAttribute {
+                name: header.to_string(),
+                interner_id: INTERNER
+                    .with_borrow_mut(|interner| interner.register(header.to_string())),
+                json_type,
+            })
             .collect();
     }
 
@@ -173,7 +185,12 @@ impl GraphBuilder {
     ) {
         self.edge_model = headers
             .zip(model)
-            .map(|(header, json_type)| (header.to_string(), json_type))
+            .map(|(header, json_type)| ModelAttribute {
+                name: header.to_string(),
+                interner_id: INTERNER
+                    .with_borrow_mut(|interner| interner.register(header.to_string())),
+                json_type,
+            })
             .collect();
     }
 
@@ -325,14 +342,21 @@ impl Graph {
         )?;
 
         // Node model
+        let mut node_label_attr: Option<usize> = None;
+
         xml_writer.open("attributes", [("class", "node")])?;
-        for (i, (name, json_type)) in node_model.iter().enumerate() {
+        for (i, model_attr) in node_model.iter().enumerate() {
+            if model_attr.name == "label" {
+                node_label_attr = Some(model_attr.interner_id);
+                continue;
+            }
+
             xml_writer.open_empty(
                 "attribute",
                 [
                     ("id", i.to_string().as_str()),
-                    ("title", name.as_str()),
-                    ("type", json_type.as_gexf_type()),
+                    ("title", model_attr.name.as_str()),
+                    ("type", model_attr.json_type.as_gexf_type()),
                 ],
             )?;
         }
@@ -340,13 +364,13 @@ impl Graph {
 
         // Edge model
         xml_writer.open("attributes", [("class", "edge")])?;
-        for (i, (name, json_type)) in edge_model.iter().enumerate() {
+        for (i, model_attr) in edge_model.iter().enumerate() {
             xml_writer.open_empty(
                 "attribute",
                 [
                     ("id", i.to_string().as_str()),
-                    ("title", name.as_str()),
-                    ("type", json_type.as_gexf_type()),
+                    ("title", model_attr.name.as_str()),
+                    ("type", model_attr.json_type.as_gexf_type()),
                 ],
             )?;
         }
@@ -365,19 +389,27 @@ impl Graph {
         // Node data
         xml_writer.open_no_attributes("nodes")?;
         for node in graph.nodes.iter() {
-            if node.attributes.is_empty() {
-                xml_writer.open_empty(
-                    "node",
-                    [("id", node.key.as_str()), ("label", node.key.as_str())],
-                )?;
+            let node_label = if let Some(id) = node_label_attr {
+                match node.attributes.get(id) {
+                    None => node.key.as_str(),
+                    Some(v) => &serialize_value(v),
+                }
             } else {
-                xml_writer.open(
-                    "node",
-                    [("id", node.key.as_str()), ("label", node.key.as_str())],
-                )?;
+                node.key.as_str()
+            };
+
+            if node.attributes.is_empty() {
+                xml_writer
+                    .open_empty("node", [("id", node.key.as_str()), ("label", node_label)])?;
+            } else {
+                xml_writer.open("node", [("id", node.key.as_str()), ("label", node_label)])?;
 
                 xml_writer.open_no_attributes("attvalues")?;
-                for (i, (_, value)) in node.attributes.iter().enumerate() {
+                for (i, (interner_id, value)) in node.attributes.iter().enumerate() {
+                    if matches!(node_label_attr, Some(id) if id == *interner_id) {
+                        continue;
+                    }
+
                     xml_writer.open_empty(
                         "attvalue",
                         [
