@@ -43,6 +43,7 @@ mod test_merge;
 mod test_parallel;
 mod test_partition;
 mod test_range;
+mod test_regex_join;
 mod test_rename;
 mod test_reverse;
 mod test_sample;

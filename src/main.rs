@@ -59,6 +59,7 @@ macro_rules! command_list {
 ## Combine multiple CSV files
     cat         Concatenate by row or column
     join        Join CSV files
+    regex-join  Fuzzy join a CSV files using regex patterns
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns
@@ -231,6 +232,8 @@ enum Command {
     Plot,
     Progress,
     Range,
+    #[serde(rename = "regex-join")]
+    RegexJoin,
     Rename,
     Reverse,
     Sample,
@@ -265,6 +268,7 @@ impl Command {
                 argv[1].to_lowercase()
             )));
         }
+
         match self {
             Command::Agg => cmd::agg::run(argv),
             Command::Behead | Command::Guillotine => cmd::behead::run(argv),
@@ -314,6 +318,7 @@ impl Command {
             Command::Plot => cmd::plot::run(argv),
             Command::Progress => cmd::progress::run(argv),
             Command::Range => cmd::range::run(argv),
+            Command::RegexJoin => cmd::regex_join::run(argv),
             Command::Rename => cmd::rename::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),

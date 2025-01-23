@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::hash_map::{Entry, HashMap};
 use std::fmt;
 use std::io;
@@ -7,7 +6,6 @@ use std::str;
 
 use bstr::ByteSlice;
 use byteorder::{BigEndian, WriteBytesExt};
-use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter, SeekRead};
 use crate::index::Indexed;
@@ -15,51 +13,8 @@ use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
-fn union_of_sorted_lists(a: &[usize], b: &[usize]) -> Vec<usize> {
-    let n = a.len();
-    let m = b.len();
-
-    let mut r: Vec<usize> = Vec::with_capacity(n.max(m));
-
-    let mut i: usize = 0;
-    let mut j: usize = 0;
-
-    while i < n && j < m {
-        let a_item = a[i];
-        let b_item = b[j];
-
-        match a_item.cmp(&b_item) {
-            Ordering::Less => {
-                r.push(a_item);
-                i += 1;
-            }
-            Ordering::Greater => {
-                r.push(b_item);
-                j += 1;
-            }
-            Ordering::Equal => {
-                r.push(a_item);
-                i += 1;
-                j += 1;
-            }
-        };
-    }
-
-    while i < n {
-        r.push(a[i]);
-        i += 1;
-    }
-
-    while j < m {
-        r.push(b[j]);
-        j += 1;
-    }
-
-    r
-}
-
 static USAGE: &str = "
-Joins two sets of CSV data on the specified columns.
+Join two sets of CSV data on the specified columns.
 
 The default join operation is an 'inner' join. This corresponds to the
 intersection of rows on the keys specified.
@@ -79,11 +34,6 @@ buffered into memory so the join operation can be done.
 Note that when performing an 'inner' join (the default), it's the second file that
 will be indexed into memory. And when performing an 'outer' join, it will be the file
 that is on the other side of --left/--right.
-
-Finally, the command can also perform a 'regex' join, matching efficiently a CSV file containing
-a column of regex patterns with another file. But if you only need to filter out a file
-based on a set of regex patterns and don't need the auxilliary columns to be concatenated
-to the joined result, please be sure to check out the search command --patterns flag before.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
@@ -111,25 +61,6 @@ join options:
                                 data sets given. The number of rows return is
                                 equal to N * M, where N and M correspond to the
                                 number of rows in the given data sets, respectively.
-    --regex                     Perform an optimized regex join where the second file
-                                contains a column of regex patterns that will be used
-                                to match the values of a column of the first file.
-                                This is a variant of 'inner join' in that only matching
-                                rows will be written to the output.
-    --regex-left                Perform an optimized regex join where the second file
-                                contains a column of regex patterns that will be used
-                                to match the values of a column of the first file.
-                                This is a variant of 'left join' in that all rows from
-                                the first files will be written at least one, even if
-                                no pattern from the second file matched.
-    -p, --parallel              Whether to use parallelization to speed up computations.
-                                Will automatically select a suitable number of threads to use
-                                based on your number of cores. Use -t, --threads if you want to
-                                indicate the number of threads yourself. Only works with --regex
-                                and --regex-left currently.
-    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
-                                if you want the number of threads to be automatically chosen instead.
-                                Only works with --regex and --regex-left currently.
     --nulls                     When set, joins will work on empty fields.
                                 Otherwise, empty fields are completely ignored.
                                 (In fact, any row that has an empty field in the
@@ -161,8 +92,6 @@ struct Args {
     flag_right: bool,
     flag_full: bool,
     flag_cross: bool,
-    flag_regex: bool,
-    flag_regex_left: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_ignore_case: bool,
@@ -170,8 +99,6 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
-    flag_parallel: bool,
-    flag_threads: Option<usize>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -183,8 +110,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_right,
         args.flag_full,
         args.flag_cross,
-        args.flag_regex,
-        args.flag_regex_left,
     ]
     .iter()
     .filter(|flag| **flag)
@@ -196,12 +121,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     state.write_headers()?;
 
-    let parallelization = match (args.flag_parallel, args.flag_threads) {
-        (true, None) => Some(None),
-        (_, Some(count)) => Some(Some(count)),
-        _ => None,
-    };
-
     if args.flag_left {
         state.outer_join(false)
     } else if args.flag_right {
@@ -210,10 +129,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         state.full_outer_join()
     } else if args.flag_cross {
         state.cross_join()
-    } else if args.flag_regex {
-        state.regex_join(true, parallelization)
-    } else if args.flag_regex_left {
-        state.regex_join(false, parallelization)
     } else {
         state.inner_join()
     }
@@ -221,9 +136,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
 fn prefix_header(headers: &csv::ByteRecord, prefix: &String) -> csv::ByteRecord {
     let mut prefixed_headers = csv::ByteRecord::new();
-    let byte_prefix = prefix.as_bytes();
+
     for column in headers.iter() {
-        prefixed_headers.push_field(&[byte_prefix, column].concat());
+        prefixed_headers.push_field(&[prefix.as_bytes(), column].concat());
     }
 
     prefixed_headers
@@ -279,123 +194,6 @@ impl<R: io::Read + io::Seek, W: io::Write> IoState<R, W> {
                 }
             }
         }
-        Ok(())
-    }
-
-    fn regex_join(mut self, inner: bool, parallelization: Option<Option<usize>>) -> CliResult<()> {
-        if self.sel2.len() > 1 {
-            return Err(crate::CliError::Other("Cannot select multiple columns for second CSV file containing regex patterns when using the --regex flag.".to_string()));
-        }
-
-        let (_, pad_right) = self.get_padding()?;
-
-        // Indexing the patterns
-        let mut patterns: Vec<String> = Vec::new();
-        let mut regex_rows: Vec<csv::ByteRecord> = Vec::new();
-
-        for row in self.rdr2.into_byte_records() {
-            let row = row?;
-
-            let pattern = std::str::from_utf8(self.sel2.select(&row).next().unwrap())
-                .unwrap()
-                .to_string();
-
-            patterns.push(pattern);
-            regex_rows.push(row);
-        }
-
-        let regex_set = regex::bytes::RegexSetBuilder::new(&patterns)
-            .case_insensitive(self.case_insensitive)
-            .build()?;
-
-        // Peforming join
-        if let Some(threads) = parallelization {
-            let sel1 = self.sel1;
-            let mut wtr = self.wtr;
-
-            self.rdr1
-                .into_byte_records()
-                .parallel_map_custom(
-                    |o| {
-                        if let Some(count) = threads {
-                            o.threads(count)
-                        } else {
-                            o
-                        }
-                    },
-                    move |record| -> CliResult<Vec<csv::ByteRecord>> {
-                        let mut row = record?;
-
-                        let mut rows_to_emit: Vec<csv::ByteRecord> = Vec::new();
-
-                        let mut total_matches: Vec<usize> = Vec::new();
-
-                        for cell in sel1.select(&row) {
-                            let matches = regex_set.matches(cell).into_iter().collect::<Vec<_>>();
-
-                            if total_matches.is_empty() {
-                                total_matches = matches;
-                            } else {
-                                total_matches = union_of_sorted_lists(&total_matches, &matches);
-                            }
-                        }
-
-                        for i in total_matches.iter() {
-                            let mut row_to_write = row.clone();
-                            row_to_write.extend(&regex_rows[*i]);
-                            rows_to_emit.push(row_to_write);
-                        }
-
-                        if !inner && total_matches.is_empty() {
-                            row.extend(&pad_right);
-                            rows_to_emit.push(row);
-                        }
-
-                        Ok(rows_to_emit)
-                    },
-                )
-                .try_for_each(|result| -> CliResult<()> {
-                    let rows_to_emit = result?;
-
-                    for row in rows_to_emit {
-                        wtr.write_byte_record(&row)?;
-                    }
-
-                    Ok(())
-                })?;
-
-            wtr.flush()?;
-        } else {
-            let mut row = csv::ByteRecord::new();
-
-            while self.rdr1.read_byte_record(&mut row)? {
-                let mut total_matches: Vec<usize> = Vec::new();
-
-                for cell in self.sel1.select(&row) {
-                    let matches = regex_set.matches(cell).into_iter().collect::<Vec<_>>();
-
-                    if total_matches.is_empty() {
-                        total_matches = matches;
-                    } else {
-                        total_matches = union_of_sorted_lists(&total_matches, &matches);
-                    }
-                }
-
-                for i in total_matches.iter() {
-                    let mut row_to_write = row.clone();
-                    row_to_write.extend(&regex_rows[*i]);
-                    self.wtr.write_byte_record(&row_to_write)?;
-                }
-
-                if !inner && total_matches.is_empty() {
-                    row.extend(&pad_right);
-                    self.wtr.write_byte_record(&row)?;
-                }
-            }
-
-            self.wtr.flush()?;
-        }
-
         Ok(())
     }
 
@@ -544,14 +342,7 @@ impl Args {
         let headers2 = rdr2.byte_headers()?;
         let select1 = rconf1.selection(headers1)?;
         let select2 = rconf2.selection(headers2)?;
-        if !self.flag_regex && !self.flag_regex_left && select1.len() != select2.len() {
-            Err(format!(
-                "Column selections must have the same number of columns, \
-                 but found column selections with {} and {} columns.",
-                select1.len(),
-                select2.len()
-            ))?;
-        }
+
         Ok((select1, select2))
     }
 }
@@ -656,18 +447,5 @@ fn transform(bs: &[u8], case_insensitive: bool) -> ByteString {
         bs.to_vec()
     } else {
         bs.to_lowercase()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_union_of_sorted_lists() {
-        assert_eq!(
-            union_of_sorted_lists(&[1, 2, 3], &[2, 5, 7]),
-            vec![1, 2, 3, 5, 7]
-        );
     }
 }

@@ -48,6 +48,7 @@ Commands:
 ## Combine multiple CSV files
     cat         Concatenate by row or column
     join        Join CSV files
+    regex-join  Fuzzy join a CSV files using regex patterns
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns

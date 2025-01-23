@@ -2,7 +2,7 @@
 # xan join
 
 ```txt
-Joins two sets of CSV data on the specified columns.
+Join two sets of CSV data on the specified columns.
 
 The default join operation is an 'inner' join. This corresponds to the
 intersection of rows on the keys specified.
@@ -22,11 +22,6 @@ buffered into memory so the join operation can be done.
 Note that when performing an 'inner' join (the default), it's the second file that
 will be indexed into memory. And when performing an 'outer' join, it will be the file
 that is on the other side of --left/--right.
-
-Finally, the command can also perform a 'regex' join, matching efficiently a CSV file containing
-a column of regex patterns with another file. But if you only need to filter out a file
-based on a set of regex patterns and don't need the auxilliary columns to be concatenated
-to the joined result, please be sure to check out the search command --patterns flag before.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
@@ -54,25 +49,6 @@ join options:
                                 data sets given. The number of rows return is
                                 equal to N * M, where N and M correspond to the
                                 number of rows in the given data sets, respectively.
-    --regex                     Perform an optimized regex join where the second file
-                                contains a column of regex patterns that will be used
-                                to match the values of a column of the first file.
-                                This is a variant of 'inner join' in that only matching
-                                rows will be written to the output.
-    --regex-left                Perform an optimized regex join where the second file
-                                contains a column of regex patterns that will be used
-                                to match the values of a column of the first file.
-                                This is a variant of 'left join' in that all rows from
-                                the first files will be written at least one, even if
-                                no pattern from the second file matched.
-    -p, --parallel              Whether to use parallelization to speed up computations.
-                                Will automatically select a suitable number of threads to use
-                                based on your number of cores. Use -t, --threads if you want to
-                                indicate the number of threads yourself. Only works with --regex
-                                and --regex-left currently.
-    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
-                                if you want the number of threads to be automatically chosen instead.
-                                Only works with --regex and --regex-left currently.
     --nulls                     When set, joins will work on empty fields.
                                 Otherwise, empty fields are completely ignored.
                                 (In fact, any row that has an empty field in the

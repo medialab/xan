@@ -41,6 +41,7 @@ pub mod partition;
 pub mod plot;
 pub mod progress;
 pub mod range;
+pub mod regex_join;
 pub mod rename;
 pub mod reverse;
 pub mod sample;

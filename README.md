@@ -460,6 +460,7 @@ To access the expression language's [cheatsheet](#syntax), run `xan groupby --ch
 
 - [**cat**](./docs/cmd/cat.md): Concatenate by row or column
 - [**join**](./docs/cmd/join.md): Join CSV files
+- [**regex-join**](./docs/cmd/regex-join.md): Fuzzy join a CSV files using regex patterns
 - [**merge**](./docs/cmd/merge.md): Merge multiple similar already sorted CSV files
 
 *Add, transform, drop and move columns*
