@@ -2247,7 +2247,7 @@ dependencies = [
 
 [[package]]
 name = "xan"
-version = "0.42.0-rc12"
+version = "0.42.0"
 dependencies = [
  "aho-corasick",
  "arrayvec 0.7.4",
