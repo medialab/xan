@@ -52,18 +52,31 @@ You can also install the latest dev version thusly:
 cargo install --git https://github.com/medialab/xan
 ```
 
+### Pre-built binaries
+
+Pre-built binaries can be found attached to every GitHub [releases](https://github.com/medialab/xan/releases/latest).
+
+Currently supported targets include:
+
+- `x86_64-unknown-linux-musl`
+- `x86_64-pc-windows-gnu`
+
+Feel free to open a PR to improve the CI by adding relevant targets.
+
 ### Arch Linux
 
-[xan](https://aur.archlinux.org/packages/xan) is available as an AUR package.
-It can be installed using an AUR helper (e.g. paru):
+`xan` is available as an [AUR package](https://aur.archlinux.org/packages/xan) (maintained by [@adamperkowski](https://github.com/adamperkowski), [here](https://github.com/adamperkowski/PKGBUILDs/tree/new/xan)).
+
+It can be installed using an AUR helper (e.g. `paru` or `pacman`):
 
 ```
-paru -S xan
+sudo paru -S xan
+sudo pacman -S xan
 ```
 
----
+### Installing completions
 
-Note that `xan` also exposes handy automatic completions for command and header names that you can install through the `xan completions` command.
+Note that `xan` also exposes handy automatic completions for command and header/column names that you can install through the `xan completions` command.
 
 Run the following command to understand how to install those completions:
 
