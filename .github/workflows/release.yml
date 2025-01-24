@@ -20,7 +20,6 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@v4
-      - run: rm Cargo.lock
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.5
         env:
@@ -28,3 +27,4 @@ jobs:
         with:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
+          TOOLCHAIN_VERSION: stable-msvc

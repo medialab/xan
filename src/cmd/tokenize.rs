@@ -394,15 +394,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let string = if args.flag_split_hyphens {
-            &hyphen_splitter.replace_all(string, " ")
+            hyphen_splitter.replace_all(string, " ")
         } else {
-            string
+            Cow::Borrowed(string)
         };
 
         let tokens: Box<dyn Iterator<Item = WordToken>> = if args.flag_simple {
-            Box::new(tokenizer.simple_tokenize(string))
+            Box::new(tokenizer.simple_tokenize(&string))
         } else {
-            Box::new(tokenizer.tokenize(string))
+            Box::new(tokenizer.tokenize(&string))
         };
 
         let tokens = tokens.filter_map(|token| {

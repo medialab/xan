@@ -481,14 +481,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     print!("{}", left_padding);
     for (i, col_label) in matrix.column_labels.iter().enumerate() {
         let label = if !args.flag_cram {
-            &(i + 1).to_string()
+            (i + 1).to_string()
         } else {
-            col_label
+            col_label.to_string()
         };
 
         print!(
             "{}",
-            util::unicode_aware_rpad_with_ellipsis(label, 2 * scale, " "),
+            util::unicode_aware_rpad_with_ellipsis(&label, 2 * scale, " "),
         );
     }
     println!();

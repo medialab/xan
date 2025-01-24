@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Not;
@@ -391,18 +392,18 @@ impl Graph {
         for node in graph.nodes.iter() {
             let node_label = if let Some(id) = node_label_attr {
                 match node.attributes.get(id) {
-                    None => node.key.as_str(),
-                    Some(v) => &serialize_value(v),
+                    None => Cow::Borrowed(node.key.as_str()),
+                    Some(v) => Cow::Owned(serialize_value(v)),
                 }
             } else {
-                node.key.as_str()
+                Cow::Borrowed(node.key.as_str())
             };
 
             if node.attributes.is_empty() {
                 xml_writer
-                    .open_empty("node", [("id", node.key.as_str()), ("label", node_label)])?;
+                    .open_empty("node", [("id", node.key.as_str()), ("label", &node_label)])?;
             } else {
-                xml_writer.open("node", [("id", node.key.as_str()), ("label", node_label)])?;
+                xml_writer.open("node", [("id", node.key.as_str()), ("label", &node_label)])?;
 
                 xml_writer.open_no_attributes("attvalues")?;
                 for (i, (interner_id, value)) in node.attributes.iter().enumerate() {
