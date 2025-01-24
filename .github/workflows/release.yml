@@ -1,8 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags: "*"
+  release:
+    types: [created]
 
 jobs:
   release:
@@ -16,6 +16,8 @@ jobs:
             archive: zip
           - target: x86_64-unknown-linux-musl
             archive: tar.gz
+          # NOTE: shunting mac_os for now...
+          # Ref: https://github.com/rust-build/rust-build.action/issues/91
           # - target: x86_64-apple-darwin
           #   archive: zip
     steps:

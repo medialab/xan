@@ -18,6 +18,7 @@ fmt options:
                                [default: ,]
     --crlf                     Use '\r\n' line endings in the output.
     --ascii                    Use ASCII field and record separators.
+    --tabs                     Shorthand for -t '\t'.
     --quote <arg>              The quote character to use. [default: "]
     --quote-always             Put quotes around every value.
     --quote-never              Never put quotes around values, even if this would
