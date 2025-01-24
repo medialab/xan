@@ -14,6 +14,8 @@ Usage:
     xan fmt [options] [<input>]
 
 fmt options:
+    -i, --in-place             Write the result in a temporary file and
+                               replace input file with it when finished.
     -t, --out-delimiter <arg>  The field delimiter for writing CSV data.
                                [default: ,]
     --crlf                     Use '\r\n' line endings in the output.

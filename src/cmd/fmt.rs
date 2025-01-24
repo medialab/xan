@@ -1,6 +1,16 @@
+use std::fs;
+
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
+
+struct TempFileGuard(String);
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
 
 static USAGE: &str = "
 Formats CSV data with a custom delimiter or CRLF line endings.
@@ -15,6 +25,8 @@ Usage:
     xan fmt [options] [<input>]
 
 fmt options:
+    -i, --in-place             Write the result in a temporary file and
+                               replace input file with it when finished.
     -t, --out-delimiter <arg>  The field delimiter for writing CSV data.
                                [default: ,]
     --crlf                     Use '\\r\\n' line endings in the output.
@@ -37,6 +49,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_in_place: bool,
     flag_out_delimiter: Option<Delimiter>,
     flag_crlf: bool,
     flag_ascii: bool,
@@ -50,20 +63,45 @@ struct Args {
 }
 
 impl Args {
-    fn resolve(&mut self) {
+    fn resolve(&mut self) -> CliResult<Option<TempFileGuard>> {
         if self.flag_tabs {
             self.flag_out_delimiter = Some(Delimiter(b'\t'));
         }
+
+        if self.flag_in_place {
+            match &self.arg_input {
+                None => Err("-i/--in-place does not work with stdin!")?,
+                Some(p) if p.ends_with(".gz") => {
+                    Err("-i/--in-place does not work with gzipped files!")?
+                }
+                Some(p) => {
+                    if let Some(output) = &self.flag_output {
+                        if output != p {
+                            Err("-i/--in-place does not work if -o/--output is different than input!")?
+                        }
+                    }
+
+                    let tmp_file_p = p.to_string() + ".xan-tmp";
+
+                    self.flag_output = Some(tmp_file_p.clone());
+
+                    return Ok(Some(TempFileGuard(tmp_file_p)));
+                }
+            };
+        }
+
+        Ok(None)
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
-    args.resolve();
+    let temp_file_guard_opt = args.resolve()?;
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(true);
+
     let mut wconfig = Config::new(&args.flag_output)
         .delimiter(args.flag_out_delimiter)
         .crlf(args.flag_crlf);
@@ -73,11 +111,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .delimiter(Some(Delimiter(b'\x1f')))
             .terminator(csv::Terminator::Any(b'\x1e'));
     }
+
     if args.flag_quote_always {
         wconfig = wconfig.quote_style(csv::QuoteStyle::Always);
     } else if args.flag_quote_never {
         wconfig = wconfig.quote_style(csv::QuoteStyle::Never);
     }
+
     if let Some(escape) = args.flag_escape {
         wconfig = wconfig.escape(Some(escape.as_byte())).double_quote(false);
     }
@@ -85,10 +125,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = wconfig.writer()?;
-    let mut r = csv::ByteRecord::new();
-    while rdr.read_byte_record(&mut r)? {
-        wtr.write_byte_record(&r)?;
+    let mut record = csv::ByteRecord::new();
+
+    while rdr.read_byte_record(&mut record)? {
+        wtr.write_byte_record(&record)?;
     }
+
     wtr.flush()?;
+
+    if let Some(p) = &temp_file_guard_opt {
+        fs::rename(&p.0, args.arg_input.unwrap())?;
+    }
+
     Ok(())
 }
