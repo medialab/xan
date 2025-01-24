@@ -18,7 +18,6 @@ pub mod fixlengths;
 pub mod flatmap;
 pub mod flatten;
 pub mod fmt;
-#[cfg(not(windows))]
 pub mod foreach;
 pub mod frequency;
 pub mod from;
