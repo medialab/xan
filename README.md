@@ -25,6 +25,8 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 |![parallel](./docs/img/grid/parallel.png)|![series](./docs/img/grid/series.png)|
 |__*small multiples (facet grid)*__|__*grouped view*__|
 |![small-multiples](./docs/img/grid/small-multiples.png)|![view-grid](./docs/img/grid/view-grid.png)|
+|__*correlation matrix heatmap*__|__*heatmap*__|
+|![small-multiples](./docs/img/grid/corr-heatmap.png)|![view-grid](./docs/img/grid/heatmap.png)|
 
 ## Summary
 
