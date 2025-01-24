@@ -1,8 +1,8 @@
 name: Release
 
 on:
-  release:
-    types: [created, published, released]
+  push:
+    tags: "*"
 
 jobs:
   release:
