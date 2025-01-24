@@ -19,6 +19,7 @@ fmt options:
                                [default: ,]
     --crlf                     Use '\\r\\n' line endings in the output.
     --ascii                    Use ASCII field and record separators.
+    --tabs                     Shorthand for -t '\\t'.
     --quote <arg>              The quote character to use. [default: \"]
     --quote-always             Put quotes around every value.
     --quote-never              Never put quotes around values, even if this would
@@ -39,6 +40,7 @@ struct Args {
     flag_out_delimiter: Option<Delimiter>,
     flag_crlf: bool,
     flag_ascii: bool,
+    flag_tabs: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_quote: Delimiter,
@@ -47,8 +49,17 @@ struct Args {
     flag_escape: Option<Delimiter>,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_tabs {
+            self.flag_out_delimiter = Some(Delimiter(b'\t'));
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
