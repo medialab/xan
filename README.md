@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/medialab/xan/workflows/Tests/badge.svg)](https://github.com/medialab/xan/actions)
+
 # `xan`, the CSV magician
 
 `xan` is a command line tool that can be used to process CSV files directly from the shell.
