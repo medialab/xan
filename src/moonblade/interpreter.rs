@@ -1303,7 +1303,7 @@ mod tests {
         );
 
         assert_eq!(
-            eval_code("strftime('2024-07-11 03:14:00', '%F %T %Z', timezone='UTC')"),
+            eval_code("strftime('2024-07-11T03:14:00[Europe/Paris]', '%F %T %Z', timezone='UTC')"),
             Ok(DynamicValue::from("2024-07-11 01:14:00 UTC"))
         );
 
