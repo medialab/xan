@@ -365,7 +365,7 @@ xan filter 'batch > 1' medias.csv | xan count
 130
 ```
 
-To access the expression language's [cheatsheet](#syntax), run `xan filter --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan filter --functions`.
+To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet), run `xan filter --cheatsheet`. To display the full list of available [functions](./docs/moonblade.md#functions--operators), run `xan filter --functions`.
 
 ### Evaluating an expression to create a new column based on other ones
 
@@ -387,7 +387,7 @@ Allodocteurs.fr (2005)
 Alterinfo.net (2005)
 ```
 
-To access the expression language's [cheatsheet](#syntax), run `xan map --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan map --functions`.
+To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet), run `xan map --cheatsheet`. To display the full list of available [functions](./docs/moonblade.md#functions--operators), run `xan map --functions`.
 
 ### Transform a column by evaluating an expression
 
@@ -409,7 +409,7 @@ ALLODOCTEURS
 ALTERINFO
 ```
 
-To access the expression language's [cheatsheet](#syntax), run `xan transform --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan transform --functions`.
+To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet), run `xan transform --cheatsheet`. To display the full list of available [functions](./docs/moonblade.md#functions--operators), run `xan transform --functions`.
 
 ### Performing custom aggregation
 
@@ -426,7 +426,7 @@ Displaying 1 col from 1 rows of <stdin>
 └────────────────┴───────────────────┘
 ```
 
-To access the expression language's [cheatsheet](#syntax), run `xan agg --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan agg --functions`. Finally, to display the list of available [aggregation functions](#aggregation-functions), run `xan agg --aggs`.
+To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet), run `xan agg --cheatsheet`. To display the full list of available [functions](./docs/moonblade.md#functions--operators), run `xan agg --functions`. Finally, to display the list of available [aggregation functions](./docs/moonblade.md#aggregation-functions), run `xan agg --aggs`.
 
 ### Grouping rows and performing per-group aggregation
 
@@ -447,7 +447,7 @@ Displaying 1 col from 5 rows of <stdin>
 └────────────┴──────────┘
 ```
 
-To access the expression language's [cheatsheet](#syntax), run `xan groupby --cheatsheet`. To display the full list of available [functions](#functions--operators), run `xan groupby --functions`. Finally, to display the list of available [aggregation functions](#aggregation-functions), run `xan groupby --aggs`.
+To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet), run `xan groupby --cheatsheet`. To display the full list of available [functions](./docs/moonblade.md#functions--operators), run `xan groupby --functions`. Finally, to display the list of available [aggregation functions](./docs/moonblade.md#aggregation-functions), run `xan groupby --aggs`.
 
 ## Available commands
 
