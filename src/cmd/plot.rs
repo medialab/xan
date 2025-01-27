@@ -681,7 +681,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             &x_axis_info,
                             &args.flag_x_scale,
                             &y_ticks_labels,
-                            cols / actual_grid_cols,
+                            cols / grid_cols,
                         );
                         let y_axis = Axis::default()
                             .title(if y_axis_info.can_be_displayed {
