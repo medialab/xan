@@ -18,6 +18,7 @@ mod index;
 mod json;
 mod moonblade;
 // mod scales;
+mod ratatui;
 mod select;
 mod util;
 mod xml;

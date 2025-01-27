@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
-use colored::{ColoredString, Colorize};
 use indexmap::IndexMap;
 use jiff::{
     civil::{Date, DateTime, Time},
@@ -15,15 +14,14 @@ use jiff::{
 use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
 
-use ratatui::backend::TestBackend;
-use ratatui::buffer::{Buffer, Cell};
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
-use ratatui::Terminal;
 
 use crate::config::{Config, Delimiter};
+use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::{CliError, CliResult};
@@ -514,11 +512,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let y_ticks = args.infer_y_ticks(rows);
 
     // Drawing
-    let mut terminal = Terminal::new(TestBackend::new(cols as u16, rows as u16))?;
-
     match args.flag_small_multiples {
         None => {
-            terminal.draw(|frame| {
+            print_ratatui_frame_to_stdout(cols, rows, |frame| {
                 // let n = finalized_series[0].1.len();
 
                 // x axis information
@@ -603,8 +599,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 frame.render_widget(chart, frame.area());
                 patch_buffer(frame.buffer_mut(), None, &x_ticks_labels, args.flag_grid);
             })?;
-
-            print_terminal(&terminal, cols);
         }
         Some(grid_cols) => {
             let grid_cols = grid_cols.get();
@@ -623,7 +617,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     println!();
                 }
 
-                terminal.draw(|frame| {
+                print_ratatui_frame_to_stdout(cols, rows, |frame| {
                     let actual_grid_cols = finalized_series_column.len();
 
                     let layout = Layout::default()
@@ -740,8 +734,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         color_i += 1;
                     }
                 })?;
-
-                print_terminal(&terminal, cols);
             }
         }
     }
@@ -1003,74 +995,6 @@ impl AxisInfo {
                 axis_type: y_axis_type,
             },
         )
-    }
-}
-
-fn print_terminal(terminal: &Terminal<TestBackend>, cols: usize) {
-    let contents = &terminal.backend().buffer().content;
-
-    let mut i: usize = 0;
-
-    fn group_cells_by_color(cells: &[Cell]) -> Vec<Vec<Cell>> {
-        let mut groups: Vec<Vec<Cell>> = Vec::new();
-        let mut current_run: Vec<Cell> = Vec::new();
-
-        for cell in cells {
-            if current_run.is_empty() || (current_run[0].style() == cell.style()) {
-                current_run.push(cell.clone());
-                continue;
-            }
-
-            groups.push(current_run);
-
-            current_run = vec![cell.clone()];
-        }
-
-        if !current_run.is_empty() {
-            groups.push(current_run);
-        }
-
-        groups
-    }
-
-    fn colorize(string: &str, color: Color, modifer: Modifier) -> ColoredString {
-        let string = match color {
-            Color::Reset | Color::White => Colorize::normal(string),
-            Color::Red => Colorize::red(string),
-            Color::Blue => Colorize::blue(string),
-            Color::Cyan => Colorize::cyan(string),
-            Color::Green => Colorize::green(string),
-            Color::Yellow => Colorize::yellow(string),
-            Color::Magenta => Colorize::magenta(string),
-            _ => unimplemented!(),
-        };
-
-        if modifer.is_empty() {
-            return string;
-        }
-
-        match modifer {
-            Modifier::DIM => Colorize::dimmed(string),
-            _ => unimplemented!(),
-        }
-    }
-
-    while i < contents.len() {
-        let line = group_cells_by_color(&contents[i..(i + cols)])
-            .iter()
-            .map(|cells| {
-                colorize(
-                    &cells.iter().map(|cell| cell.symbol()).collect::<String>(),
-                    cells[0].fg,
-                    cells[0].modifier,
-                )
-                .to_string()
-            })
-            .collect::<String>();
-
-        println!("{}", line);
-
-        i += cols;
     }
 }
 
