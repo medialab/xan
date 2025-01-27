@@ -1,4 +1,4 @@
-use jiff::{civil::Date, ToSpan, Unit};
+use jiff::{civil::Date, ToSpan, Unit, Zoned};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -53,6 +53,33 @@ pub fn format_partial_date(unit: Unit, date: &Date) -> String {
         Unit::Month => date.strftime("%Y-%m").to_string(),
         Unit::Day => date.strftime("%Y-%m-%d").to_string(),
         _ => unimplemented!(),
+    }
+}
+
+const MINUTES_BOUND: i64 = 60;
+const HOURS_BOUND: i64 = MINUTES_BOUND * 60;
+const DAYS_BOUND: i64 = HOURS_BOUND * 24;
+const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
+const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
+
+pub fn infer_temporal_granularity(earliest: &Zoned, latest: &Zoned, graduations: usize) -> Unit {
+    let duration = earliest.duration_until(latest);
+    let seconds = duration.as_secs();
+
+    let graduations = graduations as i64;
+
+    if seconds > YEARS_BOUND * graduations {
+        Unit::Year
+    } else if seconds > MONTHS_BOUND * graduations {
+        Unit::Month
+    } else if seconds > DAYS_BOUND * graduations {
+        Unit::Day
+    } else if seconds > HOURS_BOUND * graduations {
+        Unit::Hour
+    } else if seconds > MINUTES_BOUND * graduations {
+        Unit::Minute
+    } else {
+        Unit::Second
     }
 }
 

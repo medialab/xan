@@ -21,11 +21,13 @@ use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
 use crate::config::{Config, Delimiter};
-use crate::dates::parse_partial_date;
+use crate::dates::{infer_temporal_granularity, parse_partial_date};
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::{CliError, CliResult};
+
+const TYPICAL_COLS: usize = 35;
 
 #[derive(Clone, Copy)]
 struct Marker(symbols::Marker);
@@ -794,35 +796,6 @@ fn float_to_zoned(float: f64) -> Zoned {
     float_to_timestamp(float).to_zoned(TimeZone::system())
 }
 
-const MEAN_COLS: i64 = 35;
-const MINUTES_BOUND: i64 = 60;
-const HOURS_BOUND: i64 = MINUTES_BOUND * 60;
-const DAYS_BOUND: i64 = HOURS_BOUND * 24;
-const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
-const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
-
-fn infer_temporal_granularity(domain: (f64, f64)) -> Unit {
-    let start = float_to_zoned(domain.0);
-    let end = float_to_zoned(domain.1);
-
-    let duration = start.duration_until(&end);
-    let seconds = duration.as_secs();
-
-    if seconds > YEARS_BOUND * MEAN_COLS {
-        Unit::Year
-    } else if seconds > MONTHS_BOUND * MEAN_COLS {
-        Unit::Month
-    } else if seconds > DAYS_BOUND * MEAN_COLS {
-        Unit::Day
-    } else if seconds > HOURS_BOUND * MEAN_COLS {
-        Unit::Hour
-    } else if seconds > MINUTES_BOUND * MEAN_COLS {
-        Unit::Minute
-    } else {
-        Unit::Second
-    }
-}
-
 fn floor_timestamp(milliseconds: f64, unit: Unit) -> i64 {
     let mut zoned = float_to_zoned(milliseconds);
 
@@ -837,7 +810,9 @@ fn floor_timestamp(milliseconds: f64, unit: Unit) -> i64 {
 }
 
 fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
-    let timestamp = Timestamp::from_millisecond(milliseconds).unwrap();
+    let timestamp = Timestamp::from_millisecond(milliseconds)
+        .unwrap()
+        .to_zoned(TimeZone::system());
 
     timestamp
         .strftime(match unit {
@@ -1284,7 +1259,13 @@ impl Series {
 
     fn mark_as_temporal(&mut self, granularity: Option<Unit>) {
         if let Some((x_domain, y_domain)) = self.extent.as_mut() {
-            let granularity = granularity.unwrap_or_else(|| infer_temporal_granularity(*x_domain));
+            let granularity = granularity.unwrap_or_else(|| {
+                infer_temporal_granularity(
+                    &float_to_zoned(x_domain.0),
+                    &float_to_zoned(x_domain.1),
+                    TYPICAL_COLS,
+                )
+            });
             self.types.0 = AxisType::Timestamp(granularity);
 
             let mut buckets: HashMap<i64, f64> = HashMap::new();

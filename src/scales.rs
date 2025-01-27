@@ -203,21 +203,13 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub enum Conversion {
+pub enum ScaleType {
     #[default]
     Linear,
     Ln,
 }
 
-impl Conversion {
-    fn linear() -> Self {
-        Self::Linear
-    }
-
-    fn ln() -> Self {
-        Self::Ln
-    }
-
+impl ScaleType {
     pub fn is_linear(&self) -> bool {
         matches!(self, Self::Linear)
     }
@@ -239,26 +231,25 @@ impl Conversion {
     }
 }
 
-impl<'de> Deserialize<'de> for Conversion {
+impl<'de> Deserialize<'de> for ScaleType {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(d)?;
 
         Ok(match raw.as_str() {
-            "lin" => Self::linear(),
-            "log" => Self::ln(),
+            "lin" => Self::Linear,
+            "log" => Self::Ln,
             _ => return Err(D::Error::custom(format!("unknown scale type \"{}\"", raw))),
         })
     }
 }
 
 #[derive(Debug)]
-pub struct Scale {
+pub struct LinearScale {
     input_domain: (f64, f64),
     output_range: (f64, f64),
-    conversion: Conversion,
 }
 
-impl Scale {
+impl LinearScale {
     fn new(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
         assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
         assert!(output_range.0 <= output_range.1, "output_range min > max");
@@ -266,7 +257,6 @@ impl Scale {
         Self {
             input_domain,
             output_range,
-            conversion: Default::default(),
         }
     }
 
@@ -310,9 +300,6 @@ impl Scale {
 
     fn ticks(&self, count: usize) -> Vec<f64> {
         ticks(self.input_domain.0, self.input_domain.1, count)
-            .into_iter()
-            .map(|tick| self.conversion.invert(tick))
-            .collect()
     }
 }
 
