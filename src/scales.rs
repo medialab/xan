@@ -1,4 +1,5 @@
 use std::mem;
+use std::ops::Sub;
 
 use serde::de::{Deserialize, Deserializer, Error};
 
@@ -107,8 +108,7 @@ fn ticks(start: f64, stop: f64, count: usize) -> Vec<f64> {
     ticks
 }
 
-// NOTE: same as d3-scale's linear nice
-fn improve_domain_for_ticks(domain: (f64, f64), count: usize) -> Option<(f64, f64)> {
+fn linear_nice(domain: (f64, f64), count: usize) -> Option<(f64, f64)> {
     let (mut start, mut stop) = domain;
 
     let mut step: f64;
@@ -143,6 +143,11 @@ fn improve_domain_for_ticks(domain: (f64, f64), count: usize) -> Option<(f64, f6
     }
 
     None
+}
+
+#[inline]
+fn lerp(min: f64, max: f64, t: f64) -> f64 {
+    (1.0 - t) * min + t * max
 }
 
 #[derive(Debug)]
@@ -184,6 +189,21 @@ impl<T: Copy + PartialOrd> Extent<T> {
     }
 }
 
+impl<T: Copy + PartialOrd + Sub<Output = T>> Extent<T> {
+    #[inline]
+    fn width(&self) -> T {
+        self.max() - self.min()
+    }
+}
+
+impl<T: Copy + PartialOrd> From<(T, T)> for Extent<T> {
+    fn from(value: (T, T)) -> Self {
+        Self(value)
+    }
+}
+
+// TODO: support known/unknown min/max beforehand and make process
+// return bool so we can use it to clamp in heatmap, and bins
 #[derive(Debug)]
 struct ExtentBuilder<T>(Option<Extent<T>>);
 
@@ -206,7 +226,7 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
 pub enum ScaleType {
     #[default]
     Linear,
-    Ln,
+    Log10,
 }
 
 impl ScaleType {
@@ -218,7 +238,7 @@ impl ScaleType {
     pub fn convert(&self, x: f64) -> f64 {
         match self {
             Self::Linear => x,
-            Self::Ln => x.ln(),
+            Self::Log10 => x.log10(),
         }
     }
 
@@ -226,7 +246,7 @@ impl ScaleType {
     fn invert(&self, x: f64) -> f64 {
         match self {
             Self::Linear => x,
-            Self::Ln => x.exp(),
+            Self::Log10 => 10.0_f64.powf(x),
         }
     }
 }
@@ -237,7 +257,7 @@ impl<'de> Deserialize<'de> for ScaleType {
 
         Ok(match raw.as_str() {
             "lin" => Self::Linear,
-            "log" => Self::Ln,
+            "log" => Self::Log10,
             _ => return Err(D::Error::custom(format!("unknown scale type \"{}\"", raw))),
         })
     }
@@ -245,8 +265,8 @@ impl<'de> Deserialize<'de> for ScaleType {
 
 #[derive(Debug)]
 pub struct LinearScale {
-    input_domain: (f64, f64),
-    output_range: (f64, f64),
+    input_domain: Extent<f64>,
+    output_range: Extent<f64>,
 }
 
 impl LinearScale {
@@ -255,59 +275,78 @@ impl LinearScale {
         assert!(output_range.0 <= output_range.1, "output_range min > max");
 
         Self {
-            input_domain,
-            output_range,
+            input_domain: Extent::from(input_domain),
+            output_range: Extent::from(output_range),
         }
     }
 
     fn nice(input_domain: (f64, f64), output_range: (f64, f64), ticks: usize) -> Self {
         Self::new(
-            improve_domain_for_ticks(input_domain, ticks).unwrap_or(input_domain),
+            linear_nice(input_domain, ticks).unwrap_or(input_domain),
             output_range,
         )
     }
 
     #[inline]
-    fn lerp(&self, t: f64) -> f64 {
-        (1.0 - t) * self.output_range.0 + t * self.output_range.1
-    }
-
-    #[inline]
-    fn input_domain_width(&self) -> f64 {
-        self.input_domain.1 - self.input_domain.0
-    }
-
-    #[inline]
-    fn output_range_width(&self) -> f64 {
-        self.output_range.1 - self.output_range.0
-    }
-
-    #[inline]
     fn percent(&self, value: f64) -> f64 {
-        (value - self.input_domain.0) / self.input_domain_width()
+        (value - self.input_domain.min()) / self.input_domain.width()
     }
 
     fn map(&self, value: f64) -> f64 {
         let percent = self.percent(value);
 
-        percent * self.output_range_width() + self.output_range.0
-    }
-
-    fn spread_input_domain(&mut self, offset: f64) {
-        self.input_domain.0 -= offset;
-        self.input_domain.1 += offset;
+        percent * self.output_range.width() + self.output_range.min()
     }
 
     fn ticks(&self, count: usize) -> Vec<f64> {
-        ticks(self.input_domain.0, self.input_domain.1, count)
+        ticks(self.input_domain.min(), self.input_domain.max(), count)
     }
 }
 
-// TODO: linear, log etc. with different struct to process and one belonging to the scale
-// TODO: d3 style nice
-// TODO: extent builder with optional custom bounds?
-// TODO: convert, invert
-// TODO: ticks, continuous or not
+// TODO: support custom base, currently only base10
+struct LogScale {
+    input_domain: Extent<f64>,
+    output_range: Extent<f64>,
+}
+
+impl LogScale {
+    fn new(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+        assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
+        assert!(output_range.0 <= output_range.1, "output_range min > max");
+
+        Self {
+            input_domain: Extent::from(input_domain),
+            output_range: Extent::from(output_range),
+        }
+    }
+
+    fn nice(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+        let input_domain = (
+            10.0_f64.powf(input_domain.0.log10().floor()),
+            10.0_f64.powf(input_domain.1.log10().ceil()),
+        );
+
+        Self::new(input_domain, output_range)
+    }
+
+    // NOTE: I do not support reverse scales (i.e. pow scales?)
+    fn ticks(&self, count: usize) -> Vec<f64> {
+        let u = self.input_domain.min();
+        let v = self.input_domain.max();
+
+        let i = u.log10();
+        let j = v.log10();
+
+        // NOTE: I do not support non int bases either like d3
+        ticks(i, j, ((j - i).floor() as usize).min(count))
+            .into_iter()
+            .map(|tick| 10.0_f64.powf(tick))
+            .collect()
+    }
+}
+
+// TODO: log scale, enum Scale buildable from ScaleType
+// TODO: extent builder
 
 #[cfg(test)]
 mod tests {
@@ -330,12 +369,9 @@ mod tests {
     }
 
     #[test]
-    fn test_improve_domain_for_ticks() {
-        assert_eq!(improve_domain_for_ticks((0.0, 10.0), 10), Some((0.0, 10.0)));
-        assert_eq!(improve_domain_for_ticks((0.0, 10.0), 17), Some((0.0, 10.0)));
-        assert_eq!(
-            improve_domain_for_ticks((0.4868, 10.85), 10),
-            Some((0.0, 11.0))
-        );
+    fn test_linear_nice() {
+        assert_eq!(linear_nice((0.0, 10.0), 10), Some((0.0, 10.0)));
+        assert_eq!(linear_nice((0.0, 10.0), 17), Some((0.0, 10.0)));
+        assert_eq!(linear_nice((0.4868, 10.85), 10), Some((0.0, 11.0)));
     }
 }
