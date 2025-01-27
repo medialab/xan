@@ -1,5 +1,7 @@
 use std::mem;
 
+use serde::de::{Deserialize, Deserializer, Error};
+
 // Taken straight from d3: https://github.com/d3/d3-array/blob/main/src/ticks.js
 const E10: f64 = 7.0710678118654755; // sqrt(50)
 const E5: f64 = 3.1622776601683795; // sqrt(10)
@@ -201,7 +203,7 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-enum Conversion {
+pub enum Conversion {
     #[default]
     Linear,
     Ln,
@@ -216,12 +218,12 @@ impl Conversion {
         Self::Ln
     }
 
-    fn is_linear(&self) -> bool {
+    pub fn is_linear(&self) -> bool {
         matches!(self, Self::Linear)
     }
 
     #[inline]
-    fn convert(&self, x: f64) -> f64 {
+    pub fn convert(&self, x: f64) -> f64 {
         match self {
             Self::Linear => x,
             Self::Ln => x.ln(),
@@ -234,6 +236,18 @@ impl Conversion {
             Self::Linear => x,
             Self::Ln => x.exp(),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for Conversion {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "lin" => Self::linear(),
+            "log" => Self::ln(),
+            _ => return Err(D::Error::custom(format!("unknown scale type \"{}\"", raw))),
+        })
     }
 }
 
@@ -297,7 +311,7 @@ impl Scale {
     fn ticks(&self, count: usize) -> Vec<f64> {
         ticks(self.input_domain.0, self.input_domain.1, count)
             .into_iter()
-            .map(|tick| self.conversion.convert(tick))
+            .map(|tick| self.conversion.invert(tick))
             .collect()
     }
 }
