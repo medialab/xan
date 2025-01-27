@@ -490,17 +490,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("not enough cols to draw!")?;
     }
 
-    let mut rows = util::acquire_term_rows().unwrap_or(30);
-
-    if let Some(spec) = &args.flag_rows {
-        if spec.contains('.') {
-            let ratio = spec.parse::<f64>().map_err(|_| "--rows is invalid! ")?;
-
-            rows = (rows as f64 * ratio).trunc().abs() as usize;
-        } else {
-            rows = spec.parse::<usize>().map_err(|_| "--rows is invalid! ")?;
-        }
-    }
+    let mut rows = util::acquire_term_rows_ratio(&args.flag_rows)?;
 
     if rows < 3 {
         Err("not enough rows to draw!")?;

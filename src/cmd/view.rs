@@ -107,46 +107,57 @@ impl ViewTheme {
     }
 
     // Methods
+    #[inline]
     fn horizontal_box(&self) -> String {
         self.box_chars[BoxChar::Horizontal as usize].to_string()
     }
 
+    #[inline]
     fn corner_up_left(&self) -> char {
         self.box_chars[BoxChar::CornerUpLeft as usize]
     }
 
+    #[inline]
     fn corner_up_right(&self) -> char {
         self.box_chars[BoxChar::CornerUpRight as usize]
     }
 
+    #[inline]
     fn corner_bottom_left(&self) -> char {
         self.box_chars[BoxChar::CornerBottomLeft as usize]
     }
 
+    #[inline]
     fn corner_bottom_right(&self) -> char {
         self.box_chars[BoxChar::CornerBottomRight as usize]
     }
 
+    #[inline]
     fn cross_left(&self) -> char {
         self.box_chars[BoxChar::CrossLeft as usize]
     }
 
+    #[inline]
     fn cross_right(&self) -> char {
         self.box_chars[BoxChar::CrossRight as usize]
     }
 
+    #[inline]
     fn cross_bottom(&self) -> char {
         self.box_chars[BoxChar::CrossBottom as usize]
     }
 
+    #[inline]
     fn cross_up(&self) -> char {
         self.box_chars[BoxChar::CrossUp as usize]
     }
 
+    #[inline]
     fn cross_full(&self) -> char {
         self.box_chars[BoxChar::CrossFull as usize]
     }
 
+    #[inline]
     fn vertical(&self) -> char {
         self.box_chars[BoxChar::Vertical as usize]
     }
@@ -332,7 +343,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let output = io::stdout();
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
-    let rows = util::acquire_term_rows();
+    let rows = termsize::get().map(|size| size.rows as usize);
 
     // Theme
     let theme = args.flag_theme.parse::<ViewTheme>()?;

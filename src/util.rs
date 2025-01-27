@@ -327,24 +327,49 @@ pub fn acquire_term_cols(cols_override: &Option<usize>) -> usize {
     }
 }
 
+pub fn acquire_term_rows(rows_override: &Option<usize>) -> usize {
+    match rows_override {
+        None => match termsize::get() {
+            None => match acquire_stty_size() {
+                None => 30,
+                Some(size) => size.rows as usize,
+            },
+            Some(size) => size.rows as usize,
+        },
+        Some(c) => *c,
+    }
+}
+
 pub fn acquire_term_cols_ratio(cols_override: &Option<String>) -> Result<usize, &str> {
     let mut cols = acquire_term_cols(&None);
 
     if let Some(spec) = cols_override {
         if spec.contains('.') {
-            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid! ")?;
+            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid!")?;
 
             cols = (cols as f64 * ratio).trunc().abs() as usize;
         } else {
-            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid! ")?;
+            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid!")?;
         }
     }
 
     Ok(cols)
 }
 
-pub fn acquire_term_rows() -> Option<usize> {
-    termsize::get().map(|size| size.rows as usize)
+pub fn acquire_term_rows_ratio(rows_override: &Option<String>) -> Result<usize, &str> {
+    let mut rows = acquire_term_rows(&None);
+
+    if let Some(spec) = rows_override {
+        if spec.contains('.') {
+            let ratio = spec.parse::<f64>().map_err(|_| "--rows is invalid!")?;
+
+            rows = (rows as f64 * ratio).trunc().abs() as usize;
+        } else {
+            rows = spec.parse::<usize>().map_err(|_| "--rows is invalid!")?;
+        }
+    }
+
+    Ok(rows)
 }
 
 thread_local! {
