@@ -21,6 +21,7 @@ use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
 use crate::config::{Config, Delimiter};
+use crate::dates::parse_partial_date;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::select::SelectColumns;
 use crate::util;
@@ -765,6 +766,10 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
         date.to_datetime(Time::default())
             .to_zoned(TimeZone::system())
             .map_err(|_| format_error())?
+    } else if let Some((_, date)) = parse_partial_date(string) {
+        date.to_datetime(Time::default())
+            .to_zoned(TimeZone::system())
+            .map_err(|_| format_error())?
     } else {
         return Err(format_error());
     };
@@ -786,14 +791,14 @@ fn float_to_timestamp(float: f64) -> Timestamp {
 }
 
 fn float_to_zoned(float: f64) -> Zoned {
-    float_to_timestamp(float).to_zoned(TimeZone::UTC)
+    float_to_timestamp(float).to_zoned(TimeZone::system())
 }
 
 const MEAN_COLS: i64 = 35;
 const MINUTES_BOUND: i64 = 60;
 const HOURS_BOUND: i64 = MINUTES_BOUND * 60;
 const DAYS_BOUND: i64 = HOURS_BOUND * 24;
-const MONTHS_BOUND: i64 = DAYS_BOUND * 60;
+const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
 const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
 
 fn infer_temporal_granularity(domain: (f64, f64)) -> Unit {
