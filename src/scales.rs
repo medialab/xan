@@ -347,6 +347,7 @@ impl LogScale {
 
 // TODO: log scale, enum Scale buildable from ScaleType
 // TODO: extent builder
+// TODO: map for log scale and log input domain to log
 
 #[cfg(test)]
 mod tests {

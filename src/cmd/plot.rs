@@ -1025,7 +1025,7 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
     buffer.set_string(
         origin_col
             .saturating_sub(first_tick.width() as u16)
-            .min(area.x),
+            .max(area.x),
         x_axis_legend_y,
         first_tick,
         Style::new(),
