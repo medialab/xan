@@ -24,7 +24,6 @@ use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 use ratatui::Terminal;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::DynamicNumber;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::{CliError, CliResult};
@@ -184,15 +183,15 @@ struct Args {
     flag_y_ticks: Option<NonZeroUsize>,
     flag_x_min: Option<String>,
     flag_x_max: Option<String>,
-    flag_y_min: Option<DynamicNumber>,
-    flag_y_max: Option<DynamicNumber>,
+    flag_y_min: Option<f64>,
+    flag_y_max: Option<f64>,
     flag_x_scale: Scale,
     flag_y_scale: Scale,
     flag_ignore: bool,
 }
 
 impl Args {
-    fn parse_x_bounds(&self) -> CliResult<(Option<DynamicNumber>, Option<DynamicNumber>)> {
+    fn parse_x_bounds(&self) -> CliResult<(Option<f64>, Option<f64>)> {
         if self.flag_time {
             Ok((
                 self.flag_x_min
@@ -208,19 +207,19 @@ impl Args {
             Ok((
                 self.flag_x_min
                     .as_ref()
-                    .map(|cell| parse_as_number(cell.as_bytes()))
+                    .map(|cell| parse_as_float(cell.as_bytes()))
                     .transpose()?
                     .map(|min| self.flag_x_scale.convert(min)),
                 self.flag_x_max
                     .as_ref()
-                    .map(|cell| parse_as_number(cell.as_bytes()))
+                    .map(|cell| parse_as_float(cell.as_bytes()))
                     .transpose()?
                     .map(|max| self.flag_x_scale.convert(max)),
             ))
         }
     }
 
-    fn parse_y_bounds(&self) -> (Option<DynamicNumber>, Option<DynamicNumber>) {
+    fn parse_y_bounds(&self) -> (Option<f64>, Option<f64>) {
         (
             self.flag_y_min.map(|min| self.flag_y_scale.convert(min)),
             self.flag_y_max.map(|max| self.flag_y_scale.convert(max)),
@@ -369,9 +368,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SeriesBuilder::new_single()
     };
 
-    macro_rules! try_parse_as_number {
+    macro_rules! try_parse_as_float {
         ($scale: expr, $value: expr) => {{
-            match parse_as_number($value) {
+            match parse_as_float($value) {
                 Err(e) => {
                     if args.flag_ignore {
                         continue;
@@ -417,14 +416,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let x = if args.flag_time {
             try_parse_as_timestamp!(x_cell)
         } else {
-            try_parse_as_number!(args.flag_x_scale, x_cell)
+            try_parse_as_float!(args.flag_x_scale, x_cell)
         };
 
         let y = match y_column_index_opt {
             Some(y_column_index) => {
-                try_parse_as_number!(args.flag_y_scale, &record[y_column_index])
+                try_parse_as_float!(args.flag_y_scale, &record[y_column_index])
             }
-            None => args.flag_y_scale.convert(DynamicNumber::Integer(1)),
+            None => args.flag_y_scale.convert(1.0),
         };
 
         // Filtering out-of-bounds values
@@ -442,7 +441,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series_builder.add_with_index(0, x, y);
 
             for (i, (_, pos)) in additional_series_indices.iter().enumerate() {
-                let v = try_parse_as_number!(args.flag_y_scale, &record[*pos]);
+                let v = try_parse_as_float!(args.flag_y_scale, &record[*pos]);
 
                 series_builder.add_with_index(i + 1, x, v);
             }
@@ -474,8 +473,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             series.set_y_min(y_min);
         } else {
             // If y domain is positive, we set min to 0
-            if matches!(series.y_domain(), Some((y_min, _)) if y_min.as_float() > 0.0) {
-                series.set_y_min(DynamicNumber::Integer(0));
+            if matches!(series.y_domain(), Some((y_min, _)) if y_min > 0.0) {
+                series.set_y_min(0.0);
             }
         }
         if let Some(y_max) = flag_y_max {
@@ -526,12 +525,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let (x_axis_info, y_axis_info) =
                     AxisInfo::from_multiple_series(finalized_series.iter());
 
-                // Create the datasets to fill the chart with
-                let finalized_series = finalized_series
-                    .iter()
-                    .map(|(name_opt, series)| (name_opt, series.to_floats()))
-                    .collect::<Vec<_>>();
-
                 let datasets = finalized_series
                     .iter()
                     .enumerate()
@@ -546,7 +539,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 GraphType::Scatter
                             })
                             .style(get_series_color(i))
-                            .data(series);
+                            .data(series.as_floats());
 
                         if let Some(name) = name_opt {
                             dataset = dataset.name(name.clone());
@@ -577,10 +570,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         "".dim()
                     })
                     .style(Style::default().white())
-                    .bounds([
-                        y_axis_info.domain.0.as_float(),
-                        y_axis_info.domain.1.as_float(),
-                    ])
+                    .bounds([y_axis_info.domain.0, y_axis_info.domain.1])
                     .labels(y_ticks_labels);
 
                 // Create the X axis and define its properties
@@ -597,10 +587,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         "".dim()
                     })
                     .style(Style::default().white())
-                    .bounds([
-                        x_axis_info.domain.0.as_float(),
-                        x_axis_info.domain.1.as_float(),
-                    ])
+                    .bounds([x_axis_info.domain.0, x_axis_info.domain.1])
                     .labels(x_ticks_labels.clone());
 
                 // Create the chart and link all the parts together
@@ -666,7 +653,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         // Create the datasets to fill the chart with
                         let single_finalized_series = (
                             single_finalized_series.0.clone(),
-                            single_finalized_series.1.to_floats(),
+                            single_finalized_series.1.as_floats(),
                         );
 
                         let mut dataset = Dataset::default()
@@ -679,7 +666,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 GraphType::Scatter
                             })
                             .style(get_series_color(color_i))
-                            .data(&single_finalized_series.1);
+                            .data(single_finalized_series.1);
 
                         if let Some(name) = &single_finalized_series.0 {
                             dataset = dataset.name(name.clone());
@@ -710,10 +697,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 "".dim()
                             })
                             .style(Style::default().white())
-                            .bounds([
-                                y_axis_info.domain.0.as_float(),
-                                y_axis_info.domain.1.as_float(),
-                            ])
+                            .bounds([y_axis_info.domain.0, y_axis_info.domain.1])
                             .labels(y_ticks_labels);
 
                         // Create the X axis and define its properties
@@ -730,10 +714,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 "".dim()
                             })
                             .style(Style::default().white())
-                            .bounds([
-                                x_axis_info.domain.0.as_float(),
-                                x_axis_info.domain.1.as_float(),
-                            ])
+                            .bounds([x_axis_info.domain.0, x_axis_info.domain.1])
                             .labels(x_ticks_labels.clone());
 
                         // Create the chart and link all the parts together
@@ -768,7 +749,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     Ok(())
 }
 
-fn parse_as_timestamp(cell: &[u8]) -> Result<DynamicNumber, CliError> {
+fn is_int(float: f64) -> bool {
+    float.fract() <= f64::EPSILON
+}
+
+fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
     let format_error = || {
         CliError::Other(format!(
             "could not parse \"{}\" as date!",
@@ -792,11 +777,11 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<DynamicNumber, CliError> {
         return Err(format_error());
     };
 
-    Ok(DynamicNumber::Integer(zoned.timestamp().as_millisecond()))
+    Ok(zoned.timestamp().as_millisecond() as f64)
 }
 
-fn parse_as_number(cell: &[u8]) -> Result<DynamicNumber, CliError> {
-    DynamicNumber::try_from(cell).map_err(|_| {
+fn parse_as_float(cell: &[u8]) -> Result<f64, CliError> {
+    fast_float::parse::<f64, &[u8]>(cell).map_err(|_| {
         CliError::Other(format!(
             "could not parse \"{}\" as number!",
             std::str::from_utf8(cell).unwrap_or("cannot decode")
@@ -804,14 +789,12 @@ fn parse_as_number(cell: &[u8]) -> Result<DynamicNumber, CliError> {
     })
 }
 
-impl DynamicNumber {
-    fn to_timestamp(self) -> Timestamp {
-        Timestamp::from_millisecond(self.as_int()).unwrap()
-    }
+fn float_to_timestamp(float: f64) -> Timestamp {
+    Timestamp::from_millisecond(float as i64).unwrap()
+}
 
-    fn to_zoned(self) -> Zoned {
-        self.to_timestamp().to_zoned(TimeZone::UTC)
-    }
+fn float_to_zoned(float: f64) -> Zoned {
+    float_to_timestamp(float).to_zoned(TimeZone::UTC)
 }
 
 const MEAN_COLS: i64 = 35;
@@ -821,9 +804,9 @@ const DAYS_BOUND: i64 = HOURS_BOUND * 24;
 const MONTHS_BOUND: i64 = DAYS_BOUND * 60;
 const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
 
-fn infer_temporal_granularity(domain: (DynamicNumber, DynamicNumber)) -> Unit {
-    let start = domain.0.to_zoned();
-    let end = domain.1.to_zoned();
+fn infer_temporal_granularity(domain: (f64, f64)) -> Unit {
+    let start = float_to_zoned(domain.0);
+    let end = float_to_zoned(domain.1);
 
     let duration = start.duration_until(&end);
     let seconds = duration.as_secs();
@@ -843,8 +826,8 @@ fn infer_temporal_granularity(domain: (DynamicNumber, DynamicNumber)) -> Unit {
     }
 }
 
-fn floor_timestamp(milliseconds: DynamicNumber, unit: Unit) -> i64 {
-    let mut zoned = milliseconds.to_zoned();
+fn floor_timestamp(milliseconds: f64, unit: Unit) -> i64 {
+    let mut zoned = float_to_zoned(milliseconds);
 
     // TODO: we could optimize some computations by foregoing
     zoned = match unit {
@@ -900,16 +883,16 @@ fn format_graduation(axis_type: AxisType, x: f64) -> String {
 fn graduations_from_domain(
     axis_type: AxisType,
     scale: &Scale,
-    domain: (DynamicNumber, DynamicNumber),
+    domain: (f64, f64),
     steps: usize,
 ) -> Vec<String> {
     debug_assert!(steps > 1);
 
     if axis_type.is_int() {
-        let range = (domain.1.as_int() - domain.0.as_int()).abs();
+        let range = (domain.1 as i64 - domain.0 as i64).abs();
 
         if steps as i64 >= range {
-            return (domain.0.as_int()..domain.1.as_int())
+            return (domain.0 as i64..domain.1 as i64)
                 .map(|i| i.to_string())
                 .collect();
         }
@@ -920,49 +903,34 @@ fn graduations_from_domain(
     let mut t = 0.0;
     let fract = 1.0 / (steps - 1) as f64;
 
-    graduations.push(format_graduation(
-        axis_type,
-        scale.invert(domain.0.as_float()),
-    ));
+    graduations.push(format_graduation(axis_type, scale.invert(domain.0)));
 
     for _ in 1..(steps - 1) {
         t += fract;
         graduations.push(format_graduation(
             axis_type,
-            scale.invert(lerp(domain.0.as_float(), domain.1.as_float(), t)),
+            scale.invert(lerp(domain.0, domain.1, t)),
         ));
     }
 
-    graduations.push(format_graduation(
-        axis_type,
-        scale.invert(domain.1.as_float()),
-    ));
+    graduations.push(format_graduation(axis_type, scale.invert(domain.1)));
 
     graduations
 }
 
-fn fix_flat_domain(
-    domain: (DynamicNumber, DynamicNumber),
-    axis_type: AxisType,
-) -> (DynamicNumber, DynamicNumber) {
+fn fix_flat_domain(domain: (f64, f64), axis_type: AxisType) -> (f64, f64) {
     if domain.0 != domain.1 {
         return domain;
     }
 
     match axis_type {
         AxisType::Float => {
-            let center_value = domain.0.as_float();
-            (
-                DynamicNumber::Float(center_value - 0.5),
-                DynamicNumber::Float(center_value + 0.5),
-            )
+            let center_value = domain.0;
+            (center_value - 0.5, center_value + 0.5)
         }
         AxisType::Int => {
-            let center_value = domain.0.as_int();
-            (
-                DynamicNumber::Integer(center_value - 1),
-                DynamicNumber::Integer(center_value + 1),
-            )
+            let center_value = domain.0;
+            (center_value - 1.0, center_value + 1.0)
         }
         _ => unimplemented!(),
     }
@@ -971,7 +939,7 @@ fn fix_flat_domain(
 #[derive(Clone)]
 struct AxisInfo {
     can_be_displayed: bool,
-    domain: (DynamicNumber, DynamicNumber),
+    domain: (f64, f64),
     axis_type: AxisType,
 }
 
@@ -1264,7 +1232,7 @@ impl Scale {
         matches!(self, Self::Linear)
     }
 
-    fn convert(&self, x: DynamicNumber) -> DynamicNumber {
+    fn convert(&self, x: f64) -> f64 {
         match self {
             Self::Linear => x,
             Self::Ln => x.ln(),
@@ -1293,11 +1261,8 @@ impl<'de> Deserialize<'de> for Scale {
 
 struct Series {
     types: (AxisType, AxisType),
-    points: Vec<(DynamicNumber, DynamicNumber)>,
-    extent: Option<(
-        (DynamicNumber, DynamicNumber),
-        (DynamicNumber, DynamicNumber),
-    )>,
+    points: Vec<(f64, f64)>,
+    extent: Option<((f64, f64), (f64, f64))>,
 }
 
 impl Series {
@@ -1309,6 +1274,10 @@ impl Series {
         }
     }
 
+    fn as_floats(&self) -> &[(f64, f64)] {
+        &self.points
+    }
+
     fn len(&self) -> usize {
         self.points.len()
     }
@@ -1317,25 +1286,18 @@ impl Series {
         self.len() == 0
     }
 
-    fn to_floats(&self) -> Vec<(f64, f64)> {
-        self.points
-            .iter()
-            .map(|(x, y)| (x.as_float(), y.as_float()))
-            .collect()
-    }
-
-    fn of(x: DynamicNumber, y: DynamicNumber) -> Self {
+    fn of(x: f64, y: f64) -> Self {
         let mut series = Self::new();
         series.add(x, y);
         series
     }
 
-    fn add(&mut self, x: DynamicNumber, y: DynamicNumber) {
-        if x.is_float() {
+    fn add(&mut self, x: f64, y: f64) {
+        if !is_int(x) {
             self.types.0 = AxisType::Float;
         }
 
-        if y.is_float() {
+        if !is_int(y) {
             self.types.1 = AxisType::Float;
         }
 
@@ -1361,11 +1323,11 @@ impl Series {
         };
     }
 
-    fn x_domain(&self) -> Option<(DynamicNumber, DynamicNumber)> {
+    fn x_domain(&self) -> Option<(f64, f64)> {
         self.extent.map(|(x, _)| x)
     }
 
-    fn y_domain(&self) -> Option<(DynamicNumber, DynamicNumber)> {
+    fn y_domain(&self) -> Option<(f64, f64)> {
         self.extent.map(|(_, y)| y)
     }
 
@@ -1396,7 +1358,7 @@ impl Series {
             let granularity = granularity.unwrap_or_else(|| infer_temporal_granularity(*x_domain));
             self.types.0 = AxisType::Timestamp(granularity);
 
-            let mut buckets: HashMap<i64, DynamicNumber> = HashMap::new();
+            let mut buckets: HashMap<i64, f64> = HashMap::new();
 
             for (x, y) in self.points.iter() {
                 buckets
@@ -1407,7 +1369,7 @@ impl Series {
 
             self.points.clear();
 
-            let mut new_y_domain: Option<(DynamicNumber, DynamicNumber)> = None;
+            let mut new_y_domain: Option<(f64, f64)> = None;
 
             for (x, y) in buckets {
                 match new_y_domain.as_mut() {
@@ -1423,43 +1385,43 @@ impl Series {
                     }
                 };
 
-                self.points.push((DynamicNumber::Integer(x), y));
+                self.points.push((x as f64, y));
             }
 
             *x_domain = (
-                DynamicNumber::Integer(floor_timestamp(x_domain.0, granularity)),
-                DynamicNumber::Integer(floor_timestamp(x_domain.1, granularity)),
+                floor_timestamp(x_domain.0, granularity) as f64,
+                floor_timestamp(x_domain.1, granularity) as f64,
             );
             *y_domain = new_y_domain.unwrap();
         }
     }
 
-    fn set_x_min(&mut self, v: DynamicNumber) {
+    fn set_x_min(&mut self, v: f64) {
         if let Some((x, _)) = self.extent.as_mut() {
             x.0 = v;
         }
     }
 
-    fn set_x_max(&mut self, v: DynamicNumber) {
+    fn set_x_max(&mut self, v: f64) {
         if let Some((x, _)) = self.extent.as_mut() {
             x.1 = v;
         }
     }
 
-    fn set_y_min(&mut self, v: DynamicNumber) {
+    fn set_y_min(&mut self, v: f64) {
         if let Some((_, y)) = self.extent.as_mut() {
             y.0 = v;
         }
     }
 
-    fn set_y_max(&mut self, v: DynamicNumber) {
+    fn set_y_max(&mut self, v: f64) {
         if let Some((_, y)) = self.extent.as_mut() {
             y.1 = v;
         }
     }
 
     fn sort_by_x_axis(&mut self) {
-        self.points.sort_by(|a, b| a.0.cmp(&b.0))
+        self.points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
     }
 }
 
@@ -1473,7 +1435,7 @@ impl CategoricalSeries {
         Self::default()
     }
 
-    fn add(&mut self, name: Vec<u8>, x: DynamicNumber, y: DynamicNumber) {
+    fn add(&mut self, name: Vec<u8>, x: f64, y: f64) {
         self.mapping
             .entry(name)
             .and_modify(|series| {
@@ -1511,7 +1473,7 @@ impl MultipleSeries {
             .push((String::from_utf8(name.to_vec()).unwrap(), Series::new()));
     }
 
-    fn add(&mut self, index: usize, x: DynamicNumber, y: DynamicNumber) {
+    fn add(&mut self, index: usize, x: f64, y: f64) {
         self.series[index].1.add(x, y);
     }
 
@@ -1542,21 +1504,21 @@ impl SeriesBuilder {
         Self::Categorical(CategoricalSeries::new())
     }
 
-    fn add_with_name(&mut self, name: Vec<u8>, x: DynamicNumber, y: DynamicNumber) {
+    fn add_with_name(&mut self, name: Vec<u8>, x: f64, y: f64) {
         match self {
             Self::Categorical(inner) => inner.add(name, x, y),
             _ => unreachable!(),
         };
     }
 
-    fn add_with_index(&mut self, index: usize, x: DynamicNumber, y: DynamicNumber) {
+    fn add_with_index(&mut self, index: usize, x: f64, y: f64) {
         match self {
             Self::Multiple(inner) => inner.add(index, x, y),
             _ => unreachable!(),
         };
     }
 
-    fn add(&mut self, x: DynamicNumber, y: DynamicNumber) {
+    fn add(&mut self, x: f64, y: f64) {
         match self {
             Self::Single(inner) => inner.add(x, y),
             _ => unreachable!(),
