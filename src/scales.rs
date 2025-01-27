@@ -238,7 +238,7 @@ impl Conversion {
 }
 
 #[derive(Debug)]
-struct Scale {
+pub struct Scale {
     input_domain: (f64, f64),
     output_range: (f64, f64),
     conversion: Conversion,
@@ -325,6 +325,7 @@ mod tests {
             ticks(0.0, 10.0, 10),
             [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
         );
+        assert_eq!(ticks(-5.0, 5.0, 3), vec![-5.0, 0.0, 5.0]);
     }
 
     #[test]

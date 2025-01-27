@@ -472,6 +472,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         if let Some(y_min) = flag_y_min {
             series.set_y_min(y_min);
+        } else {
+            // If y domain is positive, we set min to 0
+            if matches!(series.y_domain(), Some((y_min, _)) if y_min.as_float() > 0.0) {
+                series.set_y_min(DynamicNumber::Integer(0));
+            }
         }
         if let Some(y_max) = flag_y_max {
             series.set_y_max(y_max);
