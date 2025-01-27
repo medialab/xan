@@ -200,10 +200,48 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+enum Conversion {
+    #[default]
+    Linear,
+    Ln,
+}
+
+impl Conversion {
+    fn linear() -> Self {
+        Self::Linear
+    }
+
+    fn ln() -> Self {
+        Self::Ln
+    }
+
+    fn is_linear(&self) -> bool {
+        matches!(self, Self::Linear)
+    }
+
+    #[inline]
+    fn convert(&self, x: f64) -> f64 {
+        match self {
+            Self::Linear => x,
+            Self::Ln => x.ln(),
+        }
+    }
+
+    #[inline]
+    fn invert(&self, x: f64) -> f64 {
+        match self {
+            Self::Linear => x,
+            Self::Ln => x.exp(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Scale {
     input_domain: (f64, f64),
     output_range: (f64, f64),
+    conversion: Conversion,
 }
 
 impl Scale {
@@ -214,7 +252,15 @@ impl Scale {
         Self {
             input_domain,
             output_range,
+            conversion: Default::default(),
         }
+    }
+
+    fn nice(input_domain: (f64, f64), output_range: (f64, f64), ticks: usize) -> Self {
+        Self::new(
+            improve_domain_for_ticks(input_domain, ticks).unwrap_or(input_domain),
+            output_range,
+        )
     }
 
     #[inline]
@@ -242,6 +288,18 @@ impl Scale {
 
         percent * self.output_range_width() + self.output_range.0
     }
+
+    fn spread_input_domain(&mut self, offset: f64) {
+        self.input_domain.0 -= offset;
+        self.input_domain.1 += offset;
+    }
+
+    fn ticks(&self, count: usize) -> Vec<f64> {
+        ticks(self.input_domain.0, self.input_domain.1, count)
+            .into_iter()
+            .map(|tick| self.conversion.convert(tick))
+            .collect()
+    }
 }
 
 // TODO: linear, log etc. with different struct to process and one belonging to the scale
@@ -257,6 +315,7 @@ mod tests {
     #[test]
     fn test_ticks() {
         assert_eq!(ticks(0.0, 10.0, 0), Vec::<f64>::new());
+        assert_eq!(ticks(1.0, 1.0, 10), vec![1.0]);
         assert_eq!(ticks(0.0, 10.0, 1), vec![0.0, 10.0]);
         assert_eq!(ticks(0.0, 10.0, 2), vec![0.0, 5.0, 10.0]);
         assert_eq!(ticks(0.0, 10.0, 3), vec![0.0, 5.0, 10.0]);
