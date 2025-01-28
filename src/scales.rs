@@ -1,6 +1,8 @@
 use std::mem;
 use std::ops::Sub;
 
+use colored::Colorize;
+use colorgrad::{BasisGradient, Color, Gradient};
 use jiff::{tz::TimeZone, Timestamp, Unit};
 use serde::de::{Deserialize, Deserializer, Error};
 
@@ -153,8 +155,8 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
     (1.0 - t) * min + t * max
 }
 
-#[derive(Debug, Clone)]
-struct Extent<T>((T, T));
+#[derive(Debug, Clone, Copy)]
+pub struct Extent<T>((T, T));
 
 impl<T: Copy + PartialOrd> Extent<T> {
     fn constant(value: T) -> Self {
@@ -172,13 +174,17 @@ impl<T: Copy + PartialOrd> Extent<T> {
     }
 
     #[inline]
-    fn min(&self) -> T {
+    pub fn min(&self) -> T {
         self.0 .0
     }
 
     #[inline]
-    fn max(&self) -> T {
+    pub fn max(&self) -> T {
         self.0 .1
+    }
+
+    pub fn into_inner(self) -> (T, T) {
+        self.0
     }
 
     fn process(&mut self, value: T) {
@@ -212,23 +218,196 @@ impl<T: Copy + PartialOrd> From<(T, T)> for Extent<T> {
     }
 }
 
-// TODO: support known/unknown min/max beforehand and make process
-// return bool so we can use it to clamp in heatmap, and bins
-#[derive(Debug)]
-struct ExtentBuilder<T>(Option<Extent<T>>);
+// NOTE: this builder is also able to clamp values when processing them.
+#[derive(Debug, Clone)]
+pub struct ExtentBuilder<T> {
+    extent: Option<Extent<T>>,
+    min_clamp: Option<T>,
+    max_clamp: Option<T>,
+}
 
 impl<T: Copy + PartialOrd> ExtentBuilder<T> {
-    fn new() -> Self {
-        Self(None)
+    pub fn new() -> Self {
+        Self {
+            extent: None,
+            max_clamp: None,
+            min_clamp: None,
+        }
     }
 
-    fn process(&mut self, value: T) {
-        match self.0.as_mut() {
+    pub fn clamp_min(&mut self, min: T) {
+        self.min_clamp = Some(min);
+    }
+
+    pub fn clamp_max(&mut self, max: T) {
+        self.max_clamp = Some(max);
+    }
+
+    pub fn process(&mut self, value: T) -> bool {
+        if let Some(min) = self.min_clamp.as_ref() {
+            if value < *min {
+                return false;
+            }
+        }
+
+        if let Some(max) = self.max_clamp.as_ref() {
+            if value > *max {
+                return false;
+            }
+        }
+
+        match self.extent.as_mut() {
             None => {
-                self.0 = Some(Extent::constant(value));
+                self.extent = Some(Extent::constant(value));
             }
             Some(extent) => extent.process(value),
         };
+
+        true
+    }
+
+    pub fn build(self) -> Option<Extent<T>> {
+        if let (Some(min), Some(max)) = (self.min_clamp, self.max_clamp) {
+            return Some(Extent::from((min, max)));
+        }
+
+        self.extent.map(|mut extent| {
+            if let Some(min_clamp) = self.min_clamp {
+                extent.set_min(min_clamp);
+            }
+            if let Some(max_clamp) = self.max_clamp {
+                extent.set_max(max_clamp);
+            }
+
+            extent
+        })
+    }
+}
+
+impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {
+    fn from(value: (Option<T>, Option<T>)) -> Self {
+        let mut extent_builder = Self::new();
+
+        if let Some(min) = value.0 {
+            extent_builder.clamp_min(min);
+        }
+
+        if let Some(max) = value.1 {
+            extent_builder.clamp_max(max);
+        }
+
+        extent_builder
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum GradientName {
+    // Sequential
+    OrRd,
+    Viridis,
+    Inferno,
+    Magma,
+    Plasma,
+
+    // Diverging
+    BrBg,
+    PiYg,
+    PuOr,
+    RdBu,
+    RdGy,
+    RdYlBu,
+    RdYlGn,
+    Spectral,
+}
+
+impl GradientName {
+    pub fn as_str(&self) -> &str {
+        use GradientName::*;
+
+        match self {
+            OrRd => "or_rd",
+            Viridis => "viridis",
+            Inferno => "inferno",
+            Magma => "magma",
+            Plasma => "plasma",
+            BrBg => "br_bg",
+            PiYg => "pi_yg",
+            PuOr => "pu_or",
+            RdBu => "rd_bu",
+            RdGy => "rd_gy",
+            RdYlBu => "rd_yl_bu",
+            RdYlGn => "rd_yl_gn",
+            Spectral => "spectral",
+        }
+    }
+
+    pub fn build(&self) -> BasisGradient {
+        use colorgrad::preset::*;
+        use GradientName::*;
+
+        match self {
+            OrRd => or_rd(),
+            Viridis => viridis(),
+            Inferno => inferno(),
+            Magma => magma(),
+            Plasma => plasma(),
+            BrBg => br_bg(),
+            PiYg => pi_yg(),
+            PuOr => pu_or(),
+            RdBu => rd_bu(),
+            RdGy => rd_gy(),
+            RdYlBu => rd_yl_bu(),
+            RdYlGn => rd_yl_gn(),
+            Spectral => spectral(),
+        }
+    }
+
+    pub fn sample(&self) -> String {
+        self.build()
+            .colors(30)
+            .into_iter()
+            .map(|c| {
+                let rgb = c.to_rgba8();
+                "  ".on_truecolor(rgb[0], rgb[1], rgb[2]).to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    }
+
+    pub fn sequential_iter() -> impl Iterator<Item = Self> {
+        use GradientName::*;
+        [OrRd, Viridis, Inferno, Magma, Plasma].iter().copied()
+    }
+
+    pub fn diverging_iter() -> impl Iterator<Item = Self> {
+        use GradientName::*;
+        [BrBg, PiYg, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral]
+            .iter()
+            .copied()
+    }
+}
+
+impl<'de> Deserialize<'de> for GradientName {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use GradientName::*;
+
+        let raw = String::deserialize(d)?;
+
+        Ok(match raw.as_str() {
+            "or_rd" => OrRd,
+            "viridis" => Viridis,
+            "inferno" => Inferno,
+            "magma" => Magma,
+            "plasma" => Plasma,
+            "pi_yg" => PiYg,
+            "pu_or" => PuOr,
+            "rd_bu" => RdBu,
+            "rd_gy" => RdGy,
+            "rd_yl_bu" => RdYlBu,
+            "rd_yl_gn" => RdYlGn,
+            "spectral" => Spectral,
+            _ => return Err(D::Error::custom(format!("unknown gradient \"{}\"", &raw))),
+        })
     }
 }
 
@@ -256,13 +435,13 @@ impl ScaleType {
         }
     }
 
-    #[inline]
-    fn invert(&self, x: f64) -> f64 {
-        match self {
-            Self::Linear => x,
-            Self::Log10 => 10.0_f64.powf(x),
-        }
-    }
+    // #[inline]
+    // fn invert(&self, x: f64) -> f64 {
+    //     match self {
+    //         Self::Linear => x,
+    //         Self::Log10 => 10.0_f64.powf(x),
+    //     }
+    // }
 }
 
 impl<'de> Deserialize<'de> for ScaleType {
@@ -294,6 +473,10 @@ impl LinearScale {
         }
     }
 
+    pub fn from_extent(input_domain: Extent<f64>) -> Self {
+        Self::new(input_domain.into_inner(), (0.0, 1.0))
+    }
+
     pub fn nice(input_domain: (f64, f64), output_range: (f64, f64), ticks: usize) -> Self {
         Self::new(
             linear_nice(input_domain, ticks).unwrap_or(input_domain),
@@ -310,6 +493,10 @@ impl LinearScale {
         let percent = self.percent(value);
 
         percent * self.output_range.width() + self.output_range.min()
+    }
+
+    pub fn map_color(&self, gradient: &BasisGradient, value: f64) -> Color {
+        gradient.at(self.percent(value) as f32)
     }
 
     pub fn ticks(&self, count: usize) -> Vec<f64> {
@@ -342,6 +529,7 @@ fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
 #[derive(Debug, Clone)]
 pub struct TimeScale {
     input_domain: Extent<f64>,
+    #[allow(unused)]
     output_range: Extent<f64>,
     unit: Unit,
 }
@@ -367,11 +555,11 @@ impl TimeScale {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
-    fn map(&self, value: f64) -> f64 {
-        let percent = self.percent(value);
+    // fn map(&self, value: f64) -> f64 {
+    //     let percent = self.percent(value);
 
-        percent * self.output_range.width() + self.output_range.min()
-    }
+    //     percent * self.output_range.width() + self.output_range.min()
+    // }
 
     fn ticks(&self, count: usize) -> Vec<f64> {
         if count < 1 {
@@ -409,8 +597,10 @@ impl TimeScale {
 // TODO: support custom base, currently only base10
 #[derive(Debug, Clone)]
 pub struct LogScale {
+    #[allow(unused)]
     input_domain: Extent<f64>,
     converted_input_domain: Extent<f64>,
+    #[allow(unused)]
     output_range: Extent<f64>,
 }
 
@@ -440,11 +630,11 @@ impl LogScale {
         (value.log10() - self.converted_input_domain.min()) / self.converted_input_domain.width()
     }
 
-    fn map(&self, value: f64) -> f64 {
-        let percent = self.percent(value);
+    // fn map(&self, value: f64) -> f64 {
+    //     let percent = self.percent(value);
 
-        percent * self.output_range.width() + self.output_range.min()
-    }
+    //     percent * self.output_range.width() + self.output_range.min()
+    // }
 
     // NOTE: I do not support reverse scales (i.e. pow scales?)
     fn ticks(&self, count: usize) -> Vec<f64> {

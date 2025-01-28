@@ -1,12 +1,12 @@
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
-use colorgrad::{BasisGradient, Gradient};
 use numfmt::{Formatter, Precision};
 use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
 use crate::util;
 use crate::CliResult;
 
@@ -49,133 +49,28 @@ impl<'de> Deserialize<'de> for Normalization {
     }
 }
 
-#[derive(Clone, Copy)]
-enum GradientName {
-    // Sequential
-    OrRd,
-    Viridis,
-    Inferno,
-    Magma,
-    Plasma,
-
-    // Diverging
-    BrBg,
-    PiYg,
-    PuOr,
-    RdBu,
-    RdGy,
-    RdYlBu,
-    RdYlGn,
-    Spectral,
-}
-
-impl GradientName {
-    fn as_str(&self) -> &str {
-        use GradientName::*;
-
-        match self {
-            OrRd => "or_rd",
-            Viridis => "viridis",
-            Inferno => "inferno",
-            Magma => "magma",
-            Plasma => "plasma",
-            BrBg => "br_bg",
-            PiYg => "pi_yg",
-            PuOr => "pu_or",
-            RdBu => "rd_bu",
-            RdGy => "rd_gy",
-            RdYlBu => "rd_yl_bu",
-            RdYlGn => "rd_yl_gn",
-            Spectral => "spectral",
-        }
-    }
-
-    fn build(&self) -> BasisGradient {
-        use colorgrad::preset::*;
-        use GradientName::*;
-
-        match self {
-            OrRd => or_rd(),
-            Viridis => viridis(),
-            Inferno => inferno(),
-            Magma => magma(),
-            Plasma => plasma(),
-            BrBg => br_bg(),
-            PiYg => pi_yg(),
-            PuOr => pu_or(),
-            RdBu => rd_bu(),
-            RdGy => rd_gy(),
-            RdYlBu => rd_yl_bu(),
-            RdYlGn => rd_yl_gn(),
-            Spectral => spectral(),
-        }
-    }
-
-    fn sample(&self) -> String {
-        self.build()
-            .colors(30)
-            .into_iter()
-            .map(|c| {
-                let rgb = c.to_rgba8();
-                "  ".on_truecolor(rgb[0], rgb[1], rgb[2]).to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("")
-    }
-
-    fn sequential_iter() -> impl Iterator<Item = Self> {
-        use GradientName::*;
-        [OrRd, Viridis, Inferno, Magma, Plasma].iter().copied()
-    }
-
-    fn diverging_iter() -> impl Iterator<Item = Self> {
-        use GradientName::*;
-        [BrBg, PiYg, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral]
-            .iter()
-            .copied()
-    }
-}
-
-impl<'de> Deserialize<'de> for GradientName {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        use GradientName::*;
-
-        let raw = String::deserialize(d)?;
-
-        Ok(match raw.as_str() {
-            "or_rd" => OrRd,
-            "viridis" => Viridis,
-            "inferno" => Inferno,
-            "magma" => Magma,
-            "plasma" => Plasma,
-            "pi_yg" => PiYg,
-            "pu_or" => PuOr,
-            "rd_bu" => RdBu,
-            "rd_gy" => RdGy,
-            "rd_yl_bu" => RdYlBu,
-            "rd_yl_gn" => RdYlGn,
-            "spectral" => Spectral,
-            _ => return Err(D::Error::custom(format!("unknown gradient \"{}\"", &raw))),
-        })
-    }
-}
-
 #[derive(Debug)]
 struct Matrix {
     array: Vec<Option<f64>>,
     column_labels: Vec<String>,
     row_labels: Vec<String>,
-    extent: Option<(f64, f64)>,
+    extent_builder: ExtentBuilder<f64>,
+    extent: Option<Extent<f64>>,
 }
 
 impl Matrix {
-    fn from_column_labels(column_labels: Vec<String>) -> Self {
+    fn new(column_labels: Vec<String>, forced_extent: (Option<f64>, Option<f64>)) -> Self {
         Self {
             array: Vec::new(),
             column_labels,
             row_labels: Vec::new(),
+            extent_builder: ExtentBuilder::from(forced_extent),
             extent: None,
         }
+    }
+
+    fn finalize(&mut self) {
+        self.extent = self.extent_builder.clone().build();
     }
 
     fn push_row<I>(&mut self, label: String, row: I)
@@ -188,18 +83,7 @@ impl Matrix {
             self.array.push(cell);
 
             if let Some(f) = cell {
-                match self.extent.as_mut() {
-                    None => self.extent = Some((f, f)),
-                    Some((min, max)) => {
-                        if f < *min {
-                            *min = f;
-                        }
-
-                        if f > *max {
-                            *max = f;
-                        }
-                    }
-                }
+                self.extent_builder.process(f);
             }
         }
     }
@@ -218,82 +102,36 @@ impl Matrix {
     fn extent_per_column(
         &self,
         forced_extent: (Option<f64>, Option<f64>),
-    ) -> Vec<Option<(f64, f64)>> {
-        let mut cols = vec![None; self.column_labels.len()];
-
-        if let (Some(forced_min), Some(forced_max)) = forced_extent {
-            for col in cols.iter_mut() {
-                *col = Some((forced_min, forced_max));
-            }
-
-            return cols;
-        }
+    ) -> Vec<Option<Extent<f64>>> {
+        let mut cols: Vec<_> = (0..self.column_labels.len())
+            .map(|_| ExtentBuilder::from(forced_extent))
+            .collect();
 
         for rows in self.rows() {
             for (i, cell) in rows.1.iter().enumerate() {
                 let current = &mut cols[i];
 
                 if let Some(f) = cell {
-                    match current {
-                        None => *current = Some((*f, *f)),
-                        Some((min, max)) => {
-                            if f < min {
-                                *min = *f;
-                            }
-                            if f > max {
-                                *max = *f;
-                            }
-                        }
-                    }
+                    current.process(*f);
                 }
             }
         }
 
-        if let Some(forced_min) = forced_extent.0 {
-            for (min, _) in cols.iter_mut().flatten() {
-                *min = forced_min;
-            }
-        } else if let Some(forced_max) = forced_extent.1 {
-            for (_, max) in cols.iter_mut().flatten() {
-                *max = forced_max;
-            }
-        }
-
-        cols
+        cols.into_iter().map(|builder| builder.build()).collect()
     }
 }
 
 fn compute_row_extent(
     row: &[Option<f64>],
     forced_extent: (Option<f64>, Option<f64>),
-) -> Option<(f64, f64)> {
-    let mut extent = None;
+) -> Option<Extent<f64>> {
+    let mut extent_builder = ExtentBuilder::from(forced_extent);
 
-    if let (Some(forced_min), Some(forced_max)) = forced_extent {
-        return Some((forced_min, forced_max));
+    for cell in row.iter().copied().flatten() {
+        extent_builder.process(cell);
     }
 
-    for cell in row.iter().flatten() {
-        match extent.as_mut() {
-            None => extent = Some((*cell, *cell)),
-            Some((min, max)) => {
-                if cell < min {
-                    *min = *cell;
-                }
-                if cell > max {
-                    *max = *cell;
-                }
-            }
-        }
-    }
-
-    if let (Some((min, _)), Some(forced_min)) = (extent.as_mut(), forced_extent.0) {
-        *min = forced_min;
-    } else if let (Some((_, max)), Some(forced_max)) = (extent.as_mut(), forced_extent.1) {
-        *max = forced_max;
-    }
-
-    extent
+    extent_builder.build()
 }
 
 static USAGE: &str = "
@@ -319,7 +157,7 @@ heatmap options:
     --normalize <mode>  How to normalize the heatmap's values. Can be one of
                         \"full\", \"row\" or \"col\".
                         [default: full]
-    -S, --scale <n>     Size of the heatmap square in terminal rows.
+    -S, --size <n>      Size of the heatmap square in terminal rows.
                         [default: 1]
     -D, --diverging     Use a diverging color gradient. Currently only shorthand
                         for \"--gradient rd_bu\".
@@ -345,7 +183,7 @@ struct Args {
     flag_gradient: GradientName,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
-    flag_scale: NonZeroUsize,
+    flag_size: NonZeroUsize,
     flag_normalize: Normalization,
     flag_diverging: bool,
     flag_cram: bool,
@@ -402,6 +240,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         colored::control::set_override(true);
     }
 
+    let forced_extent = (args.flag_min, args.flag_max);
+
     let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.reader()?;
@@ -416,9 +256,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut formatter = args
         .flag_show_numbers
-        .then(|| Formatter::new().precision(Precision::Significance(args.flag_scale.get() as u8)));
+        .then(|| Formatter::new().precision(Precision::Significance(args.flag_size.get() as u8)));
 
-    let mut matrix = Matrix::from_column_labels(column_labels);
+    let mut matrix = Matrix::new(column_labels, forced_extent);
 
     while rdr.read_byte_record(&mut record)? {
         let label = util::sanitize_text_for_single_line_printing(
@@ -443,22 +283,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         matrix.push_row(label, row);
     }
 
-    if let Some(extent) = matrix.extent.as_mut() {
-        if let Some(min) = args.flag_min {
-            extent.0 = min;
-        }
-        if let Some(max) = args.flag_max {
-            extent.1 = max;
-        }
-    }
+    matrix.finalize();
 
     let cols = util::acquire_term_cols(&None);
     let label_cols =
         ((cols as f64 * 0.3).floor() as usize).min(matrix.max_row_label_width().unwrap() + 1);
     let left_padding = " ".repeat(label_cols);
 
-    let full_extent = matrix.extent.unwrap();
-    let scale = args.flag_scale.get();
+    let full_scale = matrix.extent.map(LinearScale::from_extent);
+
+    let size = args.flag_size.get();
 
     // Printing column info
     let column_info = matrix
@@ -488,22 +322,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         print!(
             "{}",
-            util::unicode_aware_rpad_with_ellipsis(&label, 2 * scale, " "),
+            util::unicode_aware_rpad_with_ellipsis(&label, 2 * size, " "),
         );
     }
     println!();
 
     // Printing rows
-    let midpoint = scale / 2;
+    let midpoint = size / 2;
 
-    let col_extents = args
-        .flag_normalize
-        .is_column()
-        .then(|| matrix.extent_per_column((args.flag_min, args.flag_max)));
+    let col_scales = args.flag_normalize.is_column().then(|| {
+        matrix
+            .extent_per_column(forced_extent)
+            .into_iter()
+            .map(|extent_opt| extent_opt.map(LinearScale::from_extent))
+            .collect::<Vec<_>>()
+    });
 
     for (row_label, row) in matrix.rows() {
         // TODO: computations are not required each scale rows
-        for i in 0..scale {
+        for i in 0..size {
             if i == 0 {
                 print!(
                     "{} ",
@@ -519,45 +356,52 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => print!("{}", "  ".repeat(scale)),
+                    None => print!("{}", "  ".repeat(size)),
                     Some(f) => {
-                        // TODO: deal with the case when no extent can be found
                         // TODO: hoist extent computation
-                        let (min, max) = if args.flag_normalize.is_row() {
-                            compute_row_extent(row, (args.flag_min, args.flag_max)).unwrap()
+                        let scale_opt = if args.flag_normalize.is_row() {
+                            compute_row_extent(row, forced_extent).map(LinearScale::from_extent)
                         } else {
-                            col_extents
+                            col_scales
                                 .as_ref()
-                                .and_then(|extents| extents[col_i])
-                                .unwrap_or(full_extent)
+                                .and_then(|scales| scales[col_i].clone())
+                                .or_else(|| full_scale.clone())
                         };
 
-                        let normalized = (f - min) / (max - min);
+                        let color_opt =
+                            scale_opt.map(|scale| scale.map_color(&gradient, *f).to_rgba8());
 
-                        let color = gradient.at(normalized as f32).to_rgba8();
+                        let body = match formatter.as_mut() {
+                            Some(fmt) if i == midpoint => {
+                                let formatted = util::unicode_aware_ellipsis(
+                                    &util::format_number_with_formatter(fmt, *f),
+                                    size * 2,
+                                );
+
+                                format!(
+                                    "{:^width$}",
+                                    match color_opt {
+                                        Some(color) =>
+                                            if text_should_be_black(&color) {
+                                                formatted.black()
+                                            } else {
+                                                formatted.normal()
+                                            },
+                                        None => formatted.normal(),
+                                    },
+                                    width = size * 2
+                                )
+                            }
+                            _ => " ".repeat(size * 2),
+                        };
 
                         print!(
                             "{}",
-                            (match formatter.as_mut() {
-                                Some(fmt) if i == midpoint => {
-                                    let formatted = util::unicode_aware_ellipsis(
-                                        &util::format_number_with_formatter(fmt, *f),
-                                        scale * 2,
-                                    );
-
-                                    format!(
-                                        "{:^width$}",
-                                        if text_should_be_black(&color) {
-                                            formatted.black()
-                                        } else {
-                                            formatted.normal()
-                                        },
-                                        width = scale * 2
-                                    )
-                                }
-                                _ => " ".repeat(scale * 2),
-                            })
-                            .on_truecolor(color[0], color[1], color[2])
+                            if let Some(color) = color_opt {
+                                body.on_truecolor(color[0], color[1], color[2])
+                            } else {
+                                body.normal()
+                            }
                         );
                     }
                 }
