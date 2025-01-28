@@ -284,7 +284,7 @@ pub struct LinearScale {
 }
 
 impl LinearScale {
-    fn new(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+    pub fn new(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
         assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
         assert!(output_range.0 <= output_range.1, "output_range min > max");
 
@@ -306,7 +306,7 @@ impl LinearScale {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
-    fn map(&self, value: f64) -> f64 {
+    pub fn map(&self, value: f64) -> f64 {
         let percent = self.percent(value);
 
         percent * self.output_range.width() + self.output_range.min()

@@ -7,6 +7,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
+use crate::scales::LinearScale;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
@@ -14,8 +15,6 @@ use crate::CliResult;
 const SMALL_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
 const MEDIUM_BAR_CHARS: [&str; 1] = ["■"];
 const LARGE_BAR_CHARS: [&str; 8] = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"];
-
-// TODO: log scales etc.
 
 static USAGE: &str = "
 Print a horizontal histogram for the given CSV file with each line
@@ -240,9 +239,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             _ => Err("unknown -B, --bar-size. Should be one of \"small\", \"medium\", \"large\".")?,
         };
 
+        let scale = LinearScale::new((0.0, domain_max), (0.0, bar_cols as f64));
+
         for (i, bar) in histogram.bars().enumerate() {
-            let bar_width =
-                from_domain_to_range(bar.value, (0.0, domain_max), (0.0, bar_cols as f64));
+            let bar_width = scale.map(bar.value);
 
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
@@ -333,15 +333,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     println!();
 
     Ok(())
-}
-
-fn from_domain_to_range(x: f64, domain: (f64, f64), range: (f64, f64)) -> f64 {
-    let domain_width = (domain.1 - domain.0).abs();
-    let pct = (x - domain.0) / domain_width;
-
-    let range_width = (range.1 - range.0).abs();
-
-    pct * range_width + range.0
 }
 
 fn create_bar(chars: &[&str], width: f64) -> String {

@@ -18,6 +18,9 @@ bins options:
                            details.
     --bins <number>        Number of bins. Will default to using Freedman-Diaconis.
                            rule.
+    --nice                 Whether to choose nice boundaries for the bins.
+                           Might return a number of bins slightly different to
+                           what was passed to --bins, as a consequence.
     --label <mode>         Label to choose for the bins (that will be placed in the
                            `value` column). Mostly useful to tweak representation when
                            piping to `xan hist`. Can be one of "full", "lower" or "upper".
