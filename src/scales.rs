@@ -294,7 +294,7 @@ impl LinearScale {
         }
     }
 
-    fn nice(input_domain: (f64, f64), output_range: (f64, f64), ticks: usize) -> Self {
+    pub fn nice(input_domain: (f64, f64), output_range: (f64, f64), ticks: usize) -> Self {
         Self::new(
             linear_nice(input_domain, ticks).unwrap_or(input_domain),
             output_range,
@@ -312,7 +312,7 @@ impl LinearScale {
         percent * self.output_range.width() + self.output_range.min()
     }
 
-    fn ticks(&self, count: usize) -> Vec<f64> {
+    pub fn ticks(&self, count: usize) -> Vec<f64> {
         ticks(self.input_domain.min(), self.input_domain.max(), count)
     }
 

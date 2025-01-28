@@ -1,10 +1,13 @@
+use std::cmp::Ordering;
+
 use bstr::ByteSlice;
+use rayon::slice::ParallelSliceMut;
 
 use crate::config::{Config, Delimiter};
+use crate::scales::LinearScale;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-use rayon::slice::ParallelSliceMut;
 
 static USAGE: &str = "
 Discretize selection of columns containing continuous data into bins.
@@ -23,6 +26,9 @@ bins options:
                            details.
     --bins <number>        Number of bins. Will default to using Freedman-Diaconis.
                            rule.
+    --nice                 Whether to choose nice boundaries for the bins.
+                           Might return a number of bins slightly different to
+                           what was passed to --bins, as a consequence.
     --label <mode>         Label to choose for the bins (that will be placed in the
                            `value` column). Mostly useful to tweak representation when
                            piping to `xan hist`. Can be one of \"full\", \"lower\" or \"upper\".
@@ -50,6 +56,7 @@ struct Args {
     flag_no_extra: bool,
     flag_bins: Option<usize>,
     flag_label: String,
+    flag_nice: bool,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
 }
@@ -93,7 +100,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     ])?;
 
     for series in all_series.iter_mut() {
-        match series.bins(args.flag_bins, &args.flag_min, &args.flag_max) {
+        match series.bins(
+            args.flag_bins,
+            &args.flag_min,
+            &args.flag_max,
+            args.flag_nice,
+        ) {
             None => continue,
             Some(bins) => {
                 let mut bins_iter = bins.iter().peekable();
@@ -333,6 +345,7 @@ impl Series {
         count: Option<usize>,
         min: &Option<f64>,
         max: &Option<f64>,
+        nice: bool,
     ) -> Option<Vec<Bin>> {
         if self.len() < 1 {
             return None;
@@ -354,34 +367,71 @@ impl Series {
         let width = max - min;
 
         let count = count.unwrap_or_else(|| self.optimal_bin_count(width, &stats));
-        let mut bins: Vec<Bin> = Vec::with_capacity(count);
 
-        let cell_width = width / count as f64;
+        let bins = if nice {
+            let scale = LinearScale::nice((min, max), (0.0, 1.0), count);
+            let ticks = scale.ticks(count);
 
-        let mut lower_bound = min;
+            let mut bins: Vec<Bin> = Vec::with_capacity(ticks.len());
 
-        for _ in 0..count {
-            let upper_bound = f64::min(lower_bound + cell_width, max);
-
-            bins.push(Bin {
-                lower_bound,
-                upper_bound,
-                count: 0,
-            });
-
-            lower_bound = upper_bound;
-        }
-
-        for n in self.numbers.iter() {
-            let mut bin_index = ((n - min) / cell_width).floor() as usize;
-
-            // Exception to include max in last bin
-            if bin_index == bins.len() {
-                bin_index -= 1;
+            for i in 0..(ticks.len() - 1) {
+                bins.push(Bin {
+                    lower_bound: ticks[i],
+                    upper_bound: ticks[i + 1],
+                    count: 0,
+                });
             }
 
-            bins[bin_index].count += 1;
-        }
+            for n in self.numbers.iter() {
+                // NOTE: using `binary_search_by` as lower_bound
+                let mut bin_index = bins
+                    .binary_search_by(|bin| match bin.lower_bound.partial_cmp(n).unwrap() {
+                        Ordering::Equal => Ordering::Greater,
+                        ord => ord,
+                    })
+                    .unwrap_err();
+
+                // Exception to include max in last bin
+                if bin_index == bins.len() {
+                    bin_index -= 1;
+                }
+
+                bins[bin_index].count += 1;
+            }
+
+            bins
+        } else {
+            let mut bins: Vec<Bin> = Vec::with_capacity(count);
+
+            let cell_width = width / count as f64;
+
+            let mut lower_bound = min;
+
+            for _ in 0..count {
+                let upper_bound = f64::min(lower_bound + cell_width, max);
+
+                bins.push(Bin {
+                    lower_bound,
+                    upper_bound,
+                    count: 0,
+                });
+
+                lower_bound = upper_bound;
+            }
+
+            for n in self.numbers.iter() {
+                let mut bin_index = ((n - min) / cell_width).floor() as usize;
+
+                // Exception to include max in last bin
+                if bin_index == bins.len() {
+                    bin_index -= 1;
+                }
+
+                bins[bin_index].count += 1;
+            }
+
+            bins
+        };
 
         Some(bins)
     }
