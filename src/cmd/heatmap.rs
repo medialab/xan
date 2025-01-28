@@ -339,7 +339,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     });
 
     for (row_label, row) in matrix.rows() {
-        // TODO: computations are not required each scale rows
+        let row_scale = args
+            .flag_normalize
+            .is_row()
+            .then(|| compute_row_extent(row, forced_extent).map(LinearScale::from_extent));
+
         for i in 0..size {
             if i == 0 {
                 print!(
@@ -358,15 +362,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 match cell {
                     None => print!("{}", "  ".repeat(size)),
                     Some(f) => {
-                        // TODO: hoist extent computation
-                        let scale_opt = if args.flag_normalize.is_row() {
-                            compute_row_extent(row, forced_extent).map(LinearScale::from_extent)
-                        } else {
+                        let scale_opt = row_scale.clone().unwrap_or_else(|| {
                             col_scales
                                 .as_ref()
                                 .and_then(|scales| scales[col_i].clone())
                                 .or_else(|| full_scale.clone())
-                        };
+                        });
 
                         let color_opt =
                             scale_opt.map(|scale| scale.map_color(&gradient, *f).to_rgba8());
