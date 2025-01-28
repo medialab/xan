@@ -1,6 +1,7 @@
 use std::mem;
-use std::ops::{Deref, Sub};
+use std::ops::Sub;
 
+use jiff::{tz::TimeZone, Timestamp, Unit};
 use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::util;
@@ -152,7 +153,7 @@ fn lerp(min: f64, max: f64, t: f64) -> f64 {
     (1.0 - t) * min + t * max
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Extent<T>((T, T));
 
 impl<T: Copy + PartialOrd> Extent<T> {
@@ -198,6 +199,13 @@ impl<T: Copy + PartialOrd + Sub<Output = T>> Extent<T> {
     }
 }
 
+impl Extent<f64> {
+    #[inline]
+    fn lerp(&self, t: f64) -> f64 {
+        lerp(self.min(), self.max(), t)
+    }
+}
+
 impl<T: Copy + PartialOrd> From<(T, T)> for Extent<T> {
     fn from(value: (T, T)) -> Self {
         Self(value)
@@ -236,6 +244,10 @@ impl ScaleType {
         matches!(self, Self::Linear)
     }
 
+    pub fn is_logarithmic(&self) -> bool {
+        matches!(self, Self::Log10)
+    }
+
     #[inline]
     pub fn convert(&self, x: f64) -> f64 {
         match self {
@@ -265,8 +277,8 @@ impl<'de> Deserialize<'de> for ScaleType {
     }
 }
 
-#[derive(Debug)]
-struct LinearScale {
+#[derive(Debug, Clone)]
+pub struct LinearScale {
     input_domain: Extent<f64>,
     output_range: Extent<f64>,
 }
@@ -303,11 +315,100 @@ impl LinearScale {
     fn ticks(&self, count: usize) -> Vec<f64> {
         ticks(self.input_domain.min(), self.input_domain.max(), count)
     }
+
+    fn formatted_ticks(&self, count: usize) -> Vec<String> {
+        self.ticks(count)
+            .into_iter()
+            .map(util::format_number)
+            .collect()
+    }
+}
+
+fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
+    let timestamp = Timestamp::from_millisecond(milliseconds)
+        .unwrap()
+        .to_zoned(TimeZone::system());
+
+    timestamp
+        .strftime(match unit {
+            Unit::Year => "%Y",
+            Unit::Month => "%Y-%m",
+            Unit::Day => "%F",
+            _ => "%F %T",
+        })
+        .to_string()
+}
+
+#[derive(Debug, Clone)]
+pub struct TimeScale {
+    input_domain: Extent<f64>,
+    output_range: Extent<f64>,
+    unit: Unit,
+}
+
+impl TimeScale {
+    fn new(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
+        assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
+        assert!(output_range.0 <= output_range.1, "output_range min > max");
+
+        Self {
+            input_domain: Extent::from(input_domain),
+            output_range: Extent::from(output_range),
+            unit,
+        }
+    }
+
+    fn nice(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
+        Self::new(input_domain, output_range, unit)
+    }
+
+    #[inline]
+    fn percent(&self, value: f64) -> f64 {
+        (value - self.input_domain.min()) / self.input_domain.width()
+    }
+
+    fn map(&self, value: f64) -> f64 {
+        let percent = self.percent(value);
+
+        percent * self.output_range.width() + self.output_range.min()
+    }
+
+    fn ticks(&self, count: usize) -> Vec<f64> {
+        if count < 1 {
+            return vec![];
+        }
+
+        if count < 3 {
+            return vec![self.input_domain.min(), self.input_domain.max()];
+        }
+
+        let mut ticks = Vec::with_capacity(count);
+        let mut t = 0.0;
+        let fract = 1.0 / (count - 1) as f64;
+
+        ticks.push(self.input_domain.min());
+
+        for _ in 1..(count - 1) {
+            t += fract;
+            ticks.push(self.input_domain.lerp(t));
+        }
+
+        ticks.push(self.input_domain.max());
+
+        ticks
+    }
+
+    fn formatted_ticks(&self, count: usize) -> Vec<String> {
+        self.ticks(count)
+            .into_iter()
+            .map(|tick| format_timestamp(tick as i64, self.unit))
+            .collect()
+    }
 }
 
 // TODO: support custom base, currently only base10
-#[derive(Debug)]
-struct LogScale {
+#[derive(Debug, Clone)]
+pub struct LogScale {
     input_domain: Extent<f64>,
     converted_input_domain: Extent<f64>,
     output_range: Extent<f64>,
@@ -347,11 +448,8 @@ impl LogScale {
 
     // NOTE: I do not support reverse scales (i.e. pow scales?)
     fn ticks(&self, count: usize) -> Vec<f64> {
-        let u = self.input_domain.min();
-        let v = self.input_domain.max();
-
-        let i = u.log10();
-        let j = v.log10();
+        let i = self.converted_input_domain.min();
+        let j = self.converted_input_domain.max();
 
         // NOTE: I do not support non int bases either like d3
         ticks(i, j, ((j - i).floor() as usize).min(count))
@@ -359,21 +457,27 @@ impl LogScale {
             .map(|tick| 10.0_f64.powf(tick))
             .collect()
     }
+
+    fn formatted_ticks(&self, count: usize) -> Vec<String> {
+        self.ticks(count)
+            .into_iter()
+            .map(util::format_number)
+            .collect()
+    }
 }
 
-// TODO: log scale, enum Scale buildable from ScaleType
 // TODO: extent builder
-// TODO: map for log scale and log input domain to log
 // TODO: scale builder
 
-#[derive(Debug)]
-pub enum AbstractScale {
+#[derive(Debug, Clone)]
+pub enum Scale {
     Linear(LinearScale),
     Log(LogScale),
+    Time(TimeScale),
 }
 
-impl AbstractScale {
-    fn nice(
+impl Scale {
+    pub fn nice(
         scale_type: ScaleType,
         input_domain: (f64, f64),
         output_range: (f64, f64),
@@ -385,58 +489,33 @@ impl AbstractScale {
         }
     }
 
-    pub fn ticks(&self, count: usize) -> Vec<f64> {
-        match self {
-            Self::Linear(inner) => inner.ticks(count),
-            Self::Log(inner) => inner.ticks(count),
-        }
-    }
-
-    pub fn map(&self, value: f64) -> f64 {
-        match self {
-            Self::Linear(inner) => inner.map(value),
-            Self::Log(inner) => inner.map(value),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Scale {
-    inner: AbstractScale,
-    format: fn(f64) -> String,
-}
-
-impl Scale {
-    pub fn nice(
-        scale_type: ScaleType,
-        input_domain: (f64, f64),
-        output_range: (f64, f64),
-        ticks: usize,
-    ) -> Self {
-        Self {
-            inner: AbstractScale::nice(scale_type, input_domain, output_range, ticks),
-            format: util::format_number,
-        }
-    }
-
-    pub fn set_format(&mut self, format: fn(f64) -> String) {
-        self.format = format;
+    pub fn time(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
+        Self::Time(TimeScale::nice(input_domain, output_range, unit))
     }
 
     pub fn formatted_ticks(&self, count: usize) -> Vec<String> {
-        self.ticks(count)
-            .into_iter()
-            .map(|tick| (self.format)(tick))
-            .collect()
+        match self {
+            Self::Linear(inner) => inner.formatted_ticks(count),
+            Self::Log(inner) => inner.formatted_ticks(count),
+            Self::Time(inner) => inner.formatted_ticks(count),
+        }
     }
-}
 
-impl Deref for Scale {
-    type Target = AbstractScale;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+    pub fn percent(&self, value: f64) -> f64 {
+        match self {
+            Self::Linear(inner) => inner.percent(value),
+            Self::Log(inner) => inner.percent(value),
+            Self::Time(inner) => inner.percent(value),
+        }
     }
+
+    // pub fn map(&self, value: f64) -> f64 {
+    //     match self {
+    //         Self::Linear(inner) => inner.map(value),
+    //         Self::Log(inner) => inner.map(value),
+    //         Self::Time(inner) => inner.map(value),
+    //     }
+    // }
 }
 
 #[cfg(test)]

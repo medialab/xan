@@ -15,7 +15,7 @@ use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
@@ -23,6 +23,7 @@ use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 use crate::config::{Config, Delimiter};
 use crate::dates::{infer_temporal_granularity, parse_partial_date};
 use crate::ratatui::print_ratatui_frame_to_stdout;
+use crate::scales::{Scale, ScaleType};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::{CliError, CliResult};
@@ -137,10 +138,10 @@ plot options:
                                'halfblock', 'bar', 'block'.
                                [default: braille]
     -G, --grid                 Draw a background grid.
-    --x-ticks <n>              Number of x-axis graduation steps. Will default to some sensible number based on
-                               the dimensions of the terminal.
-    --y-ticks <n>              Number of y-axis graduation steps. Will default to some sensible number based on
-                               the dimensions of the terminal.
+    --x-ticks <n>              Approx. number of x-axis graduation steps. Will default to some
+                               sensible number based on the dimensions of the terminal.
+    --y-ticks <n>              Approx. number of y-axis graduation steps. Will default to some
+                               sensible number based on the dimensions of the terminal.
     --x-min <n>                Force a minimum value for the x axis.
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
@@ -186,8 +187,8 @@ struct Args {
     flag_x_max: Option<String>,
     flag_y_min: Option<f64>,
     flag_y_max: Option<f64>,
-    flag_x_scale: Scale,
-    flag_y_scale: Scale,
+    flag_x_scale: ScaleType,
+    flag_y_scale: ScaleType,
     flag_ignore: bool,
 }
 
@@ -209,22 +210,13 @@ impl Args {
                 self.flag_x_min
                     .as_ref()
                     .map(|cell| parse_as_float(cell.as_bytes()))
-                    .transpose()?
-                    .map(|min| self.flag_x_scale.convert(min)),
+                    .transpose()?,
                 self.flag_x_max
                     .as_ref()
                     .map(|cell| parse_as_float(cell.as_bytes()))
-                    .transpose()?
-                    .map(|max| self.flag_x_scale.convert(max)),
+                    .transpose()?,
             ))
         }
-    }
-
-    fn parse_y_bounds(&self) -> (Option<f64>, Option<f64>) {
-        (
-            self.flag_y_min.map(|min| self.flag_y_scale.convert(min)),
-            self.flag_y_max.map(|max| self.flag_y_scale.convert(max)),
-        )
     }
 
     fn infer_y_ticks(&self, rows: usize) -> usize {
@@ -276,7 +268,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     });
 
     let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
-    let (flag_y_min, flag_y_max) = args.parse_y_bounds();
+    let (flag_y_min, flag_y_max) = (args.flag_y_min, args.flag_y_max);
 
     if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
         Err("-c, --category cannot work with -Y, --add-series!")?;
@@ -380,13 +372,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
                 Ok(v) => {
-                    let v = $scale.convert(v);
-
-                    if v.is_nan() {
+                    if $scale.is_logarithmic() && v <= 0.0 {
                         if args.flag_ignore {
                             continue;
                         } else {
-                            Err("Scale produced a NaN value, like log(0)!")?
+                            Err("log scale encountered a value <= 0!")?
                         }
                     } else {
                         v
@@ -444,6 +434,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             for (i, (_, pos)) in additional_series_indices.iter().enumerate() {
                 let v = try_parse_as_float!(args.flag_y_scale, &record[*pos]);
 
+                if matches!(flag_y_min, Some(y_min) if v < y_min)
+                    || matches!(flag_y_max, Some(y_max) if v > y_max)
+                {
+                    continue;
+                }
+
                 series_builder.add_with_index(i + 1, x, v);
             }
         } else {
@@ -473,8 +469,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some(y_min) = flag_y_min {
             series.set_y_min(y_min);
         } else {
-            // If y domain is positive, we set min to 0
-            if matches!(series.y_domain(), Some((y_min, _)) if y_min > 0.0) {
+            // If y scale is not log and y domain is positive, we set min to 0
+            if !args.flag_y_scale.is_logarithmic()
+                && matches!(series.y_domain(), Some((y_min, _)) if y_min > 0.0)
+            {
                 series.set_y_min(0.0);
             }
         }
@@ -521,13 +519,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 // let n = finalized_series[0].1.len();
 
                 // x axis information
-                let (x_axis_info, y_axis_info) =
-                    AxisInfo::from_multiple_series(finalized_series.iter());
+                let (x_axis_info, y_axis_info) = AxisInfo::from_multiple_series(
+                    (args.flag_x_scale, args.flag_y_scale),
+                    finalized_series.iter(),
+                );
 
-                let datasets = finalized_series
+                let finalized_floats = finalized_series
+                    .iter()
+                    .map(|(name_opt, series)| {
+                        (
+                            name_opt,
+                            series.to_scaled_floats((&x_axis_info.scale, &y_axis_info.scale)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                let datasets = finalized_floats
                     .iter()
                     .enumerate()
-                    .map(|(i, (name_opt, series))| {
+                    .map(|(i, (name_opt, data))| {
                         let mut dataset = Dataset::default()
                             .marker(args.flag_marker.into_inner())
                             .graph_type(if args.flag_line {
@@ -538,7 +548,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 GraphType::Scatter
                             })
                             .style(get_series_color(i))
-                            .data(series.as_floats());
+                            .data(data);
 
                         if let Some(name) = name_opt {
                             dataset = dataset.name(name.clone());
@@ -549,36 +559,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .collect();
 
                 // Create the Y axis and define its properties
-                let y_ticks_labels = graduations_from_domain(
-                    y_axis_info.axis_type,
-                    &args.flag_y_scale,
-                    y_axis_info.domain,
-                    y_ticks,
-                );
-                let x_ticks = infer_x_ticks(
-                    args.flag_x_ticks,
-                    &x_axis_info,
-                    &args.flag_x_scale,
-                    &y_ticks_labels,
-                    cols,
-                );
+                let y_ticks_labels = y_axis_info.ticks(y_ticks);
+                let x_ticks = infer_x_ticks(args.flag_x_ticks, &x_axis_info, &y_ticks_labels, cols);
+
                 let y_axis = Axis::default()
                     .title(if !has_added_series && y_axis_info.can_be_displayed {
                         y_column_name.dim()
                     } else {
                         "".dim()
                     })
+                    .labels_alignment(Alignment::Right)
                     .style(Style::default().white())
-                    .bounds([y_axis_info.domain.0, y_axis_info.domain.1])
+                    .bounds([0.0, 1.0])
                     .labels(y_ticks_labels);
 
                 // Create the X axis and define its properties
-                let x_ticks_labels = graduations_from_domain(
-                    x_axis_info.axis_type,
-                    &args.flag_x_scale,
-                    x_axis_info.domain,
-                    x_ticks,
-                );
+                let x_ticks_labels = x_axis_info.ticks(x_ticks);
+
                 let x_axis = Axis::default()
                     .title(if x_axis_info.can_be_displayed {
                         x_column_name.dim()
@@ -586,7 +583,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         "".dim()
                     })
                     .style(Style::default().white())
-                    .bounds([x_axis_info.domain.0, x_axis_info.domain.1])
+                    .bounds([0.0, 1.0])
                     .labels(x_ticks_labels.clone());
 
                 // Create the chart and link all the parts together
@@ -608,8 +605,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut color_i: usize = 0;
             let mut first_grid_col = true;
 
-            let (harmonized_x_axis_info, harmonized_y_axis_info) =
-                AxisInfo::from_multiple_series(finalized_series.iter());
+            let (harmonized_x_axis_info, harmonized_y_axis_info) = AxisInfo::from_multiple_series(
+                (args.flag_x_scale, args.flag_y_scale),
+                finalized_series.iter(),
+            );
 
             for finalized_series_column in finalized_series.chunks(grid_cols) {
                 let x_column_name = x_column_name.clone();
@@ -636,8 +635,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         // let n = single_finalized_series.1.len();
 
                         // x axis information
-                        let (mut x_axis_info, mut y_axis_info) =
-                            AxisInfo::from_single_series(single_finalized_series);
+                        let (mut x_axis_info, mut y_axis_info) = AxisInfo::from_single_series(
+                            (args.flag_x_scale, args.flag_y_scale),
+                            single_finalized_series,
+                        );
 
                         if share_x_scale {
                             x_axis_info = harmonized_x_axis_info.clone();
@@ -650,7 +651,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         // Create the datasets to fill the chart with
                         let single_finalized_series = (
                             single_finalized_series.0.clone(),
-                            single_finalized_series.1.as_floats(),
+                            single_finalized_series
+                                .1
+                                .to_scaled_floats((&x_axis_info.scale, &y_axis_info.scale)),
                         );
 
                         let mut dataset = Dataset::default()
@@ -663,23 +666,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 GraphType::Scatter
                             })
                             .style(get_series_color(color_i))
-                            .data(single_finalized_series.1);
+                            .data(&single_finalized_series.1);
 
                         if let Some(name) = &single_finalized_series.0 {
                             dataset = dataset.name(name.clone());
                         }
 
                         // Create the Y axis and define its properties
-                        let y_ticks_labels = graduations_from_domain(
-                            y_axis_info.axis_type,
-                            &args.flag_y_scale,
-                            y_axis_info.domain,
-                            y_ticks,
-                        );
+                        let y_ticks_labels = y_axis_info.ticks(y_ticks);
                         let x_ticks = infer_x_ticks(
                             args.flag_x_ticks,
                             &x_axis_info,
-                            &args.flag_x_scale,
                             &y_ticks_labels,
                             cols / grid_cols,
                         );
@@ -693,17 +690,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             } else {
                                 "".dim()
                             })
+                            .labels_alignment(Alignment::Right)
                             .style(Style::default().white())
-                            .bounds([y_axis_info.domain.0, y_axis_info.domain.1])
+                            .bounds([0.0, 1.0])
                             .labels(y_ticks_labels);
 
                         // Create the X axis and define its properties
-                        let x_ticks_labels = graduations_from_domain(
-                            x_axis_info.axis_type,
-                            &args.flag_x_scale,
-                            x_axis_info.domain,
-                            x_ticks,
-                        );
+                        let x_ticks_labels = x_axis_info.ticks(x_ticks);
+
                         let x_axis = Axis::default()
                             .title(if x_axis_info.can_be_displayed {
                                 x_column_name.clone().dim()
@@ -711,7 +705,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 "".dim()
                             })
                             .style(Style::default().white())
-                            .bounds([x_axis_info.domain.0, x_axis_info.domain.1])
+                            .bounds([0.0, 1.0])
                             .labels(x_ticks_labels.clone());
 
                         // Create the chart and link all the parts together
@@ -809,21 +803,6 @@ fn floor_timestamp(milliseconds: f64, unit: Unit) -> i64 {
     zoned.timestamp().as_millisecond()
 }
 
-fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
-    let timestamp = Timestamp::from_millisecond(milliseconds)
-        .unwrap()
-        .to_zoned(TimeZone::system());
-
-    timestamp
-        .strftime(match unit {
-            Unit::Year => "%Y",
-            Unit::Month => "%Y-%m",
-            Unit::Day => "%F",
-            _ => "%F %T",
-        })
-        .to_string()
-}
-
 fn get_series_color(i: usize) -> Style {
     match i {
         0 => Style::default().cyan(),
@@ -838,56 +817,6 @@ fn get_series_color(i: usize) -> Style {
 
 fn lerp(min: f64, max: f64, t: f64) -> f64 {
     (1.0 - t) * min + t * max
-}
-
-fn format_graduation(axis_type: AxisType, x: f64) -> String {
-    if let AxisType::Timestamp(granularity) = axis_type {
-        return format_timestamp(x.trunc() as i64, granularity);
-    }
-
-    util::format_number(match axis_type {
-        AxisType::Float => x,
-        AxisType::Int => x.trunc(),
-        _ => unreachable!(),
-    })
-}
-
-fn graduations_from_domain(
-    axis_type: AxisType,
-    scale: &Scale,
-    domain: (f64, f64),
-    steps: usize,
-) -> Vec<String> {
-    debug_assert!(steps > 1);
-
-    if axis_type.is_int() {
-        let range = (domain.1 as i64 - domain.0 as i64).abs();
-
-        if steps as i64 >= range {
-            return (domain.0 as i64..domain.1 as i64)
-                .map(|i| i.to_string())
-                .collect();
-        }
-    }
-
-    let mut graduations: Vec<String> = Vec::with_capacity(steps);
-
-    let mut t = 0.0;
-    let fract = 1.0 / (steps - 1) as f64;
-
-    graduations.push(format_graduation(axis_type, scale.invert(domain.0)));
-
-    for _ in 1..(steps - 1) {
-        t += fract;
-        graduations.push(format_graduation(
-            axis_type,
-            scale.invert(lerp(domain.0, domain.1, t)),
-        ));
-    }
-
-    graduations.push(format_graduation(axis_type, scale.invert(domain.1)));
-
-    graduations
 }
 
 fn fix_flat_domain(domain: (f64, f64), axis_type: AxisType) -> (f64, f64) {
@@ -911,16 +840,19 @@ fn fix_flat_domain(domain: (f64, f64), axis_type: AxisType) -> (f64, f64) {
 #[derive(Clone)]
 struct AxisInfo {
     can_be_displayed: bool,
-    domain: (f64, f64),
-    axis_type: AxisType,
+    scale: Scale,
 }
 
 impl AxisInfo {
-    fn from_single_series(series: &(Option<String>, Series)) -> (AxisInfo, AxisInfo) {
-        Self::from_multiple_series(std::iter::once(series))
+    fn from_single_series(
+        scale_types: (ScaleType, ScaleType),
+        series: &(Option<String>, Series),
+    ) -> (AxisInfo, AxisInfo) {
+        Self::from_multiple_series(scale_types, std::iter::once(series))
     }
 
     fn from_multiple_series<'a>(
+        scale_types: (ScaleType, ScaleType),
         mut series: impl Iterator<Item = &'a (Option<String>, Series)>,
     ) -> (AxisInfo, AxisInfo) {
         let first_series = &series.next().unwrap().1;
@@ -963,18 +895,28 @@ impl AxisInfo {
         x_domain = fix_flat_domain(x_domain, x_axis_type);
         y_domain = fix_flat_domain(y_domain, y_axis_type);
 
+        let x_scale = if let AxisType::Timestamp(unit) = x_axis_type {
+            Scale::time(x_domain, (0.0, 1.0), unit)
+        } else {
+            Scale::nice(scale_types.0, x_domain, (0.0, 1.0), 10)
+        };
+
+        let y_scale = Scale::nice(scale_types.1, y_domain, (0.0, 1.0), 10);
+
         (
             AxisInfo {
                 can_be_displayed: x_can_be_displayed,
-                domain: x_domain,
-                axis_type: x_axis_type,
+                scale: x_scale,
             },
             AxisInfo {
                 can_be_displayed: y_can_be_displayed,
-                domain: y_domain,
-                axis_type: y_axis_type,
+                scale: y_scale,
             },
         )
+    }
+
+    fn ticks(&self, count: usize) -> Vec<String> {
+        self.scale.formatted_ticks(count)
     }
 }
 
@@ -1075,7 +1017,6 @@ fn patch_buffer(buffer: &mut Buffer, area: Option<&Rect>, x_ticks: &[String], dr
 fn infer_x_ticks(
     from_user: Option<NonZeroUsize>,
     x_axis_info: &AxisInfo,
-    scale: &Scale,
     y_ticks_labels: &[String],
     mut cols: usize,
 ) -> usize {
@@ -1083,7 +1024,7 @@ fn infer_x_ticks(
         return n.get().max(2);
     }
 
-    let sample = graduations_from_domain(x_axis_info.axis_type, scale, x_axis_info.domain, 15);
+    let sample = x_axis_info.scale.formatted_ticks(15);
 
     let y_offset = y_ticks_labels.first().unwrap().width() + 1;
     cols = cols.saturating_sub(y_offset);
@@ -1111,56 +1052,6 @@ impl AxisType {
             _ => unreachable!(),
         }
     }
-
-    fn is_int(self) -> bool {
-        matches!(self, AxisType::Int)
-    }
-}
-
-#[derive(Debug)]
-enum Scale {
-    Linear,
-    Ln,
-}
-
-impl Scale {
-    fn linear() -> Self {
-        Self::Linear
-    }
-
-    fn ln() -> Self {
-        Self::Ln
-    }
-
-    fn is_linear(&self) -> bool {
-        matches!(self, Self::Linear)
-    }
-
-    fn convert(&self, x: f64) -> f64 {
-        match self {
-            Self::Linear => x,
-            Self::Ln => x.ln(),
-        }
-    }
-
-    fn invert(&self, x: f64) -> f64 {
-        match self {
-            Self::Linear => x,
-            Self::Ln => x.exp(),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for Scale {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
-
-        Ok(match raw.as_str() {
-            "lin" => Self::linear(),
-            "log" => Self::ln(),
-            _ => return Err(D::Error::custom(format!("unknown scale type \"{}\"", raw))),
-        })
-    }
 }
 
 struct Series {
@@ -1178,8 +1069,11 @@ impl Series {
         }
     }
 
-    fn as_floats(&self) -> &[(f64, f64)] {
-        &self.points
+    fn to_scaled_floats(&self, scales: (&Scale, &Scale)) -> Vec<(f64, f64)> {
+        self.points
+            .iter()
+            .map(|(x, y)| (scales.0.percent(*x), scales.1.percent(*y)))
+            .collect()
     }
 
     fn len(&self) -> usize {
