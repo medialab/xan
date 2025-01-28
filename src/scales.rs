@@ -1,7 +1,9 @@
 use std::mem;
-use std::ops::Sub;
+use std::ops::{Deref, Sub};
 
 use serde::de::{Deserialize, Deserializer, Error};
+
+use crate::util;
 
 // Taken straight from d3: https://github.com/d3/d3-array/blob/main/src/ticks.js
 const E10: f64 = 7.0710678118654755; // sqrt(50)
@@ -264,7 +266,7 @@ impl<'de> Deserialize<'de> for ScaleType {
 }
 
 #[derive(Debug)]
-pub struct LinearScale {
+struct LinearScale {
     input_domain: Extent<f64>,
     output_range: Extent<f64>,
 }
@@ -304,8 +306,10 @@ impl LinearScale {
 }
 
 // TODO: support custom base, currently only base10
+#[derive(Debug)]
 struct LogScale {
     input_domain: Extent<f64>,
+    converted_input_domain: Extent<f64>,
     output_range: Extent<f64>,
 }
 
@@ -316,6 +320,7 @@ impl LogScale {
 
         Self {
             input_domain: Extent::from(input_domain),
+            converted_input_domain: Extent::from((input_domain.0.log10(), input_domain.1.log10())),
             output_range: Extent::from(output_range),
         }
     }
@@ -327,6 +332,17 @@ impl LogScale {
         );
 
         Self::new(input_domain, output_range)
+    }
+
+    #[inline]
+    fn percent(&self, value: f64) -> f64 {
+        (value.log10() - self.converted_input_domain.min()) / self.converted_input_domain.width()
+    }
+
+    fn map(&self, value: f64) -> f64 {
+        let percent = self.percent(value);
+
+        percent * self.output_range.width() + self.output_range.min()
     }
 
     // NOTE: I do not support reverse scales (i.e. pow scales?)
@@ -348,6 +364,80 @@ impl LogScale {
 // TODO: log scale, enum Scale buildable from ScaleType
 // TODO: extent builder
 // TODO: map for log scale and log input domain to log
+// TODO: scale builder
+
+#[derive(Debug)]
+pub enum AbstractScale {
+    Linear(LinearScale),
+    Log(LogScale),
+}
+
+impl AbstractScale {
+    fn nice(
+        scale_type: ScaleType,
+        input_domain: (f64, f64),
+        output_range: (f64, f64),
+        ticks: usize,
+    ) -> Self {
+        match scale_type {
+            ScaleType::Linear => Self::Linear(LinearScale::nice(input_domain, output_range, ticks)),
+            ScaleType::Log10 => Self::Log(LogScale::nice(input_domain, output_range)),
+        }
+    }
+
+    pub fn ticks(&self, count: usize) -> Vec<f64> {
+        match self {
+            Self::Linear(inner) => inner.ticks(count),
+            Self::Log(inner) => inner.ticks(count),
+        }
+    }
+
+    pub fn map(&self, value: f64) -> f64 {
+        match self {
+            Self::Linear(inner) => inner.map(value),
+            Self::Log(inner) => inner.map(value),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Scale {
+    inner: AbstractScale,
+    format: fn(f64) -> String,
+}
+
+impl Scale {
+    pub fn nice(
+        scale_type: ScaleType,
+        input_domain: (f64, f64),
+        output_range: (f64, f64),
+        ticks: usize,
+    ) -> Self {
+        Self {
+            inner: AbstractScale::nice(scale_type, input_domain, output_range, ticks),
+            format: util::format_number,
+        }
+    }
+
+    pub fn set_format(&mut self, format: fn(f64) -> String) {
+        self.format = format;
+    }
+
+    pub fn formatted_ticks(&self, count: usize) -> Vec<String> {
+        self.ticks(count)
+            .into_iter()
+            .map(|tick| (self.format)(tick))
+            .collect()
+    }
+}
+
+impl Deref for Scale {
+    type Target = AbstractScale;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
 
 #[cfg(test)]
 mod tests {
