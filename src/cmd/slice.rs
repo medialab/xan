@@ -31,6 +31,7 @@ Usage:
 
 slice options:
     -s, --start <n>        The index of the record to slice from.
+    --skip <n>             Same as -s, --start.
     -e, --end <n>          The index of the record to slice to.
     -l, --len <n>          The length of the slice (can be used instead
                            of --end).
@@ -58,6 +59,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_start: Option<usize>,
+    flag_skip: Option<usize>,
     flag_end: Option<usize>,
     flag_len: Option<usize>,
     flag_index: Option<String>,
@@ -67,8 +69,17 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if let (None, Some(skip)) = (self.flag_start, self.flag_skip) {
+            self.flag_start = Some(skip);
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
     match &args.flag_index {
         Some(indices) if indices.contains(',') => {

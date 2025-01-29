@@ -26,6 +26,7 @@ Usage:
 
 slice options:
     -s, --start <n>        The index of the record to slice from.
+    --skip <n>             Same as -s, --start.
     -e, --end <n>          The index of the record to slice to.
     -l, --len <n>          The length of the slice (can be used instead
                            of --end).
