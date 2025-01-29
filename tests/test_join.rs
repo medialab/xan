@@ -128,10 +128,10 @@ join_test!(
             vec![
                 svec!["Boston", "MA", "Boston", "Logan Airport"],
                 svec!["Boston", "MA", "Boston", "Boston Garden"],
-                svec!["New York", "NY", "", ""],
-                svec!["San Francisco", "CA", "", ""],
                 svec!["Buffalo", "NY", "Buffalo", "Ralph Wilson Stadium"],
                 svec!["", "", "Orlando", "Disney World"],
+                svec!["New York", "NY", "", ""],
+                svec!["San Francisco", "CA", "", ""],
             ],
         );
         assert_eq!(got, expected);
@@ -172,8 +172,7 @@ fn join_cross() {
     );
 
     let mut cmd = wrk.command("join");
-    cmd.arg("--cross")
-        .args(["", "letters.csv", "", "numbers.csv"]);
+    cmd.arg("--cross").args(["letters.csv", "numbers.csv"]);
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["h1", "h2", "h3", "h4"],

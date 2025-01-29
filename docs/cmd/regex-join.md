@@ -36,20 +36,20 @@ Usage:
     xan regex-join --help
 
 join options:
-    -i, --ignore-case           Make the regex patterns case-insensitive.
-    --left                      Write every row from the first file in the output, with empty
-                                padding cells when no regex pattern from the second file
-                                produced a match.
-    -p, --parallel              Whether to use parallelization to speed up computations.
-                                Will automatically select a suitable number of threads to use
-                                based on your number of cores. Use -t, --threads if you want to
-                                indicate the number of threads yourself.
-    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
-                                if you want the number of threads to be automatically chosen instead.
-    --prefix-left <prefix>      Add a prefix to the names of the columns in the
-                                searched file.
-    --prefix-right <prefix>     Add a prefix to the names of the columns in the
-                                patterns file.
+    -i, --ignore-case            Make the regex patterns case-insensitive.
+    --left                       Write every row from the first file in the output, with empty
+                                 padding cells when no regex pattern from the second file
+                                 produced a match.
+    -p, --parallel               Whether to use parallelization to speed up computations.
+                                 Will automatically select a suitable number of threads to use
+                                 based on your number of cores. Use -t, --threads if you want to
+                                 indicate the number of threads yourself.
+    -t, --threads <threads>      Parellize computations using this many threads. Use -p, --parallel
+                                 if you want the number of threads to be automatically chosen instead.
+    -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
+                                 searched file.
+    -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
+                                 patterns file.
 
 Common options:
     -h, --help                  Display this message
