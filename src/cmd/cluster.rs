@@ -79,9 +79,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .then_with(|| a.best().cmp(b.best()))
     });
 
-    let toml_output = TOMLClusters { cluster: clusters };
-
-    println!("{}", toml::to_string_pretty(&toml_output).unwrap());
+    println!("{:?}", clusters);
 
     Ok(())
 }
@@ -179,9 +177,4 @@ impl ClusteringAlgorithm for KeyCollision {
             .filter(|cluster| cluster.values.len() > 1)
             .collect()
     }
-}
-
-#[derive(Serialize)]
-struct TOMLClusters {
-    cluster: Vec<Cluster>,
 }
