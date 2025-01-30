@@ -19,12 +19,12 @@ pub struct MoonbladePestParser;
 impl Rule {
     fn as_fn_op_str(&self) -> &'static str {
         match self {
-            Self::gen_eq => "__gen_eq",
-            Self::gen_ne => "__gen_ne",
-            Self::gen_lt => "__gen_lt",
-            Self::gen_le => "__gen_le",
-            Self::gen_gt => "__gen_gt",
-            Self::gen_ge => "__gen_ge",
+            Self::gen_eq => "==",
+            Self::gen_ne => "!=",
+            Self::gen_lt => "<",
+            Self::gen_le => "<=",
+            Self::gen_gt => ">",
+            Self::gen_ge => ">=",
             Self::str_eq => "eq",
             Self::str_ne => "ne",
             Self::str_lt => "lt",

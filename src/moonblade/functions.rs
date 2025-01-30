@@ -33,27 +33,27 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
     Some(match name {
-        "__gen_eq" => (
+        "==" => (
             |args| abstract_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
         ),
-        "__gen_gt" => (
+        ">" => (
             |args| abstract_compare(args, Ordering::is_gt),
             FunctionArguments::binary(),
         ),
-        "__gen_ge" => (
+        ">=" => (
             |args| abstract_compare(args, Ordering::is_ge),
             FunctionArguments::binary(),
         ),
-        "__gen_lt" => (
+        "<" => (
             |args| abstract_compare(args, Ordering::is_lt),
             FunctionArguments::binary(),
         ),
-        "__gen_le" => (
+        "<=" => (
             |args| abstract_compare(args, Ordering::is_le),
             FunctionArguments::binary(),
         ),
-        "__gen_ne" => (
+        "!=" => (
             |args| abstract_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
