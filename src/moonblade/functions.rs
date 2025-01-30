@@ -160,7 +160,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "or" => (or, FunctionArguments::variadic(2)),
         "parse_dataurl" => (parse_dataurl, FunctionArguments::unary()),
         "parse_json" => (parse_json, FunctionArguments::unary()),
-        "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
+        "pjoin" | "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
         "pow" => (
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
             FunctionArguments::binary(),
