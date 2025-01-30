@@ -1,4 +1,5 @@
 use std::collections::{hash_map::Entry, HashMap};
+use std::io::{self, Write};
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
@@ -21,6 +22,7 @@ cluster options:
 
 Common options:
     -h, --help               Display this message
+    -o, --output <file>      Write output to <file> instead of stdout.
     -n, --no-headers         When set, the first row will not be evaled
                              as headers.
     -d, --delimiter <arg>    The field delimiter for reading CSV data.
@@ -33,6 +35,7 @@ struct Args {
     arg_input: Option<String>,
     flag_key: Option<String>,
     flag_no_headers: bool,
+    flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
 }
 
@@ -79,7 +82,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .then_with(|| a.best().cmp(b.best()))
     });
 
-    println!("{:?}", clusters);
+    let mut writer = Config::new(&args.flag_output).io_writer()?;
+
+    for cluster in clusters {
+        cluster.write_toml(&mut writer)?;
+    }
 
     Ok(())
 }
@@ -90,6 +97,41 @@ struct Cluster {
     key: String,
     rows: Vec<usize>,
     values: Vec<(String, usize)>,
+}
+
+impl Cluster {
+    fn write_toml<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writeln!(&mut writer, "[[cluster]]")?;
+        writeln!(&mut writer, "id = {}", self.id)?;
+        writeln!(&mut writer, "key = \"{}\"", self.key)?;
+        writeln!(&mut writer, "nb_values = {}", self.values.len())?;
+        writeln!(&mut writer, "nb_rows = {}", self.rows.len())?;
+        writeln!(
+            &mut writer,
+            "rows = \"{}\"",
+            self.rows
+                .iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        )?;
+        writeln!(&mut writer, "replace_with = {:?}", self.best())?;
+        writeln!(&mut writer, "values = [")?;
+
+        for (value, count) in self.values.iter() {
+            writeln!(
+                &mut writer,
+                "  {{ value = {:?}, count = {} }},",
+                value, count
+            )?;
+        }
+
+        writeln!(&mut writer, "]")?;
+        writeln!(&mut writer, "harmonize = false")?;
+        writeln!(&mut writer)?;
+
+        Ok(())
+    }
 }
 
 impl Serialize for Cluster {
