@@ -7,6 +7,9 @@ use ratatui::buffer::{Buffer, Cell};
 use ratatui::style::{Color, Modifier};
 use ratatui::{Frame, Terminal};
 
+// NOTE: tracking those issues and PRs to retire this hacky code
+//  - https://github.com/ratatui/ratatui/pull/1065
+//  - https://github.com/ratatui/ratatui/issues/1045
 fn print_buffer_to_stdout(buffer: &Buffer, cols: usize) {
     let contents = &buffer.content;
 
