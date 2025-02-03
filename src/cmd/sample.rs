@@ -158,7 +158,7 @@ where
     I: io::Read + io::Seek,
 {
     let mut all_indices = (0..idx.count()).collect::<Vec<_>>();
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     all_indices.shuffle(&mut rng);
 
     let mut sampled = Vec::with_capacity(sample_size as usize);
@@ -187,7 +187,7 @@ fn sample_reservoir<R: io::Read>(
 
     // Now do the sampling.
     for (i, row) in records {
-        let random = rng.gen_range(0..i + 1);
+        let random = rng.random_range(0..i + 1);
         if random < sample_size as usize {
             reservoir[random] = row?;
         }
@@ -222,7 +222,7 @@ fn sample_reservoir_grouped<R: io::Read>(
         if reservoir.records.len() < sample_size as usize {
             reservoir.records.push(record);
         } else {
-            let random_index = rng.gen_range(0..reservoir.count + 1);
+            let random_index = rng.random_range(0..reservoir.count + 1);
             if random_index < sample_size as usize {
                 reservoir.records[random_index] = record;
             }
@@ -280,7 +280,7 @@ fn sample_weighted_reservoir<R: io::Read>(
         let weight: f64 = fast_float::parse(&record[weight_column_index])
             .map_err(|_| CliError::Other("could not parse weight as f64".to_string()))?;
 
-        let score = rng.gen::<f64>().powf(1.0 / weight);
+        let score = rng.random::<f64>().powf(1.0 / weight);
         let weighted_row = WeightedRow(score, record);
 
         if reservoir.len() < sample_size as usize {
@@ -316,7 +316,7 @@ fn sample_weighted_reservoir_grouped<R: io::Read>(
 
         let reservoir = global_reservoir.insert_with(group_key, || BinaryHeap::with_capacity(1));
 
-        let score = rng.gen::<f64>().powf(1.0 / weight);
+        let score = rng.random::<f64>().powf(1.0 / weight);
         let weighted_row = WeightedRow(score, record);
 
         if reservoir.len() < sample_size as usize {

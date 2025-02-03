@@ -1468,7 +1468,7 @@ fn uuid(_args: BoundArguments) -> FunctionResult {
 }
 
 fn random(_args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(rand::thread_rng().gen::<f64>()))
+    Ok(DynamicValue::from(rand::rng().random::<f64>()))
 }
 
 // Fuzzy matching

@@ -17,7 +17,7 @@ use ext_sort::ExternalChunk;
 use jiff::civil::DateTime;
 use lazy_static::lazy_static;
 use numfmt::{Formatter, Numeric, Precision};
-use rand::Rng;
+use rand::RngCore;
 use rand_chacha::ChaCha8Rng;
 use rand_seeder::Seeder;
 use regex::{Captures, Regex};
@@ -276,10 +276,10 @@ impl<'de> Deserialize<'de> for FilenameTemplate {
     }
 }
 
-pub fn acquire_rng(seed: Option<usize>) -> impl Rng {
+pub fn acquire_rng(seed: Option<usize>) -> Box<dyn RngCore> {
     match seed {
-        None => Seeder::from(rand::thread_rng().gen::<usize>()).make_rng::<ChaCha8Rng>(),
-        Some(seed) => Seeder::from(seed).make_rng::<ChaCha8Rng>(),
+        None => Box::new(rand::rng()),
+        Some(seed) => Box::new(Seeder::from(seed).into_rng::<ChaCha8Rng>()),
     }
 }
 
