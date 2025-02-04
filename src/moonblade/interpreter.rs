@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn test_datetime() {
         let timestamp: Timestamp = "2024-07-11T01:14:00Z".parse().unwrap();
-        let zoned = timestamp.intz("Europe/Paris").unwrap();
+        let zoned = timestamp.in_tz("Europe/Paris").unwrap();
 
         assert_eq!(
             eval_code("datetime('2024-07-11T03:14:00[Europe/Paris]')"),
@@ -1168,7 +1168,7 @@ mod tests {
         );
 
         let timestamp: Timestamp = "2024-07-11T00:00:00Z".parse().unwrap();
-        let zoned = timestamp.intz("UTC").unwrap();
+        let zoned = timestamp.in_tz("UTC").unwrap();
 
         assert_eq!(
             eval_code("datetime('2024-07-11', timezone='UTC')"),
