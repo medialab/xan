@@ -125,6 +125,9 @@ search options:
     -s, --select <arg>       Select the columns to search. See 'xan select -h'
                              for the full syntax.
     -v, --invert-match       Select only rows that did not match
+    -A, --all                Only return a row when ALL columns from the given selection
+                             match the desired pattern, instead of returning a row
+                             when ANY column matches.
     -f, --flag <column>      If given, the command will not filter rows
                              but will instead flag the found rows in a new
                              column with given name.
@@ -151,6 +154,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_invert_match: bool,
+    flag_all: bool,
     flag_ignore_case: bool,
     flag_empty: bool,
     flag_non_empty: bool,
@@ -283,7 +287,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
-        let mut is_match = sel.select(&record).any(|cell| matcher.is_match(cell));
+        let mut is_match = if args.flag_all {
+            sel.select(&record).all(|cell| matcher.is_match(cell))
+        } else {
+            sel.select(&record).any(|cell| matcher.is_match(cell))
+        };
 
         if args.flag_invert_match {
             is_match = !is_match;

@@ -2,11 +2,21 @@
 # xan search
 
 ```txt
-Filter rows of given CSV file if some of its cells contains a desired substring.
+Keep rows of given CSV file if ANY of the selected columns contains a desired
+substring.
 
 Can also be used to search for exact matches using the -e, --exact flag.
 
 Can also be used to search using a regular expression using the -r, --regex flag.
+
+Can also be used to search for empty or non-empty selections. For instance,
+keeping only rows where selection is not fully empty:
+
+    $ xan search --non-empty file.csv
+
+Or keeping only rows where selection has any empty column:
+
+    $ xan search --empty file.csv
 
 When using a regular expression, be sure to mind bash escape rules (prefer single
 quotes around your expression and don't forget to use backslashes when needed):
@@ -39,6 +49,7 @@ Feeding CSV column as patterns through stdin (using "-"):
 
 Usage:
     xan search [options] --non-empty [<input>]
+    xan search [options] --empty [<input>]
     xan search [options] --patterns <index> [<input>]
     xan search [options] <pattern> [<input>]
     xan search --help
@@ -46,6 +57,8 @@ Usage:
 search options:
     -e, --exact              Perform an exact match.
     -r, --regex              Use a regex to perform the match.
+    -E, --empty              Search for empty cells, i.e. filter out
+                             any completely non-empty selection.
     -N, --non-empty          Search for non-empty cells, i.e. filter out
                              any completely empty selection.
     --patterns <path>        Path to a text file (use "-" for stdin), containing multiple
@@ -57,6 +70,9 @@ search options:
     -s, --select <arg>       Select the columns to search. See 'xan select -h'
                              for the full syntax.
     -v, --invert-match       Select only rows that did not match
+    -A, --all                Only return a row when ALL columns from the given selection
+                             match the desired pattern, instead of returning a row
+                             when ANY column matches.
     -f, --flag <column>      If given, the command will not filter rows
                              but will instead flag the found rows in a new
                              column with given name.

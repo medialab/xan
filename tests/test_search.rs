@@ -436,3 +436,25 @@ fn search_empty() {
     let expected = vec![svec!["name"], svec![""]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_all() {
+    let wrk = Workdir::new("search_all");
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "color"],
+            svec!["John", "red"],
+            svec!["", "yellow"],
+            svec!["Suzy", ""],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("data.csv").arg("--non-empty").arg("--all");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "color"], svec!["John", "red"]];
+    assert_eq!(got, expected);
+}

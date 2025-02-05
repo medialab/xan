@@ -492,6 +492,7 @@ use the operators in the previous section.
         Move a source to target path. Will create necessary directories
         on the way. Returns target path as a convenience.
 
+    - pjoin(string, *strings) -> string
     - pathjoin(string, *strings) -> string
         Join multiple paths correctly.
 
