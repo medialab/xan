@@ -29,8 +29,8 @@ fn search() {
 }
 
 #[test]
-fn search_empty() {
-    let wrk = Workdir::new("search");
+fn search_empty_regex() {
+    let wrk = Workdir::new("search_empty_regex");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
     cmd.arg("-r").arg("xxx").arg("data.csv");
@@ -41,8 +41,8 @@ fn search_empty() {
 }
 
 #[test]
-fn search_empty_no_headers() {
-    let wrk = Workdir::new("search");
+fn search_empty_regex_no_headers() {
+    let wrk = Workdir::new("search_empty_regex_no_headers");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
     cmd.arg("-r").arg("xxx").arg("data.csv");
@@ -55,7 +55,7 @@ fn search_empty_no_headers() {
 
 #[test]
 fn search_ignore_case() {
-    let wrk = Workdir::new("search");
+    let wrk = Workdir::new("search_ignore_case");
     wrk.create("data.csv", data(true));
     let mut cmd = wrk.command("search");
     cmd.arg("-r").arg("^FoO").arg("data.csv");
@@ -414,6 +414,23 @@ fn search_non_empty_invert_match() {
 
     let mut cmd = wrk.command("search");
     cmd.arg("data.csv").arg("--non-empty").arg("-v");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec![""]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_empty() {
+    let wrk = Workdir::new("search_empty");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["John"], svec![""], svec!["Suzy"]],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("data.csv").arg("--empty");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["name"], svec![""]];

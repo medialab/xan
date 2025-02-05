@@ -12,6 +12,7 @@ use crate::CliError;
 use crate::CliResult;
 
 enum Matcher {
+    Empty,
     NonEmpty,
     Substring(AhoCorasick, bool),
     Exact(Vec<u8>, bool),
@@ -23,6 +24,7 @@ enum Matcher {
 impl Matcher {
     fn is_match(&self, cell: &[u8]) -> bool {
         match self {
+            Self::Empty => cell.is_empty(),
             Self::NonEmpty => !cell.is_empty(),
             Self::Substring(pattern, case_insensitive) => {
                 if *case_insensitive {
@@ -55,11 +57,21 @@ impl Matcher {
 // early termination when piping to `xan slice` because flush won't get a broken
 // pipe when writing nothing.
 static USAGE: &str = "
-Filter rows of given CSV file if some of its cells contains a desired substring.
+Keep rows of given CSV file if ANY of the selected columns contains a desired
+substring.
 
 Can also be used to search for exact matches using the -e, --exact flag.
 
 Can also be used to search using a regular expression using the -r, --regex flag.
+
+Can also be used to search for empty or non-empty selections. For instance,
+keeping only rows where selection is not fully empty:
+
+    $ xan search --non-empty file.csv
+
+Or keeping only rows where selection has any empty column:
+
+    $ xan search --empty file.csv
 
 When using a regular expression, be sure to mind bash escape rules (prefer single
 quotes around your expression and don't forget to use backslashes when needed):
@@ -92,6 +104,7 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 
 Usage:
     xan search [options] --non-empty [<input>]
+    xan search [options] --empty [<input>]
     xan search [options] --patterns <index> [<input>]
     xan search [options] <pattern> [<input>]
     xan search --help
@@ -99,6 +112,8 @@ Usage:
 search options:
     -e, --exact              Perform an exact match.
     -r, --regex              Use a regex to perform the match.
+    -E, --empty              Search for empty cells, i.e. filter out
+                             any completely non-empty selection.
     -N, --non-empty          Search for non-empty cells, i.e. filter out
                              any completely empty selection.
     --patterns <path>        Path to a text file (use \"-\" for stdin), containing multiple
@@ -137,6 +152,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_invert_match: bool,
     flag_ignore_case: bool,
+    flag_empty: bool,
     flag_non_empty: bool,
     flag_exact: bool,
     flag_regex: bool,
@@ -150,6 +166,10 @@ impl Args {
     fn build_matcher(&self) -> Result<Matcher, CliError> {
         if self.flag_non_empty {
             return Ok(Matcher::NonEmpty);
+        }
+
+        if self.flag_empty {
+            return Ok(Matcher::Empty);
         }
 
         match self.flag_patterns.as_ref() {
@@ -231,9 +251,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_non_empty {
         matchers_count += 1;
     }
+    if args.flag_empty {
+        matchers_count += 1;
+    }
 
     if matchers_count > 1 {
-        Err("must select only one of -e/--exact, -N,--non-empty, -r,--regex!")?;
+        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty or -r/--regex!")?;
     }
 
     let matcher = args.build_matcher()?;
