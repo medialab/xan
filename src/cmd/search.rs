@@ -51,6 +51,60 @@ impl Matcher {
             }
         }
     }
+
+    fn count(&self, cell: &[u8]) -> usize {
+        match self {
+            Self::Empty => {
+                if cell.is_empty() {
+                    1
+                } else {
+                    0
+                }
+            }
+            Self::NonEmpty => {
+                if cell.is_empty() {
+                    0
+                } else {
+                    1
+                }
+            }
+            Self::Substring(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    pattern.find_iter(&cell.to_lowercase()).count()
+                } else {
+                    pattern.find_iter(cell).count()
+                }
+            }
+            Self::Regex(pattern) => pattern.find_iter(cell).count(),
+            Self::Exact(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    if &cell.to_lowercase() == pattern {
+                        1
+                    } else {
+                        0
+                    }
+                } else if cell == pattern {
+                    1
+                } else {
+                    0
+                }
+            }
+            Self::ManyRegex(set) => set.matches(cell).len(),
+            Self::ManyExact(patterns, case_insensitive) => {
+                if *case_insensitive {
+                    if patterns.contains(&cell.to_lowercase()) {
+                        1
+                    } else {
+                        0
+                    }
+                } else if patterns.contains(cell) {
+                    1
+                } else {
+                    0
+                }
+            }
+        }
+    }
 }
 
 // NOTE: a -U, --unbuffered flag that flushes on each match does not solve
@@ -128,9 +182,10 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
-    -f, --flag <column>      If given, the command will not filter rows
-                             but will instead flag the found rows in a new
-                             column with given name.
+    -c, --count <column>     If given, the command will not filter rows but will instead
+                             count the total number of pattern matches per
+                             row and report it in a new column with given name.
+                             Does not work with -v/--invert-match.
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
@@ -160,7 +215,7 @@ struct Args {
     flag_non_empty: bool,
     flag_exact: bool,
     flag_regex: bool,
-    flag_flag: Option<String>,
+    flag_count: Option<String>,
     flag_limit: Option<NonZeroUsize>,
     flag_patterns: Option<String>,
     flag_patterns_column: Option<SelectColumns>,
@@ -263,6 +318,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty or -r/--regex!")?;
     }
 
+    if args.flag_count.is_some() && args.flag_invert_match {
+        Err("-c/--count does not work with -v/--invert-match!")?;
+    }
+
     let matcher = args.build_matcher()?;
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -275,7 +334,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
-    if let Some(column_name) = args.flag_flag.clone() {
+    if let Some(column_name) = &args.flag_count {
         headers.push_field(column_name.as_bytes());
     }
 
@@ -287,21 +346,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
-        let mut is_match = if args.flag_all {
-            sel.select(&record).all(|cell| matcher.is_match(cell))
+        let mut is_match: bool = false;
+
+        if args.flag_count.is_some() {
+            let count: usize = sel.select(&record).map(|cell| matcher.count(cell)).sum();
+
+            if count > 0 {
+                is_match = true;
+            }
+
+            record.push_field(count.to_string().as_bytes());
+            wtr.write_byte_record(&record)?;
         } else {
-            sel.select(&record).any(|cell| matcher.is_match(cell))
-        };
+            is_match = if args.flag_all {
+                sel.select(&record).all(|cell| matcher.is_match(cell))
+            } else {
+                sel.select(&record).any(|cell| matcher.is_match(cell))
+            };
 
-        if args.flag_invert_match {
-            is_match = !is_match;
-        }
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
 
-        if args.flag_flag.is_some() {
-            record.push_field(if is_match { b"1" } else { b"0" });
-            wtr.write_byte_record(&record)?;
-        } else if is_match {
-            wtr.write_byte_record(&record)?;
+            if is_match {
+                wtr.write_byte_record(&record)?;
+            }
         }
 
         if let Some(limit) = args.flag_limit {

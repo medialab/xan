@@ -73,9 +73,10 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
-    -f, --flag <column>      If given, the command will not filter rows
-                             but will instead flag the found rows in a new
-                             column with given name.
+    -c, --count <column>     If given, the command will not filter rows but will instead
+                             count the total number of pattern matches per
+                             row and report it in a new column with given name.
+                             Does not work with -v/--invert-match.
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
