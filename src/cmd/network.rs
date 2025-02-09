@@ -1,5 +1,6 @@
 use colored::Colorize;
 
+use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
 use crate::graph::GraphBuilder;
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
@@ -45,6 +46,12 @@ network edgelist options:
     --node-column <name>   Name of the column containing node keys.
                            [default: node]
 
+network bipartite options:
+    -D, --disjoint-keys  Pass this if you know both partitions of the graph
+                         use disjoint sets of keys (i.e. if you know they share
+                         no common keys at all). Incorrect graphs will be produced
+                         if some keys are used by both partitions!
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -70,6 +77,7 @@ struct Args {
     flag_undirected: bool,
     flag_nodes: Option<String>,
     flag_node_column: SelectColumns,
+    flag_disjoint_keys: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -221,10 +229,17 @@ impl Args {
             .unwrap()
             .single_selection(&headers, !self.flag_no_headers)?;
 
+        let mut incremental_id =
+            (!self.flag_disjoint_keys).then(IncrementalId::<(usize, String)>::new);
+
         while reader.read_record(&mut record)? {
-            // TODO: solve ids
-            let first_part_node = record[first_part_index].to_string();
-            let second_part_node = record[second_part_index].to_string();
+            let mut first_part_node = record[first_part_index].to_string();
+            let mut second_part_node = record[second_part_index].to_string();
+
+            if let Some(id) = incremental_id.as_mut() {
+                first_part_node = id.get((0, first_part_node)).to_string();
+                second_part_node = id.get((1, second_part_node)).to_string();
+            }
 
             let first_part_node_id = graph_builder.add_node(first_part_node, Attributes::default());
             let second_part_node_id =
