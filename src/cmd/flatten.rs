@@ -1,4 +1,5 @@
-use colored;
+use std::num::NonZeroUsize;
+
 use colored::Colorize;
 use unicode_width::UnicodeWidthStr;
 
@@ -26,6 +27,8 @@ Usage:
 flatten options:
     -s, --select <arg>     Select the columns to visualize. See 'xan select -h'
                            for the full syntax.
+    -l, --limit <n>        Maximum number of rows to read. Defaults to read the whole
+                           file.
     -c, --condense         Don't wrap cell values on new lines but truncate them
                            with ellipsis instead.
     -w, --wrap             Wrap cell values all while minding the header's indent.
@@ -54,6 +57,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_select: SelectColumns,
+    flag_limit: Option<NonZeroUsize>,
     flag_condense: bool,
     flag_wrap: bool,
     flag_cols: Option<String>,
@@ -199,6 +203,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         record_index += 1;
+
+        if let Some(limit) = args.flag_limit {
+            if record_index >= limit.get() {
+                break;
+            }
+        }
     }
 
     Ok(())
