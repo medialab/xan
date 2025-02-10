@@ -174,8 +174,7 @@ search options:
                              patterns, one per line, to search at once.
     --pattern-column <name>  When given a column name, --patterns file will be considered a CSV
                              and patterns to search will be extracted from the given column.
-    -i, --ignore-case        Case insensitive search. This is equivalent to
-                             prefixing the regex with '(?i)'.
+    -i, --ignore-case        Case insensitive search.
     -s, --select <arg>       Select the columns to search. See 'xan select -h'
                              for the full syntax.
     -v, --invert-match       Select only rows that did not match
