@@ -196,9 +196,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             "sum" => sum,
             d => match d.parse::<f64>() {
                 Ok(f) => f,
-                _ => Err("unknown --domain-max. Should be one of \"sum\", \"max\".")?,
+                _ => Err("unknown -m/--domain-max. Should be one of \"sum\", \"max\".")?,
             },
         };
+
+        if domain_max <= 0.0 {
+            Err("-m/--domain-max should be >= 0!")?;
+        }
 
         println!(
             "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}):\n",
