@@ -24,17 +24,17 @@ bins options:
     -s, --select <arg>     Select a subset of columns to compute bins
                            for. See 'xan select --help' for the format
                            details.
-    --bins <number>        Number of bins. Will default to using Freedman-Diaconis.
-                           rule.
-    --nice                 Whether to choose nice boundaries for the bins.
+    -b, --bins <number>    Number of bins. Will default to using various heuristics
+                           to find an optimal default number if not provided.
+    -E, --nice             Whether to choose nice boundaries for the bins.
                            Might return a number of bins slightly different to
-                           what was passed to --bins, as a consequence.
-    --label <mode>         Label to choose for the bins (that will be placed in the
+                           what was passed to -b/--bins, as a consequence.
+    -l, --label <mode>     Label to choose for the bins (that will be placed in the
                            `value` column). Mostly useful to tweak representation when
                            piping to `xan hist`. Can be one of \"full\", \"lower\" or \"upper\".
                            [default: full]
-    --min <min>            Override min value.
-    --max <max>            Override max value.
+    -m, --min <min>        Override min value.
+    -M, --max <max>        Override max value.
     -N, --no-extra         Don't include, nulls, nans and out-of-bounds counts.
 
 Common options:

@@ -39,6 +39,12 @@ network edgelist options:
     --node-column <name>   Name of the column containing node keys.
                            [default: node]
 
+network bipartite options:
+    -D, --disjoint-keys  Pass this if you know both partitions of the graph
+                         use disjoint sets of keys (i.e. if you know they share
+                         no common keys at all). Incorrect graphs will be produced
+                         if some keys are used by both partitions!
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
