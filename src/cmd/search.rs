@@ -298,20 +298,10 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let mut matchers_count: u8 = 0;
-
-    if args.flag_exact {
-        matchers_count += 1;
-    }
-    if args.flag_regex {
-        matchers_count += 1;
-    }
-    if args.flag_non_empty {
-        matchers_count += 1;
-    }
-    if args.flag_empty {
-        matchers_count += 1;
-    }
+    let matchers_count: u8 = args.flag_exact as u8
+        + args.flag_regex as u8
+        + args.flag_non_empty as u8
+        + args.flag_empty as u8;
 
     if matchers_count > 1 {
         Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty or -r/--regex!")?;
