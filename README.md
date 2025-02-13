@@ -73,6 +73,16 @@ You can install `xan` from the [extra repository](https://archlinux.org/packages
 sudo pacman -S xan
 ```
 
+### Nix
+
+Xan is packaged for Nix, and is available in Nixpkgs as of 25.05 release. To
+install it, you may add it to your `environment.systemPackages` as `pkgs.xan` or
+use `nix-shell` to enter an ephemeral shell.
+
+```bash
+nix-shell -p xan
+```
+
 ### Installing completions
 
 Note that `xan` also exposes handy automatic completions for command and header/column names that you can install through the `xan completions` command.
