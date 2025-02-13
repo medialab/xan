@@ -75,7 +75,7 @@ sudo pacman -S xan
 
 ### Nix
 
-Xan is packaged for Nix, and is available in Nixpkgs as of 25.05 release. To
+`xan` is packaged for Nix, and is available in Nixpkgs as of 25.05 release. To
 install it, you may add it to your `environment.systemPackages` as `pkgs.xan` or
 use `nix-shell` to enter an ephemeral shell.
 
