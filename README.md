@@ -67,12 +67,9 @@ Feel free to open a PR to improve the CI by adding relevant targets.
 
 ### Arch Linux
 
-`xan` is available as an [AUR package](https://aur.archlinux.org/packages/xan) (maintained by [@adamperkowski](https://github.com/adamperkowski), [here](https://github.com/adamperkowski/PKGBUILDs/tree/new/xan)).
+You can install `xan` from the [extra repository](https://archlinux.org/packages/extra/x86_64/xan/) using `pacman`:
 
-It can be installed using an AUR helper (e.g. `paru` or `pacman`):
-
-```
-sudo paru -S xan
+```bash
 sudo pacman -S xan
 ```
 
