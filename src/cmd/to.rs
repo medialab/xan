@@ -1,8 +1,10 @@
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
+use std::iter;
 use std::num::NonZeroUsize;
 
 use rust_xlsxwriter::Workbook;
+use unicode_width::UnicodeWidthStr;
 
 use crate::config::Config;
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
@@ -20,8 +22,9 @@ Usage:
 Supported formats:
     html    - HTML table
     json    - JSON array or object
-    ndjson  - Newline-delimited JSON
-    jsonl   - Newline-delimited JSON
+    jsonl   - JSON lines (same as `ndjson`)
+    md      - Markdown table
+    ndjson  - Newline-delimited JSON (same as `jsonl`)
     xlsx    - Excel spreasheet
 
 JSON options:
@@ -202,6 +205,60 @@ impl Args {
 
         Ok(())
     }
+
+    fn convert_to_md<R: Read>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        mut writer: Box<dyn Write>,
+    ) -> CliResult<()> {
+        let headers = rdr.headers()?.clone();
+        let records = rdr.into_records().collect::<Result<Vec<_>, _>>()?;
+
+        let widths = headers
+            .iter()
+            .enumerate()
+            .map(|(i, h)| {
+                iter::once(h.width())
+                    .chain(records.iter().map(move |r| r[i].width()))
+                    .max()
+                    .unwrap()
+                    .max(3)
+            })
+            .collect::<Vec<_>>();
+
+        write!(&mut writer, "|")?;
+
+        for (header, width) in headers.iter().zip(widths.iter()) {
+            write!(&mut writer, " {:<width$} |", header, width = width)?;
+        }
+
+        writeln!(&mut writer)?;
+
+        write!(&mut writer, "|")?;
+
+        for width in widths.iter().copied() {
+            write!(
+                &mut writer,
+                " {:<width$} |",
+                "-".repeat(width),
+                width = width
+            )?;
+        }
+
+        writeln!(&mut writer)?;
+
+        for record in records.into_iter() {
+            write!(&mut writer, "|")?;
+
+            for (cell, width) in record.into_iter().zip(widths.iter()) {
+                write!(&mut writer, " {:<width$} |", cell, width = width)?;
+            }
+
+            writeln!(&mut writer)?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -215,12 +272,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     match args.arg_format.as_str() {
-        "html" => args.convert_to_html(rdr, writer)?,
-        "json" => args.convert_to_json(rdr, writer)?,
-        "jsonl" | "ndjson" => args.convert_to_ndjson(rdr, writer)?,
-        "xlsx" => args.convert_to_xlsx(rdr, writer)?,
+        "html" => args.convert_to_html(rdr, writer),
+        "json" => args.convert_to_json(rdr, writer),
+        "jsonl" | "ndjson" => args.convert_to_ndjson(rdr, writer),
+        "md" => args.convert_to_md(rdr, writer),
+        "xlsx" => args.convert_to_xlsx(rdr, writer),
         _ => Err("could not export the file to this format!")?,
     }
-
-    Ok(())
 }

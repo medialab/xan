@@ -144,3 +144,26 @@ fn to_html() {
 </table>";
     assert_eq!(got, expected);
 }
+
+#[test]
+fn to_md() {
+    let wrk = Workdir::new("to_md");
+
+    let rows = vec![
+        svec!["name", "age"],
+        svec!["John", "12"],
+        svec!["Lucy", "15"],
+    ];
+
+    wrk.create("in.csv", rows);
+
+    let mut cmd = wrk.command("to");
+    cmd.arg("md").arg("in.csv");
+
+    let got: String = wrk.stdout(&mut cmd);
+    let expected = "| name | age |
+| ---- | --- |
+| John | 12  |
+| Lucy | 15  |";
+    assert_eq!(got, expected);
+}

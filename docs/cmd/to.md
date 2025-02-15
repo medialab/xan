@@ -9,9 +9,11 @@ Usage:
     xan to --help
 
 Supported formats:
+    html    - HTML table
     json    - JSON array or object
-    ndjson  - Newline-delimited JSON
-    jsonl   - Newline-delimited JSON
+    jsonl   - JSON lines (same as `ndjson`)
+    md      - Markdown table
+    ndjson  - Newline-delimited JSON (same as `jsonl`)
     xlsx    - Excel spreasheet
 
 JSON options:
