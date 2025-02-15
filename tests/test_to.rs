@@ -107,3 +107,40 @@ fn to_ndjson_omit() {
     let expected = "{\"h1\":\"a\"}\n{\"h1\":\"c\",\"h2\":\"d\"}";
     assert_eq!(got, expected);
 }
+
+#[test]
+fn to_html() {
+    let wrk = Workdir::new("to_html");
+
+    let rows = vec![
+        svec!["name", "age"],
+        svec!["John", "12"],
+        svec!["Lucy", "15"],
+    ];
+
+    wrk.create("in.csv", rows);
+
+    let mut cmd = wrk.command("to");
+    cmd.arg("html").arg("in.csv");
+
+    let got: String = wrk.stdout(&mut cmd);
+    let expected = "<table>
+  <thead>
+    <tr>
+      <th>name</th>
+      <th>age</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>John</td>
+      <td>12</td>
+    </tr>
+    <tr>
+      <td>Lucy</td>
+      <td>15</td>
+    </tr>
+  </tbody>
+</table>";
+    assert_eq!(got, expected);
+}

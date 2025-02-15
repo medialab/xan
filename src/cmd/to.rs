@@ -7,6 +7,7 @@ use rust_xlsxwriter::Workbook;
 use crate::config::Config;
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
 use crate::util;
+use crate::xml::XMLWriter;
 use crate::CliResult;
 
 static USAGE: &str = "
@@ -17,6 +18,7 @@ Usage:
     xan to --help
 
 Supported formats:
+    html    - HTML table
     json    - JSON array or object
     ndjson  - Newline-delimited JSON
     jsonl   - Newline-delimited JSON
@@ -44,6 +46,10 @@ struct Args {
 }
 
 impl Args {
+    fn is_writing_to_file(&self) -> bool {
+        self.flag_output.is_some() || !io::stdout().is_terminal()
+    }
+
     fn json_empty_mode(&self) -> JSONEmptyMode {
         if self.flag_nulls {
             JSONEmptyMode::Null
@@ -122,9 +128,14 @@ impl Args {
     }
 
     fn convert_to_xlsx<R: Read>(
+        &self,
         mut rdr: csv::Reader<R>,
         mut writer: Box<dyn Write>,
     ) -> CliResult<()> {
+        if !self.is_writing_to_file() {
+            Err("cannot export in xlsx without a path.\nUse -o, --output or pipe the result!")?;
+        }
+
         let mut workbook = Workbook::new();
         let headers = rdr.headers()?.clone();
         let worksheet = workbook.add_worksheet();
@@ -148,6 +159,49 @@ impl Args {
         writer.flush()?;
         Ok(())
     }
+
+    fn convert_to_html<R: Read>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        writer: Box<dyn Write>,
+    ) -> CliResult<()> {
+        let mut xml_writer = XMLWriter::new(writer);
+        let mut record = csv::StringRecord::new();
+
+        xml_writer.open_no_attributes("table")?;
+        xml_writer.open_no_attributes("thead")?;
+        xml_writer.open_no_attributes("tr")?;
+
+        for header in rdr.headers()?.iter() {
+            xml_writer.open_no_attributes("th")?;
+            xml_writer.write_text(header)?;
+            xml_writer.close("th")?;
+        }
+
+        xml_writer.close("tr")?;
+        xml_writer.close("thead")?;
+
+        xml_writer.open_no_attributes("tbody")?;
+
+        while rdr.read_record(&mut record)? {
+            xml_writer.open_no_attributes("tr")?;
+
+            for cell in record.iter() {
+                xml_writer.open_no_attributes("td")?;
+                xml_writer.write_text(cell)?;
+                xml_writer.close("td")?;
+            }
+
+            xml_writer.close("tr")?;
+        }
+
+        xml_writer.close("tbody")?;
+
+        xml_writer.close("table")?;
+        xml_writer.finish()?;
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -161,18 +215,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     match args.arg_format.as_str() {
-        "json" => Args::convert_to_json(&args, rdr, writer)?,
-        "jsonl" | "ndjson" => Args::convert_to_ndjson(&args, rdr, writer)?,
-        "xlsx" => {
-            if args.flag_output.is_some() || !io::stdout().is_terminal() {
-                Args::convert_to_xlsx(rdr, writer)?;
-            } else {
-                Err(
-                    "could not export in xlsx without a path, use -o, --output or pipe the result!",
-                )?;
-            }
-        }
-        _ => Err("could not export the file into this format!")?,
+        "html" => args.convert_to_html(rdr, writer)?,
+        "json" => args.convert_to_json(rdr, writer)?,
+        "jsonl" | "ndjson" => args.convert_to_ndjson(rdr, writer)?,
+        "xlsx" => args.convert_to_xlsx(rdr, writer)?,
+        _ => Err("could not export the file to this format!")?,
     }
 
     Ok(())

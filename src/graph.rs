@@ -466,7 +466,7 @@ impl Graph {
         xml_writer.close("graph")?;
 
         xml_writer.close("gexf")?;
-        xml_writer.writeln()?;
+        xml_writer.finish()?;
 
         Ok(())
     }

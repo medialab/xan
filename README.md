@@ -36,6 +36,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 * [General flags and IO model](#general-flags-and-io-model)
 * [Expression language reference](#expression-language-reference)
 * [Advanced use-cases](#advanced-use-cases)
+* [News](#news)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
 ## How to install
@@ -635,6 +636,13 @@ xan behead | \
 xan fmt --quote-never | \
 xargs -I {} rm {};
 ```
+
+## News
+
+For news about the tool's evolutions feel free to read:
+
+1. the [changelog](CHANGELOG.md)
+2. the [xan zines](./docs/XANZINE.md)
 
 ## Frequently Asked Questions
 

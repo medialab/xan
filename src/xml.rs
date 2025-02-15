@@ -74,9 +74,8 @@ impl<W: Write> XMLWriter<W> {
         Ok(())
     }
 
-    pub fn writeln(&mut self) -> Result<()> {
+    pub fn finish(mut self) -> Result<()> {
         self.writer.get_mut().write_all(b"\n")?;
-
-        Ok(())
+        self.writer.into_inner().flush()
     }
 }
