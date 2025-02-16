@@ -112,6 +112,8 @@ plot options:
                                Incompatible with -Y, --add-series.
     -Y, --add-series <col>     Name of another column of y values to add as a new series.
                                Incompatible with -c, --category.
+    -R, --regression-line      Draw a regression line. Only works when drawing a scatter plot with
+                               a single series.
     -g, --granularity <g>      Force temporal granularity for x axis discretization when
                                using -T, --time. Must be one of \"years\", \"months\", \"days\",
                                \"hours\", \"minutes\" or \"seconds\". Will be inferred if omitted.
@@ -178,6 +180,7 @@ struct Args {
     flag_share_y_scale: Option<String>,
     flag_category: Option<SelectColumns>,
     flag_add_series: Vec<SelectColumns>,
+    flag_regression_line: bool,
     flag_marker: Marker,
     flag_granularity: Option<Granularity>,
     flag_grid: bool,
@@ -252,6 +255,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_time && !args.flag_x_scale.is_linear() {
         Err("--x-scale cannot be customized when using -T,--time")?;
+    }
+
+    if args.flag_regression_line {
+        if args.flag_bars || args.flag_line {
+            Err("-R/--regression-line does not work with -B/--bars nor -L/--line!")?;
+        }
+
+        if args.flag_category.is_some() || !args.flag_add_series.is_empty() {
+            Err("-R/--regression-line only works with single series (avoid -c/--category and -Y/--add-series)!")?;
+        }
     }
 
     let share_x_scale = args.flag_share_x_scale == "yes";
@@ -530,14 +543,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         (
                             name_opt,
                             series.to_scaled_floats((&x_axis_info.scale, &y_axis_info.scale)),
+                            args.flag_regression_line.then(|| {
+                                series.regression_line_endpoints((
+                                    &x_axis_info.scale,
+                                    &y_axis_info.scale,
+                                ))
+                            }),
                         )
                     })
                     .collect::<Vec<_>>();
 
-                let datasets = finalized_floats
+                let datasets: Vec<_> = finalized_floats
                     .iter()
                     .enumerate()
-                    .map(|(i, (name_opt, data))| {
+                    .flat_map(|(i, (name_opt, data, reg_points))| {
+                        let mut datasets = Vec::new();
+
                         let mut dataset = Dataset::default()
                             .marker(args.flag_marker.into_inner())
                             .graph_type(if args.flag_line {
@@ -554,7 +575,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             dataset = dataset.name(name.clone());
                         }
 
-                        dataset
+                        datasets.push(dataset);
+
+                        if let Some(Some(points)) = reg_points {
+                            datasets.push(
+                                Dataset::default()
+                                    .marker(symbols::Marker::Braille)
+                                    .graph_type(GraphType::Line)
+                                    .red()
+                                    .data(points),
+                            )
+                        }
+
+                        datasets
                     })
                     .collect();
 
@@ -1226,6 +1259,47 @@ impl Series {
 
     fn sort_by_x_axis(&mut self) {
         self.points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+    }
+
+    fn regression_line(&self) -> Option<(f64, f64)> {
+        if self.points.len() < 2 {
+            return None;
+        }
+
+        let mut n = 0.0;
+        let mut x = 0.0;
+        let mut y = 0.0;
+        let mut xy = 0.0;
+        let mut xx = 0.0;
+
+        for point in self.points.iter() {
+            n += 1.0;
+            x += (point.0 - x) / n;
+            y += (point.1 - y) / n;
+            xy += (point.0 * point.1 - xy) / n;
+            xx += (point.0 * point.0 - xx) / n;
+        }
+
+        let delta = xx - x * x;
+        let slope = if delta.abs() < 1e-24 {
+            0.0
+        } else {
+            (xy - x * y) / delta
+        };
+        let intercept = y - slope * x;
+
+        Some((intercept, slope))
+    }
+
+    fn regression_line_endpoints(&self, scales: (&Scale, &Scale)) -> Option<[(f64, f64); 2]> {
+        self.regression_line().map(|(intercept, slope)| {
+            let (min_x, max_x) = self.extent.unwrap().0;
+
+            let first_point = (0.0, scales.1.percent(intercept + slope * min_x));
+            let second_point = (1.0, scales.1.percent(intercept + slope * max_x));
+
+            [first_point, second_point]
+        })
     }
 }
 
