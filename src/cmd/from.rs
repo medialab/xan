@@ -310,10 +310,10 @@ impl Args {
 
         wtr.write_byte_record(&record)?;
 
-        match (type_char, size_field) {
-            (TypeChar::Float, 8) => {
+        macro_rules! process {
+            ($type: ty) => {
                 for row in rdr
-                    .data::<f64>()
+                    .data::<$type>()
                     .unwrap()
                     .chunks(NonZeroUsize::new(columns as usize).unwrap())
                 {
@@ -325,6 +325,15 @@ impl Args {
 
                     wtr.write_byte_record(&record)?;
                 }
+            };
+        }
+
+        match (type_char, size_field) {
+            (TypeChar::Float, 8) => {
+                process!(f64)
+            }
+            (TypeChar::Float, 4) => {
+                process!(f32)
             }
             _ => Err("unsupported dtype!")?,
         };
