@@ -36,7 +36,6 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 * [General flags and IO model](#general-flags-and-io-model)
 * [Expression language reference](#expression-language-reference)
 * [Cookbook](#cookbook)
-* [Advanced use-cases](#advanced-use-cases)
 * [News](#news)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
@@ -607,40 +606,7 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 ## Cookbook
 
 * [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
-
-## Advanced use-cases
-
-### Reading files in parallel
-
-Let's say one column of your CSV file is containing paths to files, relative to some `downloaded` folder, and you want to make sure all of them contain some string (maybe you crawled some website and want to make sure you were correctly logged in by searching for some occurrence of your username):
-
-```bash
-xan progress files.csv | \
-xan filter -p 'pathjoin("downloaded", path) | read | !contains(_, /yomguithereal/i)' > not-logged.csv
-```
-
-### Generating a CSV of paginated urls to download
-
-Let's say you want to download the latest 50 pages from [Hacker News](https://news.ycombinator.com) using another of our tools named [minet](https://github.com/medialab/minet).
-
-You can pipe `xan range` into `xan select -e` into `minet fetch`:
-
-```bash
-xan range -s 1 50 -i | \
-xan select -e '"https://news.ycombinator.com/?p=".n as url' | \
-minet fetch url -i -
-```
-
-### Piping to `xargs`
-
-Let's say you want to delete all files whose path can be found in a column of CSV file. You can select said column and format it with `xan` before piping to `xargs`:
-
-```bash
-xan select path files.csv | \
-xan behead | \
-xan fmt --quote-never | \
-xargs -I {} rm {};
-```
+* [Miscellaneous](./docs/cookbook/misc.md)
 
 ## News
 
