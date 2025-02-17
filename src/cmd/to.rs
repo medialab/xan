@@ -3,6 +3,7 @@ use std::io::{self, IsTerminal, Read, Write};
 use std::iter;
 use std::num::NonZeroUsize;
 
+use npyz::WriterBuilder;
 use rust_xlsxwriter::Workbook;
 use unicode_width::UnicodeWidthStr;
 
@@ -25,7 +26,11 @@ Supported formats:
     jsonl   - JSON lines (same as `ndjson`)
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
+    npy     - Numpy matrix format
     xlsx    - Excel spreasheet
+
+Some formats can be streamed, some others require the full CSV file to be loaded into
+memory. The streamable formats are `html`, `jsonl` and `ndjson`.
 
 JSON options:
     -B, --buffer-size <size>  Number of CSV rows to sample to infer column types.
@@ -259,6 +264,37 @@ impl Args {
 
         Ok(())
     }
+
+    fn convert_to_npy<R: Read>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        writer: Box<dyn Write>,
+    ) -> CliResult<()> {
+        if !self.is_writing_to_file() {
+            Err("cannot export in npy without a path.\nUse -o, --output or pipe the result!")?;
+        }
+
+        let records = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
+
+        let mut writer = npyz::WriteOptions::new()
+            .default_dtype()
+            .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
+            .writer(writer)
+            .begin_nd()?;
+
+        for record in records.iter() {
+            for cell in record.iter() {
+                writer.push(
+                    &fast_float::parse::<f64, &[u8]>(cell)
+                        .map_err(|_| "could not parse some cell as f64!")?,
+                )?;
+            }
+        }
+
+        writer.finish()?;
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -276,6 +312,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "json" => args.convert_to_json(rdr, writer),
         "jsonl" | "ndjson" => args.convert_to_ndjson(rdr, writer),
         "md" => args.convert_to_md(rdr, writer),
+        "npy" => args.convert_to_npy(rdr, writer),
         "xlsx" => args.convert_to_xlsx(rdr, writer),
         _ => Err("could not export the file to this format!")?,
     }

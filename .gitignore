@@ -12,3 +12,4 @@ main
 *.idx
 builds
 .vscode
+*.npy
