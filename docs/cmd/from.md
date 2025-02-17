@@ -22,6 +22,9 @@ Supported formats:
 
     npy - Numpy array
 
+Some formats can be streamed, some others require the full file to be loaded into
+memory. The streamable formats are `ndjson`, `jsonl`, `txt` and `npy`.
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading

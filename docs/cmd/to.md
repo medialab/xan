@@ -26,6 +26,10 @@ JSON options:
     --nulls                   Convert empty string to a null value.
     --omit                    Ignore the empty values.
 
+NPY options:
+    --dtype <type>  Number type to use for the npy conversion. Must be one of "f32"
+                    or "f64". [default: f64]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.

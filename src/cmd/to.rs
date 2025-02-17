@@ -38,6 +38,10 @@ JSON options:
     --nulls                   Convert empty string to a null value.
     --omit                    Ignore the empty values.
 
+NPY options:
+    --dtype <type>  Number type to use for the npy conversion. Must be one of \"f32\"
+                    or \"f64\". [default: f64]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -51,6 +55,7 @@ struct Args {
     flag_buffer_size: NonZeroUsize,
     flag_nulls: bool,
     flag_omit: bool,
+    flag_dtype: String,
 }
 
 impl Args {
@@ -276,22 +281,32 @@ impl Args {
 
         let records = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
 
-        let mut writer = npyz::WriteOptions::new()
-            .default_dtype()
-            .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
-            .writer(writer)
-            .begin_nd()?;
+        macro_rules! write_floats {
+            ($type: ty) => {{
+                let mut writer = npyz::WriteOptions::new()
+                    .default_dtype()
+                    .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
+                    .writer(writer)
+                    .begin_nd()?;
 
-        for record in records.iter() {
-            for cell in record.iter() {
-                writer.push(
-                    &fast_float::parse::<f64, &[u8]>(cell)
-                        .map_err(|_| "could not parse some cell as f64!")?,
-                )?;
-            }
+                for record in records.iter() {
+                    for cell in record.iter() {
+                        writer.push(
+                            &fast_float::parse::<$type, &[u8]>(cell)
+                                .map_err(|_| "could not parse some cell as dtype number!")?,
+                        )?;
+                    }
+                }
+
+                writer.finish()?;
+            }};
         }
 
-        writer.finish()?;
+        match self.flag_dtype.as_str() {
+            "float64" | "f64" => write_floats!(f64),
+            "float32" | "f32" => write_floats!(f32),
+            _ => Err(format!("unknown --dtype {}", self.flag_dtype))?,
+        };
 
         Ok(())
     }
