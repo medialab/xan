@@ -35,6 +35,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 * [Available commands](#available-commands)
 * [General flags and IO model](#general-flags-and-io-model)
 * [Expression language reference](#expression-language-reference)
+* [Cookbook](#cookbook)
 * [Advanced use-cases](#advanced-use-cases)
 * [News](#news)
 * [Frequently Asked Questions](#frequently-asked-questions)
@@ -602,6 +603,10 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 ## Expression language reference
 
 [xan expression language API reference](./docs/moonblade.md)
+
+## Cookbook
+
+* [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
 
 ## Advanced use-cases
 
