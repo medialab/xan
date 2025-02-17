@@ -20,6 +20,8 @@ Supported formats:
 
     txt - text lines
 
+    npy - Numpy array
+
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
                            extension if not given. Must be specified when reading

@@ -798,7 +798,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let mut chunk: Vec<I::Item> = Vec::new();
 
-        while chunk.len() < self.size.into() {
+        while chunk.len() < self.size.get() {
             match self.inner.next() {
                 None => {
                     if chunk.is_empty() {

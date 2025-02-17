@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 
 use crate::config::Config;
 use crate::json::for_each_json_value_as_csv_record;
-use crate::util;
+use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
 use crate::CliResult;
 
@@ -23,6 +23,7 @@ enum SupportedFormat {
     NdJSON,
     JSONArray,
     Text,
+    Npy,
 }
 
 impl SupportedFormat {
@@ -32,6 +33,7 @@ impl SupportedFormat {
             "jsonl" | "ndjson" => Self::NdJSON,
             "json" => Self::JSONArray,
             "txt" => Self::Text,
+            "npy" => Self::Npy,
             _ => return None,
         })
     }
@@ -73,6 +75,8 @@ Supported formats:
     jsonl   - Newline-delimited JSON
 
     txt - text lines
+
+    npy - Numpy array
 
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
@@ -270,6 +274,63 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_npy(&self) -> CliResult<()> {
+        use npyz::{DType, NpyFile, TypeChar};
+
+        let rdr: Box<dyn Read> = match self.arg_input.as_ref() {
+            None => Box::new(io::stdin()),
+            Some(p) => Box::new(fs::File::open(p)?),
+        };
+
+        let rdr = NpyFile::new(rdr)?;
+
+        let shape = rdr.shape();
+
+        if shape.len() != 2 {
+            Err("npy conversion only works with matrices (ndim = 2)!")?;
+        }
+
+        // let rows = shape[0];
+        let columns = shape[1];
+
+        let (type_char, size_field) = if let DType::Plain(descr) = rdr.dtype() {
+            (descr.type_char(), descr.size_field())
+        } else {
+            return Err("npy conversion only works with simple dtypes!")?;
+        };
+
+        let mut wtr = self.writer()?;
+
+        let mut record = csv::ByteRecord::new();
+
+        for i in 0..columns {
+            record.push_field(format!("dim_{}", i).as_bytes());
+        }
+
+        wtr.write_byte_record(&record)?;
+
+        match (type_char, size_field) {
+            (TypeChar::Float, 8) => {
+                for row in rdr
+                    .data::<f64>()
+                    .unwrap()
+                    .chunks(NonZeroUsize::new(columns as usize).unwrap())
+                {
+                    record.clear();
+
+                    for cell in row {
+                        record.push_field(cell.unwrap().to_string().as_bytes());
+                    }
+
+                    wtr.write_byte_record(&record)?;
+                }
+            }
+            _ => Err("unsupported dtype!")?,
+        };
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -299,5 +360,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::NdJSON => args.convert_ndjson(),
         SupportedFormat::JSONArray => args.convert_json_array(),
         SupportedFormat::Text => args.convert_text_lines(),
+        SupportedFormat::Npy => args.convert_npy(),
     }
 }

@@ -7,4 +7,5 @@
 * Adding `xan to html`.
 * Adding `xan to md`.
 * Adding `xan to npy`.
+* Adding `xan from npy`.
 * Adding `-R,--regression-line` to `xan plot`.

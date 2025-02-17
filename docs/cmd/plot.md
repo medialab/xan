@@ -24,6 +24,8 @@ plot options:
                                Incompatible with -Y, --add-series.
     -Y, --add-series <col>     Name of another column of y values to add as a new series.
                                Incompatible with -c, --category.
+    -R, --regression-line      Draw a regression line. Only works when drawing a scatter plot with
+                               a single series.
     -g, --granularity <g>      Force temporal granularity for x axis discretization when
                                using -T, --time. Must be one of "years", "months", "days",
                                "hours", "minutes" or "seconds". Will be inferred if omitted.
