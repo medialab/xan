@@ -26,7 +26,8 @@ mod xml;
 macro_rules! command_list {
     () => {
         "
-    help        Show this usage message.
+    help        Show this usage message
+    --version   Print the tool's version
 
 ## Explore & visualize
     count       Count rows in file
@@ -120,7 +121,6 @@ Usage:
     xan [options]
 
 Options:
-    --list        List all commands available.
     -h, --help    Display this message
     <command> -h  Display the command help message
     --version     Print version info and exit
@@ -132,7 +132,6 @@ Commands:",
 #[derive(Deserialize)]
 struct Args {
     arg_command: Option<Command>,
-    flag_list: bool,
 }
 
 fn main() {
@@ -143,10 +142,7 @@ fn main() {
                 .deserialize()
         })
         .unwrap_or_else(|e| e.exit());
-    if args.flag_list {
-        println!(concat!("Installed commands:", command_list!()));
-        return;
-    }
+
     match args.arg_command {
         None => {
             eprintln!(
@@ -154,7 +150,7 @@ fn main() {
                 util::colorize_main_help(&format!(
                     "xan (v{}) is a suite of CSV command line utilities.
 
-Please choose one of the following commands:{}",
+Please choose one of the following commands/flags:{}",
                     util::version(),
                     command_list!()
                 ))
@@ -365,10 +361,15 @@ impl fmt::Display for CliError {
 
 impl From<docopt::Error> for CliError {
     fn from(err: docopt::Error) -> CliError {
+        use colored::Colorize;
+
         match err {
-            docopt::Error::WithProgramUsage(_, usage) => {
-                CliError::Other(util::colorize_help(&usage))
-            }
+            docopt::Error::WithProgramUsage(_, usage) => CliError::Other(format!(
+                "{}\n\n{} Use the {} flag for more information.",
+                util::colorize_help(&usage),
+                "Invalid command!".red(),
+                "-h,--help".cyan()
+            )),
             _ => CliError::Flag(err),
         }
     }

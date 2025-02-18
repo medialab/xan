@@ -57,7 +57,7 @@ lazy_static! {
             .unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
     static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^#+.+").unwrap();
-    static ref MAIN_COMMAND_REGEX: Regex = Regex::new(r"(?m)^\s{4}\w[\w\-]+").unwrap();
+    static ref MAIN_COMMAND_REGEX: Regex = Regex::new(r"(?m)^\s{4}[\w\-]+").unwrap();
     static ref MAIN_ALIAS_REGEX: Regex = Regex::new(r"\([^\)\s]+\)").unwrap();
 }
 
