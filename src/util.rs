@@ -97,6 +97,7 @@ where
         .and_then(|d| {
             d.argv(argv.iter().copied())
                 .version(Some(version()))
+                .help(true)
                 .deserialize()
         })
         .map_err(From::from)

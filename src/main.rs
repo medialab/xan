@@ -365,12 +365,19 @@ impl From<docopt::Error> for CliError {
         use colored::Colorize;
 
         match err {
-            docopt::Error::WithProgramUsage(_, usage) => CliError::Other(format!(
-                "{}\n\n{} Use the {} flag for more information.",
-                util::colorize_help(&usage),
-                "Invalid command!".red(),
-                "-h,--help".cyan()
-            )),
+            docopt::Error::WithProgramUsage(kind, usage) => {
+                let usage = util::colorize_help(&usage);
+
+                CliError::Other(match kind.as_ref() {
+                    docopt::Error::Help => usage,
+                    _ => format!(
+                        "{}\n\n{} Use the   {} flag for more information.",
+                        util::colorize_help(&usage),
+                        "Invalid command!".red(),
+                        "-h,--help".cyan()
+                    ),
+                })
+            }
             _ => CliError::Flag(err),
         }
     }
