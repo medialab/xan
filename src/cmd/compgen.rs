@@ -169,7 +169,11 @@ pub fn run() {
     {
         let mut all_headers = Vec::<String>::new();
 
-        let to_complete = to_complete.trim_matches(|c: char| c == '\'' || c == '"');
+        let to_complete_item = to_complete
+            .trim_matches(['\'', '"'])
+            .split([',', ':'])
+            .last()
+            .unwrap();
 
         for path in find_csv_files_to_test() {
             let file = match File::open(path) {
@@ -180,7 +184,8 @@ pub fn run() {
 
             if let Ok(headers) = reader.headers() {
                 for name in headers {
-                    if name.starts_with(to_complete) && !all_headers.iter().any(|h| h == name) {
+                    if name.starts_with(to_complete_item) && !all_headers.iter().any(|h| h == name)
+                    {
                         all_headers.push(name.to_string());
                     }
                 }
@@ -188,7 +193,14 @@ pub fn run() {
         }
 
         for name in all_headers {
-            println!("{}", name);
+            println!(
+                "{}",
+                to_complete
+                    .strip_suffix(&name[..to_complete_item.len()])
+                    .unwrap()
+                    .to_string()
+                    + &name
+            );
         }
     }
 }

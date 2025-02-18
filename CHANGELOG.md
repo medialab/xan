@@ -14,3 +14,4 @@
 *Fixes*
 
 * Fixing `xan search --pattern-column`.
+* Fixing autocompletion with range and multiple selection.
