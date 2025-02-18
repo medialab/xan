@@ -524,7 +524,7 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 - [**from**](./docs/cmd/from.md): Convert a variety of formats to CSV
 - [**to**](./docs/cmd/to.md): Convert a CSV file to a variety of data formats
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
-- [**transpose**](./docs/cmd/transpose.md): Transpose CSV file
+- [**transpose (t)**](./docs/cmd/transpose.md): Transpose CSV file
 
 *Split a CSV file into multiple*
 

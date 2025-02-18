@@ -75,17 +75,17 @@ macro_rules! command_list {
     blank       Blank down contiguous identical cell values
 
 ## Format, convert & recombobulate
-    behead      Drop header from CSV file
-    rename      Rename columns of a CSV file
-    input       Read CSV data with special quoting rules
-    fixlengths  Makes all rows have same length
-    fmt         Format CSV output (change field delimiter)
-    explode     Explode rows based on some column separator
-    implode     Collapse consecutive identical rows based on a diverging column
-    from        Convert a variety of formats to CSV
-    to          Convert a CSV file to a variety of data formats
-    reverse     Reverse rows of CSV data
-    transpose   Transpose CSV file
+    behead        Drop header from CSV file
+    rename        Rename columns of a CSV file
+    input         Read CSV data with special quoting rules
+    fixlengths    Makes all rows have same length
+    fmt           Format CSV output (change field delimiter)
+    explode       Explode rows based on some column separator
+    implode       Collapse consecutive identical rows based on a diverging column
+    from          Convert a variety of formats to CSV
+    to            Convert a CSV file to a variety of data formats
+    reverse       Reverse rows of CSV data
+    transpose (t) Transpose CSV file
 
 ## Split a CSV file into multiple
     split       Split CSV data into chunks
@@ -246,6 +246,7 @@ enum Command {
     Top,
     Transform,
     Transpose,
+    T,
     #[serde(rename = "union-find")]
     UnionFind,
     V,
@@ -330,7 +331,7 @@ impl Command {
             Command::Tokenize => cmd::tokenize::run(argv),
             Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
-            Command::Transpose => cmd::transpose::run(argv),
+            Command::Transpose | Command::T => cmd::transpose::run(argv),
             Command::UnionFind => cmd::union_find::run(argv),
             Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),

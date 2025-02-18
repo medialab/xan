@@ -9,6 +9,7 @@
 * Adding `xan to npy`.
 * Adding `xan from npy`.
 * Adding `-R,--regression-line` to `xan plot`.
+* Adding `xan t` alias for `xan transpose`.
 
 *Fixes*
 
