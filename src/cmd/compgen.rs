@@ -180,10 +180,8 @@ pub fn run() {
 
             if let Ok(headers) = reader.headers() {
                 for name in headers {
-                    let name = name.to_string();
-
-                    if name.starts_with(to_complete) && !all_headers.contains(&name) {
-                        all_headers.push(name);
+                    if name.starts_with(to_complete) && !all_headers.iter().any(|h| h == name) {
+                        all_headers.push(name.to_string());
                     }
                 }
             }
