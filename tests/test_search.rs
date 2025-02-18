@@ -278,9 +278,14 @@ fn search_patterns_substring() {
 fn search_patterns_exact() {
     let wrk = Workdir::new("search_patterns_exact");
 
+    // NOTE: testing with two columns to make sure --pattern-colum is working
     wrk.create(
         "index.csv",
-        vec![svec!["name"], svec!["suzy"], svec!["john"]],
+        vec![
+            svec!["name", "color"],
+            svec!["suzy", "red"],
+            svec!["john", "yellow"],
+        ],
     );
 
     wrk.create(

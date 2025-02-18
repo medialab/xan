@@ -217,7 +217,7 @@ struct Args {
     flag_count: Option<String>,
     flag_limit: Option<NonZeroUsize>,
     flag_patterns: Option<String>,
-    flag_patterns_column: Option<SelectColumns>,
+    flag_pattern_column: Option<SelectColumns>,
 }
 
 impl Args {
@@ -260,7 +260,7 @@ impl Args {
             Some(_) => {
                 let patterns = Config::new(&self.flag_patterns)
                     .delimiter(self.flag_delimiter)
-                    .lines(&self.flag_patterns_column)?;
+                    .lines(&self.flag_pattern_column)?;
 
                 let mut set: HashSet<Vec<u8>> = HashSet::new();
                 let mut list: Vec<String> = Vec::new();

@@ -9,3 +9,7 @@
 * Adding `xan to npy`.
 * Adding `xan from npy`.
 * Adding `-R,--regression-line` to `xan plot`.
+
+*Fixes*
+
+* Fixing `xan search --pattern-column`.
