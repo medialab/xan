@@ -6,9 +6,10 @@ cargo build
 XAN=./target/debug/xan
 
 # Stubbing per-command help
-for cmd in $($XAN 2>&1 | grep -Eo "\s{4}[a-z-]+\s" | sed 's/ //g')
+for cmd in $($XAN 2>&1 | grep -Eo "\s{4}[a-z][a-z-]+\s" | sed 's/ //g')
 do
   path=docs/cmd/$cmd.md
+  echo $path
 
   if [ ! -f $path ] || grep -qF '<!-- Generated -->' $path; then
     cat << EOF > $path

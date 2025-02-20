@@ -16,11 +16,12 @@ use crate::moonblade::interpreter::{
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments};
 
+// NOTE: we are boxing some ones to avoid going over size=64
 #[derive(Debug, Clone)]
 enum Aggregator {
     AllAny(AllAny),
-    ApproxCardinality(ApproxCardinality),
-    ApproxQuantiles(ApproxQuantiles),
+    ApproxCardinality(Box<ApproxCardinality>),
+    ApproxQuantiles(Box<ApproxQuantiles>),
     ArgExtent(ArgExtent),
     ArgTop(ArgTop),
     Count(Count),
@@ -35,7 +36,7 @@ enum Aggregator {
     Sum(Sum),
     Types(Types),
     Welford(Welford),
-    ZonedExtent(ZonedExtent),
+    ZonedExtent(Box<ZonedExtent>),
 }
 
 impl Aggregator {
@@ -69,8 +70,8 @@ impl Aggregator {
 
         match (self, other) {
             (AllAny(inner), AllAny(other_inner)) => inner.merge(other_inner),
-            (ApproxCardinality(inner), ApproxCardinality(other_inner)) => inner.merge(other_inner),
-            (ApproxQuantiles(inner), ApproxQuantiles(other_inner)) => inner.merge(other_inner),
+            (ApproxCardinality(inner), ApproxCardinality(other_inner)) => inner.merge(*other_inner),
+            (ApproxQuantiles(inner), ApproxQuantiles(other_inner)) => inner.merge(*other_inner),
             (ArgExtent(inner), ArgExtent(other_inner)) => inner.merge(other_inner),
             (ArgTop(inner), ArgTop(other_inner)) => inner.merge(other_inner),
             (Count(inner), Count(other_inner)) => inner.merge(other_inner),
@@ -87,7 +88,7 @@ impl Aggregator {
             (Sum(inner), Sum(other_inner)) => inner.merge(other_inner),
             (Types(inner), Types(other_inner)) => inner.merge(other_inner),
             (Welford(inner), Welford(other_inner)) => inner.merge(other_inner),
-            (ZonedExtent(inner), ZonedExtent(other_inner)) => inner.merge(other_inner),
+            (ZonedExtent(inner), ZonedExtent(other_inner)) => inner.merge(*other_inner),
             _ => unreachable!(),
         }
     }
@@ -369,15 +370,33 @@ impl CompositeAggregator {
             };
         }
 
+        macro_rules! upsert_boxed_aggregator {
+            ($variant: ident) => {
+                match self
+                    .methods
+                    .iter()
+                    .position(|item| matches!(item, Aggregator::$variant(_)))
+                {
+                    Some(idx) => idx,
+                    None => {
+                        let idx = self.methods.len();
+                        self.methods
+                            .push(Aggregator::$variant(Box::new($variant::new())));
+                        idx
+                    }
+                }
+            };
+        }
+
         match method {
             ConcreteAggregationMethod::All | ConcreteAggregationMethod::Any => {
                 upsert_aggregator!(AllAny)
             }
             ConcreteAggregationMethod::ApproxCardinality => {
-                upsert_aggregator!(ApproxCardinality)
+                upsert_boxed_aggregator!(ApproxCardinality)
             }
             ConcreteAggregationMethod::ApproxQuantile(_) => {
-                upsert_aggregator!(ApproxQuantiles)
+                upsert_boxed_aggregator!(ApproxQuantiles)
             }
             ConcreteAggregationMethod::Count
             | ConcreteAggregationMethod::Ratio
@@ -438,7 +457,7 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Earliest
             | ConcreteAggregationMethod::Latest
             | ConcreteAggregationMethod::CountTime(_) => {
-                upsert_aggregator!(ZonedExtent)
+                upsert_boxed_aggregator!(ZonedExtent)
             }
             ConcreteAggregationMethod::Median(_)
             | ConcreteAggregationMethod::Quantile(_)

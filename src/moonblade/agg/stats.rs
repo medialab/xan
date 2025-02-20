@@ -24,8 +24,8 @@ pub struct Stats {
     types: Types,
     frequencies: Option<Frequencies>,
     numbers: Option<Numbers>,
-    approx_cardinality: Option<ApproxCardinality>,
-    approx_quantiles: Option<ApproxQuantiles>,
+    approx_cardinality: Option<Box<ApproxCardinality>>,
+    approx_quantiles: Option<Box<ApproxQuantiles>>,
 }
 
 impl Stats {
@@ -63,11 +63,11 @@ impl Stats {
         }
 
         if let Some(approx_cardinality) = &mut self.approx_cardinality {
-            approx_cardinality.merge(other.approx_cardinality.unwrap());
+            approx_cardinality.merge(*other.approx_cardinality.unwrap());
         }
 
         if let Some(approx_quantiles) = &mut self.approx_quantiles {
-            approx_quantiles.merge(other.approx_quantiles.unwrap());
+            approx_quantiles.merge(*other.approx_quantiles.unwrap());
         }
     }
 
@@ -84,8 +84,8 @@ impl Stats {
     }
 
     pub fn compute_approx(&mut self) {
-        self.approx_cardinality = Some(ApproxCardinality::new());
-        self.approx_quantiles = Some(ApproxQuantiles::new());
+        self.approx_cardinality = Some(Box::new(ApproxCardinality::new()));
+        self.approx_quantiles = Some(Box::new(ApproxQuantiles::new()));
     }
 
     pub fn headers(&self) -> ByteRecord {

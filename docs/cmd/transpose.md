@@ -16,7 +16,9 @@ B,D
 
 Usage:
     xan transpose [options] [<input>]
+    xan t [options] [<input>]
     xan transpose --help
+    xan t --help
 
 Common options:
     -h, --help             Display this message

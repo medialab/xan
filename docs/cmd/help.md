@@ -8,13 +8,13 @@ Usage:
     xan [options]
 
 Options:
-    --list        List all commands available.
     -h, --help    Display this message
     <command> -h  Display the command help message
     --version     Print version info and exit
 
 Commands:
-    help        Show this usage message.
+    help        Show this usage message
+    --version   Print the tool's version
 
 ## Explore & visualize
     count       Count rows in file
@@ -62,17 +62,17 @@ Commands:
     blank       Blank down contiguous identical cell values
 
 ## Format, convert & recombobulate
-    behead      Drop header from CSV file
-    rename      Rename columns of a CSV file
-    input       Read CSV data with special quoting rules
-    fixlengths  Makes all rows have same length
-    fmt         Format CSV output (change field delimiter)
-    explode     Explode rows based on some column separator
-    implode     Collapse consecutive identical rows based on a diverging column
-    from        Convert a variety of formats to CSV
-    to          Convert a CSV file to a variety of data formats
-    reverse     Reverse rows of CSV data
-    transpose   Transpose CSV file
+    behead        Drop header from CSV file
+    rename        Rename columns of a CSV file
+    input         Read CSV data with special quoting rules
+    fixlengths    Makes all rows have same length
+    fmt           Format CSV output (change field delimiter)
+    explode       Explode rows based on some column separator
+    implode       Collapse consecutive identical rows based on a diverging column
+    from          Convert a variety of formats to CSV
+    to            Convert a CSV file to a variety of data formats
+    reverse       Reverse rows of CSV data
+    transpose (t) Transpose CSV file
 
 ## Split a CSV file into multiple
     split       Split CSV data into chunks
