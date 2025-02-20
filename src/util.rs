@@ -14,7 +14,7 @@ use colored::{Color, ColoredString, Colorize, Styles};
 use deepsize::DeepSizeOf;
 use docopt::Docopt;
 use ext_sort::ExternalChunk;
-use jiff::civil::DateTime;
+use jiff::{civil::DateTime, Timestamp};
 use lazy_static::lazy_static;
 use numfmt::{Formatter, Numeric, Precision};
 use rand::RngCore;
@@ -406,6 +406,14 @@ fn is_potentially_url(string: &str) -> bool {
     false
 }
 
+fn is_potentially_date(string: &str) -> bool {
+    if string.ends_with('Z') {
+        return string.parse::<Timestamp>().is_ok();
+    }
+
+    string.parse::<DateTime>().is_ok() || dates::is_partial_date(string)
+}
+
 #[derive(PartialEq, Debug)]
 pub enum ColorOrStyles {
     Color(Color),
@@ -427,7 +435,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         Err(_) => {
             if is_potentially_url(string) {
                 ColorOrStyles::Color(Color::Blue)
-            } else if string.parse::<DateTime>().is_ok() || dates::is_partial_date(string) {
+            } else if is_potentially_date(string) {
                 ColorOrStyles::Color(Color::Magenta)
             } else {
                 ColorOrStyles::Color(Color::Green)
