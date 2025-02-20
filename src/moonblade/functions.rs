@@ -1338,23 +1338,38 @@ fn datetime(args: BoundArguments) -> FunctionResult {
     let format = args.get_not_none(1);
     let timezone = args.get_not_none(2);
 
+    // NOTE: I suspect some of this logic is redundant with `types::dynamic_value::parse_datetime`.
     match format {
-        None => match datestring.parse::<Zoned>() {
-            Ok(zoned_datetime) => match_timezone(&datestring, zoned_datetime, timezone),
-            Err(_) => match datestring.parse::<DateTime>() {
-                Ok(datetime) => Ok(DynamicValue::from(
-                    datetime.to_zoned(timezone
-                        .map(|tz| tz.try_as_timezone())
-                        .transpose()?
-                        .unwrap_or_else(TimeZone::system))
-                        .unwrap()
-                )),
-                Err(_) => Err(EvaluationError::DateTime(format!(
-                    "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
-                    datestring
-                ))),
-            },
-        },
+        None => {
+            if datestring.ends_with('Z') {
+                match datestring.parse::<Timestamp>() {
+                    Ok(timestamp) => {
+                        match_timezone(&datestring, timestamp.to_zoned(TimeZone::UTC), timezone)
+                    }
+                    Err(_) =>Err(EvaluationError::DateTime(format!(
+                        "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                        datestring
+                    )))
+                }
+            } else {
+                match datestring.parse::<Zoned>() {
+                    Ok(zoned_datetime) => match_timezone(&datestring, zoned_datetime, timezone),
+                    Err(_) => match datestring.parse::<DateTime>() {
+                        Ok(datetime) => Ok(DynamicValue::from(
+                            datetime.to_zoned(timezone
+                                .map(|tz| tz.try_as_timezone())
+                                .transpose()?
+                                .unwrap_or_else(TimeZone::system))
+                                .unwrap()
+                        )),
+                        Err(_) => Err(EvaluationError::DateTime(format!(
+                            "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                            datestring
+                        ))),
+                    },
+                }
+            }
+        }
         Some(format) => {
             let format = format.try_as_str()?;
             let zoned = Zoned::strptime(format.as_ref(), datestring.as_ref());
@@ -1365,18 +1380,20 @@ fn datetime(args: BoundArguments) -> FunctionResult {
                     let datetime = DateTime::strptime(format.as_ref(), datestring.as_ref());
                     match datetime {
                         Ok(datetime) => Ok(DynamicValue::from(
-                            datetime.to_zoned(timezone
-                                .map(|tz| tz.try_as_timezone())
-                                .transpose()?
-                                .unwrap_or_else(TimeZone::system))
-                                .unwrap()
+                            datetime
+                                .to_zoned(
+                                    timezone
+                                        .map(|tz| tz.try_as_timezone())
+                                        .transpose()?
+                                        .unwrap_or_else(TimeZone::system),
+                                )
+                                .unwrap(),
                         )),
                         Err(_) => Err(EvaluationError::DateTime(format!(
                             "cannot parse \"{}\" with format \"{}\"",
                             datestring, format
                         ))),
                     }
-
                 }
             }
         }
