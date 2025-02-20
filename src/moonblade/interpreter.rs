@@ -1179,7 +1179,7 @@ mod tests {
             Ok(DynamicValue::from(zoned.clone()))
         );
         assert_eq!(
-            eval_code("datetime('2024-07-11 02h00 Europe/Paris', '%F %Hh%M %V')"),
+            eval_code("datetime('2024-07-11 02h00 Europe/Paris', '%F %Hh%M %Q')"),
             Ok(DynamicValue::from(zoned.clone()))
         );
 
