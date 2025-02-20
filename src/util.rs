@@ -398,6 +398,14 @@ pub fn format_number<T: Numeric>(x: T) -> String {
     NUMBER_FORMATTER.with_borrow_mut(|f| format_number_with_formatter(f, x))
 }
 
+fn is_potentially_url(string: &str) -> bool {
+    if string.starts_with("http") || string.starts_with("https") {
+        return !string.contains(' ');
+    }
+
+    false
+}
+
 #[derive(PartialEq, Debug)]
 pub enum ColorOrStyles {
     Color(Color),
@@ -417,7 +425,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
     match string.trim_start().parse::<f64>() {
         Ok(_) => ColorOrStyles::Color(Color::Red),
         Err(_) => {
-            if string.starts_with("http://") || string.starts_with("https://") {
+            if is_potentially_url(string) {
                 ColorOrStyles::Color(Color::Blue)
             } else if string.parse::<DateTime>().is_ok() || dates::is_partial_date(string) {
                 ColorOrStyles::Color(Color::Magenta)

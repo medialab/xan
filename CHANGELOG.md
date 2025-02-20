@@ -15,3 +15,4 @@
 
 * Fixing `xan search --pattern-column`.
 * Fixing autocompletion with range and multiple selection.
+* Fixing url highlighting in `xan view` and `xan flatten`.
