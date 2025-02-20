@@ -62,13 +62,31 @@ const DAYS_BOUND: i64 = HOURS_BOUND * 24;
 const MONTHS_BOUND: i64 = DAYS_BOUND * 30;
 const YEARS_BOUND: i64 = MONTHS_BOUND * 12;
 
+fn smallest_granularity(zoned: &Zoned) -> Unit {
+    if zoned.month() == 1 {
+        Unit::Year
+    } else if zoned.day() == 1 {
+        Unit::Month
+    } else if zoned.hour() == 0 {
+        Unit::Day
+    } else if zoned.minute() == 0 {
+        Unit::Hour
+    } else if zoned.second() == 0 {
+        Unit::Minute
+    } else {
+        Unit::Second
+    }
+}
+
 pub fn infer_temporal_granularity(earliest: &Zoned, latest: &Zoned, graduations: usize) -> Unit {
     let duration = earliest.duration_until(latest);
     let seconds = duration.as_secs();
 
+    let smallest = smallest_granularity(earliest).min(smallest_granularity(latest));
+
     let graduations = graduations as i64;
 
-    if seconds > YEARS_BOUND * graduations {
+    let granularity = if seconds > YEARS_BOUND * graduations {
         Unit::Year
     } else if seconds > MONTHS_BOUND * graduations {
         Unit::Month
@@ -80,7 +98,9 @@ pub fn infer_temporal_granularity(earliest: &Zoned, latest: &Zoned, graduations:
         Unit::Minute
     } else {
         Unit::Second
-    }
+    };
+
+    granularity.max(smallest)
 }
 
 #[cfg(test)]

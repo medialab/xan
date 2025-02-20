@@ -23,6 +23,7 @@
 * Fixing datetime highlighting in `xan view` and `xan flatten` wrt Z-terminated timestamp formats.
 * Fixing `stats` date & url inference.
 * Fixing moonblade support for Z-terminated timestamp formats.
+* Fixing `xan plot -T` granularity inference.
 
 *Performance*
 
