@@ -398,15 +398,15 @@ pub fn format_number<T: Numeric>(x: T) -> String {
     NUMBER_FORMATTER.with_borrow_mut(|f| format_number_with_formatter(f, x))
 }
 
-fn is_potentially_url(string: &str) -> bool {
-    if string.starts_with("http") || string.starts_with("https") {
+pub fn is_potentially_url(string: &str) -> bool {
+    if string.starts_with("http://") || string.starts_with("https://") {
         return !string.contains(' ');
     }
 
     false
 }
 
-fn is_potentially_date(string: &str) -> bool {
+pub fn is_potentially_date(string: &str) -> bool {
     if string.ends_with('Z') {
         return string.parse::<Timestamp>().is_ok();
     }

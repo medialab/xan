@@ -21,3 +21,4 @@
 * Fixing autocompletion with range and multiple selection.
 * Fixing url highlighting in `xan view` and `xan flatten`.
 * Fixing datetime highlighting in `xan view` and `xan flatten` wrt Z-terminated timestamp formats.
+* Fixing `stats` date & url inference.

@@ -1,11 +1,11 @@
 use csv::ByteRecord;
-use jiff::civil::DateTime;
 
 use super::aggregators::{
     ApproxCardinality, ApproxQuantiles, Count, Extent, Frequencies, LexicographicExtent, Numbers,
     NumericExtent, Sum, Types, Welford,
 };
 use crate::moonblade::types::DynamicNumber;
+use crate::util;
 
 fn map_to_field<T: ToString>(opt: Option<T>) -> Vec<u8> {
     opt.map(|m| m.to_string().as_bytes().to_vec())
@@ -239,9 +239,9 @@ impl Stats {
             if let Some(approx_quantiles) = self.approx_quantiles.as_mut() {
                 approx_quantiles.add(float);
             }
-        } else if cell.parse::<DateTime>().is_ok() {
+        } else if util::is_potentially_date(cell) {
             self.types.set_date();
-        } else if cell.starts_with("http://") || cell.starts_with("https://") {
+        } else if util::is_potentially_url(cell) {
             self.types.set_url();
         } else {
             self.types.set_string();
