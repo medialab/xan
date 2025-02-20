@@ -5,6 +5,7 @@
 *Breaking*
 
 * Adding fractional seconds to default `datetime` serialization.
+* Moonblade concat operator becomes `++` instead of `.`.
 
 *Features*
 

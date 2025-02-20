@@ -44,7 +44,8 @@ ident      = @{ (ASCII_ALPHA ~ ident_char* | "_" ~ ident_char+) ~ "?"? }
 // Operators
 // NOTE: order IS important
 binary_operator = _{
-    add
+    concat
+  | add
   | sub
   | pow
   | mul
@@ -63,7 +64,6 @@ binary_operator = _{
   | str_lt
   | str_ge
   | str_gt
-  | concat
   | in_op
   | not_in
   | and
@@ -93,7 +93,7 @@ idiv = { "//" }
 rem  = { "%" }
 pow  = { "**" }
 
-concat = { "." }
+concat = { "++" }
 
 pipe = { "|" }
 

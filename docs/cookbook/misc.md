@@ -2,18 +2,9 @@
 
 ## Summary
 
-* [Reading files in parallel](#reading-files-in-parallel)
 * [Generating a CSV of paginated urls to download](#generating-a-csv-of-paginated-urls-to-download)
+* [Reading files in parallel](#reading-files-in-parallel)
 * [Piping to `xargs`](#piping-to-xargs)
-
-## Reading files in parallel
-
-Let's say one column of your CSV file is containing paths to files, relative to some `downloaded` folder, and you want to make sure all of them contain some string (maybe you crawled some website and want to make sure you were correctly logged in by searching for some occurrence of your username):
-
-```bash
-xan progress files.csv | \
-xan filter -p 'pathjoin("downloaded", path) | read | !contains(_, /yomguithereal/i)' > not-logged.csv
-```
 
 ## Generating a CSV of paginated urls to download
 
@@ -23,8 +14,17 @@ You can pipe `xan range` into `xan select -e` into `minet fetch`:
 
 ```bash
 xan range -s 1 50 -i | \
-xan select -e '"https://news.ycombinator.com/?p=".n as url' | \
+xan select -e '"https://news.ycombinator.com/?p=" ++ n as url' | \
 minet fetch url -i -
+```
+
+## Reading files in parallel
+
+Let's say one column of your CSV file is containing paths to files, relative to some `downloaded` folder, and you want to make sure all of them contain some string (maybe you crawled some website and want to make sure you were correctly logged in by searching for some occurrence of your username):
+
+```bash
+xan progress files.csv | \
+xan filter -p 'pathjoin("downloaded", path) | read | !contains(_, /yomguithereal/i)' > not-logged.csv
 ```
 
 ## Piping to `xargs`

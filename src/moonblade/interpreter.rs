@@ -980,7 +980,7 @@ mod tests {
         assert_eq!(eval_code("2 ** 4"), Ok(DynamicValue::from(16)));
         assert_eq!(eval_code("8 % 2"), Ok(DynamicValue::from(0)));
 
-        assert_eq!(eval_code("'he'.'llo'"), Ok(DynamicValue::from("hello")));
+        assert_eq!(eval_code("'he' ++ 'llo'"), Ok(DynamicValue::from("hello")));
 
         assert_eq!(eval_code("true && false"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("true and false"), Ok(DynamicValue::from(false)));

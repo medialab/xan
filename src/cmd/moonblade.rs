@@ -230,7 +230,7 @@ use the operators in the previous section.
 
 ## String operators
 
-    x . y - string concatenation
+    x ++ y - string concatenation
 
 ## Logical operators
 
