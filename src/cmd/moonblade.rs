@@ -184,6 +184,30 @@ pub fn get_moonblade_functions_help() -> String {
 
 (use --cheatsheet for a reminder of the expression language's basics)
 
+## Summary
+
+    - Operators
+        - Unary operators
+        - Numerical comparison
+        - String/sequence comparison
+        - Arithmetic operators
+        - String/sequence operators
+        - Logical operators
+        - Indexing & slicing operators
+        - Pipeline operator
+    - Arithmetics
+    - Boolean operations & branching
+    - Comparison
+    - String & sequence helpers
+    - Dates
+    - Collections (list of maps) functions
+    - Maps functions
+    - Aggregation functions
+    - Fuzzy matching & information retrieval
+    - Utils
+    - IO & path wrangling
+    - Random
+
 ## Operators
 
 ### Unary operators
@@ -506,7 +530,7 @@ use the operators in the previous section.
     - values(map) -> [T]
         Return a list of the map's values.
 
-## List aggregation functions
+## Aggregation functions
 
     - mean(numbers) -> number?
         Return the means of the given numbers.
