@@ -83,10 +83,10 @@ xan map 'ymd(local_time)' year_month_day dates.csv | xan freq -s year_month_day 
 | year_month_day | 2022-03-11 | 4     |
 | year_month_day | <rest>     | 36    |
 
-This view is helpful (it is sorted by decreasing `count`) but in the case of dates one would prefer to have lines sorted by date.
+This view is helpful (it is sorted by decreasing `count`) but in the case of dates one would prefer to have lines sorted in chronological order.
 
 ### xan hist -D
-The simplest way to do this is to use `xan hist -D`. `xan hist` will plot a histogram, and the `-D` (or `--dates`) flag will have the histogram sorted by date and add empty bars for missing days (or months, or years). Don't forget to use to set `-l` (or `--limit`) to 0 in `xan freq` in order to plot all days.
+The simplest way to do this is to use `xan hist -D`. `xan hist` will plot a histogram, and the `-D` (or `--dates`) flag will have the histogram sorted by date and add empty bars for missing days (or months, or years). Don't forget to set `-l` (or `--limit`) to 0 in `xan freq` in order to plot all days.
 
 ```bash
 xan map 'ymd(local_time)' year_month_day dates.csv | xan freq -s year_month_day -l 0 | xan hist -D
