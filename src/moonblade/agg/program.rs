@@ -16,73 +16,97 @@ use crate::moonblade::interpreter::{
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments};
 
-macro_rules! build_aggregation_method_enum {
-    ($($variant: ident,)+) => {
-        #[derive(Debug, Clone)]
-        enum Aggregator {
-            $(
-                $variant($variant),
-            )+
-        }
-
-        impl Aggregator {
-            fn clear(&mut self) {
-                match self {
-                    $(
-                        Self::$variant(inner) => inner.clear(),
-                    )+
-                };
-            }
-
-            fn merge(&mut self, other: Self) {
-                match (self, other) {
-                    $(
-                        (Self::$variant(inner), Self::$variant(inner_other)) => inner.merge(inner_other),
-                    )+
-                    _ => unreachable!(),
-                };
-            }
-
-            fn finalize(&mut self, parallel: bool) {
-                match self {
-                    Self::ApproxCardinality(inner) => {
-                        inner.finalize();
-                    }
-                    Self::ApproxQuantiles(inner) => {
-                        inner.finalize();
-                    }
-                    Self::Numbers(inner) => {
-                        inner.finalize(parallel);
-                    }
-                    _ => (),
-                }
-            }
-        }
-    };
+#[derive(Debug, Clone)]
+enum Aggregator {
+    AllAny(AllAny),
+    ApproxCardinality(ApproxCardinality),
+    ApproxQuantiles(ApproxQuantiles),
+    ArgExtent(ArgExtent),
+    ArgTop(ArgTop),
+    Count(Count),
+    CovarianceWelford(CovarianceWelford),
+    NumericExtent(NumericExtent),
+    First(First),
+    Last(Last),
+    Values(Values),
+    LexicographicExtent(LexicographicExtent),
+    Frequencies(Frequencies),
+    Numbers(Numbers),
+    Sum(Sum),
+    Types(Types),
+    Welford(Welford),
+    ZonedExtent(ZonedExtent),
 }
 
-build_aggregation_method_enum!(
-    AllAny,
-    ApproxCardinality,
-    ApproxQuantiles,
-    ArgExtent,
-    ArgTop,
-    Count,
-    CovarianceWelford,
-    NumericExtent,
-    First,
-    Last,
-    Values,
-    LexicographicExtent,
-    Frequencies,
-    Numbers,
-    Sum,
-    Types,
-    Welford,
-    ZonedExtent,
-);
-
 impl Aggregator {
+    fn clear(&mut self) {
+        use Aggregator::*;
+
+        match self {
+            AllAny(inner) => inner.clear(),
+            ApproxCardinality(inner) => inner.clear(),
+            ApproxQuantiles(inner) => inner.clear(),
+            ArgExtent(inner) => inner.clear(),
+            ArgTop(inner) => inner.clear(),
+            Count(inner) => inner.clear(),
+            CovarianceWelford(inner) => inner.clear(),
+            NumericExtent(inner) => inner.clear(),
+            First(inner) => inner.clear(),
+            Last(inner) => inner.clear(),
+            Values(inner) => inner.clear(),
+            LexicographicExtent(inner) => inner.clear(),
+            Frequencies(inner) => inner.clear(),
+            Numbers(inner) => inner.clear(),
+            Sum(inner) => inner.clear(),
+            Types(inner) => inner.clear(),
+            Welford(inner) => inner.clear(),
+            ZonedExtent(inner) => inner.clear(),
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        use Aggregator::*;
+
+        match (self, other) {
+            (AllAny(inner), AllAny(other_inner)) => inner.merge(other_inner),
+            (ApproxCardinality(inner), ApproxCardinality(other_inner)) => inner.merge(other_inner),
+            (ApproxQuantiles(inner), ApproxQuantiles(other_inner)) => inner.merge(other_inner),
+            (ArgExtent(inner), ArgExtent(other_inner)) => inner.merge(other_inner),
+            (ArgTop(inner), ArgTop(other_inner)) => inner.merge(other_inner),
+            (Count(inner), Count(other_inner)) => inner.merge(other_inner),
+            (CovarianceWelford(inner), CovarianceWelford(other_inner)) => inner.merge(other_inner),
+            (NumericExtent(inner), NumericExtent(other_inner)) => inner.merge(other_inner),
+            (First(inner), First(other_inner)) => inner.merge(other_inner),
+            (Last(inner), Last(other_inner)) => inner.merge(other_inner),
+            (Values(inner), Values(other_inner)) => inner.merge(other_inner),
+            (LexicographicExtent(inner), LexicographicExtent(other_inner)) => {
+                inner.merge(other_inner)
+            }
+            (Frequencies(inner), Frequencies(other_inner)) => inner.merge(other_inner),
+            (Numbers(inner), Numbers(other_inner)) => inner.merge(other_inner),
+            (Sum(inner), Sum(other_inner)) => inner.merge(other_inner),
+            (Types(inner), Types(other_inner)) => inner.merge(other_inner),
+            (Welford(inner), Welford(other_inner)) => inner.merge(other_inner),
+            (ZonedExtent(inner), ZonedExtent(other_inner)) => inner.merge(other_inner),
+            _ => unreachable!(),
+        }
+    }
+
+    fn finalize(&mut self, parallel: bool) {
+        match self {
+            Self::ApproxCardinality(inner) => {
+                inner.finalize();
+            }
+            Self::ApproxQuantiles(inner) => {
+                inner.finalize();
+            }
+            Self::Numbers(inner) => {
+                inner.finalize(parallel);
+            }
+            _ => (),
+        }
+    }
+
     fn get_final_value(
         &self,
         method: &ConcreteAggregationMethod,
