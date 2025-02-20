@@ -193,8 +193,8 @@ pub fn get_moonblade_functions_help() -> String {
 
 ### Numerical comparison
 
-Warning: those operators will always consider operands as numbers and will
-try to cast them around as such. For string/sequence comparison, use the
+Warning: those operators will always consider operands as numbers or dates and
+will try to cast them around as such. For string/sequence comparison, use the
 operators in the next section.
 
     x == y - numerical equality
@@ -228,7 +228,7 @@ use the operators in the previous section.
     x // y - numerical integer division
     x ** y - numerical exponentiation
 
-## String operators
+## String/sequence operators
 
     x ++ y - string concatenation
 
