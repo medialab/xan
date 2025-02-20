@@ -2,6 +2,10 @@
 
 ## 0.46.0 (provisional)
 
+*Breaking*
+
+* Adding fractional seconds to default `datetime` serialization.
+
 *Features*
 
 * Adding `xan to html`.

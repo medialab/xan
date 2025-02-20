@@ -726,7 +726,7 @@ pub enum DynamicValue {
     None,
 }
 
-const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T[%Z]";
+const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T%.f[%Z]";
 
 fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
     match value.parse::<Zoned>() {
