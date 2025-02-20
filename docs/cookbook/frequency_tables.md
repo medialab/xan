@@ -123,9 +123,9 @@ xan view
 
 ## 3. Sparing as much memory as possible
 
-One thing to notice with both solution 1 and 2 is that we still need to be able to fit all the existing domains and the associated count in memory. This might be too much for some computers.
+One thing to notice with both solutions 1 and 2 is that we still need to be able to fit all the existing domains and the associated count in memory. This might be too much for some computers.
 
-But if we look closely our input files, we would notice that the system cleverly write the monthly files sorted on the domain column. Luckily, it is very easy to merge sorted lists without using more memory than what is required to store one CSV row per merged file, using the proper [algorithms](https://en.wikipedia.org/wiki/Merge_algorithm).
+But if we look closely our monthly input files, we would notice that they are already sorted on the domain column. Luckily, it is very easy to merge sorted lists without using more memory than what is required to store one CSV row per merged file, using the proper [algorithms](https://en.wikipedia.org/wiki/Merge_algorithm).
 
 This is what the `xan merge` command does:
 
