@@ -27,7 +27,7 @@ Commands:
     progress    Display a progress bar while reading CSV data
 
 ## Search & filter
-    search      Search CSV data with regexes
+    search      Search for patterns in CSV data
     filter      Only keep some CSV rows based on an evaluated expression
     slice       Slice rows of CSV file
     top         Find top rows of a CSV file according to some column
