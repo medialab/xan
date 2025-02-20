@@ -542,6 +542,7 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 
 *Perform side-effects*
 
+- [**eval**](./docs/cmd/eval.md): Evaluate/debug a single expression
 - [**foreach**](./docs/cmd/foreach.md): Loop over a CSV file to perform side effects
 
 *Lexicometry & fuzzy matching*

@@ -86,6 +86,7 @@ Commands:
     range       Create a CSV file from a numerical range
 
 ## Perform side-effects
+    eval        Evaluate/debug a single expression
     foreach     Loop over a CSV file to perform side effects
 
 ## Lexicometry & fuzzy matching
