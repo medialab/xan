@@ -8,7 +8,7 @@
 
 
 ## Parsing and formatting standard (ISO 8601) dates
-Let's say the column `local_time` of your CSV file is containing dates in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601), for example "2022-03-22", "2022-03-22 23:20:24", "2022-03-22T00:00:00[CET]" or "2022-03-22T23:20:24+01:00[Europe/Paris]".
+Let's say the column `local_time` of your CSV file is containing dates in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601), for example `2022-03-22`, `2022-03-22 23:20:24`, `2022-03-22T00:00:00[CET]` or `2022-03-22T23:20:24+01:00[Europe/Paris]`.
 
 ### xan stats
 The first thing you could do to analyze your data is `xan stats`:
@@ -91,7 +91,7 @@ The simplest way to do this is to use `xan hist -D`. `xan hist` will plot a hist
 ```bash
 xan map 'ymd(local_time)' year_month_day dates.csv | xan freq -s year_month_day -l 0 | xan hist -D
 ```
-|
+
 ```
 2022-02-25 |2   2.17%|■■■■■■■■■                            |
 2022-02-26 |1   1.09%|■■■■■                                |
@@ -132,7 +132,7 @@ This way, you immediatly notice the fact that there is no line in your dataset o
 ## Parsing and formatting non-standard dates
 
 ### datetime()
-If you have dates in non ISO 8601 format, such as "31/12/22", you can parse them using the `datetime` function:
+If you have dates in non ISO 8601 format, such as `31/12/22`, you can parse them using the `datetime` function:
 
 ```bash
 xan map 'datetime(date, "%d/%m/%y")' parsed_date strange_dates.csv | xan v
