@@ -17,7 +17,7 @@ lazy_static! {
     static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##{0,2} .+").unwrap();
     static ref FLAG_REGEX: Regex = Regex::new(r"--[\w\-]+").unwrap();
     static ref FUNCTION_REGEX: Regex =
-        Regex::new(r"(?i)- ([a-z0-9_]+)\(((?:[a-z0-9=?*_<>]+\s*,?\s*)*)\) -> ([a-z\[\]?| ]+)").unwrap();
+        Regex::new(r"(?i)- ([a-z0-9_]+)\(((?:[a-z0-9=?*_<>]+\s*,?\s*)*)\) -> ([a-z\[\],?| ]+)").unwrap();
     // static ref SPACER_REGEX: Regex = Regex::new(r"(?m)^ {8}([^\n]+)").unwrap();
     static ref UNARY_OPERATOR_REGEX: Regex = Regex::new(r"([!-])x").unwrap();
     static ref BINARY_OPERATOR_REGEX: Regex = Regex::new(
@@ -462,9 +462,6 @@ use the operators in the previous section.
         Trim string of leading & trailing whitespace or
         provided characters.
 
-    - unidecode(string) -> string
-        Convert string to ascii as well as possible.
-
     - upper(string) -> string
         Uppercase string.
 
@@ -548,6 +545,9 @@ use the operators in the previous section.
     - s_stemmer(string) -> string
         Apply a very simple stemmer removing common plural inflexions in
         some languages.
+
+    - unidecode(string) -> string
+        Convert string to ascii as well as possible.
 
 ## Utils
 

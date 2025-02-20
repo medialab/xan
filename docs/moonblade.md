@@ -365,9 +365,6 @@ use the operators in the previous section.
         Trim string of leading & trailing whitespace or
         provided characters.
 
-    - unidecode(string) -> string
-        Convert string to ascii as well as possible.
-
     - upper(string) -> string
         Uppercase string.
 
@@ -451,6 +448,9 @@ use the operators in the previous section.
     - s_stemmer(string) -> string
         Apply a very simple stemmer removing common plural inflexions in
         some languages.
+
+    - unidecode(string) -> string
+        Convert string to ascii as well as possible.
 
 ## Utils
 
