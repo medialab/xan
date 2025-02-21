@@ -4,8 +4,10 @@
 
 *Breaking*
 
-* Adding fractional seconds to default `datetime` serialization.
 * Moonblade concat operator becomes `++` instead of `.`.
+* Overhauling moonblade cli documentation:
+  * Dropping `--functions`, `--cheatsheet` and `--flags` everywhere
+  * Adding a proper `xan help` command
 
 *Features*
 
@@ -25,6 +27,7 @@
 * Fixing `stats` date & url inference.
 * Fixing moonblade support for Z-terminated timestamp formats.
 * Fixing `xan plot -T` granularity inference.
+* Fixing missing fractional seconds to default `datetime` serialization.
 
 *Performance*
 

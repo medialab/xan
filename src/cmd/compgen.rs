@@ -65,6 +65,7 @@ static COMMANDS: [&str; 58] = [
     "vocab",
 ];
 
+static HELP_SUBCOMMANDS: [&str; 3] = ["cheatsheet", "functions", "aggs"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
@@ -126,6 +127,12 @@ pub fn run() {
                 if command.starts_with(to_complete) {
                     println!("{}", command);
                 }
+            }
+        }
+    } else if word_before == "help" && !to_complete.starts_with('-') {
+        for subcommand in HELP_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
             }
         }
     } else if word_before == "matrix" && !to_complete.starts_with('-') {

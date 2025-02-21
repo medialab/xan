@@ -9,6 +9,54 @@
         "help": "Return absolute value of number."
       },
       {
+        "name": "add",
+        "arguments": ["x", "y", "*n"],
+        "returns": "number",
+        "help": "Add two or more numbers."
+      },
+      {
+        "name": "argmax",
+        "arguments": ["numbers", "labels?"],
+        "returns": "any",
+        "help": "Return the index or label of the largest number in the list."
+      },
+      {
+        "name": "argmin",
+        "arguments": ["numbers", "labels?"],
+        "returns": "any",
+        "help": "Return the index or label of the smallest number in the list."
+      },
+      {
+        "name": "ceil",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return the smallest integer greater than or equal to x."
+      },
+      {
+        "name": "div",
+        "arguments": ["x", "y", "*n"],
+        "returns": "number",
+        "help": "Divide two or more numbers."
+      },
+      {
+        "name": "idiv",
+        "arguments": ["x", "y"],
+        "returns": "number",
+        "help": "Integer division of two numbers."
+      },
+      {
+        "name": "floor",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return the smallest integer lower than or equal to x."
+      },
+      {
+        "name": "log",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return the natural logarithm of x."
+      },
+      {
         "name": "max",
         "arguments": ["x", "y", "*n"],
         "alternatives": [
@@ -16,6 +64,411 @@
         ],
         "returns": "number",
         "help": "Return the maximum number."
+      },
+      {
+        "name": "min",
+        "arguments": ["x", "y", "*n"],
+        "alternatives": [
+          ["list_of_numbers"]
+        ],
+        "returns": "number",
+        "help": "Return the minimum number."
+      },
+      {
+        "name": "mod",
+        "arguments": ["x", "y"],
+        "returns": "number",
+        "help": "Return the remainder of x divided by y."
+      },
+      {
+        "name": "mul",
+        "arguments": ["x", "y", "*n"],
+        "returns": "number",
+        "help": "Multiply two or more numbers."
+      },
+      {
+        "name": "neg",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return -x."
+      },
+      {
+        "name": "pow",
+        "arguments": ["x", "y"],
+        "returns": "number",
+        "help": "Raise x to the power of y."
+      },
+      {
+        "name": "round",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return x rounded to the nearest integer."
+      },
+      {
+        "name": "sqrt",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return the square root of x."
+      },
+      {
+        "name": "sub",
+        "arguments": ["x", "y", "*n"],
+        "returns": "number",
+        "help": "Subtract two or more numbers."
+      },
+      {
+        "name": "trunc",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Truncate the number by removing its decimal part."
+      }
+    ]
+  },
+  {
+    "section": "Boolean operations & branching",
+    "functions": [
+      {
+        "name": "and",
+        "arguments": ["a", "b", "*n"],
+        "returns": "T",
+        "help": "Perform boolean AND operation on two or more values."
+      },
+      {
+        "name": "if",
+        "arguments": ["cond", "then", "else?"],
+        "returns": "T",
+        "help": "Evaluate condition and switch to correct branch."
+      },
+      {
+        "name": "unless",
+        "arguments": ["cond", "then", "else?"],
+        "returns": "T",
+        "help": "Shorthand for `if(not(cond), then, else?)`"
+      },
+      {
+        "name": "not",
+        "arguments": ["a"],
+        "returns": "bool",
+        "help": "Perform boolean NOT operation."
+      },
+      {
+        "name": "or",
+        "arguments": ["a", "b", "*n"],
+        "returns": "T",
+        "help": "Perform boolean OR operation on two or more values."
+      }
+    ]
+  },
+  {
+    "section": "Comparison",
+    "functions": [
+      {
+        "name": "eq",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence equality."
+      },
+      {
+        "name": "ne",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence inequality."
+      },
+      {
+        "name": "gt",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 > s2."
+      },
+      {
+        "name": "ge",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 >= s2."
+      },
+      {
+        "name": "lt",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 < s2."
+      },
+      {
+        "name": "le",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 <= s2."
+      }
+    ]
+  },
+  {
+    "section": "String & sequence helpers",
+    "functions": [
+      {
+        "name": "compact",
+        "arguments": ["list"],
+        "returns": "list",
+        "help": "Drop all falsey values from given list."
+      },
+      {
+        "name": "concat",
+        "arguments": ["string", "*strings"],
+        "returns": "string",
+        "help": "Concatenate given strings into a single one."
+      },
+      {
+        "name": "contains",
+        "arguments": ["seq", "subseq"],
+        "returns": "bool",
+        "help": "Find if subseq can be found in seq. Subseq can be a regular expression."
+      },
+      {
+        "name": "count",
+        "arguments": ["seq", "pattern"],
+        "returns": "int",
+        "help": "Count number of times pattern appear in seq. Pattern can be a regular expression."
+      },
+      {
+        "name": "endswith",
+        "arguments": ["string", "pattern"],
+        "returns": "bool",
+        "help": "Test if string ends with pattern."
+      },
+      {
+        "name": "escape_regex",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Escape a string so it can be used safely in a regular expression."
+      },
+      {
+        "name": "first",
+        "arguments": ["seq"],
+        "returns": "T",
+        "help": "Get first element of sequence."
+      },
+      {
+        "name": "fmt",
+        "arguments": ["string", "*replacements"],
+        "returns": "string",
+        "help": "Format a string by replacing \"{}\" occurrences by subsequent arguments.\n\nExample: `fmt(\"Hello {} {}\", name, surname)` will replace the first \"{}\" by the value of the name column, then the second one by the value of the surname column."
+      },
+      {
+        "name": "get",
+        "arguments": ["target", "index_or_key", "default?"],
+        "returns": "T",
+        "help": "Get nth element of sequence (can use negative indexing), or key of mapping. Returns nothing if index or key is not found or alternatively the provided default value."
+      },
+      {
+        "name": "join",
+        "arguments": ["seq", "sep"],
+        "returns": "string",
+        "help": "Join sequence by separator."
+      },
+      {
+        "name": "last",
+        "arguments": ["seq"],
+        "returns": "T",
+        "help": "Get last element of sequence."
+      },
+      {
+        "name": "len",
+        "arguments": ["seq"],
+        "returns": "int",
+        "help": "Get length of sequence."
+      },
+      {
+        "name": "ltrim",
+        "arguments": ["string", "pattern?"],
+        "returns": "string",
+        "help": "Trim string of leading whitespace or provided characters."
+      },
+      {
+        "name": "lower",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Lowercase string."
+      },
+      {
+        "name": "match",
+        "arguments": ["string", "pattern", "group"],
+        "returns": "string",
+        "help": "Return a regex pattern match on the string."
+      },
+      {
+        "name": "numfmt",
+        "arguments": ["number"],
+        "returns": "string",
+        "help": "Format a number with thousands separator and proper significance."
+      },
+      {
+        "name": "replace",
+        "arguments": ["string", "pattern", "replacement"],
+        "returns": "string",
+        "help": "Replace pattern in string. Can use a regex."
+      },
+      {
+        "name": "rtrim",
+        "arguments": ["string", "pattern?"],
+        "returns": "string",
+        "help": "Trim string of trailing whitespace or provided characters."
+      },
+      {
+        "name": "slice",
+        "arguments": ["seq", "start", "end?"],
+        "returns": "seq",
+        "help": "Return slice of sequence."
+      },
+      {
+        "name": "split",
+        "arguments": ["string", "sep", "max?"],
+        "returns": "list",
+        "help": "Split a string by separator."
+      },
+      {
+        "name": "startswith",
+        "arguments": ["string", "pattern"],
+        "returns": "bool",
+        "help": "Test if string starts with pattern."
+      },
+      {
+        "name": "trim",
+        "arguments": ["string", "pattern?"],
+        "returns": "string",
+        "help": "Trim string of leading & trailing whitespace or provided characters."
+      },
+      {
+        "name": "upper",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Uppercase string."
+      }
+    ]
+  },
+  {
+    "section": "Dates",
+    "functions": [
+      {
+        "name": "datetime",
+        "arguments": ["string", "format=?", "timezone=?"],
+        "returns": "datetime",
+        "help": "Parse a string as a datetime according to format and timezone (https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications). If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone."
+      },
+      {
+        "name": "strftime",
+        "arguments": ["target", "format=?", "timezone=?"],
+        "returns": "string",
+        "help": "Format target (a time in ISO 8601 format, or the result of datetime() function) according to format."
+      },
+      {
+        "name": "timestamp",
+        "arguments": ["number"],
+        "returns": "datetime",
+        "help": "Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time."
+      },
+      {
+        "name": "timestamp_ms",
+        "arguments": ["number"],
+        "returns": "datetime",
+        "help": "Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time."
+      },
+      {
+        "name": "year_month_day",
+        "aliases": ["ymd"],
+        "arguments": ["target", "timezone=?"],
+        "returns": "string",
+        "help": "Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format=\"%Y-%m-%d\")"
+      },
+      {
+        "name": "month_day",
+        "arguments": ["target", "timezone=?"],
+        "returns": "string",
+        "help": "Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day. Equivalent to strftime(string, format=\"%m-%d\")"
+      },
+      {
+        "name": "month",
+        "arguments": ["target", "timezone=?"],
+        "returns": "string",
+        "help": "Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month. Equivalent to strftime(string, format=\"%m\")"
+      },
+      {
+        "name": "year",
+        "arguments": ["target", "timezone=?"],
+        "returns": "string",
+        "help": "Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year. Equivalent to strftime(string, format=\"%Y\")"
+      },
+      {
+        "name": "year_month",
+        "aliases": ["ym"],
+        "arguments": ["target", "timezone=?"],
+        "returns": "string",
+        "help": "Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format=\"%Y-%m\")"
+      }
+    ]
+  },
+  {
+    "section": "Collections (list of maps) functions",
+    "functions": [
+      {
+        "name": "index_by",
+        "arguments": ["collection", "key"],
+        "returns": "map",
+        "help": "Create a map from item key to collection item."
+      }
+    ]
+  },
+  {
+    "section": "Map functions",
+    "functions": [
+      {
+        "name": "keys",
+        "arguments": ["map"],
+        "returns": "[string]",
+        "help": "Return a list of the map's keys."
+      },
+      {
+        "name": "values",
+        "arguments": ["map"],
+        "returns": "[T]",
+        "help": "Return a list of the map's values."
+      }
+    ]
+  },
+  {
+    "section": "Aggregation functions",
+    "functions": [
+      {
+        "name": "mean",
+        "arguments": ["numbers"],
+        "returns": "number?",
+        "help": "Return the means of the given numbers."
+      }
+    ]
+  },
+  {
+    "section": "Fuzzy matching & information retrieval",
+    "functions": [
+      {
+        "name": "fingerprint",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Fingerprint a string by normalizing characters, re-ordering and deduplicating its word tokens before re-joining them by spaces."
+      },
+      {
+        "name": "carry_stemmer",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Apply the \"Carry\" stemmer targeting the French language."
+      },
+      {
+        "name": "s_stemmer",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Apply a very simple stemmer removing common plural inflexions in some languages."
+      },
+      {
+        "name": "unidecode",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Convert string to ascii as well as possible."
       }
     ]
   },
