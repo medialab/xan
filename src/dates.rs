@@ -6,36 +6,61 @@ lazy_static! {
     static ref PARTIAL_DATE_REGEX: Regex = Regex::new(r"^[12]\d{3}(?:-(?:0\d|1[012]))?$").unwrap();
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartialDate {
+    inner: Date,
+    precision: Unit,
+}
+
+impl PartialDate {
+    fn year(y: i16) -> Option<Self> {
+        Some(Self {
+            inner: Date::new(y, 1, 1).ok()?,
+            precision: Unit::Year,
+        })
+    }
+
+    fn month(y: i16, m: i8) -> Option<Self> {
+        Some(Self {
+            inner: Date::new(y, m, 1).ok()?,
+            precision: Unit::Month,
+        })
+    }
+
+    fn day(y: i16, m: i8, d: i8) -> Option<Self> {
+        Some(Self {
+            inner: Date::new(y, m, d).ok()?,
+            precision: Unit::Day,
+        })
+    }
+
+    pub fn into_inner(self) -> Date {
+        self.inner
+    }
+
+    pub fn as_unit(&self) -> Unit {
+        self.precision
+    }
+}
+
 pub fn is_partial_date(string: &str) -> bool {
     PARTIAL_DATE_REGEX.is_match(string)
 }
 
-pub fn parse_partial_date(string: &str) -> Option<(Unit, Date)> {
-    Some(match string.len() {
-        4 => (
-            Unit::Year,
-            Date::new(string.parse::<i16>().ok()?, 1, 1).ok()?,
+pub fn parse_partial_date(string: &str) -> Option<PartialDate> {
+    match string.len() {
+        4 => PartialDate::year(string.parse::<i16>().ok()?),
+        7 => PartialDate::month(
+            string[..4].parse::<i16>().ok()?,
+            string[5..].parse::<i8>().ok()?,
         ),
-        7 => (
-            Unit::Month,
-            Date::new(
-                string[..4].parse::<i16>().ok()?,
-                string[5..].parse::<i8>().ok()?,
-                1,
-            )
-            .ok()?,
+        10 => PartialDate::day(
+            string[..4].parse::<i16>().ok()?,
+            string[5..7].parse::<i8>().ok()?,
+            string[8..].parse::<i8>().ok()?,
         ),
-        10 => (
-            Unit::Day,
-            Date::new(
-                string[..4].parse::<i16>().ok()?,
-                string[5..7].parse::<i8>().ok()?,
-                string[8..].parse::<i8>().ok()?,
-            )
-            .ok()?,
-        ),
-        _ => return None,
-    })
+        _ => None,
+    }
 }
 
 pub fn next_partial_date(unit: Unit, date: &Date) -> Date {
@@ -252,7 +277,6 @@ pub fn parse_zoned(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jiff::civil::date;
 
     #[test]
     fn test_is_partial_date() {
@@ -275,11 +299,11 @@ mod tests {
     fn test_parse_partial_date() {
         let tests = [
             ("oucuoh", None),
-            ("2023", Some((Unit::Year, date(2023, 1, 1)))),
+            ("2023", PartialDate::year(2023)),
             ("1998-13", None),
-            ("1998-10", Some((Unit::Month, date(1998, 10, 1)))),
+            ("1998-10", PartialDate::month(1998, 10)),
             ("1998-10-34", None),
-            ("1998-10-22", Some((Unit::Day, date(1998, 10, 22)))),
+            ("1998-10-22", PartialDate::day(1998, 10, 22)),
         ];
 
         for (string, expected) in tests {

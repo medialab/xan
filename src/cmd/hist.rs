@@ -432,18 +432,18 @@ impl Histogram {
         let mut current_unit_opt: Option<Unit> = None;
 
         for bar in self.bars.drain(0..) {
-            if let Some((unit, date)) = dates::parse_partial_date(&bar.label) {
+            if let Some(partial_date) = dates::parse_partial_date(&bar.label) {
                 match current_unit_opt {
                     None => {
-                        current_unit_opt = Some(unit);
+                        current_unit_opt = Some(partial_date.as_unit());
                     }
-                    Some(current_unit) if unit != current_unit => {
+                    Some(current_unit) if partial_date.as_unit() != current_unit => {
                         return Err("date formats are not homogeneous!".to_string());
                     }
                     _ => (),
                 };
 
-                dates.push((date, bar));
+                dates.push((partial_date.into_inner(), bar));
             } else {
                 return Err(format!("could not parse date \"{}\"!", &bar.label));
             }

@@ -795,8 +795,10 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
         date.to_datetime(Time::default())
             .to_zoned(TimeZone::system())
             .map_err(|_| format_error())?
-    } else if let Some((_, date)) = parse_partial_date(string) {
-        date.to_datetime(Time::default())
+    } else if let Some(partial_date) = parse_partial_date(string) {
+        partial_date
+            .into_inner()
+            .to_datetime(Time::default())
             .to_zoned(TimeZone::system())
             .map_err(|_| format_error())?
     } else {
