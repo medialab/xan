@@ -26,7 +26,7 @@ mod xml;
 macro_rules! command_list {
     () => {
         "
-    help        Show this usage message
+    help        Get help regarding the expression language
     --version   Print the tool's version
 
 ## Explore & visualize
@@ -293,8 +293,12 @@ impl Command {
             Command::Headers | Command::H => cmd::headers::run(argv),
             Command::Heatmap => cmd::heatmap::run(argv),
             Command::Help => {
-                println!("{}", util::colorize_main_help(USAGE));
-                Ok(())
+                if argv.len() < 3 {
+                    println!("{}", util::colorize_main_help(USAGE));
+                    Ok(())
+                } else {
+                    cmd::help::run(argv)
+                }
             }
             Command::Hist => cmd::hist::run(argv),
             Command::Implode => cmd::implode::run(argv),

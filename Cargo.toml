@@ -25,7 +25,9 @@ include = [
   "LICENSE-MIT",
   "UNLICENSE",
   "src/**/*.rs",
-  "src/**/*.pest",
+  "src/moonblade/grammar.pest",
+  "src/moonblade/doc/*.json",
+  "src/moonblade/doc/*.txt",
   "tests/**/*.rs"
 ]
 

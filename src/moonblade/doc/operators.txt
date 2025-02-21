@@ -1,0 +1,74 @@
+## Operators
+
+### Unary operators
+
+    !x - boolean negation
+    -x - numerical negation,
+
+### Numerical comparison
+
+Warning: those operators will always consider operands as numbers or dates and
+will try to cast them around as such. For string/sequence comparison, use the
+operators in the next section.
+
+    x == y - numerical equality
+    x != y - numerical inequality
+    x <  y - numerical less than
+    x <= y - numerical less than or equal
+    x >  y - numerical greater than
+    x >= y - numerical greater than or equal
+
+### String/sequence comparison
+
+Warning: those operators will always consider operands as strings or
+sequences and will try to cast them around as such. For numerical comparison,
+use the operators in the previous section.
+
+    x eq y - string equality
+    x ne y - string inequality
+    x lt y - string less than
+    x le y - string less than or equal
+    x gt y - string greater than
+    x ge y - string greater than or equal
+
+### Arithmetic operators
+
+    x + y  - numerical addition
+    x - y  - numerical subtraction
+    x * y  - numerical multiplication
+    x / y  - numerical division
+    x % y  - numerical remainder
+
+    x // y - numerical integer division
+    x ** y - numerical exponentiation
+
+## String/sequence operators
+
+    x ++ y - string concatenation
+
+## Logical operators
+
+    x &&  y - logical and
+    x and y
+    x ||  y - logical or
+    x or  y
+
+    x in y
+    x not in y
+
+## Indexing & slicing operators
+
+    x[y] - get y from x (string or list index, map key)
+    x[start:end] - slice x from start index to end index
+    x[:end] - slice x from start to end index
+    x[start:] - slice x from start index to end
+
+    Negative indices are accepted and mean the same thing as with
+    the Python language.
+
+## Pipeline operator (using "_" for left-hand side substitution)
+
+    trim(name) | len(_)         - Same as len(trim(name))
+    trim(name) | len            - Supports elision for unary functions
+    trim(name) | add(1, len(_)) - Can be nested
+    add(trim(name) | len, 2)    - Can be used anywhere

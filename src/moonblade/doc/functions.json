@@ -1,0 +1,45 @@
+[
+  {
+    "section": "Arithmetics",
+    "functions": [
+      {
+        "name": "abs",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return absolute value of number."
+      },
+      {
+        "name": "max",
+        "arguments": ["x", "y", "*n"],
+        "alternatives": [
+          ["list_of_numbers"]
+        ],
+        "returns": "number",
+        "help": "Return the maximum number."
+      }
+    ]
+  },
+  {
+    "section": "Random",
+    "functions": [
+      {
+        "name": "md5",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Return the md5 hash of string in hexadecimal representation."
+      },
+      {
+        "name": "random",
+        "arguments": [],
+        "returns": "float",
+        "help": "Return a random float between 0 and 1."
+      },
+      {
+        "name": "uuid",
+        "arguments": [],
+        "returns": "string",
+        "help": "Return a uuid v4."
+      }
+    ]
+  }
+]

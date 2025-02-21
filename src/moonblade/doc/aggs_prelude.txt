@@ -1,0 +1,17 @@
+# Available aggregation functions
+
+(use `xan help cheatsheet` for a reminder of how the scripting language works)
+
+Note that most functions ignore empty values. This said, functions working on
+number will yield an error when encountering a string that cannot be safely
+parsed as a suitable number.
+
+You can always cast values around and force aggregation functions to
+consider empty values or make them avoid non-numerical values altogether.
+
+For instance, considering null values when computing a mean is as easy
+as `mean(number || 0)`.
+
+Finally, note that expressions returning lists will be understood as multiplexed rows.
+This means that computing `cardinality([source, target])`, for instance, will return
+the number of nodes in a graph represented by a CSV edge list.

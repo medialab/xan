@@ -1,14 +1,8 @@
 .*.swp
-doc
-tags
-examples/data/ss10pusa.csv
 build
 target
-ctags.rust
 *.csv
 *.tsv
-*.lua
-main
 *.idx
 builds
 .vscode

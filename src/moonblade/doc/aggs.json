@@ -1,0 +1,8 @@
+[
+  {
+    "name": "all",
+    "arguments": ["<expr>"],
+    "returns": "bool",
+    "help": "Returns true if all elements returned by given expression are truthy."
+  }
+]
