@@ -314,7 +314,13 @@ Usage:
     xan help --help
 
 help options:
-    --json  Dump the desired help as JSON.
+    -p, --pager            Pipe the help into a pager (Same as piping
+                           with forced colors into `less -SRi`).
+    -S, --section <query>  When used with -p, --pager, will skip to a
+                           section matching <query>. For instance,
+                           using -S dates will scroll directly to the
+                           section about date functions.
+    --json                 Dump the desired help as JSON.
 
 Common options:
     -h, --help             Display this message
@@ -325,28 +331,56 @@ struct Args {
     cmd_cheatsheet: bool,
     cmd_functions: bool,
     cmd_aggs: bool,
+    flag_pager: bool,
+    flag_section: Option<String>,
     flag_json: bool,
+}
+
+impl Args {
+    fn setup_pager(&self) {
+        if !self.flag_pager {
+            return;
+        }
+
+        #[cfg(not(windows))]
+        {
+            colored::control::set_override(true);
+            pager::Pager::with_pager("less -SRi").setup();
+        }
+
+        #[cfg(windows)]
+        {
+            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?;
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_section.is_some() {
+        unimplemented!()
+    }
 
     if args.cmd_cheatsheet {
         if args.flag_json {
             Err("cheatsheet does not support --json!")?;
         }
 
+        args.setup_pager();
         println!("{}", get_colorized_cheatsheet());
     } else if args.cmd_functions {
         if args.flag_json {
             println!("{}", get_functions_help_json_str());
         } else {
+            args.setup_pager();
             print!("{}", parse_functions_help().to_txt());
         }
     } else if args.cmd_aggs {
         if args.flag_json {
             println!("{}", get_aggs_help_json_str());
         } else {
+            args.setup_pager();
             print!("{}", parse_aggs_help().to_txt());
         }
     }
