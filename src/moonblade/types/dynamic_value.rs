@@ -7,13 +7,14 @@ use std::sync::Arc;
 
 use bstr::BString;
 use btoi::btoi;
-use jiff::{civil::DateTime, tz::TimeZone, Timestamp, Zoned};
+use jiff::{tz::TimeZone, Zoned};
 use regex::Regex;
 use serde::{
     de::{Deserializer, MapAccess, SeqAccess, Visitor},
     Deserialize, Serialize, Serializer,
 };
 
+use crate::dates;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::utils::downgrade_float;
 
@@ -39,26 +40,8 @@ pub enum DynamicValue {
 const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T%.f[%Z]";
 
 fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
-    if value.ends_with('Z') {
-        return match value.parse::<Timestamp>() {
-            Ok(timestamp) => Ok(timestamp.to_zoned(TimeZone::UTC)),
-            Err(_) => Err(EvaluationError::DateTime(format!(
-                "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
-                value
-            ))),
-        };
-    }
-
-    match value.parse::<Zoned>() {
-        Ok(zoned_datetime) => Ok(zoned_datetime),
-        Err(_) => match value.parse::<DateTime>() {
-            Ok(datetime) => Ok(datetime.to_zoned(TimeZone::system()).unwrap()),
-            Err(_) => Err(EvaluationError::DateTime(format!(
-                "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
-                value
-            ))),
-        },
-    }
+    dates::parse_zoned(value, None, None)
+        .map_err(|err| EvaluationError::from_zoned_parse_error(value, None, None, err))
 }
 
 impl Default for DynamicValue {

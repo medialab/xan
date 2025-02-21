@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use super::types::{Arity, ColumIndexationBy, DynamicValue};
+use crate::dates::ZonedParseError;
 
 fn format_column_indexation_error(
     f: &mut std::fmt::Formatter,
@@ -137,6 +138,28 @@ pub enum EvaluationError {
 impl EvaluationError {
     pub fn from_cast(from_value: &DynamicValue, expected: &str) -> Self {
         Self::Cast(from_value.type_of().to_string(), expected.to_string())
+    }
+
+    pub fn from_zoned_parse_error(
+        value: &str,
+        format: Option<&str>,
+        timezone: Option<&str>,
+        error: ZonedParseError,
+    ) -> Self {
+        Self::DateTime(match error {
+            ZonedParseError::CannotParse => format!(
+                "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
+                value
+            ),
+            ZonedParseError::TimezoneMismatch => format!(
+                "conflicting timezones between \"{}\" and \"{}\"",
+                value,
+                timezone.unwrap()
+            ),
+            ZonedParseError::InvalidFormat => {
+                format!("invalid strptime format: \"{}\"", format.unwrap())
+            }
+        })
     }
 
     pub fn specify(self, function_name: &str) -> SpecifiedEvaluationError {
