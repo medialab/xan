@@ -6,7 +6,7 @@
 
 * Moonblade concat operator becomes `++` instead of `.`.
 * Overhauling moonblade cli documentation:
-  * Dropping `--functions`, `--cheatsheet` and `--flags` everywhere
+  * Dropping `--functions`, `--cheatsheet` and `--aggs` everywhere
   * Adding a proper `xan help` command
 
 *Features*
