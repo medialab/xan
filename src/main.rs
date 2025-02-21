@@ -261,13 +261,6 @@ impl Command {
         let argv: Vec<_> = argv.iter().map(|s| &**s).collect();
         let argv = &*argv;
 
-        if !argv[1].chars().all(|c| char::is_lowercase(c) || c == '-') {
-            return Err(CliError::Other(format!(
-                "xan expects commands in lowercase. Did you mean '{}'?",
-                argv[1].to_lowercase()
-            )));
-        }
-
         match self {
             Command::Agg => cmd::agg::run(argv),
             Command::Behead | Command::Guillotine => cmd::behead::run(argv),
