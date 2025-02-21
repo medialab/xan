@@ -108,6 +108,7 @@ struct FunctionHelp {
     arguments: Vec<String>,
     returns: String,
     help: String,
+    aliases: Option<Vec<String>>,
     alternatives: Option<Vec<Vec<String>>>,
 }
 
@@ -128,6 +129,7 @@ impl FunctionHelp {
     fn to_txt(&self) -> String {
         let mut string = String::new();
 
+        // Main call
         string.push_str(&format!("- {}(", self.name.cyan()));
         string.push_str(&format!(
             "{}) -> {}\n",
@@ -135,6 +137,17 @@ impl FunctionHelp {
             self.returns.magenta()
         ));
 
+        // Aliases
+        for alias in self.aliases.iter().flatten() {
+            string.push_str(&format!("- {}(", alias.cyan()));
+            string.push_str(&format!(
+                "{}) -> {}\n",
+                join_arguments(&self.arguments),
+                self.returns.magenta()
+            ));
+        }
+
+        // Alternatives
         for alternative in self.alternatives.iter().flatten() {
             string.push_str(&format!("- {}(", self.name.cyan()));
             string.push_str(&format!(
@@ -144,8 +157,11 @@ impl FunctionHelp {
             ));
         }
 
-        string.push_str(&indent(&wrap(&self.help, 80).join("\n"), "    "));
-        string.push('\n');
+        string.push_str(&colorize_functions_help(&indent(
+            &wrap(&self.help, 80).join("\n"),
+            "    ",
+        )));
+        string.push_str("\n\n");
 
         string
     }

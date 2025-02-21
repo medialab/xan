@@ -20,6 +20,155 @@
     ]
   },
   {
+    "section": "Utils",
+    "functions": [
+      {
+        "name": "coalesce",
+        "arguments": ["*args"],
+        "returns": "T",
+        "help": "Return first truthy value."
+      },
+      {
+        "name": "col",
+        "arguments": ["name_or_pos", "nth?"],
+        "returns": "bytes",
+        "help": "Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names."
+      },
+      {
+        "name": "cols",
+        "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
+        "returns": "list[bytes]",
+        "help": "Return list of cell values from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns."
+      },
+      {
+        "name": "err",
+        "arguments": ["msg"],
+        "returns": "error",
+        "help": "Make the expression return a custom error."
+      },
+      {
+        "name": "headers",
+        "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
+        "returns": "list[string]",
+        "help": "Return list of header names from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers."
+      },
+      {
+        "name": "index",
+        "arguments": [],
+        "returns": "integer?",
+        "help": "Return the row's index, if applicable."
+      },
+      {
+        "name": "mime_ext",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Return the extension related to given mime type."
+      },
+      {
+        "name": "parse_dataurl",
+        "arguments": ["string"],
+        "returns": "[string, bytes]",
+        "help": "Parse the given data url and return its mime type and decoded binary data."
+      },
+      {
+        "name": "parse_json",
+        "arguments": ["string"],
+        "returns": "any",
+        "help": "Parse the given string as JSON."
+      },
+      {
+        "name": "typeof",
+        "arguments": ["value"],
+        "returns": "string",
+        "help": "Return type of value."
+      }
+    ]
+  },
+  {
+    "section": "IO & path wrangling",
+    "functions": [
+      {
+        "name": "abspath",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Return absolute & canonicalized path."
+      },
+      {
+        "name": "bytesize",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Return a number of bytes in human-readable format (KB, MB, GB, etc.)."
+      },
+      {
+        "name": "copy",
+        "arguments": ["source_path", "target_path"],
+        "returns": "string",
+        "help": "Copy a source to target path. Will create necessary directories on the way. Returns target path as a convenience."
+      },
+      {
+        "name": "ext",
+        "arguments": ["path"],
+        "returns": "string?",
+        "help": "Return the path's extension, if any."
+      },
+      {
+        "name": "ext",
+        "arguments": ["path"],
+        "returns": "string?",
+        "help": "Return the path's extension, if any."
+      },
+      {
+        "name": "filesize",
+        "arguments": ["string"],
+        "returns": "int",
+        "help": "Return the size of given file in bytes."
+      },
+      {
+        "name": "isfile",
+        "arguments": ["string"],
+        "returns": "bool",
+        "help": "Return whether the given path is an existing file on disk."
+      },
+      {
+        "name": "move",
+        "arguments": ["source_path", "target_path"],
+        "returns": "string",
+        "help": "Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience."
+      },
+      {
+        "name": "path_join",
+        "aliases": ["pjoin"],
+        "arguments": ["string", "*strings"],
+        "returns": "string",
+        "help": "Join multiple paths correctly."
+      },
+      {
+        "name": "read",
+        "arguments": ["path", "encoding=?", "errors=?"],
+        "returns": "string",
+        "help": "Read file at path. Default encoding is \"utf-8\". Default error handling policy is \"replace\", and can be one of \"replace\", \"ignore\" or \"strict\"."
+      },
+      {
+        "name": "read_csv",
+        "arguments": ["path"],
+        "returns": "list[map]",
+        "help": "Read and parse CSV file at path, returning its rows as a list of maps with headers as keys."
+      },
+      {
+        "name": "read_json",
+        "arguments": ["path"],
+        "returns": "any",
+        "help": "Read and parse JSON file at path."
+      },
+      {
+        "name": "write",
+        "arguments": ["string", "path"],
+        "returns": "string",
+        "help": "Write string to path as utf-8 text. Will create necessary directories recursively before actually writing the file. Return the path that was written."
+      }
+    ]
+  },
+  {
     "section": "Random",
     "functions": [
       {

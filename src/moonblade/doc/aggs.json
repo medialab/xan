@@ -4,5 +4,305 @@
     "arguments": ["<expr>"],
     "returns": "bool",
     "help": "Returns true if all elements returned by given expression are truthy."
+  },
+  {
+    "name": "any",
+    "arguments": ["<expr>"],
+    "returns": "bool",
+    "help": "Returns true if any of the elements returned by given expression is truthy."
+  },
+  {
+    "name": "approx_cardinality",
+    "arguments": ["<expr>"],
+    "returns": "int",
+    "help": "Returns the approximate cardinality of the set of values returned by given expression using the HyperLogLog+ algorithm."
+  },
+  {
+    "name": "approx_quantile",
+    "arguments": ["<expr>", "p"],
+    "returns": "number",
+    "help": "Returns an approximation of the desired quantile of values returned by given expression using t-digests."
+  },
+  {
+    "name": "argmin",
+    "arguments": ["<expr>", "<expr>?"],
+    "returns": "any",
+    "help": "Return the index of the row where the first expression is minimized, or the result of the second expression where the first expression is minimized. Ties will be broken by original row index."
+  },
+  {
+    "name": "argmax",
+    "arguments": ["<expr>", "<expr>?"],
+    "returns": "any",
+    "help": "Return the index of the row where the first expression is maximized, or the result of the second expression where the first expression is maximized. Ties will be broken by original row index."
+  },
+  {
+    "name": "argtop",
+    "arguments": ["k", "<expr>", "<expr>?", "separator?"],
+    "returns": "string",
+    "help": "Find the top k values returned by the first expression and either return the indices of matching rows or the result of the second expression, joined by a pipe character ('|') or by the provided separator. Ties will be broken by original row index."
+  },
+  {
+    "name": "avg",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Average of numerical values. Same as `mean`."
+  },
+  {
+    "name": "cardinality",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Number of distinct values returned by given expression."
+  },
+  {
+    "name": "correlation",
+    "arguments": ["<expr>", "<expr>"],
+    "returns": "number",
+    "help": "Return the correlation (covariance divided by the product of standard deviations) of series represented by the two given expressions."
+  },
+  {
+    "name": "count",
+    "arguments": ["<expr>?"],
+    "returns": "number",
+    "help": "Count the number of truthy values returned by given expression. Expression can also be omitted to count all rows."
+  },
+  {
+    "name": "count_seconds",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Count the number of seconds between earliest and latest datetime returned by given expression."
+  },
+  {
+    "name": "count_hours",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Count the number of hours between earliest and latest datetime returned by given expression."
+  },
+  {
+    "name": "count_days",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Count the number of days between earliest and latest datetime returned by given expression."
+  },
+  {
+    "name": "count_years",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Count the number of years between earliest and latest datetime returned by given expression."
+  },
+  {
+    "name": "covariance",
+    "arguments": ["<expr>", "<expr>"],
+    "returns": "number",
+    "help": "Return the population covariance of series represented by the two given expressions. Same as `covariance_pop`."
+  },
+  {
+    "name": "covariance_pop",
+    "arguments": ["<expr>", "<expr>"],
+    "returns": "number",
+    "help": "Return the population covariance of series represented by the two given expressions. Same as `covariance`."
+  },
+  {
+    "name": "covariance_sample",
+    "arguments": ["<expr>", "<expr>"],
+    "returns": "number",
+    "help": "Return the sample covariance of series represented by the two given expressions."
+  },
+  {
+    "name": "distinct_values",
+    "arguments": ["<expr>", "separator?"],
+    "returns": "string",
+    "help": "List of sorted distinct values joined by a pipe character ('|') by default or by the provided separator."
+  },
+  {
+    "name": "earliest",
+    "arguments": ["<expr>"],
+    "returns": "datetime",
+    "help": "Earliest datetime returned by given expression."
+  },
+  {
+    "name": "first",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Return first seen non empty element of the values returned by the given expression."
+  },
+  {
+    "name": "latest",
+    "arguments": ["<expr>"],
+    "returns": "datetime",
+    "help": "Latest datetime returned by given expression."
+  },
+  {
+    "name": "last",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Return last seen non empty element of the values returned by the given expression."
+  },
+  {
+    "name": "lex_first",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Return first string in lexicographical order."
+  },
+  {
+    "name": "lex_last",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Return last string in lexicographical order."
+  },
+  {
+    "name": "min",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Minimum numerical value."
+  },
+  {
+    "name": "max",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Maximum numerical value."
+  },
+  {
+    "name": "mean",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Mean of numerical values. Same as `avg`."
+  },
+  {
+    "name": "median",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Median of numerical values, interpolating on even counts."
+  },
+  {
+    "name": "median_high",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Median of numerical values, returning higher value on even counts."
+  },
+  {
+    "name": "median_low",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Median of numerical values, returning lower value on even counts."
+  },
+  {
+    "name": "mode",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Value appearing the most, breaking ties arbitrarily in favor of the first value in lexicographical order."
+  },
+  {
+    "name": "most_common",
+    "arguments": ["k", "<expr>", "separator?"],
+    "returns": "string",
+    "help": "List of top k most common values returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order."
+  },
+  {
+    "name": "most_common_counts",
+    "arguments": ["k", "<expr>", "separator?"],
+    "returns": "string",
+    "help": "List of top k most common counts returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order."
+  },
+  {
+    "name": "percentage",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Return the percentage of truthy values returned by expression."
+  },
+  {
+    "name": "quantile",
+    "arguments": ["<expr>", "q"],
+    "returns": "number",
+    "help": "Return the desired quantile of numerical values."
+  },
+  {
+    "name": "q1",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Return the first quartile of numerical values."
+  },
+  {
+    "name": "q2",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Return the second quartile of numerical values."
+  },
+  {
+    "name": "q3",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Return the third quartile of numerical values."
+  },
+  {
+    "name": "ratio",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Return the ratio of truthy values returned by expression."
+  },
+  {
+    "name": "stddev",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Population standard deviation. Same as `stddev_pop`."
+  },
+  {
+    "name": "stddev_pop",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Population standard deviation. Same as `stddev`."
+  },
+  {
+    "name": "stddev_sample",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Sample standard deviation (i.e. using Bessel's correction)."
+  },
+  {
+    "name": "sum",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Sum of numerical values. Will return nothing if the sum overflows. Uses the Kahan-Babuska routine for precise float summation."
+  },
+  {
+    "name": "top",
+    "arguments": ["k", "<expr>", "separator?"],
+    "returns": "any",
+    "help": "Find the top k values returned by the expression and join them by a pipe character ('|') or by the provided separator. Ties will be broken by original row index."
+  },
+  {
+    "name": "type",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Best type description for seen values."
+  },
+  {
+    "name": "types",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Sorted list, pipe-separated, of all the types seen in the values."
+  },
+  {
+    "name": "values",
+    "arguments": ["<expr>", "separator?"],
+    "returns": "string",
+    "help": "List of values joined by a pipe character ('|') by default or by the provided separator."
+  },
+  {
+    "name": "var",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Population variance. Same as `var_pop`."
+  },
+  {
+    "name": "var_pop",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Population variance. Same as `var`."
+  },
+  {
+    "name": "var_sample",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Sample variance (i.e. using Bessel's correction)."
   }
 ]
