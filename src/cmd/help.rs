@@ -53,18 +53,6 @@ fn slug(string: &str) -> String {
 struct OperatorHelpSections(Vec<OperatorHelpSection>);
 
 impl OperatorHelpSections {
-    fn to_txt(&self) -> String {
-        let mut string = String::new();
-
-        string.push_str("## Operators\n\n");
-
-        for section in self.0.iter() {
-            string.push_str(&section.to_txt());
-        }
-
-        string
-    }
-
     fn txt_summary(&self) -> String {
         let mut string = String::new();
 
@@ -80,6 +68,49 @@ impl OperatorHelpSections {
         );
 
         string.push('\n');
+
+        string
+    }
+
+    fn md_summary(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str("- [Operators](#operators)\n");
+
+        string.push_str(
+            &self
+                .0
+                .iter()
+                .map(|section| format!("    - [{}](#{})", section.title, slug(&section.title)))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+
+        string.push('\n');
+
+        string
+    }
+
+    fn to_txt(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str("## Operators\n\n");
+
+        for section in self.0.iter() {
+            string.push_str(&section.to_txt());
+        }
+
+        string
+    }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str("## Operators\n\n");
+
+        for section in self.0.iter() {
+            string.push_str(&section.to_md());
+        }
 
         string
     }
@@ -116,6 +147,35 @@ impl OperatorHelpSection {
         }
 
         string.push_str("\n\n");
+
+        string
+    }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str(&format!("### {}\n\n", self.title));
+
+        if let Some(prelude) = self.prelude.as_ref() {
+            string.push_str(prelude);
+            string.push_str("\n\n");
+        }
+
+        let max_width = self
+            .examples
+            .iter()
+            .map(|example| example.snippet.len())
+            .max()
+            .unwrap();
+
+        string.push_str("```javascript\n");
+
+        for example in self.examples.iter() {
+            string.push_str(&example.to_txt(max_width));
+            string.push('\n');
+        }
+
+        string.push_str("```\n\n");
 
         string
     }
@@ -192,7 +252,7 @@ impl FunctionHelpSections {
         string
     }
 
-    fn to_md(&self) -> String {
+    fn to_md(&self, operator_sections: &OperatorHelpSections) -> String {
         let mut string = String::new();
 
         // Prelude
@@ -200,7 +260,7 @@ impl FunctionHelpSections {
         string.push('\n');
 
         // Summary
-        // TODO: operators summary
+        string.push_str(&operator_sections.md_summary());
         string.push_str(
             &self
                 .0
@@ -212,8 +272,7 @@ impl FunctionHelpSections {
         string.push_str("\n\n");
 
         // Operators
-        // TODO: operators
-        // string.push_str(get_functions_operators_help_str());
+        string.push_str(&operator_sections.to_md());
         string.push('\n');
 
         // Sections
@@ -563,7 +622,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_json {
             println!("{}", get_functions_help_json_str());
         } else if args.flag_md {
-            print!("{}", parse_functions_help().to_md());
+            print!("{}", parse_functions_help().to_md(&parse_operators_help()));
         } else {
             args.setup_pager();
             print!(
