@@ -24,29 +24,7 @@ EOF
 done
 
 # Moonblade reference
-    cat << EOF > docs/moonblade.md
-# xan expression language reference
-
-* [Cheatsheet](#cheatsheet)
-* [Functions & Operators](#functions--operators)
-* [Aggregation functions](#aggregation-functions)
-
-## Cheatsheet
-
-\`\`\`txt
-$($XAN map --cheatsheet | tail -n +2)
-\`\`\`
-
-## Functions & Operators
-
-\`\`\`md
-$($XAN map --functions | tail -n +2)
-\`\`\`
-
-## Aggregation functions
-
-\`\`\`md
-$($XAN agg --aggs | tail -n +2)
-\`\`\`
-
-EOF
+mkdir -p docs/moonblade
+$XAN help cheatsheet --md > docs/moonblade/cheatsheet.md
+$XAN help functions --md > docs/moonblade/functions.md
+$XAN help aggs --md > docs/moonblade/aggs.md

@@ -459,8 +459,6 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 
 ## Available commands
 
-*All commands are not fully documented on this README yet, but all the necessary information can be found directly from the command line. Just run `xan command -h` for help*
-
 *Explore & visualize*
 
 - [**count (c)**](./docs/cmd/count.md): Count rows in file
@@ -563,6 +561,13 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 
 If you ever feel lost, each command has a `-h/--help` flag that will print the related documentation.
 
+If you need help about the expression language, check out the `help` command itself:
+
+```bash
+# Help about help ;)
+xan help --help
+```
+
 ### Regarding input & output formats
 
 All `xan` commands expect a "standard" CSV file, e.g. comma-delimited, with proper double-quote escaping. This said, `xan` is also perfectly able to infer the delimiter from typical file extensions such as `.tsv` or `.tab`.
@@ -602,7 +607,9 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 
 ## Expression language reference
 
-[xan expression language API reference](./docs/moonblade.md)
+- [Cheatsheet](./docs/moonblade/cheatsheet.md)
+- [Comprehensive list of functions & operators](./docs/moonblade/functions.md)
+- [Comprehensive list of aggregation functions](./docs/moonblade/aggs.md)
 
 ## Cookbook
 
