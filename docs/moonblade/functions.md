@@ -28,7 +28,7 @@
 
 ### Unary operators
 
-```javascript
+```txt
 !x - boolean negation
 -x - numerical negation
 ```
@@ -37,7 +37,7 @@
 
 Warning: those operators will always consider operands as numbers or dates and will try to cast them around as such. For string/sequence comparison, use the operators in the next section.
 
-```javascript
+```txt
 x == y - numerical equality
 x != y - numerical inequality
 x < y  - numerical less than
@@ -50,7 +50,7 @@ x >= y - numerical greater than or equal
 
 Warning: those operators will always consider operands as strings or sequences and will try to cast them around as such. For numerical comparison, use the operators in the previous section.
 
-```javascript
+```txt
 x eq y - string equality
 x ne y - string inequality
 x lt y - string less than
@@ -61,7 +61,7 @@ x ge y - string greater than or equal
 
 ### Arithmetic operators
 
-```javascript
+```txt
 x + y  - numerical addition
 x - y  - numerical subtraction
 x * y  - numerical multiplication
@@ -73,13 +73,13 @@ x ** y - numerical exponentiation
 
 ### String/sequence operators
 
-```javascript
+```txt
 x ++ y - string concatenation
 ```
 
 ### Logical operators
 
-```javascript
+```txt
 x && y     - logical and
 x and y
 x || y     - logical or
@@ -92,7 +92,7 @@ x not in y
 
 Negative indices are accepted and mean the same thing as with the Python language.
 
-```javascript
+```txt
 x[y]         - get y from x (string or list index, map key)
 x[start:end] - slice x from start index to end index
 x[:end]      - slice x from start to end index
@@ -103,7 +103,7 @@ x[start:]    - slice x from start index to end
 
 using "_" for left-hand side substitution.
 
-```javascript
+```txt
 trim(name) | len(_)         - Same as len(trim(name))
 trim(name) | len            - Supports elision for unary functions
 trim(name) | add(1, len(_)) - Can be nested
@@ -122,8 +122,10 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **idiv**(*x*, *y*) -> `number`: Integer division of two numbers.
 - **floor**(*x*) -> `number`: Return the smallest integer lower than or equal to x.
 - **log**(*x*) -> `number`: Return the natural logarithm of x.
-- **max**(*x*, *y*, *\*n*) -> `number`: Return the maximum number.- **max**(*list_of_numbers*) -> `number`: Return the maximum number.
-- **min**(*x*, *y*, *\*n*) -> `number`: Return the minimum number.- **min**(*list_of_numbers*) -> `number`: Return the minimum number.
+- **max**(*x*, *y*, *\*n*) -> `number`: Return the maximum number.
+- **max**(*list_of_numbers*) -> `number`: Return the maximum number.
+- **min**(*x*, *y*, *\*n*) -> `number`: Return the minimum number.
+- **min**(*list_of_numbers*) -> `number`: Return the minimum number.
 - **mod**(*x*, *y*) -> `number`: Return the remainder of x divided by y.
 - **mul**(*x*, *y*, *\*n*) -> `number`: Multiply two or more numbers.
 - **neg**(*x*) -> `number`: Return -x.
@@ -159,7 +161,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **endswith**(*string*, *pattern*) -> `bool`: Test if string ends with pattern.
 - **escape_regex**(*string*) -> `string`: Escape a string so it can be used safely in a regular expression.
 - **first**(*seq*) -> `T`: Get first element of sequence.
-- **fmt**(*string*, *\*replacements*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br><br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.
+- **fmt**(*string*, *\*replacements*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.
 - **get**(*target*, *index_or_key*, *default?*) -> `T`: Get nth element of sequence (can use negative indexing), or key of mapping. Returns nothing if index or key is not found or alternatively the provided default value.
 - **join**(*seq*, *sep*) -> `string`: Join sequence by separator.
 - **last**(*seq*) -> `T`: Get last element of sequence.
@@ -182,11 +184,13 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **strftime**(*target*, *format=?*, *timezone=?*) -> `string`: Format target (a time in ISO 8601 format, or the result of datetime() function) according to format.
 - **timestamp**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
 - **timestamp_ms**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
-- **year_month_day**(*target*, *timezone=?*) -> `string`: Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format="%Y-%m-%d")- **ymd**(*target*, *timezone=?*) -> `string`: Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format="%Y-%m-%d")
+- **year_month_day**(*target*, *timezone=?*) -> `string`: Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format="%Y-%m-%d")
+- **ymd**(*target*, *timezone=?*) -> `string`: Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format="%Y-%m-%d")
 - **month_day**(*target*, *timezone=?*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day. Equivalent to strftime(string, format="%m-%d")
 - **month**(*target*, *timezone=?*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month. Equivalent to strftime(string, format="%m")
 - **year**(*target*, *timezone=?*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year. Equivalent to strftime(string, format="%Y")
-- **year_month**(*target*, *timezone=?*) -> `string`: Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format="%Y-%m")- **ym**(*target*, *timezone=?*) -> `string`: Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format="%Y-%m")
+- **year_month**(*target*, *timezone=?*) -> `string`: Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format="%Y-%m")
+- **ym**(*target*, *timezone=?*) -> `string`: Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format="%Y-%m")
 
 ## Collections (list of maps) functions
 
@@ -231,7 +235,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **filesize**(*string*) -> `int`: Return the size of given file in bytes.
 - **isfile**(*string*) -> `bool`: Return whether the given path is an existing file on disk.
 - **move**(*source_path*, *target_path*) -> `string`: Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
-- **path_join**(*string*, *\*strings*) -> `string`: Join multiple paths correctly.- **pjoin**(*string*, *\*strings*) -> `string`: Join multiple paths correctly.
+- **path_join**(*string*, *\*strings*) -> `string`: Join multiple paths correctly.
+- **pjoin**(*string*, *\*strings*) -> `string`: Join multiple paths correctly.
 - **read**(*path*, *encoding=?*, *errors=?*) -> `string`: Read file at path. Default encoding is "utf-8". Default error handling policy is "replace", and can be one of "replace", "ignore" or "strict".
 - **read_csv**(*path*) -> `list[map]`: Read and parse CSV file at path, returning its rows as a list of maps with headers as keys.
 - **read_json**(*path*) -> `any`: Read and parse JSON file at path.

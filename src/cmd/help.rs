@@ -41,8 +41,8 @@ fn escape_markdown_argument(string: &str) -> String {
         .replace(">", "\\>")
 }
 
-fn escape_markdown_linebreak(string: &str) -> String {
-    string.replace("\n", "<br>")
+fn escape_markdown_linebreaks(string: &str) -> String {
+    string.replace("\n\n", "<br>")
 }
 
 fn slug(string: &str) -> String {
@@ -171,7 +171,7 @@ impl OperatorHelpSection {
             .max()
             .unwrap();
 
-        string.push_str("```javascript\n");
+        string.push_str("```txt\n");
 
         for example in self.examples.iter() {
             string.push_str(&example.to_txt(max_width));
@@ -397,7 +397,7 @@ impl FunctionHelp {
                     .collect::<Vec<_>>()
                     .join(", "),
                 returns,
-                escape_markdown_linebreak(help)
+                escape_markdown_linebreaks(help)
             )
         }
 
@@ -413,6 +413,7 @@ impl FunctionHelp {
 
         // Aliases
         for alias in self.aliases.iter().flatten() {
+            string.push('\n');
             string.push_str(&single_form(
                 alias,
                 &self.arguments,
@@ -423,6 +424,7 @@ impl FunctionHelp {
 
         // Alternatives
         for alternative in self.alternatives.iter().flatten() {
+            string.push('\n');
             string.push_str(&single_form(
                 &self.name,
                 alternative,
