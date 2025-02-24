@@ -213,9 +213,6 @@ impl Aggs {
 lazy_static! {
     static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##{0,2} .+").unwrap();
     static ref FLAG_REGEX: Regex = Regex::new(r"--[\w\-]+").unwrap();
-    static ref FUNCTION_REGEX: Regex =
-        Regex::new(r"(?i)- ([a-z0-9_]+)\(((?:[a-z0-9=?*_<>]+\s*,?\s*)*)\) -> ([a-z\[\],?| ]+)").unwrap();
-    // static ref SPACER_REGEX: Regex = Regex::new(r"(?m)^ {8}([^\n]+)").unwrap();
     static ref UNARY_OPERATOR_REGEX: Regex = Regex::new(r"([!-])x").unwrap();
     static ref BINARY_OPERATOR_REGEX: Regex = Regex::new(
         r"x (==|!=|<[= ]|>[= ]|&& |\|\| |and|or |not in|in|eq|ne|lt|le|gt|ge|//|\*\*|\+\+|[+\-*/%]) y"
@@ -227,7 +224,6 @@ lazy_static! {
     .unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
-
     static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^  \. (.+)$").unwrap();
 }
 
@@ -242,35 +238,10 @@ fn colorize_cheatsheet(help: &str) -> String {
 }
 
 fn colorize_functions_help(help: &str) -> String {
-    let help = FUNCTION_REGEX.replace_all(help, |caps: &Captures| {
-        "- ".to_string()
-            + &caps[1].cyan().to_string()
-            + &"(".yellow().to_string()
-            + &caps[2]
-                .split(", ")
-                .map(|arg| {
-                    (if arg == "<expr>" || arg == "<expr>?" {
-                        arg.dimmed()
-                    } else {
-                        arg.red()
-                    })
-                    .to_string()
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
-            + &")".yellow().to_string()
-            + " -> "
-            + &caps[3].magenta().to_string()
-    });
-
     let help = QUOTE_REGEX.replace_all(&help, |caps: &Captures| caps[0].green().to_string());
 
     let help =
         MAIN_SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().to_string());
-
-    // let help = SPACER_REGEX.replace_all(&help, |caps: &Captures| {
-    //     " ".repeat(8) + &caps[1].dimmed().to_string()
-    // });
 
     let help = UNARY_OPERATOR_REGEX.replace_all(&help, |caps: &Captures| {
         caps[1].cyan().to_string() + &"x".red().to_string()
