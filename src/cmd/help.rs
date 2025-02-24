@@ -99,6 +99,43 @@ impl FunctionHelpSections {
 
         string
     }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        // Prelude
+        string.push_str(get_functions_help_prelude_str());
+        string.push('\n');
+
+        // Summary
+        // TODO: proper links & slugs
+        string.push_str(get_operators_summary_txt());
+        string.push_str(
+            &self
+                .0
+                .iter()
+                .map(|section| format!("- {}", section.section))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        string.push_str("\n\n");
+
+        // Operators
+        string.push_str(get_functions_operators_help_str());
+        string.push('\n');
+
+        // Sections
+        string.push_str(
+            &self
+                .0
+                .iter()
+                .map(|section| section.to_md())
+                .collect::<Vec<_>>()
+                .join(""),
+        );
+
+        string
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -115,6 +152,19 @@ impl FunctionHelpSection {
 
         for function in self.functions.iter() {
             string.push_str(&indent(&function.to_txt(), "    "));
+        }
+
+        string.push('\n');
+        string
+    }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str(&format!("## {}\n\n", self.section));
+
+        for function in self.functions.iter() {
+            string.push_str(&indent(&function.to_md(), "    "));
         }
 
         string.push('\n');
@@ -182,6 +232,17 @@ impl FunctionHelp {
             "    ",
         )));
         string.push_str("\n\n");
+
+        string
+    }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        // Main call
+        string.push_str(&format!("- **{}**(): -> *{}*", self.name, self.returns));
+
+        string.push('\n');
 
         string
     }
@@ -372,6 +433,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.cmd_functions {
         if args.flag_json {
             println!("{}", get_functions_help_json_str());
+        } else if args.flag_md {
+            print!("{}", parse_functions_help().to_md());
         } else {
             args.setup_pager();
             print!("{}", parse_functions_help().to_txt(&args.flag_section));
@@ -379,6 +442,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.cmd_aggs {
         if args.flag_json {
             println!("{}", get_aggs_help_json_str());
+        } else if args.flag_md {
+            unimplemented!()
         } else {
             args.setup_pager();
             print!("{}", parse_aggs_help().to_txt());
