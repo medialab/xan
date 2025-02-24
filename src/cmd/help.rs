@@ -47,30 +47,50 @@ fn get_aggs_help_json_str() -> &'static str {
 struct FunctionHelpSections(Vec<FunctionHelpSection>);
 
 impl FunctionHelpSections {
-    fn sections_summary_txt(&self) -> String {
-        self.0
-            .iter()
-            .map(|section| format!("- {}", section.section))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
+    fn to_txt(&self, section: &Option<String>) -> String {
+        let mut should_keep_operators = true;
 
-    fn to_txt(&self) -> String {
+        let filtered_sections: Vec<&FunctionHelpSection> = if let Some(query) = section {
+            if !"operators".contains(&query.to_lowercase()) {
+                should_keep_operators = false;
+            }
+
+            self.0
+                .iter()
+                .filter(|s| s.section.to_lowercase().contains(&query.to_lowercase()))
+                .collect()
+        } else {
+            self.0.iter().collect()
+        };
+
         let mut string = String::new();
 
+        // Prelude
         string.push_str(&colorize_functions_help(get_functions_help_prelude_str()));
         string.push('\n');
 
-        string.push_str(get_operators_summary_txt());
-        string.push_str(&self.sections_summary_txt());
+        // Summary
+        if should_keep_operators {
+            string.push_str(get_operators_summary_txt());
+        }
+        string.push_str(
+            &filtered_sections
+                .iter()
+                .map(|section| format!("- {}", section.section))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
         string.push_str("\n\n");
 
-        string.push_str(&colorize_functions_help(get_functions_operators_help_str()));
-        string.push('\n');
+        // Operators
+        if should_keep_operators {
+            string.push_str(&colorize_functions_help(get_functions_operators_help_str()));
+            string.push('\n');
+        }
 
+        // Sections
         string.push_str(
-            &self
-                .0
+            &filtered_sections
                 .iter()
                 .map(|section| section.to_txt())
                 .collect::<Vec<_>>()
@@ -316,11 +336,11 @@ Usage:
 help options:
     -p, --pager            Pipe the help into a pager (Same as piping
                            with forced colors into `less -SRi`).
-    -S, --section <query>  When used with -p, --pager, will skip to a
-                           section matching <query>. For instance,
-                           using -S dates will scroll directly to the
-                           section about date functions.
-    --json                 Dump the desired help as JSON.
+    -S, --section <query>  Filter the `functions` doc to only include
+                           sections matching the given case-insensitive
+                           query.
+    --json                 Dump the help as JSON data.
+    --md                   Dump the help as Markdown.
 
 Common options:
     -h, --help             Display this message
@@ -334,6 +354,7 @@ struct Args {
     flag_pager: bool,
     flag_section: Option<String>,
     flag_json: bool,
+    flag_md: bool,
 }
 
 impl Args {
@@ -358,8 +379,12 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_section.is_some() {
-        unimplemented!()
+    if args.flag_pager && (args.flag_json || args.flag_md) {
+        Err("-p/--pager does not work with --json nor --md!")?;
+    }
+
+    if args.flag_section.is_some() && !args.cmd_functions {
+        Err("-S/--section <query> only works with the `functions` subcommand!")?;
     }
 
     if args.cmd_cheatsheet {
@@ -367,14 +392,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("cheatsheet does not support --json!")?;
         }
 
-        args.setup_pager();
-        println!("{}", get_colorized_cheatsheet());
+        if args.flag_md {
+            println!("{}", get_cheatsheet_str());
+        } else {
+            args.setup_pager();
+            println!("{}", get_colorized_cheatsheet());
+        }
     } else if args.cmd_functions {
         if args.flag_json {
             println!("{}", get_functions_help_json_str());
         } else {
             args.setup_pager();
-            print!("{}", parse_functions_help().to_txt());
+            print!("{}", parse_functions_help().to_txt(&args.flag_section));
         }
     } else if args.cmd_aggs {
         if args.flag_json {
