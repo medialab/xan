@@ -151,7 +151,7 @@ fn main() {
                 util::colorize_main_help(&format!(
                     "xan (v{}) is a suite of CSV command line utilities.
 
-Please choose one of the following commands/flags:{}",
+Please choose one of the following commands/flags:\n{}",
                     util::version(),
                     command_list!()
                 ))

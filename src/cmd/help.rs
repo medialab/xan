@@ -564,14 +564,24 @@ static USAGE: &str = "
 Print help about the `xan` expression language.
 
 `xan help cheatsheet` will print a short cheatsheet about
-how the language works.
+how the language works. It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/cheatsheet.md
 
 `xan help functions` will print the reference of all of the language's
 functions (used in `xan select -e`, `xan map`, `xan filter`, `xan transform`,
-`xan flatmap` etc.).
+`xan flatmap` etc.). It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/functions.md
 
 `xan help aggs` will print the reference of all of the language's
 aggregation functions (as used in `xan agg` and `xan groupby` mostly).
+It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/aggs.md
+
+Use the -p/--pager flag to open desired documentation in a suitable
+pager.
+
+Use the -O/--open to read the desired documentation online (might
+be slightly out of date!).
 
 Usage:
     xan help cheatsheet [options]
@@ -580,6 +590,7 @@ Usage:
     xan help --help
 
 help options:
+    -O, --open             Open the desired docs in a web browser.
     -p, --pager            Pipe the help into a pager (Same as piping
                            with forced colors into `less -SRi`).
     -S, --section <query>  Filter the `functions` doc to only include
@@ -597,6 +608,7 @@ struct Args {
     cmd_cheatsheet: bool,
     cmd_functions: bool,
     cmd_aggs: bool,
+    flag_open: bool,
     flag_pager: bool,
     flag_section: Option<String>,
     flag_json: bool,
@@ -604,6 +616,21 @@ struct Args {
 }
 
 impl Args {
+    fn open(&self) {
+        let url = format!(
+            "https://github.com/medialab/xan/blob/master/docs/moonblade/{}.md",
+            if self.cmd_cheatsheet {
+                "cheatsheet"
+            } else if self.cmd_functions {
+                "functions"
+            } else {
+                "aggs"
+            }
+        );
+
+        opener::open_browser(url).expect("could not open browser");
+    }
+
     fn setup_pager(&self) {
         if !self.flag_pager {
             return;
@@ -624,6 +651,12 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_open {
+        args.open();
+
+        return Ok(());
+    }
 
     if args.flag_pager && (args.flag_json || args.flag_md) {
         Err("-p/--pager does not work with --json nor --md!")?;

@@ -459,6 +459,8 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 
 ## Available commands
 
+- [**help**](./docs/cmd/help.md): Get help regarding the expression language
+
 *Explore & visualize*
 
 - [**count (c)**](./docs/cmd/count.md): Count rows in file

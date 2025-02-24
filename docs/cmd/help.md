@@ -5,14 +5,24 @@
 Print help about the `xan` expression language.
 
 `xan help cheatsheet` will print a short cheatsheet about
-how the language works.
+how the language works. It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/cheatsheet.md
 
 `xan help functions` will print the reference of all of the language's
 functions (used in `xan select -e`, `xan map`, `xan filter`, `xan transform`,
-`xan flatmap` etc.).
+`xan flatmap` etc.). It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/functions.md
 
 `xan help aggs` will print the reference of all of the language's
 aggregation functions (as used in `xan agg` and `xan groupby` mostly).
+It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/aggs.md
+
+Use the -p/--pager flag to open desired documentation in a suitable
+pager.
+
+Use the -O/--open to read the desired documentation online (might
+be slightly out of date!).
 
 Usage:
     xan help cheatsheet [options]
@@ -21,6 +31,7 @@ Usage:
     xan help --help
 
 help options:
+    -O, --open             Open the desired docs in a web browser.
     -p, --pager            Pipe the help into a pager (Same as piping
                            with forced colors into `less -SRi`).
     -S, --section <query>  Filter the `functions` doc to only include
