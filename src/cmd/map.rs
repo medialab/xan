@@ -28,10 +28,10 @@ a,b,c
 1,4,5
 5,2,7
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-If you want to list available functions, use the --functions flag.
+For a list of available functions, use `xan help functions`.
 
 Miscellaneous tricks:
 
@@ -45,8 +45,6 @@ Miscellaneous tricks:
 
 Usage:
     xan map [options] <expression> <column> [<input>]
-    xan map --cheatsheet
-    xan map --functions
     xan map --help
 
 map options:
@@ -81,8 +79,6 @@ struct Args {
     arg_expression: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
-    flag_functions: bool,
-    flag_cheatsheet: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
@@ -101,8 +97,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let moonblade_args = MoonbladeCmdArgs {
-        print_cheatsheet: args.flag_cheatsheet,
-        print_functions: args.flag_functions,
         target_column: Some(args.arg_column),
         map_expr: args.arg_expression,
         input: args.arg_input,

@@ -26,15 +26,13 @@ value, which means that the latter command can also be written as:
 
     $ xan transform surname 'upper'
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-If you want to list available functions, use the --functions flag.
+For a list of available functions, use `xan help functions`.
 
 Usage:
     xan transform [options] <column> <expression> [<input>]
-    xan transform --cheatsheet
-    xan transform --functions
     xan transform --help
 
 transform options:

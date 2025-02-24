@@ -22,10 +22,10 @@ a,b,c
 1,4,5
 5,2,7
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-If you want to list available functions, use the --functions flag.
+For a list of available functions, use `xan help functions`.
 
 Miscellaneous tricks:
 
@@ -39,8 +39,6 @@ Miscellaneous tricks:
 
 Usage:
     xan map [options] <expression> <column> [<input>]
-    xan map --cheatsheet
-    xan map --functions
     xan map --help
 
 map options:

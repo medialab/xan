@@ -8,10 +8,7 @@ use crate::CliResult;
 use crate::moonblade::AggregationProgram;
 use crate::moonblade::GroupAggregationProgram;
 
-use crate::cmd::moonblade::{
-    get_moonblade_aggregations_function_help, get_moonblade_cheatsheet,
-    get_moonblade_functions_help, MoonbladeErrorPolicy,
-};
+use crate::cmd::moonblade::MoonbladeErrorPolicy;
 
 fn write_group(
     wtr: &mut csv::Writer<Box<dyn Write + Send>>,
@@ -54,19 +51,17 @@ You can group on multiple columns (read `xan select -h` for more information abo
 
     $ xan groupby name,surname 'sum(count)' file.csv
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-For a list of available aggregation functions, use the --aggs flag.
+For a list of available functions, use `xan help functions`.
 
-If you want to list available functions, use the --functions flag.
+For a list of available aggregation functions, use `xan help aggs`
+instead.
 
 Usage:
     xan groupby [options] <column> <expression> [<input>]
     xan groupby --help
-    xan groupby --cheatsheet
-    xan groupby --aggs
-    xan groupby --functions
 
 groupby options:
     --keep <cols>           Keep this selection of columns, in addition to
@@ -101,9 +96,6 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
-    flag_aggs: bool,
-    flag_cheatsheet: bool,
-    flag_functions: bool,
     flag_keep: Option<SelectColumns>,
     flag_sorted: bool,
     flag_errors: String,
@@ -112,21 +104,6 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
-
-    if args.flag_aggs {
-        println!("{}", get_moonblade_aggregations_function_help());
-        return Ok(());
-    }
-
-    if args.flag_cheatsheet {
-        println!("{}", get_moonblade_cheatsheet());
-        return Ok(());
-    }
-
-    if args.flag_functions {
-        println!("{}", get_moonblade_functions_help());
-        return Ok(());
-    }
 
     let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 

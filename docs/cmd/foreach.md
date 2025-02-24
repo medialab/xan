@@ -7,15 +7,13 @@ but does not output anything except printing errors. Use the "map" command
 instead if you want to keep results. "foreach" should only be used when
 performing side-effects (writing files, copying files etc.).
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-If you want to list available functions, use the --functions flag.
+For a list of available functions, use `xan help functions`.
 
 Usage:
     xan foreach [options] <expression> [<input>]
-    xan foreach --cheatsheet
-    xan foreach --functions
     xan foreach --help
 
 foreach options:

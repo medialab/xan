@@ -89,16 +89,14 @@ multiple `xan map` commands piped together:
 
   $ xan select -Ae 'a + b as c, len(name) as name_len'
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-If you want to list available functions, use the --functions flag.
+For a list of available functions, use `xan help functions`.
 
 Usage:
     xan select [options] [--] <selection> [<input>]
     xan select --help
-    xan select --cheatsheet
-    xan select --functions
 
 select options:
     -A, --append           Append the selection to the rows instead of

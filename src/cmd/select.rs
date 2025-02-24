@@ -5,9 +5,7 @@ use crate::CliResult;
 
 use crate::moonblade::SelectionProgram;
 
-use crate::cmd::moonblade::{
-    get_moonblade_cheatsheet, get_moonblade_functions_help, MoonbladeErrorPolicy,
-};
+use crate::cmd::moonblade::MoonbladeErrorPolicy;
 
 static USAGE: &str = "
 Select columns from CSV data using a shorthand notation or by
@@ -97,16 +95,14 @@ multiple `xan map` commands piped together:
 
   $ xan select -Ae 'a + b as c, len(name) as name_len'
 
-For a quick review of the capabilities of the script language, use
-the --cheatsheet flag.
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
 
-If you want to list available functions, use the --functions flag.
+For a list of available functions, use `xan help functions`.
 
 Usage:
     xan select [options] [--] <selection> [<input>]
     xan select --help
-    xan select --cheatsheet
-    xan select --functions
 
 select options:
     -A, --append           Append the selection to the rows instead of
@@ -137,24 +133,12 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_cheatsheet: bool,
-    flag_functions: bool,
     flag_evaluate: bool,
     flag_errors: String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-
-    if args.flag_cheatsheet {
-        println!("{}", get_moonblade_cheatsheet());
-        return Ok(());
-    }
-
-    if args.flag_functions {
-        println!("{}", get_moonblade_functions_help());
-        return Ok(());
-    }
 
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)

@@ -23,7 +23,7 @@ a specific identity to the output, unless you use -l/--keep-last.
 The command can also write only the duplicated rows with --keep-duplicates.
 
 Finally, it is also possible to specify which rows to keep by evaluating
-an expression (see `xan map --cheatsheet` and `xan map --functions` for
+an expression (see `xan help cheatsheet` and `xan help functions` for
 the documentation of the expression language).
 
 For instance, if you want to deduplicate a CSV of events on the `id`
