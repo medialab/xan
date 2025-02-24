@@ -184,13 +184,11 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **strftime**(*target*, *format=?*, *timezone=?*) -> `string`: Format target (a time in ISO 8601 format, or the result of datetime() function) according to format.
 - **timestamp**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
 - **timestamp_ms**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
-- **year_month_day**(*target*, *timezone=?*) -> `string`: Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format="%Y-%m-%d")
-- **ymd**(*target*, *timezone=?*) -> `string`: Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format="%Y-%m-%d")
-- **month_day**(*target*, *timezone=?*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day. Equivalent to strftime(string, format="%m-%d")
-- **month**(*target*, *timezone=?*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month. Equivalent to strftime(string, format="%m")
-- **year**(*target*, *timezone=?*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year. Equivalent to strftime(string, format="%Y")
-- **year_month**(*target*, *timezone=?*) -> `string`: Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format="%Y-%m")
-- **ym**(*target*, *timezone=?*) -> `string`: Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format="%Y-%m")
+- **year_month_day**(*target*, *timezone=?*) -> `string` (aliases: **ymd**): Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.<br>Equivalent to `strftime(string, format="%Y-%m-%d")`.
+- **month_day**(*target*, *timezone=?*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.<br>Equivalent to `strftime(string, format="%m-%d")`.
+- **month**(*target*, *timezone=?*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.
+- **year**(*target*, *timezone=?*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.<br>Equivalent to `strftime(string, format="%Y")`.
+- **year_month**(*target*, *timezone=?*) -> `string` (aliases: **ym**): Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.<br>Equivalent to `strftime(string, format="%Y-%m")`.
 
 ## Collections (list of maps) functions
 
@@ -231,12 +229,10 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **bytesize**(*string*) -> `string`: Return a number of bytes in human-readable format (KB, MB, GB, etc.).
 - **copy**(*source_path*, *target_path*) -> `string`: Copy a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
 - **ext**(*path*) -> `string?`: Return the path's extension, if any.
-- **ext**(*path*) -> `string?`: Return the path's extension, if any.
 - **filesize**(*string*) -> `int`: Return the size of given file in bytes.
 - **isfile**(*string*) -> `bool`: Return whether the given path is an existing file on disk.
 - **move**(*source_path*, *target_path*) -> `string`: Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
-- **path_join**(*string*, *\*strings*) -> `string`: Join multiple paths correctly.
-- **pjoin**(*string*, *\*strings*) -> `string`: Join multiple paths correctly.
+- **path_join**(*string*, *\*strings*) -> `string` (aliases: **pjoin**): Join multiple paths correctly.
 - **read**(*path*, *encoding=?*, *errors=?*) -> `string`: Read file at path. Default encoding is "utf-8". Default error handling policy is "replace", and can be one of "replace", "ignore" or "strict".
 - **read_csv**(*path*) -> `list[map]`: Read and parse CSV file at path, returning its rows as a list of maps with headers as keys.
 - **read_json**(*path*) -> `any`: Read and parse JSON file at path.

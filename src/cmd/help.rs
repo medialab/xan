@@ -42,7 +42,7 @@ fn escape_markdown_argument(string: &str) -> String {
 }
 
 fn escape_markdown_linebreaks(string: &str) -> String {
-    string.replace("\n\n", "<br>")
+    string.replace("\n\n", "<br>").replace("\n", "<br>")
 }
 
 fn slug(string: &str) -> String {
@@ -388,15 +388,33 @@ impl FunctionHelp {
     }
 
     fn to_md(&self) -> String {
-        fn single_form(name: &str, args: &[String], returns: &str, help: &str) -> String {
+        fn single_form(
+            name: &str,
+            args: &[String],
+            returns: &str,
+            help: &str,
+            aliases: &Option<Vec<String>>,
+        ) -> String {
             format!(
-                "- **{}**({}) -> `{}`: {}",
+                "- **{}**({}) -> `{}`{}: {}",
                 name,
                 args.iter()
                     .map(|arg| { format!("*{}*", escape_markdown_argument(arg)) })
                     .collect::<Vec<_>>()
                     .join(", "),
                 returns,
+                if let Some(names) = aliases {
+                    format!(
+                        " (aliases: {})",
+                        names
+                            .iter()
+                            .map(|name| format!("**{}**", name))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                } else {
+                    String::new()
+                },
                 escape_markdown_linebreaks(help)
             )
         }
@@ -409,18 +427,8 @@ impl FunctionHelp {
             &self.arguments,
             &self.returns,
             &self.help,
+            &self.aliases,
         ));
-
-        // Aliases
-        for alias in self.aliases.iter().flatten() {
-            string.push('\n');
-            string.push_str(&single_form(
-                alias,
-                &self.arguments,
-                &self.returns,
-                &self.help,
-            ));
-        }
 
         // Alternatives
         for alternative in self.alternatives.iter().flatten() {
@@ -430,6 +438,7 @@ impl FunctionHelp {
                 alternative,
                 &self.returns,
                 &self.help,
+                &self.aliases,
             ));
         }
 

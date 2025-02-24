@@ -375,32 +375,32 @@
         "aliases": ["ymd"],
         "arguments": ["target", "timezone=?"],
         "returns": "string",
-        "help": "Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day. Equivalent to strftime(string, format=\"%Y-%m-%d\")"
+        "help": "Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.\nEquivalent to `strftime(string, format=\"%Y-%m-%d\")`."
       },
       {
         "name": "month_day",
         "arguments": ["target", "timezone=?"],
         "returns": "string",
-        "help": "Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day. Equivalent to strftime(string, format=\"%m-%d\")"
+        "help": "Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.\nEquivalent to `strftime(string, format=\"%m-%d\")`."
       },
       {
         "name": "month",
         "arguments": ["target", "timezone=?"],
         "returns": "string",
-        "help": "Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month. Equivalent to strftime(string, format=\"%m\")"
+        "help": "Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.\nEquivalent to `strftime(string, format=\"%m\")`."
       },
       {
         "name": "year",
         "arguments": ["target", "timezone=?"],
         "returns": "string",
-        "help": "Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year. Equivalent to strftime(string, format=\"%Y\")"
+        "help": "Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.\nEquivalent to `strftime(string, format=\"%Y\")`."
       },
       {
         "name": "year_month",
         "aliases": ["ym"],
         "arguments": ["target", "timezone=?"],
         "returns": "string",
-        "help": "Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month. Equivalent to strftime(string, format=\"%Y-%m\")"
+        "help": "Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.\nEquivalent to `strftime(string, format=\"%Y-%m\")`."
       }
     ]
   },
@@ -557,12 +557,6 @@
         "arguments": ["source_path", "target_path"],
         "returns": "string",
         "help": "Copy a source to target path. Will create necessary directories on the way. Returns target path as a convenience."
-      },
-      {
-        "name": "ext",
-        "arguments": ["path"],
-        "returns": "string?",
-        "help": "Return the path's extension, if any."
       },
       {
         "name": "ext",
