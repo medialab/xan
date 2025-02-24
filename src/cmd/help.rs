@@ -1,30 +1,21 @@
 use colored::Colorize;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use textwrap::{indent, wrap};
+use textwrap::indent;
 
 use crate::util;
 use crate::CliResult;
 
-fn get_operators_summary_txt() -> &'static str {
-    "- Operators
-    - Unary operators
-    - Numerical comparison
-    - String/sequence comparison
-    - Arithmetic operators
-    - String/sequence operators
-    - Logical operators
-    - Indexing & slicing operators
-    - Pipeline operator
-"
+fn wrap(string: &str) -> String {
+    textwrap::wrap(string, 80).join("\n")
 }
 
 fn get_cheatsheet_str() -> &'static str {
     include_str!("../moonblade/doc/cheatsheet.txt")
 }
 
-fn get_functions_operators_help_str() -> &'static str {
-    include_str!("../moonblade/doc/operators.txt")
+fn get_operators_json_str() -> &'static str {
+    include_str!("../moonblade/doc/operators.json")
 }
 
 fn get_functions_help_prelude_str() -> &'static str {
@@ -59,10 +50,97 @@ fn slug(string: &str) -> String {
 }
 
 #[derive(Deserialize, Debug)]
+struct OperatorHelpSections(Vec<OperatorHelpSection>);
+
+impl OperatorHelpSections {
+    fn to_txt(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str("## Operators\n\n");
+
+        for section in self.0.iter() {
+            string.push_str(&section.to_txt());
+        }
+
+        string
+    }
+
+    fn txt_summary(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str("- Operators\n");
+
+        string.push_str(
+            &self
+                .0
+                .iter()
+                .map(|section| format!("    - {}", section.title))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+
+        string.push('\n');
+
+        string
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct OperatorHelpSection {
+    title: String,
+    prelude: Option<String>,
+    examples: Vec<OperatorExample>,
+}
+
+impl OperatorHelpSection {
+    fn to_txt(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str(&format!("### {}\n\n", self.title));
+
+        if let Some(prelude) = self.prelude.as_ref() {
+            string.push_str(&wrap(prelude));
+            string.push_str("\n\n");
+        }
+
+        let max_width = self
+            .examples
+            .iter()
+            .map(|example| example.snippet.len())
+            .max()
+            .unwrap();
+
+        for example in self.examples.iter() {
+            string.push_str(&indent(&example.to_txt(max_width), "    "));
+            string.push('\n');
+        }
+
+        string.push_str("\n\n");
+
+        string
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct OperatorExample {
+    snippet: String,
+    help: Option<String>,
+}
+
+impl OperatorExample {
+    fn to_txt(&self, width: usize) -> String {
+        match &self.help {
+            Some(help) => format!("{:<width$} - {}", self.snippet, help, width = width),
+            None => format!("{}", self.snippet),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
 struct FunctionHelpSections(Vec<FunctionHelpSection>);
 
 impl FunctionHelpSections {
-    fn to_txt(&self, section: &Option<String>) -> String {
+    fn to_txt(&self, operator_sections: &OperatorHelpSections, section: &Option<String>) -> String {
         let mut should_keep_operators = true;
 
         let filtered_sections: Vec<&FunctionHelpSection> = if let Some(query) = section {
@@ -72,7 +150,7 @@ impl FunctionHelpSections {
 
             self.0
                 .iter()
-                .filter(|s| s.section.to_lowercase().contains(&query.to_lowercase()))
+                .filter(|s| s.title.to_lowercase().contains(&query.to_lowercase()))
                 .collect()
         } else {
             self.0.iter().collect()
@@ -86,12 +164,12 @@ impl FunctionHelpSections {
 
         // Summary
         if should_keep_operators {
-            string.push_str(get_operators_summary_txt());
+            string.push_str(&operator_sections.txt_summary());
         }
         string.push_str(
             &filtered_sections
                 .iter()
-                .map(|section| format!("- {}", section.section))
+                .map(|section| format!("- {}", section.title))
                 .collect::<Vec<_>>()
                 .join("\n"),
         );
@@ -99,8 +177,7 @@ impl FunctionHelpSections {
 
         // Operators
         if should_keep_operators {
-            string.push_str(&colorize_functions_help(get_functions_operators_help_str()));
-            string.push('\n');
+            string.push_str(&colorize_functions_help(&operator_sections.to_txt()));
         }
 
         // Sections
@@ -123,20 +200,20 @@ impl FunctionHelpSections {
         string.push('\n');
 
         // Summary
-        // TODO: proper links & slugs
-        string.push_str(get_operators_summary_txt());
+        // TODO: operators summary
         string.push_str(
             &self
                 .0
                 .iter()
-                .map(|section| format!("- [{}](#{})", section.section, slug(&section.section)))
+                .map(|section| format!("- [{}](#{})", section.title, slug(&section.title)))
                 .collect::<Vec<_>>()
                 .join("\n"),
         );
         string.push_str("\n\n");
 
         // Operators
-        string.push_str(get_functions_operators_help_str());
+        // TODO: operators
+        // string.push_str(get_functions_operators_help_str());
         string.push('\n');
 
         // Sections
@@ -155,7 +232,7 @@ impl FunctionHelpSections {
 
 #[derive(Deserialize, Debug)]
 struct FunctionHelpSection {
-    section: String,
+    title: String,
     functions: Vec<FunctionHelp>,
 }
 
@@ -163,7 +240,7 @@ impl FunctionHelpSection {
     fn to_txt(&self) -> String {
         let mut string = String::new();
 
-        string.push_str(&format!("## {}\n\n", self.section).yellow().to_string());
+        string.push_str(&format!("## {}\n\n", self.title).yellow().to_string());
 
         for function in self.functions.iter() {
             string.push_str(&indent(&function.to_txt(), "    "));
@@ -176,7 +253,7 @@ impl FunctionHelpSection {
     fn to_md(&self) -> String {
         let mut string = String::new();
 
-        string.push_str(&format!("## {}\n\n", self.section));
+        string.push_str(&format!("## {}\n\n", self.title));
 
         for function in self.functions.iter() {
             string.push_str(&function.to_md());
@@ -242,10 +319,7 @@ impl FunctionHelp {
             ));
         }
 
-        string.push_str(&colorize_functions_help(&indent(
-            &wrap(&self.help, 80).join("\n"),
-            "    ",
-        )));
+        string.push_str(&colorize_functions_help(&indent(&wrap(&self.help), "    ")));
         string.push_str("\n\n");
 
         string
@@ -329,13 +403,10 @@ lazy_static! {
     static ref FLAG_REGEX: Regex = Regex::new(r"--[\w\-]+").unwrap();
     static ref UNARY_OPERATOR_REGEX: Regex = Regex::new(r"([!-])x").unwrap();
     static ref BINARY_OPERATOR_REGEX: Regex = Regex::new(
-        r"x (==|!=|<[= ]|>[= ]|&& |\|\| |and|or |not in|in|eq|ne|lt|le|gt|ge|//|\*\*|\+\+|[+\-*/%]) y"
+        r"x (==|!=|<=?|>=?|&&|\|\||and|or|not in|in|eq|ne|lt|le|gt|ge|//|\*\*|\+\+|[+\-*/%]) y"
     )
     .unwrap();
-    static ref PIPELINE_OPERATOR_REGEX: Regex = Regex::new(
-        r"(trim\(name\) )\|"
-    )
-    .unwrap();
+    static ref PIPELINE_OPERATOR_REGEX: Regex = Regex::new(r"(trim\(name\) )\|").unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
     static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^  \. (.+)$").unwrap();
@@ -391,6 +462,11 @@ fn get_colorized_cheatsheet() -> String {
 
 fn parse_functions_help() -> FunctionHelpSections {
     let json_str = get_functions_help_json_str();
+    serde_json::from_str(json_str).unwrap()
+}
+
+fn parse_operators_help() -> OperatorHelpSections {
+    let json_str = get_operators_json_str();
     serde_json::from_str(json_str).unwrap()
 }
 
@@ -490,7 +566,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             print!("{}", parse_functions_help().to_md());
         } else {
             args.setup_pager();
-            print!("{}", parse_functions_help().to_txt(&args.flag_section));
+            print!(
+                "{}",
+                parse_functions_help().to_txt(&parse_operators_help(), &args.flag_section)
+            );
         }
     } else if args.cmd_aggs {
         if args.flag_json {

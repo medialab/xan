@@ -1,0 +1,186 @@
+[
+  {
+    "title": "Unary operators",
+    "examples": [
+      {
+        "snippet": "!x",
+        "help": "boolean negation"
+      },
+      {
+        "snippet": "-x",
+        "help": "numerical negation"
+      }
+    ]
+  },
+  {
+    "title": "Numerical comparison",
+    "prelude": "Warning: those operators will always consider operands as numbers or dates and will try to cast them around as such. For string/sequence comparison, use the operators in the next section.",
+    "examples": [
+      {
+        "snippet": "x == y",
+        "help": "numerical equality"
+      },
+      {
+        "snippet": "x != y",
+        "help": "numerical inequality"
+      },
+      {
+        "snippet": "x < y",
+        "help": "numerical less than"
+      },
+      {
+        "snippet": "x <= y",
+        "help": "numerical less than or equal"
+      },
+      {
+        "snippet": "x > y",
+        "help": "numerical greater than"
+      },
+      {
+        "snippet": "x >= y",
+        "help": "numerical greater than or equal"
+      }
+    ]
+  },
+  {
+    "title": "String/sequence comparison",
+    "prelude": "Warning: those operators will always consider operands as strings or sequences and will try to cast them around as such. For numerical comparison, use the operators in the previous section.",
+    "examples": [
+      {
+        "snippet": "x eq y",
+        "help": "string equality"
+      },
+      {
+        "snippet": "x ne y",
+        "help": "string inequality"
+      },
+      {
+        "snippet": "x lt y",
+        "help": "string less than"
+      },
+      {
+        "snippet": "x le y",
+        "help": "string less than or equal"
+      },
+      {
+        "snippet": "x gt y",
+        "help": "string greater than"
+      },
+      {
+        "snippet": "x ge y",
+        "help": "string greater than or equal"
+      }
+    ]
+  },
+  {
+    "title": "Arithmetic operators",
+    "examples": [
+      {
+        "snippet": "x + y",
+        "help": "numerical addition"
+      },
+      {
+        "snippet": "x - y",
+        "help": "numerical subtraction"
+      },
+      {
+        "snippet": "x * y",
+        "help": "numerical multiplication"
+      },
+      {
+        "snippet": "x / y",
+        "help": "numerical division"
+      },
+      {
+        "snippet": "x % y",
+        "help": "numerical remainder"
+      },
+      {
+        "snippet": "x // y",
+        "help": "numerical integer division"
+      },
+      {
+        "snippet": "x ** y",
+        "help": "numerical exponentiation"
+      }
+    ]
+  },
+  {
+    "title": "String/sequence operators",
+    "examples": [
+      {
+        "snippet": "x ++ y",
+        "help": "string concatenation"
+      }
+    ]
+  },
+  {
+    "title": "Logical operators",
+    "examples": [
+      {
+        "snippet": "x && y",
+        "help": "logical and"
+      },
+      {
+        "snippet": "x and y"
+      },
+      {
+        "snippet": "x || y",
+        "help": "logical or"
+      },
+      {
+        "snippet": "x or y"
+      },
+      {
+        "snippet": "x in y"
+      },
+      {
+        "snippet": "x not in y"
+      }
+    ]
+  },
+  {
+    "title": "Indexing & slicing operators",
+    "prelude": "Negative indices are accepted and mean the same thing as with the Python language.",
+    "examples": [
+      {
+        "snippet": "x[y]",
+        "help": "get y from x (string or list index, map key)"
+      },
+      {
+        "snippet": "x[start:end]",
+        "help": "slice x from start index to end index"
+      },
+      {
+        "snippet": "x[:end]",
+        "help": "slice x from start to end index"
+      },
+      {
+        "snippet": "x[start:]",
+        "help": "slice x from start index to end"
+      }
+    ]
+  },
+  {
+    "title": "Pipeline operator",
+    "prelude": "using \"_\" for left-hand side substitution.",
+    "examples": [
+      {
+        "snippet": "trim(name) | len(_)",
+        "help": "Same as len(trim(name))"
+      },
+      {
+        "snippet": "trim(name) | len",
+        "help": "Supports elision for unary functions"
+      },
+      {
+        "snippet": "trim(name) | add(1, len(_))",
+        "help": "Can be nested"
+      },
+      {
+        "snippet": "add(trim(name) | len, 2)",
+        "help": "Can be used anywhere"
+      }
+    ]
+  }
+]

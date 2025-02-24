@@ -1,6 +1,6 @@
 [
   {
-    "section": "Arithmetics",
+    "title": "Arithmetics",
     "functions": [
       {
         "name": "abs",
@@ -125,7 +125,7 @@
     ]
   },
   {
-    "section": "Boolean operations & branching",
+    "title": "Boolean operations & branching",
     "functions": [
       {
         "name": "and",
@@ -160,7 +160,7 @@
     ]
   },
   {
-    "section": "Comparison",
+    "title": "Comparison",
     "functions": [
       {
         "name": "eq",
@@ -201,7 +201,7 @@
     ]
   },
   {
-    "section": "String & sequence helpers",
+    "title": "String & sequence helpers",
     "functions": [
       {
         "name": "compact",
@@ -344,7 +344,7 @@
     ]
   },
   {
-    "section": "Dates",
+    "title": "Dates",
     "functions": [
       {
         "name": "datetime",
@@ -405,7 +405,7 @@
     ]
   },
   {
-    "section": "Collections (list of maps) functions",
+    "title": "Collections (list of maps) functions",
     "functions": [
       {
         "name": "index_by",
@@ -416,7 +416,7 @@
     ]
   },
   {
-    "section": "Map functions",
+    "title": "Map functions",
     "functions": [
       {
         "name": "keys",
@@ -433,7 +433,7 @@
     ]
   },
   {
-    "section": "Aggregation functions",
+    "title": "Aggregation functions",
     "functions": [
       {
         "name": "mean",
@@ -444,7 +444,7 @@
     ]
   },
   {
-    "section": "Fuzzy matching & information retrieval",
+    "title": "Fuzzy matching & information retrieval",
     "functions": [
       {
         "name": "fingerprint",
@@ -473,7 +473,7 @@
     ]
   },
   {
-    "section": "Utils",
+    "title": "Utils",
     "functions": [
       {
         "name": "coalesce",
@@ -538,7 +538,7 @@
     ]
   },
   {
-    "section": "IO & path wrangling",
+    "title": "IO & path wrangling",
     "functions": [
       {
         "name": "abspath",
@@ -622,7 +622,7 @@
     ]
   },
   {
-    "section": "Random",
+    "title": "Random",
     "functions": [
       {
         "name": "md5",
