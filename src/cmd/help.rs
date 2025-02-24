@@ -43,6 +43,21 @@ fn get_aggs_help_json_str() -> &'static str {
     include_str!("../moonblade/doc/aggs.json")
 }
 
+fn escape_markdown_star(string: &str) -> String {
+    string.replace("*", "\\*")
+}
+
+fn escape_markdown_linebreak(string: &str) -> String {
+    string.replace("\n", "<br>")
+}
+
+fn slug(string: &str) -> String {
+    string
+        .to_lowercase()
+        .replace(|c: char| c != ' ' && !c.is_ascii_alphanumeric(), "")
+        .replace(' ', "-")
+}
+
 #[derive(Deserialize, Debug)]
 struct FunctionHelpSections(Vec<FunctionHelpSection>);
 
@@ -114,7 +129,7 @@ impl FunctionHelpSections {
             &self
                 .0
                 .iter()
-                .map(|section| format!("- {}", section.section))
+                .map(|section| format!("- [{}](#{})", section.section, slug(&section.section)))
                 .collect::<Vec<_>>()
                 .join("\n"),
         );
@@ -164,7 +179,7 @@ impl FunctionHelpSection {
         string.push_str(&format!("## {}\n\n", self.section));
 
         for function in self.functions.iter() {
-            string.push_str(&indent(&function.to_md(), "    "));
+            string.push_str(&function.to_md());
         }
 
         string.push('\n');
@@ -237,10 +252,48 @@ impl FunctionHelp {
     }
 
     fn to_md(&self) -> String {
+        fn single_form(name: &str, args: &[String], returns: &str, help: &str) -> String {
+            format!(
+                "- **{}**({}) -> `{}`: {}",
+                name,
+                args.iter()
+                    .map(|arg| { format!("*{}*", escape_markdown_star(arg)) })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                returns,
+                escape_markdown_linebreak(help)
+            )
+        }
+
         let mut string = String::new();
 
         // Main call
-        string.push_str(&format!("- **{}**(): -> *{}*", self.name, self.returns));
+        string.push_str(&single_form(
+            &self.name,
+            &self.arguments,
+            &self.returns,
+            &self.help,
+        ));
+
+        // Aliases
+        for alias in self.aliases.iter().flatten() {
+            string.push_str(&single_form(
+                alias,
+                &self.arguments,
+                &self.returns,
+                &self.help,
+            ));
+        }
+
+        // Alternatives
+        for alternative in self.alternatives.iter().flatten() {
+            string.push_str(&single_form(
+                &self.name,
+                alternative,
+                &self.returns,
+                &self.help,
+            ));
+        }
 
         string.push('\n');
 
@@ -299,7 +352,7 @@ fn colorize_cheatsheet(help: &str) -> String {
 }
 
 fn colorize_functions_help(help: &str) -> String {
-    let help = QUOTE_REGEX.replace_all(&help, |caps: &Captures| caps[0].green().to_string());
+    let help = QUOTE_REGEX.replace_all(help, |caps: &Captures| caps[0].green().to_string());
 
     let help =
         MAIN_SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().to_string());
