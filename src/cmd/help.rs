@@ -34,8 +34,11 @@ fn get_aggs_help_json_str() -> &'static str {
     include_str!("../moonblade/doc/aggs.json")
 }
 
-fn escape_markdown_star(string: &str) -> String {
-    string.replace("*", "\\*")
+fn escape_markdown_argument(string: &str) -> String {
+    string
+        .replace("*", "\\*")
+        .replace("<", "\\<")
+        .replace(">", "\\>")
 }
 
 fn escape_markdown_linebreak(string: &str) -> String {
@@ -390,7 +393,7 @@ impl FunctionHelp {
                 "- **{}**({}) -> `{}`: {}",
                 name,
                 args.iter()
-                    .map(|arg| { format!("*{}*", escape_markdown_star(arg)) })
+                    .map(|arg| { format!("*{}*", escape_markdown_argument(arg)) })
                     .collect::<Vec<_>>()
                     .join(", "),
                 returns,
@@ -449,6 +452,24 @@ impl Aggs {
                 .0
                 .iter()
                 .map(|help| indent(&help.to_txt(), "    "))
+                .collect::<Vec<_>>()
+                .join(""),
+        );
+
+        string
+    }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str(get_aggs_help_prelude_str());
+        string.push('\n');
+
+        string.push_str(
+            &self
+                .0
+                .iter()
+                .map(|help| help.to_md())
                 .collect::<Vec<_>>()
                 .join(""),
         );
@@ -634,7 +655,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_json {
             println!("{}", get_aggs_help_json_str());
         } else if args.flag_md {
-            unimplemented!()
+            print!("{}", parse_aggs_help().to_md());
         } else {
             args.setup_pager();
             print!("{}", parse_aggs_help().to_txt());
