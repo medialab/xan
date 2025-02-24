@@ -194,7 +194,7 @@ impl OperatorExample {
     fn to_txt(&self, width: usize) -> String {
         match &self.help {
             Some(help) => format!("{:<width$} - {}", self.snippet, help, width = width),
-            None => format!("{}", self.snippet),
+            None => self.snippet.clone(),
         }
     }
 }
@@ -489,17 +489,7 @@ lazy_static! {
     static ref PIPELINE_OPERATOR_REGEX: Regex = Regex::new(r"(trim\(name\) )\|").unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
-    static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^  \. (.+)$").unwrap();
-}
-
-fn colorize_cheatsheet(help: &str) -> String {
-    let help = CHEATSHEET_ITEM_REGEX.replace_all(help, |caps: &Captures| {
-        "  . ".to_string() + &caps[1].yellow().to_string()
-    });
-
-    let help = FLAG_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().to_string());
-
-    help.into_owned()
+    static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^\. (.+)$").unwrap();
 }
 
 fn colorize_functions_help(help: &str) -> String {
@@ -533,11 +523,15 @@ fn colorize_functions_help(help: &str) -> String {
 
     let help = FLAG_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().to_string());
 
+    let help = CHEATSHEET_ITEM_REGEX.replace_all(&help, |caps: &Captures| {
+        "  . ".to_string() + &caps[1].magenta().to_string()
+    });
+
     help.into_owned()
 }
 
 fn get_colorized_cheatsheet() -> String {
-    colorize_cheatsheet(get_cheatsheet_str())
+    colorize_functions_help(get_cheatsheet_str())
 }
 
 fn parse_functions_help() -> FunctionHelpSections {

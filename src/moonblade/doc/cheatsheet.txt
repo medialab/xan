@@ -1,65 +1,72 @@
-xan script language cheatsheet (use `xan help functions` for comprehensive
-list of available functions & operators):
+# Expression language cheatsheet
 
-  . Indexing a column by name:
-      'name'
+Use `xan help functions` for a comprehensive list of available
+functions & operators.
 
-  . Indexing column with forbidden characters (e.g. spaces, commas etc.):
-      'col("Name of film")'
+Use `xan help aggs` for a comprehensive list of available
+aggregation functions.
 
-  . Indexing column by index (0-based):
-      'col(2)'
+```
+. Indexing a column by name:
+    'name'
 
-  . Indexing a column by name and 0-based nth (for duplicate headers):
-      'col("col", 1)'
+. Indexing column with forbidden characters (e.g. spaces, commas etc.):
+    'col("Name of film")'
 
-  . Indexing a column that may not exist:
-      'name?'
+. Indexing column by index (0-based):
+    'col(2)'
 
-  . Applying functions:
-      'trim(name)'
-      'trim(concat(name, " ", surname))'
+. Indexing a column by name and 0-based nth (for duplicate headers):
+    'col("col", 1)'
 
-  . Named function arguments:
-      'read(path, encoding="utf-8")'
+. Indexing a column that may not exist:
+    'name?'
 
-  . Using operators (unary & binary):
-      '-nb1'
-      'nb1 + nb2'
-      '(nb1 > 1) || nb2'
+. Applying functions:
+    'trim(name)'
+    'trim(concat(name, " ", surname))'
 
-  . Integer literals:
-      '1'
+. Named function arguments:
+    'read(path, encoding="utf-8")'
 
-  . Float literals:
-      '0.5'
+. Using operators (unary & binary):
+    '-nb1'
+    'nb1 + nb2'
+    '(nb1 > 1) || nb2'
 
-  . Boolean literals:
-      'true'
-      'false'
+. Integer literals:
+    '1'
 
-  . Null literals:
-      'null'
+. Float literals:
+    '0.5'
 
-  . String literals (can use single or double quotes):
-      '"hello"'
-      "'hello'"
+. Boolean literals:
+    'true'
+    'false'
 
-  . Binary string literals (can use single or double quotes):
-      'b"hello"'
-      "b'hello'"
+. Null literals:
+    'null'
 
-  . Regex literals:
-      '/john/'
-      '/john/i' (case-insensitive)
+. String literals (can use single or double quotes):
+    '"hello"'
+    "'hello'"
 
-  . List literals:
-      '[1, 2, 3]'
-      '["one", "two"]
+. Binary string literals (can use single or double quotes):
+    'b"hello"'
+    "b'hello'"
 
-  . Map literals:
-      '{one: 1, two: 2}'
-      '{leaf: "hello", "nested": [1, 2, 3]}'
+. Regex literals:
+    '/john/'
+    '/john/i' (case-insensitive)
+
+. List literals:
+    '[1, 2, 3]'
+    '["one", "two"]
+
+. Map literals:
+    '{one: 1, two: 2}'
+    '{leaf: "hello", "nested": [1, 2, 3]}'
+```
 
 Note that constant expressions will never be evaluated more than once
 when parsing the program.
