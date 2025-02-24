@@ -28,6 +28,7 @@
 * Fixing moonblade support for Z-terminated timestamp formats.
 * Fixing `xan plot -T` granularity inference.
 * Fixing missing fractional seconds to default `datetime` serialization.
+* Fixing bin allocation with `xan bins --nice`.
 
 *Performance*
 

@@ -384,17 +384,12 @@ impl Series {
 
             for n in self.numbers.iter() {
                 // NOTE: using `binary_search_by` as lower_bound
-                let mut bin_index = bins
-                    .binary_search_by(|bin| match bin.lower_bound.partial_cmp(n).unwrap() {
+                let bin_index = bins
+                    .binary_search_by(|bin| match bin.upper_bound.partial_cmp(n).unwrap() {
                         Ordering::Equal => Ordering::Greater,
                         ord => ord,
                     })
                     .unwrap_err();
-
-                // Exception to include max in last bin
-                if bin_index == bins.len() {
-                    bin_index -= 1;
-                }
 
                 bins[bin_index].count += 1;
             }
