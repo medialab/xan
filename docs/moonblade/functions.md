@@ -161,7 +161,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **endswith**(*string*, *pattern*) -> `bool`: Test if string ends with pattern.
 - **escape_regex**(*string*) -> `string`: Escape a string so it can be used safely in a regular expression.
 - **first**(*seq*) -> `T`: Get first element of sequence.
-- **fmt**(*string*, *\*replacements*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.
+- **fmt**(*string*, *\*replacements*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
+- **fmt**(*string*, *map*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
 - **get**(*target*, *index_or_key*, *default?*) -> `T`: Get nth element of sequence (can use negative indexing), or key of mapping. Returns nothing if index or key is not found or alternatively the provided default value.
 - **join**(*seq*, *sep*) -> `string`: Join sequence by separator.
 - **last**(*seq*) -> `T`: Get last element of sequence.

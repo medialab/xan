@@ -432,28 +432,58 @@ fn apply_unidecode(args: BoundArguments) -> FunctionResult {
 }
 
 lazy_static! {
-    static ref FMT_PATTERN: regex::Regex = regex::Regex::new(r"\{\}").unwrap();
+    static ref FMT_PATTERN: regex::Regex = regex::Regex::new(r"\{([A-Za-z_]*)\}").unwrap();
 }
 
 fn fmt(args: BoundArguments) -> FunctionResult {
     let mut args_iter = args.into_iter();
     let first_arg = args_iter.next().unwrap();
+    let mut rest = args_iter.collect::<Vec<_>>();
+    let substitution_map = if rest.len() == 1 {
+        match rest.pop().unwrap() {
+            DynamicValue::Map(map) => Some(map),
+            other => {
+                rest.push(other);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let pattern = first_arg.try_as_str()?;
 
     let mut formatted = String::with_capacity(pattern.len());
+    let mut current_positional: usize = 0;
     let mut last_match = 0;
 
     for capture in FMT_PATTERN.captures_iter(&pattern) {
         let m = capture.get(0).unwrap();
+        let fallback = &capture[0];
 
         formatted.push_str(&pattern[last_match..m.start()]);
 
-        match args_iter.next() {
-            None => formatted.push_str(&capture[0]),
-            Some(arg) => {
-                formatted.push_str(&arg.try_as_str()?);
+        match capture.get(1).unwrap().as_str() {
+            "" => {
+                if current_positional < rest.len() {
+                    formatted.push_str(&rest[current_positional].try_as_str()?);
+                    current_positional += 1;
+                } else {
+                    formatted.push_str(fallback);
+                }
             }
-        }
+            key => {
+                if let Some(map) = &substitution_map {
+                    if let Some(sub) = map.get(key) {
+                        formatted.push_str(&sub.try_as_str()?);
+                    } else {
+                        formatted.push_str(fallback);
+                    }
+                } else {
+                    formatted.push_str(fallback);
+                }
+            }
+        };
 
         last_match = m.end();
     }

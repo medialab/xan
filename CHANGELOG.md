@@ -21,6 +21,7 @@
 * Adding `xan from npy`.
 * Adding `-R,--regression-line` to `xan plot`.
 * Adding `xan t` alias for `xan transpose`.
+* Adding map substitution to `fmt` moonblade function.
 
 *Fixes*
 
