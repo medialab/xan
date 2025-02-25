@@ -315,7 +315,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         println!(
             "{}{}",
             left_padding,
-            util::unicode_aware_wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
+            util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
         );
         println!();
     }

@@ -145,7 +145,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 true,
             )
         } else if args.flag_wrap {
-            util::unicode_aware_wrap(
+            util::wrap(
                 &util::sanitize_text_for_multi_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 max_header_width + 1 + offset,

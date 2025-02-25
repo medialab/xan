@@ -7,7 +7,7 @@ use crate::util;
 use crate::CliResult;
 
 fn wrap(string: &str) -> String {
-    textwrap::wrap(string, 80).join("\n")
+    textwrap::fill(string, 80)
 }
 
 fn get_cheatsheet_str() -> &'static str {

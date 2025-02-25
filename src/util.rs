@@ -642,19 +642,11 @@ pub fn unicode_aware_lpad_with_ellipsis(string: &str, width: usize, padding: &st
     unicode_aware_pad_with_ellipsis(true, string, width, padding)
 }
 
-pub fn unicode_aware_wrap(string: &str, max_width: usize, indent: usize) -> String {
-    textwrap::wrap(string, max_width)
-        .iter()
-        .enumerate()
-        .map(|(i, line)| {
-            if i == 0 {
-                line.to_string()
-            } else {
-                textwrap::indent(line, &" ".repeat(indent))
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+pub fn wrap(string: &str, max_width: usize, indent: usize) -> String {
+    let indent = " ".repeat(indent);
+    let options = textwrap::Options::new(max_width).subsequent_indent(&indent);
+
+    textwrap::fill(string, &options)
 }
 
 pub struct EmojiSanitizer {
