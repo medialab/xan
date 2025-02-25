@@ -8,6 +8,7 @@
 * Overhauling moonblade cli documentation:
   * Dropping `--functions`, `--cheatsheet` and `--aggs` everywhere
   * Adding a proper `xan help` command
+* Dropping `xan glob`.
 
 *Features*
 

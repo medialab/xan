@@ -537,7 +537,6 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 
 *Generate CSV files*
 
-- [**glob**](./docs/cmd/glob.md): Create a CSV file with paths matching a glob pattern
 - [**range**](./docs/cmd/range.md): Create a CSV file from a numerical range
 
 *Perform side-effects*

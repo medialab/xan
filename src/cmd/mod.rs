@@ -21,7 +21,6 @@ pub mod fmt;
 pub mod foreach;
 pub mod frequency;
 pub mod from;
-pub mod glob;
 pub mod groupby;
 pub mod headers;
 pub mod heatmap;
