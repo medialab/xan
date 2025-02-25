@@ -15,7 +15,7 @@ using --path-column:
     $ ls data/**/docs.csv | xan parallel count
 
     Paths from a CSV column through stdin:
-    $ xan glob 'data/**/docs.csv' | xan parallel count --path-column path
+    $ cat filelist.csv | xan parallel count --path-column path
 
 Note that you can use the `split` or `partition` command to preemptively
 split a large file into manageable chunks, if you can spare the disk space.

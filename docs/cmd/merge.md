@@ -31,9 +31,9 @@ Feeding stdin ("-") to --paths:
 
     $ find . -name '*.csv' | xan merge --paths - > merged.csv
 
-Feeding CSV as stdin ("-") to --paths (typically using `xan glob`):
+Feeding CSV as stdin ("-") to --paths:
 
-    $ xan glob '**/*.csv' | xan merge --paths - --path-column path > merged.csv
+    $ cat filelist.csv | xan merge --paths - --path-column path > merged.csv
 
 Usage:
     xan merge [options] [<inputs>...]

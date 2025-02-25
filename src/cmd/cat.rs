@@ -34,9 +34,9 @@ Feeding stdin (\"-\") to --paths:
 
     $ find . -name '*.csv' | xan cat rows --paths - > concatenated.csv
 
-Feeding CSV as stdin (\"-\") to --paths (typically using `xan glob`):
+Feeding CSV as stdin (\"-\") to --paths:
 
-    $ xan glob '**/*.csv' | xan cat rows --paths - --path-column path > concatenated.csv
+    $ cat filelist.csv | xan cat rows --paths - --path-column path > concatenated.csv
 
 Usage:
     xan cat rows    [options] [<inputs>...]
