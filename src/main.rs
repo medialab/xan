@@ -366,7 +366,7 @@ impl From<docopt::Error> for CliError {
                 CliError::Other(match kind.as_ref() {
                     docopt::Error::Help => usage,
                     _ => format!(
-                        "{}\n\n{} Use the   {} flag for more information.",
+                        "{}\n\n{} Use the {} flag for more information.",
                         util::colorize_help(&usage),
                         "Invalid command!".red(),
                         "-h,--help".cyan()
