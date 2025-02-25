@@ -40,10 +40,10 @@ macro_rules! sort_by {
 }
 
 static USAGE: &str = "
-Sorts CSV data.
+Sort CSV data.
 
-Note that this requires reading all of the CSV data into memory, unless
-you use the -e/--external flag, which will be slower and fallback
+This requires reading all of the data into memory, unless
+using the -e/--external flag, which will be slower and fallback
 to using disk space.
 
 Usage:
