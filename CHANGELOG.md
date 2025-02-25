@@ -9,6 +9,9 @@
   * Dropping `--functions`, `--cheatsheet` and `--aggs` everywhere
   * Adding a proper `xan help` command
 * Dropping `xan glob`.
+* Adding access & call operator to moonblade:
+  * Member access: `map.name` (same as `get(map, "name")`)
+  * Function call: `string.len()` (same as `len(string)`)
 
 *Features*
 

@@ -25,6 +25,7 @@ aggregation functions.
 . Applying functions:
     'trim(name)'
     'trim(concat(name, " ", surname))'
+    'name.trim()'
 
 . Named function arguments:
     'read(path, encoding="utf-8")'

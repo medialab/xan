@@ -95,7 +95,6 @@ macro_rules! command_list {
     parallel (p) Map-reduce-like parallel computation over multiple CSV files
 
 ## Generate CSV files
-    glob        Create a CSV file with paths matching a glob pattern
     range       Create a CSV file from a numerical range
 
 ## Perform side-effects

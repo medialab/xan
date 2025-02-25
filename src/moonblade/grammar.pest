@@ -69,6 +69,7 @@ binary_operator = _{
   | and
   | or
   | pipe
+  | point
 }
 
 gen_eq = { "==" }
@@ -95,7 +96,8 @@ pow  = { "**" }
 
 concat = { "++" }
 
-pipe = { "|" }
+point = { "." }
+pipe  = { "|" }
 
 and = { "&&" | "and" }
 or  = { "||" | "or" }

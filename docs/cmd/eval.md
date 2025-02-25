@@ -9,8 +9,8 @@ Usage:
     xan eval --help
 
 eval options:
-    -s, --serialize        Serialize the value in CSV.
-    -e, --explain          Print concrete expression plan.
+    -S, --serialize        Serialize the value in CSV.
+    -E, --explain          Print concrete expression plan.
     -H, --headers <names>  Pretend headers, separated by commas, to consider.
     -R, --row <values>     Pretend row with comma-separated cells.
 

@@ -45,8 +45,8 @@ impl Rule {
             Self::not => "not",
             Self::neg => "neg",
 
-            // NOTE: `pipe`, `in_op` and `not_in` are not covered by this match
-            // because lhs and rhs are reversed.
+            // NOTE: `point`, `pipe`, `in_op` and `not_in` are not covered by this match
+            // because they are not as straightforward to implement.
             _ => unreachable!(),
         }
     }
@@ -87,7 +87,8 @@ lazy_static! {
         .op(Op::infix(Rule::pow, Assoc::Right))
         .op(Op::prefix(Rule::not) |
             Op::prefix(Rule::neg))
-        .op(Op::infix(Rule::open_indexing, Assoc::Left));
+        .op(Op::infix(Rule::open_indexing, Assoc::Left) |
+            Op::infix(Rule::point, Assoc::Left));
 }
 
 fn parse_int(pair: Pair<Rule>) -> Result<i64, &str> {
@@ -335,6 +336,31 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                         vec![lhs_res.clone(), lhs_res, rhs?],
                     ))
                 }
+
+                // Access & call
+                Rule::point => match rhs? {
+                    Expr::Identifier(identifier, _) => {
+                        Expr::Func(FunctionCall::new("get", vec![lhs?, Expr::Str(identifier)]))
+                    }
+                    Expr::Bool(value) => Expr::Func(FunctionCall::new(
+                        "get",
+                        vec![lhs?, Expr::Str(value.to_string())],
+                    )),
+                    Expr::Int(value) => {
+                        Expr::Func(FunctionCall::new("get", vec![lhs?, Expr::Int(value)]))
+                    }
+                    Expr::Str(name) => {
+                        Expr::Func(FunctionCall::new("get", vec![lhs?, Expr::Str(name)]))
+                    }
+                    Expr::BStr(name) => {
+                        Expr::Func(FunctionCall::new("get", vec![lhs?, Expr::BStr(name)]))
+                    }
+                    Expr::Func(mut func_call) => {
+                        func_call.args.insert(0, (None, lhs?));
+                        Expr::Func(func_call)
+                    }
+                    _ => return Err("illegal access or call!".to_string()),
+                },
 
                 // General case
                 rule => Expr::Func(FunctionCall::new(rule.as_fn_op_str(), vec![lhs?, rhs?])),
