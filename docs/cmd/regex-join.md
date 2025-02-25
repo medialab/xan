@@ -32,14 +32,14 @@ actually need to join columns from the patterns file, you should
 probably use `xan search --patterns` instead.
 
 Usage:
-    xan regex-join [options] <columns> <input> <pattern-col> <patterns-input>
+    xan regex-join [options] <columns> <input> <pattern-column> <patterns>
     xan regex-join --help
 
 join options:
     -i, --ignore-case            Make the regex patterns case-insensitive.
-    --left                       Write every row from the first file in the output, with empty
-                                 padding cells when no regex pattern from the second file
-                                 produced a match.
+    --left                       Write every row from input file in the output, with empty
+                                 padding cells on the right when no regex pattern from the second
+                                 file produced any match.
     -p, --parallel               Whether to use parallelization to speed up computations.
                                  Will automatically select a suitable number of threads to use
                                  based on your number of cores. Use -t, --threads if you want to

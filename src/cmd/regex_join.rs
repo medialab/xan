@@ -92,14 +92,14 @@ actually need to join columns from the patterns file, you should
 probably use `xan search --patterns` instead.
 
 Usage:
-    xan regex-join [options] <columns> <input> <pattern-col> <patterns-input>
+    xan regex-join [options] <columns> <input> <pattern-column> <patterns>
     xan regex-join --help
 
 join options:
     -i, --ignore-case            Make the regex patterns case-insensitive.
-    --left                       Write every row from the first file in the output, with empty
-                                 padding cells when no regex pattern from the second file
-                                 produced a match.
+    --left                       Write every row from input file in the output, with empty
+                                 padding cells on the right when no regex pattern from the second
+                                 file produced any match.
     -p, --parallel               Whether to use parallelization to speed up computations.
                                  Will automatically select a suitable number of threads to use
                                  based on your number of cores. Use -t, --threads if you want to
@@ -123,10 +123,10 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_pattern_col: SelectColumns,
-    arg_patterns_input: String,
     arg_columns: SelectColumns,
     arg_input: String,
+    arg_pattern_column: SelectColumns,
+    arg_patterns: String,
     flag_left: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -149,10 +149,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let patterns_rconf = Config::new(&Some(args.arg_patterns_input.clone()))
+    let patterns_rconf = Config::new(&Some(args.arg_patterns.clone()))
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_pattern_col);
+        .select(args.arg_pattern_column);
 
     let mut patterns_reader = patterns_rconf.reader()?;
     let mut patterns_headers = patterns_reader.byte_headers()?.clone();
