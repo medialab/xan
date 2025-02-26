@@ -145,7 +145,7 @@ fn main() {
 
     match args.arg_command {
         None => {
-            eprintln!(
+            println!(
                 "{}",
                 util::colorize_main_help(&format!(
                     "xan (v{}) is a suite of CSV command line utilities.
@@ -174,6 +174,11 @@ Please choose one of the following commands/flags:\n{}",
             Err(CliError::Other(msg)) => {
                 eprintln!("{}", msg);
                 process::exit(1);
+            }
+            // NOTE: I am not super fan to handle this as an error case...
+            Err(CliError::Help(usage)) => {
+                println!("{}", usage);
+                process::exit(0);
             }
         },
     }
@@ -342,6 +347,7 @@ pub enum CliError {
     Csv(csv::Error),
     Io(io::Error),
     Other(String),
+    Help(String),
 }
 
 impl fmt::Display for CliError {
@@ -351,6 +357,7 @@ impl fmt::Display for CliError {
             CliError::Csv(ref e) => e.fmt(f),
             CliError::Io(ref e) => e.fmt(f),
             CliError::Other(ref s) => f.write_str(s),
+            CliError::Help(ref s) => f.write_str(s),
         }
     }
 }
@@ -363,15 +370,15 @@ impl From<docopt::Error> for CliError {
             docopt::Error::WithProgramUsage(kind, usage) => {
                 let usage = util::colorize_help(&usage);
 
-                CliError::Other(match kind.as_ref() {
-                    docopt::Error::Help => usage,
-                    _ => format!(
+                match kind.as_ref() {
+                    docopt::Error::Help => CliError::Help(usage),
+                    _ => CliError::Other(format!(
                         "{}\n\n{} Use the {} flag for more information.",
                         util::colorize_help(&usage),
                         "Invalid command!".red(),
                         "-h,--help".cyan()
-                    ),
-                })
+                    )),
+                }
             }
             _ => CliError::Flag(err),
         }

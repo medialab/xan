@@ -12,6 +12,7 @@
 * Adding access & call operator to moonblade:
   * Member access: `map.name` (same as `get(map, "name")`)
   * Function call: `string.len()` (same as `len(string)`)
+* Help is now printed in stdout (typically when using the `-h/--help` flag).
 
 *Features*
 
@@ -19,7 +20,7 @@
 * Adding `xan to md`.
 * Adding `xan to npy`.
 * Adding `xan from npy`.
-* Adding `-R,--regression-line` to `xan plot`.
+* Adding `-R/--regression-line` to `xan plot`.
 * Adding `xan t` alias for `xan transpose`.
 * Adding map substitution to `fmt` moonblade function.
 * Adding `xan sort -C/--cells`.
