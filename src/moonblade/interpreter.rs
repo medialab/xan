@@ -101,7 +101,7 @@ impl ConcreteExpr {
             Self::Value(value) => value.clone(),
             Self::Column(index) => match record.get(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
-                Some(cell) => DynamicValue::from_bytes(cell),
+                Some(cell) => DynamicValue::from(cell),
             },
             Self::LambdaBinding(name) => lambda_variables
                 .expect("lambda_variables MUST be set")
@@ -538,7 +538,7 @@ mod tests {
     type TestResult = Result<DynamicValue, RunError>;
 
     fn b(string: &str) -> DynamicValue {
-        DynamicValue::from_bytes(string.as_bytes())
+        DynamicValue::from(string.as_bytes())
     }
 
     fn concretize_code(code: &str) -> Result<ConcreteExpr, ConcretizationError> {

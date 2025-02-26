@@ -263,7 +263,7 @@ fn trim(args: BoundArguments) -> FunctionResult {
 
     Ok(match chars_opt {
         None => match args.get1() {
-            DynamicValue::Bytes(bytes) => DynamicValue::from_bytes(bytes.trim()),
+            DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.trim()),
             value => DynamicValue::from(value.try_as_str()?.trim()),
         },
         Some(chars) => {
@@ -278,7 +278,7 @@ fn ltrim(args: BoundArguments) -> FunctionResult {
 
     Ok(match chars_opt {
         None => match args.get1() {
-            DynamicValue::Bytes(bytes) => DynamicValue::from_bytes(bytes.trim_start()),
+            DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.trim_start()),
             value => DynamicValue::from(value.try_as_str()?.trim_start()),
         },
         Some(chars) => {
@@ -296,7 +296,7 @@ fn rtrim(args: BoundArguments) -> FunctionResult {
 
     Ok(match chars_opt {
         None => match args.get1() {
-            DynamicValue::Bytes(bytes) => DynamicValue::from_bytes(bytes.trim_end()),
+            DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.trim_end()),
             value => DynamicValue::from(value.try_as_str()?.trim_end()),
         },
         Some(chars) => {

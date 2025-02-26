@@ -74,7 +74,7 @@ pub fn get_special_function(
         "headers" => (
             Some(|call: &FunctionCall, headers: &ByteRecord| {
                 comptime_cols_headers(call, headers, |i| {
-                    ConcreteExpr::Value(DynamicValue::from_bytes(&headers[i]))
+                    ConcreteExpr::Value(DynamicValue::from(&headers[i]))
                 })
             }),
             None,
@@ -255,7 +255,7 @@ fn runtime_col(
                 "col",
                 EvaluationError::ColumnNotFound(indexation),
             )),
-            Some(index) => Ok(DynamicValue::from_bytes(&record[index])),
+            Some(index) => Ok(DynamicValue::from(&record[index])),
         },
     }
 }

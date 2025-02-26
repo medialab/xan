@@ -181,10 +181,6 @@ impl DynamicValue {
         Self::Bytes(Arc::new(BString::from(bytes)))
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self::from_owned_bytes(bytes.to_vec())
-    }
-
     pub fn type_of(&self) -> &str {
         match self {
             Self::List(_) => "list",
@@ -490,6 +486,12 @@ impl<'a> Iterator for DynamicValueFlatIter<'a> {
                 },
             }
         }
+    }
+}
+
+impl From<&[u8]> for DynamicValue {
+    fn from(value: &[u8]) -> Self {
+        DynamicValue::from_owned_bytes(value.to_vec())
     }
 }
 
