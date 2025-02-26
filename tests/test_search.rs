@@ -275,6 +275,33 @@ fn search_patterns_substring() {
 }
 
 #[test]
+fn search_patterns_substring_case_insensitive() {
+    let wrk = Workdir::new("search_patterns_substring_case_insensitive");
+
+    wrk.create("index.csv", vec![svec!["name"], svec!["SUZ"], svec!["JO"]]);
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["JOHN"],
+            svec!["ABigail"],
+            svec!["SuZy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "index.csv"])
+        .arg("-i")
+        .args(["--pattern-column", "name"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["JOHN"], svec!["SuZy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn search_patterns_exact() {
     let wrk = Workdir::new("search_patterns_exact");
 

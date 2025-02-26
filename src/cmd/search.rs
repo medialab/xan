@@ -262,33 +262,44 @@ impl Args {
                     .delimiter(self.flag_delimiter)
                     .lines(&self.flag_pattern_column)?;
 
-                let mut set: HashSet<Vec<u8>> = HashSet::new();
-                let mut list: Vec<String> = Vec::new();
-
-                for result in patterns {
-                    let pattern = result?;
-
-                    if self.flag_exact {
-                        if self.flag_ignore_case {
-                            set.insert(pattern.to_lowercase().into_bytes());
-                        } else {
-                            set.insert(pattern.into_bytes());
-                        }
-                    } else {
-                        list.push(pattern);
-                    }
-                }
-
                 Ok(if self.flag_exact {
-                    Matcher::ManyExact(set, self.flag_ignore_case)
+                    Matcher::ManyExact(
+                        patterns
+                            .map(|pattern| {
+                                pattern.map(|p| {
+                                    if self.flag_ignore_case {
+                                        p.to_lowercase().into_bytes()
+                                    } else {
+                                        p.into_bytes()
+                                    }
+                                })
+                            })
+                            .collect::<Result<HashSet<_>, _>>()?,
+                        self.flag_ignore_case,
+                    )
                 } else if self.flag_regex {
                     Matcher::ManyRegex(
-                        RegexSetBuilder::new(&list)
+                        RegexSetBuilder::new(&patterns.collect::<Result<Vec<_>, _>>()?)
                             .case_insensitive(self.flag_ignore_case)
                             .build()?,
                     )
                 } else {
-                    Matcher::Substring(AhoCorasick::new(&list)?, self.flag_ignore_case)
+                    Matcher::Substring(
+                        AhoCorasick::new(
+                            &patterns
+                                .map(|pattern| {
+                                    pattern.map(|p| {
+                                        if self.flag_ignore_case {
+                                            p.to_lowercase()
+                                        } else {
+                                            p
+                                        }
+                                    })
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )?,
+                        self.flag_ignore_case,
+                    )
                 })
             }
         }
