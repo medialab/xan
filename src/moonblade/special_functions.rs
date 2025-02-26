@@ -6,38 +6,37 @@ use std::sync::Arc;
 use csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::interpreter::{ConcreteExpr, EvaluationContext};
+use super::interpreter::{ConcreteExpr, EvaluationContext, GetValue};
 use super::parser::FunctionCall;
 use super::types::{
     Arity, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, LambdaArguments,
 };
 
-pub type ComptimeFunctionResult = Result<Option<ConcreteExpr>, ConcretizationError>;
-pub type ComptimeFunction = fn(&FunctionCall, &ByteRecord) -> ComptimeFunctionResult;
-pub type RuntimeFunction = fn(
+pub type ComptimeFunctionResult<R> = Result<Option<ConcreteExpr<R>>, ConcretizationError>;
+pub type ComptimeFunction<R> = fn(&FunctionCall, &ByteRecord) -> ComptimeFunctionResult<R>;
+pub type RuntimeFunction<R> = fn(
     Option<usize>,
-    &ByteRecord,
+    &R,
     &EvaluationContext,
-    &[ConcreteExpr],
+    &[ConcreteExpr<R>],
     Option<&LambdaArguments>,
 ) -> EvaluationResult;
-
-pub fn get_special_function(
-    name: &str,
-) -> Option<(
-    Option<ComptimeFunction>,
-    Option<RuntimeFunction>,
+type SpecialFunctionLookup<R> = Option<(
+    Option<ComptimeFunction<R>>,
+    Option<RuntimeFunction<R>>,
     FunctionArguments,
-)> {
+)>;
+
+pub fn get_special_function<R: GetValue>(name: &str) -> SpecialFunctionLookup<R> {
     macro_rules! higher_order_fn {
         ($name:expr, $variant:ident) => {
             (
                 None,
                 Some(
                     |index: Option<usize>,
-                     record: &ByteRecord,
+                     record: &R,
                      context: &EvaluationContext,
-                     args: &[ConcreteExpr],
+                     args: &[ConcreteExpr<R>],
                      lambda_variables: Option<&LambdaArguments>| {
                         runtime_higher_order(
                             index,
@@ -106,7 +105,7 @@ pub fn get_special_function(
     })
 }
 
-fn comptime_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionResult {
+fn comptime_col<R>(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionResult<R> {
     // Statically analyzable col() function call
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
         match column_indexation.find_column_index(headers, headers.len()) {
@@ -118,13 +117,13 @@ fn comptime_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionRe
     Ok(None)
 }
 
-fn comptime_cols_headers<F>(
+fn comptime_cols_headers<R, F>(
     call: &FunctionCall,
     headers: &ByteRecord,
     map: F,
-) -> ComptimeFunctionResult
+) -> ComptimeFunctionResult<R>
 where
-    F: Fn(usize) -> ConcreteExpr,
+    F: Fn(usize) -> ConcreteExpr<R>,
 {
     match ColumIndexationBy::from_argument(&call.args[0].1) {
         None => Err(ConcretizationError::NotStaticallyAnalyzable),
@@ -164,11 +163,11 @@ where
     }
 }
 
-fn runtime_if(
+fn runtime_if<R: GetValue>(
     index: Option<usize>,
-    record: &ByteRecord,
+    record: &R,
     context: &EvaluationContext,
-    args: &[ConcreteExpr],
+    args: &[ConcreteExpr<R>],
     lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let arity = args.len();
@@ -176,7 +175,7 @@ fn runtime_if(
     let condition = &args[0];
     let result = condition.evaluate(index, record, context, lambda_variables)?;
 
-    let mut branch: Option<&ConcreteExpr> = None;
+    let mut branch: Option<&ConcreteExpr<R>> = None;
 
     if result.is_truthy() {
         branch = Some(&args[1]);
@@ -190,11 +189,11 @@ fn runtime_if(
     }
 }
 
-fn runtime_unless(
+fn runtime_unless<R: GetValue>(
     index: Option<usize>,
-    record: &ByteRecord,
+    record: &R,
     context: &EvaluationContext,
-    args: &[ConcreteExpr],
+    args: &[ConcreteExpr<R>],
     lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let arity = args.len();
@@ -202,7 +201,7 @@ fn runtime_unless(
     let condition = &args[0];
     let result = condition.evaluate(index, record, context, lambda_variables)?;
 
-    let mut branch: Option<&ConcreteExpr> = None;
+    let mut branch: Option<&ConcreteExpr<R>> = None;
 
     if result.is_falsey() {
         branch = Some(&args[1]);
@@ -216,11 +215,11 @@ fn runtime_unless(
     }
 }
 
-fn runtime_index(
+fn runtime_index<R>(
     index: Option<usize>,
-    _record: &ByteRecord,
+    _record: &R,
     _context: &EvaluationContext,
-    _args: &[ConcreteExpr],
+    _args: &[ConcreteExpr<R>],
     _lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     Ok(match index {
@@ -229,11 +228,11 @@ fn runtime_index(
     })
 }
 
-fn runtime_col(
+fn runtime_col<R: GetValue>(
     index: Option<usize>,
-    record: &ByteRecord,
+    record: &R,
     context: &EvaluationContext,
-    args: &[ConcreteExpr],
+    args: &[ConcreteExpr<R>],
     lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let name_or_pos = args
@@ -255,7 +254,7 @@ fn runtime_col(
                 "col",
                 EvaluationError::ColumnNotFound(indexation),
             )),
-            Some(index) => Ok(DynamicValue::from(&record[index])),
+            Some(index) => Ok(record.get_value(index).unwrap()),
         },
     }
 }
@@ -266,11 +265,11 @@ enum HigherOrderOperation {
     Map,
 }
 
-fn runtime_higher_order(
+fn runtime_higher_order<R: GetValue>(
     index: Option<usize>,
-    record: &ByteRecord,
+    record: &R,
     context: &EvaluationContext,
-    args: &[ConcreteExpr],
+    args: &[ConcreteExpr<R>],
     lambda_variables: Option<&LambdaArguments>,
     name: &str,
     op: HigherOrderOperation,

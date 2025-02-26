@@ -650,7 +650,7 @@ impl CompositeAggregator {
 }
 
 fn cast_as_static_value<T>(
-    arg: &ConcreteExpr,
+    arg: &ConcreteExpr<ByteRecord>,
     cast_fn: fn(&DynamicValue) -> Result<T, EvaluationError>,
 ) -> Result<T, ConcretizationError> {
     if let ConcreteExpr::Value(v) = arg {
@@ -660,7 +660,9 @@ fn cast_as_static_value<T>(
     }
 }
 
-fn cast_as_separator(arg_opt: Option<&ConcreteExpr>) -> Result<String, ConcretizationError> {
+fn cast_as_separator(
+    arg_opt: Option<&ConcreteExpr<ByteRecord>>,
+) -> Result<String, ConcretizationError> {
     match arg_opt {
         None => Ok("|".to_string()),
         Some(arg) => {
@@ -677,7 +679,8 @@ fn cast_as_separator(arg_opt: Option<&ConcreteExpr>) -> Result<String, Concretiz
     }
 }
 
-type ArgumentParser = fn(&[ConcreteExpr]) -> Result<ConcreteAggregationMethod, ConcretizationError>;
+type ArgumentParser =
+    fn(&[ConcreteExpr<ByteRecord>]) -> Result<ConcreteAggregationMethod, ConcretizationError>;
 
 fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, ArgumentParser)> {
     use ConcreteAggregationMethod::*;
@@ -790,9 +793,9 @@ enum ConcreteAggregationMethod {
     Any,
     ApproxCardinality,
     ApproxQuantile(f64),
-    ArgMin(Option<ConcreteExpr>),
-    ArgMax(Option<ConcreteExpr>),
-    ArgTop(usize, Option<ConcreteExpr>, String),
+    ArgMin(Option<ConcreteExpr<ByteRecord>>),
+    ArgMax(Option<ConcreteExpr<ByteRecord>>),
+    ArgTop(usize, Option<ConcreteExpr<ByteRecord>>, String),
     Cardinality,
     Correlation,
     Count,
@@ -831,7 +834,7 @@ enum ConcreteAggregationMethod {
 }
 
 impl ConcreteAggregationMethod {
-    fn parse(name: &str, args: &[ConcreteExpr]) -> Result<Self, ConcretizationError> {
+    fn parse(name: &str, args: &[ConcreteExpr<ByteRecord>]) -> Result<Self, ConcretizationError> {
         match get_function_arguments_parser(name) {
             None => Err(ConcretizationError::UnknownFunction(name.to_string())),
             Some((function_arguments, parser)) => {
@@ -851,12 +854,17 @@ impl ConcreteAggregationMethod {
 struct ConcreteAggregation {
     agg_name: String,
     method: ConcreteAggregationMethod,
-    expr: Option<ConcreteExpr>,
-    pair_expr: Option<ConcreteExpr>,
+    expr: Option<ConcreteExpr<ByteRecord>>,
+    pair_expr: Option<ConcreteExpr<ByteRecord>>,
 }
 
 impl ConcreteAggregation {
-    fn key(&self) -> (&Option<ConcreteExpr>, &Option<ConcreteExpr>) {
+    fn key(
+        &self,
+    ) -> (
+        &Option<ConcreteExpr<ByteRecord>>,
+        &Option<ConcreteExpr<ByteRecord>>,
+    ) {
         (&self.expr, &self.pair_expr)
     }
 }
@@ -902,7 +910,7 @@ fn concretize_aggregations(
             None
         };
 
-        let mut args: Vec<ConcreteExpr> = Vec::new();
+        let mut args: Vec<ConcreteExpr<ByteRecord>> = Vec::new();
 
         for arg in aggregation.args.into_iter().skip(skip) {
             args.push(concretize_expression(arg, headers)?);
@@ -935,13 +943,18 @@ fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, Con
 // keys and 2. composite aggregation atom).
 #[derive(Debug, Clone)]
 struct PlannerExecutionUnit {
-    expr: Option<ConcreteExpr>,
-    pair_expr: Option<ConcreteExpr>,
+    expr: Option<ConcreteExpr<ByteRecord>>,
+    pair_expr: Option<ConcreteExpr<ByteRecord>>,
     aggregator_blueprint: CompositeAggregator,
 }
 
 impl PlannerExecutionUnit {
-    fn key(&self) -> (&Option<ConcreteExpr>, &Option<ConcreteExpr>) {
+    fn key(
+        &self,
+    ) -> (
+        &Option<ConcreteExpr<ByteRecord>>,
+        &Option<ConcreteExpr<ByteRecord>>,
+    ) {
         (&self.expr, &self.pair_expr)
     }
 }

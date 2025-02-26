@@ -13,6 +13,21 @@ use super::types::{
     HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
 };
 
+pub trait GetValue {
+    fn empty() -> Self;
+    fn get_value(&self, index: usize) -> Option<DynamicValue>;
+}
+
+impl GetValue for ByteRecord {
+    fn empty() -> Self {
+        Self::new()
+    }
+
+    fn get_value(&self, index: usize) -> Option<DynamicValue> {
+        self.get(index).map(DynamicValue::from)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct EvaluationContext {
     headers_index: HeadersIndex,
@@ -31,20 +46,20 @@ impl EvaluationContext {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConcreteExpr {
+pub enum ConcreteExpr<R> {
     Column(usize),
-    Lambda(Vec<String>, Box<ConcreteExpr>),
+    Lambda(Vec<String>, Box<ConcreteExpr<R>>),
     LambdaBinding(String),
     Value(DynamicValue),
-    List(Vec<ConcreteExpr>),
-    Map(Vec<(String, ConcreteExpr)>),
-    Call(ConcreteFunctionCall),
-    SpecialCall(ConcreteSpecialFunctionCall),
+    List(Vec<ConcreteExpr<R>>),
+    Map(Vec<(String, ConcreteExpr<R>)>),
+    Call(ConcreteFunctionCall<R>),
+    SpecialCall(ConcreteSpecialFunctionCall<R>),
 }
 
 // NOTE: the bind/evaluate distinction is still useful to propagate the calling
 // function context when constructing specified errors.
-impl ConcreteExpr {
+impl<R: GetValue> ConcreteExpr<R> {
     fn is_value(&self) -> bool {
         matches!(self, Self::Value(_))
     }
@@ -94,14 +109,14 @@ impl ConcreteExpr {
 
     fn bind(
         &self,
-        record: &ByteRecord,
+        record: &R,
         lambda_variables: Option<&LambdaArguments>,
     ) -> Result<DynamicValue, EvaluationError> {
         Ok(match self {
             Self::Value(value) => value.clone(),
-            Self::Column(index) => match record.get(*index) {
+            Self::Column(index) => match record.get_value(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
-                Some(cell) => DynamicValue::from(cell),
+                Some(cell) => cell,
             },
             Self::LambdaBinding(name) => lambda_variables
                 .expect("lambda_variables MUST be set")
@@ -118,7 +133,7 @@ impl ConcreteExpr {
     pub fn evaluate(
         &self,
         index: Option<usize>,
-        record: &ByteRecord,
+        record: &R,
         context: &EvaluationContext,
         lambda_variables: Option<&LambdaArguments>,
     ) -> EvaluationResult {
@@ -158,13 +173,13 @@ impl ConcreteExpr {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct ConcreteFunctionCall {
+pub struct ConcreteFunctionCall<R> {
     name: String,
     function: Function,
-    args: Vec<ConcreteExpr>,
+    args: Vec<ConcreteExpr<R>>,
 }
 
-impl ConcreteFunctionCall {
+impl<R: GetValue> ConcreteFunctionCall<R> {
     fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         // NOTE: nullary functions such as index() or uuid() usually
         // rely on some external implicit state and cannot be statically
@@ -177,18 +192,13 @@ impl ConcreteFunctionCall {
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(
-            None,
-            &ByteRecord::new(),
-            &EvaluationContext::default(),
-            None,
-        )
+        self.run(None, &R::empty(), &EvaluationContext::default(), None)
     }
 
     fn run(
         &self,
         index: Option<usize>,
-        record: &ByteRecord,
+        record: &R,
         context: &EvaluationContext,
         lambda_variables: Option<&LambdaArguments>,
     ) -> EvaluationResult {
@@ -232,7 +242,7 @@ impl ConcreteFunctionCall {
 // NOTE: in older rust versions, Debug cannot be derived
 // correctly from `fn` and it will not compile without
 // this custom `Debug` implementation
-impl fmt::Debug for ConcreteFunctionCall {
+impl<R: fmt::Debug> fmt::Debug for ConcreteFunctionCall<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConcreteFunctionCall")
             .field("name", &self.name)
@@ -242,13 +252,13 @@ impl fmt::Debug for ConcreteFunctionCall {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct ConcreteSpecialFunctionCall {
+pub struct ConcreteSpecialFunctionCall<R> {
     name: String,
-    function: SpecialFunction,
-    args: Vec<ConcreteExpr>,
+    function: SpecialFunction<R>,
+    args: Vec<ConcreteExpr<R>>,
 }
 
-impl ConcreteSpecialFunctionCall {
+impl<R: GetValue> ConcreteSpecialFunctionCall<R> {
     fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         // NOTE: other special function are not suitable for late
         // statical evaluation.
@@ -262,18 +272,13 @@ impl ConcreteSpecialFunctionCall {
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(
-            None,
-            &ByteRecord::new(),
-            &EvaluationContext::default(),
-            None,
-        )
+        self.run(None, &R::empty(), &EvaluationContext::default(), None)
     }
 
     fn run(
         &self,
         index: Option<usize>,
-        record: &ByteRecord,
+        record: &R,
         context: &EvaluationContext,
         lambda_variables: Option<&LambdaArguments>,
     ) -> EvaluationResult {
@@ -284,7 +289,7 @@ impl ConcreteSpecialFunctionCall {
 // NOTE: in older rust versions, Debug cannot be derived
 // correctly from `fn` and it will not compile without
 // this custom `Debug` implementation
-impl fmt::Debug for ConcreteSpecialFunctionCall {
+impl<R: fmt::Debug> fmt::Debug for ConcreteSpecialFunctionCall<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConcreteSpecialFunctionCall")
             .field("name", &self.name)
@@ -293,11 +298,11 @@ impl fmt::Debug for ConcreteSpecialFunctionCall {
     }
 }
 
-fn concretize_arguments(
+fn concretize_arguments<R: GetValue>(
     function_arguments: &FunctionArguments,
     parsed_args: Vec<(Option<String>, Expr)>,
     headers: &ByteRecord,
-) -> Result<Vec<ConcreteExpr>, ConcretizationError> {
+) -> Result<Vec<ConcreteExpr<R>>, ConcretizationError> {
     let concrete_args = parsed_args
         .into_iter()
         .map(|(name, expr)| concretize_expression(expr, headers).map(|r| (name, r)))
@@ -310,10 +315,10 @@ fn concretize_arguments(
         .collect())
 }
 
-fn concretize_call(
+fn concretize_call<R: GetValue>(
     call: FunctionCall,
     headers: &ByteRecord,
-) -> Result<ConcreteExpr, ConcretizationError> {
+) -> Result<ConcreteExpr<R>, ConcretizationError> {
     let function_name = &call.name;
     let actual_arity = call.args.len();
 
@@ -388,14 +393,14 @@ fn concretize_call(
     })
 }
 
-fn concretize_list(
+fn concretize_list<R: GetValue>(
     list: Vec<Expr>,
     headers: &ByteRecord,
-) -> Result<ConcreteExpr, ConcretizationError> {
+) -> Result<ConcreteExpr<R>, ConcretizationError> {
     let concrete_list = list
         .into_iter()
         .map(|item| concretize_expression(item, headers))
-        .collect::<Result<Vec<ConcreteExpr>, _>>()?;
+        .collect::<Result<Vec<ConcreteExpr<R>>, _>>()?;
 
     // NOTE: here we can collapse to a literal value
     Ok(if concrete_list.iter().all(|e| e.is_value()) {
@@ -410,14 +415,14 @@ fn concretize_list(
     })
 }
 
-fn concretize_map(
+fn concretize_map<R: GetValue>(
     map: Vec<(String, Expr)>,
     headers: &ByteRecord,
-) -> Result<ConcreteExpr, ConcretizationError> {
+) -> Result<ConcreteExpr<R>, ConcretizationError> {
     let concrete_map = map
         .into_iter()
         .map(|(k, v)| concretize_expression(v, headers).map(|e| (k, e)))
-        .collect::<Result<Vec<(String, ConcreteExpr)>, _>>()?;
+        .collect::<Result<Vec<(String, ConcreteExpr<R>)>, _>>()?;
 
     // NOTE: here we can collapse to a literal value
     Ok(if concrete_map.iter().all(|(_, e)| e.is_value()) {
@@ -432,10 +437,10 @@ fn concretize_map(
     })
 }
 
-pub fn concretize_expression(
+pub fn concretize_expression<R: GetValue>(
     expr: Expr,
     headers: &ByteRecord,
-) -> Result<ConcreteExpr, ConcretizationError> {
+) -> Result<ConcreteExpr<R>, ConcretizationError> {
     Ok(match expr {
         Expr::Underscore => unreachable!(),
         Expr::Null => ConcreteExpr::Value(DynamicValue::None),
@@ -476,10 +481,10 @@ pub fn concretize_expression(
     })
 }
 
-pub fn eval_expression(
-    expr: &ConcreteExpr,
+pub fn eval_expression<R: GetValue>(
+    expr: &ConcreteExpr<R>,
     index: Option<usize>,
-    record: &ByteRecord,
+    record: &R,
     context: &EvaluationContext,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
     expr.evaluate(index, record, context, None)
@@ -487,7 +492,7 @@ pub fn eval_expression(
 
 #[derive(Clone, Debug)]
 pub struct Program {
-    pub expr: ConcreteExpr,
+    pub expr: ConcreteExpr<ByteRecord>,
     context: EvaluationContext,
 }
 
@@ -541,7 +546,7 @@ mod tests {
         DynamicValue::from(string.as_bytes())
     }
 
-    fn concretize_code(code: &str) -> Result<ConcreteExpr, ConcretizationError> {
+    fn concretize_code(code: &str) -> Result<ConcreteExpr<ByteRecord>, ConcretizationError> {
         let mut headers = ByteRecord::new();
         headers.push_field(b"name");
         headers.push_field(b"surname");

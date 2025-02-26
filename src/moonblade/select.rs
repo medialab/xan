@@ -6,7 +6,7 @@ use super::parser::parse_named_expressions;
 
 #[derive(Clone)]
 pub struct SelectionProgram {
-    exprs: Vec<(ConcreteExpr, String)>,
+    exprs: Vec<(ConcreteExpr<ByteRecord>, String)>,
     context: EvaluationContext,
 }
 
