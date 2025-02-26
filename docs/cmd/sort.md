@@ -30,6 +30,11 @@ sort options:
                               sorting an incoming stream.
     -m, --memory-limit <arg>  Maximum allowed memory when using external sorting, in
                               megabytes. [default: 512].
+    -C, --cells               Sort the selected cell values instead of the file itself,
+                              without re-ordering the columns. Runs in constant memory,
+                              can be streamed and can be used to e.g. make sure an
+                              edgelist always has the source & target keys in a consistent
+                              order.
 
 Common options:
     -h, --help             Display this message

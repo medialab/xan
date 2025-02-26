@@ -22,6 +22,7 @@
 * Adding `-R,--regression-line` to `xan plot`.
 * Adding `xan t` alias for `xan transpose`.
 * Adding map substitution to `fmt` moonblade function.
+* Adding `xan sort -C/--cells`.
 
 *Fixes*
 

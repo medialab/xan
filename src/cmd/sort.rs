@@ -68,6 +68,11 @@ sort options:
                               sorting an incoming stream.
     -m, --memory-limit <arg>  Maximum allowed memory when using external sorting, in
                               megabytes. [default: 512].
+    -C, --cells               Sort the selected cell values instead of the file itself,
+                              without re-ordering the columns. Runs in constant memory,
+                              can be streamed and can be used to e.g. make sure an
+                              edgelist always has the source & target keys in a consistent
+                              order.
 
 Common options:
     -h, --help             Display this message
@@ -97,6 +102,7 @@ struct Args {
     flag_external: bool,
     flag_tmp_dir: Option<String>,
     flag_memory_limit: u64,
+    flag_cells: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -118,6 +124,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
+    // Checking order
     if args.flag_check {
         let mut record = csv::ByteRecord::new();
 
@@ -163,6 +170,62 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
+    // Sorting cells
+    if args.flag_cells {
+        let mut wtr = Config::new(&args.flag_output).writer()?;
+        rconfig.write_headers(&mut rdr, &mut wtr)?;
+
+        let mask = sel.indexed_mask(headers.len());
+
+        let mut record = csv::ByteRecord::new();
+        let mut output_record = csv::ByteRecord::new();
+
+        while rdr.read_byte_record(&mut record)? {
+            let cells: Vec<&[u8]> = if args.flag_numeric {
+                let mut argsort = sel
+                    .select(&record)
+                    .map(|cell| {
+                        parse_num(cell)
+                            .map(|number| (cell, number))
+                            .ok_or("Could not parse cell as number!")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                if args.flag_reverse {
+                    argsort.sort_by(|a, b| compare_num(b.1, a.1));
+                } else {
+                    argsort.sort_by(|a, b| compare_num(a.1, b.1));
+                }
+
+                argsort.into_iter().map(|(cell, _)| cell).collect()
+            } else {
+                let mut argsort = sel.select(&record).collect::<Vec<_>>();
+                argsort.sort();
+
+                if args.flag_reverse {
+                    argsort.reverse();
+                }
+
+                argsort
+            };
+
+            output_record.clear();
+
+            for (i, opt) in mask.iter().enumerate() {
+                if let Some(j) = opt {
+                    output_record.push_field(cells[*j]);
+                } else {
+                    output_record.push_field(&record[i]);
+                }
+            }
+
+            wtr.write_byte_record(&output_record)?;
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Sorting rows
     let all: Box<dyn Iterator<Item = csv::ByteRecord>> = if args.flag_external {
         let tmp_dir = args.flag_tmp_dir.unwrap_or(match args.arg_input {
             None => "./".to_string(),
@@ -341,19 +404,21 @@ fn compare_float(f1: f64, f2: f64) -> cmp::Ordering {
     f1.partial_cmp(&f2).unwrap_or(cmp::Ordering::Equal)
 }
 
+fn parse_num(bytes: &[u8]) -> Option<Number> {
+    if let Ok(i) = btoi::btoi::<i64>(bytes) {
+        Some(Number::Int(i))
+    } else if let Ok(f) = fast_float::parse(bytes) {
+        Some(Number::Float(f))
+    } else {
+        None
+    }
+}
+
 fn next_num<'a, X>(xs: &mut X) -> Option<Number>
 where
     X: Iterator<Item = &'a [u8]>,
 {
-    xs.next().and_then(|bytes| {
-        if let Ok(i) = btoi::btoi::<i64>(bytes) {
-            Some(Number::Int(i))
-        } else if let Ok(f) = fast_float::parse(bytes) {
-            Some(Number::Float(f))
-        } else {
-            None
-        }
-    })
+    xs.next().and_then(parse_num)
 }
 
 // Standard comparable byte record abstraction

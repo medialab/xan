@@ -1,5 +1,3 @@
-use std::cmp;
-
 use crate::workdir::Workdir;
 
 #[test]
@@ -388,22 +386,32 @@ fn sort_check_numeric_reverse() {
     wrk.assert_success(&mut cmd);
 }
 
-/// Order `a` and `b` lexicographically using `Ord`
-pub fn iter_cmp<A, L, R>(mut a: L, mut b: R) -> cmp::Ordering
-where
-    A: Ord,
-    L: Iterator<Item = A>,
-    R: Iterator<Item = A>,
-{
-    loop {
-        match (a.next(), b.next()) {
-            (None, None) => return cmp::Ordering::Equal,
-            (None, _) => return cmp::Ordering::Less,
-            (_, None) => return cmp::Ordering::Greater,
-            (Some(x), Some(y)) => match x.cmp(&y) {
-                cmp::Ordering::Equal => (),
-                non_eq => return non_eq,
-            },
-        }
-    }
+#[test]
+fn sort_cells() {
+    let wrk = Workdir::new("sort_cells");
+    wrk.create(
+        "in.csv",
+        vec![
+            svec!["source", "target", "color"],
+            svec!["2", "1", "red"],
+            svec!["1", "3", "blue"],
+            svec!["1", "2", "yellow"],
+            svec!["5", "4", "purple"],
+        ],
+    );
+
+    let mut cmd = wrk.command("sort");
+    cmd.arg("--cells")
+        .args(["-s", "source,target"])
+        .arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["source", "target", "color"],
+        svec!["1", "2", "red"],
+        svec!["1", "3", "blue"],
+        svec!["1", "2", "yellow"],
+        svec!["4", "5", "purple"],
+    ];
+    assert_eq!(got, expected);
 }
