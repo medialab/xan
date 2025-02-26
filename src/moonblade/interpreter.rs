@@ -19,7 +19,7 @@ pub struct EvaluationContext {
 }
 
 impl EvaluationContext {
-    pub fn new(headers: &ByteRecord) -> Self {
+    pub fn new<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
         Self {
             headers_index: HeadersIndex::from_headers(headers),
         }
@@ -447,7 +447,7 @@ pub fn concretize_expression(
         Expr::Identifier(name, unsure) => {
             let indexation = ColumIndexationBy::Name(name);
 
-            match indexation.find_column_index(headers) {
+            match indexation.find_column_index(headers, headers.len()) {
                 Some(index) => ConcreteExpr::Column(index),
                 None => {
                     if unsure {

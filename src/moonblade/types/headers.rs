@@ -1,7 +1,5 @@
 use std::collections::{btree_map::Entry, BTreeMap};
 
-use csv::ByteRecord;
-
 use crate::moonblade::parser::Expr;
 
 use super::DynamicValue;
@@ -76,26 +74,30 @@ impl ColumIndexationBy {
         }
     }
 
-    pub fn find_column_index(&self, headers: &ByteRecord) -> Option<usize> {
+    pub fn find_column_index<'a>(
+        &self,
+        headers: impl IntoIterator<Item = &'a [u8]>,
+        len: usize,
+    ) -> Option<usize> {
         match self {
             Self::Pos(i) => {
-                if i >= &headers.len() {
+                if i >= &len {
                     None
                 } else {
                     Some(*i)
                 }
             }
             Self::ReversePos(i) => {
-                if *i > headers.len() {
+                if *i > len {
                     None
                 } else {
-                    Some(headers.len() - i)
+                    Some(len - i)
                 }
             }
             Self::Name(name) => {
                 let name_bytes = name.as_bytes();
 
-                for (i, cell) in headers.iter().enumerate() {
+                for (i, cell) in headers.into_iter().enumerate() {
                     if cell == name_bytes {
                         return Some(i);
                     }
@@ -108,7 +110,7 @@ impl ColumIndexationBy {
 
                 let name_bytes = name.as_bytes();
 
-                for (i, cell) in headers.iter().enumerate() {
+                for (i, cell) in headers.into_iter().enumerate() {
                     if cell == name_bytes {
                         if c == 0 {
                             return Some(i);
@@ -135,10 +137,10 @@ impl HeadersIndex {
         }
     }
 
-    pub fn from_headers(headers: &ByteRecord) -> Self {
+    pub fn from_headers<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
         let mut index = Self::new();
 
-        for (i, header) in headers.iter().enumerate() {
+        for (i, header) in headers.into_iter().enumerate() {
             let key = std::str::from_utf8(header).unwrap().to_string();
 
             match index.mapping.entry(key) {

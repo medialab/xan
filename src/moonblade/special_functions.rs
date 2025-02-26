@@ -109,7 +109,7 @@ pub fn get_special_function(
 fn comptime_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionResult {
     // Statically analyzable col() function call
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
-        match column_indexation.find_column_index(headers) {
+        match column_indexation.find_column_index(headers, headers.len()) {
             Some(index) => return Ok(Some(ConcreteExpr::Column(index))),
             None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
         };
@@ -128,7 +128,9 @@ where
 {
     match ColumIndexationBy::from_argument(&call.args[0].1) {
         None => Err(ConcretizationError::NotStaticallyAnalyzable),
-        Some(first_column_indexation) => match first_column_indexation.find_column_index(headers) {
+        Some(first_column_indexation) => match first_column_indexation
+            .find_column_index(headers, headers.len())
+        {
             Some(first_index) => {
                 if call.args.len() < 2 {
                     Ok(Some(ConcreteExpr::List(
@@ -138,7 +140,8 @@ where
                     match ColumIndexationBy::from_argument(&call.args[1].1) {
                         None => Err(ConcretizationError::NotStaticallyAnalyzable),
                         Some(second_column_indexation) => {
-                            match second_column_indexation.find_column_index(headers) {
+                            match second_column_indexation.find_column_index(headers, headers.len())
+                            {
                                 Some(second_index) => {
                                     let range: Vec<_> = if first_index > second_index {
                                         (second_index..=first_index).map(map).rev().collect()
