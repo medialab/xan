@@ -45,7 +45,7 @@ Feeding patterns through stdin (using "-"):
 
 Feeding CSV column as patterns through stdin (using "-"):
 
-    $ xan slice -l 10 people.csv | xan search --patterns - --path-column name file.csv > matches.csv
+    $ xan slice -l 10 people.csv | xan search --patterns - --pattern-column name file.csv > matches.csv
 
 Usage:
     xan search [options] --non-empty [<input>]
