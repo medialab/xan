@@ -6,6 +6,9 @@ Find top k CSV rows according to some column values.
 
 Runs in O(N * log k) time, consuming only O(k) memory.
 
+Note that rows whose selected cell is empty or cannot be
+parsed as a number will be ignored.
+
 Usage:
     xan top <column> [options] [<input>]
     xan top --help

@@ -73,7 +73,7 @@ search options:
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
     -c, --count <column>     If given, the command will not filter rows but will instead
-                             count the total number of pattern matches per
+                             count the total number of non-overlapping pattern matches per
                              row and report it in a new column with given name.
                              Does not work with -v/--invert-match.
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
