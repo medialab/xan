@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
 use regex::bytes::RegexBuilder;
-use regex_automata::meta::Regex as LowLevelRegex;
+use regex_automata::{meta::Regex as LowLevelRegex, util::syntax};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -279,19 +279,11 @@ impl Args {
                         self.flag_ignore_case,
                     )
                 } else if self.flag_regex {
-                    Matcher::ManyRegex(LowLevelRegex::new_many(
-                        &patterns
-                            .map(|pattern| {
-                                pattern.map(|p| {
-                                    if self.flag_ignore_case {
-                                        String::from("(?i)") + &p
-                                    } else {
-                                        p
-                                    }
-                                })
-                            })
-                            .collect::<Result<Vec<_>, _>>()?,
-                    )?)
+                    Matcher::ManyRegex(
+                        LowLevelRegex::builder()
+                            .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
+                            .build_many(&patterns.collect::<Result<Vec<_>, _>>()?)?,
+                    )
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new(
