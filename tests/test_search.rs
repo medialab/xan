@@ -470,3 +470,42 @@ fn search_all() {
     let expected = vec![svec!["name", "color"], svec!["John", "red"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_count_patterns_regex() {
+    let wrk = Workdir::new("search_count_patterns_regex");
+
+    wrk.create(
+        "patterns.csv",
+        vec![svec!["pattern"], svec!["john"], svec!["lucy"]],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["text"],
+            svec!["Lucy went to school with John."],
+            svec!["The dog was running on the grass."],
+            svec!["john is dead. poor john"],
+            svec!["Lucy in the sky with diamonds"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-r")
+        .arg("-i")
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "pattern"])
+        .args(["--count", "matches"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "matches"],
+        svec!["Lucy went to school with John.", "2"],
+        svec!["The dog was running on the grass.", "0"],
+        svec!["john is dead. poor john", "2"],
+        svec!["Lucy in the sky with diamonds", "1"],
+    ];
+    assert_eq!(got, expected);
+}

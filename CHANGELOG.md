@@ -36,7 +36,8 @@
 * Fixing `xan plot -T` granularity inference.
 * Fixing missing fractional seconds to default `datetime` serialization.
 * Fixing bin allocation with `xan bins --nice`.
-* Fixing `xan search --patterns -i`
+* Fixing `xan search --patterns -i`.
+* Fixing `xan search -r -i --patterns --count` results.
 
 *Performance*
 

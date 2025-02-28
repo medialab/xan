@@ -89,6 +89,7 @@ rand_seeder = "0.4.0"
 ratatui = { version = "0.29.0", default-features = false }
 rayon = "1.10.0"
 regex = "1"
+regex-automata = "0.4.9"
 rust_xlsxwriter = "0.79.4"
 serde = { version = "1", features = ["rc"] }
 serde_derive = "1"

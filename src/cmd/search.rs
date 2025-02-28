@@ -3,7 +3,8 @@ use std::num::NonZeroUsize;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
-use regex::bytes::{RegexBuilder, RegexSetBuilder};
+use regex::bytes::RegexBuilder;
+use regex_automata::meta::Regex as LowLevelRegex;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -17,7 +18,7 @@ enum Matcher {
     Substring(AhoCorasick, bool),
     Exact(Vec<u8>, bool),
     Regex(regex::bytes::Regex),
-    ManyRegex(regex::bytes::RegexSet),
+    ManyRegex(LowLevelRegex),
     ManyExact(HashSet<Vec<u8>>, bool),
 }
 
@@ -89,7 +90,7 @@ impl Matcher {
                     0
                 }
             }
-            Self::ManyRegex(set) => set.matches(cell).len(),
+            Self::ManyRegex(set) => set.find_iter(cell).count(),
             Self::ManyExact(patterns, case_insensitive) => {
                 if *case_insensitive {
                     if patterns.contains(&cell.to_lowercase()) {
@@ -278,11 +279,19 @@ impl Args {
                         self.flag_ignore_case,
                     )
                 } else if self.flag_regex {
-                    Matcher::ManyRegex(
-                        RegexSetBuilder::new(&patterns.collect::<Result<Vec<_>, _>>()?)
-                            .case_insensitive(self.flag_ignore_case)
-                            .build()?,
-                    )
+                    Matcher::ManyRegex(LowLevelRegex::new_many(
+                        &patterns
+                            .map(|pattern| {
+                                pattern.map(|p| {
+                                    if self.flag_ignore_case {
+                                        String::from("(?i)") + &p
+                                    } else {
+                                        p
+                                    }
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )?)
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new(
