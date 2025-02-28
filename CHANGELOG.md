@@ -24,6 +24,7 @@
 * Adding `xan t` alias for `xan transpose`.
 * Adding map substitution to `fmt` moonblade function.
 * Adding `xan sort -C/--cells`.
+* Adding `xan search --count --overlapping`.
 
 *Fixes*
 

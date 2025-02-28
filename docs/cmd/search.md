@@ -76,6 +76,9 @@ search options:
                              count the total number of non-overlapping pattern matches per
                              row and report it in a new column with given name.
                              Does not work with -v/--invert-match.
+    --overlapping            When used with -c/--count, return the count of overlapping
+                             matches. Note that this can sometimes be one order of magnitude
+                             slower that counting non-overlapping matches.
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
