@@ -509,3 +509,68 @@ fn search_count_patterns_regex() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_count_overlapping_patterns_substring() {
+    let wrk = Workdir::new("search_count_overlapping_patterns_substring");
+
+    wrk.create(
+        "patterns.csv",
+        vec![svec!["pattern"], svec!["ab"], svec!["a"], svec!["b"]],
+    );
+
+    wrk.create("data.csv", vec![svec!["text"], svec!["baba"]]);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "pattern"])
+        .args(["--count", "matches"])
+        .arg("--overlapping")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["text", "matches"], svec!["baba", "5"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_count_overlapping_regex() {
+    let wrk = Workdir::new("search_count_overlapping_regex");
+
+    wrk.create("data.csv", vec![svec!["text"], svec!["baba"]]);
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("--regex")
+        .arg("(ba|a|b)")
+        .args(["--count", "matches"])
+        .arg("--overlapping")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["text", "matches"], svec!["baba", "4"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_count_overlapping_patterns_regex() {
+    let wrk = Workdir::new("search_count_overlapping_patterns_regex");
+
+    wrk.create(
+        "patterns.csv",
+        vec![svec!["pattern"], svec!["(ab|b|a)"], svec!["a"], svec!["b"]],
+    );
+
+    wrk.create("data.csv", vec![svec!["text"], svec!["baba"]]);
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("--regex")
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "pattern"])
+        .args(["--count", "matches"])
+        .arg("--overlapping")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["text", "matches"], svec!["baba", "8"]];
+    assert_eq!(got, expected);
+}

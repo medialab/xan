@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
-use regex::bytes::RegexBuilder;
+use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as LowLevelRegex, util::syntax};
 
 use crate::config::{Config, Delimiter};
@@ -12,14 +12,32 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
+fn count_overlapping_matches(regex: &Regex, haystack: &[u8]) -> usize {
+    let mut count: usize = 0;
+    let mut offset: usize = 0;
+
+    while let Some(m) = regex.find_at(haystack, offset) {
+        count += 1;
+
+        if m.start() == offset {
+            offset += 1;
+        } else {
+            offset = m.end();
+        }
+    }
+
+    count
+}
+
 enum Matcher {
     Empty,
     NonEmpty,
     Substring(AhoCorasick, bool),
     Exact(Vec<u8>, bool),
-    Regex(regex::bytes::Regex),
-    ManyRegex(LowLevelRegex),
-    ManyExact(HashSet<Vec<u8>>, bool),
+    Regex(Regex),
+    Regexes(Vec<Regex>),
+    RegexSet(LowLevelRegex),
+    HashSet(HashSet<Vec<u8>>, bool),
 }
 
 impl Matcher {
@@ -35,6 +53,7 @@ impl Matcher {
                 }
             }
             Self::Regex(pattern) => pattern.is_match(cell),
+            Self::Regexes(_) => unreachable!(),
             Self::Exact(pattern, case_insensitive) => {
                 if *case_insensitive {
                     &cell.to_lowercase() == pattern
@@ -42,8 +61,8 @@ impl Matcher {
                     cell == pattern
                 }
             }
-            Self::ManyRegex(set) => set.is_match(cell),
-            Self::ManyExact(patterns, case_insensitive) => {
+            Self::RegexSet(set) => set.is_match(cell),
+            Self::HashSet(patterns, case_insensitive) => {
                 if *case_insensitive {
                     patterns.contains(&cell.to_lowercase())
                 } else {
@@ -53,7 +72,7 @@ impl Matcher {
         }
     }
 
-    fn count(&self, cell: &[u8]) -> usize {
+    fn count(&self, cell: &[u8], overlapping: bool) -> usize {
         match self {
             Self::Empty => {
                 if cell.is_empty() {
@@ -69,14 +88,19 @@ impl Matcher {
                     1
                 }
             }
-            Self::Substring(pattern, case_insensitive) => {
-                if *case_insensitive {
-                    pattern.find_iter(&cell.to_lowercase()).count()
-                } else {
+            Self::Substring(pattern, case_insensitive) => match (*case_insensitive, overlapping) {
+                (true, false) => pattern.find_iter(&cell.to_lowercase()).count(),
+                (false, false) => pattern.find_iter(cell).count(),
+                (true, true) => pattern.find_overlapping_iter(&cell.to_lowercase()).count(),
+                (false, true) => pattern.find_overlapping_iter(cell).count(),
+            },
+            Self::Regex(pattern) => {
+                if !overlapping {
                     pattern.find_iter(cell).count()
+                } else {
+                    count_overlapping_matches(pattern, cell)
                 }
             }
-            Self::Regex(pattern) => pattern.find_iter(cell).count(),
             Self::Exact(pattern, case_insensitive) => {
                 if *case_insensitive {
                     if &cell.to_lowercase() == pattern {
@@ -90,8 +114,17 @@ impl Matcher {
                     0
                 }
             }
-            Self::ManyRegex(set) => set.find_iter(cell).count(),
-            Self::ManyExact(patterns, case_insensitive) => {
+            Self::RegexSet(set) => {
+                if overlapping {
+                    unreachable!()
+                }
+                set.find_iter(cell).count()
+            }
+            Self::Regexes(patterns) => patterns
+                .iter()
+                .map(|pattern| count_overlapping_matches(pattern, cell))
+                .sum(),
+            Self::HashSet(patterns, case_insensitive) => {
                 if *case_insensitive {
                     if patterns.contains(&cell.to_lowercase()) {
                         1
@@ -186,6 +219,9 @@ search options:
                              count the total number of non-overlapping pattern matches per
                              row and report it in a new column with given name.
                              Does not work with -v/--invert-match.
+    --overlapping            When used with -c/--count, return the count of overlapping
+                             matches. Note that this can sometimes be one order of magnitude
+                             slower that counting non-overlapping matches.
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
@@ -209,6 +245,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_invert_match: bool,
+    flag_overlapping: bool,
     flag_all: bool,
     flag_ignore_case: bool,
     flag_empty: bool,
@@ -264,7 +301,7 @@ impl Args {
                     .lines(&self.flag_pattern_column)?;
 
                 Ok(if self.flag_exact {
-                    Matcher::ManyExact(
+                    Matcher::HashSet(
                         patterns
                             .map(|pattern| {
                                 pattern.map(|p| {
@@ -279,11 +316,28 @@ impl Args {
                         self.flag_ignore_case,
                     )
                 } else if self.flag_regex {
-                    Matcher::ManyRegex(
-                        LowLevelRegex::builder()
-                            .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
-                            .build_many(&patterns.collect::<Result<Vec<_>, _>>()?)?,
-                    )
+                    if self.flag_overlapping {
+                        Matcher::Regexes(
+                            patterns
+                                .map(|pattern| {
+                                    pattern.map_err(CliError::from).and_then(|p| {
+                                        RegexBuilder::new(&p)
+                                            .case_insensitive(self.flag_ignore_case)
+                                            .build()
+                                            .map_err(CliError::from)
+                                    })
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )
+                    } else {
+                        Matcher::RegexSet(
+                            LowLevelRegex::builder()
+                                .syntax(
+                                    syntax::Config::new().case_insensitive(self.flag_ignore_case),
+                                )
+                                .build_many(&patterns.collect::<Result<Vec<_>, _>>()?)?,
+                        )
+                    }
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new(
@@ -319,6 +373,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty or -r/--regex!")?;
     }
 
+    if args.flag_overlapping && args.flag_count.is_none() {
+        Err("--overlapping only works with -c/--count!")?;
+    }
+
     if args.flag_count.is_some() && args.flag_invert_match {
         Err("-c/--count does not work with -v/--invert-match!")?;
     }
@@ -350,7 +408,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut is_match: bool = false;
 
         if args.flag_count.is_some() {
-            let count: usize = sel.select(&record).map(|cell| matcher.count(cell)).sum();
+            let count: usize = sel
+                .select(&record)
+                .map(|cell| matcher.count(cell, args.flag_overlapping))
+                .sum();
 
             if count > 0 {
                 is_match = true;
