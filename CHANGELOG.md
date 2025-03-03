@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.2
+
+*Fixes*
+
+* Fixing Windows compilation.
+
 ## 0.46.1
 
 *Fixes*

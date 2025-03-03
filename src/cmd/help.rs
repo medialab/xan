@@ -645,7 +645,7 @@ impl Args {
 
         #[cfg(windows)]
         {
-            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())
+            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?
         }
     }
 }
