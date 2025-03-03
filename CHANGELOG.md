@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.46.1 (provisional)
+## 0.46.1
 
 *Fixes*
 
