@@ -131,6 +131,7 @@ pub enum EvaluationError {
     DecodeError,
     ColumnNotFound(ColumIndexationBy),
     ColumnOutOfRange(usize),
+    GlobalVariableOutOfRange(usize),
     UnicodeDecodeError,
     JSONParseError,
 }
@@ -204,7 +205,10 @@ impl Display for EvaluationError {
             }
             Self::DecodeError => write!(f, "could not decode"),
             Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
-            Self::ColumnOutOfRange(idx) => write!(f, "column \"{}\" is out of range", idx),
+            Self::ColumnOutOfRange(idx) => write!(f, "column {} is out of range", idx),
+            Self::GlobalVariableOutOfRange(idx) => {
+                write!(f, "global variable index={} is out of range", idx)
+            }
             Self::UnicodeDecodeError => write!(f, "unicode decode error"),
             Self::JSONParseError => write!(f, "json parse error"),
         }

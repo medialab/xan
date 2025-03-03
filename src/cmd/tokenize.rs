@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
@@ -11,6 +12,7 @@ use pariter::IteratorExt;
 use regex::Regex;
 
 use crate::config::{Config, Delimiter};
+use crate::moonblade::{GlobalVariables, Program};
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers, JoinIteratorExt};
 use crate::CliResult;
@@ -72,6 +74,22 @@ with a new column containing the token's type.
 This subcommand also exposes many ways to filter and process the resulting
 tokens as well as ways to refine a vocabulary iteratively in tandem with
 the \"xan vocab\" command.
+
+Finally, if you still need some processing not covered by the command's flags
+you can use -F/--flatmap that lets you evaluate an expression over each token in
+order to filter, transform or split them:
+
+Filtering tokens out:
+
+    $ xan tokenize words text -F 'token.startswith(\"Dé\") && token'
+
+Splitting tokens:
+
+    $ xan tokenize words text -F 'token.split(\"-\")'
+
+Transforming tokens:
+
+    $ xan tokenize words text -F 'replace(_, /é/, \"e\")'
 
 # tokenize sentences
 
@@ -148,6 +166,12 @@ tokenize words options:
     --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
                              [default: §]
     -u, --uniq               Sort and deduplicate the tokens.
+    -F, --flatmap <expr>     Evaluate an expression for each extracted token and return nothing,
+                             or a transformed token or a list of tokens. The evaluated expression
+                             will understand the \"token\" identifier as the currently processed
+                             token and \"token_type\" as its type. The expression will run
+                             after any of the command's preprocessing toggled through flags,
+                             but before deduplication.
 
 tokenize paragraphs options:
     -A, --aerated  Force paragraphs to be separated by a blank line, instead
@@ -198,6 +222,7 @@ struct Args {
     flag_vocab_token: SelectColumns,
     flag_vocab_token_id: Option<SelectColumns>,
     flag_uniq: bool,
+    flag_flatmap: Option<String>,
     flag_aerated: bool,
     flag_squeeze: bool,
 }
@@ -257,6 +282,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut headers = rdr.byte_headers()?.clone();
     let col_index = rconfig.single_selection(&headers)?;
+
+    thread_local! {
+        static GLOBALS: RefCell<GlobalVariables> =  {
+            let mut globals = GlobalVariables::new();
+            globals.register("token");
+            globals.register("token_type");
+            RefCell::new(globals)
+        };
+    }
+
+    let flatmap_program_opt = args
+        .flag_flatmap
+        .as_ref()
+        .map(|expr| {
+            GLOBALS.with_borrow(|globals| {
+                Program::parse_with_globals(&format!("token | {}", expr), &headers, globals)
+            })
+        })
+        .transpose()?;
 
     let token_column_name = match &args.flag_column {
         Some(name) => name,
@@ -376,13 +420,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let hyphen_splitter = Regex::new(r"-+").unwrap();
 
     // NOTE: everything in this function will be parallelized
-    let tokenize = move |string: &str| -> Vec<(String, WordTokenKind)> {
+    let tokenize = move |index: usize,
+                         record: &csv::ByteRecord,
+                         string: &str|
+          -> CliResult<Vec<(String, WordTokenKind)>> {
         if args.cmd_paragraphs {
-            return split_paragraphs(string, args.flag_aerated)
+            return Ok(split_paragraphs(string, args.flag_aerated)
                 .map(|paragraph| (paragraph.to_string(), WordTokenKind::Word))
-                .collect();
+                .collect());
         } else if args.cmd_sentences {
-            return if args.flag_squeeze {
+            return Ok(if args.flag_squeeze {
                 split_sentences(&squeeze_regex.replace_all(string, " "))
                     .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
                     .collect()
@@ -390,7 +437,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 split_sentences(string)
                     .map(|sentence| (sentence.to_string(), WordTokenKind::Word))
                     .collect()
-            };
+            });
         }
 
         let string = if args.flag_split_hyphens {
@@ -451,12 +498,39 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             tokens.collect()
         };
 
+        if let Some(program) = &flatmap_program_opt {
+            let mut flatmapped_tokens = Vec::with_capacity(collected_tokens.len());
+
+            for (token, kind) in collected_tokens.into_iter() {
+                GLOBALS.with_borrow_mut(|globals| -> CliResult<()> {
+                    globals.set(0, token);
+
+                    // TODO: we could avoid setting the type when we know it is not used
+                    globals.set(1, kind.as_str());
+
+                    let result = program.run_with_record_and_globals(index, record, globals)?;
+
+                    for value in result.flat_iter() {
+                        if value.is_falsey() {
+                            continue;
+                        }
+
+                        flatmapped_tokens.push((value.try_as_str()?.into_owned(), kind));
+                    }
+
+                    Ok(())
+                })?;
+            }
+
+            collected_tokens = flatmapped_tokens;
+        }
+
         if args.flag_uniq {
             collected_tokens.sort_by(|a, b| a.0.cmp(&b.0));
             collected_tokens.dedup_by(|a, b| a.0 == b.0);
         }
 
-        collected_tokens
+        Ok(collected_tokens)
     };
 
     // NOTE: nothing here will be parallelized
@@ -505,6 +579,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(threads) = parallelization {
         rdr.into_byte_records()
+            .enumerate()
             .parallel_map_custom(
                 |o| {
                     if let Some(count) = threads {
@@ -513,15 +588,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         o
                     }
                 },
-                move |result| -> CliResult<(csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
+                move |(index, result)| -> CliResult<(csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;
 
                     let text =
                         std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
 
-                    let tokens = tokenize(text);
-
-                    Ok((record, tokens))
+                    tokenize(index, &record, text).map(|tokens| {
+                        (record, tokens)
+                    })
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
@@ -533,12 +608,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })?;
     } else {
         let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             let text = std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
-            let tokens = tokenize(text);
+            let tokens = tokenize(index, &record, text)?;
 
             write_tokens!(record, tokens);
+
+            index += 1;
         }
     }
 

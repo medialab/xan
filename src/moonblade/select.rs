@@ -16,7 +16,7 @@ impl SelectionProgram {
             Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
             Ok(parsed_exprs) => parsed_exprs
                 .into_iter()
-                .map(|e| concretize_expression(e.0.clone(), headers).map(|c| (c, e.1)))
+                .map(|e| concretize_expression(e.0.clone(), headers, None).map(|c| (c, e.1)))
                 .collect::<Result<Vec<_>, _>>(),
         }?;
 

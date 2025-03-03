@@ -25,6 +25,7 @@
 * Adding map substitution to `fmt` moonblade function.
 * Adding `xan sort -C/--cells`.
 * Adding `xan search --count --overlapping`.
+* Adding `xan tokenize words -F/--flatmap`.
 
 *Fixes*
 

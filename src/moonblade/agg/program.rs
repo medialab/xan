@@ -879,7 +879,7 @@ fn concretize_aggregations(
         let expr = aggregation
             .args
             .first()
-            .map(|arg| concretize_expression(arg.clone(), headers))
+            .map(|arg| concretize_expression(arg.clone(), headers, None))
             .transpose()?;
 
         let mut skip: usize = 1;
@@ -897,6 +897,7 @@ fn concretize_aggregations(
             Some(concretize_expression(
                 aggregation.args.get(1).unwrap().clone(),
                 headers,
+                None,
             )?)
         } else {
             None
@@ -905,7 +906,7 @@ fn concretize_aggregations(
         let mut args: Vec<ConcreteExpr> = Vec::new();
 
         for arg in aggregation.args.into_iter().skip(skip) {
-            args.push(concretize_expression(arg, headers)?);
+            args.push(concretize_expression(arg, headers, None)?);
         }
 
         let method = ConcreteAggregationMethod::parse(&aggregation.func_name, &args)?;

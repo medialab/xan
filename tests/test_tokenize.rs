@@ -423,3 +423,22 @@ fn tokenize_sentences_parallel() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn tokenize_flatmap() {
+    let wrk = Workdir::new("tokenize_flatmap");
+    wrk.create("data.csv", vec![svec!["text"], svec!["a 1, b"]]);
+
+    let mut cmd = wrk.command("tokenize");
+    cmd.arg("words")
+        .arg("text")
+        .args([
+            "-F",
+            "if(token_type eq 'word', upper(token), if(token_type eq 'punct', null, token + 3))",
+        ])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["tokens"], svec!["A 4 B"]];
+    assert_eq!(got, expected);
+}

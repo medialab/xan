@@ -6,7 +6,7 @@ use std::sync::Arc;
 use csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::interpreter::{ConcreteExpr, EvaluationContext};
+use super::interpreter::{ConcreteExpr, EvaluationContext, GlobalVariables};
 use super::parser::FunctionCall;
 use super::types::{
     Arity, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, LambdaArguments,
@@ -19,6 +19,7 @@ pub type RuntimeFunction = fn(
     &ByteRecord,
     &EvaluationContext,
     &[ConcreteExpr],
+    Option<&GlobalVariables>,
     Option<&LambdaArguments>,
 ) -> EvaluationResult;
 
@@ -38,12 +39,14 @@ pub fn get_special_function(
                      record: &ByteRecord,
                      context: &EvaluationContext,
                      args: &[ConcreteExpr],
+                     globals: Option<&GlobalVariables>,
                      lambda_variables: Option<&LambdaArguments>| {
                         runtime_higher_order(
                             index,
                             record,
                             context,
                             args,
+                            globals,
                             lambda_variables,
                             $name,
                             HigherOrderOperation::$variant,
@@ -169,12 +172,13 @@ fn runtime_if(
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    globals: Option<&GlobalVariables>,
     lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let arity = args.len();
 
     let condition = &args[0];
-    let result = condition.evaluate(index, record, context, lambda_variables)?;
+    let result = condition.evaluate(index, record, context, globals, lambda_variables)?;
 
     let mut branch: Option<&ConcreteExpr> = None;
 
@@ -186,7 +190,7 @@ fn runtime_if(
 
     match branch {
         None => Ok(DynamicValue::None),
-        Some(arg) => arg.evaluate(index, record, context, lambda_variables),
+        Some(arg) => arg.evaluate(index, record, context, globals, lambda_variables),
     }
 }
 
@@ -195,12 +199,13 @@ fn runtime_unless(
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    globals: Option<&GlobalVariables>,
     lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     let arity = args.len();
 
     let condition = &args[0];
-    let result = condition.evaluate(index, record, context, lambda_variables)?;
+    let result = condition.evaluate(index, record, context, globals, lambda_variables)?;
 
     let mut branch: Option<&ConcreteExpr> = None;
 
@@ -212,7 +217,7 @@ fn runtime_unless(
 
     match branch {
         None => Ok(DynamicValue::None),
-        Some(arg) => arg.evaluate(index, record, context, lambda_variables),
+        Some(arg) => arg.evaluate(index, record, context, globals, lambda_variables),
     }
 }
 
@@ -221,6 +226,7 @@ fn runtime_index(
     _record: &ByteRecord,
     _context: &EvaluationContext,
     _args: &[ConcreteExpr],
+    _globals: Option<&GlobalVariables>,
     _lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
     Ok(match index {
@@ -234,14 +240,15 @@ fn runtime_col(
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    globals: Option<&GlobalVariables>,
     lambda_variables: Option<&LambdaArguments>,
 ) -> EvaluationResult {
-    let name_or_pos = args
-        .first()
-        .unwrap()
-        .evaluate(index, record, context, lambda_variables)?;
+    let name_or_pos =
+        args.first()
+            .unwrap()
+            .evaluate(index, record, context, globals, lambda_variables)?;
     let pos = match args.get(1) {
-        Some(p) => Some(p.evaluate(index, record, context, lambda_variables)?),
+        Some(p) => Some(p.evaluate(index, record, context, globals, lambda_variables)?),
         None => None,
     };
 
@@ -266,11 +273,13 @@ enum HigherOrderOperation {
     Map,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn runtime_higher_order(
     index: Option<usize>,
     record: &ByteRecord,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
+    globals: Option<&GlobalVariables>,
     lambda_variables: Option<&LambdaArguments>,
     name: &str,
     op: HigherOrderOperation,
@@ -278,7 +287,7 @@ fn runtime_higher_order(
     let list = args
         .first()
         .unwrap()
-        .evaluate(index, record, context, lambda_variables)?
+        .evaluate(index, record, context, globals, lambda_variables)?
         .try_into_arc_list()
         .map_err(|err| err.specify(name))?;
 
@@ -311,7 +320,8 @@ fn runtime_higher_order(
                     for item in owned_list {
                         variables.set(item_arg_index, item);
 
-                        let result = lambda.evaluate(index, record, context, Some(&variables))?;
+                        let result =
+                            lambda.evaluate(index, record, context, globals, Some(&variables))?;
                         new_list.push(result);
                     }
                 }
@@ -319,7 +329,8 @@ fn runtime_higher_order(
                     for item in borrowed_list.iter() {
                         variables.set(item_arg_index, item.clone());
 
-                        let result = lambda.evaluate(index, record, context, Some(&variables))?;
+                        let result =
+                            lambda.evaluate(index, record, context, globals, Some(&variables))?;
                         new_list.push(result);
                     }
                 }
@@ -333,7 +344,7 @@ fn runtime_higher_order(
             for item in list.iter() {
                 variables.set(item_arg_index, item.clone());
 
-                let result = lambda.evaluate(index, record, context, Some(&variables))?;
+                let result = lambda.evaluate(index, record, context, globals, Some(&variables))?;
 
                 if result.is_truthy() {
                     new_list.push(item.clone());
