@@ -631,20 +631,21 @@ impl Args {
         opener::open_browser(url).expect("could not open browser");
     }
 
-    fn setup_pager(&self) {
+    fn setup_pager(&self) -> CliResult<()> {
         if !self.flag_pager {
-            return;
+            return Ok(());
         }
 
         #[cfg(not(windows))]
         {
             colored::control::set_override(true);
             pager::Pager::with_pager("less -SRi").setup();
+            Ok(())
         }
 
         #[cfg(windows)]
         {
-            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?;
+            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())
         }
     }
 }
@@ -674,7 +675,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_md {
             println!("{}", get_cheatsheet_str());
         } else {
-            args.setup_pager();
+            args.setup_pager()?;
             println!("{}", get_colorized_cheatsheet());
         }
     } else if args.cmd_functions {
@@ -683,7 +684,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else if args.flag_md {
             print!("{}", parse_functions_help().to_md(&parse_operators_help()));
         } else {
-            args.setup_pager();
+            args.setup_pager()?;
             print!(
                 "{}",
                 parse_functions_help().to_txt(&parse_operators_help(), &args.flag_section)
@@ -695,7 +696,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else if args.flag_md {
             print!("{}", parse_aggs_help().to_md());
         } else {
-            args.setup_pager();
+            args.setup_pager()?;
             print!("{}", parse_aggs_help().to_txt());
         }
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.1 (provisional)
+
+*Fixes*
+
+* Fixing Windows compilation.
+
 ## 0.46.0
 
 *Breaking*
