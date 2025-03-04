@@ -267,4 +267,3 @@ and for other types (`eq` vs. `==` for instance). This is reminiscent of Perl.
 - Most functions semantically encode what type they will operate on. Consider the
 difference between the aggregation functions `min` and `lex_first`. One will consider
 numbers, the other one strings.
-

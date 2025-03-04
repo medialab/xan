@@ -27,6 +27,22 @@ This subcommand also exposes many ways to filter and process the resulting
 tokens as well as ways to refine a vocabulary iteratively in tandem with
 the "xan vocab" command.
 
+Finally, if you still need some processing not covered by the command's flags
+you can use -F/--flatmap that lets you evaluate an expression over each token in
+order to filter, transform or split them:
+
+Filtering tokens out:
+
+    $ xan tokenize words text -F 'token.startswith("Dé") && token'
+
+Splitting tokens:
+
+    $ xan tokenize words text -F 'token.split("-")'
+
+Transforming tokens:
+
+    $ xan tokenize words text -F 'replace(_, /é/, "e")'
+
 # tokenize sentences
 
 Tokenize the given text by splitting it into sentences, emitting one row per
@@ -102,6 +118,12 @@ tokenize words options:
     --ngrams-sep <delim>     Separator to be use to join ngrams tokens.
                              [default: §]
     -u, --uniq               Sort and deduplicate the tokens.
+    -F, --flatmap <expr>     Evaluate an expression for each extracted token and return nothing,
+                             or a transformed token or a list of tokens. The evaluated expression
+                             will understand the "token" identifier as the currently processed
+                             token and "token_type" as its type. The expression will run
+                             after any of the command's preprocessing toggled through flags,
+                             but before deduplication.
 
 tokenize paragraphs options:
     -A, --aerated  Force paragraphs to be separated by a blank line, instead

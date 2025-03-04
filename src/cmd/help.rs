@@ -11,7 +11,7 @@ fn wrap(string: &str) -> String {
 }
 
 fn get_cheatsheet_str() -> &'static str {
-    include_str!("../moonblade/doc/cheatsheet.txt")
+    include_str!("../moonblade/doc/cheatsheet.md")
 }
 
 fn get_operators_json_str() -> &'static str {
@@ -490,6 +490,44 @@ impl Aggs {
 }
 
 lazy_static! {
+    static ref LINK_REGEX: Regex = Regex::new(r"- \[([^\]]+)\]\(#[^)]+\)").unwrap();
+    static ref CODE_FENCE_REGEX: Regex = Regex::new(r"```javascript(\n[^`]+)```").unwrap();
+    static ref COMMENT_REGEX: Regex = Regex::new(r"(?m)^    //.+").unwrap();
+    static ref NUMBER_REGEX: Regex = Regex::new(r"(?m)\b-?[0-9][0-9._]*\b").unwrap();
+    static ref SPECIAL_REGEX: Regex = Regex::new(r"true|false|null|/john/i?").unwrap();
+    static ref FUNCTION_CALL_REGEX: Regex = Regex::new(r"([a-z_]+)\(").unwrap();
+    static ref OPERATORS_REGEX: Regex = Regex::new(r" (eq|in|as|\|\||[<>/+]) ").unwrap();
+    static ref ANSI_COLOR_REGEX: Regex = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+}
+
+fn strip_ansi_colors(string: &str) -> String {
+    ANSI_COLOR_REGEX.replace_all(string, "").into_owned()
+}
+
+fn recombobulate_cheatsheet(help: &str) -> String {
+    let help = NUMBER_REGEX.replace_all(help, |caps: &Captures| caps[0].red().to_string());
+
+    let help = colorize_functions_help(&help);
+
+    let help = LINK_REGEX.replace_all(&help, "- $1");
+
+    let help = CODE_FENCE_REGEX.replace_all(&help, |caps: &Captures| {
+        let text = SPECIAL_REGEX.replace_all(&caps[1], |c: &Captures| c[0].yellow().to_string());
+        let text =
+            FUNCTION_CALL_REGEX.replace_all(&text, |c: &Captures| format!("{}(", c[1].blue()));
+        let text = OPERATORS_REGEX.replace_all(&text, |c: &Captures| format!(" {} ", c[1].cyan()));
+
+        indent(&text, "    ")
+    });
+
+    let help = COMMENT_REGEX.replace_all(&help, |caps: &Captures| {
+        strip_ansi_colors(&caps[0]).dimmed().to_string()
+    });
+
+    help.into_owned()
+}
+
+lazy_static! {
     static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^##{0,2} .+").unwrap();
     static ref FLAG_REGEX: Regex = Regex::new(r"--[\w\-]+").unwrap();
     static ref UNARY_OPERATOR_REGEX: Regex = Regex::new(r"([!-])x").unwrap();
@@ -500,7 +538,6 @@ lazy_static! {
     static ref PIPELINE_OPERATOR_REGEX: Regex = Regex::new(r"(trim\(name\) )\|").unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
-    static ref CHEATSHEET_ITEM_REGEX: Regex = Regex::new(r"(?m)^\. (.+)$").unwrap();
 }
 
 fn colorize_functions_help(help: &str) -> String {
@@ -534,15 +571,11 @@ fn colorize_functions_help(help: &str) -> String {
 
     let help = FLAG_REGEX.replace_all(&help, |caps: &Captures| caps[0].cyan().to_string());
 
-    let help = CHEATSHEET_ITEM_REGEX.replace_all(&help, |caps: &Captures| {
-        "  . ".to_string() + &caps[1].magenta().to_string()
-    });
-
     help.into_owned()
 }
 
 fn get_colorized_cheatsheet() -> String {
-    colorize_functions_help(get_cheatsheet_str())
+    recombobulate_cheatsheet(get_cheatsheet_str())
 }
 
 fn parse_functions_help() -> FunctionHelpSections {

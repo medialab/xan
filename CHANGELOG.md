@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.3 (provisional)
+
+*Features*
+
+* Improving `xan help cheatsheet`.
+
 ## 0.46.2
 
 *Fixes*

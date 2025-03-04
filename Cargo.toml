@@ -27,6 +27,7 @@ include = [
   "src/**/*.rs",
   "src/moonblade/grammar.pest",
   "src/moonblade/doc/*.json",
+  "src/moonblade/doc/*.md",
   "src/moonblade/doc/*.txt",
   "tests/**/*.rs"
 ]
