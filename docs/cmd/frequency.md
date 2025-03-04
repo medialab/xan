@@ -56,7 +56,7 @@ Common options:
     -o, --output <file>    Write output to <file> instead of stdout.
     -n, --no-headers       When set, the first row will NOT be included
                            in the frequency table. Additionally, the 'field'
-                           column will be 1-based indices instead of header
+                           column will be 0-based indices instead of header
                            names.
     -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character.
