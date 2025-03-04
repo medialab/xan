@@ -216,7 +216,7 @@ Note that the language will always perform some level of static analysis of the
 given expression to assess which part actually need to run for each of the
 processed CSV rows.
 
-This means that constant parts of the expressiosn will be evaluated only once
+This means that constant parts of the expressions will be evaluated only once
 when parsed, then folded into a new, simpler expression.
 
 This can be very useful when, for instance, reading some JSON file to perform
@@ -224,7 +224,7 @@ one lookup per row like so:
 
 ```javascript
 // Here, "config.json" will only be read once when parsing the expression,
-// not once per processed CSV rows, which is fortunate.
+// not once per processed CSV row, which is fortunate.
 read_json("config.json").name
 ```
 
