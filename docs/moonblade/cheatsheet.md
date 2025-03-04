@@ -119,7 +119,7 @@ null
 "hello"
 'hello'
 // Typical escaping
-"Hello\nThis is \"world\"!"
+"Hello\nThis is world!"
 
 // Binary strings (single or double quotes)
 b"hello"
