@@ -10,9 +10,9 @@ JavaScript. It is however limited, memory-efficient, tailored for CSV data and
 therefore faster than the beforementioned languages.
 
 It does not support anything more than evaluating simple expressions and is loaded
-with a lot of helpful functions that you can review using `xan help functions`
+with a lot of helpful functions that you can review using [`xan help functions`](./functions.md)
 and that should be enough for most typical tasks. To read about aggregation
-capabilities, on the other hand, you should use `xan help aggs` instead.
+capabilities, on the other hand, you should use [`xan help aggs`](./aggs.md) instead.
 
 Note finally that it was not designed to be sandboxed nor to be particularly safe,
 so precautions regarding evaluating untrusted expressions provided by users should
@@ -181,7 +181,7 @@ pathjoin("data", filename)
 read(path, encoding="utf8")
 ```
 
-For a full list of available operators and functions, check out `xan help functions`.
+For a full list of available operators and functions, check out [`xan help functions`](./functions.md).
 
 ## Indexing & slicing
 
@@ -229,7 +229,7 @@ read_json("config.json").name
 ```
 
 To debug and/or experiment with the expression static analysis, check out the
-`xan eval -e` command.
+`xan eval --explain` command.
 
 ## Named expressions
 

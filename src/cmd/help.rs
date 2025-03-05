@@ -505,7 +505,12 @@ fn strip_ansi_colors(string: &str) -> String {
 }
 
 fn recombobulate_cheatsheet(help: &str) -> String {
-    let help = NUMBER_REGEX.replace_all(help, |caps: &Captures| caps[0].red().to_string());
+    let help = help.replace(
+        "[`xan help functions`](./functions.md)",
+        "`xan help functions`",
+    );
+    let help = help.replace("[`xan help aggs`](./aggs.md)", "`xan help aggs`");
+    let help = NUMBER_REGEX.replace_all(&help, |caps: &Captures| caps[0].red().to_string());
 
     let help = colorize_functions_help(&help);
 
