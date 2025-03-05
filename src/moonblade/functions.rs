@@ -108,6 +108,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "filesize" => (filesize, FunctionArguments::unary()),
         "fingerprint" => (fingerprint, FunctionArguments::unary()),
         "first" => (first, FunctionArguments::unary()),
+        "float" => (parse_float, FunctionArguments::unary()),
         "floor" => (
             |args| unary_arithmetic_op(args, DynamicNumber::floor),
             FunctionArguments::unary(),
@@ -120,6 +121,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::binary(),
         ),
         "index_by" => (index_by, FunctionArguments::binary()),
+        "int" => (parse_int, FunctionArguments::unary()),
         "isfile" => (isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "keys" => (keys, FunctionArguments::unary()),
@@ -830,6 +832,14 @@ fn index_by(args: BoundArguments) -> FunctionResult {
 }
 
 // Arithmetics
+fn parse_int(args: BoundArguments) -> FunctionResult {
+    args.get1().try_as_i64().map(DynamicValue::from)
+}
+
+fn parse_float(args: BoundArguments) -> FunctionResult {
+    args.get1().try_as_f64().map(DynamicValue::from)
+}
+
 fn arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
 where
     F: FnOnce(DynamicNumber, DynamicNumber) -> DynamicNumber,

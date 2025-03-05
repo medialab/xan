@@ -217,11 +217,14 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **col**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names.
 - **cols**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[bytes]`: Return list of cell values from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns.
 - **err**(*msg*) -> `error`: Make the expression return a custom error.
+- **float**(*any*) -> `float`: Cast value as float and raise an error if impossible.
 - **headers**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[string]`: Return list of header names from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers.
-- **index**() -> `integer?`: Return the row's index, if applicable.
+- **index**() -> `int?`: Return the row's index, if applicable.
+- **int**(*any*) -> `int`: Cast value as int and raise an error if impossible.
 - **mime_ext**(*string*) -> `string`: Return the extension related to given mime type.
 - **parse_dataurl**(*string*) -> `[string, bytes]`: Parse the given data url and return its mime type and decoded binary data.
 - **parse_json**(*string*) -> `any`: Parse the given string as JSON.
+- **try**(*T*) -> `T`: Attempt to evaluate given expression and return null if it raised an error.
 - **typeof**(*value*) -> `string`: Return type of value.
 
 ## IO & path wrangling

@@ -6,6 +6,7 @@
 
 * Improving `xan help cheatsheet`.
 * Adding moonblade function `try`.
+* Adding moonblade function `int` & `float`.
 
 *Performance*
 

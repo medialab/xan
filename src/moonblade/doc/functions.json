@@ -503,6 +503,12 @@
         "help": "Make the expression return a custom error."
       },
       {
+        "name": "float",
+        "arguments": ["any"],
+        "returns": "float",
+        "help": "Cast value as float and raise an error if impossible."
+      },
+      {
         "name": "headers",
         "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
         "returns": "list[string]",
@@ -511,8 +517,14 @@
       {
         "name": "index",
         "arguments": [],
-        "returns": "integer?",
+        "returns": "int?",
         "help": "Return the row's index, if applicable."
+      },
+      {
+        "name": "int",
+        "arguments": ["any"],
+        "returns": "int",
+        "help": "Cast value as int and raise an error if impossible."
       },
       {
         "name": "mime_ext",
