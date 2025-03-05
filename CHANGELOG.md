@@ -6,6 +6,10 @@
 
 * Improving `xan help cheatsheet`.
 
+*Performance*
+
+* Decrease `moonblade`-related commands memory consumption.
+
 ## 0.46.2
 
 *Fixes*

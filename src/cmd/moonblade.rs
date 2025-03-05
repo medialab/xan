@@ -1,5 +1,5 @@
-use std::borrow::Cow;
 use std::convert::TryFrom;
+use std::io::Write;
 
 use pariter::IteratorExt;
 
@@ -11,6 +11,84 @@ use crate::CliError;
 use crate::CliResult;
 
 #[derive(Default)]
+enum MoonbladeOutputValue {
+    #[default]
+    None,
+    Some(Vec<u8>),
+    Multiple(Vec<Vec<u8>>),
+}
+
+impl MoonbladeOutputValue {
+    fn of(mode: &MoonbladeMode, value: &DynamicValue) -> Self {
+        let mut output_value = Self::default();
+        output_value.process(mode, value);
+        output_value
+    }
+
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    fn unwrap(self) -> Vec<u8> {
+        match self {
+            Self::Some(bytes) => bytes,
+            _ => panic!("cannot unwrap"),
+        }
+    }
+
+    fn into_iter(self) -> Box<dyn Iterator<Item = Vec<u8>>> {
+        match self {
+            Self::None => Box::new(std::iter::empty()),
+            Self::Some(bytes) => Box::new(std::iter::once(bytes)),
+            Self::Multiple(list) => Box::new(list.into_iter()),
+        }
+    }
+
+    fn push(&mut self, value: &DynamicValue) {
+        let bytes = value.serialize_as_bytes().into_owned();
+
+        match self {
+            Self::None => {
+                *self = Self::Some(bytes);
+            }
+            Self::Some(other) => {
+                let other = std::mem::take(other);
+                *self = Self::Multiple(vec![other, bytes]);
+            }
+            Self::Multiple(values) => {
+                values.push(bytes);
+            }
+        };
+    }
+
+    fn process(&mut self, mode: &MoonbladeMode, value: &DynamicValue) {
+        match mode {
+            MoonbladeMode::Filter(invert) => {
+                let should_keep = if *invert {
+                    value.is_falsey()
+                } else {
+                    value.is_truthy()
+                };
+
+                if should_keep {
+                    self.push(value);
+                }
+            }
+            MoonbladeMode::Flatmap => {
+                if value.is_truthy() {
+                    for subvalue in value.flat_iter() {
+                        self.push(subvalue);
+                    }
+                }
+            }
+            _ => {
+                self.push(value);
+            }
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy)]
 pub enum MoonbladeMode {
     #[default]
     Map,
@@ -140,62 +218,55 @@ pub struct MoonbladeCmdArgs {
     pub limit: Option<usize>,
 }
 
-pub fn handle_eval_result<'b>(
+fn handle_moonblade_output<W: Write>(
+    writer: &mut csv::Writer<W>,
     args: &MoonbladeCmdArgs,
     index: usize,
-    record: &'b mut csv::ByteRecord,
-    eval_result: Result<DynamicValue, SpecifiedEvaluationError>,
+    record: &mut csv::ByteRecord,
+    eval_result: Result<MoonbladeOutputValue, SpecifiedEvaluationError>,
     replace: Option<usize>,
-) -> Result<Vec<Cow<'b, csv::ByteRecord>>, String> {
-    let mut records_to_emit: Vec<Cow<csv::ByteRecord>> = Vec::new();
+) -> CliResult<usize> {
+    let mut written_count: usize = 0;
 
     match eval_result {
         Ok(value) => match args.mode {
-            MoonbladeMode::Filter(invert) => {
-                let mut should_emit = value.is_truthy();
-
-                if invert {
-                    should_emit = !should_emit;
-                }
-
-                if should_emit {
-                    records_to_emit.push(Cow::Borrowed(record));
+            MoonbladeMode::Filter(_) => {
+                if !value.is_none() {
+                    writer.write_byte_record(record)?;
+                    written_count += 1;
                 }
             }
             MoonbladeMode::Map => {
-                record.push_field(&value.serialize_as_bytes());
+                record.push_field(&value.unwrap());
 
                 if args.error_policy.will_report() {
                     record.push_field(b"");
                 }
 
-                records_to_emit.push(Cow::Borrowed(record));
+                writer.write_byte_record(record)?;
+                written_count += 1;
             }
             MoonbladeMode::Foreach => {}
             MoonbladeMode::Transform => {
-                let mut record = record.replace_at(replace.unwrap(), &value.serialize_as_bytes());
+                let mut record = record.replace_at(replace.unwrap(), &value.unwrap());
 
                 if args.error_policy.will_report() {
                     record.push_field(b"");
                 }
 
-                records_to_emit.push(Cow::Owned(record));
+                writer.write_byte_record(&record)?;
+                written_count += 1;
             }
-            MoonbladeMode::Flatmap => 'm: {
-                if value.is_falsey() {
-                    break 'm;
-                }
-
-                for subvalue in value.flat_iter() {
-                    let cell = subvalue.serialize_as_bytes();
-
+            MoonbladeMode::Flatmap => {
+                for cell in value.into_iter() {
                     let new_record = if let Some(idx) = replace {
                         record.replace_at(idx, &cell)
                     } else {
                         record.append(&cell)
                     };
 
-                    records_to_emit.push(Cow::Owned(new_record));
+                    writer.write_byte_record(&new_record)?;
+                    written_count += 1;
                 }
             }
         },
@@ -203,10 +274,12 @@ pub fn handle_eval_result<'b>(
             MoonbladeErrorPolicy::Ignore => {
                 if args.mode.is_map() {
                     record.push_field(b"");
-                    records_to_emit.push(Cow::Borrowed(record));
+                    writer.write_byte_record(record)?;
+                    written_count += 1;
                 } else if args.mode.is_transform() {
                     let record = record.replace_at(replace.unwrap(), b"");
-                    records_to_emit.push(Cow::Owned(record));
+                    writer.write_byte_record(&record)?;
+                    written_count += 1;
                 }
             }
             MoonbladeErrorPolicy::Report => {
@@ -217,11 +290,13 @@ pub fn handle_eval_result<'b>(
                 if args.mode.is_map() {
                     record.push_field(b"");
                     record.push_field(err.to_string().as_bytes());
-                    records_to_emit.push(Cow::Borrowed(record));
+                    writer.write_byte_record(record)?;
+                    written_count += 1;
                 } else if args.mode.is_transform() {
                     let mut record = record.replace_at(replace.unwrap(), b"");
                     record.push_field(err.to_string().as_bytes());
-                    records_to_emit.push(Cow::Owned(record));
+                    writer.write_byte_record(&record)?;
+                    written_count += 1;
                 }
             }
             MoonbladeErrorPolicy::Log => {
@@ -229,19 +304,21 @@ pub fn handle_eval_result<'b>(
 
                 if args.mode.is_map() {
                     record.push_field(b"");
-                    records_to_emit.push(Cow::Borrowed(record));
+                    writer.write_byte_record(record)?;
+                    written_count += 1;
                 } else if args.mode.is_transform() {
                     let record = record.replace_at(replace.unwrap(), b"");
-                    records_to_emit.push(Cow::Owned(record));
+                    writer.write_byte_record(&record)?;
+                    written_count += 1;
                 }
             }
             MoonbladeErrorPolicy::Panic => {
-                return Err(format!("Row n°{}: {}", index + 1, err));
+                Err(format!("Row n°{}: {}", index + 1, err))?;
             }
         },
     };
 
-    Ok(records_to_emit)
+    Ok(written_count)
 }
 
 pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
@@ -326,23 +403,28 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                 move |(i, record)| -> CliResult<(
                     usize,
                     csv::ByteRecord,
-                    Result<DynamicValue, SpecifiedEvaluationError>,
+                    Result<MoonbladeOutputValue, SpecifiedEvaluationError>,
                 )> {
                     let record = record?;
 
-                    let eval_result = program.run_with_record(i, &record);
+                    let eval_result = program
+                        .run_with_record(i, &record)
+                        .map(|value| MoonbladeOutputValue::of(&args.mode, &value));
 
                     Ok((i, record, eval_result))
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
                 let (i, mut record, eval_result) = result?;
-                let records_to_emit =
-                    handle_eval_result(&args, i, &mut record, eval_result, column_to_replace)?;
+                handle_moonblade_output(
+                    &mut wtr,
+                    &args,
+                    i,
+                    &mut record,
+                    eval_result,
+                    column_to_replace,
+                )?;
 
-                for record_to_emit in records_to_emit {
-                    wtr.write_byte_record(&record_to_emit)?;
-                }
                 Ok(())
             })?;
 
@@ -354,15 +436,18 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     let mut emitted: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
-        let eval_result = program.run_with_record(i, &record);
+        let eval_result = program
+            .run_with_record(i, &record)
+            .map(|value| MoonbladeOutputValue::of(&args.mode, &value));
 
-        let records_to_emit =
-            handle_eval_result(&args, i, &mut record, eval_result, column_to_replace)?;
-
-        for record_to_emit in records_to_emit {
-            emitted += 1;
-            wtr.write_byte_record(&record_to_emit)?;
-        }
+        emitted += handle_moonblade_output(
+            &mut wtr,
+            &args,
+            i,
+            &mut record,
+            eval_result,
+            column_to_replace,
+        )?;
 
         i += 1;
 
