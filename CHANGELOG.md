@@ -5,6 +5,7 @@
 *Features*
 
 * Improving `xan help cheatsheet`.
+* Adding moonblade function `try`.
 
 *Performance*
 

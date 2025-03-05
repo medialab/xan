@@ -533,6 +533,12 @@
         "help": "Parse the given string as JSON."
       },
       {
+        "name": "try",
+        "arguments": ["T"],
+        "returns": "T",
+        "help": "Attempt to evaluate given expression and return null if it raised an error."
+      },
+      {
         "name": "typeof",
         "arguments": ["value"],
         "returns": "string",

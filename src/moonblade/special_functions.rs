@@ -98,6 +98,9 @@ pub fn get_special_function(
             FunctionArguments::with_range(2..=3),
         ),
 
+        // NOTE: try is special because you need to suppress the error if any
+        "try" => (None, Some(runtime_try), FunctionArguments::unary()),
+
         // NOTE: lambda evaluation need to be a special function because, like
         // if and unless, they cannot work in DFS fashion unless you
         // bind some values ahead of time.
@@ -265,6 +268,22 @@ fn runtime_col(
             Some(index) => Ok(DynamicValue::from(&record[index])),
         },
     }
+}
+
+fn runtime_try(
+    index: Option<usize>,
+    record: &ByteRecord,
+    context: &EvaluationContext,
+    args: &[ConcreteExpr],
+    globals: Option<&GlobalVariables>,
+    lambda_variables: Option<&LambdaArguments>,
+) -> EvaluationResult {
+    let result = args
+        .first()
+        .unwrap()
+        .evaluate(index, record, context, globals, lambda_variables);
+
+    Ok(result.unwrap_or(DynamicValue::None))
 }
 
 #[derive(Clone, Copy)]

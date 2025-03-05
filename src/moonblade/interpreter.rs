@@ -403,16 +403,23 @@ fn concretize_call(
             }
         }
 
+        let concrete_args = concretize_arguments(&arguments, call.args, headers, globals);
+
+        // NOTE: special case of bubbling-up exceptions
+        if function_name.as_str() == "try" && concrete_args.is_err() {
+            return Ok(ConcreteExpr::Value(DynamicValue::None));
+        }
+
         let concrete_call = ConcreteSpecialFunctionCall {
             name: function_name.clone(),
             function: runtime_function.expect("missing special function runtime"),
-            args: concretize_arguments(&arguments, call.args, headers, globals)?,
+            args: concrete_args?,
         };
 
         if concrete_call.is_statically_evaluable(&vec![]) {
             match concrete_call.static_run() {
                 Err(evaluation_error) => {
-                    return Err(ConcretizationError::StaticEvaluationError(evaluation_error))
+                    return Err(ConcretizationError::StaticEvaluationError(evaluation_error));
                 }
                 Ok(value) => return Ok(ConcreteExpr::Value(value)),
             };
