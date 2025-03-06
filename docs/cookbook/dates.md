@@ -5,13 +5,16 @@
 * [Parsing and formatting standard dates](#parsing-and-formatting-standard-iso-8601-dates)
 * [Visualizing dates](#visualizing-dates)
 * [Parsing non-standard dates](#parsing-non-standard-dates)
+* [Dealing with timezones](#dealing-with-timezones)
 
 
-## Parsing and formatting standard (ISO 8601) dates
-Let's say the column `local_time` of your CSV file is containing dates in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601), for example `2022-03-22`, `2022-03-22 23:20:24`, `2022-03-22T00:00:00[CET]` or `2022-03-22T23:20:24+01:00[Europe/Paris]`.
+## Parsing and formatting standard dates
+Let's say the column `local_time` of your CSV file is containing dates in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601),
+for example `2022-03-22`, `2022-03-22 23:20:24`, `2022-03-22T00:00:00[CET]` or `2022-03-22T23:20:24+01:00[Europe/Paris]`.
 
 ### xan stats
-To explore temporal data, for example to find out if there are empty cells or to find the start and end dates of the corpus, the first thing you can do is `xan stats` on the `local_time` column:
+To explore temporal data, for example to find out if there are empty cells or to find the start and end dates of the corpus,
+the first thing you can do is `xan stats` on the `local_time` column:
 
 ```bash
 xan stats -s local_time dates.csv | xan view
@@ -22,7 +25,7 @@ xan stats -s local_time dates.csv | xan view
 | ----- | ----------- | ---- | --- | --- | --- |------------------- | ------------------- | --- |
 | 92    | 0           | date |     |     | ... |2022-02-25T17:09:47 | 2022-03-27T12:56:25 | ... |
 
-One can have a better view of the same table with `xan transpose`:
+One can have a better view of the same table when piping into `xan transpose`:
 
 
 ```bash
@@ -47,12 +50,13 @@ xan stats -s local_time dates.csv | xan transpose | xan view
 | min_length  | 19                  |
 | max_length  | 19                  |
 
-Here we observe that there are no empty fields (see `count_empty`), and that the data extends from February 25 to March 3, 2022 (see `lex_first` and `lex_last`).
+Here we observe that there are no empty fields (see `count_empty`), and that the data extends from February 25 to March 27, 2022 (see `lex_first` and `lex_last`).
 
 ### Different formats
 If you want to keep only the year and month in a new column called `formatted_time`, you can apply the `year_month` (or `ym`) function.
 Functions can be applied using the `xan map` command, to create a new column with the result of an expression,
-or with the `xan transform` command, to directly transform the column. Here is an example with `xan map`:
+or with the `xan transform` command, to directly transform the column. *
+Here is an example where we created an new column called `formatted_time` containing the year and month from `local_time` with `xan map`:
 
 ```bash
 xan map 'ym(local_time)' formatted_time dates.csv | xan view
@@ -102,12 +106,13 @@ xan map 'ymd(local_time)' year_month_day dates.csv | xan freq -s year_month_day 
 This view is helpful (it is sorted by decreasing `count`) but in the case of dates one would prefer to have lines sorted in chronological order.
 
 ### xan hist -D
-The simplest way to do this is to use `xan hist -D`.
-`xan hist` will plot a histogram, and the `-D` (or `--dates`) flag will have the histogram sorted by date and add empty bars for missing days (or months, or years).
+The simplest way to do this is to use `xan freq` in combination with `xan hist -D`:
+`xan hist` will plot a histogram with one bar per row from `xan freq`, and the `-D` (or `--dates`)
+flag will have the histogram sorted by date and add empty bars for missing days.
 Don't forget to add `-A` (or `--all`) in `xan freq` in order to plot all days.
 
 ```bash
-xan map 'ymd(local_time)' year_month_day dates.csv | xan freq -s year_month_day -l 0 | xan hist -D
+xan map 'ymd(local_time)' year_month_day dates.csv | xan freq -s year_month_day -A | xan hist -D
 ```
 
 This way, you immediatly notice the fact that there is no line in your dataset on March 18 and 19.
@@ -147,6 +152,8 @@ This way, you immediatly notice the fact that there is no line in your dataset o
 
 ```
 
+`xan hist -D` will adapt the granularity automatically if you want to count the number of lines per month or per year.
+
 ## Parsing and formatting non-standard dates
 
 ### datetime()
@@ -154,7 +161,8 @@ If you have dates in non ISO 8601 format, such as `31/12/22` or `02 Jan 2006 15:
 The conversion specifications (i.e. how to tell `datetime()` the format you have in mind) are listed
 [here](https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications).
 
-`datetime()` takes as first argument the name of the column containing the date expression, and as second argument the desired format (we will see the third argument in the [Dealing with timezones](#dealing-with-timezones) section).
+`datetime()` takes as first argument the name of the column containing the date expression,
+and as second argument the desired format (we will see the third argument in the [Dealing with timezones](#dealing-with-timezones) section).
 
 ```bash
 xan map 'datetime(initial_date, "%d/%m/%y")' parsed_date strange_dates.csv | xan v
@@ -224,3 +232,87 @@ xan map 'strftime(local_time, "%A")' day_of_week dates.csv | xan v
 | 2022-02-28T09:45:15 | Monday      |
 | 2022-03-01T14:39:03 | Tuesday     |
 | 2022-03-01T17:42:13 | Tuesday     |
+
+## Dealing with timezones
+Let's say you live in Mexico City and your colleague in Paris sends you a file
+called `july_data.csv` containing a `local_time` column.
+When using xan's `datetime()` function, the tool assumes by default that dates are in the same time zone as your computer.
+So you probably get the following result, with dates in CDT (Central Daylight Time):
+
+```bash
+xan map 'datetime(local_time)' parsed_time july_data.csv | xan v
+```
+
+| local_time          | parsed_time              |
+| ------------------- | ------------------------ |
+| 2022-07-01T11:55:06 | 2022-07-01T11:55:06[CDT] |
+| 2022-07-01T15:50:02 | 2022-07-01T15:50:02[CDT] |
+| 2022-07-01T16:07:11 | 2022-07-01T16:07:11[CDT] |
+| 2022-07-01T16:07:38 | 2022-07-01T16:07:38[CDT] |
+| 2022-07-01T16:07:54 | 2022-07-01T16:07:54[CDT] |
+| 2022-07-01T16:07:58 | 2022-07-01T16:07:58[CDT] |
+| 2022-07-02T08:35:08 | 2022-07-02T08:35:08[CDT] |
+| 2022-07-02T11:20:20 | 2022-07-02T11:20:20[CDT] |
+| 2022-07-02T11:23:04 | 2022-07-02T11:23:04[CDT] |
+
+You want to tell xan to parse dates according to the Paris time zone,
+and probably rename your column to remove the `local_time` header which could be misleading.
+To do this you use the `xan transform` command associated with the `datetime()` function:
+
+```
+xan transform local_time 'datetime(local_time, timezone="Europe/Paris")' --rename paris_time july_data.csv > july_data_paris_time.csv
+```
+
+| paris_time                |
+| ------------------------- |
+| 2022-07-01T11:55:06[CEST] |
+| 2022-07-01T15:50:02[CEST] |
+| 2022-07-01T16:07:11[CEST] |
+| 2022-07-01T16:07:38[CEST] |
+| 2022-07-01T16:07:54[CEST] |
+| 2022-07-01T16:07:58[CEST] |
+| 2022-07-02T08:35:08[CEST] |
+| 2022-07-02T11:20:20[CEST] |
+| 2022-07-02T11:23:04[CEST] |
+
+Now you can format this new column in any format you like, and convert it to Mexico City time using the `strftime()` function.
+
+```
+xan map 'strftime(paris_time, "%Y-%m-%d %H:%M:%S", timezone="America/Mexico_City")' mexico_time july_data_paris_time.csv | xan v
+```
+
+| paris_time                | mexico_time         |
+| ------------------------- | ------------------- |
+| 2022-07-01T11:55:06[CEST] | 2022-07-01 04:55:06 |
+| 2022-07-01T15:50:02[CEST] | 2022-07-01 08:50:02 |
+| 2022-07-01T16:07:11[CEST] | 2022-07-01 09:07:11 |
+| 2022-07-01T16:07:38[CEST] | 2022-07-01 09:07:38 |
+| 2022-07-01T16:07:54[CEST] | 2022-07-01 09:07:54 |
+| 2022-07-01T16:07:58[CEST] | 2022-07-01 09:07:58 |
+| 2022-07-02T08:35:08[CEST] | 2022-07-02 01:35:08 |
+| 2022-07-02T11:20:20[CEST] | 2022-07-02 04:20:20 |
+| 2022-07-02T11:23:04[CEST] | 2022-07-02 04:23:04 |
+| 2022-07-04T08:00:25[CEST] | 2022-07-04 01:00:25 |
+
+
+### timestamp() and timestamp_ms()
+
+The `timestamp()` and `timestamp_ms()` functions, which are used to parse Unix timestamps,
+convert them to UTC dates, unlike `datetime()`, `ymd()`, etc., which use your computer's timezone.
+If the file your colleague sent contained Unix timestamps instead of dates, you could convert them like this:
+
+```
+xan map 'timestamp(timestamp_utc) | strftime(_, "%Y-%m-%d %H:%M:%S", timezone="America/Mexico_City")' mexico_time july_data.csv | xan v
+```
+
+| timestamp_utc | mexico_time         |
+| ------------- | ------------------- |
+| 1656669306    | 2022-07-01 04:55:06 |
+| 1656683402    | 2022-07-01 08:50:02 |
+| 1656684431    | 2022-07-01 09:07:11 |
+| 1656684458    | 2022-07-01 09:07:38 |
+| 1656684474    | 2022-07-01 09:07:54 |
+| 1656684478    | 2022-07-01 09:07:58 |
+| 1656743708    | 2022-07-02 01:35:08 |
+| 1656753620    | 2022-07-02 04:20:20 |
+| 1656753784    | 2022-07-02 04:23:04 |
