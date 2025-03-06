@@ -1,5 +1,5 @@
 // Config
-WHITESPACE = _{ " " }
+WHITESPACE = _{ " " | "\n" }
 
 // Literals
 true_lit   =  { "true" }

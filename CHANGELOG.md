@@ -7,6 +7,7 @@
 * Improving `xan help cheatsheet`.
 * Adding moonblade function `try`.
 * Adding moonblade function `int` & `float`.
+* `moonblade` now tolerates line-breaks as whitespace when parsing. This makes it possible to write your expressions on multiple lines.
 
 *Performance*
 
