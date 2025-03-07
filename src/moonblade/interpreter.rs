@@ -1404,12 +1404,12 @@ mod tests {
         let zoned_taipei = timestamp.in_tz("Asia/Taipei").unwrap();
 
         assert_eq!(
-            eval_code("to_timezone('2024-07-11T01:14:00Z', 'Europe/Paris')"),
+            eval_code("to_timezone('2024-07-11T01:14:00Z', 'UTC', 'Europe/Paris')"),
             Ok(DynamicValue::from(zoned_paris.clone()))
         );
 
         assert_eq!(
-            eval_code("to_timezone('2024-07-11T03:14:00[CET]', 'Asia/Taipei')"),
+            eval_code("to_timezone('2024-07-11T03:14:00[CEST]', 'Europe/Paris', 'Asia/Taipei')"),
             Ok(DynamicValue::from(zoned_taipei.clone()))
         );
     }
@@ -1419,7 +1419,7 @@ mod tests {
         let timestamp: Timestamp = "2024-07-11T01:14:00Z".parse().unwrap();
         let zoned = timestamp.to_zoned(TimeZone::system());
         assert_eq!(
-            eval_code("to_local_timezone('2024-07-11T01:14:00Z')"),
+            eval_code("to_local_timezone('2024-07-11T01:14:00', 'UTC')"),
             Ok(DynamicValue::from(zoned.clone()))
         );
     }

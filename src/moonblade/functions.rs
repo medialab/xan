@@ -234,8 +234,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "timestamp" => (timestamp, FunctionArguments::unary()),
         "timestamp_ms" => (timestamp_ms, FunctionArguments::unary()),
-        "to_timezone" => (to_timezone, FunctionArguments::binary()),
-        "to_local_timezone" => (to_local_timezone, FunctionArguments::unary()),
+        "to_timezone" => (to_timezone, FunctionArguments::nary(3)),
+        "to_local_timezone" => (to_local_timezone, FunctionArguments::binary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
             |args| unary_arithmetic_op(args, DynamicNumber::trunc),
@@ -1402,18 +1402,40 @@ fn datetime(args: BoundArguments) -> FunctionResult {
 }
 
 fn to_timezone(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2();
-    let datetime = arg1.try_as_datetime()?;
-    let timezone = arg2.try_as_timezone()?;
-    Ok(DynamicValue::from(datetime.with_time_zone(timezone)))
+    let (arg1, arg2, arg3) = args.get3();
+    // We could check if arg1 is a datetime before parsing it as str
+    let datestring = arg1.try_as_str()?;
+    let timezone_in = arg2.try_as_timezone()?;
+    let timezone_out = arg3.try_as_timezone()?;
+
+    dates::parse_zoned(&datestring, None, Some(timezone_in))
+        .map_err(|err| {
+            EvaluationError::from_zoned_parse_error(
+                &datestring,
+                None,
+                Some(arg2.try_as_str().unwrap().as_ref()),
+                err,
+            )
+        })
+        .map(|dt| DynamicValue::from(dt.with_time_zone(timezone_out)))
 }
 
 fn to_local_timezone(args: BoundArguments) -> FunctionResult {
-    let target = args.get1();
-    let datetime = target.try_as_datetime()?;
-    Ok(DynamicValue::from(
-        datetime.with_time_zone(TimeZone::system()),
-    ))
+    let (arg1, arg2) = args.get2();
+    // We could check if arg1 is a datetime before parsing it as str
+    let datestring = arg1.try_as_str()?;
+    let timezone_in = arg2.try_as_timezone()?;
+
+    dates::parse_zoned(&datestring, None, Some(timezone_in))
+        .map_err(|err| {
+            EvaluationError::from_zoned_parse_error(
+                &datestring,
+                None,
+                Some(arg2.try_as_str().unwrap().as_ref()),
+                err,
+            )
+        })
+        .map(|dt| DynamicValue::from(dt.with_time_zone(TimeZone::system())))
 }
 
 fn abstract_strftime(datetime: &Zoned, format: &str) -> FunctionResult {

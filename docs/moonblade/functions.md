@@ -183,14 +183,16 @@ add(trim(name) | len, 2)    - Can be used anywhere
 ## Dates
 
 - **datetime**(*string*, *format=?*, *timezone=?*) -> `datetime`: Parse a string as a datetime according to format and timezone. If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
-- **strftime**(*target*, *format=?*, *timezone=?*) -> `string`: Format target (a time in ISO 8601 format, or the result of datetime() function) according to format.
+- **strftime**(*target*, *format*) -> `string`: Format target (a time in ISO 8601 format, or the result of datetime() function) according to format.
 - **timestamp**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
 - **timestamp_ms**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
-- **year_month_day**(*target*, *timezone=?*) -> `string` (aliases: **ymd**): Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.<br>Equivalent to `strftime(string, format="%Y-%m-%d")`.
-- **month_day**(*target*, *timezone=?*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.<br>Equivalent to `strftime(string, format="%m-%d")`.
-- **month**(*target*, *timezone=?*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.
-- **year**(*target*, *timezone=?*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.<br>Equivalent to `strftime(string, format="%Y")`.
-- **year_month**(*target*, *timezone=?*) -> `string` (aliases: **ym**): Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.<br>Equivalent to `strftime(string, format="%Y-%m")`.
+- **to_timezone**(*target*, *timezone_in*, *timezone_out*) -> `datetime`: Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to timezone_out.
+- **to_local_timezone**(*target*) -> `datetime`: Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to the system's local timezone.
+- **year_month_day**(*target*) -> `string` (aliases: **ymd**): Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.<br>Equivalent to `strftime(string, format="%Y-%m-%d")`.
+- **month_day**(*target*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.<br>Equivalent to `strftime(string, format="%m-%d")`.
+- **month**(*target*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.
+- **year**(*target*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.<br>Equivalent to `strftime(string, format="%Y")`.
+- **year_month**(*target*) -> `string` (aliases: **ym**): Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.<br>Equivalent to `strftime(string, format="%Y-%m")`.
 
 ## Urls
 

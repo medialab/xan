@@ -375,15 +375,15 @@
       },
       {
         "name": "to_timezone",
-        "arguments": ["target", "timezone"],
+        "arguments": ["target", "timezone_in", "timezone_out"],
         "returns": "datetime",
-        "help": "Convert target (a time in ISO 8601 format, or the result of datetime() function) to timezone. If the input target does not contain any timezone indicator, it is parsed as a date in the system timezone."
+        "help": "Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to timezone_out."
       },
       {
         "name": "to_local_timezone",
         "arguments": ["target"],
         "returns": "datetime",
-        "help": "Convert target (a time in ISO 8601 format, or the result of datetime() function) to the system's local timezone."
+        "help": "Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to the system's local timezone."
       },
       {
         "name": "year_month_day",
