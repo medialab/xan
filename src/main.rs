@@ -20,6 +20,7 @@ mod moonblade;
 mod ratatui;
 mod scales;
 mod select;
+mod urls;
 mod util;
 mod xml;
 

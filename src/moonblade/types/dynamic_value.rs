@@ -13,10 +13,12 @@ use serde::{
     de::{Deserializer, MapAccess, SeqAccess, Visitor},
     Deserialize, Serialize, Serializer,
 };
+use url::Url;
 
 use crate::dates;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::utils::downgrade_float;
+use crate::urls::TaggedUrl;
 
 use super::DynamicNumber;
 
@@ -276,6 +278,17 @@ impl DynamicValue {
 
         TimeZone::get(&name)
             .map_err(|_| EvaluationError::DateTime(format!("{} is not a valid timezone", name)))
+    }
+
+    pub fn try_as_tagged_url(&self) -> Result<TaggedUrl, EvaluationError> {
+        self.try_as_str()?
+            .parse::<TaggedUrl>()
+            .map_err(|_| EvaluationError::from_cast(self, "url"))
+    }
+
+    pub fn try_as_url(&self) -> Result<Url, EvaluationError> {
+        self.try_as_tagged_url()
+            .map(|tagged_url| tagged_url.into_inner())
     }
 
     pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
