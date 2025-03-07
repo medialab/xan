@@ -555,6 +555,17 @@ pub fn parse_expression(input: &str) -> Result<Expr, ParseError> {
     Ok(pratt_parse(Pairs::single(first_pair))?)
 }
 
+fn parse_expression_name(pair: Pair<Rule>) -> String {
+    debug_assert!(matches!(pair.as_rule(), Rule::expr_name));
+    let expr_name_inner = pair.into_inner().next().unwrap();
+
+    match expr_name_inner.as_rule() {
+        Rule::ident => expr_name_inner.as_str().to_string(),
+        Rule::string => build_string(expr_name_inner),
+        _ => unreachable!(),
+    }
+}
+
 pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, ParseError> {
     let pairs = MoonbladePestParser::parse(Rule::named_exprs, input)?;
 
@@ -618,15 +629,7 @@ pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, Parse
                         let expr = inner.next().unwrap();
 
                         let expr_name = inner.next().unwrap();
-                        debug_assert!(matches!(expr_name.as_rule(), Rule::expr_name));
-
-                        let expr_name_inner = expr_name.into_inner().next().unwrap();
-
-                        let name = match expr_name_inner.as_rule() {
-                            Rule::ident => expr_name_inner.as_str().to_string(),
-                            Rule::string => build_string(expr_name_inner),
-                            _ => unreachable!(),
-                        };
+                        let name = parse_expression_name(expr_name);
 
                         (name, expr)
                     }
@@ -666,15 +669,7 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                     let func = inner.next().unwrap();
 
                     let expr_name = inner.next().unwrap();
-                    debug_assert!(matches!(expr_name.as_rule(), Rule::expr_name));
-
-                    let expr_name_inner = expr_name.into_inner().next().unwrap();
-
-                    let name = match expr_name_inner.as_rule() {
-                        Rule::ident => expr_name_inner.as_str().to_string(),
-                        Rule::string => build_string(expr_name_inner),
-                        _ => unreachable!(),
-                    };
+                    let name = parse_expression_name(expr_name);
 
                     debug_assert!(matches!(func.as_rule(), Rule::func));
 
@@ -695,6 +690,80 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
             }
         })
         .collect()
+}
+
+#[derive(Debug, PartialEq)]
+struct ScrapingOp {
+    name: String,
+    expr: Expr,
+    then: Option<Expr>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ScrapingNode {
+    Map(ScrapingMap),
+    Op(ScrapingOp),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ScrapingItem {
+    selection_expr: Expr,
+    operation: ScrapingNode,
+}
+
+pub type ScrapingMap = Vec<ScrapingItem>;
+
+fn parse_scraping_op(pair: Pair<Rule>) -> Result<ScrapingOp, ParseError> {
+    let mut pairs = pair.into_inner().collect::<Vec<_>>();
+
+    let name = parse_expression_name(pairs.pop().unwrap());
+
+    let (expr, then) = if pairs.len() == 2 {
+        let then = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
+        let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
+
+        (expr, Some(then))
+    } else {
+        let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
+
+        (expr, None)
+    };
+
+    Ok(ScrapingOp { name, expr, then })
+}
+
+fn parse_scraping_item(pair: Pair<Rule>) -> Result<ScrapingItem, ParseError> {
+    debug_assert!(matches!(pair.as_rule(), Rule::scraping_item));
+
+    let mut pairs = pair.into_inner();
+    let selection = pairs.next().unwrap();
+    let op_or_map = pairs.next().unwrap();
+
+    debug_assert!(matches!(selection.as_rule(), Rule::expr));
+
+    let selection_expr = pratt_parse(Pairs::single(selection))?;
+
+    let operation: ScrapingNode = match op_or_map.as_rule() {
+        Rule::scraping_map => ScrapingNode::Map(parse_scraping_map(op_or_map)?),
+        Rule::scraping_op => ScrapingNode::Op(parse_scraping_op(op_or_map)?),
+        _ => unreachable!(),
+    };
+
+    Ok(ScrapingItem {
+        selection_expr,
+        operation,
+    })
+}
+
+fn parse_scraping_map(pair: Pair<Rule>) -> Result<ScrapingMap, ParseError> {
+    debug_assert!(matches!(pair.as_rule(), Rule::scraping_map));
+
+    pair.into_inner().map(|p| parse_scraping_item(p)).collect()
+}
+
+pub fn parse_scraper(input: &str) -> Result<ScrapingMap, ParseError> {
+    let mut pairs = MoonbladePestParser::parse(Rule::scraping_expr, input)?;
+    parse_scraping_map(pairs.next().unwrap())
 }
 
 #[cfg(test)]
@@ -1073,6 +1142,54 @@ mod tests {
             Ok(vec![
                 (id("name"), "name".to_string()),
                 (func("add", vec![Int(1), Int(2)]), "three".to_string())
+            ])
+        );
+    }
+
+    #[test]
+    fn test_scraper() {
+        let parsed = parse_scraper(
+            "{
+                'h2 > a': {
+                    _: text then lower as title,
+                    _: attr('href') as url
+                },
+                all('p'): text as content
+            }",
+        );
+
+        assert_eq!(
+            parsed,
+            Ok(vec![
+                ScrapingItem {
+                    selection_expr: s("h2 > a"),
+                    operation: ScrapingNode::Map(vec![
+                        ScrapingItem {
+                            selection_expr: Underscore,
+                            operation: ScrapingNode::Op(ScrapingOp {
+                                name: "title".to_string(),
+                                expr: id("text"),
+                                then: Some(id("lower"))
+                            })
+                        },
+                        ScrapingItem {
+                            selection_expr: Underscore,
+                            operation: ScrapingNode::Op(ScrapingOp {
+                                name: "url".to_string(),
+                                expr: func("attr", vec![s("href")]),
+                                then: None
+                            })
+                        }
+                    ])
+                },
+                ScrapingItem {
+                    selection_expr: func("all", vec![s("p")]),
+                    operation: ScrapingNode::Op(ScrapingOp {
+                        name: "content".to_string(),
+                        expr: id("text"),
+                        then: None
+                    })
+                }
             ])
         );
     }
