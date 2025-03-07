@@ -357,7 +357,7 @@
       },
       {
         "name": "strftime",
-        "arguments": ["target", "format=?", "timezone=?"],
+        "arguments": ["target", "format"],
         "returns": "string",
         "help": "Format target (a time in ISO 8601 format, or the result of datetime() function) according to format."
       },
@@ -374,34 +374,46 @@
         "help": "Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time."
       },
       {
+        "name": "to_timezone",
+        "arguments": ["target", "timezone"],
+        "returns": "datetime",
+        "help": "Convert target (a time in ISO 8601 format, or the result of datetime() function) to timezone. If the input target does not contain any timezone indicator, it is parsed as a date in the system timezone."
+      },
+      {
+        "name": "to_local_timezone",
+        "arguments": ["target"],
+        "returns": "datetime",
+        "help": "Convert target (a time in ISO 8601 format, or the result of datetime() function) to the system's local timezone."
+      },
+      {
         "name": "year_month_day",
         "aliases": ["ymd"],
-        "arguments": ["target", "timezone=?"],
+        "arguments": ["target"],
         "returns": "string",
         "help": "Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.\nEquivalent to `strftime(string, format=\"%Y-%m-%d\")`."
       },
       {
         "name": "month_day",
-        "arguments": ["target", "timezone=?"],
+        "arguments": ["target"],
         "returns": "string",
         "help": "Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.\nEquivalent to `strftime(string, format=\"%m-%d\")`."
       },
       {
         "name": "month",
-        "arguments": ["target", "timezone=?"],
+        "arguments": ["target"],
         "returns": "string",
         "help": "Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.\nEquivalent to `strftime(string, format=\"%m\")`."
       },
       {
         "name": "year",
-        "arguments": ["target", "timezone=?"],
+        "arguments": ["target"],
         "returns": "string",
         "help": "Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.\nEquivalent to `strftime(string, format=\"%Y\")`."
       },
       {
         "name": "year_month",
         "aliases": ["ym"],
-        "arguments": ["target", "timezone=?"],
+        "arguments": ["target"],
         "returns": "string",
         "help": "Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.\nEquivalent to `strftime(string, format=\"%Y-%m\")`."
       }

@@ -147,11 +147,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "month" => (
             |args| custom_strftime(args, "%m"),
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+            FunctionArguments::unary(),
         ),
         "month_day" => (
             |args| custom_strftime(args, "%m-%d"),
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+            FunctionArguments::unary(),
         ),
         "move" => (move_file, FunctionArguments::binary()),
         "mul" => (
@@ -234,6 +234,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "timestamp" => (timestamp, FunctionArguments::unary()),
         "timestamp_ms" => (timestamp_ms, FunctionArguments::unary()),
+        "to_timezone" => (to_timezone, FunctionArguments::binary()),
+        "to_local_timezone" => (to_local_timezone, FunctionArguments::unary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
             |args| unary_arithmetic_op(args, DynamicNumber::trunc),
@@ -248,15 +250,15 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "write" => (write, FunctionArguments::binary()),
         "year" => (
             |args| custom_strftime(args, "%Y"),
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+            FunctionArguments::unary(),
         ),
         "year_month_day" | "ymd" => (
             |args| custom_strftime(args, "%F"),
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+            FunctionArguments::unary(),
         ),
         "year_month" | "ym" => (
             |args| custom_strftime(args, "%Y-%m"),
-            FunctionArguments::complex(vec![Argument::Positional, Argument::with_name("timezone")]),
+            FunctionArguments::unary(),
         ),
         _ => return None,
     })
@@ -1399,16 +1401,23 @@ fn datetime(args: BoundArguments) -> FunctionResult {
     .map(DynamicValue::from)
 }
 
-fn abstract_strftime(
-    mut datetime: Zoned,
-    format: &str,
-    timezone: Option<TimeZone>,
-) -> FunctionResult {
-    if let Some(tz) = timezone {
-        datetime = datetime.with_time_zone(tz);
-    }
+fn to_timezone(args: BoundArguments) -> FunctionResult {
+    let (arg1, arg2) = args.get2();
+    let datetime = arg1.try_as_datetime()?;
+    let timezone = arg2.try_as_timezone()?;
+    Ok(DynamicValue::from(datetime.with_time_zone(timezone)))
+}
 
-    match strtime::format(format, &datetime) {
+fn to_local_timezone(args: BoundArguments) -> FunctionResult {
+    let target = args.get1();
+    let datetime = target.try_as_datetime()?;
+    Ok(DynamicValue::from(
+        datetime.with_time_zone(TimeZone::system()),
+    ))
+}
+
+fn abstract_strftime(datetime: &Zoned, format: &str) -> FunctionResult {
+    match strtime::format(format, datetime) {
         Ok(formatted) => Ok(DynamicValue::from(formatted)),
         Err(_) => Err(EvaluationError::DateTime(format!(
             "\"{}\" is not a valid format",
@@ -1418,33 +1427,18 @@ fn abstract_strftime(
 }
 
 fn strftime(args: BoundArguments) -> FunctionResult {
-    let mut args = args.into_iter();
+    let (arg1, arg2) = args.get2();
+    let datetime = arg1.try_as_datetime()?;
+    let format = arg2.try_as_str()?;
 
-    let target = args.next().unwrap();
-    let format_arg = args.next().unwrap();
-    let format = format_arg.try_as_str()?;
-    let timezone = args
-        .next_not_none()
-        .map(|tz| tz.try_as_timezone())
-        .transpose()?;
-
-    let datetime = target.try_into_datetime()?;
-
-    abstract_strftime(datetime, &format, timezone)
+    abstract_strftime(&datetime, &format)
 }
 
 fn custom_strftime(args: BoundArguments, format: &str) -> FunctionResult {
-    let mut args = args.into_iter();
+    let target = args.get1();
+    let datetime = target.try_as_datetime()?;
 
-    let target = args.next().unwrap();
-    let timezone = args
-        .next_not_none()
-        .map(|tz| tz.try_as_timezone())
-        .transpose()?;
-
-    let datetime = target.try_into_datetime()?;
-
-    abstract_strftime(datetime, format, timezone)
+    abstract_strftime(&datetime, format)
 }
 
 // Urls

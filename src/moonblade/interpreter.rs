@@ -1315,10 +1315,6 @@ mod tests {
             Ok(DynamicValue::from("2024-07-11"))
         );
         assert_eq!(
-            eval_code("year_month_day('2024-07-11 03:14:00', timezone='Europe/Paris')"),
-            Ok(DynamicValue::from("2024-07-11"))
-        );
-        assert_eq!(
             eval_code("year_month_day('2024-07-11')"),
             Ok(DynamicValue::from("2024-07-11"))
         );
@@ -1336,10 +1332,6 @@ mod tests {
     fn test_month_day() {
         assert_eq!(
             eval_code("month_day('2024-07-11T03:14:00[Europe/Paris]')"),
-            Ok(DynamicValue::from("07-11"))
-        );
-        assert_eq!(
-            eval_code("month_day('2024-07-11 03:14:00', timezone='Europe/Paris')"),
             Ok(DynamicValue::from("07-11"))
         );
         assert_eq!(
@@ -1366,10 +1358,6 @@ mod tests {
             eval_code("month('20240711 03:14[CET]')"),
             Ok(DynamicValue::from("07"))
         );
-        assert_eq!(
-            eval_code("month('2024-07-11 03:14:00', timezone='Europe/Paris')"),
-            Ok(DynamicValue::from("07"))
-        );
     }
 
     #[test]
@@ -1386,20 +1374,12 @@ mod tests {
             eval_code("year('20240711 03:14[CET]')"),
             Ok(DynamicValue::from("2024"))
         );
-        assert_eq!(
-            eval_code("year('2024-07-11 03:14:00', timezone='Europe/Paris')"),
-            Ok(DynamicValue::from("2024"))
-        );
     }
 
     #[test]
     fn test_year_month() {
         assert_eq!(
             eval_code("year_month('2024-07-11')"),
-            Ok(DynamicValue::from("2024-07"))
-        );
-        assert_eq!(
-            eval_code("ym('2024-07-11 03:14:00', timezone='Europe/Paris')"),
             Ok(DynamicValue::from("2024-07"))
         );
     }
@@ -1415,15 +1395,32 @@ mod tests {
             eval_code("strftime(datetime('September 5, 2024', '%B %d, %Y'), '%Y')"),
             Ok(DynamicValue::from("2024"))
         );
+    }
+
+    #[test]
+    fn test_to_timezone() {
+        let timestamp: Timestamp = "2024-07-11T01:14:00Z".parse().unwrap();
+        let zoned_paris = timestamp.in_tz("Europe/Paris").unwrap();
+        let zoned_taipei = timestamp.in_tz("Asia/Taipei").unwrap();
 
         assert_eq!(
-            eval_code("strftime('2024-07-11T03:14:00[Europe/Paris]', '%F %T %Z', timezone='UTC')"),
-            Ok(DynamicValue::from("2024-07-11 01:14:00 UTC"))
+            eval_code("to_timezone('2024-07-11T01:14:00Z', 'Europe/Paris')"),
+            Ok(DynamicValue::from(zoned_paris.clone()))
         );
 
         assert_eq!(
-            eval_code("strftime(datetime('2024-07-11 01:14:00', timezone='UTC'), '%F %T %Z')"),
-            Ok(DynamicValue::from("2024-07-11 01:14:00 UTC"))
+            eval_code("to_timezone('2024-07-11T03:14:00[CET]', 'Asia/Taipei')"),
+            Ok(DynamicValue::from(zoned_taipei.clone()))
+        );
+    }
+
+    #[test]
+    fn test_to_local_timezone() {
+        let timestamp: Timestamp = "2024-07-11T01:14:00Z".parse().unwrap();
+        let zoned = timestamp.to_zoned(TimeZone::system());
+        assert_eq!(
+            eval_code("to_local_timezone('2024-07-11T01:14:00Z')"),
+            Ok(DynamicValue::from(zoned.clone()))
         );
     }
 }
