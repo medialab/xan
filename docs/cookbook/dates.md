@@ -67,7 +67,7 @@ Here we observe that there are no empty fields (see `count_empty`), and that the
 If you want to keep only the year and month in a new column called `formatted_time`, you can apply the `year_month` (or `ym`) function.
 Functions can be applied using the `xan map` command, to create a new column with the result of an expression,
 or with the `xan transform` command, to directly transform the column.
-Here is an example where we created an new column called `formatted_time` containing the year and month from `local_time` with `xan map`:
+Here is an example where we created a new column called `formatted_time` containing the year and month from `local_time` with `xan map`:
 
 ```bash
 xan map 'local_time.ym()' formatted_time dates.csv | xan view
