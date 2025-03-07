@@ -1,11 +1,18 @@
+use std::fmt::{self, Display};
 use std::str::FromStr;
 
 use url::{Host, ParseError, Url};
 
 #[derive(Debug, PartialEq)]
-struct TaggedUrl {
+pub struct TaggedUrl {
     has_scheme: bool,
     url: Url,
+}
+
+impl TaggedUrl {
+    pub fn into_inner(self) -> Url {
+        self.url
+    }
 }
 
 impl FromStr for TaggedUrl {
@@ -58,27 +65,20 @@ struct LRUStem {
     kind: LRUStemKind,
 }
 
-impl LRUStem {
-    fn to_string(&self) -> String {
-        format!("{}:{}", self.kind.as_str(), self.string)
-    }
-}
+// impl LRUStem {
+//     fn to_string(&self) -> String {
+//         format!("{}:{}", self.kind.as_str(), self.string)
+//     }
+// }
 
-struct LRUStems(Vec<LRUStem>);
+pub struct LRUStems(Vec<LRUStem>);
 
-impl LRUStems {
-    fn to_string(&self) -> String {
-        self.0
-            .iter()
-            .map(|stem| {
-                let mut string = String::with_capacity(stem.string.len() + 3);
-                string.push_str(stem.kind.as_str());
-                string.push(':');
-                string.push_str(&stem.string);
-                string.push('|');
-                string
-            })
-            .collect::<String>()
+impl Display for LRUStems {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for stem in self.0.iter() {
+            write!(f, "{}:{}|", stem.kind.as_str(), &stem.string)?;
+        }
+        Ok(())
     }
 }
 

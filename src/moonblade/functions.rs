@@ -25,6 +25,7 @@ use unidecode::unidecode;
 use uuid::Uuid;
 
 use crate::dates;
+use crate::urls::LRUStems;
 
 use super::agg::aggregators::Welford;
 use super::error::EvaluationError;
@@ -131,8 +132,9 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::ln),
             FunctionArguments::unary(),
         ),
-        "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),
         "lower" => (lower, FunctionArguments::unary()),
+        "lru" => (lru, FunctionArguments::unary()),
+        "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),
         "match" => (regex_match, FunctionArguments::with_range(2..=3)),
         "max" => (variadic_max, FunctionArguments::variadic(2)),
         "md5" => (md5, FunctionArguments::unary()),
@@ -240,6 +242,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "typeof" => (type_of, FunctionArguments::unary()),
         "unidecode" => (apply_unidecode, FunctionArguments::unary()),
         "upper" => (upper, FunctionArguments::unary()),
+        "urljoin" => (urljoin, FunctionArguments::binary()),
         "uuid" => (uuid, FunctionArguments::nullary()),
         "values" => (values, FunctionArguments::unary()),
         "write" => (write, FunctionArguments::binary()),
@@ -1442,6 +1445,25 @@ fn custom_strftime(args: BoundArguments, format: &str) -> FunctionResult {
     let datetime = target.try_into_datetime()?;
 
     abstract_strftime(datetime, format, timezone)
+}
+
+// Urls
+fn urljoin(args: BoundArguments) -> FunctionResult {
+    let mut url = args.get(0).unwrap().try_as_url()?;
+    let addendum = args.get(1).unwrap().try_as_str()?;
+
+    url = url
+        .join(&addendum)
+        .map_err(|_| EvaluationError::Custom("invalid url part to join".to_string()))?;
+
+    // TODO: canonicalize
+    Ok(DynamicValue::from(url.to_string()))
+}
+
+fn lru(args: BoundArguments) -> FunctionResult {
+    let tagged_url = args.get1().try_as_tagged_url()?;
+
+    Ok(DynamicValue::from(LRUStems::from(&tagged_url).to_string()))
 }
 
 // Introspection
