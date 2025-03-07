@@ -4,6 +4,7 @@ mod error;
 mod functions;
 mod interpreter;
 mod parser;
+mod scrape;
 mod select;
 mod special_functions;
 mod types;

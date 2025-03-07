@@ -59,6 +59,7 @@ ctrlc = "3.4.4"
 deepsize = "0.2.0"
 dlv-list = "0.5.2"
 docopt = "1"
+ego-tree = "0.10.0"
 emojis = "0.6.4"
 encoding = "0.2.33"
 ext-sort = { version = "0.1.4", features = ["memory-limit"] }
@@ -92,6 +93,7 @@ rayon = "1.10.0"
 regex = "1"
 regex-automata = "0.4.9"
 rust_xlsxwriter = "0.79.4"
+scraper = "0.23.1"
 serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
 serde_json = { version = "1.0", features = ["preserve_order"] }

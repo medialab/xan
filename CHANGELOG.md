@@ -9,6 +9,7 @@
 * Adding moonblade functions `int` & `float`.
 * Adding moonblade functions `lru` & `urljoin`.
 * `moonblade` now tolerates line-breaks as whitespace when parsing. This makes it possible to write your expressions on multiple lines.
+* `moonblade` now accepts comments starting with `#`.
 
 *Performance*
 

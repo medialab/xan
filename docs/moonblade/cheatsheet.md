@@ -27,27 +27,28 @@ apply here too.
 - [Indexing & slicing](#indexing--slicing)
 - [Constant evaluation](#constant-evaluation)
 - [Named expressions](#named-expressions)
+- [Multiple lines & comments](#multiple-lines--comments)
 - [Implementation details & design choices](#implementation-details--design-choices)
 
 ## Basic examples
 
-```javascript
-// Checking that the value of the "count" column is over 10
+```python
+# Checking that the value of the "count" column is over 10
 count > 10
 
-// Lowercasing a "text" column
+# Lowercasing a "text" column
 lower(text)
 
-// Checking that a lowercased name has some desired value (mind the "eq" operator):
+# Checking that a lowercased name has some desired value (mind the "eq" operator):
 lower(name) eq "john"
 
-// Checking that a "name" column is one of the provided values:
+# Checking that a "name" column is one of the provided values:
 name in ["john", "lucy", "mary"]
 
-// Formatting a full name from a "first_name" and "last_name" column:
+# Formatting a full name from a "first_name" and "last_name" column:
 fmt("{} {}", first_name, last_name)
 
-// Getting the first part of a mime type:
+# Getting the first part of a mime type:
 split(mimetype, "/")[0]
 ```
 
@@ -61,28 +62,28 @@ want to understand why.
 Column can be referenced directly by name if they only contain alphanumeric
 characters or underscores and don't start with a number:
 
-```javascript
-// Computing the ratio between "tweet_count" and "retweet_count":
+```python
+# Computing the ratio between "tweet_count" and "retweet_count":
 tweet_count / retweet_count
 ```
 
 If the column names contain forbidden characters, or if you need to access
 columns with duplicate names,  they can be accessed through the `col` function:
 
-```javascript
-// Column name with spaces:
+```python
+# Column name with spaces:
 col("Name of Movie")
-// Second column named "text":
+# Second column named "text":
 col("text", 1)
 ```
 
 It is also possible to access columns by their zero-based index (negative indices
 are also accepted):
 
-```javascript
-// Third column:
+```python
+# Third column:
 col(2)
-// Last column:
+# Last column:
 col(-1)
 ```
 
@@ -92,50 +93,50 @@ the given expression. This can be problematic sometimes when you want to process
 many different files with slightly different column names. To this end, you
 can also use "unsure" identifiers, postfixed with `?` like so:
 
-```javascript
-// Will return the "text" column or the "content" one if not found
+```python
+# Will return the "text" column or the "content" one if not found
 text? || content?
 ```
 
 ## Literal values & data types
 
-```javascript
-// Integers
+```python
+# Integers
 1
-// Integers can contain underscores for readability
+# Integers can contain underscores for readability
 10_000
 
-// Floats
+# Floats
 0.5
 
-// Booleans
+# Booleans
 true
 false
 
-// Null value
+# Null value
 null
 
-// Strings (single or double quotes)
+# Strings (single or double quotes)
 "hello"
 'hello'
-// Typical escaping
+# Typical escaping
 "Hello\nThis is world!"
 
-// Binary strings (single or double quotes)
+# Binary strings (single or double quotes)
 b"hello"
 b'hello'
 
-// Regexes
+# Regexes
 /john/
 
-// Case-insensitive regexes
+# Case-insensitive regexes
 /john/i
 
-// Lists
+# Lists
 [1, 2, 3]
 ["one", "two"]
 
-// Maps
+# Maps
 {"one": 1, "two": 2}
 {one: 1, two: 2}
 {leaf: "hello", nested: [1, 2, 3]}
@@ -145,39 +146,39 @@ b'hello'
 
 Operators:
 
-```javascript
-// Unary operators:
+```python
+# Unary operators:
 -count
 !has_description
 
-// Binary operators:
+# Binary operators:
 count1 + count2
 count1 < count2
 
-// Nested expressions:
+# Nested expressions:
 (count1 > 1) || count2
 ```
 
 Functions:
 
-```javascript
-// Simple call
+```python
+# Simple call
 trim(name)
 
-// Nested call
+# Nested call
 trim(concat(name, " ", surname))
 
-// Using the operator "." is the same as calling a function with left operand
-// as first argument
+# Using the operator "." is the same as calling a function with left operand
+# as first argument
 name.trim()
-// is equivalent to:
+# is equivalent to:
 trim(name)
 
 "data".pathjoin(filename)
-// is equivalent to:
+# is equivalent to:
 pathjoin("data", filename)
 
-// Some functions accepts named arguments:
+# Some functions accepts named arguments:
 read(path, encoding="utf8")
 ```
 
@@ -187,26 +188,26 @@ For a full list of available operators and functions, check out [`xan help funct
 
 Indexing and slicing works a lot like in Python and JavaScript:
 
-```javascript
-// Zero-based indexing:
+```python
+# Zero-based indexing:
 list[1]
 
-// Negative indexing:
+# Negative indexing:
 list[-2]
 
-// Slicing:
+# Slicing:
 list[1:4]
 list[:4]
 list[1:]
 
-// Negative slicing:
+# Negative slicing:
 list[1:-3]
 list[:-2]
 list[-4:]
 
-// Key-based indexing:
+# Key-based indexing:
 map["name"]
-// Same as:
+# Same as:
 map.name
 ```
 
@@ -222,9 +223,9 @@ when parsed, then folded into a new, simpler expression.
 This can be very useful when, for instance, reading some JSON file to perform
 one lookup per row like so:
 
-```javascript
-// Here, "config.json" will only be read once when parsing the expression,
-// not once per processed CSV row, which is fortunate.
+```python
+# Here, "config.json" will only be read once when parsing the expression,
+# not once per processed CSV row, which is fortunate.
 read_json("config.json").name
 ```
 
@@ -239,15 +240,36 @@ single expression.
 
 Here is how they work:
 
-```javascript
-// Anonymous expressions (names will be created from the stringified expressions)
+```python
+# Anonymous expressions (names will be created from the stringified expressions)
 sum(retweets), retweets / replies
 
-// Named expressions
+# Named expressions
 sum(retweets) as total_retweets, retweets / replies as ratio
 
-// Names with special characters
+# Names with special characters
 sum(retweets) as "Total Retweets"
+```
+
+## Multiple lines & comments
+
+Expressions can be written on multiple lines freely:
+
+```python
+sum(
+  retweets +
+  replies
+)
+```
+
+Comments can be added starting with `#`:
+
+```python
+# Summing
+sum(
+  retweets + # we add retweets,
+  replies # and replies
+)
 ```
 
 ## Implementation details & design choices

@@ -491,8 +491,8 @@ impl Aggs {
 
 lazy_static! {
     static ref LINK_REGEX: Regex = Regex::new(r"- \[([^\]]+)\]\(#[^)]+\)").unwrap();
-    static ref CODE_FENCE_REGEX: Regex = Regex::new(r"```javascript(\n[^`]+)```").unwrap();
-    static ref COMMENT_REGEX: Regex = Regex::new(r"(?m)^    //.+").unwrap();
+    static ref CODE_FENCE_REGEX: Regex = Regex::new(r"```python(\n[^`]+)```").unwrap();
+    static ref COMMENT_REGEX: Regex = Regex::new(r"(?m)^    (?:\x1b\[[0-9;]*m)?#.+").unwrap();
     static ref NUMBER_REGEX: Regex = Regex::new(r"(?m)\b-?[0-9][0-9._]*\b").unwrap();
     static ref SPECIAL_REGEX: Regex = Regex::new(r"true|false|null|/john/i?").unwrap();
     static ref FUNCTION_CALL_REGEX: Regex = Regex::new(r"([a-z_]+)\(").unwrap();
