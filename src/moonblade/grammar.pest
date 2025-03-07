@@ -161,8 +161,14 @@ full_expr = _{ SOI ~ expr ~ EOI }
 expr_name      =  { ident | string }
 named_expr     =  { expr ~ "as" ~ expr_name }
 opt_named_expr = _{ star_slice | named_expr | expr }
-named_exprs    = _{ SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ EOI }
+named_exprs    = _{ SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ ","? ~ EOI }
 
 named_func     =  { func ~ "as" ~ expr_name }
 opt_named_func = _{ named_func | func }
-named_aggs     = _{ SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ EOI }
+named_aggs     = _{ SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ ","? ~ EOI }
+
+scraping_select =  { expr }
+scraping_with   =  { "then" ~ expr }
+scraping_op     =  { expr ~ scraping_with? ~ "as" ~ expr_name }
+scraping_item   =  { (scraping_select ~ ":" ~ (scraping_op | scraping_expr)) }
+scraping_expr   = _{ "{" ~ scraping_item ~ ("," ~ scraping_item)* ~ ","? ~ "}" }
