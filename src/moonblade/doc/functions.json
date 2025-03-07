@@ -353,7 +353,7 @@
         "name": "datetime",
         "arguments": ["string", "format=?", "timezone=?"],
         "returns": "datetime",
-        "help": "Parse a string as a datetime according to format and timezone (https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications). If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone."
+        "help": "Parse a string as a datetime according to format and timezone. If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
       },
       {
         "name": "strftime",
@@ -404,6 +404,23 @@
         "arguments": ["target", "timezone=?"],
         "returns": "string",
         "help": "Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.\nEquivalent to `strftime(string, format=\"%Y-%m\")`."
+      }
+    ]
+  },
+  {
+    "title": "Urls",
+    "functions": [
+      {
+        "name": "lru",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Convert the given URL to LRU format.\nFor more info, read this: https://github.com/medialab/ural#about-lrus"
+      },
+      {
+        "name": "urljoin",
+        "arguments": ["string", "string"],
+        "returns": "string",
+        "help": "Join an url with the given addendum."
       }
     ]
   },

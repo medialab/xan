@@ -16,6 +16,7 @@
 - [Comparison](#comparison)
 - [String & sequence helpers](#string--sequence-helpers)
 - [Dates](#dates)
+- [Urls](#urls)
 - [Collections (list of maps) functions](#collections-list-of-maps-functions)
 - [Map functions](#map-functions)
 - [Aggregation functions](#aggregation-functions)
@@ -181,7 +182,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Dates
 
-- **datetime**(*string*, *format=?*, *timezone=?*) -> `datetime`: Parse a string as a datetime according to format and timezone (https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications). If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.
+- **datetime**(*string*, *format=?*, *timezone=?*) -> `datetime`: Parse a string as a datetime according to format and timezone. If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
 - **strftime**(*target*, *format=?*, *timezone=?*) -> `string`: Format target (a time in ISO 8601 format, or the result of datetime() function) according to format.
 - **timestamp**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
 - **timestamp_ms**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
@@ -190,6 +191,11 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **month**(*target*, *timezone=?*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.
 - **year**(*target*, *timezone=?*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.<br>Equivalent to `strftime(string, format="%Y")`.
 - **year_month**(*target*, *timezone=?*) -> `string` (aliases: **ym**): Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.<br>Equivalent to `strftime(string, format="%Y-%m")`.
+
+## Urls
+
+- **lru**(*string*) -> `string`: Convert the given URL to LRU format.<br>For more info, read this: https://github.com/medialab/ural#about-lrus
+- **urljoin**(*string*, *string*) -> `string`: Join an url with the given addendum.
 
 ## Collections (list of maps) functions
 

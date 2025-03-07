@@ -1,13 +1,13 @@
 use colored::Colorize;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use textwrap::indent;
+use textwrap::{fill, indent};
 
 use crate::util;
 use crate::CliResult;
 
 fn wrap(string: &str) -> String {
-    textwrap::fill(string, 80)
+    fill(string, 81)
 }
 
 fn get_cheatsheet_str() -> &'static str {
@@ -540,6 +540,7 @@ lazy_static! {
         r"x (==|!=|<=?|>=?|&&|\|\||and|or|not in|in|eq|ne|lt|le|gt|ge|//|\*\*|\+\+|[+\-*/%]) y"
     )
     .unwrap();
+    static ref URL_REGEX: Regex = Regex::new(r"https?://\S+").unwrap();
     static ref PIPELINE_OPERATOR_REGEX: Regex = Regex::new(r"(trim\(name\) )\|").unwrap();
     static ref SLICE_REGEX: Regex = Regex::new(r"x\[([a-z:]+)\]").unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
@@ -550,6 +551,8 @@ fn colorize_functions_help(help: &str) -> String {
 
     let help =
         MAIN_SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().to_string());
+
+    let help = URL_REGEX.replace_all(&help, |caps: &Captures| caps[0].blue().to_string());
 
     let help = UNARY_OPERATOR_REGEX.replace_all(&help, |caps: &Captures| {
         caps[1].cyan().to_string() + &"x".red().to_string()
