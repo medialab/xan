@@ -9,8 +9,19 @@
 
 
 ## Parsing and formatting standard dates
-Let's say the column `local_time` of your CSV file is containing dates in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601),
+Let's say the column `local_time` of your CSV file is containing dates in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format,
 for example `2022-03-22`, `2022-03-22 23:20:24`, `2022-03-22T00:00:00[CET]` or `2022-03-22T23:20:24+01:00[Europe/Paris]`.
+
+| local_time          |
+| ------------------- |
+| 2022-02-25T17:09:47 |
+| 2022-02-25T17:33:28 |
+| 2022-02-26T09:18:05 |
+| 2022-02-27T07:23:00 |
+| 2022-02-27T09:07:17 |
+| 2022-02-28T09:45:15 |
+| 2022-03-01T14:39:03 |
+| 2022-03-01T17:42:13 |
 
 ### xan stats
 To explore temporal data, for example to find out if there are empty cells or to find the start and end dates of the corpus,
@@ -55,7 +66,7 @@ Here we observe that there are no empty fields (see `count_empty`), and that the
 ### Different formats
 If you want to keep only the year and month in a new column called `formatted_time`, you can apply the `year_month` (or `ym`) function.
 Functions can be applied using the `xan map` command, to create a new column with the result of an expression,
-or with the `xan transform` command, to directly transform the column. *
+or with the `xan transform` command, to directly transform the column.
 Here is an example where we created an new column called `formatted_time` containing the year and month from `local_time` with `xan map`:
 
 ```bash
@@ -75,10 +86,10 @@ xan map 'local_time.ym()' formatted_time dates.csv | xan view
 
 Other formatting functions, such as `year()` or `year_month_day()` exist.
 The list of all date-related functions is available
-[here](https://github.com/medialab/xan/blob/master/docs/moonblade.md#functions--operators) and can also be displayed using:
+[here](https://github.com/medialab/xan/blob/master/docs/moonblade/functions.md#dates) and can also be displayed using:
 
 ```bash
-xan map --functions | grep Dates -A 50
+xan help functions --section dates
 ```
 
 ## Visualizing dates
