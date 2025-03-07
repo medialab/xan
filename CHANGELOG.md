@@ -3,7 +3,8 @@
 ## 0.46.3 (provisional)
 
 *Features*
-
+* Adding moonblade function `to_timezone` and `to_local_timezone`
+* Moonblade `strftime()` and all other date formatting functions such as `ymd()` do not support timezones any more.
 * Improving `xan help cheatsheet`.
 * Adding moonblade function `try`.
 * Adding moonblade functions `int` & `float`.
