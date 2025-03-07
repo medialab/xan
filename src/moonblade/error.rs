@@ -26,6 +26,7 @@ pub enum ConcretizationError {
     InvalidArity(String, InvalidArity),
     TooManyArguments(usize),
     UnknownArgumentName(String),
+    InvalidCSSSelector(String),
     StaticEvaluationError(SpecifiedEvaluationError),
     NotStaticallyAnalyzable,
 }
@@ -42,6 +43,7 @@ impl Display for ConcretizationError {
             Self::TooManyArguments(actual) => {
                 write!(f, "got {} arguments. Cannot exceed 8.", actual)
             }
+            Self::InvalidCSSSelector(css) => write!(f, "invalid css selector: {}", css),
             Self::StaticEvaluationError(error) => error.fmt(f),
             Self::NotStaticallyAnalyzable => write!(f, "not statically analyzable"),
         }

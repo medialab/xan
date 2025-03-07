@@ -693,10 +693,10 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 }
 
 #[derive(Debug, PartialEq)]
-struct ScrapingOp {
-    name: String,
-    expr: Expr,
-    then: Option<Expr>,
+pub struct ScrapingOp {
+    pub name: String,
+    pub expr: Expr,
+    pub then: Option<Expr>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -707,8 +707,8 @@ pub enum ScrapingNode {
 
 #[derive(Debug, PartialEq)]
 pub struct ScrapingItem {
-    selection_expr: Expr,
-    operation: ScrapingNode,
+    pub selection_expr: Expr,
+    pub operation: ScrapingNode,
 }
 
 pub type ScrapingMap = Vec<ScrapingItem>;

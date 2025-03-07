@@ -113,6 +113,13 @@ impl ConcreteExpr {
         }
     }
 
+    pub fn try_unwrap(self) -> Result<DynamicValue, ConcretizationError> {
+        match self {
+            Self::Value(v) => Ok(v),
+            _ => Err(ConcretizationError::NotStaticallyAnalyzable),
+        }
+    }
+
     fn unwrap(self) -> DynamicValue {
         match self {
             Self::Value(v) => v,
