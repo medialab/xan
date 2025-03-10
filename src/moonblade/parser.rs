@@ -693,77 +693,108 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ScrapingOp {
+pub struct ScrapingLeaf {
     pub name: String,
     pub expr: Expr,
-    pub then: Option<Expr>,
+    pub processing: Option<Expr>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum ScrapingNode {
-    Map(ScrapingMap),
-    Op(ScrapingOp),
+    Brackets(ScrapingBrackets),
+    Leaf(ScrapingLeaf),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ScrapingItem {
+pub struct ScrapingBrackets {
     pub selection_expr: Expr,
-    pub operation: ScrapingNode,
+    pub nodes: Vec<ScrapingNode>,
 }
 
-pub type ScrapingMap = Vec<ScrapingItem>;
+fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
+    debug_assert!(matches!(pair.as_rule(), Rule::scraping_leaf));
 
-fn parse_scraping_op(pair: Pair<Rule>) -> Result<ScrapingOp, ParseError> {
     let mut pairs = pair.into_inner().collect::<Vec<_>>();
 
-    let name = parse_expression_name(pairs.pop().unwrap());
-
-    let (expr, then) = if pairs.len() == 2 {
-        let then = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
+    let (expr, processing) = if pairs.len() == 3 {
+        let processing = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
         let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
 
-        (expr, Some(then))
+        (expr, Some(processing))
     } else {
         let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
 
         (expr, None)
     };
 
-    Ok(ScrapingOp { name, expr, then })
-}
+    let name = parse_expression_name(pairs.pop().unwrap());
 
-fn parse_scraping_item(pair: Pair<Rule>) -> Result<ScrapingItem, ParseError> {
-    debug_assert!(matches!(pair.as_rule(), Rule::scraping_item));
-
-    let mut pairs = pair.into_inner();
-    let selection = pairs.next().unwrap();
-    let op_or_map = pairs.next().unwrap();
-
-    debug_assert!(matches!(selection.as_rule(), Rule::expr));
-
-    let selection_expr = pratt_parse(Pairs::single(selection))?;
-
-    let operation: ScrapingNode = match op_or_map.as_rule() {
-        Rule::scraping_map => ScrapingNode::Map(parse_scraping_map(op_or_map)?),
-        Rule::scraping_op => ScrapingNode::Op(parse_scraping_op(op_or_map)?),
-        _ => unreachable!(),
-    };
-
-    Ok(ScrapingItem {
-        selection_expr,
-        operation,
+    Ok(ScrapingLeaf {
+        name,
+        expr,
+        processing,
     })
 }
 
-fn parse_scraping_map(pair: Pair<Rule>) -> Result<ScrapingMap, ParseError> {
-    debug_assert!(matches!(pair.as_rule(), Rule::scraping_map));
+fn parse_css_selector(pair: Pair<Rule>) -> Expr {
+    let mut css = pair.as_str().trim().to_string();
 
-    pair.into_inner().map(|p| parse_scraping_item(p)).collect()
+    if css.starts_with("& ") {
+        css = css.replacen('&', ":scope", 1);
+    }
+
+    Expr::Func(FunctionCall {
+        name: "one".to_string(),
+        args: vec![(None, Expr::Str(css))],
+    })
 }
 
-pub fn parse_scraper(input: &str) -> Result<ScrapingMap, ParseError> {
-    let mut pairs = MoonbladePestParser::parse(Rule::scraping_expr, input)?;
-    parse_scraping_map(pairs.next().unwrap())
+fn parse_scraping_brackets(pair: Pair<Rule>) -> Result<ScrapingBrackets, ParseError> {
+    debug_assert!(matches!(pair.as_rule(), Rule::scraping_brackets));
+
+    let mut pairs = pair.into_inner();
+    let selection = pairs.next().unwrap();
+
+    let selection_expr = match selection.as_rule() {
+        Rule::expr => {
+            if !matches!(
+                selection.clone().into_inner().next().unwrap().as_rule(),
+                Rule::func
+            ) {
+                parse_css_selector(selection)
+            } else {
+                pratt_parse(Pairs::single(selection))?
+            }
+        }
+        Rule::css_selector => parse_css_selector(selection),
+        _ => unreachable!(),
+    };
+
+    let mut nodes = Vec::new();
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::scraping_brackets => {
+                nodes.push(ScrapingNode::Brackets(parse_scraping_brackets(pair)?));
+            }
+            Rule::scraping_leaf => {
+                nodes.push(ScrapingNode::Leaf(parse_scraping_leaf(pair)?));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(ScrapingBrackets {
+        selection_expr,
+        nodes,
+    })
+}
+
+pub fn parse_scraper(input: &str) -> Result<Vec<ScrapingBrackets>, ParseError> {
+    MoonbladePestParser::parse(Rule::scraping_expr, input)?
+        .filter(|p| !matches!(p.as_rule(), Rule::EOI))
+        .map(|p| parse_scraping_brackets(p))
+        .collect::<Result<Vec<_>, _>>()
 }
 
 #[cfg(test)]
@@ -1149,46 +1180,74 @@ mod tests {
     #[test]
     fn test_scraper() {
         let parsed = parse_scraper(
-            "{
-                'h2 > a': {
-                    _: text then lower as title,
-                    _: attr('href') as url
-                },
-                all('p'): text as content
+            "h2 > a {
+                title: text, lower;
+                url: attr('href');
+
+                & > time {
+                    date: attr('datetime');
+                }
+
+                * {
+                    text: text, upper(value);
+                }
+            }
+            all('p') {
+                content: text;
+            }
+            one('div').all('.content') {
+              info: text;
             }",
         );
+
+        fn leaf(name: &str, getter: Expr) -> ScrapingNode {
+            ScrapingNode::Leaf(ScrapingLeaf {
+                name: name.to_string(),
+                expr: getter,
+                processing: None,
+            })
+        }
+
+        fn leafp(name: &str, getter: Expr, processing: Expr) -> ScrapingNode {
+            ScrapingNode::Leaf(ScrapingLeaf {
+                name: name.to_string(),
+                expr: getter,
+                processing: Some(processing),
+            })
+        }
+
+        fn brackets(func_name: &str, css: &str, nodes: Vec<ScrapingNode>) -> ScrapingBrackets {
+            ScrapingBrackets {
+                selection_expr: func(func_name, vec![s(css)]),
+                nodes,
+            }
+        }
 
         assert_eq!(
             parsed,
             Ok(vec![
-                ScrapingItem {
-                    selection_expr: s("h2 > a"),
-                    operation: ScrapingNode::Map(vec![
-                        ScrapingItem {
-                            selection_expr: Underscore,
-                            operation: ScrapingNode::Op(ScrapingOp {
-                                name: "title".to_string(),
-                                expr: id("text"),
-                                then: Some(id("lower"))
-                            })
-                        },
-                        ScrapingItem {
-                            selection_expr: Underscore,
-                            operation: ScrapingNode::Op(ScrapingOp {
-                                name: "url".to_string(),
-                                expr: func("attr", vec![s("href")]),
-                                then: None
-                            })
-                        }
-                    ])
-                },
-                ScrapingItem {
-                    selection_expr: func("all", vec![s("p")]),
-                    operation: ScrapingNode::Op(ScrapingOp {
-                        name: "content".to_string(),
-                        expr: id("text"),
-                        then: None
-                    })
+                brackets(
+                    "one",
+                    "h2 > a",
+                    vec![
+                        leafp("title", id("text"), id("lower")),
+                        leaf("url", func("attr", vec![s("href")])),
+                        ScrapingNode::Brackets(brackets(
+                            "one",
+                            ":scope > time",
+                            vec![leaf("date", func("attr", vec![s("datetime")]))]
+                        )),
+                        ScrapingNode::Brackets(brackets(
+                            "one",
+                            "*",
+                            vec![leafp("text", id("text"), func("upper", vec![id("value")]))]
+                        ))
+                    ]
+                ),
+                brackets("all", "p", vec![leaf("content", id("text"))]),
+                ScrapingBrackets {
+                    selection_expr: func("all", vec![func("one", vec![s("div")]), s(".content")]),
+                    nodes: vec![leaf("info", id("text"))]
                 }
             ])
         );

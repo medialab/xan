@@ -167,9 +167,10 @@ named_func     =  { func ~ "as" ~ expr_name }
 opt_named_func = _{ named_func | func }
 named_aggs     = _{ SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ ","? ~ EOI }
 
-scraping_select = _{ expr }
-scraping_then   = _{ "then" ~ expr }
-scraping_op     =  { expr ~ scraping_then? ~ "as" ~ expr_name }
-scraping_item   =  { (scraping_select ~ ":" ~ (scraping_map | scraping_op)) }
-scraping_map    =  { "{" ~ scraping_item ~ ("," ~ scraping_item)* ~ ","? ~ "}" }
-scraping_expr   = _{ SOI ~ scraping_map ~ EOI }
+css_char     = _{ ident_char | "*" | "-" | "[" | "]" | ":" | "." | "#" | ">" | "~" | "+" | "," | "\"" | "'" | "=" | "^" }
+css_selector =  { ('a'..'z' | 'A'..'Z' | ":" | "." | "#" | "[" | "*" | "&") ~ css_char* }
+
+scraping_select   = _{ expr | css_selector }
+scraping_leaf     =  { expr_name ~ ":" ~ expr ~ ("," ~ expr)? ~ ";" }
+scraping_brackets =  { scraping_select ~ "{" ~ (scraping_brackets | scraping_leaf)* ~ "}" }
+scraping_expr     = _{ SOI ~ scraping_brackets+ ~ EOI }
