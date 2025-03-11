@@ -44,6 +44,7 @@ pub mod regex_join;
 pub mod rename;
 pub mod reverse;
 pub mod sample;
+pub mod scrape;
 pub mod search;
 pub mod select;
 pub mod shuffle;

@@ -523,6 +523,7 @@ To access the expression language's [cheatsheet](./docs/moonblade.md#cheatsheet)
 - [**implode**](./docs/cmd/implode.md): Collapse consecutive identical rows based on a diverging column
 - [**from**](./docs/cmd/from.md): Convert a variety of formats to CSV
 - [**to**](./docs/cmd/to.md): Convert a CSV file to a variety of data formats
+- [**scrape**](./docs/cmd/scrape.md): Scrape HTML into CSV data
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
 - [**transpose (t)**](./docs/cmd/transpose.md): Transpose CSV file
 

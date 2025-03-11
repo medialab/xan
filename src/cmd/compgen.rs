@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 58] = [
+static COMMANDS: [&str; 59] = [
     "agg",
     "behead",
     "bins",
@@ -49,6 +49,7 @@ static COMMANDS: [&str; 58] = [
     "regex-join",
     "reverse",
     "sample",
+    "scrape",
     "search",
     "select",
     "shuffle",
@@ -166,6 +167,7 @@ pub fn run() {
         || word_before == "-g"
         || word_before == "--groupby"
         || word_before == "select"
+        || word_before == "scrape"
         || word_before == "transform"
         || word_before == "explode"
         || word_before == "implode"

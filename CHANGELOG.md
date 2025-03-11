@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.46.3 (provisional)
+## 0.47.0 (provisional)
 
 *Features*
+
 * Adding moonblade function `to_timezone` and `to_local_timezone`
 * Moonblade `strftime()` and all other date formatting functions such as `ymd()` do not support timezones any more.
 * Improving `xan help cheatsheet`.
@@ -11,6 +12,7 @@
 * Adding moonblade functions `lru` & `urljoin`.
 * `moonblade` now tolerates line-breaks as whitespace when parsing. This makes it possible to write your expressions on multiple lines.
 * `moonblade` now accepts comments starting with `#`.
+* Adding `xan scrape` command.
 
 *Performance*
 

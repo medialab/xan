@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::RegexBuilder;
 
@@ -20,12 +21,18 @@ use super::types::{
 
 #[derive(Debug, Default, Clone)]
 pub struct GlobalVariables {
-    slots: Vec<(String, DynamicValue)>,
+    slots: ArrayVec<(String, DynamicValue), 2>,
 }
 
 impl GlobalVariables {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn of(name: &str) -> Self {
+        let mut vars = Self::new();
+        vars.register(name);
+        vars
     }
 
     pub fn register(&mut self, name: &str) -> usize {
@@ -42,8 +49,12 @@ impl GlobalVariables {
         self.slots.get(index).map(|(_, value)| value)
     }
 
+    pub fn set_value(&mut self, index: usize, value: DynamicValue) {
+        self.slots[index].1 = value;
+    }
+
     pub fn set<T: Into<DynamicValue>>(&mut self, index: usize, value: T) {
-        self.slots[index].1 = value.into();
+        self.set_value(index, value.into());
     }
 }
 

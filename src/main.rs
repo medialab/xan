@@ -85,6 +85,7 @@ macro_rules! command_list {
     implode       Collapse consecutive identical rows based on a diverging column
     from          Convert a variety of formats to CSV
     to            Convert a CSV file to a variety of data formats
+    scrape        Scrape HTML into CSV data
     reverse       Reverse rows of CSV data
     transpose (t) Transpose CSV file
 
@@ -239,6 +240,7 @@ enum Command {
     Rename,
     Reverse,
     Sample,
+    Scrape,
     Search,
     Select,
     Shuffle,
@@ -321,6 +323,7 @@ impl Command {
             Command::Rename => cmd::rename::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),
+            Command::Scrape => cmd::scrape::run(argv),
             Command::Search => cmd::search::run(argv),
             Command::Select => cmd::select::run(argv),
             Command::Shuffle => cmd::shuffle::run(argv),

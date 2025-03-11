@@ -720,7 +720,21 @@ fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
         let processing = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
         let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
 
-        (expr, Some(processing))
+        (
+            expr,
+            Some(if let Expr::Identifier(name, _) = &processing {
+                if get_function(name).is_some() {
+                    Expr::Func(FunctionCall {
+                        name: name.to_string(),
+                        args: vec![(None, Expr::Identifier("value".to_string(), false))],
+                    })
+                } else {
+                    processing
+                }
+            } else {
+                processing
+            }),
+        )
     } else {
         let expr = pratt_parse(Pairs::single(pairs.pop().unwrap()))?;
 
@@ -728,6 +742,15 @@ fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
     };
 
     let name = parse_expression_name(pairs.pop().unwrap());
+
+    let expr = if let Expr::Identifier(name, _) = &expr {
+        Expr::Func(FunctionCall {
+            name: name.to_string(),
+            args: vec![],
+        })
+    } else {
+        expr
+    };
 
     Ok(ScrapingLeaf {
         name,
@@ -1230,7 +1253,11 @@ mod tests {
                     "one",
                     "h2 > a",
                     vec![
-                        leafp("title", id("text"), id("lower")),
+                        leafp(
+                            "title",
+                            func("text", vec![]),
+                            func("lower", vec![id("value")])
+                        ),
                         leaf("url", func("attr", vec![s("href")])),
                         ScrapingNode::Brackets(brackets(
                             "one",
@@ -1240,14 +1267,18 @@ mod tests {
                         ScrapingNode::Brackets(brackets(
                             "one",
                             "*",
-                            vec![leafp("text", id("text"), func("upper", vec![id("value")]))]
+                            vec![leafp(
+                                "text",
+                                func("text", vec![]),
+                                func("upper", vec![id("value")])
+                            )]
                         ))
                     ]
                 ),
-                brackets("all", "p", vec![leaf("content", id("text"))]),
+                brackets("all", "p", vec![leaf("content", func("text", vec![]))]),
                 ScrapingBrackets {
                     selection_expr: func("all", vec![func("one", vec![s("div")]), s(".content")]),
-                    nodes: vec![leaf("info", id("text"))]
+                    nodes: vec![leaf("info", func("text", vec![]))]
                 }
             ])
         );
