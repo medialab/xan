@@ -497,6 +497,13 @@ impl Expr {
         };
     }
 
+    pub fn try_into_string(self) -> Option<String> {
+        match self {
+            Self::Str(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn try_to_isize(&self) -> Option<isize> {
         match self {
             Self::Int(n) => Some(*n as isize),

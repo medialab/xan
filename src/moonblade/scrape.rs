@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::sync::Arc;
 
 use csv::ByteRecord;
@@ -57,13 +58,37 @@ enum Extractor {
     Attr(String),
 }
 
+impl TryFrom<Expr> for Extractor {
+    type Error = ConcretizationError;
+
+    fn try_from(value: Expr) -> Result<Self, Self::Error> {
+        match value {
+            Expr::Func(mut call) => Ok(match call.name.as_str() {
+                "text" => Self::Text,
+                "attr" => Self::Attr(
+                    call.args
+                        .pop()
+                        .and_then(|(_, name)| name.try_into_string())
+                        .ok_or(ConcretizationError::NotStaticallyAnalyzable)?,
+                ),
+                _ => return Err(ConcretizationError::UnknownFunction(call.name)),
+            }),
+            _ => Err(ConcretizationError::NotStaticallyAnalyzable),
+        }
+    }
+}
+
 impl Extractor {
     fn run(&self, html: &Html, selection: &Selection) -> Option<String> {
         match selection {
             Selection::None => None,
             Selection::Singular(id) => {
                 let element = html.get_element(*id);
-                Some(element.text().collect::<String>())
+
+                match self {
+                    Self::Text => Some(element.text().collect::<String>()),
+                    Self::Attr(name) => element.attr(name).map(String::from),
+                }
             }
             _ => unimplemented!(),
         }
@@ -309,7 +334,7 @@ fn concretize_brackets(
                 ScrapingNode::Leaf(leaf) => {
                     let concrete_leaf = ConcreteScrapingLeaf {
                         name: leaf.name,
-                        extractor: Extractor::Text, // TODO
+                        extractor: Extractor::try_from(leaf.expr)?,
                         processing: leaf
                             .processing
                             .map(|processing| concretize_expression(processing, headers, globals))
@@ -367,7 +392,7 @@ impl ScrapingProgram {
         self.scraper.names()
     }
 
-    pub fn run(
+    pub fn run_singular(
         &self,
         index: usize,
         record: &ByteRecord,
@@ -377,6 +402,21 @@ impl ScrapingProgram {
 
         self.scraper
             .evaluate(Some(index), record, &self.context, html, &selection)
+    }
+
+    pub fn run_plural<'a>(
+        &'a self,
+        index: usize,
+        record: &'a ByteRecord,
+        html: &'a Html,
+        selector: &'a Selector,
+    ) -> impl Iterator<Item = Result<Vec<DynamicValue>, SpecifiedEvaluationError>> + 'a {
+        html.select(selector).map(move |element| {
+            let selection = Selection::Singular(element.id());
+
+            self.scraper
+                .evaluate(Some(index), record, &self.context, html, &selection)
+        })
     }
 }
 
@@ -425,7 +465,7 @@ mod tests {
         let html = Html::parse_fragment("<ul><li>one</li><li>two</li><li>three</li></ul>");
 
         assert_eq!(
-            program.run(0, &csv::ByteRecord::new(), &html),
+            program.run_singular(0, &csv::ByteRecord::new(), &html),
             Ok(vec![
                 DynamicValue::from("one"),
                 DynamicValue::from("ONE"),

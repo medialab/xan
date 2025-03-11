@@ -171,6 +171,6 @@ css_char     = _{ ident_char | "*" | "-" | "[" | "]" | ":" | "." | "#" | ">" | "
 css_selector =  { ('a'..'z' | 'A'..'Z' | ":" | "." | "#" | "[" | "*" | "&") ~ css_char* }
 
 scraping_select   = _{ expr | css_selector }
-scraping_leaf     =  { expr_name ~ ":" ~ expr ~ ("," ~ expr)? ~ ";" }
+scraping_leaf     =  { expr_name ~ ":" ~ (func | ident) ~ ("," ~ expr)? ~ ";"? }
 scraping_brackets =  { scraping_select ~ "{" ~ (scraping_brackets | scraping_leaf)* ~ "}" }
 scraping_expr     = _{ SOI ~ scraping_brackets+ ~ EOI }

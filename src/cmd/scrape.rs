@@ -53,6 +53,9 @@ Usage:
 
 scrape options:
     -e, --evaluate <expr>   If given, evaluate the given scraping expression.
+    --foreach <css>         If given, will return one row per element matching
+                            the CSS selector in target document, instead of returning
+                            a single row per document.
     -I, --input-dir <path>  If given, target column will be understood
                             as relative path to read from this input
                             directory instead.
@@ -76,6 +79,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_evaluate: Option<String>,
+    flag_foreach: Option<String>,
     flag_input_dir: Option<String>,
     flag_keep: Option<SelectColumns>,
 }
@@ -90,10 +94,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut reader = conf.reader()?;
     let headers = reader.byte_headers()?.clone();
     let column_index = conf.single_selection(&headers)?;
+
     let program_opt = args
         .flag_evaluate
         .as_ref()
         .map(|code| ScrapingProgram::parse(code, &headers))
+        .transpose()?;
+
+    if program_opt.is_none() && args.flag_foreach.is_some() {
+        Err("--foreach only works with -e/--evaluate!")?;
+    }
+
+    let foreach_selector = args
+        .flag_foreach
+        .as_ref()
+        .map(|css| Selector::parse(css).map_err(|_| format!("invalid CSS selector: {}", css)))
         .transpose()?;
 
     let keep = args
@@ -135,21 +150,47 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Html::parse_document(cell)
         };
 
-        let values = if let Some(program) = &program_opt {
-            program.run(index, &record, &html)?
-        } else {
-            scrape_title(&html)
-        };
+        // Plural
+        if let Some(foreach) = &foreach_selector {
+            for result in program_opt
+                .as_ref()
+                .unwrap()
+                .run_plural(index, &record, &html, foreach)
+            {
+                let values = result?;
 
-        if let Some(keep_sel) = &keep {
-            record = keep_sel.select(&record).collect();
+                let mut output_record = if let Some(keep_sel) = &keep {
+                    keep_sel.select(&record).collect()
+                } else {
+                    record.clone()
+                };
+
+                for value in values {
+                    output_record.push_field(&value.serialize_as_bytes_with_options(b"|"));
+                }
+
+                writer.write_byte_record(&output_record)?;
+            }
+        }
+        // Singular
+        else {
+            let values = if let Some(program) = &program_opt {
+                program.run_singular(index, &record, &html)?
+            } else {
+                scrape_title(&html)
+            };
+
+            if let Some(keep_sel) = &keep {
+                record = keep_sel.select(&record).collect();
+            }
+
+            for value in values {
+                record.push_field(&value.serialize_as_bytes_with_options(b"|"));
+            }
+
+            writer.write_byte_record(&record)?;
         }
 
-        for value in values {
-            record.push_field(&value.serialize_as_bytes_with_options(b"|"));
-        }
-
-        writer.write_byte_record(&record)?;
         index += 1;
     }
 
