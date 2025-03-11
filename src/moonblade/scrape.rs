@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::sync::Arc;
 
 use csv::ByteRecord;
@@ -7,7 +6,7 @@ use scraper::{ElementRef, Html, Selector};
 
 use super::error::ConcretizationError;
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
-use super::parser::{parse_scraper, Expr, ScrapingMap, ScrapingNode};
+use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
 use super::types::{Arity, DynamicValue, LambdaArguments};
 
 trait GetElement {
@@ -93,13 +92,13 @@ impl ConcreteSelectionExpr {
 }
 
 #[derive(Debug)]
-struct ConcreteScrapingOp {
+struct ConcreteScrapingLeaf {
     name: String,
     extractor: Extractor,
-    then: Option<ConcreteExpr>,
+    processing: Option<ConcreteExpr>,
 }
 
-// impl ConcreteScrapingOp {
+// impl ConcreteScrapingLeaf {
 //     fn evaluate(
 //         &self,
 //         index: Option<usize>,
@@ -113,8 +112,8 @@ struct ConcreteScrapingOp {
 
 #[derive(Debug)]
 enum ConcreteScrapingNode {
-    Map(ConcreteScrapingMap),
-    Op(ConcreteScrapingOp),
+    Brackets(ConcreteScrapingBrackets),
+    Leaf(ConcreteScrapingLeaf),
 }
 
 impl ConcreteScrapingNode {
@@ -122,12 +121,12 @@ impl ConcreteScrapingNode {
         let mut found = Vec::new();
 
         match self {
-            Self::Op(op) => {
-                found.push(op.name.as_str());
+            Self::Leaf(leaf) => {
+                found.push(leaf.name.as_str());
             }
-            Self::Map(map) => {
-                for item in map.iter() {
-                    found.extend(item.names());
+            Self::Brackets(brackets) => {
+                for node in brackets.nodes.iter() {
+                    found.extend(node.names());
                 }
             }
         };
@@ -136,16 +135,18 @@ impl ConcreteScrapingNode {
     }
 
     // TODO: will need the whole array of things later on
+    // TODO: processing evaluation also?
+    // TODO: move leaf evaluation into own struct above
     fn evaluate(&self, html: &Html, selection: &Selection) -> Vec<DynamicValue> {
         let mut found = Vec::new();
 
         match self {
-            Self::Op(op) => {
-                found.push(DynamicValue::from(op.extractor.run(html, selection)));
+            Self::Leaf(leaf) => {
+                found.push(DynamicValue::from(leaf.extractor.run(html, selection)));
             }
-            Self::Map(map) => {
-                for item in map.iter() {
-                    found.extend(item.evaluate(html, selection));
+            Self::Brackets(brackets) => {
+                for node in brackets.nodes.iter() {
+                    found.extend(node.evaluate(html, selection));
                 }
             }
         };
@@ -155,42 +156,39 @@ impl ConcreteScrapingNode {
 }
 
 #[derive(Debug)]
-struct ConcreteScrapingItem {
+struct ConcreteScrapingBrackets {
     selection_expr: ConcreteSelectionExpr,
-    operation: ConcreteScrapingNode,
+    nodes: Vec<ConcreteScrapingNode>,
 }
 
-impl ConcreteScrapingItem {
-    fn names(&self) -> Vec<&str> {
-        self.operation.names()
-    }
-
-    fn evaluate(&self, html: &Html, selection: &Selection) -> Vec<DynamicValue> {
-        let next_selection = self.selection_expr.evaluate(html, selection);
-        self.operation.evaluate(html, &next_selection)
-    }
-}
-
-#[derive(Debug)]
-struct ConcreteScrapingMap(Vec<ConcreteScrapingItem>);
-
-impl ConcreteScrapingMap {
+impl ConcreteScrapingBrackets {
     fn names(&self) -> impl Iterator<Item = &str> {
-        self.iter().flat_map(|item| item.names())
+        self.nodes.iter().flat_map(|node| node.names())
     }
 
     fn evaluate(&self, html: &Html, selection: &Selection) -> Vec<DynamicValue> {
-        self.iter()
-            .flat_map(|item| item.evaluate(html, selection))
+        let selection = self.selection_expr.evaluate(html, selection);
+
+        self.nodes
+            .iter()
+            .flat_map(|node| node.evaluate(html, &selection))
             .collect()
     }
 }
 
-impl Deref for ConcreteScrapingMap {
-    type Target = [ConcreteScrapingItem];
+#[derive(Debug)]
+struct ConcreteScraper(Vec<ConcreteScrapingBrackets>);
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl ConcreteScraper {
+    fn names(&self) -> impl Iterator<Item = &str> {
+        self.0.iter().flat_map(|brackets| brackets.names())
+    }
+
+    fn evaluate(&self, html: &Html, selection: &Selection) -> Vec<DynamicValue> {
+        self.0
+            .iter()
+            .flat_map(|brackets| brackets.evaluate(html, selection))
+            .collect()
     }
 }
 
@@ -257,58 +255,66 @@ fn concretize_selection_expr(
     }
 }
 
-fn concretize_scraper(
-    scraper: ScrapingMap,
+fn concretize_brackets(
+    brackets: ScrapingBrackets,
     headers: &ByteRecord,
     globals: Option<&GlobalVariables>,
-) -> Result<ConcreteScrapingMap, ConcretizationError> {
+) -> Result<ConcreteScrapingBrackets, ConcretizationError> {
+    let selection_expr = concretize_selection_expr(brackets.selection_expr, headers, globals)?;
+
+    let nodes = brackets
+        .nodes
+        .into_iter()
+        .map(|node| {
+            Ok(match node {
+                ScrapingNode::Leaf(leaf) => {
+                    let concrete_leaf = ConcreteScrapingLeaf {
+                        name: leaf.name,
+                        extractor: Extractor::Text, // TODO
+                        processing: leaf
+                            .processing
+                            .map(|processing| concretize_expression(processing, headers, globals))
+                            .transpose()?,
+                    };
+
+                    ConcreteScrapingNode::Leaf(concrete_leaf)
+                }
+                ScrapingNode::Brackets(sub_brackets) => ConcreteScrapingNode::Brackets(
+                    concretize_brackets(sub_brackets, headers, globals)?,
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(ConcreteScrapingBrackets {
+        selection_expr,
+        nodes,
+    })
+}
+
+fn concretize_scraper(
+    scraper: Vec<ScrapingBrackets>,
+    headers: &ByteRecord,
+    globals: Option<&GlobalVariables>,
+) -> Result<ConcreteScraper, ConcretizationError> {
     scraper
         .into_iter()
-        .map(
-            |scraping_item| -> Result<ConcreteScrapingItem, ConcretizationError> {
-                let node = match scraping_item.operation {
-                    ScrapingNode::Op(op) => {
-                        let concrete_op = ConcreteScrapingOp {
-                            name: op.name,
-                            extractor: Extractor::Text, // TODO
-                            then: op
-                                .then
-                                .map(|then| concretize_expression(then, headers, globals))
-                                .transpose()?,
-                        };
-
-                        ConcreteScrapingNode::Op(concrete_op)
-                    }
-                    ScrapingNode::Map(map) => {
-                        ConcreteScrapingNode::Map(concretize_scraper(map, headers, globals)?)
-                    }
-                };
-
-                Ok(ConcreteScrapingItem {
-                    operation: node,
-                    selection_expr: concretize_selection_expr(
-                        scraping_item.selection_expr,
-                        headers,
-                        globals,
-                    )?,
-                })
-            },
-        )
+        .map(|brackets| concretize_brackets(brackets, headers, globals))
         .collect::<Result<Vec<_>, _>>()
-        .map(ConcreteScrapingMap)
+        .map(ConcreteScraper)
 }
 
-#[derive(Debug)]
-pub struct ScrapingProgram {}
+// #[derive(Debug)]
+// pub struct ScrapingProgram {}
 
-impl ScrapingProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let scraper =
-            parse_scraper(code).map_err(|_| ConcretizationError::ParseError(code.to_string()))?;
+// impl ScrapingProgram {
+//     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
+//         let scraper =
+//             parse_scraper(code).map_err(|_| ConcretizationError::ParseError(code.to_string()))?;
 
-        Ok(Self {})
-    }
-}
+//         Ok(Self {})
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -318,7 +324,17 @@ mod tests {
     fn test_concretize_scraper() {
         let concrete_scraper = concretize_scraper(
             parse_scraper(
-                "{'h2 > a': text as title, one('.main').all('p'): {'a': attr('href') as url, _: text as content}}",
+                "h2 > a {
+                    title: text;
+
+                    one('.main').all('p') {
+                        a {
+                            url: attr('href');
+                        }
+
+                        content: text;
+                    }
+                }",
             )
             .unwrap(),
             &ByteRecord::new(),
@@ -337,7 +353,7 @@ mod tests {
     #[test]
     fn test_evaluate_scraper() {
         let concrete_scraper = concretize_scraper(
-            parse_scraper("{'li': text as content}").unwrap(),
+            parse_scraper("li {content: text;}").unwrap(),
             &ByteRecord::new(),
             None,
         )
