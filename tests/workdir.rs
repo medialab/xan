@@ -1,7 +1,7 @@
 use std::env;
 use std::fmt;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::str::FromStr;
@@ -64,6 +64,13 @@ impl Workdir {
             wtr.write_record(row).unwrap();
         }
         wtr.flush().unwrap();
+    }
+
+    pub fn write(&self, name: &str, contents: &str) {
+        fs::File::create(self.path(name))
+            .unwrap()
+            .write_all(contents.as_bytes())
+            .unwrap()
     }
 
     pub fn create_indexed<T: Csv>(&self, name: &str, rows: T) {

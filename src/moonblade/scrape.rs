@@ -32,7 +32,6 @@ enum SelectionRoutine {
     Stay,
     One(Selector),
     All(Selector),
-    Parent,
 }
 
 impl SelectionRoutine {
@@ -154,21 +153,13 @@ enum ConcreteScrapingNode {
 }
 
 impl ConcreteScrapingNode {
-    fn names(&self) -> Vec<&str> {
-        let mut found = Vec::new();
-
+    fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
         match self {
-            Self::Leaf(leaf) => {
-                found.push(leaf.name.as_str());
-            }
+            Self::Leaf(leaf) => Box::new(std::iter::once(leaf.name.as_str())),
             Self::Brackets(brackets) => {
-                for node in brackets.nodes.iter() {
-                    found.extend(node.names());
-                }
+                Box::new(brackets.nodes.iter().flat_map(|node| node.names()))
             }
-        };
-
-        found
+        }
     }
 
     // TODO: will need the whole array of things later on
@@ -272,6 +263,10 @@ fn concretize_selection_expr(
 ) -> Result<ConcreteSelectionExpr, ConcretizationError> {
     match expr {
         Expr::Func(mut call) => {
+            if call.name == "stay" {
+                return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Stay, vec![]));
+            }
+
             Arity::Range(1..=2)
                 .validate(call.args.len())
                 .map_err(|invalid_arity| {
@@ -314,7 +309,6 @@ fn concretize_selection_expr(
                 vec![],
             ))
         }
-        Expr::Underscore => Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Stay, vec![])),
         _ => Err(ConcretizationError::NotStaticallyAnalyzable),
     }
 }

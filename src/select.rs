@@ -545,6 +545,10 @@ impl fmt::Debug for OneSelector {
 pub struct Selection(Vec<usize>);
 
 impl Selection {
+    pub fn empty() -> Self {
+        Self(vec![])
+    }
+
     pub fn full(len: usize) -> Self {
         Self((0..len).collect())
     }

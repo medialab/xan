@@ -47,6 +47,7 @@ mod test_regex_join;
 mod test_rename;
 mod test_reverse;
 mod test_sample;
+mod test_scrape;
 mod test_search;
 mod test_select;
 mod test_shuffle;
