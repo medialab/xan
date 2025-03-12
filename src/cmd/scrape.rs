@@ -138,7 +138,7 @@ Usage:
 
 scrape options:
     -e, --evaluate <expr>    If given, evaluate the given scraping expression.
-    --foreach <css>          If given, will return one row per element matching
+    -f, --foreach <css>      If given, will return one row per element matching
                              the CSS selector in target document, instead of returning
                              a single row per document.
     -I, --input-dir <path>   If given, target column will be understood

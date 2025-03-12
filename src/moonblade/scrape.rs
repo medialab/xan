@@ -120,6 +120,7 @@ enum SelectionRoutine {
     Root,
     One(Selector),
     All(Selector),
+    Contains(String),
 }
 
 impl SelectionRoutine {
@@ -167,6 +168,17 @@ impl SelectionRoutine {
                 let element = html.get_element(*id);
 
                 Selection::Plural(Arc::new(element.select(selector).map(|e| e.id()).collect()))
+            }
+
+            // Contains
+            (Self::Contains(pattern), Selection::Singular(id)) => {
+                let element = html.get_element(*id);
+
+                if element.collect_raw_text().contains(pattern) {
+                    selection.clone()
+                } else {
+                    Selection::None
+                }
             }
         }
     }
@@ -435,6 +447,16 @@ fn concretize_selection_expr(
                     let selector = parse_selector(concrete_arg)?;
                     ConcreteSelectionExpr::Call(SelectionRoutine::All(selector), args)
                 }
+                "contains" => ConcreteSelectionExpr::Call(
+                    SelectionRoutine::Contains(
+                        concrete_arg
+                            .try_unwrap()?
+                            .try_as_str()
+                            .unwrap()
+                            .into_owned(),
+                    ),
+                    args,
+                ),
                 _ => return Err(ConcretizationError::UnknownFunction(call.name.to_string())),
             };
 
