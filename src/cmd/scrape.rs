@@ -127,6 +127,8 @@ impl Scraper {
 }
 
 static USAGE: &str = "
+Scrape HTML using a CSS-like expression language.
+
 TODO...
 
 Usage:
@@ -142,8 +144,10 @@ scrape options:
     -I, --input-dir <path>   If given, target column will be understood
                              as relative path to read from this input
                              directory instead.
-    --keep <column>          Selection of columns from the input to keep in
+    -k, --keep <column>      Selection of columns from the input to keep in
                              the output.
+    --sep <char>             Separator to use when serializing lists.
+                             [default: |]
     -p, --parallel           Whether to use parallelization to speed up computations.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
@@ -172,6 +176,7 @@ struct Args {
     flag_foreach: Option<String>,
     flag_input_dir: Option<String>,
     flag_keep: Option<SelectColumns>,
+    flag_sep: String,
     flag_parallel: bool,
     flag_threads: Option<usize>,
 }
@@ -283,7 +288,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     };
 
                     for value in output_row {
-                        output_record.push_field(&value.serialize_as_bytes_with_options(b"|"));
+                        output_record.push_field(
+                            &value.serialize_as_bytes_with_options(args.flag_sep.as_bytes()),
+                        );
                     }
 
                     writer.write_byte_record(&output_record)?;
@@ -312,7 +319,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 };
 
                 for value in output_row {
-                    output_record.push_field(&value.serialize_as_bytes_with_options(b"|"));
+                    output_record.push_field(
+                        &value.serialize_as_bytes_with_options(args.flag_sep.as_bytes()),
+                    );
                 }
 
                 writer.write_byte_record(&output_record)?;

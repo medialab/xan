@@ -142,3 +142,22 @@ fn scrape_evaluate_foreach() {
     let expected = vec![svec!["item"], svec!["one"], svec!["two"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn scrape_sep() {
+    let wrk = Workdir::new("scrape_sep");
+    wrk.create(
+        "data.csv",
+        vec![svec!["html"], svec!["<ul><li>one</li><li>two</li></ul>"]],
+    );
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("html")
+        .args(["-e", "all('li') {text: text;}"])
+        .args(["-k", ""])
+        .args(["--sep", "§"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["text"], svec!["one§two"]];
+    assert_eq!(got, expected);
+}

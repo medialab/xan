@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::iter;
 use std::sync::Arc;
 
 use csv::ByteRecord;
@@ -37,16 +38,46 @@ enum SelectionRoutine {
 impl SelectionRoutine {
     fn run(&self, html: &Html, selection: &Selection) -> Selection {
         match (self, selection) {
+            // Staying where we are
             (_, Selection::None) | (Self::Stay, _) => selection.clone(),
+
+            // Plural selection is always a matter of flatmap
+            (_, Selection::Plural(ids)) => {
+                let new_ids = ids
+                    .iter()
+                    .flat_map(|id| -> Box<dyn Iterator<Item = NodeId>> {
+                        let sub_selection = Selection::Singular(*id);
+
+                        match self.run(html, &sub_selection) {
+                            Selection::None => Box::new(iter::empty()),
+                            Selection::Singular(id) => Box::new(iter::once(id)),
+                            Selection::Plural(ids) => {
+                                Box::new(ids.iter().copied().collect::<Vec<_>>().into_iter())
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                Selection::Plural(Arc::new(new_ids))
+            }
+
+            // One
             (Self::One(selector), Selection::Singular(id)) => {
                 let element = html.get_element(*id);
+
                 element
                     .select(selector)
                     .next()
                     .map(|e| Selection::Singular(e.id()))
                     .unwrap_or_else(|| Selection::None)
             }
-            _ => unreachable!(),
+
+            // All
+            (Self::All(selector), Selection::Singular(id)) => {
+                let element = html.get_element(*id);
+
+                Selection::Plural(Arc::new(element.select(selector).map(|e| e.id()).collect()))
+            }
         }
     }
 }
@@ -78,18 +109,25 @@ impl TryFrom<Expr> for Extractor {
 }
 
 impl Extractor {
-    fn run(&self, html: &Html, selection: &Selection) -> Option<String> {
+    fn run(&self, html: &Html, selection: &Selection) -> Option<DynamicValue> {
         match selection {
             Selection::None => None,
             Selection::Singular(id) => {
                 let element = html.get_element(*id);
 
                 match self {
-                    Self::Text => Some(element.text().collect::<String>()),
-                    Self::Attr(name) => element.attr(name).map(String::from),
+                    Self::Text => Some(DynamicValue::from(element.text().collect::<String>())),
+                    Self::Attr(name) => element.attr(name).map(DynamicValue::from),
                 }
             }
-            _ => unimplemented!(),
+            Selection::Plural(ids) => Some(DynamicValue::from(
+                ids.iter()
+                    .flat_map(|id| {
+                        let sub_selection = Selection::Singular(*id);
+                        self.run(html, &sub_selection)
+                    })
+                    .collect::<Vec<_>>(),
+            )),
         }
     }
 }
@@ -131,7 +169,10 @@ impl ConcreteScrapingLeaf {
         html: &Html,
         selection: &Selection,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        let value = DynamicValue::from(self.extractor.run(html, selection));
+        let value = self
+            .extractor
+            .run(html, selection)
+            .unwrap_or(DynamicValue::None);
 
         match &self.processing {
             None => Ok(value),
@@ -155,7 +196,7 @@ enum ConcreteScrapingNode {
 impl ConcreteScrapingNode {
     fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
         match self {
-            Self::Leaf(leaf) => Box::new(std::iter::once(leaf.name.as_str())),
+            Self::Leaf(leaf) => Box::new(iter::once(leaf.name.as_str())),
             Self::Brackets(brackets) => {
                 Box::new(brackets.nodes.iter().flat_map(|node| node.names()))
             }
@@ -415,8 +456,14 @@ impl ScrapingProgram {
 mod tests {
     use super::*;
 
+    fn eval(html: &str, code: &str) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
+        let html = Html::parse_document(html);
+        let program = ScrapingProgram::parse(code, &csv::ByteRecord::new()).unwrap();
+        program.run_singular(0, &csv::ByteRecord::new(), &html)
+    }
+
     #[test]
-    fn test_concretize_scraper() {
+    fn test_concretization() {
         let concrete_scraper = concretize_scraper(
             parse_scraper(
                 "h2 > a {
@@ -446,22 +493,32 @@ mod tests {
     }
 
     #[test]
-    fn test_scraping_program() {
-        let program = ScrapingProgram::parse(
-            "li {content: text; upper_content: text, upper; first: text(), value[0];}",
-            &csv::ByteRecord::new(),
-        )
-        .unwrap();
-
-        let html = Html::parse_fragment("<ul><li>one</li><li>two</li><li>three</li></ul>");
-
+    fn test_basics() {
         assert_eq!(
-            program.run_singular(0, &csv::ByteRecord::new(), &html),
+            eval(
+                "<ul><li>one</li><li>two</li><li>three</li></ul>",
+                "li {content: text; upper_content: text, upper; first: text(), value[0];}"
+            ),
             Ok(vec![
                 DynamicValue::from("one"),
                 DynamicValue::from("ONE"),
                 DynamicValue::from("o")
             ])
+        );
+    }
+
+    #[test]
+    fn test_all() {
+        assert_eq!(
+            eval(
+                "<ul><li>one</li><li>two</li><li>three</li></ul>",
+                "all('li') {text: text}"
+            ),
+            Ok(vec![DynamicValue::from(vec![
+                DynamicValue::from("one"),
+                DynamicValue::from("two"),
+                DynamicValue::from("three")
+            ])])
         );
     }
 }
