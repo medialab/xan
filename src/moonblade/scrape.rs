@@ -176,6 +176,7 @@ impl SelectionRoutine {
 enum Extractor {
     RawText,
     Text,
+    Json,
     Attr(String),
 }
 
@@ -187,6 +188,7 @@ impl TryFrom<Expr> for Extractor {
             Expr::Func(mut call) => Ok(match call.name.as_str() {
                 "raw_text" => Self::RawText,
                 "text" => Self::Text,
+                "json" => Self::Json,
                 "attr" => Self::Attr(
                     call.args
                         .pop()
@@ -210,6 +212,10 @@ impl Extractor {
                 match self {
                     Self::RawText => Some(DynamicValue::from(element.collect_raw_text())),
                     Self::Text => Some(DynamicValue::from(element.collect_text())),
+                    Self::Json => Some(
+                        serde_json::from_str::<DynamicValue>(&element.collect_text())
+                            .unwrap_or(DynamicValue::None),
+                    ),
                     Self::Attr(name) => element.attr(name).map(DynamicValue::from),
                 }
             }
