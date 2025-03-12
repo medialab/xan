@@ -769,9 +769,16 @@ fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
 fn parse_css_selector(pair: Pair<Rule>) -> Expr {
     let mut css = pair.as_str().trim().to_string();
 
-    if css.trim() == "&" {
+    if ["&", ":scope"].contains(&css.trim()) {
         return Expr::Func(FunctionCall {
             name: "stay".to_string(),
+            args: vec![],
+        });
+    }
+
+    if css.trim() == ":root" {
+        return Expr::Func(FunctionCall {
+            name: "root".to_string(),
             args: vec![],
         });
     }

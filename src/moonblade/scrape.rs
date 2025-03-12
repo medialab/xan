@@ -4,20 +4,83 @@ use std::sync::Arc;
 
 use csv::ByteRecord;
 use ego_tree::NodeId;
-use scraper::{ElementRef, Html, Selector};
+use lazy_static::lazy_static;
+use regex::Regex;
+use scraper::{ElementRef, Html, Node, Selector};
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
 use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
 use super::types::{Arity, DynamicValue};
 
-trait GetElement {
+trait HtmlExt {
     fn get_element(&self, id: NodeId) -> ElementRef;
 }
 
-impl GetElement for Html {
+impl HtmlExt for Html {
     fn get_element(&self, id: NodeId) -> ElementRef {
         ElementRef::wrap(self.tree.get(id).unwrap()).unwrap()
+    }
+}
+
+lazy_static! {
+    static ref SQUEEZE_REGEX: Regex = Regex::new(r"\s{2,}").unwrap();
+    static ref BLOCK_ELEMENT_REGEX: Regex = Regex::new(r"(?i)^(?:article|aside|blockquote|body|button|canvas|caption|col|colgroup|dd|div|dl|dt|embed|fieldset|figcaption|figure|footer|form|h1|h2|h3|h4|h5|h6|header|hgroup|hr|li|map|object|ol|output|p|pre|progress|section|table|tbody|textarea|tfoot|thead|tr|ul|video)$").unwrap();
+}
+
+trait ElementRefExt {
+    fn collect_raw_text(&self) -> String;
+    fn collect_text(&self) -> String;
+}
+
+fn collect_text_inner(scratch: &mut String, element: &ElementRef) {
+    for child in element.children() {
+        let element = child.value();
+
+        match element {
+            Node::Text(text) => {
+                scratch.push_str(&SQUEEZE_REGEX.replace_all(text, " "));
+            }
+            Node::Element(node) => {
+                collect_text_inner(scratch, &ElementRef::wrap(child).unwrap());
+
+                if node.name() == "br" {
+                    scratch.push('\n');
+                } else if BLOCK_ELEMENT_REGEX.is_match(node.name()) {
+                    scratch.push_str("\n\n");
+                }
+            }
+            _ => continue,
+        }
+    }
+}
+
+impl ElementRefExt for ElementRef<'_> {
+    fn collect_raw_text(&self) -> String {
+        let mut string = String::new();
+
+        for (i, text) in self.text().enumerate() {
+            if i == 0 {
+                string.push_str(text.trim_start());
+            } else {
+                string.push_str(text);
+            }
+        }
+
+        string.truncate(string.trim_end().len());
+
+        string
+    }
+
+    fn collect_text(&self) -> String {
+        let mut string = String::new();
+
+        collect_text_inner(&mut string, self);
+
+        string.truncate(string.trim_end().len());
+        string.replace_range(..string.len() - string.trim_start().len(), "");
+
+        string
     }
 }
 
@@ -31,6 +94,7 @@ enum Selection {
 #[derive(Debug, Clone)]
 enum SelectionRoutine {
     Stay,
+    Root,
     One(Selector),
     All(Selector),
 }
@@ -40,6 +104,9 @@ impl SelectionRoutine {
         match (self, selection) {
             // Staying where we are
             (_, Selection::None) | (Self::Stay, _) => selection.clone(),
+
+            // Up to the root
+            (Self::Root, _) => Selection::Singular(html.root_element().id()),
 
             // Plural selection is always a matter of flatmap
             (_, Selection::Plural(ids)) => {
@@ -84,6 +151,7 @@ impl SelectionRoutine {
 
 #[derive(Debug, Clone)]
 enum Extractor {
+    RawText,
     Text,
     Attr(String),
 }
@@ -94,6 +162,7 @@ impl TryFrom<Expr> for Extractor {
     fn try_from(value: Expr) -> Result<Self, Self::Error> {
         match value {
             Expr::Func(mut call) => Ok(match call.name.as_str() {
+                "raw_text" => Self::RawText,
                 "text" => Self::Text,
                 "attr" => Self::Attr(
                     call.args
@@ -116,7 +185,8 @@ impl Extractor {
                 let element = html.get_element(*id);
 
                 match self {
-                    Self::Text => Some(DynamicValue::from(element.text().collect::<String>())),
+                    Self::RawText => Some(DynamicValue::from(element.collect_raw_text())),
+                    Self::Text => Some(DynamicValue::from(element.collect_text())),
                     Self::Attr(name) => element.attr(name).map(DynamicValue::from),
                 }
             }
@@ -205,26 +275,25 @@ impl ConcreteScrapingNode {
 
     fn evaluate(
         &self,
+        scratch: &mut Vec<DynamicValue>,
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
-    ) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
-        let mut values = Vec::new();
-
+    ) -> Result<(), SpecifiedEvaluationError> {
         match self {
             Self::Leaf(leaf) => {
-                values.push(leaf.evaluate(index, record, context, html, selection)?);
+                scratch.push(leaf.evaluate(index, record, context, html, selection)?);
             }
             Self::Brackets(brackets) => {
                 for node in brackets.nodes.iter() {
-                    values.extend(node.evaluate(index, record, context, html, selection)?);
+                    node.evaluate(scratch, index, record, context, html, selection)?;
                 }
             }
         };
 
-        Ok(values)
+        Ok(())
     }
 }
 
@@ -241,21 +310,20 @@ impl ConcreteScrapingBrackets {
 
     fn evaluate(
         &self,
+        scratch: &mut Vec<DynamicValue>,
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
-    ) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
+    ) -> Result<(), SpecifiedEvaluationError> {
         let selection = self.selection_expr.evaluate(html, selection);
 
-        let mut values = Vec::new();
-
         for node in self.nodes.iter() {
-            values.extend(node.evaluate(index, record, context, html, &selection)?);
+            node.evaluate(scratch, index, record, context, html, &selection)?;
         }
 
-        Ok(values)
+        Ok(())
     }
 }
 
@@ -269,19 +337,18 @@ impl ConcreteScraper {
 
     fn evaluate(
         &self,
+        scratch: &mut Vec<DynamicValue>,
         index: Option<usize>,
         record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
-    ) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
-        let mut values = Vec::new();
-
+    ) -> Result<(), SpecifiedEvaluationError> {
         for brackets in self.0.iter() {
-            values.extend(brackets.evaluate(index, record, context, html, selection)?);
+            brackets.evaluate(scratch, index, record, context, html, selection)?;
         }
 
-        Ok(values)
+        Ok(())
     }
 }
 
@@ -303,6 +370,8 @@ fn concretize_selection_expr(
         Expr::Func(mut call) => {
             if call.name == "stay" {
                 return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Stay, vec![]));
+            } else if call.name == "root" {
+                return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Root, vec![]));
             }
 
             Arity::Range(1..=2)
@@ -404,6 +473,7 @@ fn concretize_scraper(
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     context: EvaluationContext,
+    capacity: usize,
 }
 
 impl ScrapingProgram {
@@ -414,9 +484,12 @@ impl ScrapingProgram {
         let concrete_scraper =
             concretize_scraper(scraper, headers, Some(&GlobalVariables::of("value")))?;
 
+        let capacity = concrete_scraper.names().count();
+
         Ok(Self {
             context: EvaluationContext::new(headers),
             scraper: concrete_scraper,
+            capacity,
         })
     }
 
@@ -431,9 +504,18 @@ impl ScrapingProgram {
         html: &Html,
     ) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
         let selection = Selection::Singular(html.root_element().id());
+        let mut scratch = Vec::with_capacity(self.capacity);
 
-        self.scraper
-            .evaluate(Some(index), record, &self.context, html, &selection)
+        self.scraper.evaluate(
+            &mut scratch,
+            Some(index),
+            record,
+            &self.context,
+            html,
+            &selection,
+        )?;
+
+        Ok(scratch)
     }
 
     pub fn run_plural<'a>(
@@ -445,9 +527,18 @@ impl ScrapingProgram {
     ) -> impl Iterator<Item = Result<Vec<DynamicValue>, SpecifiedEvaluationError>> + 'a {
         html.select(selector).map(move |element| {
             let selection = Selection::Singular(element.id());
+            let mut scratch = Vec::with_capacity(self.capacity);
 
-            self.scraper
-                .evaluate(Some(index), record, &self.context, html, &selection)
+            self.scraper.evaluate(
+                &mut scratch,
+                Some(index),
+                record,
+                &self.context,
+                html,
+                &selection,
+            )?;
+
+            Ok(scratch)
         })
     }
 }
@@ -460,6 +551,23 @@ mod tests {
         let html = Html::parse_document(html);
         let program = ScrapingProgram::parse(code, &csv::ByteRecord::new()).unwrap();
         program.run_singular(0, &csv::ByteRecord::new(), &html)
+    }
+
+    #[test]
+    fn test_collect_raw_text() {
+        let html = Html::parse_document("<ul><li>one</li><li>two</li><li>three</li></ul>");
+        assert_eq!(html.root_element().collect_raw_text(), "onetwothree");
+    }
+
+    #[test]
+    fn test_collect_text() {
+        let html = Html::parse_document("<ul><li>one</li><li>two</li><li>three</li></ul>");
+        assert_eq!(html.root_element().collect_text(), "one\n\ntwo\n\nthree");
+
+        let the_worst_html =
+            Html::parse_document(include_str!("../../tests/resources/the_worst.html"));
+
+        dbg!(the_worst_html.root_element().collect_text());
     }
 
     #[test]
