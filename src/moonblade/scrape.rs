@@ -5,7 +5,7 @@ use std::sync::Arc;
 use csv::ByteRecord;
 use ego_tree::NodeId;
 use lazy_static::lazy_static;
-use regex::Regex;
+use regex::{Captures, Regex};
 use scraper::{ElementRef, Html, Node, Selector};
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
@@ -24,8 +24,11 @@ impl HtmlExt for Html {
 }
 
 lazy_static! {
-    static ref SQUEEZE_REGEX: Regex = Regex::new(r"\s{2,}").unwrap();
-    static ref BLOCK_ELEMENT_REGEX: Regex = Regex::new(r"(?i)^(?:article|aside|blockquote|body|button|canvas|caption|col|colgroup|dd|div|dl|dt|embed|fieldset|figcaption|figure|footer|form|h1|h2|h3|h4|h5|h6|header|hgroup|hr|li|map|object|ol|output|p|pre|progress|section|table|tbody|textarea|tfoot|thead|tr|ul|video)$").unwrap();
+    static ref SQUEEZE_REGEX: Regex = Regex::new(r"\s+").unwrap();
+    static ref WHITESPACE_SQUEEZE_REGEX: Regex = Regex::new(r" +").unwrap();
+    static ref PARAGRAPH_NORMALIZER_REGEX: Regex = Regex::new(r"\n{3,}").unwrap();
+    static ref INDENTATION_NORMALIZER_REGEX: Regex = Regex::new(r"(?m)^ +(.*) *$").unwrap();
+    static ref BLOCK_ELEMENT_REGEX: Regex = Regex::new(r"(?i)^(?:article|aside|blockquote|body|button|canvas|caption|col|colgroup|dd|div|dl|dt|embed|fieldset|figcaption|figure|footer|form|h1|h2|h3|h4|h5|h6|header|hgroup|li|map|object|ol|output|p|pre|progress|section|table|tbody|textarea|tfoot|thead|tr|ul|video)$").unwrap();
 }
 
 trait ElementRefExt {
@@ -33,21 +36,39 @@ trait ElementRefExt {
     fn collect_text(&self) -> String;
 }
 
-fn collect_text_inner(scratch: &mut String, element: &ElementRef) {
+fn collect_text_inner(scratch: &mut String, element: &ElementRef, squeeze: bool) {
     for child in element.children() {
-        let element = child.value();
-
-        match element {
-            Node::Text(text) => {
-                scratch.push_str(&SQUEEZE_REGEX.replace_all(text, " "));
-            }
+        match child.value() {
             Node::Element(node) => {
-                collect_text_inner(scratch, &ElementRef::wrap(child).unwrap());
-
                 if node.name() == "br" {
                     scratch.push('\n');
-                } else if BLOCK_ELEMENT_REGEX.is_match(node.name()) {
+                    continue;
+                } else if node.name() == "hr" {
                     scratch.push_str("\n\n");
+                    continue;
+                }
+
+                let is_block = BLOCK_ELEMENT_REGEX.is_match(node.name());
+
+                if is_block {
+                    scratch.push_str("\n\n");
+                }
+
+                collect_text_inner(
+                    scratch,
+                    &ElementRef::wrap(child).unwrap(),
+                    node.name() != "pre",
+                );
+
+                if is_block {
+                    scratch.push_str("\n\n");
+                }
+            }
+            Node::Text(text) => {
+                if squeeze {
+                    scratch.push_str(&SQUEEZE_REGEX.replace_all(text, " "));
+                } else {
+                    scratch.push_str(text);
                 }
             }
             _ => continue,
@@ -75,12 +96,14 @@ impl ElementRefExt for ElementRef<'_> {
     fn collect_text(&self) -> String {
         let mut string = String::new();
 
-        collect_text_inner(&mut string, self);
+        collect_text_inner(&mut string, self, self.value().name() != "pre");
 
-        string.truncate(string.trim_end().len());
-        string.replace_range(..string.len() - string.trim_start().len(), "");
+        let string = WHITESPACE_SQUEEZE_REGEX.replace_all(string.trim(), " ");
+        let string = INDENTATION_NORMALIZER_REGEX
+            .replace_all(&string, |caps: &Captures| caps[1].to_string());
+        let string = PARAGRAPH_NORMALIZER_REGEX.replace_all(&string, "\n\n");
 
-        string
+        string.into_owned()
     }
 }
 
