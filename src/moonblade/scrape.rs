@@ -177,6 +177,8 @@ enum Extractor {
     RawText,
     Text,
     Json,
+    InnerHtml,
+    OuterHtml,
     Attr(String),
 }
 
@@ -189,6 +191,8 @@ impl TryFrom<Expr> for Extractor {
                 "raw_text" => Self::RawText,
                 "text" => Self::Text,
                 "json" => Self::Json,
+                "inner_html" => Self::InnerHtml,
+                "outer_html" => Self::OuterHtml,
                 "attr" => Self::Attr(
                     call.args
                         .pop()
@@ -212,6 +216,8 @@ impl Extractor {
                 match self {
                     Self::RawText => Some(DynamicValue::from(element.collect_raw_text())),
                     Self::Text => Some(DynamicValue::from(element.collect_text())),
+                    Self::InnerHtml => Some(DynamicValue::from(element.inner_html())),
+                    Self::OuterHtml => Some(DynamicValue::from(element.html())),
                     Self::Json => Some(
                         serde_json::from_str::<DynamicValue>(&element.collect_text())
                             .unwrap_or(DynamicValue::None),
