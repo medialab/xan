@@ -59,6 +59,7 @@ lazy_static! {
     static ref TITLE_SELECTOR: Selector = Selector::parse("title").unwrap();
 }
 
+#[derive(Clone)]
 struct CustomScraper {
     program: ScrapingProgram,
     foreach: Option<Selector>,
@@ -85,6 +86,7 @@ impl CustomScraper {
 }
 
 // TODO: support for partial read and regex scraping
+#[derive(Clone)]
 enum Scraper {
     Title,
     Custom(CustomScraper),
@@ -254,14 +256,39 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         o
                     }
                 },
-                |(index, result)| -> CliResult<csv::ByteRecord> {
+                move |(index, result)| -> CliResult<(csv::ByteRecord, Vec<Vec<DynamicValue>>)> {
                     let record = result?;
 
-                    Ok(record)
+                    let cell = std::str::from_utf8(&record[column_index]).expect("invalid utf-8");
+
+                    let target = if let Some(input_dir) = &args.flag_input_dir {
+                        ScraperTarget::HtmlFile(input_dir, cell)
+                    } else {
+                        ScraperTarget::HtmlCell(cell)
+                    };
+
+                    let output_rows = scraper.scrape(index, &record, target)?;
+
+                    Ok((record, output_rows))
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
-                let record = result?;
+                let (record, output_rows) = result?;
+
+                for output_row in output_rows {
+                    let mut output_record = if let Some(keep_sel) = &keep {
+                        keep_sel.select(&record).collect()
+                    } else {
+                        record.clone()
+                    };
+
+                    for value in output_row {
+                        output_record.push_field(&value.serialize_as_bytes_with_options(b"|"));
+                    }
+
+                    writer.write_byte_record(&output_record)?;
+                }
+
                 Ok(())
             })?;
     } else {

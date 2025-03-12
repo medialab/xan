@@ -27,7 +27,7 @@ enum Selection {
     Plural(Arc<Vec<NodeId>>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum SelectionRoutine {
     Stay,
     One(Selector),
@@ -51,7 +51,7 @@ impl SelectionRoutine {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Extractor {
     Text,
     Attr(String),
@@ -96,7 +96,7 @@ impl Extractor {
 
 // NOTE: this is an enum because it will be easier to extend later on if we
 // need to complexify evaluation of the selection part.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConcreteSelectionExpr {
     Call(SelectionRoutine, Vec<ConcreteSelectionExpr>),
 }
@@ -115,7 +115,7 @@ impl ConcreteSelectionExpr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConcreteScrapingLeaf {
     name: String,
     extractor: Extractor,
@@ -146,7 +146,7 @@ impl ConcreteScrapingLeaf {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConcreteScrapingNode {
     Brackets(ConcreteScrapingBrackets),
     Leaf(ConcreteScrapingLeaf),
@@ -162,9 +162,6 @@ impl ConcreteScrapingNode {
         }
     }
 
-    // TODO: will need the whole array of things later on
-    // TODO: processing evaluation also?
-    // TODO: move leaf evaluation into own struct above
     fn evaluate(
         &self,
         index: Option<usize>,
@@ -190,7 +187,7 @@ impl ConcreteScrapingNode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConcreteScrapingBrackets {
     selection_expr: ConcreteSelectionExpr,
     nodes: Vec<ConcreteScrapingNode>,
@@ -221,7 +218,7 @@ impl ConcreteScrapingBrackets {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConcreteScraper(Vec<ConcreteScrapingBrackets>);
 
 impl ConcreteScraper {
@@ -362,7 +359,7 @@ fn concretize_scraper(
         .map(ConcreteScraper)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     context: EvaluationContext,

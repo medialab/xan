@@ -24,6 +24,33 @@ fn scrape() {
 }
 
 #[test]
+fn scrape_parallel() {
+    let wrk = Workdir::new("scrape");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["html"],
+            svec!["<title>One</title>"],
+            svec!["<title>Two</title>"],
+            svec!["<title>Three</title>"],
+            svec!["<title>Four</title>"],
+        ],
+    );
+    let mut cmd = wrk.command("scrape");
+    cmd.arg("html").arg("title").arg("-p").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["html", "title"],
+        svec!["<title>One</title>", "One"],
+        svec!["<title>Two</title>", "Two"],
+        svec!["<title>Three</title>", "Three"],
+        svec!["<title>Four</title>", "Four"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn scrape_input_dir() {
     let wrk = Workdir::new("scrape_input_dir");
     wrk.write("one.html", "<title>One</title>");
