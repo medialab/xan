@@ -310,9 +310,7 @@ impl ConcreteScrapingNode {
                 scratch.push(leaf.evaluate(index, record, context, html, selection)?);
             }
             Self::Brackets(brackets) => {
-                for node in brackets.nodes.iter() {
-                    node.evaluate(scratch, index, record, context, html, selection)?;
-                }
+                brackets.evaluate(scratch, index, record, context, html, selection)?;
             }
         };
 

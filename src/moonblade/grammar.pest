@@ -1,6 +1,6 @@
 // Config
 WHITESPACE = _{ " " | "\n" }
-COMMENT    = _{ "#" ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ "# " ~ (!"\n" ~ ANY)* }
 
 // Literals
 true_lit   =  { "true" }
@@ -113,9 +113,10 @@ neg            =  { "-" }
 open_indexing = { "[" }
 
 // Functions
-func_arg = { ((ident ~ "=")? ~ expr) | expr }
-func     = { ident ~ "(" ~ func_arg? ~ ("," ~ func_arg)* ~ ")" }
-lambda   = { (ident | ("(" ~ (ident ~ ","?)* ~ ")")) ~ "=>" ~ expr }
+func_arg   = { ((ident ~ "=")? ~ expr) | expr }
+func       = { ident ~ "(" ~ func_arg? ~ ("," ~ func_arg)* ~ ")" }
+func_chain = { func ~ (point ~ func)* }
+lambda     = { (ident | ("(" ~ (ident ~ ","?)* ~ ")")) ~ "=>" ~ expr }
 
 // Expressions
 full_slice  =  { unary_operator* ~ term ~ ":" ~ unary_operator* ~ term }
@@ -167,10 +168,10 @@ named_func     =  { func ~ "as" ~ expr_name }
 opt_named_func = _{ named_func | func }
 named_aggs     = _{ SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ ","? ~ EOI }
 
-css_char     = _{ ident_char | "*" | "-" | "[" | "]" | ":" | "." | "#" | ">" | "~" | "+" | "," | "\"" | "'" | "=" | "^" }
+css_char     = _{ LETTER | NUMBER | "*" | "_" | "-" | "[" | "]" | ":" | "." | "#" | ">" | "~" | "+" | "," | "\"" | "'" | "=" | "^" | "/" | "(" | ")" }
 css_selector =  { ('a'..'z' | 'A'..'Z' | ":" | "." | "#" | "[" | "*" | "&") ~ css_char* }
 
-scraping_select   = _{ expr | css_selector }
+scraping_select   = _{ func_chain | css_selector }
 scraping_leaf     =  { expr_name ~ ":" ~ (func | ident) ~ ("," ~ expr)? ~ ";"? }
 scraping_brackets =  { scraping_select ~ "{" ~ (scraping_brackets | scraping_leaf)* ~ "}" }
 scraping_expr     = _{ SOI ~ scraping_brackets+ ~ EOI }

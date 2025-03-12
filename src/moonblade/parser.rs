@@ -238,6 +238,7 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                 Rule::false_lit => Expr::Bool(false),
                 Rule::null => Expr::Null,
                 Rule::expr => pratt_parse(primary.into_inner())?,
+                Rule::func_chain => pratt_parse(primary.into_inner())?,
                 Rule::lambda => {
                     let mut pairs = primary.into_inner();
                     let last_pair = pairs.next_back().unwrap();
@@ -800,16 +801,7 @@ fn parse_scraping_brackets(pair: Pair<Rule>) -> Result<ScrapingBrackets, ParseEr
     let selection = pairs.next().unwrap();
 
     let selection_expr = match selection.as_rule() {
-        Rule::expr => {
-            if !matches!(
-                selection.clone().into_inner().next().unwrap().as_rule(),
-                Rule::func
-            ) {
-                parse_css_selector(selection)
-            } else {
-                pratt_parse(Pairs::single(selection))?
-            }
-        }
+        Rule::func_chain => pratt_parse(Pairs::single(selection))?,
         Rule::css_selector => parse_css_selector(selection),
         _ => unreachable!(),
     };
