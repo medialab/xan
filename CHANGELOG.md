@@ -14,6 +14,10 @@
 * `moonblade` now accepts comments starting with `#`.
 * Adding `xan scrape` command.
 
+*Fix*
+
+* Fixing `xan flatten -w` wrt line breaks.
+
 *Performance*
 
 * Decrease `moonblade`-related commands memory consumption.

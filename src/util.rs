@@ -485,7 +485,7 @@ pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
     let mut string = string.replace('\u{00ad}', "");
 
     // Control characters
-    string.retain(|c| c > '\x1f');
+    string.retain(|c| c > '\x1f' || c.is_ascii_whitespace());
 
     string
 }
