@@ -189,6 +189,7 @@ enum Extractor {
     RawText,
     Text,
     Json,
+    JsonLd(String),
     InnerHtml,
     OuterHtml,
     Attr(String),
@@ -203,6 +204,12 @@ impl TryFrom<Expr> for Extractor {
                 "raw_text" => Self::RawText,
                 "text" => Self::Text,
                 "json" => Self::Json,
+                "json_ld" => Self::JsonLd(
+                    call.args
+                        .pop()
+                        .and_then(|(_, name)| name.try_into_string())
+                        .ok_or(ConcretizationError::NotStaticallyAnalyzable)?,
+                ),
                 "inner_html" => Self::InnerHtml,
                 "outer_html" => Self::OuterHtml,
                 "attr" => Self::Attr(
@@ -234,6 +241,42 @@ impl Extractor {
                         serde_json::from_str::<DynamicValue>(&element.collect_text())
                             .unwrap_or(DynamicValue::None),
                     ),
+                    Self::JsonLd(target_type) => {
+                        let value = serde_json::from_str::<DynamicValue>(
+                            &html_escape::decode_html_entities(&element.collect_text()),
+                        )
+                        .unwrap_or(DynamicValue::None);
+
+                        let mut found = DynamicValue::None;
+
+                        match &value {
+                            DynamicValue::Map(map) => {
+                                if let Some(v) = map.get("@type") {
+                                    if let Ok(t) = v.try_as_str() {
+                                        if t.as_ref() == target_type {
+                                            found = value;
+                                        }
+                                    }
+                                }
+                            }
+                            DynamicValue::List(list) => {
+                                for item in list.iter() {
+                                    if let DynamicValue::Map(map) = item {
+                                        if let Some(v) = map.get("@type") {
+                                            if let Ok(t) = v.try_as_str() {
+                                                if t.as_ref() == target_type {
+                                                    found = item.clone();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            _ => (),
+                        };
+
+                        Some(found)
+                    }
                     Self::Attr(name) => element.attr(name).map(DynamicValue::from),
                 }
             }
