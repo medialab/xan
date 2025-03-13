@@ -6,7 +6,7 @@ use csv::ByteRecord;
 use ego_tree::NodeId;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use scraper::{ElementRef, Html, Node, Selector};
+use scraper::{Element, ElementRef, Html, Node, Selector};
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
@@ -136,6 +136,9 @@ enum SelectionRoutine {
     One(Selector),
     All(Selector),
     Contains(ContainsPattern),
+    Parent,
+    // NextSibling,
+    // PrevSibling,
 }
 
 impl SelectionRoutine {
@@ -196,6 +199,13 @@ impl SelectionRoutine {
                     Selection::None
                 }
             }
+
+            // Parent
+            (Self::Parent, Selection::Singular(id)) => html
+                .get_element(*id)
+                .parent_element()
+                .map(|parent| Selection::Singular(parent.id()))
+                .unwrap_or(Selection::None),
         }
     }
 }
@@ -494,6 +504,15 @@ fn parse_contains_pattern(
     Ok(ContainsPattern::Substring(substring.into_owned()))
 }
 
+fn get_selection_function_arity(name: &str) -> Option<Arity> {
+    Some(match name {
+        "stay" | "root" => Arity::Strict(0),
+        "parent" => Arity::Strict(1),
+        "one" | "all" | "contains" => Arity::Range(1..=2),
+        _ => return None,
+    })
+}
+
 fn concretize_selection_expr(
     expr: Expr,
     headers: &ByteRecord,
@@ -501,18 +520,32 @@ fn concretize_selection_expr(
 ) -> Result<ConcreteSelectionExpr, ConcretizationError> {
     match expr {
         Expr::Func(mut call) => {
+            let arity = get_selection_function_arity(&call.name)
+                .ok_or_else(|| ConcretizationError::UnknownFunction(call.name.to_string()))?;
+
+            arity.validate(call.args.len()).map_err(|invalid_arity| {
+                ConcretizationError::InvalidArity(call.name.to_string(), invalid_arity)
+            })?;
+
+            // Nullary
             if call.name == "stay" {
                 return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Stay, vec![]));
             } else if call.name == "root" {
                 return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Root, vec![]));
             }
 
-            Arity::Range(1..=2)
-                .validate(call.args.len())
-                .map_err(|invalid_arity| {
-                    ConcretizationError::InvalidArity(call.name.to_string(), invalid_arity)
-                })?;
+            // Unary
+            if call.name == "parent" {
+                let args = vec![concretize_selection_expr(
+                    call.args.pop().unwrap().1,
+                    headers,
+                    globals,
+                )?];
 
+                return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Parent, args));
+            }
+
+            // Binary?
             let arg = call.args.pop().unwrap().1;
             let concrete_arg = concretize_expression(arg, headers, globals)?;
 
