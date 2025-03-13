@@ -7,6 +7,7 @@ use std::fmt;
 use std::io;
 use std::process;
 
+use colored::Colorize;
 use docopt::Docopt;
 
 mod cmd;
@@ -143,7 +144,31 @@ fn main() {
                 .version(Some(util::version()))
                 .deserialize()
         })
-        .unwrap_or_else(|e| e.exit());
+        .unwrap_or_else(|e| {
+            match e {
+                docopt::Error::Deserialize(_) => {
+                    // Command mismatch
+                    eprintln!(
+                        "Please choose one of the following commands/flags:\n{}",
+                        util::colorize_main_help(command_list!())
+                    );
+                    eprintln!(
+                        "{}",
+                        format!(
+                            "Unknown command {}!\nUse one of the commands listed above.",
+                            std::env::args()
+                                .nth(1)
+                                .unwrap_or_else(|| "<missing>".to_string())
+                        )
+                        .red()
+                    );
+                    process::exit(1);
+                }
+                _ => {
+                    e.exit();
+                }
+            }
+        });
 
     match args.arg_command {
         None => {
