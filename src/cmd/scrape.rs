@@ -39,16 +39,36 @@ fn read_string(input_dir: &str, filename: &str) -> io::Result<String> {
     Ok(string)
 }
 
-const PREBUFFER_SIZE: usize = 65536;
+const PREBUFFER_SIZE: usize = 4096;
 
-fn read_max_bytes(input_dir: &str, filename: &str, max: u64) -> io::Result<Vec<u8>> {
-    let mut buffer = Vec::with_capacity(max as usize);
+fn read_up_to_head(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; PREBUFFER_SIZE];
 
-    open(input_dir, filename)?
-        .take(max)
-        .read_to_end(&mut buffer)?;
+    let mut reader = open(input_dir, filename)?;
 
-    Ok(buffer)
+    while let Ok(len) = reader.read(&mut buffer) {
+        if len == 0 {
+            break;
+        }
+
+        bytes.extend_from_slice(&buffer[..len]);
+
+        let offset = bytes.len().saturating_sub(len + 7);
+        let haystack = &bytes[offset..];
+
+        debug_assert!(haystack.len() <= PREBUFFER_SIZE + 7);
+
+        if let Some(i) = haystack
+            .rfind(b"</head>")
+            .or_else(|| haystack.rfind(b"</HEAD>"))
+        {
+            bytes.truncate(offset + i + 7);
+            break;
+        }
+    }
+
+    Ok(bytes)
 }
 
 fn read_html(input_dir: &str, filename: &str) -> io::Result<Html> {
@@ -73,16 +93,14 @@ fn guard_invalid_html_cell(cell: &[u8]) -> CliResult<()> {
 }
 
 impl ScraperTarget<'_> {
-    fn prebuffer_bytes(&self) -> CliResult<Vec<u8>> {
+    fn prebuffer_up_to_head(&self) -> CliResult<Vec<u8>> {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
                 Ok(cell[..PREBUFFER_SIZE.min(cell.len())].to_vec())
             }
-            Self::HtmlFile(input_dir, filename) => {
-                Ok(read_max_bytes(input_dir, filename, PREBUFFER_SIZE as u64)?)
-            }
+            Self::HtmlFile(input_dir, filename) => Ok(read_up_to_head(input_dir, filename)?),
         }
     }
 
@@ -154,9 +172,7 @@ impl Scraper {
     }
 
     fn scrape_title(&self, target: ScraperTarget) -> CliResult<Option<DynamicValue>> {
-        let bytes = target.prebuffer_bytes()?;
-
-        debug_assert!(bytes.len() <= PREBUFFER_SIZE);
+        let bytes = target.prebuffer_up_to_head()?;
 
         Ok(TITLE_REGEX.captures(&bytes).map(|caps| {
             DynamicValue::from(html_escape::decode_html_entities(
