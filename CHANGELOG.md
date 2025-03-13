@@ -17,6 +17,7 @@
 *Fix*
 
 * Fixing `xan flatten -w` wrt line breaks.
+* Fixing underscore expansion when contained in map & list expressions.
 
 *Performance*
 

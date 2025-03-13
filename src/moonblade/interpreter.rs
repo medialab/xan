@@ -527,7 +527,9 @@ pub fn concretize_expression(
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
-        Expr::Underscore => unreachable!(),
+        Expr::Underscore => {
+            panic!("found underscore while concretizing expression!\nThis suggests that moonblade::parser::Expr::fill_underscore is not doing its job properly.");
+        }
         Expr::Null => ConcreteExpr::Value(DynamicValue::None),
         Expr::Bool(v) => ConcreteExpr::Value(DynamicValue::Boolean(v)),
         Expr::Float(v) => ConcreteExpr::Value(DynamicValue::Float(v)),

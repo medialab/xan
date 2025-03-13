@@ -305,15 +305,14 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
 
                 // Pipe threading
                 Rule::pipe => match rhs? {
-                    Expr::Func(mut call) => {
-                        call.fill_underscore(&lhs?);
-                        Expr::Func(call)
-                    }
                     Expr::Identifier(name, unsure) => match get_function(&name) {
                         None => Expr::Identifier(name, unsure),
                         Some(_) => Expr::Func(FunctionCall::new(&name, vec![lhs?])),
                     },
-                    rest => rest,
+                    mut rest => {
+                        rest.fill_underscore(&lhs?);
+                        rest
+                    }
                 },
 
                 // Short-circuiting and
@@ -397,20 +396,6 @@ impl FunctionCall {
 
     pub fn raw_args_as_ref(&self) -> Vec<&Expr> {
         self.args.iter().map(|(_, arg)| arg).collect()
-    }
-
-    fn fill_underscore(&mut self, with: &Expr) {
-        for (_, arg) in self.args.iter_mut() {
-            match arg {
-                Expr::Func(sub) => {
-                    sub.fill_underscore(with);
-                }
-                Expr::Underscore => {
-                    *arg = with.clone();
-                }
-                _ => (),
-            }
-        }
     }
 }
 
@@ -496,6 +481,30 @@ impl Expr {
             }
             _ => (),
         };
+    }
+
+    fn fill_underscore(&mut self, with: &Expr) {
+        match self {
+            Expr::Func(call) => {
+                for (_, arg) in call.args.iter_mut() {
+                    arg.fill_underscore(with);
+                }
+            }
+            Expr::List(list) => {
+                for item in list.iter_mut() {
+                    item.fill_underscore(with);
+                }
+            }
+            Expr::Map(map) => {
+                for (_, value) in map.iter_mut() {
+                    value.fill_underscore(with);
+                }
+            }
+            Expr::Underscore => {
+                *self = with.clone();
+            }
+            _ => (),
+        }
     }
 
     pub fn try_into_string(self) -> Option<String> {
