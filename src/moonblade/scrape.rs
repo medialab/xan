@@ -242,6 +242,19 @@ impl Extractor {
                             .unwrap_or(DynamicValue::None),
                     ),
                     Self::JsonLd(target_type) => {
+                        fn compare_json_ld_types(first: &str, second: &str) -> bool {
+                            let first = first
+                                .strip_prefix("http://schema.org/")
+                                .unwrap_or(first)
+                                .to_lowercase();
+                            let second = second
+                                .strip_prefix("http://schema.org/")
+                                .unwrap_or(second)
+                                .to_lowercase();
+
+                            first == second
+                        }
+
                         let value = serde_json::from_str::<DynamicValue>(
                             &html_escape::decode_html_entities(&element.collect_text()),
                         )
@@ -253,7 +266,7 @@ impl Extractor {
                             DynamicValue::Map(map) => {
                                 if let Some(v) = map.get("@type") {
                                     if let Ok(t) = v.try_as_str() {
-                                        if t.as_ref() == target_type {
+                                        if compare_json_ld_types(&t, target_type) {
                                             found = value;
                                         }
                                     }
@@ -264,7 +277,7 @@ impl Extractor {
                                     if let DynamicValue::Map(map) = item {
                                         if let Some(v) = map.get("@type") {
                                             if let Ok(t) = v.try_as_str() {
-                                                if t.as_ref() == target_type {
+                                                if compare_json_ld_types(&t, target_type) {
                                                     found = item.clone();
                                                 }
                                             }
