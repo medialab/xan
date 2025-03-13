@@ -69,6 +69,7 @@ static COMMANDS: [&str; 59] = [
 static HELP_SUBCOMMANDS: [&str; 3] = ["cheatsheet", "functions", "aggs"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
+static SCRAPE_SUBCOMMANDS: [&str; 2] = ["title", "links"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
@@ -150,6 +151,12 @@ pub fn run() {
         }
     } else if word_before == "vocab" && !to_complete.starts_with('-') {
         for subcommand in VOCAB_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
+            }
+        }
+    } else if word_before == "scrape" && !to_complete.starts_with('-') {
+        for subcommand in SCRAPE_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
                 println!("{}", subcommand);
             }

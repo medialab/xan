@@ -12,7 +12,7 @@ fn scrape() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("html").arg("title").arg("data.csv");
+    cmd.arg("title").arg("html").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -37,7 +37,7 @@ fn scrape_parallel() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("html").arg("title").arg("-p").arg("data.csv");
+    cmd.arg("title").arg("html").arg("-p").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -61,8 +61,8 @@ fn scrape_input_dir() {
         vec![svec!["path"], svec!["one.html"], svec!["two.html"]],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("path")
-        .arg("title")
+    cmd.arg("title")
+        .arg("path")
         .args(["-I", "."])
         .arg("data.csv");
 
@@ -87,8 +87,8 @@ fn scrape_keep() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("html")
-        .arg("title")
+    cmd.arg("title")
+        .arg("html")
         .args(["--keep", ""])
         .arg("data.csv");
 

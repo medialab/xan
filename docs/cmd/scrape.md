@@ -7,8 +7,8 @@ Scrape HTML using a CSS-like expression language.
 TODO...
 
 Usage:
-    xan scrape <column> -e <expr> [options] [<input>]
-    xan scrape <column> title [options] [<input>]
+    xan scrape -e <expr> <column> [options] [<input>]
+    xan scrape title <column> [options] [<input>]
     xan scrape --help
 
 scrape options:
