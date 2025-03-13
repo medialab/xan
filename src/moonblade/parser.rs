@@ -798,7 +798,7 @@ fn parse_css_selector(pair: Pair<Rule>) -> Expr {
     }
 
     Expr::Func(FunctionCall {
-        name: "one".to_string(),
+        name: "first".to_string(),
         args: vec![(None, Expr::Str(css))],
     })
 }
@@ -1240,7 +1240,7 @@ mod tests {
             all('p') {
                 content: text;
             }
-            one('div').all('.content') {
+            first('div').all('.content') {
               info: text;
             }",
         );
@@ -1272,7 +1272,7 @@ mod tests {
             parsed,
             Ok(vec![
                 brackets(
-                    "one",
+                    "first",
                     "h2 > a",
                     vec![
                         leafp(
@@ -1282,12 +1282,12 @@ mod tests {
                         ),
                         leaf("url", func("attr", vec![s("href")])),
                         ScrapingNode::Brackets(brackets(
-                            "one",
+                            "first",
                             ":scope > time",
                             vec![leaf("date", func("attr", vec![s("datetime")]))]
                         )),
                         ScrapingNode::Brackets(brackets(
-                            "one",
+                            "first",
                             "*",
                             vec![leafp(
                                 "text",
@@ -1299,7 +1299,7 @@ mod tests {
                 ),
                 brackets("all", "p", vec![leaf("content", func("text", vec![]))]),
                 ScrapingBrackets {
-                    selection_expr: func("all", vec![func("one", vec![s("div")]), s(".content")]),
+                    selection_expr: func("all", vec![func("first", vec![s("div")]), s(".content")]),
                     nodes: vec![leaf("info", func("text", vec![]))]
                 }
             ])

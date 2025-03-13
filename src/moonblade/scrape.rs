@@ -134,7 +134,7 @@ impl ContainsPattern {
 enum SelectionRoutine {
     Stay,
     Root,
-    One(Selector),
+    First(Selector),
     All(Selector),
     Contains(ContainsPattern),
     Parent,
@@ -171,8 +171,8 @@ impl SelectionRoutine {
                 Selection::Plural(Arc::new(new_ids))
             }
 
-            // One
-            (Self::One(selector), Selection::Singular(id)) => {
+            // First
+            (Self::First(selector), Selection::Singular(id)) => {
                 let element = html.get_element(*id);
 
                 element
@@ -546,7 +546,7 @@ fn get_selection_function_arity(name: &str) -> Option<Arity> {
     Some(match name {
         "stay" | "root" => Arity::Strict(0),
         "parent" => Arity::Strict(1),
-        "one" | "all" | "contains" => Arity::Range(1..=2),
+        "first" | "all" | "contains" => Arity::Range(1..=2),
         _ => return None,
     })
 }
@@ -598,9 +598,9 @@ fn concretize_selection_expr(
             };
 
             let selection_expr = match call.name.as_str() {
-                "one" => {
+                "first" => {
                     let selector = parse_selector(concrete_arg)?;
-                    ConcreteSelectionExpr::Call(SelectionRoutine::One(selector), args)
+                    ConcreteSelectionExpr::Call(SelectionRoutine::First(selector), args)
                 }
                 "all" => {
                     let selector = parse_selector(concrete_arg)?;
@@ -620,7 +620,7 @@ fn concretize_selection_expr(
                 .map_err(|_| ConcretizationError::InvalidCSSSelector(css.to_string()))?;
 
             Ok(ConcreteSelectionExpr::Call(
-                SelectionRoutine::One(selector),
+                SelectionRoutine::First(selector),
                 vec![],
             ))
         }
@@ -785,7 +785,7 @@ mod tests {
                 "h2 > a {
                     title: text;
 
-                    one('.main').all('p') {
+                    first('.main').all('p') {
                         a {
                             url: attr('href');
                         }
