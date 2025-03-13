@@ -381,6 +381,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-c/--count does not work with -v/--invert-match!")?;
     }
 
+    if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
+        Err("-N/--non-empty & -E/--empty do not make sense with --patterns!")?;
+    }
+
     let matcher = args.build_matcher()?;
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
