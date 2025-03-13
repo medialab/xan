@@ -115,12 +115,27 @@ enum Selection {
 }
 
 #[derive(Debug, Clone)]
+enum ContainsPattern {
+    Substring(String),
+    Regex(Regex),
+}
+
+impl ContainsPattern {
+    fn is_match(&self, haystack: &str) -> bool {
+        match self {
+            Self::Substring(substring) => haystack.contains(substring),
+            Self::Regex(regex) => regex.is_match(haystack),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 enum SelectionRoutine {
     Stay,
     Root,
     One(Selector),
     All(Selector),
-    Contains(String),
+    Contains(ContainsPattern),
 }
 
 impl SelectionRoutine {
@@ -173,8 +188,9 @@ impl SelectionRoutine {
             // Contains
             (Self::Contains(pattern), Selection::Singular(id)) => {
                 let element = html.get_element(*id);
+                let text = element.collect_raw_text();
 
-                if element.collect_raw_text().contains(pattern) {
+                if pattern.is_match(&text) {
                     selection.clone()
                 } else {
                     Selection::None
@@ -462,6 +478,22 @@ fn parse_selector(concrete_expr: ConcreteExpr) -> Result<Selector, Concretizatio
     Selector::parse(&css).map_err(|_| ConcretizationError::InvalidCSSSelector(css.to_string()))
 }
 
+fn parse_contains_pattern(
+    concrete_expr: ConcreteExpr,
+) -> Result<ContainsPattern, ConcretizationError> {
+    let value = concrete_expr.try_unwrap()?;
+
+    if let DynamicValue::Regex(regex) = value {
+        return Ok(ContainsPattern::Regex((*regex).clone()));
+    }
+
+    let substring = value
+        .try_as_str()
+        .map_err(|_| ConcretizationError::NotStaticallyAnalyzable)?;
+
+    Ok(ContainsPattern::Substring(substring.into_owned()))
+}
+
 fn concretize_selection_expr(
     expr: Expr,
     headers: &ByteRecord,
@@ -504,13 +536,7 @@ fn concretize_selection_expr(
                     ConcreteSelectionExpr::Call(SelectionRoutine::All(selector), args)
                 }
                 "contains" => ConcreteSelectionExpr::Call(
-                    SelectionRoutine::Contains(
-                        concrete_arg
-                            .try_unwrap()?
-                            .try_as_str()
-                            .unwrap()
-                            .into_owned(),
-                    ),
+                    SelectionRoutine::Contains(parse_contains_pattern(concrete_arg)?),
                     args,
                 ),
                 _ => return Err(ConcretizationError::UnknownFunction(call.name.to_string())),
