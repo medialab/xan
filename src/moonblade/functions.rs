@@ -117,6 +117,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "fmt" => (fmt, FunctionArguments::variadic(2)),
         "numfmt" => (fmt_number, FunctionArguments::unary()),
         "get" => (get, FunctionArguments::with_range(2..=3)),
+        "html_unescape" => (html_unescape, FunctionArguments::unary()),
         "idiv" => (
             |args| arithmetic_op(args, DynamicNumber::idiv),
             FunctionArguments::binary(),
@@ -1578,4 +1579,12 @@ fn mime_ext(args: BoundArguments) -> FunctionResult {
         Some(ext) => Ok(DynamicValue::from(ext)),
         None => Err(EvaluationError::Custom("unknown MIME type".to_string())),
     }
+}
+
+fn html_unescape(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    Ok(DynamicValue::from(html_escape::decode_html_entities(
+        &string,
+    )))
 }

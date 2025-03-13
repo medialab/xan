@@ -420,13 +420,25 @@
     ]
   },
   {
-    "title": "Urls",
+    "title": "Urls & web-related",
     "functions": [
+      {
+        "name": "html_unescape",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Unescape given HTML string by converting HTML entities back to normal text."
+      },
       {
         "name": "lru",
         "arguments": ["string"],
         "returns": "string",
         "help": "Convert the given URL to LRU format.\nFor more info, read this: https://github.com/medialab/ural#about-lrus"
+      },
+      {
+        "name": "parse_dataurl",
+        "arguments": ["string"],
+        "returns": "[string, bytes]",
+        "help": "Parse the given data url and return its mime type and decoded binary data."
       },
       {
         "name": "urljoin",
@@ -560,12 +572,6 @@
         "arguments": ["string"],
         "returns": "string",
         "help": "Return the extension related to given mime type."
-      },
-      {
-        "name": "parse_dataurl",
-        "arguments": ["string"],
-        "returns": "[string, bytes]",
-        "help": "Parse the given data url and return its mime type and decoded binary data."
       },
       {
         "name": "parse_json",
