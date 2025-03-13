@@ -39,6 +39,14 @@ fn read_string(input_dir: &str, filename: &str) -> io::Result<String> {
     Ok(string)
 }
 
+fn read_bytes(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+
+    open(input_dir, filename)?.read_to_end(&mut bytes)?;
+
+    Ok(bytes)
+}
+
 const PREBUFFER_SIZE: usize = 4096;
 
 fn read_up_to_head(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
@@ -104,6 +112,17 @@ impl ScraperTarget<'_> {
         }
     }
 
+    fn read_bytes(&self) -> CliResult<Vec<u8>> {
+        match self {
+            Self::HtmlCell(cell) => {
+                guard_invalid_html_cell(cell)?;
+
+                Ok(cell.to_vec())
+            }
+            Self::HtmlFile(input_dir, filename) => Ok(read_bytes(input_dir, filename)?),
+        }
+    }
+
     fn read_html(&self) -> CliResult<Html> {
         match self {
             Self::HtmlCell(cell) => {
@@ -123,6 +142,7 @@ lazy_static! {
     static ref HTML_LIKE_REGEX: Regex =
         Regex::new(r"^\s*<(?:html|head|body|title|meta|link|span|div|img|ul|ol|[ap!?])").unwrap();
     static ref TITLE_REGEX: Regex = Regex::new(r"<title>(.*?)</title>").unwrap();
+    static ref SCRIPT_REGEX: Regex = Regex::new(r"<script[^>]*>.*?</script>").unwrap();
     static ref URLS_IN_HTML_REGEX: Regex =
         Regex::new(r#"<a[^>]*\shref=(?:"([^"]*)"|'([^']*)'|([^\s>]*))[^>]*>"#).unwrap();
 }
@@ -138,6 +158,10 @@ struct CustomScraper {
 }
 
 impl CustomScraper {
+    fn is_plural(&self) -> bool {
+        self.foreach.is_some()
+    }
+
     fn scrape(
         &self,
         index: usize,
@@ -160,13 +184,23 @@ impl CustomScraper {
 #[derive(Clone)]
 enum Scraper {
     Title,
+    Urls,
     Custom(CustomScraper),
 }
 
 impl Scraper {
+    fn is_plural(&self) -> bool {
+        match self {
+            Self::Title => false,
+            Self::Urls => true,
+            Self::Custom(inner) => inner.is_plural(),
+        }
+    }
+
     fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
         match self {
             Self::Title => Box::new(iter::once("title")),
+            Self::Urls => Box::new(iter::once("url")),
             Self::Custom(scraper) => Box::new(scraper.program.names()),
         }
     }
@@ -181,6 +215,27 @@ impl Scraper {
         }))
     }
 
+    fn scrape_urls(&self, target: ScraperTarget) -> CliResult<Vec<DynamicValue>> {
+        let bytes = target.read_bytes()?;
+        let bytes = SCRIPT_REGEX.replace_all(&bytes, b"");
+
+        let mut urls = Vec::new();
+
+        for caps in URLS_IN_HTML_REGEX.captures_iter(&bytes) {
+            let url = if let Some(m) = caps.get(1) {
+                &m.as_bytes()[..m.len().saturating_sub(1)]
+            } else if let Some(m) = caps.get(2) {
+                &m.as_bytes()[..m.len().saturating_sub(1)]
+            } else {
+                &caps[3]
+            };
+
+            urls.push(DynamicValue::from(url));
+        }
+
+        Ok(urls)
+    }
+
     fn scrape(
         &self,
         index: usize,
@@ -192,6 +247,11 @@ impl Scraper {
                 let title_opt = self.scrape_title(target)?;
 
                 Ok(vec![vec![title_opt.unwrap_or(DynamicValue::None)]])
+            }
+            Self::Urls => {
+                let urls = self.scrape_urls(target)?;
+
+                Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
             Self::Custom(scraper) => scraper.scrape(index, record, target),
         }
@@ -206,6 +266,7 @@ TODO...
 Usage:
     xan scrape -e <expr> <column> [options] [<input>]
     xan scrape title <column> [options] [<input>]
+    xan scrape urls <column> [options] [<input>]
     xan scrape --help
 
 scrape options:
@@ -243,6 +304,7 @@ struct Args {
     arg_input: Option<String>,
     arg_column: SelectColumns,
     cmd_title: bool,
+    cmd_urls: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -290,6 +352,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         None => {
             if args.cmd_title {
                 Scraper::Title
+            } else if args.cmd_urls {
+                Scraper::Urls
             } else {
                 unreachable!()
             }
@@ -343,7 +407,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let cell = &record[column_index];
 
                     if cell.trim().is_empty() {
-                        return Ok((record, vec![vec![DynamicValue::None; padding]]));
+                        return Ok((
+                            record,
+                            if scraper.is_plural() {
+                                vec![]
+                            } else {
+                                vec![vec![DynamicValue::None; padding]]
+                            },
+                        ));
                     }
 
                     let target = if let Some(input_dir) = &args.flag_input_dir {
@@ -390,7 +461,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let output_rows = {
                 if cell.trim().is_empty() {
-                    vec![vec![DynamicValue::None; padding]]
+                    if scraper.is_plural() {
+                        vec![]
+                    } else {
+                        vec![vec![DynamicValue::None; padding]]
+                    }
                 } else {
                     let target = if let Some(input_dir) = &args.flag_input_dir {
                         ScraperTarget::HtmlFile(

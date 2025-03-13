@@ -69,7 +69,7 @@ static COMMANDS: [&str; 59] = [
 static HELP_SUBCOMMANDS: [&str; 3] = ["cheatsheet", "functions", "aggs"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
-static SCRAPE_SUBCOMMANDS: [&str; 2] = ["title", "links"];
+static SCRAPE_SUBCOMMANDS: [&str; 3] = ["title", "links", "urls"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
 
