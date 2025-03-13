@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::iter;
 use std::path::PathBuf;
+use std::str::from_utf8;
 
 use bstr::ByteSlice;
 use colored::Colorize;
@@ -10,6 +11,7 @@ use lazy_static::lazy_static;
 use pariter::IteratorExt;
 use regex::bytes::Regex;
 use scraper::{Html, Selector};
+use url::Url;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, ScrapingProgram};
@@ -92,7 +94,7 @@ fn guard_invalid_html_cell(cell: &[u8]) -> CliResult<()> {
     if !cell.is_empty() && !looks_like_html(cell) {
         Err(format!(
             "encountered cell value that does not look like HTML: {}!\nDid you forget to give {}?",
-            std::str::from_utf8(cell).unwrap().green(),
+            from_utf8(cell).unwrap().green(),
             "-I/--input-dir".cyan()
         ))?
     } else {
@@ -129,7 +131,7 @@ impl ScraperTarget<'_> {
                 guard_invalid_html_cell(cell)?;
 
                 Ok(Html::parse_document(
-                    std::str::from_utf8(cell).expect("invalid utf-8"),
+                    from_utf8(cell).expect("invalid utf-8"),
                 ))
             }
             Self::HtmlFile(input_dir, filename) => Ok(read_html(input_dir, filename)?),
@@ -184,7 +186,7 @@ impl CustomScraper {
 #[derive(Clone)]
 enum Scraper {
     Title,
-    Urls,
+    Urls(Option<usize>),
     Custom(CustomScraper),
 }
 
@@ -192,7 +194,7 @@ impl Scraper {
     fn is_plural(&self) -> bool {
         match self {
             Self::Title => false,
-            Self::Urls => true,
+            Self::Urls(_) => true,
             Self::Custom(inner) => inner.is_plural(),
         }
     }
@@ -200,7 +202,7 @@ impl Scraper {
     fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
         match self {
             Self::Title => Box::new(iter::once("title")),
-            Self::Urls => Box::new(iter::once("url")),
+            Self::Urls(_) => Box::new(iter::once("url")),
             Self::Custom(scraper) => Box::new(scraper.program.names()),
         }
     }
@@ -210,16 +212,24 @@ impl Scraper {
 
         Ok(TITLE_REGEX.captures(&bytes).map(|caps| {
             DynamicValue::from(html_escape::decode_html_entities(
-                std::str::from_utf8(&caps[1]).unwrap(),
+                from_utf8(&caps[1]).unwrap(),
             ))
         }))
     }
 
-    fn scrape_urls(&self, target: ScraperTarget) -> CliResult<Vec<DynamicValue>> {
+    fn scrape_urls(
+        &self,
+        record: &csv::ByteRecord,
+        target: ScraperTarget,
+        url_column_index: Option<usize>,
+    ) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.read_bytes()?;
         let bytes = SCRIPT_REGEX.replace_all(&bytes, b"");
 
         let mut urls = Vec::new();
+
+        let base_url_opt =
+            url_column_index.and_then(|i| Url::parse(from_utf8(&record[i]).unwrap()).ok());
 
         for caps in URLS_IN_HTML_REGEX.captures_iter(&bytes) {
             let url = if let Some(m) = caps.get(1) {
@@ -230,7 +240,14 @@ impl Scraper {
                 &caps[3]
             };
 
-            urls.push(DynamicValue::from(url));
+            if let Some(base_url) = &base_url_opt {
+                if let Ok(joined_url) = base_url.join(from_utf8(url).unwrap()) {
+                    // TODO: canonicalize
+                    urls.push(DynamicValue::from(joined_url.to_string()));
+                }
+            } else {
+                urls.push(DynamicValue::from(url));
+            }
         }
 
         Ok(urls)
@@ -248,8 +265,8 @@ impl Scraper {
 
                 Ok(vec![vec![title_opt.unwrap_or(DynamicValue::None)]])
             }
-            Self::Urls => {
-                let urls = self.scrape_urls(target)?;
+            Self::Urls(url_column_index) => {
+                let urls = self.scrape_urls(record, target, *url_column_index)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
@@ -261,7 +278,7 @@ impl Scraper {
 static USAGE: &str = "
 Scrape HTML using a CSS-like expression language.
 
-TODO...
+TODO... (difference singular/plural)
 
 Usage:
     xan scrape -e <expr> <column> [options] [<input>]
@@ -282,6 +299,9 @@ scrape options:
                              indicate the number of threads yourself.
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
+
+scrape url/links options:
+    -u, --url-column <column>  Column containing the base url for given HTML.
 
 scrape -e/--evaluate options:
     -f, --foreach <css>  If given, will return one row per element matching
@@ -310,6 +330,7 @@ struct Args {
     flag_no_headers: bool,
     flag_evaluate: Option<String>,
     flag_foreach: Option<String>,
+    flag_url_column: Option<SelectColumns>,
     flag_input_dir: Option<String>,
     flag_keep: Option<SelectColumns>,
     flag_sep: String,
@@ -338,6 +359,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--foreach only works with -e/--evaluate!")?;
     }
 
+    let url_column_index = args
+        .flag_url_column
+        .as_ref()
+        .map(|s| s.single_selection(&headers, !args.flag_no_headers))
+        .transpose()?;
+
     let scraper = match &args.flag_evaluate {
         Some(code) => Scraper::Custom(CustomScraper {
             program: ScrapingProgram::parse(code, &headers)?,
@@ -353,7 +380,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if args.cmd_title {
                 Scraper::Title
             } else if args.cmd_urls {
-                Scraper::Urls
+                Scraper::Urls(url_column_index)
             } else {
                 unreachable!()
             }
@@ -418,10 +445,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     let target = if let Some(input_dir) = &args.flag_input_dir {
-                        ScraperTarget::HtmlFile(
-                            input_dir,
-                            std::str::from_utf8(cell).expect("invalid utf-8"),
-                        )
+                        ScraperTarget::HtmlFile(input_dir, from_utf8(cell).expect("invalid utf-8"))
                     } else {
                         ScraperTarget::HtmlCell(cell)
                     };
@@ -468,10 +492,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 } else {
                     let target = if let Some(input_dir) = &args.flag_input_dir {
-                        ScraperTarget::HtmlFile(
-                            input_dir,
-                            std::str::from_utf8(cell).expect("invalid utf-8"),
-                        )
+                        ScraperTarget::HtmlFile(input_dir, from_utf8(cell).expect("invalid utf-8"))
                     } else {
                         ScraperTarget::HtmlCell(cell)
                     };
