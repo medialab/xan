@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Read};
 use std::iter;
 use std::path::PathBuf;
@@ -282,29 +282,32 @@ TODO... (difference singular/plural)
 
 Usage:
     xan scrape -e <expr> <column> [options] [<input>]
+    xan scrape -f <path> <column> [options] [<input>]
     xan scrape title <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
     xan scrape --help
 
 scrape options:
-    -e, --evaluate <expr>    If given, evaluate the given scraping expression.
-    -I, --input-dir <path>   If given, target column will be understood
-                             as relative path to read from this input
-                             directory instead.
-    -k, --keep <column>      Selection of columns from the input to keep in
-                             the output.
-    -p, --parallel           Whether to use parallelization to speed up computations.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+    -e, --evaluate <expr>       If given, evaluate the given scraping expression.
+    -f, --evaluate-file <path>  If given, evaluate the scraping expression found
+                                in file at <path>.
+    -I, --input-dir <path>      If given, target column will be understood
+                                as relative path to read from this input
+                                directory instead.
+    -k, --keep <column>         Selection of columns from the input to keep in
+                                the output.
+    -p, --parallel              Whether to use parallelization to speed up computations.
+                                Will automatically select a suitable number of threads to use
+                                based on your number of cores. Use -t, --threads if you want to
+                                indicate the number of threads yourself.
+    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
+                                if you want the number of threads to be automatically chosen instead.
 
 scrape url/links options:
     -u, --url-column <column>  Column containing the base url for given HTML.
 
-scrape -e/--evaluate options:
-    -f, --foreach <css>  If given, will return one row per element matching
+scrape -e/--evaluate & -f/--evaluate-file options:
+    -F, --foreach <css>  If given, will return one row per element matching
                          the CSS selector in target document, instead of returning
                          a single row per document.
     --sep <char>            Separator to use when serializing lists.
@@ -329,6 +332,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_evaluate: Option<String>,
+    flag_evaluate_file: Option<String>,
     flag_foreach: Option<String>,
     flag_url_column: Option<SelectColumns>,
     flag_input_dir: Option<String>,
@@ -338,8 +342,24 @@ struct Args {
     flag_threads: Option<usize>,
 }
 
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate.is_some() && self.flag_evaluate_file.is_some() {
+            Err("cannot use both -e/--evaluate & -f/--evaluate-file!")?;
+        }
+
+        if let Some(path) = &self.flag_evaluate_file {
+            self.flag_evaluate = Some(fs::read_to_string(path)?);
+        }
+
+        Ok(())
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve()?;
+
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .select(args.arg_column)
