@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::iter;
 use std::sync::Arc;
@@ -212,6 +213,9 @@ impl SelectionRoutine {
 
 #[derive(Debug, Clone)]
 enum Extractor {
+    Name,
+    Id,
+    Classes,
     RawText,
     Text,
     Json,
@@ -219,6 +223,7 @@ enum Extractor {
     InnerHtml,
     OuterHtml,
     Attr(String),
+    Attrs,
 }
 
 impl TryFrom<Expr> for Extractor {
@@ -227,6 +232,9 @@ impl TryFrom<Expr> for Extractor {
     fn try_from(value: Expr) -> Result<Self, Self::Error> {
         match value {
             Expr::Func(mut call) => Ok(match call.name.as_str() {
+                "name" => Self::Name,
+                "id" => Self::Id,
+                "classes" => Self::Classes,
                 "raw_text" => Self::RawText,
                 "text" => Self::Text,
                 "json" => Self::Json,
@@ -244,6 +252,15 @@ impl TryFrom<Expr> for Extractor {
                         .and_then(|(_, name)| name.try_into_string())
                         .ok_or(ConcretizationError::NotStaticallyAnalyzable)?,
                 ),
+                "data" => Self::Attr(
+                    call.args
+                        .pop()
+                        .and_then(|(_, name)| {
+                            name.try_into_string().map(|s| "data-".to_string() + &s)
+                        })
+                        .ok_or(ConcretizationError::NotStaticallyAnalyzable)?,
+                ),
+                "attrs" => Self::Attrs,
                 _ => return Err(ConcretizationError::UnknownFunction(call.name)),
             }),
             _ => Err(ConcretizationError::NotStaticallyAnalyzable),
@@ -259,6 +276,17 @@ impl Extractor {
                 let element = html.get_element(*id);
 
                 match self {
+                    Self::Name => Some(DynamicValue::from(element.value().name())),
+                    Self::Id => Some(DynamicValue::from(element.value().id())),
+                    Self::Classes => {
+                        let classes = element
+                            .value()
+                            .classes()
+                            .map(DynamicValue::from)
+                            .collect::<Vec<_>>();
+
+                        Some(DynamicValue::from(classes))
+                    }
                     Self::RawText => Some(DynamicValue::from(element.collect_raw_text())),
                     Self::Text => Some(DynamicValue::from(element.collect_text())),
                     Self::InnerHtml => Some(DynamicValue::from(element.inner_html())),
@@ -317,6 +345,16 @@ impl Extractor {
                         Some(found)
                     }
                     Self::Attr(name) => element.attr(name).map(DynamicValue::from),
+                    Self::Attrs => {
+                        let mut map: HashMap<String, DynamicValue> =
+                            HashMap::with_capacity(element.value().attrs.len());
+
+                        for (name, value) in element.value().attrs() {
+                            map.insert(name.to_string(), DynamicValue::from(value));
+                        }
+
+                        Some(DynamicValue::from(map))
+                    }
                 }
             }
             Selection::Plural(ids) => Some(DynamicValue::from(
