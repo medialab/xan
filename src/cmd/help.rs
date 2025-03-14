@@ -518,7 +518,7 @@ impl ScrapingHelp {
         let mut string = String::new();
 
         string.push_str(&recombobulate_cheatsheet(get_scraping_cheatsheet_str()));
-        string.push_str(&"\n\n## Selector functions\n\n".yellow().to_string());
+        string.push_str(&format!("\n\n{}\n\n", "## Selector functions".yellow()));
 
         string.push_str(
             &self
@@ -529,7 +529,7 @@ impl ScrapingHelp {
                 .join(""),
         );
 
-        string.push_str(&"\n## Extractor functions\n\n".yellow().to_string());
+        string.push_str(&format!("\n{}\n\n", "## Extractor functions".yellow()));
 
         string.push_str(
             &self
@@ -575,7 +575,7 @@ impl ScrapingHelp {
 
 lazy_static! {
     static ref LINK_REGEX: Regex = Regex::new(r"- \[([^\]]+)\]\(#[^)]+\)").unwrap();
-    static ref CODE_FENCE_REGEX: Regex = Regex::new(r"```python(\n[^`]+)```").unwrap();
+    static ref CODE_FENCE_REGEX: Regex = Regex::new(r"```(?:python|scss)(\n[^`]+)```").unwrap();
     static ref COMMENT_REGEX: Regex = Regex::new(r"(?m)^    (?:\x1b\[[0-9;]*m)?#.+").unwrap();
     static ref NUMBER_REGEX: Regex = Regex::new(r"(?m)\b-?[0-9][0-9._]*\b").unwrap();
     static ref SPECIAL_REGEX: Regex = Regex::new(r"true|false|null|/john/i?").unwrap();
