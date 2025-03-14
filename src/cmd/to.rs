@@ -261,6 +261,11 @@ impl Args {
             write!(&mut writer, "|")?;
 
             for (cell, width) in record.into_iter().zip(widths.iter()) {
+                let cell = cell
+                    .replace("|", "\\|")
+                    .replace("<", "\\<")
+                    .replace(">", "\\>");
+
                 write!(&mut writer, " {:<width$} |", cell, width = width)?;
             }
 

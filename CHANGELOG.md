@@ -20,6 +20,7 @@
 
 * Fixing `xan flatten -w` wrt line breaks.
 * Fixing underscore expansion when contained in map & list expressions.
+* Fixing `xan to md` cell escaping.
 
 *Performance*
 
