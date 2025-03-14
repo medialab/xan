@@ -3,14 +3,91 @@
     {
       "name": "first",
       "arguments": ["css"],
-      "help": "Select the first element matching given css selection."
+      "returns": "element?",
+      "help": "Select the first element matching given css selection, if any."
+    },
+    {
+      "name": "all",
+      "arguments": ["css"],
+      "returns": "elements",
+      "help": "Select all elements matching given css selection."
+    },
+    {
+      "name": "root",
+      "arguments": [],
+      "returns": "element",
+      "help": "Select the root element of document."
+    },
+    {
+      "name": "parent",
+      "arguments": [],
+      "returns": "element?",
+      "help": "Select the parent element of current selection, if any."
+    },
+    {
+      "name": "contains",
+      "arguments": ["string_or_regex"],
+      "returns": "element?",
+      "help": "Filter the current selected elements by keeping only those containing given substring or matching given regex pattern."
     }
   ],
   "extractors": [
     {
+      "name": "name",
+      "returns": "string",
+      "help": "Extract the HTML tag name of selected element."
+    },
+    {
+      "name": "id",
+      "returns": "string?",
+      "help": "Extract the id attribute of selected element, if any."
+    },
+    {
+      "name": "attr",
+      "arguments": ["name"],
+      "returns": "string?",
+      "help": "Extract desired attribute of selected element, if it exists."
+    },
+    {
+      "name": "attrs",
+      "returns": "map",
+      "help": "Extract a map of selected element's attributes."
+    },
+    {
+      "name": "classes",
+      "returns": "list",
+      "help": "Extract a list of selected element's classes."
+    },
+    {
       "name": "text",
       "returns": "string",
-      "help": "Extract a readable version of target element's text, all while attempting to respect inline vs. block display."
+      "help": "Extract a readable version of selected element's text, all while attempting to respect inline vs. block display."
+    },
+    {
+      "name": "raw_text",
+      "returns": "string",
+      "help": "Extract selected element's text, without any reformatting except from trimming."
+    },
+    {
+      "name": "inner_html",
+      "returns": "string",
+      "help": "Extract selected element's inner HTML."
+    },
+    {
+      "name": "outer_html",
+      "returns": "string",
+      "help": "Extract selected element's outer HTML."
+    },
+    {
+      "name": "json",
+      "returns": "any",
+      "help": "Parse selected element's text as JSON data."
+    },
+    {
+      "name": "json_ld",
+      "arguments": ["type"],
+      "returns": "map",
+      "help": "Parse selected element's text as JSON data, then attempt to find the JSON-LD item matching given type."
     }
   ]
 }

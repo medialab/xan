@@ -66,7 +66,7 @@ static COMMANDS: [&str; 59] = [
     "vocab",
 ];
 
-static HELP_SUBCOMMANDS: [&str; 3] = ["cheatsheet", "functions", "aggs"];
+static HELP_SUBCOMMANDS: [&str; 4] = ["cheatsheet", "functions", "aggs", "scraping"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
 static SCRAPE_SUBCOMMANDS: [&str; 3] = ["title", "links", "urls"];

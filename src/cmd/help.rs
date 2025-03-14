@@ -34,6 +34,14 @@ fn get_aggs_help_json_str() -> &'static str {
     include_str!("../moonblade/doc/aggs.json")
 }
 
+fn get_scraping_cheatsheet_str() -> &'static str {
+    include_str!("../moonblade/doc/scraping.md")
+}
+
+fn get_scraping_functions_json_str() -> &'static str {
+    include_str!("../moonblade/doc/scraping.json")
+}
+
 fn escape_markdown_argument(string: &str) -> String {
     string
         .replace("*", "\\*")
@@ -329,7 +337,7 @@ impl FunctionHelpSection {
 #[derive(Deserialize, Debug)]
 struct FunctionHelp {
     name: String,
-    arguments: Vec<String>,
+    arguments: Option<Vec<String>>,
     returns: String,
     help: String,
     aliases: Option<Vec<String>>,
@@ -351,34 +359,36 @@ fn join_arguments(args: &[String]) -> String {
 
 impl FunctionHelp {
     fn to_txt(&self) -> String {
+        fn single_form(name: &str, args_opt: Option<&Vec<String>>, returns: &str) -> String {
+            if let Some(args) = args_opt {
+                format!(
+                    "- {}({}) -> {}\n",
+                    name.cyan(),
+                    join_arguments(args),
+                    returns.magenta()
+                )
+            } else {
+                format!("- {} -> {}\n", name.cyan(), returns.magenta())
+            }
+        }
+
         let mut string = String::new();
 
         // Main call
-        string.push_str(&format!("- {}(", self.name.cyan()));
-        string.push_str(&format!(
-            "{}) -> {}\n",
-            join_arguments(&self.arguments),
-            self.returns.magenta()
+        string.push_str(&single_form(
+            &self.name,
+            self.arguments.as_ref(),
+            &self.returns,
         ));
 
         // Aliases
         for alias in self.aliases.iter().flatten() {
-            string.push_str(&format!("- {}(", alias.cyan()));
-            string.push_str(&format!(
-                "{}) -> {}\n",
-                join_arguments(&self.arguments),
-                self.returns.magenta()
-            ));
+            string.push_str(&single_form(alias, self.arguments.as_ref(), &self.returns));
         }
 
         // Alternatives
         for alternative in self.alternatives.iter().flatten() {
-            string.push_str(&format!("- {}(", self.name.cyan()));
-            string.push_str(&format!(
-                "{}) -> {}\n",
-                join_arguments(alternative),
-                self.returns.magenta()
-            ));
+            string.push_str(&single_form(&self.name, Some(alternative), &self.returns));
         }
 
         string.push_str(&colorize_functions_help(&indent(&wrap(&self.help), "    ")));
@@ -390,18 +400,26 @@ impl FunctionHelp {
     fn to_md(&self) -> String {
         fn single_form(
             name: &str,
-            args: &[String],
+            args_opt: Option<&Vec<String>>,
             returns: &str,
             help: &str,
             aliases: &Option<Vec<String>>,
         ) -> String {
             format!(
-                "- **{}**({}) -> `{}`{}: {}",
+                "- **{}**{} -> `{}`{}: {}",
                 name,
-                args.iter()
-                    .map(|arg| { format!("*{}*", escape_markdown_argument(arg)) })
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                match args_opt {
+                    Some(args) => {
+                        format!(
+                            "({})",
+                            args.iter()
+                                .map(|arg| format!("*{}*", escape_markdown_argument(arg)))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    }
+                    None => "".to_string(),
+                },
                 returns,
                 if let Some(names) = aliases {
                     format!(
@@ -424,7 +442,7 @@ impl FunctionHelp {
         // Main call
         string.push_str(&single_form(
             &self.name,
-            &self.arguments,
+            self.arguments.as_ref(),
             &self.returns,
             &self.help,
             &self.aliases,
@@ -435,7 +453,7 @@ impl FunctionHelp {
             string.push('\n');
             string.push_str(&single_form(
                 &self.name,
-                alternative,
+                Some(alternative),
                 &self.returns,
                 &self.help,
                 &self.aliases,
@@ -489,6 +507,72 @@ impl Aggs {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct ScrapingHelp {
+    selectors: Vec<FunctionHelp>,
+    extractors: Vec<FunctionHelp>,
+}
+
+impl ScrapingHelp {
+    fn to_txt(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str(&recombobulate_cheatsheet(get_scraping_cheatsheet_str()));
+        string.push_str(&"\n\n## Selector functions\n\n".yellow().to_string());
+
+        string.push_str(
+            &self
+                .selectors
+                .iter()
+                .map(|help| indent(&help.to_txt(), "    "))
+                .collect::<Vec<_>>()
+                .join(""),
+        );
+
+        string.push_str(&"\n## Extractor functions\n\n".yellow().to_string());
+
+        string.push_str(
+            &self
+                .extractors
+                .iter()
+                .map(|help| indent(&help.to_txt(), "    "))
+                .collect::<Vec<_>>()
+                .join(""),
+        );
+
+        string
+    }
+
+    fn to_md(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str(get_scraping_cheatsheet_str());
+        string.push_str("\n\n## Selector functions\n\n");
+
+        string.push_str(
+            &self
+                .selectors
+                .iter()
+                .map(|help| help.to_md())
+                .collect::<Vec<_>>()
+                .join(""),
+        );
+
+        string.push_str("\n## Extractor functions\n\n");
+
+        string.push_str(
+            &self
+                .extractors
+                .iter()
+                .map(|help| help.to_md())
+                .collect::<Vec<_>>()
+                .join(""),
+        );
+
+        string
+    }
+}
+
 lazy_static! {
     static ref LINK_REGEX: Regex = Regex::new(r"- \[([^\]]+)\]\(#[^)]+\)").unwrap();
     static ref CODE_FENCE_REGEX: Regex = Regex::new(r"```python(\n[^`]+)```").unwrap();
@@ -508,6 +592,10 @@ fn recombobulate_cheatsheet(help: &str) -> String {
     let help = help.replace(
         "[`xan help functions`](./functions.md)",
         "`xan help functions`",
+    );
+    let help = help.replace(
+        "[`xan help cheatsheet`](./cheatsheet.md)",
+        "`xan help cheatsheet`",
     );
     let help = help.replace("[`xan help aggs`](./aggs.md)", "`xan help aggs`");
     let help = NUMBER_REGEX.replace_all(&help, |caps: &Captures| caps[0].red().to_string());
@@ -601,6 +689,11 @@ fn parse_aggs_help() -> Aggs {
     Aggs(serde_json::from_str::<Vec<FunctionHelp>>(json_str).unwrap())
 }
 
+fn parse_scraping_help() -> ScrapingHelp {
+    let json_str = get_scraping_functions_json_str();
+    serde_json::from_str(json_str).unwrap()
+}
+
 static USAGE: &str = "
 Print help about the `xan` expression language.
 
@@ -618,6 +711,10 @@ aggregation functions (as used in `xan agg` and `xan groupby` mostly).
 It can also be found online here:
 https://github.com/medialab/xan/blob/master/docs/moonblade/aggs.md
 
+`xan help scraping` will print information about the DSL used
+by `xan scrape` and the related functions. It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/scraping.md
+
 Use the -p/--pager flag to open desired documentation in a suitable
 pager.
 
@@ -628,6 +725,7 @@ Usage:
     xan help cheatsheet [options]
     xan help functions [options]
     xan help aggs [options]
+    xan help scraping [options]
     xan help --help
 
 help options:
@@ -649,6 +747,7 @@ struct Args {
     cmd_cheatsheet: bool,
     cmd_functions: bool,
     cmd_aggs: bool,
+    cmd_scraping: bool,
     flag_open: bool,
     flag_pager: bool,
     flag_section: Option<String>,
@@ -664,8 +763,12 @@ impl Args {
                 "cheatsheet"
             } else if self.cmd_functions {
                 "functions"
-            } else {
+            } else if self.cmd_aggs {
                 "aggs"
+            } else if self.cmd_scraping {
+                "scraping"
+            } else {
+                unreachable!()
             }
         );
 
@@ -739,6 +842,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             args.setup_pager()?;
             print!("{}", parse_aggs_help().to_txt());
+        }
+    } else if args.cmd_scraping {
+        if args.flag_json {
+            println!("{}", get_scraping_functions_json_str());
+        } else if args.flag_md {
+            print!("{}", parse_scraping_help().to_md());
+        } else {
+            args.setup_pager()?;
+            print!("{}", parse_scraping_help().to_txt());
         }
     }
 

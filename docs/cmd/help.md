@@ -18,6 +18,10 @@ aggregation functions (as used in `xan agg` and `xan groupby` mostly).
 It can also be found online here:
 https://github.com/medialab/xan/blob/master/docs/moonblade/aggs.md
 
+`xan help scraping` will print information about the DSL used
+by `xan scrape` and the related functions. It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/scraping.md
+
 Use the -p/--pager flag to open desired documentation in a suitable
 pager.
 
@@ -28,6 +32,7 @@ Usage:
     xan help cheatsheet [options]
     xan help functions [options]
     xan help aggs [options]
+    xan help scraping [options]
     xan help --help
 
 help options:

@@ -13,6 +13,7 @@
 * `moonblade` now tolerates line-breaks as whitespace when parsing. This makes it possible to write your expressions on multiple lines.
 * `moonblade` now accepts comments starting with `#`.
 * Adding `xan scrape` command.
+* Adding `xan help scraping` subcommand.
 * Adding moonblade function `html_unescape`.
 
 *Fix*
