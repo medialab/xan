@@ -148,12 +148,17 @@ impl ScraperTarget<'_> {
 
 // Scraper abstractions
 lazy_static! {
+    // Regexes
     static ref HTML_LIKE_REGEX: Regex =
         Regex::new(r"^\s*<(?:html|head|body|title|meta|link|span|div|img|ul|ol|[ap!?])").unwrap();
     static ref TITLE_REGEX: Regex = Regex::new(r"<title>(.*?)</title>").unwrap();
     static ref SCRIPT_REGEX: Regex = Regex::new(r"<script[^>]*>.*?</script>").unwrap();
     static ref URLS_IN_HTML_REGEX: Regex =
         Regex::new(r#"<a[^>]*\shref=(?:"([^"]*)"|'([^']*)'|([^\s>]*))[^>]*>"#).unwrap();
+
+    // Selectors
+    static ref CANONICAL_SELECTOR: Selector =
+        Selector::parse("head > link[rel=canonical]").unwrap();
 }
 
 fn looks_like_html(bytes: &[u8]) -> bool {
@@ -193,6 +198,7 @@ impl CustomScraper {
 #[derive(Clone)]
 enum Scraper {
     Title,
+    Canonical,
     Urls(Option<usize>),
     Custom(CustomScraper),
 }
@@ -200,7 +206,7 @@ enum Scraper {
 impl Scraper {
     fn is_plural(&self) -> bool {
         match self {
-            Self::Title => false,
+            Self::Title | Self::Canonical => false,
             Self::Urls(_) => true,
             Self::Custom(inner) => inner.is_plural(),
         }
@@ -209,6 +215,7 @@ impl Scraper {
     fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
         match self {
             Self::Title => Box::new(iter::once("title")),
+            Self::Canonical => Box::new(iter::once("canonical_url")),
             Self::Urls(_) => Box::new(iter::once("url")),
             Self::Custom(scraper) => Box::new(scraper.program.names()),
         }
@@ -222,6 +229,16 @@ impl Scraper {
                 from_utf8(&caps[1]).unwrap(),
             ))
         }))
+    }
+
+    fn scrape_canonical(&self, target: ScraperTarget) -> CliResult<Option<String>> {
+        let bytes = target.prebuffer_up_to_head()?;
+        let html = Html::parse_document(from_utf8(&bytes).unwrap());
+
+        Ok(html
+            .select(&CANONICAL_SELECTOR)
+            .next()
+            .and_then(|element| element.attr("href").map(|href| href.trim().to_string())))
     }
 
     fn scrape_urls(
@@ -272,6 +289,9 @@ impl Scraper {
 
                 Ok(vec![vec![title_opt.unwrap_or(DynamicValue::None)]])
             }
+            Self::Canonical => Ok(vec![vec![DynamicValue::from(
+                self.scrape_canonical(target)?,
+            )]]),
             Self::Urls(url_column_index) => {
                 let urls = self.scrape_urls(record, target, *url_column_index)?;
 
@@ -308,6 +328,7 @@ or -t/--threads.
 # Builtin scrapers
 
     - \"title\": scrape the content of the <title> tag if any
+    - \"canonical\": scrape the canonical link if any
     - \"urls\": find all urls linked in the document
 
 # Custom scrapers
@@ -336,7 +357,7 @@ Scrapers can be \"singular\" or \"plural\".
 A singular scraper will produce exactly one output row per input row,
 while a plural scraper can produce 0 to n output rows per input row.
 
-Singular builtin scrapers: \"title\".
+Singular builtin scrapers: \"title\", \"canonical\".
 
 Plural builtin scrapers: \"urls\".
 
@@ -349,6 +370,7 @@ Usage:
     xan scrape -e <expr> <column> [options] [<input>]
     xan scrape -f <path> <column> [options] [<input>]
     xan scrape title <column> [options] [<input>]
+    xan scrape canonical <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
     xan scrape --help
 
@@ -392,6 +414,7 @@ struct Args {
     arg_input: Option<String>,
     arg_column: SelectColumns,
     cmd_title: bool,
+    cmd_canonical: bool,
     cmd_urls: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -464,6 +487,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         None => {
             if args.cmd_title {
                 Scraper::Title
+            } else if args.cmd_canonical {
+                Scraper::Canonical
             } else if args.cmd_urls {
                 Scraper::Urls(url_column_index)
             } else {
