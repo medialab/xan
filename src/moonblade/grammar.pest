@@ -168,7 +168,7 @@ named_func     =  { func ~ "as" ~ expr_name }
 opt_named_func = _{ named_func | func }
 named_aggs     = _{ SOI ~ opt_named_func ~ ("," ~ opt_named_func)* ~ ","? ~ EOI }
 
-css_char     = _{ LETTER | NUMBER | "*" | "_" | "-" | "[" | "]" | ":" | "." | "#" | ">" | "~" | "+" | "," | "\"" | "'" | "=" | "^" | "/" | "(" | ")" }
+css_char     = _{ LETTER | NUMBER | "*" | "_" | "-" | "[" | "]" | ":" | "." | "#" | ">" | "~" | "+" | "," | "\"" | "'" | "=" | "^" | "/" | "(" | ")" | "$" }
 css_selector =  { ('a'..'z' | 'A'..'Z' | ":" | "." | "#" | "[" | "*" | "&") ~ css_char* }
 
 scraping_select   = _{ func_chain | css_selector }
