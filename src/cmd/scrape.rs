@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::iter;
@@ -51,6 +52,10 @@ fn read_bytes(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
 
 const PREBUFFER_SIZE: usize = 4096;
 
+fn find_head(bytes: &[u8]) -> Option<usize> {
+    bytes.rfind(b"</head>").or_else(|| bytes.rfind(b"</HEAD>"))
+}
+
 fn read_up_to_head(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     let mut buffer = [0u8; PREBUFFER_SIZE];
@@ -69,10 +74,7 @@ fn read_up_to_head(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
 
         debug_assert!(haystack.len() <= PREBUFFER_SIZE + 7);
 
-        if let Some(i) = haystack
-            .rfind(b"</head>")
-            .or_else(|| haystack.rfind(b"</HEAD>"))
-        {
+        if let Some(i) = find_head(haystack) {
             bytes.truncate(offset + i + 7);
             break;
         }
@@ -103,25 +105,30 @@ fn guard_invalid_html_cell(cell: &[u8]) -> CliResult<()> {
 }
 
 impl ScraperTarget<'_> {
-    fn prebuffer_up_to_head(&self) -> CliResult<Vec<u8>> {
+    fn prebuffer_up_to_head(&self) -> CliResult<Cow<[u8]>> {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
-                Ok(cell[..PREBUFFER_SIZE.min(cell.len())].to_vec())
+                Ok(match find_head(cell) {
+                    Some(i) => Cow::Borrowed(&cell[..i + 7]),
+                    None => Cow::Borrowed(cell),
+                })
             }
-            Self::HtmlFile(input_dir, filename) => Ok(read_up_to_head(input_dir, filename)?),
+            Self::HtmlFile(input_dir, filename) => {
+                Ok(Cow::Owned(read_up_to_head(input_dir, filename)?))
+            }
         }
     }
 
-    fn read_bytes(&self) -> CliResult<Vec<u8>> {
+    fn read_bytes(&self) -> CliResult<Cow<[u8]>> {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
 
-                Ok(cell.to_vec())
+                Ok(Cow::Borrowed(cell))
             }
-            Self::HtmlFile(input_dir, filename) => Ok(read_bytes(input_dir, filename)?),
+            Self::HtmlFile(input_dir, filename) => Ok(Cow::Owned(read_bytes(input_dir, filename)?)),
         }
     }
 

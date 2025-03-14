@@ -9,7 +9,7 @@
   "extractors": [
     {
       "name": "text",
-      "arguments": [],
+      "returns": "string",
       "help": "Extract a readable version of target element's text, all while attempting to respect inline vs. block display."
     }
   ]
