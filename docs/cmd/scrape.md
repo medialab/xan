@@ -26,8 +26,9 @@ or -t/--threads.
 
 # Builtin scrapers
 
-    - "title": scrape the content of the <title> tag if any
-    - "canonical": scrape the canonical link if any
+    - "head": scrape typical metadata found in <head> like:
+        - "title"
+        - "canonical_url"
     - "urls": find all urls linked in the document
 
 # Custom scrapers
@@ -56,7 +57,7 @@ Scrapers can be "singular" or "plural".
 A singular scraper will produce exactly one output row per input row,
 while a plural scraper can produce 0 to n output rows per input row.
 
-Singular builtin scrapers: "title", "canonical".
+Singular builtin scrapers: "head".
 
 Plural builtin scrapers: "urls".
 
@@ -68,8 +69,7 @@ the -k/--keep flag to select the input columns to keep in the output.
 Usage:
     xan scrape -e <expr> <column> [options] [<input>]
     xan scrape -f <path> <column> [options] [<input>]
-    xan scrape title <column> [options] [<input>]
-    xan scrape canonical <column> [options] [<input>]
+    xan scrape head <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
     xan scrape --help
 
