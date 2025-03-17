@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use pariter::IteratorExt;
 use regex::bytes::Regex;
 use scraper::{Html, Selector};
+use serde_json::{Map, Value};
 use url::Url;
 
 use crate::config::{Config, Delimiter};
@@ -159,6 +160,7 @@ lazy_static! {
     static ref TITLE_SELECTOR: Selector = Selector::parse("title").unwrap();
     static ref CANONICAL_SELECTOR: Selector =
         Selector::parse("link[rel=canonical]").unwrap();
+    static ref JSON_LD_SELECTOR: Selector = Selector::parse("script[type=\"application/ld+json\"]").unwrap();
 }
 
 fn looks_like_html(bytes: &[u8]) -> bool {
@@ -182,7 +184,7 @@ impl CustomScraper {
         record: &csv::ByteRecord,
         html: &Html,
     ) -> CliResult<Vec<DynamicValue>> {
-        Ok(self.program.run_singular(index, record, &html)?)
+        Ok(self.program.run_singular(index, record, html)?)
     }
 
     fn scrape(
@@ -226,7 +228,20 @@ impl Scraper {
             Self::Head => vec!["title".to_string(), "canonical_url".to_string()],
             Self::Urls(_) => vec!["url".to_string()],
             Self::Article(scraper_opt) => {
-                let mut names = vec!["canonical_url".to_string()];
+                let mut names = vec![
+                    "canonical_url".to_string(),
+                    "headline".to_string(),
+                    "description".to_string(),
+                    "date_created".to_string(),
+                    "date_published".to_string(),
+                    "date_modified".to_string(),
+                    "section".to_string(),
+                    "keywords".to_string(),
+                    "authors".to_string(),
+                    "image".to_string(),
+                    "image_caption".to_string(),
+                    "free".to_string(),
+                ];
 
                 if let Some(scraper) = scraper_opt {
                     for name in scraper.program.names() {
@@ -306,12 +321,155 @@ impl Scraper {
     }
 
     fn scrape_article(&self, html: &Html) -> CliResult<Vec<DynamicValue>> {
-        let mut output = vec![DynamicValue::None; 1];
+        let mut output = vec![DynamicValue::None; 12];
 
         if let Some(head_element) = html.select(&HEAD_SELECTOR).next() {
             if let Some(canonical_element) = head_element.select(&CANONICAL_SELECTOR).next() {
                 if let Some(link) = canonical_element.attr("href") {
                     output[0] = DynamicValue::from(link);
+                }
+            }
+        }
+
+        let mut json_ld: Option<Map<String, Value>> = None;
+
+        'main: for script_element in html.select(&JSON_LD_SELECTOR) {
+            if let Ok(value) = serde_json::from_str(&script_element.text().collect::<String>()) {
+                // Single map variant
+                if let Value::Object(map) = value {
+                    if let Some(v) = map.get("@type") {
+                        if let Some(t) = v.as_str() {
+                            let t = t.to_lowercase();
+
+                            if t == "http://schema.org/newsarticle" || t == "newsarticle" {
+                                json_ld = Some(map);
+                                break 'main;
+                            }
+                        }
+                    }
+                }
+                // Multiple map variants
+                else if let Value::Array(list) = value {
+                    for item in list {
+                        if let Value::Object(map) = item {
+                            if let Some(v) = map.get("@type") {
+                                if let Some(t) = v.as_str() {
+                                    let t = t.to_lowercase();
+
+                                    if t == "http://schema.org/newsarticle" || t == "newsarticle" {
+                                        json_ld = Some(map);
+                                        break 'main;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        fn clean_htmlish(string: &str) -> DynamicValue {
+            DynamicValue::from(html_escape::decode_html_entities(string).trim())
+        }
+
+        // dbg!(&json_ld);
+
+        if let Some(data) = json_ld {
+            macro_rules! extract_raw {
+                ($index: expr, $key: expr) => {
+                    if let Some(d) = data.get($key) {
+                        if let Some(text) = d.as_str() {
+                            output[$index] = DynamicValue::from(text);
+                        }
+                    }
+                };
+            }
+
+            macro_rules! extract_text {
+                ($index: expr, $key: expr) => {
+                    if let Some(d) = data.get($key) {
+                        if let Some(text) = d.as_str() {
+                            output[$index] = clean_htmlish(text);
+                        }
+                    }
+                };
+            }
+
+            macro_rules! extract_plural {
+                ($index: expr, $key: expr) => {
+                    if let Some(d) = data.get($key) {
+                        if let Some(l) = d.as_array() {
+                            output[$index] = l
+                                .iter()
+                                .filter_map(|d| d.as_str())
+                                .collect::<Vec<_>>()
+                                .join("§")
+                                .into();
+                        } else if let Some(t) = d.as_str() {
+                            output[$index] = t.into();
+                        }
+                    }
+                };
+            }
+
+            extract_text!(1, "headline");
+            extract_text!(2, "description");
+            extract_raw!(3, "dateCreated");
+            extract_raw!(4, "datePublished");
+            extract_raw!(5, "dateModified");
+            extract_plural!(6, "articleSection");
+            extract_plural!(7, "keywords");
+
+            if let Some(author) = data.get("author") {
+                if let Some(name) = author.as_str() {
+                    output[8] = name.into();
+                } else if let Some(names) = author.as_array() {
+                    output[8] = names
+                        .iter()
+                        .filter_map(|author| {
+                            if let Some(text) = author.as_str() {
+                                return Some(text);
+                            } else if let Some(author_data) = author.as_object() {
+                                if let Some(name) = author_data.get("name") {
+                                    if let Some(text) = name.as_str() {
+                                        return Some(text);
+                                    }
+                                }
+                            }
+
+                            None
+                        })
+                        .collect::<Vec<_>>()
+                        .join("§")
+                        .into();
+                }
+
+                if let Some(image) = data.get("image") {
+                    if let Some(url) = image.as_str() {
+                        output[9] = url.into();
+                    } else if let Some(image_data) = image.as_object() {
+                        if let Some(url) = image_data.get("url") {
+                            if let Some(text) = url.as_str() {
+                                output[9] = text.into();
+                            }
+                        }
+
+                        if let Some(caption) =
+                            image_data.get("caption").or_else(|| image_data.get("name"))
+                        {
+                            if let Some(text) = caption.as_str() {
+                                output[10] = text.into();
+                            }
+                        }
+                    }
+                }
+
+                output[11] = DynamicValue::from(false);
+
+                if let Some(free) = data.get("isAccessibleForFree") {
+                    if let Some(v) = free.as_bool() {
+                        output[11] = DynamicValue::from(v);
+                    }
                 }
             }
         }
@@ -381,8 +539,19 @@ or -t/--threads.
     - \"urls\": find all urls linked in the document:
         - url
     - \"article\": mining typical news article metadata by analyzing <head>
-                   and JSON LD data (with possible supplementary -e):
+      and JSON LD data (with possible supplementary -e):
         - canonical_url
+        - headline
+        - description
+        - date_created
+        - date_published
+        - date_modified
+        - section
+        - keywords
+        - authors
+        - image
+        - image_caption
+        - free
 
 # Custom scrapers
 
@@ -532,7 +701,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_foreach.is_some() {
             Err("-F/--foreach does not work with `xan scrape article -e`!")?;
         }
-        dbg!(&args.flag_evaluate);
+
         Scraper::Article(
             args.flag_evaluate
                 .as_ref()
