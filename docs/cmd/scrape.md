@@ -32,8 +32,19 @@ or -t/--threads.
     - "urls": find all urls linked in the document:
         - url
     - "article": mining typical news article metadata by analyzing <head>
-                   and JSON LD data (with possible supplementary -e):
+      and JSON LD data (with possible supplementary -e):
         - canonical_url
+        - headline
+        - description
+        - date_created
+        - date_published
+        - date_modified
+        - section
+        - keywords
+        - authors
+        - image
+        - image_caption
+        - free
 
 # Custom scrapers
 
