@@ -257,9 +257,9 @@ impl Scraper {
 
         for caps in URLS_IN_HTML_REGEX.captures_iter(&bytes) {
             let url = if let Some(m) = caps.get(1) {
-                &m.as_bytes()[..m.len().saturating_sub(1)]
+                m.as_bytes().trim_end_with(|c| c == '"')
             } else if let Some(m) = caps.get(2) {
-                &m.as_bytes()[..m.len().saturating_sub(1)]
+                m.as_bytes().trim_end_with(|c| c == '\'')
             } else {
                 &caps[3]
             };

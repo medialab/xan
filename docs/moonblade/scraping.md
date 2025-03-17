@@ -74,7 +74,7 @@ Selection can use expressions to navigate freely through the DOM (see
 a comprehensive list of all selector functions at the end of this help):
 
 ```scss
-first("h2").parent() {
+first("h2", containing="Summary").parent() {
   title: text;
 }
 
@@ -114,11 +114,10 @@ https://github.com/medialab/xan/tree/master/docs/scrapers
 
 ## Selector functions
 
-- **first**(*css*) -> `element?`: Select the first element matching given css selection, if any.
-- **all**(*css*) -> `elements`: Select all elements matching given css selection.
+- **first**(*css*, *containing=pattern?*) -> `element?`: Select the first element matching given css selection, if any.
+- **all**(*css*, *containing=pattern?*) -> `elements`: Select all elements matching given css selection.
 - **root**() -> `element`: Select the root element of document.
 - **parent**() -> `element?`: Select the parent element of current selection, if any.
-- **contains**(*string_or_regex*) -> `element?`: Filter the current selected elements by keeping only those containing given substring or matching given regex pattern.
 
 ## Extractor functions
 

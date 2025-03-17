@@ -74,7 +74,7 @@ Selection can use expressions to navigate freely through the DOM (see
 a comprehensive list of all selector functions at the end of this help):
 
 ```scss
-first("h2").parent() {
+first("h2", containing="Summary").parent() {
   title: text;
 }
 

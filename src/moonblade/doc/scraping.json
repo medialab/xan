@@ -2,13 +2,13 @@
   "selectors": [
     {
       "name": "first",
-      "arguments": ["css"],
+      "arguments": ["css", "containing=pattern?"],
       "returns": "element?",
       "help": "Select the first element matching given css selection, if any."
     },
     {
       "name": "all",
-      "arguments": ["css"],
+      "arguments": ["css", "containing=pattern?"],
       "returns": "elements",
       "help": "Select all elements matching given css selection."
     },
@@ -23,12 +23,6 @@
       "arguments": [],
       "returns": "element?",
       "help": "Select the parent element of current selection, if any."
-    },
-    {
-      "name": "contains",
-      "arguments": ["string_or_regex"],
-      "returns": "element?",
-      "help": "Filter the current selected elements by keeping only those containing given substring or matching given regex pattern."
     }
   ],
   "extractors": [
