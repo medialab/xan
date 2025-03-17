@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.47.1
+
+*Fixes*
+
+Fixing CI builds.
+
 ## 0.47.0
 
 *Breaking*
