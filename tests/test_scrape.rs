@@ -12,13 +12,13 @@ fn scrape() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("title").arg("html").arg("data.csv");
+    cmd.arg("head").arg("html").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["html", "title"],
-        svec!["<title>One</title>", "One"],
-        svec!["<title>Two</title>", "Two"],
+        svec!["html", "title", "canonical_url",],
+        svec!["<title>One</title>", "One", ""],
+        svec!["<title>Two</title>", "Two", ""],
     ];
     assert_eq!(got, expected);
 }
@@ -37,15 +37,15 @@ fn scrape_parallel() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("title").arg("html").arg("-p").arg("data.csv");
+    cmd.arg("head").arg("html").arg("-p").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["html", "title"],
-        svec!["<title>One</title>", "One"],
-        svec!["<title>Two</title>", "Two"],
-        svec!["<title>Three</title>", "Three"],
-        svec!["<title>Four</title>", "Four"],
+        svec!["html", "title", "canonical_url"],
+        svec!["<title>One</title>", "One", ""],
+        svec!["<title>Two</title>", "Two", ""],
+        svec!["<title>Three</title>", "Three", ""],
+        svec!["<title>Four</title>", "Four", ""],
     ];
     assert_eq!(got, expected);
 }
@@ -61,16 +61,16 @@ fn scrape_input_dir() {
         vec![svec!["path"], svec!["one.html"], svec!["two.html"]],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("title")
+    cmd.arg("head")
         .arg("path")
         .args(["-I", "."])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["path", "title"],
-        svec!["one.html", "One"],
-        svec!["two.html", "Two"],
+        svec!["path", "title", "canonical_url"],
+        svec!["one.html", "One", ""],
+        svec!["two.html", "Two", ""],
     ];
     assert_eq!(got, expected);
 }
@@ -87,13 +87,17 @@ fn scrape_keep() {
         ],
     );
     let mut cmd = wrk.command("scrape");
-    cmd.arg("title")
+    cmd.arg("head")
         .arg("html")
         .args(["--keep", ""])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["title"], svec!["One"], svec!["Two"]];
+    let expected = vec![
+        svec!["title", "canonical_url"],
+        svec!["One", ""],
+        svec!["Two", ""],
+    ];
     assert_eq!(got, expected);
 }
 

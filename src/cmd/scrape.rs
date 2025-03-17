@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::fs::{self, File};
 use std::io::{self, Read};
-use std::iter;
 use std::path::PathBuf;
 use std::str::from_utf8;
 
@@ -177,6 +176,15 @@ impl CustomScraper {
         self.foreach.is_some()
     }
 
+    fn run_singular(
+        &self,
+        index: usize,
+        record: &csv::ByteRecord,
+        html: &Html,
+    ) -> CliResult<Vec<DynamicValue>> {
+        Ok(self.program.run_singular(index, record, &html)?)
+    }
+
     fn scrape(
         &self,
         index: usize,
@@ -200,23 +208,39 @@ impl CustomScraper {
 enum Scraper {
     Head,
     Urls(Option<usize>),
+    Article(Option<CustomScraper>),
     Custom(CustomScraper),
 }
 
 impl Scraper {
     fn is_plural(&self) -> bool {
         match self {
-            Self::Head => false,
+            Self::Head | Self::Article(_) => false,
             Self::Urls(_) => true,
             Self::Custom(inner) => inner.is_plural(),
         }
     }
 
-    fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+    fn names(&self) -> Vec<String> {
         match self {
-            Self::Head => Box::new(["title", "canonical_url"].into_iter()),
-            Self::Urls(_) => Box::new(iter::once("url")),
-            Self::Custom(scraper) => Box::new(scraper.program.names()),
+            Self::Head => vec!["title".to_string(), "canonical_url".to_string()],
+            Self::Urls(_) => vec!["url".to_string()],
+            Self::Article(scraper_opt) => {
+                let mut names = vec!["canonical_url".to_string()];
+
+                if let Some(scraper) = scraper_opt {
+                    for name in scraper.program.names() {
+                        names.push(name.to_string());
+                    }
+                }
+
+                names
+            }
+            Self::Custom(scraper) => scraper
+                .program
+                .names()
+                .map(|name| name.to_string())
+                .collect(),
         }
     }
 
@@ -281,6 +305,20 @@ impl Scraper {
         Ok(urls)
     }
 
+    fn scrape_article(&self, html: &Html) -> CliResult<Vec<DynamicValue>> {
+        let mut output = vec![DynamicValue::None; 1];
+
+        if let Some(head_element) = html.select(&HEAD_SELECTOR).next() {
+            if let Some(canonical_element) = head_element.select(&CANONICAL_SELECTOR).next() {
+                if let Some(link) = canonical_element.attr("href") {
+                    output[0] = DynamicValue::from(link);
+                }
+            }
+        }
+
+        Ok(output)
+    }
+
     fn scrape(
         &self,
         index: usize,
@@ -293,6 +331,19 @@ impl Scraper {
                 let urls = self.scrape_urls(record, target, *url_column_index)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
+            }
+            Self::Article(scraper_opt) => {
+                let html = target.read_html()?;
+
+                let mut output = self.scrape_article(&html)?;
+
+                if let Some(scraper) = scraper_opt {
+                    let supplementary_output = scraper.run_singular(index, record, &html)?;
+
+                    output.extend(supplementary_output);
+                }
+
+                Ok(vec![output])
             }
             Self::Custom(scraper) => scraper.scrape(index, record, target),
         }
@@ -324,10 +375,14 @@ or -t/--threads.
 
 # Builtin scrapers
 
-    - \"head\": scrape typical metadata found in <head> like:
-        - \"title\"
-        - \"canonical_url\"
-    - \"urls\": find all urls linked in the document
+    - \"head\": scrape typical metadata found in <head>:
+        - title
+        - canonical_url
+    - \"urls\": find all urls linked in the document:
+        - url
+    - \"article\": mining typical news article metadata by analyzing <head>
+                   and JSON LD data (with possible supplementary -e):
+        - canonical_url
 
 # Custom scrapers
 
@@ -355,7 +410,7 @@ Scrapers can be \"singular\" or \"plural\".
 A singular scraper will produce exactly one output row per input row,
 while a plural scraper can produce 0 to n output rows per input row.
 
-Singular builtin scrapers: \"head\".
+Singular builtin scrapers: \"head\", \"article\".
 
 Plural builtin scrapers: \"urls\".
 
@@ -365,10 +420,11 @@ It can be useful, especially when using plural scrapers, to use
 the -k/--keep flag to select the input columns to keep in the output.
 
 Usage:
-    xan scrape -e <expr> <column> [options] [<input>]
-    xan scrape -f <path> <column> [options] [<input>]
     xan scrape head <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
+    xan scrape article <column> [options] [<input>]
+    xan scrape -e <expr> <column> [options] [<input>]
+    xan scrape -f <path> <column> [options] [<input>]
     xan scrape --help
 
 scrape options:
@@ -412,6 +468,7 @@ struct Args {
     arg_column: SelectColumns,
     cmd_head: bool,
     cmd_urls: bool,
+    cmd_article: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -469,9 +526,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|s| s.single_selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
-    let scraper = match &args.flag_evaluate {
-        Some(code) => Scraper::Custom(CustomScraper {
-            program: ScrapingProgram::parse(code, &headers)?,
+    let scraper = if args.cmd_head {
+        Scraper::Head
+    } else if args.cmd_article {
+        if args.flag_foreach.is_some() {
+            Err("-F/--foreach does not work with `xan scrape article -e`!")?;
+        }
+        dbg!(&args.flag_evaluate);
+        Scraper::Article(
+            args.flag_evaluate
+                .as_ref()
+                .map(|code| -> CliResult<CustomScraper> {
+                    Ok(CustomScraper {
+                        program: ScrapingProgram::parse(code, &headers)?,
+                        foreach: None,
+                    })
+                })
+                .transpose()?,
+        )
+    } else if args.cmd_urls {
+        Scraper::Urls(url_column_index)
+    } else {
+        Scraper::Custom(CustomScraper {
+            program: ScrapingProgram::parse(args.flag_evaluate.as_ref().unwrap(), &headers)?,
             foreach: args
                 .flag_foreach
                 .as_ref()
@@ -479,16 +556,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     Selector::parse(css).map_err(|_| format!("invalid CSS selector: {}", css))
                 })
                 .transpose()?,
-        }),
-        None => {
-            if args.cmd_head {
-                Scraper::Head
-            } else if args.cmd_urls {
-                Scraper::Urls(url_column_index)
-            } else {
-                unreachable!()
-            }
-        }
+        })
     };
 
     let keep = args
@@ -504,7 +572,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut writer = Config::new(&args.flag_output).writer()?;
 
-    let padding = scraper.names().count();
+    let scraper_field_names = scraper.names();
+    let padding = scraper_field_names.len();
 
     if !args.flag_no_headers {
         let mut output_headers = headers.clone();
@@ -513,7 +582,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             output_headers = keep_sel.select(&output_headers).collect();
         }
 
-        for name in scraper.names() {
+        for name in scraper_field_names {
             output_headers.push_field(name.as_bytes());
         }
 

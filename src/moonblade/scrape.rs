@@ -697,7 +697,7 @@ fn concretize_scraper(
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
     context: EvaluationContext,
-    capacity: usize,
+    pub capacity: usize,
 }
 
 impl ScrapingProgram {

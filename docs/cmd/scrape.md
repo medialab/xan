@@ -26,10 +26,14 @@ or -t/--threads.
 
 # Builtin scrapers
 
-    - "head": scrape typical metadata found in <head> like:
-        - "title"
-        - "canonical_url"
-    - "urls": find all urls linked in the document
+    - "head": scrape typical metadata found in <head>:
+        - title
+        - canonical_url
+    - "urls": find all urls linked in the document:
+        - url
+    - "article": mining typical news article metadata by analyzing <head>
+                   and JSON LD data (with possible supplementary -e):
+        - canonical_url
 
 # Custom scrapers
 
@@ -57,7 +61,7 @@ Scrapers can be "singular" or "plural".
 A singular scraper will produce exactly one output row per input row,
 while a plural scraper can produce 0 to n output rows per input row.
 
-Singular builtin scrapers: "head".
+Singular builtin scrapers: "head", "article".
 
 Plural builtin scrapers: "urls".
 
@@ -67,10 +71,11 @@ It can be useful, especially when using plural scrapers, to use
 the -k/--keep flag to select the input columns to keep in the output.
 
 Usage:
-    xan scrape -e <expr> <column> [options] [<input>]
-    xan scrape -f <path> <column> [options] [<input>]
     xan scrape head <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
+    xan scrape article <column> [options] [<input>]
+    xan scrape -e <expr> <column> [options] [<input>]
+    xan scrape -f <path> <column> [options] [<input>]
     xan scrape --help
 
 scrape options:
