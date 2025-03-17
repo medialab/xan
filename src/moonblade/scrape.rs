@@ -12,7 +12,7 @@ use scraper::{Element, ElementRef, Html, Node, Selector};
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
 use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
-use super::types::{Arity, DynamicValue};
+use super::types::{DynamicValue, FunctionArguments};
 
 trait HtmlExt {
     fn get_element(&self, id: NodeId) -> ElementRef;
@@ -542,11 +542,11 @@ fn parse_contains_pattern(
     Ok(ContainsPattern::Substring(substring.into_owned()))
 }
 
-fn get_selection_function_arity(name: &str) -> Option<Arity> {
+fn get_selection_function_arguments(name: &str) -> Option<FunctionArguments> {
     Some(match name {
-        "stay" | "root" => Arity::Strict(0),
-        "parent" => Arity::Strict(1),
-        "first" | "all" | "contains" => Arity::Range(1..=2),
+        "stay" | "root" => FunctionArguments::nullary(),
+        "parent" => FunctionArguments::unary(),
+        "first" | "all" | "contains" => FunctionArguments::with_range(1..=2),
         _ => return None,
     })
 }
@@ -558,12 +558,14 @@ fn concretize_selection_expr(
 ) -> Result<ConcreteSelectionExpr, ConcretizationError> {
     match expr {
         Expr::Func(mut call) => {
-            let arity = get_selection_function_arity(&call.name)
+            let function_arguments = get_selection_function_arguments(&call.name)
                 .ok_or_else(|| ConcretizationError::UnknownFunction(call.name.to_string()))?;
 
-            arity.validate(call.args.len()).map_err(|invalid_arity| {
-                ConcretizationError::InvalidArity(call.name.to_string(), invalid_arity)
-            })?;
+            function_arguments
+                .validate_arity(call.args.len())
+                .map_err(|invalid_arity| {
+                    ConcretizationError::InvalidArity(call.name.to_string(), invalid_arity)
+                })?;
 
             // Nullary
             if call.name == "stay" {
