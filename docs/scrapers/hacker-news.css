@@ -1,0 +1,8 @@
+& {
+  id: id;
+
+  .titleline > a {
+    title: text;
+    url: attr("href");
+  }
+}
