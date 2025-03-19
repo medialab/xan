@@ -23,7 +23,7 @@
   }
 
   p > a {
-    comment_url: attr("href"), urljoin("https://www.echojs.com/", value);
-    comments: text, if(value eq "discuss", 0, value.split(" comm")[0]);
+    comments_url: attr("href"), urljoin("https://www.echojs.com/", value);
+    comments_count: text, if(value eq "discuss", 0, value.split(" comm")[0]);
   }
 }

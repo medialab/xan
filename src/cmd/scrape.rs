@@ -512,19 +512,19 @@ static USAGE: &str = "
 Scrape HTML files to output tabular CSV data.
 
 This command can either process a CSV file with a column containing
-raw HTML, or a CSV file with a column of relative paths that will
-be read by the command for you when using the -I/--input-dir flag:
+raw HTML, or a CSV file with a column of paths to read, relative to what is given
+to the -I/--input-dir flag.
 
 Scraping a HTML column:
 
-    $ xan scrape title document docs.csv > docs-with-titles.csv
+    $ xan scrape head document docs.csv > enriched-docs.csv
 
 Scraping HTML files on disk, using the -I/--input-dir flag:
 
-    $ xan scrape title path -I ./docs > docs-with-title.csv
+    $ xan scrape head path -I ./downloaded docs.csv > enriched-docs.csv
 
 Then, this command knows how to scrape typical stuff from HTML such
-as titles, urls, images and other metadata using very optimized routines
+as titles, urls and other metadata using very optimized routines
 or can let you define a custom scraper that you can give through
 the -e/--evaluate or -f/--evaluate-file.
 
@@ -533,25 +533,34 @@ or -t/--threads.
 
 # Builtin scrapers
 
-    - \"head\": scrape typical metadata found in <head>:
-        - title
-        - canonical_url
-    - \"urls\": find all urls linked in the document:
-        - url
-    - \"article\": mining typical news article metadata by analyzing <head>
-      and JSON LD data (with possible supplementary -e):
-        - canonical_url
-        - headline
-        - description
-        - date_created
-        - date_published
-        - date_modified
-        - section
-        - keywords
-        - authors
-        - image
-        - image_caption
-        - free
+Here is the list of `xan scrape` builtin scrapers along with the columns they
+will add to the output:
+
+\"head\": will scrape typical metadata found in <head> tags. Outputs one row
+per input row with following columns:
+    - title
+    - canonical_url
+
+\"urls\": will scrape all urls found in <a> tags in the document. Outputs one
+row per scraped url per input row with following columns:
+    - url
+
+\"article\": will scrape typical news article metadata by analyzing the <head>
+tag and JSON-LD data (note that you can combine this one with the -e/-f flags
+to add custom data to the output, e.g. to scrape the article text). Outputs one
+row per input row with the following columns:
+    - canonical_url
+    - headline
+    - description
+    - date_created
+    - date_published
+    - date_modified
+    - section
+    - keywords
+    - authors
+    - image
+    - image_caption
+    - free
 
 # Custom scrapers
 
@@ -572,21 +581,20 @@ Example scraping all the h2 title from each document:
 
 A full reference of this language can be found using `xan help scraping`.
 
-# Singular or plural?
+# How many output rows per input row?
 
-Scrapers can be \"singular\" or \"plural\".
+Scrapers can either output exactly one row per input row or 0 to n output rows
+per input row.
 
-A singular scraper will produce exactly one output row per input row,
-while a plural scraper can produce 0 to n output rows per input row.
+Scrapers outputting exactly one row per input row: \"head\", \"article\", any
+scraper given to -e/-f WITHOUT -F/--foreach.
 
-Singular builtin scrapers: \"head\", \"article\".
+Scrapers outputting 0 to n rows per input row: \"urls\", any scraper given to -e/-f
+WITH -F/--foreach.
 
-Plural builtin scrapers: \"urls\".
-
-Custom scrapers are singular, except when using -F/--foreach.
-
-It can be useful, especially when using plural scrapers, to use
-the -k/--keep flag to select the input columns to keep in the output.
+It can be useful sometimes to use the -k/--keep flag to select the input columns
+to keep in the output. Note that using this flag with an empty selection (-k '')
+means outputting only the scraped columns.
 
 Usage:
     xan scrape head <column> [options] [<input>]
@@ -604,7 +612,7 @@ scrape options:
                                 as relative path to read from this input
                                 directory instead.
     -k, --keep <column>         Selection of columns from the input to keep in
-                                the output.
+                                the output. Default is to keep all columns from input.
     -p, --parallel              Whether to use parallelization to speed up computations.
                                 Will automatically select a suitable number of threads to use
                                 based on your number of cores. Use -t, --threads if you want to

@@ -10,7 +10,7 @@
       "name": "all",
       "arguments": ["css", "containing=pattern?"],
       "returns": "elements",
-      "help": "Select all elements matching given css selection."
+      "help": "Select all elements matching given css selection. Extracted value will therefore be a list."
     },
     {
       "name": "root",

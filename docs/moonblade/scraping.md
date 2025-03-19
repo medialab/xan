@@ -44,6 +44,18 @@ In which case, inner directives will be understood as:
 
 `<column-name>: <extractor-function>, <processing-expression>;`
 
+Multiple selection rules can be given per scraper, like in a CSS stylesheet:
+
+```scss
+[data-id=45] {
+  title: text;
+}
+
+script[type="application/ld+json"] {
+  data: json_ld("NewsArticle");
+}
+```
+
 Selections can be nested:
 
 ```scss
@@ -55,18 +67,6 @@ Selections can be nested:
   a.main-link {
     url: attr("href");
   }
-}
-```
-
-Multiple selection rules can be given per scraper:
-
-```scss
-[data-id=45] {
-  title: text;
-}
-
-script[type="application/ld+json"] {
-  data: json_ld("NewsArticle");
 }
 ```
 
@@ -115,7 +115,7 @@ https://github.com/medialab/xan/tree/master/docs/scrapers
 ## Selector functions
 
 - **first**(*css*, *containing=pattern?*) -> `element?`: Select the first element matching given css selection, if any.
-- **all**(*css*, *containing=pattern?*) -> `elements`: Select all elements matching given css selection.
+- **all**(*css*, *containing=pattern?*) -> `elements`: Select all elements matching given css selection. Extracted value will therefore be a list.
 - **root**() -> `element`: Select the root element of document.
 - **parent**() -> `element?`: Select the parent element of current selection, if any.
 

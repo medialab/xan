@@ -44,6 +44,18 @@ In which case, inner directives will be understood as:
 
 `<column-name>: <extractor-function>, <processing-expression>;`
 
+Multiple selection rules can be given per scraper, like in a CSS stylesheet:
+
+```scss
+[data-id=45] {
+  title: text;
+}
+
+script[type="application/ld+json"] {
+  data: json_ld("NewsArticle");
+}
+```
+
 Selections can be nested:
 
 ```scss
@@ -55,18 +67,6 @@ Selections can be nested:
   a.main-link {
     url: attr("href");
   }
-}
-```
-
-Multiple selection rules can be given per scraper:
-
-```scss
-[data-id=45] {
-  title: text;
-}
-
-script[type="application/ld+json"] {
-  data: json_ld("NewsArticle");
 }
 ```
 
