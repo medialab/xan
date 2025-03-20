@@ -3,6 +3,19 @@ use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
+fn pluralize(name: &[u8]) -> Vec<u8> {
+    let mut vec = name.to_vec();
+
+    if name.ends_with(b"y") {
+        vec.truncate(vec.len() - 1);
+        vec.extend(b"ies");
+    } else {
+        vec.push(b's');
+    }
+
+    vec
+}
+
 static USAGE: &str = "
 Implode a CSV file by merging multiple consecutive rows into a single one, where
 diverging cells will be joined by the pipe character (\"|\") or any separator
@@ -36,8 +49,8 @@ Usage:
 implode options:
     --sep <sep>          Separator that will be used to join the diverging cells.
                          [default: |]
-    -P, --plural         Adding a final \"s\" to the imploded column names.
-                         Does not work with -r, --rename.
+    -P, --plural         Pluralize (supporting only very simple English-centric cases)
+                         the imploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
                          Does not work with -P, --plural.
     --cmp <column>       Restrict the columns to compare to assert whether
@@ -136,7 +149,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .zip(sel_mask.iter())
             .map(|(h, m)| {
                 if m.is_some() {
-                    [h, b"s"].concat()
+                    pluralize(h)
                 } else {
                     h.to_vec()
                 }

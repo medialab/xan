@@ -6,6 +6,19 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
+fn singularize(name: &[u8]) -> Vec<u8> {
+    let mut vec = name.to_vec();
+
+    if name.ends_with(b"ies") {
+        vec.truncate(vec.len() - 3);
+        vec.push(b'y');
+    } else if name.ends_with(b"s") {
+        vec.truncate(vec.len() - 1);
+    }
+
+    vec
+}
+
 static USAGE: &str = "
 Explode CSV rows into multiple ones by splitting selected cell using the pipe
 character (\"|\") or any separator given to the --sep flag.
@@ -41,8 +54,8 @@ Usage:
 explode options:
     --sep <sep>          Separator to split the cells.
                          [default: |]
-    -S, --singular       Drop a final \"s\" if present in the exploded column names.
-                         Does not work with -r, --rename.
+    -S, --singular       Singularize (supporting only very simple English-centric cases)
+                         the exploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New names for the exploded columns. Must be written
                          in CSV format if exploding multiple columns.
                          See 'xan rename' help for more details.
@@ -120,13 +133,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .zip(sel_mask.iter())
             .map(|(h, m)| {
                 if m.is_some() {
-                    if h.ends_with(b"s") {
-                        &h[..h.len().saturating_sub(1)]
-                    } else {
-                        h
-                    }
+                    singularize(h)
                 } else {
-                    h
+                    h.to_vec()
                 }
             })
             .collect();

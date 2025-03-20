@@ -34,8 +34,8 @@ Usage:
 implode options:
     --sep <sep>          Separator that will be used to join the diverging cells.
                          [default: |]
-    -P, --plural         Adding a final "s" to the imploded column names.
-                         Does not work with -r, --rename.
+    -P, --plural         Pluralize (supporting only very simple English-centric cases)
+                         the imploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
                          Does not work with -P, --plural.
     --cmp <column>       Restrict the columns to compare to assert whether

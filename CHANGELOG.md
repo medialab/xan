@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.47.2 (provisional)
+
+*Fixes*
+
+* More inflection cases supported in both `xan explode -S` and `xan implode -P`.
+
 ## 0.47.1
 
 *Fixes*
