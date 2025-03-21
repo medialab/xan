@@ -1197,7 +1197,7 @@ mod tests {
     fn test_bytesize() {
         assert_eq!(
             eval_code("bytesize(2510)"),
-            Ok(DynamicValue::from("2.5 KB"))
+            Ok(DynamicValue::from("2.5 kB"))
         );
         assert_eq!(eval_code("bytesize(0)"), Ok(DynamicValue::from("0 B")));
     }

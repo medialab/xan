@@ -1351,7 +1351,7 @@ fn filesize(args: BoundArguments) -> FunctionResult {
 
 fn bytesize(args: BoundArguments) -> FunctionResult {
     let bytes = args.get1().try_as_usize()? as u64;
-    let human_readable = ByteSize::b(bytes).to_string();
+    let human_readable = ByteSize::b(bytes).display().si().to_string();
 
     Ok(DynamicValue::from(human_readable))
 }
@@ -1490,10 +1490,7 @@ fn type_of(mut args: BoundArguments) -> FunctionResult {
 
 // Random
 fn uuid(_args: BoundArguments) -> FunctionResult {
-    let id = Uuid::new_v4()
-        .to_hyphenated()
-        .encode_lower(&mut Uuid::encode_buffer())
-        .to_string();
+    let id = Uuid::new_v4().to_string();
 
     Ok(DynamicValue::from(id))
 }

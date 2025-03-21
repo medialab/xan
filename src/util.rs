@@ -151,7 +151,7 @@ pub fn num_of_chunks(nitems: usize, chunk_size: usize) -> usize {
 
 pub fn last_modified(md: &fs::Metadata) -> u64 {
     use filetime::FileTime;
-    FileTime::from_last_modification_time(md).seconds_relative_to_1970()
+    FileTime::from_last_modification_time(md).seconds() as u64
 }
 
 pub fn idx_path(csv_path: &Path) -> PathBuf {
