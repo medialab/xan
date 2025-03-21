@@ -420,6 +420,23 @@
     ]
   },
   {
+    "title": "Higher-order functions",
+    "functions": [
+      {
+        "name": "filter",
+        "arguments": ["list", "lambda"],
+        "returns": "list",
+        "help": "Return a list containing only elements for which given lambda returned true."
+      },
+      {
+        "name": "map",
+        "arguments": ["list", "lambda"],
+        "returns": "list",
+        "help": "Return a list with elements transformed by given lambda."
+      }
+    ]
+  },
+  {
     "title": "Urls & web-related",
     "functions": [
       {

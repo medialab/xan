@@ -16,6 +16,7 @@
 - [Comparison](#comparison)
 - [String & sequence helpers](#string--sequence-helpers)
 - [Dates](#dates)
+- [Higher-order functions](#higherorder-functions)
 - [Urls & web-related](#urls--webrelated)
 - [Collections (list of maps) functions](#collections-list-of-maps-functions)
 - [Map functions](#map-functions)
@@ -193,6 +194,11 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **month**(*target*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.
 - **year**(*target*) -> `string`: Extract the year of a datetime. If the input is a string, first parse it into datetime, and then extract the year.<br>Equivalent to `strftime(string, format="%Y")`.
 - **year_month**(*target*) -> `string` (aliases: **ym**): Extract the year and month of a datetime. If the input is a string, first parse it into datetime, and then extract the year and month.<br>Equivalent to `strftime(string, format="%Y-%m")`.
+
+## Higher-order functions
+
+- **filter**(*list*, *lambda*) -> `list`: Return a list containing only elements for which given lambda returned true.
+- **map**(*list*, *lambda*) -> `list`: Return a list with elements transformed by given lambda.
 
 ## Urls & web-related
 

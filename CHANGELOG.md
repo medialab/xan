@@ -13,6 +13,7 @@
 * Better error reporting with `xan scrape`.
 * Fixing `xan scrape` processing values when selection is empty.
 * Fixing `parent` scraping selector.
+* Adding missing higher-order functions documentation to `xan help`.
 
 ## 0.47.1
 

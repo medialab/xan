@@ -25,6 +25,7 @@ apply here too.
 - [Referencing columns](#literal-values)
 - [Operators & calling functions](#operators--calling-functions)
 - [Indexing & slicing](#indexing--slicing)
+- [Higher-order functions](#higher-order-functions)
 - [Constant evaluation](#constant-evaluation)
 - [Named expressions](#named-expressions)
 - [Multiple lines & comments](#multiple-lines--comments)
@@ -209,6 +210,16 @@ list[-4:]
 map["name"]
 # Same as:
 map.name
+```
+
+## Higher-order functions
+
+Higher-order functions, such as `map` or `filter`, also exists in the language
+and can be given anonymoys functions like so:
+
+```javascript
+map(numbers, x => x + 2)
+filter(users, name => "john" in name)
 ```
 
 ## Constant evaluation

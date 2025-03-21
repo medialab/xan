@@ -38,6 +38,10 @@ per input row with following columns:
 row per scraped url per input row with following columns:
     - url
 
+"images": will scrape all downloadable image urls found in <img> tags. Outputs
+one row per scraped image per input row with following columns:
+    - src
+
 "article": will scrape typical news article metadata by analyzing the <head>
 tag and JSON-LD data (note that you can combine this one with the -e/-f flags
 to add custom data to the output, e.g. to scrape the article text). Outputs one
@@ -82,8 +86,8 @@ per input row.
 Scrapers outputting exactly one row per input row: "head", "article", any
 scraper given to -e/-f WITHOUT -F/--foreach.
 
-Scrapers outputting 0 to n rows per input row: "urls", any scraper given to -e/-f
-WITH -F/--foreach.
+Scrapers outputting 0 to n rows per input row: "urls", "images", any scraper
+given to -e/-f WITH -F/--foreach.
 
 It can be useful sometimes to use the -k/--keep flag to select the input columns
 to keep in the output. Note that using this flag with an empty selection (-k '')
@@ -93,6 +97,7 @@ Usage:
     xan scrape head <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
     xan scrape article <column> [options] [<input>]
+    xan scrape images <column> [options] [<input>]
     xan scrape -e <expr> <column> [options] [<input>]
     xan scrape -f <path> <column> [options] [<input>]
     xan scrape --help
@@ -113,7 +118,7 @@ scrape options:
     -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
                                 if you want the number of threads to be automatically chosen instead.
 
-scrape url/links options:
+scrape url, links, images options:
     -u, --url-column <column>  Column containing the base url for given HTML.
 
 scrape -e/--evaluate & -f/--evaluate-file options:
