@@ -1,3 +1,4 @@
+// use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -215,6 +216,37 @@ pub fn should_follow_href<T: AsRef<[u8]>>(href: T) -> bool {
 
     true
 }
+
+// #[derive(Default)]
+// struct LRUTrieMapNode<V> {
+//     value: Option<V>,
+//     children: BTreeMap<LRUStem, LRUTrieMapNode<V>>,
+//     descendants_count: usize,
+// }
+
+// impl<V> LRUTrieMapNode<V> {
+//     pub fn empty() -> Self {
+//         Self {
+//             value: None,
+//             children: BTreeMap::new(),
+//             descendants_count: 0,
+//         }
+//     }
+// }
+
+// pub struct LRUTrieMap<V> {
+//     root: LRUTrieMapNode<V>,
+// }
+
+// impl<V> LRUTrieMap<V> {
+//     pub fn new() -> Self {
+//         Self {
+//             root: LRUTrieMapNode::empty(),
+//         }
+//     }
+// }
+
+// TODO: LRUTrieMultiMap later on
 
 #[cfg(test)]
 mod tests {
