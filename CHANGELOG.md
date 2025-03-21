@@ -5,6 +5,7 @@
 *Fixes*
 
 * More inflection cases supported in both `xan explode -S` and `xan implode -P`.
+* Better error reporting with `xan scrape`.
 
 ## 0.47.1
 

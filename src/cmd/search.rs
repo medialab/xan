@@ -320,7 +320,7 @@ impl Args {
                         Matcher::Regexes(
                             patterns
                                 .map(|pattern| {
-                                    pattern.map_err(CliError::from).and_then(|p| {
+                                    pattern.and_then(|p| {
                                         RegexBuilder::new(&p)
                                             .case_insensitive(self.flag_ignore_case)
                                             .build()

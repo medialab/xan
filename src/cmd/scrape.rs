@@ -18,7 +18,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, ScrapingProgram};
 use crate::select::{SelectColumns, Selection};
 use crate::util;
-use crate::CliResult;
+use crate::{CliError, CliResult};
 
 // IO helpers
 fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
@@ -87,6 +87,7 @@ fn read_html(input_dir: &str, filename: &str) -> io::Result<Html> {
     read_string(input_dir, filename).map(|string| Html::parse_document(&string))
 }
 
+#[derive(Debug)]
 enum ScraperTarget<'a> {
     HtmlCell(&'a [u8]),
     HtmlFile(&'a str, &'a str),
@@ -167,7 +168,7 @@ fn looks_like_html(bytes: &[u8]) -> bool {
     HTML_LIKE_REGEX.is_match(bytes)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct CustomScraper {
     program: ScrapingProgram,
     foreach: Option<Selector>,
@@ -191,7 +192,7 @@ impl CustomScraper {
         &self,
         index: usize,
         record: &csv::ByteRecord,
-        target: ScraperTarget,
+        target: &ScraperTarget,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         let html = target.read_html()?;
 
@@ -206,7 +207,7 @@ impl CustomScraper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Scraper {
     Head,
     Urls(Option<usize>),
@@ -259,7 +260,7 @@ impl Scraper {
         }
     }
 
-    fn scrape_head(&self, target: ScraperTarget) -> CliResult<Vec<DynamicValue>> {
+    fn scrape_head(&self, target: &ScraperTarget) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.prebuffer_up_to_head()?;
         let html = Html::parse_document(from_utf8(&bytes).unwrap());
 
@@ -287,7 +288,7 @@ impl Scraper {
     fn scrape_urls(
         &self,
         record: &csv::ByteRecord,
-        target: ScraperTarget,
+        target: &ScraperTarget,
         url_column_index: Option<usize>,
     ) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.read_bytes()?;
@@ -481,12 +482,12 @@ impl Scraper {
         &self,
         index: usize,
         record: &csv::ByteRecord,
-        target: ScraperTarget,
+        target: &ScraperTarget,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         match self {
-            Self::Head => Ok(vec![self.scrape_head(target)?]),
+            Self::Head => Ok(vec![self.scrape_head(&target)?]),
             Self::Urls(url_column_index) => {
-                let urls = self.scrape_urls(record, target, *url_column_index)?;
+                let urls = self.scrape_urls(record, &target, *url_column_index)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
@@ -503,8 +504,29 @@ impl Scraper {
 
                 Ok(vec![output])
             }
-            Self::Custom(scraper) => scraper.scrape(index, record, target),
+            Self::Custom(scraper) => scraper.scrape(index, record, &target),
         }
+    }
+
+    fn scrape_or_report(
+        &self,
+        index: usize,
+        record: &csv::ByteRecord,
+        target: &ScraperTarget,
+    ) -> CliResult<Vec<Vec<DynamicValue>>> {
+        self.scrape(index, record, target).map_err(|err| {
+            CliError::Other(format!(
+                "Row index {}{}\n{}",
+                index,
+                match target {
+                    ScraperTarget::HtmlFile(_, path) => {
+                        format!(", in path {}", path.cyan())
+                    }
+                    _ => "".to_string(),
+                },
+                err
+            ))
+        })
     }
 }
 
@@ -800,7 +822,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         ScraperTarget::HtmlCell(cell)
                     };
 
-                    let output_rows = scraper.scrape(index, &record, target)?;
+                    let output_rows = scraper.scrape_or_report(index, &record, &target)?;
 
                     Ok((record, output_rows))
                 },
@@ -847,7 +869,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         ScraperTarget::HtmlCell(cell)
                     };
 
-                    scraper.scrape(index, &record, target)?
+                    scraper.scrape_or_report(index, &record, &target)?
                 }
             };
 
