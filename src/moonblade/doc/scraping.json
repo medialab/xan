@@ -23,6 +23,18 @@
       "arguments": [],
       "returns": "element?",
       "help": "Select the parent element of current selection, if any."
+    },
+    {
+      "name": "prev_sibling",
+      "arguments": [],
+      "returns": "element?",
+      "help": "Select the previous sibling element of current selection, if any."
+    },
+    {
+      "name": "next_sibling",
+      "arguments": [],
+      "returns": "element?",
+      "help": "Select the next sibling element of current selection, if any."
     }
   ],
   "extractors": [

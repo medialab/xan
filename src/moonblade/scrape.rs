@@ -12,7 +12,7 @@ use scraper::{Element, ElementRef, Html, Node, Selector};
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
 use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
-use super::types::{DynamicValue, FunctionArguments};
+use super::types::{Argument, DynamicValue, FunctionArguments};
 
 trait HtmlExt {
     fn get_element(&self, id: NodeId) -> ElementRef;
@@ -143,8 +143,8 @@ enum SelectionRoutine {
     First(Selector, Option<Pattern>),
     All(Selector, Option<Pattern>),
     Parent,
-    // NextSibling,
-    // PrevSibling,
+    PrevSibling,
+    NextSibling,
 }
 
 impl SelectionRoutine {
@@ -217,6 +217,20 @@ impl SelectionRoutine {
             (Self::Parent, Selection::Singular(id)) => html
                 .get_element(*id)
                 .parent_element()
+                .map(|parent| Selection::Singular(parent.id()))
+                .unwrap_or(Selection::None),
+
+            // Previous sibling
+            (Self::PrevSibling, Selection::Singular(id)) => html
+                .get_element(*id)
+                .prev_sibling_element()
+                .map(|parent| Selection::Singular(parent.id()))
+                .unwrap_or(Selection::None),
+
+            // Next sibling
+            (Self::NextSibling, Selection::Singular(id)) => html
+                .get_element(*id)
+                .next_sibling_element()
                 .map(|parent| Selection::Singular(parent.id()))
                 .unwrap_or(Selection::None),
         }
@@ -560,8 +574,12 @@ fn parse_contains_pattern(expr: Expr) -> Result<Pattern, ConcretizationError> {
 fn get_selection_function_arguments(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "stay" | "root" => FunctionArguments::nullary(),
-        "parent" => FunctionArguments::unary(),
-        "first" | "all" => FunctionArguments::with_range(1..=2),
+        "parent" | "prev_sibling" | "next_sibling" => FunctionArguments::unary(),
+        "first" | "all" => FunctionArguments::complex(vec![
+            Argument::Positional,
+            Argument::Optional,
+            Argument::with_name("containing"),
+        ]),
         _ => return None,
     })
 }
@@ -593,14 +611,22 @@ fn concretize_selection_expr(
                 call.args.into_iter().partition(|arg| arg.0.is_none());
 
             // Unary
-            if call.name == "parent" {
+            if ["parent", "prev_sibling", "next_sibling"].contains(&call.name.as_str()) {
                 let args = vec![concretize_selection_expr(
                     positionals.pop().unwrap().1,
                     headers,
                     globals,
                 )?];
 
-                return Ok(ConcreteSelectionExpr::Call(SelectionRoutine::Parent, args));
+                return Ok(ConcreteSelectionExpr::Call(
+                    match call.name.as_str() {
+                        "parent" => SelectionRoutine::Parent,
+                        "prev_sibling" => SelectionRoutine::PrevSibling,
+                        "next_sibling" => SelectionRoutine::NextSibling,
+                        _ => unreachable!(),
+                    },
+                    args,
+                ));
             }
 
             // Binary?
