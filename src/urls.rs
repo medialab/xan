@@ -66,31 +66,16 @@ struct LRUStem {
     kind: LRUStemKind,
 }
 
-// impl LRUStem {
-//     fn to_string(&self) -> String {
-//         format!("{}:{}", self.kind.as_str(), self.string)
-//     }
-// }
-
 pub struct LRUStems(Vec<LRUStem>);
 
-impl Display for LRUStems {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for stem in self.0.iter() {
-            write!(f, "{}:{}|", stem.kind.as_str(), &stem.string)?;
-        }
-        Ok(())
-    }
-}
-
-impl<'a> From<&'a TaggedUrl> for LRUStems {
-    fn from(value: &'a TaggedUrl) -> Self {
+impl LRUStems {
+    fn from_tagged_url(value: &TaggedUrl, simplified: bool) -> Self {
         let mut stems = Vec::new();
 
         let url = &value.url;
 
         // Scheme
-        if value.has_scheme {
+        if !simplified && value.has_scheme {
             stems.push(LRUStem {
                 string: url.scheme().to_string(),
                 kind: LRUStemKind::Scheme,
@@ -112,7 +97,11 @@ impl<'a> From<&'a TaggedUrl> for LRUStems {
                     string: url.host_str().unwrap().to_string(),
                     kind: LRUStemKind::Host,
                 }),
-                Host::Domain(domain) => {
+                Host::Domain(mut domain) => {
+                    if simplified && domain.starts_with("www.") {
+                        domain = &domain[4..];
+                    }
+
                     for part in domain.split('.').rev() {
                         stems.push(LRUStem {
                             string: part.to_string(),
@@ -152,7 +141,7 @@ impl<'a> From<&'a TaggedUrl> for LRUStems {
         }
 
         // User
-        if !url.username().is_empty() {
+        if !simplified && !url.username().is_empty() {
             stems.push(LRUStem {
                 string: url.username().to_string(),
                 kind: LRUStemKind::User,
@@ -160,14 +149,31 @@ impl<'a> From<&'a TaggedUrl> for LRUStems {
         }
 
         // Password
-        if let Some(password) = url.password() {
-            stems.push(LRUStem {
-                string: password.to_string(),
-                kind: LRUStemKind::Password,
-            })
+        if !simplified {
+            if let Some(password) = url.password() {
+                stems.push(LRUStem {
+                    string: password.to_string(),
+                    kind: LRUStemKind::Password,
+                })
+            }
         }
 
         Self(stems)
+    }
+}
+
+impl Display for LRUStems {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for stem in self.0.iter() {
+            write!(f, "{}:{}|", stem.kind.as_str(), &stem.string)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> From<&'a TaggedUrl> for LRUStems {
+    fn from(value: &'a TaggedUrl) -> Self {
+        Self::from_tagged_url(value, false)
     }
 }
 
@@ -194,6 +200,10 @@ mod tests {
         LRUStems::from(&url.parse::<TaggedUrl>().unwrap()).to_string()
     }
 
+    fn simplified_lru(url: &str) -> String {
+        LRUStems::from_tagged_url(&url.parse::<TaggedUrl>().unwrap(), true).to_string()
+    }
+
     #[test]
     fn test_tagged_url() {
         assert!(!"lemonde.fr".parse::<TaggedUrl>().unwrap().has_scheme);
@@ -203,6 +213,7 @@ mod tests {
     #[test]
     fn test_lru_stems() {
         assert_eq!(lru("http://lemonde.fr"), "s:http|h:fr|h:lemonde|");
+        assert_eq!(lru("http://lemonde.fr/"), "s:http|h:fr|h:lemonde|");
         assert_eq!(lru("lemonde.fr"), "h:fr|h:lemonde|");
         assert_eq!(
             lru("http://lemonde.fr?test"),
@@ -211,6 +222,10 @@ mod tests {
         assert_eq!(
             lru("http://user:password@lemonde.fr/path?test#frag"),
             "s:http|h:fr|h:lemonde|p:path|q:test|f:frag|u:user|w:password|"
+        );
+        assert_eq!(
+            simplified_lru("http://user:password@www.lemonde.fr/path?test#frag"),
+            "h:fr|h:lemonde|p:path|q:test|f:frag|"
         );
     }
 
