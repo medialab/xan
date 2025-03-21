@@ -119,6 +119,7 @@ https://github.com/medialab/xan/tree/master/docs/scrapers
 - **all**(*css*, *containing=pattern?*) -> `elements`: Select all elements matching given css selection and pattern. Extracted value will therefore be a list.
 - **root**() -> `element`: Select the root element of document.
 - **parent**() -> `element?`: Select the parent element of current selection, if any.
+- **find_ancestor**(*css*) -> `element?`: Select an ancestor matching css selection, if any.
 - **prev_sibling**() -> `element?`: Select the previous sibling element of current selection, if any.
 - **next_sibling**() -> `element?`: Select the next sibling element of current selection, if any.
 

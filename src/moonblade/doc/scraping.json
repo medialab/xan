@@ -31,6 +31,12 @@
       "help": "Select the parent element of current selection, if any."
     },
     {
+      "name": "find_ancestor",
+      "arguments": ["css"],
+      "returns": "element?",
+      "help": "Select an ancestor matching css selection, if any."
+    },
+    {
       "name": "prev_sibling",
       "arguments": [],
       "returns": "element?",

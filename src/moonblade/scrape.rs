@@ -144,6 +144,7 @@ enum SelectionRoutine {
     Last(Selector, Option<Pattern>),
     All(Selector, Option<Pattern>),
     Parent,
+    FindAncestor(Selector),
     PrevSibling,
     NextSibling,
 }
@@ -225,6 +226,21 @@ impl SelectionRoutine {
                 .parent_element()
                 .map(|parent| Selection::Singular(parent.id()))
                 .unwrap_or(Selection::None),
+
+            // Find parent
+            (Self::FindAncestor(selector), Selection::Singular(id)) => {
+                let mut element = html.get_element(*id);
+
+                while let Some(parent_element) = element.parent_element() {
+                    if selector.matches(&parent_element) {
+                        return Selection::Singular(parent_element.id());
+                    }
+
+                    element = parent_element;
+                }
+
+                Selection::None
+            }
 
             // Previous sibling
             (Self::PrevSibling, Selection::Singular(id)) => html
@@ -581,6 +597,7 @@ fn get_selection_function_arguments(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "stay" | "root" => FunctionArguments::nullary(),
         "parent" | "prev_sibling" | "next_sibling" => FunctionArguments::with_range(0..=1),
+        "find_ancestor" => FunctionArguments::with_range(1..=2),
         "first" | "all" | "last" => FunctionArguments::complex(vec![
             Argument::Positional,
             Argument::Optional,
@@ -677,6 +694,10 @@ fn concretize_selection_expr(
                         .map(|(_, arg)| parse_contains_pattern(arg))
                         .transpose()?;
                     ConcreteSelectionExpr::Call(SelectionRoutine::All(selector, pattern), args)
+                }
+                "find_ancestor" => {
+                    let selector = parse_selector(concrete_arg)?;
+                    ConcreteSelectionExpr::Call(SelectionRoutine::FindAncestor(selector), args)
                 }
                 _ => return Err(ConcretizationError::UnknownFunction(call.name.to_string())),
             };

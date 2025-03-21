@@ -4,7 +4,7 @@
 
 *Features*
 
-* Adding scraping selectors `prev_sibling`, `next_sibling` & `last`.
+* Adding scraping selectors `prev_sibling`, `next_sibling`, `find_ancestor` & `last`.
 * Adding `xan scrape images`.
 * Adding `xan search -u/--url-prefix`.
 
