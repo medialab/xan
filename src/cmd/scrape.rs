@@ -485,9 +485,9 @@ impl Scraper {
         target: &ScraperTarget,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         match self {
-            Self::Head => Ok(vec![self.scrape_head(&target)?]),
+            Self::Head => Ok(vec![self.scrape_head(target)?]),
             Self::Urls(url_column_index) => {
-                let urls = self.scrape_urls(record, &target, *url_column_index)?;
+                let urls = self.scrape_urls(record, target, *url_column_index)?;
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
@@ -504,7 +504,7 @@ impl Scraper {
 
                 Ok(vec![output])
             }
-            Self::Custom(scraper) => scraper.scrape(index, record, &target),
+            Self::Custom(scraper) => scraper.scrape(index, record, target),
         }
     }
 

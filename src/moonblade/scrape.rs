@@ -115,6 +115,12 @@ enum Selection {
     Plural(Arc<Vec<NodeId>>),
 }
 
+impl Selection {
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+}
+
 #[derive(Debug, Clone)]
 enum Pattern {
     Substring(String),
@@ -412,6 +418,10 @@ impl ConcreteScrapingLeaf {
         html: &Html,
         selection: &Selection,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
+        if selection.is_none() {
+            return Ok(DynamicValue::None);
+        }
+
         let value = self
             .extractor
             .run(html, selection)

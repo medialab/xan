@@ -6,6 +6,7 @@
 
 * More inflection cases supported in both `xan explode -S` and `xan implode -P`.
 * Better error reporting with `xan scrape`.
+* Fixing `xan scrape` processing values when selection is empty.
 
 ## 0.47.1
 
