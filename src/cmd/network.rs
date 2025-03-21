@@ -22,6 +22,7 @@ Supported output formats:
            ref: https://graphology.github.io/serialization.html
     gexf - Graph eXchange XML Format
            ref: https://gexf.net/
+    nodelist - CSV nodelist
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
@@ -29,7 +30,7 @@ Usage:
     xan network --help
 
 xan network options:
-    -f, --format <format>     One of \"json\" or \"gexf\".
+    -f, --format <format>     One of \"json\", \"gexf\" or \"nodelist\".
                               [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
                               or \"1.3\".
@@ -316,6 +317,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match args.flag_format.as_str() {
         "gexf" => graph.write_gexf(&mut writer, &args.flag_gexf_version),
         "json" => graph.write_json(&mut writer),
+        "nodelist" => graph.write_csv_nodelist(&mut writer),
         _ => Err(format!("unsupported format: {}!", &args.flag_format))?,
     }
 }

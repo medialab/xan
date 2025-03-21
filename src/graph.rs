@@ -9,9 +9,20 @@ use jiff::Zoned;
 use serde_json::Value;
 
 use crate::collections::UnionFind;
+use crate::config::Config;
 use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
 use crate::CliResult;
+
+fn serialize_value_to_csv(value: &Value) -> Cow<str> {
+    match value {
+        Value::String(string) => Cow::Borrowed(string),
+        Value::Bool(v) => Cow::Borrowed(if *v { "true" } else { "false" }),
+        Value::Null => Cow::Borrowed(""),
+        Value::Number(v) => Cow::Owned(v.to_string()),
+        _ => unreachable!(),
+    }
+}
 
 impl JSONType {
     fn as_gexf_type(&self) -> &str {
@@ -467,6 +478,38 @@ impl Graph {
 
         xml_writer.close("gexf")?;
         xml_writer.finish()?;
+
+        Ok(())
+    }
+
+    pub fn write_csv_nodelist<W: Write>(&self, writer: W) -> CliResult<()> {
+        let mut writer = Config::new(&None).csv_writer_from_writer(writer);
+
+        let mut record = csv::ByteRecord::new();
+        record.push_field(b"node");
+
+        for attr in self.node_model.iter() {
+            record.push_field(attr.name.as_bytes());
+        }
+
+        writer.write_byte_record(&record)?;
+
+        for node in self.nodes.iter() {
+            record.clear();
+            record.push_field(node.key.as_bytes());
+
+            if !node.attributes.is_empty() {
+                for (_, attr_value) in node.attributes.iter() {
+                    record.push_field(serialize_value_to_csv(attr_value).as_bytes());
+                }
+            } else {
+                for _ in self.node_model.iter() {
+                    record.push_field(b"");
+                }
+            }
+
+            writer.write_byte_record(&record)?;
+        }
 
         Ok(())
     }
