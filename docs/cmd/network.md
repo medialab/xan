@@ -4,17 +4,17 @@
 ```txt
 Convert CSV data to graph data.
 
-Supported formats:
-    json - Graphology JSON serialization format
-           ref: https://graphology.github.io/serialization.html
-    gexf - Graph eXchange XML Format
-           ref: https://gexf.net/
-
-Supported modes:
+Supported input types:
     edgelist:  converts a CSV of edges with a column representing
                sources and another column targets.
     bipartite: converts a CSV with two columns representing the
                edges between both parts of a bipartite graph.
+
+Supported output formats:
+    json - Graphology JSON serialization format
+           ref: https://graphology.github.io/serialization.html
+    gexf - Graph eXchange XML Format
+           ref: https://gexf.net/
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
