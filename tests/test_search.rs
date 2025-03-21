@@ -574,3 +574,25 @@ fn search_count_overlapping_patterns_regex() {
     let expected = vec![svec!["text", "matches"], svec!["baba", "8"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_url_prefix() {
+    let wrk = Workdir::new("search_url_prefix");
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["url"],
+            svec!["http://lemonde.fr/pixels/one.html"],
+            svec!["http://lefigaro.fr"],
+            svec!["http://lemonde.fr/business/one.html"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-u").arg("lemonde.fr/pixels").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["url"], svec!["http://lemonde.fr/pixels/one.html"]];
+    assert_eq!(got, expected);
+}

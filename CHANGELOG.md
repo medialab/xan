@@ -6,6 +6,7 @@
 
 * Adding scraping selectors `prev_sibling`, `next_sibling` & `last`.
 * Adding `xan scrape images`.
+* Adding `xan search -u/--url-prefix`.
 
 *Fixes*
 

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
+use std::str::from_utf8;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
@@ -8,6 +9,7 @@ use regex_automata::{meta::Regex as LowLevelRegex, util::syntax};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
+use crate::urls::{LRUStems, TaggedUrl};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -38,6 +40,7 @@ enum Matcher {
     Regexes(Vec<Regex>),
     RegexSet(LowLevelRegex),
     HashSet(HashSet<Vec<u8>>, bool),
+    UrlPrefix(LRUStems),
 }
 
 impl Matcher {
@@ -69,6 +72,10 @@ impl Matcher {
                     patterns.contains(cell)
                 }
             }
+            Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
+                None => false,
+                Some(url) => stems.is_simplified_match(url),
+            },
         }
     }
 
@@ -137,6 +144,16 @@ impl Matcher {
                     0
                 }
             }
+            Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
+                None => 0,
+                Some(url) => {
+                    if stems.is_simplified_match(url) {
+                        1
+                    } else {
+                        0
+                    }
+                }
+            },
         }
     }
 }
@@ -151,6 +168,9 @@ substring.
 Can also be used to search for exact matches using the -e, --exact flag.
 
 Can also be used to search using a regular expression using the -r, --regex flag.
+
+Can also be used to search by url prefix (e.g. \"lemonde.fr/business\") using
+the -u, --url-prefix flag.
 
 Can also be used to search for empty or non-empty selections. For instance,
 keeping only rows where selection is not fully empty:
@@ -204,6 +224,11 @@ search options:
                              any completely non-empty selection.
     -N, --non-empty          Search for non-empty cells, i.e. filter out
                              any completely empty selection.
+    -u, --url-prefix         Match by url prefix, i.e. cells must contain urls
+                             matching the searched url prefix. Urls are first
+                             reordered using a scheme called a LRU, that you can
+                             read about here:
+                             https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
     --patterns <path>        Path to a text file (use \"-\" for stdin), containing multiple
                              patterns, one per line, to search at once.
     --pattern-column <name>  When given a column name, --patterns file will be considered a CSV
@@ -252,6 +277,7 @@ struct Args {
     flag_non_empty: bool,
     flag_exact: bool,
     flag_regex: bool,
+    flag_url_prefix: bool,
     flag_count: Option<String>,
     flag_limit: Option<NonZeroUsize>,
     flag_patterns: Option<String>,
@@ -284,6 +310,10 @@ impl Args {
                             .case_insensitive(self.flag_ignore_case)
                             .build()?,
                     )
+                } else if self.flag_url_prefix {
+                    let tagged_url = pattern.parse::<TaggedUrl>()?;
+
+                    Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new([if self.flag_ignore_case {
@@ -338,6 +368,8 @@ impl Args {
                                 .build_many(&patterns.collect::<Result<Vec<_>, _>>()?)?,
                         )
                     }
+                } else if self.flag_url_prefix {
+                    unimplemented!()
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new(
@@ -367,10 +399,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let matchers_count: u8 = args.flag_exact as u8
         + args.flag_regex as u8
         + args.flag_non_empty as u8
-        + args.flag_empty as u8;
+        + args.flag_empty as u8
+        + args.flag_url_prefix as u8;
 
     if matchers_count > 1 {
-        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty or -r/--regex!")?;
+        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix or -r/--regex!")?;
     }
 
     if args.flag_overlapping && args.flag_count.is_none() {
@@ -383,6 +416,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
         Err("-N/--non-empty & -E/--empty do not make sense with --patterns!")?;
+    }
+
+    if args.flag_ignore_case && args.flag_url_prefix {
+        Err("-u/--url-prefix & -i/--ignore-case are not compatible!")?;
     }
 
     let matcher = args.build_matcher()?;

@@ -9,6 +9,9 @@ Can also be used to search for exact matches using the -e, --exact flag.
 
 Can also be used to search using a regular expression using the -r, --regex flag.
 
+Can also be used to search by url prefix (e.g. "lemonde.fr/business") using
+the -u, --url-prefix flag.
+
 Can also be used to search for empty or non-empty selections. For instance,
 keeping only rows where selection is not fully empty:
 
@@ -61,6 +64,11 @@ search options:
                              any completely non-empty selection.
     -N, --non-empty          Search for non-empty cells, i.e. filter out
                              any completely empty selection.
+    -u, --url-prefix         Match by url prefix, i.e. cells must contain urls
+                             matching the searched url prefix. Urls are first
+                             reordered using a scheme called a LRU, that you can
+                             read about here:
+                             https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
     --patterns <path>        Path to a text file (use "-" for stdin), containing multiple
                              patterns, one per line, to search at once.
     --pattern-column <name>  When given a column name, --patterns file will be considered a CSV

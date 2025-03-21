@@ -525,6 +525,12 @@ impl From<serde_json::Error> for CliError {
     }
 }
 
+impl From<url::ParseError> for CliError {
+    fn from(value: url::ParseError) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
 impl From<()> for CliError {
     fn from(_: ()) -> CliError {
         CliError::Other("unknown error".to_string())

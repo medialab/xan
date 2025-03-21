@@ -1,4 +1,5 @@
 use std::fmt::{self, Display};
+use std::ops::Deref;
 use std::str::FromStr;
 
 use bstr::ByteSlice;
@@ -34,7 +35,7 @@ impl FromStr for TaggedUrl {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum LRUStemKind {
     Scheme,
     Port,
@@ -61,7 +62,8 @@ impl LRUStemKind {
     }
 }
 
-struct LRUStem {
+#[derive(PartialEq)]
+pub struct LRUStem {
     string: String,
     kind: LRUStemKind,
 }
@@ -69,7 +71,7 @@ struct LRUStem {
 pub struct LRUStems(Vec<LRUStem>);
 
 impl LRUStems {
-    fn from_tagged_url(value: &TaggedUrl, simplified: bool) -> Self {
+    pub fn from_tagged_url(value: &TaggedUrl, simplified: bool) -> Self {
         let mut stems = Vec::new();
 
         let url = &value.url;
@@ -159,6 +161,28 @@ impl LRUStems {
         }
 
         Self(stems)
+    }
+
+    pub fn is_simplified_match(&self, target: &str) -> bool {
+        if let Ok(tagged_url) = target.parse::<TaggedUrl>() {
+            let stems = Self::from_tagged_url(&tagged_url, true);
+
+            if stems.len() < self.len() {
+                return false;
+            }
+
+            self.iter().zip(stems.iter()).all(|(a, b)| a == b)
+        } else {
+            false
+        }
+    }
+}
+
+impl Deref for LRUStems {
+    type Target = [LRUStem];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
