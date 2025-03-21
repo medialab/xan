@@ -141,6 +141,7 @@ enum SelectionRoutine {
     Stay,
     Root,
     First(Selector, Option<Pattern>),
+    Last(Selector, Option<Pattern>),
     All(Selector, Option<Pattern>),
     Parent,
     PrevSibling,
@@ -177,22 +178,27 @@ impl SelectionRoutine {
             }
 
             // First
-            (Self::First(selector, pattern), Selection::Singular(id)) => {
-                let element = html.get_element(*id);
+            (Self::First(selector, pattern), Selection::Singular(id)) => html
+                .get_element(*id)
+                .select(selector)
+                .find(|sub_element| match pattern {
+                    Some(p) => p.is_match(&sub_element.collect_raw_text()),
+                    None => true,
+                })
+                .map(|sub_element| Selection::Singular(sub_element.id()))
+                .unwrap_or(Selection::None),
 
-                for sub_element in element.select(selector) {
-                    match pattern {
-                        Some(p) => {
-                            if p.is_match(&sub_element.collect_raw_text()) {
-                                return Selection::Singular(sub_element.id());
-                            }
-                        }
-                        None => return Selection::Singular(sub_element.id()),
-                    }
-                }
-
-                Selection::None
-            }
+            // Last
+            (Self::Last(selector, pattern), Selection::Singular(id)) => html
+                .get_element(*id)
+                .select(selector)
+                .filter(|sub_element| match pattern {
+                    Some(p) => p.is_match(&sub_element.collect_raw_text()),
+                    None => true,
+                })
+                .last()
+                .map(|sub_element| Selection::Singular(sub_element.id()))
+                .unwrap_or(Selection::None),
 
             // All
             (Self::All(selector, pattern), Selection::Singular(id)) => {
@@ -574,8 +580,8 @@ fn parse_contains_pattern(expr: Expr) -> Result<Pattern, ConcretizationError> {
 fn get_selection_function_arguments(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "stay" | "root" => FunctionArguments::nullary(),
-        "parent" | "prev_sibling" | "next_sibling" => FunctionArguments::unary(),
-        "first" | "all" => FunctionArguments::complex(vec![
+        "parent" | "prev_sibling" | "next_sibling" => FunctionArguments::with_range(0..=1),
+        "first" | "all" | "last" => FunctionArguments::complex(vec![
             Argument::Positional,
             Argument::Optional,
             Argument::with_name("containing"),
@@ -612,11 +618,11 @@ fn concretize_selection_expr(
 
             // Unary
             if ["parent", "prev_sibling", "next_sibling"].contains(&call.name.as_str()) {
-                let args = vec![concretize_selection_expr(
-                    positionals.pop().unwrap().1,
-                    headers,
-                    globals,
-                )?];
+                let target = if positionals.is_empty() {
+                    ConcreteSelectionExpr::Call(SelectionRoutine::Stay, vec![])
+                } else {
+                    concretize_selection_expr(positionals.pop().unwrap().1, headers, globals)?
+                };
 
                 return Ok(ConcreteSelectionExpr::Call(
                     match call.name.as_str() {
@@ -625,7 +631,7 @@ fn concretize_selection_expr(
                         "next_sibling" => SelectionRoutine::NextSibling,
                         _ => unreachable!(),
                     },
-                    args,
+                    vec![target],
                 ));
             }
 
@@ -643,6 +649,7 @@ fn concretize_selection_expr(
                 )?]
             };
 
+            // TODO: can probably be factorized lol.
             let selection_expr = match call.name.as_str() {
                 "first" => {
                     let selector = parse_selector(concrete_arg)?;
@@ -652,6 +659,15 @@ fn concretize_selection_expr(
                         .map(|(_, arg)| parse_contains_pattern(arg))
                         .transpose()?;
                     ConcreteSelectionExpr::Call(SelectionRoutine::First(selector, pattern), args)
+                }
+                "last" => {
+                    let selector = parse_selector(concrete_arg)?;
+                    let pattern = named
+                        .into_iter()
+                        .find(|arg| matches!(&arg.0, Some(name) if name == "containing"))
+                        .map(|(_, arg)| parse_contains_pattern(arg))
+                        .transpose()?;
+                    ConcreteSelectionExpr::Call(SelectionRoutine::Last(selector, pattern), args)
                 }
                 "all" => {
                     let selector = parse_selector(concrete_arg)?;

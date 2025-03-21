@@ -1,12 +1,17 @@
 # Changelog
 
-## 0.47.2 (provisional)
+## 0.48.0 (provisional)
+
+*Features*
+
+* Adding scraping selectors `prev_sibling`, `next_sibling` & `last`.
 
 *Fixes*
 
 * More inflection cases supported in both `xan explode -S` and `xan implode -P`.
 * Better error reporting with `xan scrape`.
 * Fixing `xan scrape` processing values when selection is empty.
+* Fixing `parent` scraping selector.
 
 ## 0.47.1
 

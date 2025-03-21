@@ -114,8 +114,9 @@ https://github.com/medialab/xan/tree/master/docs/scrapers
 
 ## Selector functions
 
-- **first**(*css*, *containing=pattern?*) -> `element?`: Select the first element matching given css selection, if any.
-- **all**(*css*, *containing=pattern?*) -> `elements`: Select all elements matching given css selection. Extracted value will therefore be a list.
+- **first**(*css*, *containing=pattern?*) -> `element?`: Select the first element matching given css selection and pattern, if any.
+- **last**(*css*, *containing=pattern?*) -> `element?`: Select the last element matching given css selection and pattern, if any.
+- **all**(*css*, *containing=pattern?*) -> `elements`: Select all elements matching given css selection and pattern. Extracted value will therefore be a list.
 - **root**() -> `element`: Select the root element of document.
 - **parent**() -> `element?`: Select the parent element of current selection, if any.
 - **prev_sibling**() -> `element?`: Select the previous sibling element of current selection, if any.

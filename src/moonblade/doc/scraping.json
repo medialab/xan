@@ -4,13 +4,19 @@
       "name": "first",
       "arguments": ["css", "containing=pattern?"],
       "returns": "element?",
-      "help": "Select the first element matching given css selection, if any."
+      "help": "Select the first element matching given css selection and pattern, if any."
+    },
+    {
+      "name": "last",
+      "arguments": ["css", "containing=pattern?"],
+      "returns": "element?",
+      "help": "Select the last element matching given css selection and pattern, if any."
     },
     {
       "name": "all",
       "arguments": ["css", "containing=pattern?"],
       "returns": "elements",
-      "help": "Select all elements matching given css selection. Extracted value will therefore be a list."
+      "help": "Select all elements matching given css selection and pattern. Extracted value will therefore be a list."
     },
     {
       "name": "root",
