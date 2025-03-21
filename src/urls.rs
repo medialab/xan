@@ -1,6 +1,7 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
+use bstr::ByteSlice;
 use url::{Host, ParseError, Url};
 
 #[derive(Debug, PartialEq)]
@@ -170,6 +171,21 @@ impl<'a> From<&'a TaggedUrl> for LRUStems {
     }
 }
 
+pub fn should_follow_href<T: AsRef<[u8]>>(href: T) -> bool {
+    let href = href.as_ref().trim();
+
+    if href.is_empty() || href.starts_with(b"#") {
+        return false;
+    }
+
+    if href.contains_str(b":") {
+        let start = &href[..8].to_lowercase();
+        return start.starts_with(b"https://") || start.starts_with(b"http://");
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,5 +212,30 @@ mod tests {
             lru("http://user:password@lemonde.fr/path?test#frag"),
             "s:http|h:fr|h:lemonde|p:path|q:test|f:frag|u:user|w:password|"
         );
+    }
+
+    #[test]
+    fn test_should_follow_href() {
+        let tests = vec![
+            ("#top", false),
+            ("  #strip", false),
+            ("magnet:uri-xIOhoug", false),
+            ("home.html", true),
+            ("/home.html", true),
+            ("./home.html", true),
+            ("https://www.lemonde.fr", true),
+            ("HTTP://www.lemonde.fr", true),
+            ("http:www.lemonde", false),
+            ("mailto:whatever@gmail.com", false),
+            ("tel:053775175743", false),
+            ("javascript:alert(\"hello\")", false),
+            ("file:///home/test/ok", false),
+            ("ftp:whatever", false),
+            ("", false),
+        ];
+
+        for (url, expected) in tests {
+            assert_eq!(should_follow_href(url), expected, "{}", url);
+        }
     }
 }

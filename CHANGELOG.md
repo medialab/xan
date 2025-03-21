@@ -5,6 +5,7 @@
 *Features*
 
 * Adding scraping selectors `prev_sibling`, `next_sibling` & `last`.
+* Adding `xan scrape images`.
 
 *Fixes*
 

@@ -17,6 +17,7 @@ use url::Url;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, ScrapingProgram};
 use crate::select::{SelectColumns, Selection};
+use crate::urls::should_follow_href;
 use crate::util;
 use crate::{CliError, CliResult};
 
@@ -162,6 +163,7 @@ lazy_static! {
     static ref CANONICAL_SELECTOR: Selector =
         Selector::parse("link[rel=canonical]").unwrap();
     static ref JSON_LD_SELECTOR: Selector = Selector::parse("script[type=\"application/ld+json\"]").unwrap();
+    static ref IMG_SELECTOR: Selector = Selector::parse("img[src]").unwrap();
 }
 
 fn looks_like_html(bytes: &[u8]) -> bool {
@@ -211,6 +213,7 @@ impl CustomScraper {
 enum Scraper {
     Head,
     Urls(Option<usize>),
+    Images(Option<usize>),
     Article(Option<CustomScraper>),
     Custom(CustomScraper),
 }
@@ -219,7 +222,7 @@ impl Scraper {
     fn is_plural(&self) -> bool {
         match self {
             Self::Head | Self::Article(_) => false,
-            Self::Urls(_) => true,
+            Self::Urls(_) | Self::Images(_) => true,
             Self::Custom(inner) => inner.is_plural(),
         }
     }
@@ -228,6 +231,7 @@ impl Scraper {
         match self {
             Self::Head => vec!["title".to_string(), "canonical_url".to_string()],
             Self::Urls(_) => vec!["url".to_string()],
+            Self::Images(_) => vec!["src".to_string()],
             Self::Article(scraper_opt) => {
                 let mut names = vec![
                     "canonical_url".to_string(),
@@ -319,6 +323,39 @@ impl Scraper {
         }
 
         Ok(urls)
+    }
+
+    fn scrape_images(
+        &self,
+        record: &csv::ByteRecord,
+        target: &ScraperTarget,
+        url_column_index: Option<usize>,
+    ) -> CliResult<Vec<String>> {
+        let html = target.read_html()?;
+        let mut images = Vec::new();
+
+        let base_url_opt =
+            url_column_index.and_then(|i| Url::parse(from_utf8(&record[i]).unwrap()).ok());
+
+        for img_element in html.select(&IMG_SELECTOR) {
+            let src = img_element.attr("src").unwrap(); // Safe to unwrap because of selector guard
+
+            if should_follow_href(src) {
+                match &base_url_opt {
+                    Some(base_url) => {
+                        if let Ok(joined_src) = base_url.join(src) {
+                            // TODO: canonicalize
+                            images.push(joined_src.to_string());
+                        }
+                    }
+                    None => {
+                        images.push(src.to_string());
+                    }
+                };
+            }
+        }
+
+        Ok(images)
     }
 
     fn scrape_article(&self, html: &Html) -> CliResult<Vec<DynamicValue>> {
@@ -491,6 +528,14 @@ impl Scraper {
 
                 Ok(urls.into_iter().map(|url| vec![url]).collect())
             }
+            Self::Images(url_column_index) => {
+                let images = self.scrape_images(record, target, *url_column_index)?;
+
+                Ok(images
+                    .into_iter()
+                    .map(|src| vec![DynamicValue::from(src)])
+                    .collect())
+            }
             Self::Article(scraper_opt) => {
                 let html = target.read_html()?;
 
@@ -567,6 +612,10 @@ per input row with following columns:
 row per scraped url per input row with following columns:
     - url
 
+\"images\": will scrape all downloadable image urls found in <img> tags. Outputs
+one row per scraped image per input row with following columns:
+    - src
+
 \"article\": will scrape typical news article metadata by analyzing the <head>
 tag and JSON-LD data (note that you can combine this one with the -e/-f flags
 to add custom data to the output, e.g. to scrape the article text). Outputs one
@@ -611,8 +660,8 @@ per input row.
 Scrapers outputting exactly one row per input row: \"head\", \"article\", any
 scraper given to -e/-f WITHOUT -F/--foreach.
 
-Scrapers outputting 0 to n rows per input row: \"urls\", any scraper given to -e/-f
-WITH -F/--foreach.
+Scrapers outputting 0 to n rows per input row: \"urls\", \"images\", any scraper
+given to -e/-f WITH -F/--foreach.
 
 It can be useful sometimes to use the -k/--keep flag to select the input columns
 to keep in the output. Note that using this flag with an empty selection (-k '')
@@ -622,6 +671,7 @@ Usage:
     xan scrape head <column> [options] [<input>]
     xan scrape urls <column> [options] [<input>]
     xan scrape article <column> [options] [<input>]
+    xan scrape images <column> [options] [<input>]
     xan scrape -e <expr> <column> [options] [<input>]
     xan scrape -f <path> <column> [options] [<input>]
     xan scrape --help
@@ -642,7 +692,7 @@ scrape options:
     -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
                                 if you want the number of threads to be automatically chosen instead.
 
-scrape url/links options:
+scrape url, links, images options:
     -u, --url-column <column>  Column containing the base url for given HTML.
 
 scrape -e/--evaluate & -f/--evaluate-file options:
@@ -668,6 +718,7 @@ struct Args {
     cmd_head: bool,
     cmd_urls: bool,
     cmd_article: bool,
+    cmd_images: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -745,6 +796,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )
     } else if args.cmd_urls {
         Scraper::Urls(url_column_index)
+    } else if args.cmd_images {
+        Scraper::Images(url_column_index)
     } else {
         Scraper::Custom(CustomScraper {
             program: ScrapingProgram::parse(args.flag_evaluate.as_ref().unwrap(), &headers)?,
