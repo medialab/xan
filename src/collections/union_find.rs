@@ -1,5 +1,5 @@
-use std::collections::{hash_map::Entry, HashMap};
-use std::hash::Hash;
+// use std::collections::{hash_map::Entry, HashMap};
+// use std::hash::Hash;
 
 #[derive(Debug)]
 struct UnionFindEntry {
@@ -121,68 +121,68 @@ impl UnionFind {
         max.map(|entry| entry.parent)
     }
 
-    fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
-        self.leaders().map(|entry| entry.size)
-    }
+    // fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
+    //     self.leaders().map(|entry| entry.size)
+    // }
 }
 
-#[derive(Debug)]
-pub struct UnionFindMap<K: Hash + Eq> {
-    inner: UnionFind,
-    map: HashMap<K, usize>,
-}
+// #[derive(Debug)]
+// pub struct UnionFindMap<K: Hash + Eq> {
+//     inner: UnionFind,
+//     map: HashMap<K, usize>,
+// }
 
-impl<K: Hash + Eq> UnionFindMap<K> {
-    pub fn new() -> Self {
-        Self {
-            inner: UnionFind::new(),
-            map: HashMap::new(),
-        }
-    }
+// impl<K: Hash + Eq> UnionFindMap<K> {
+//     pub fn new() -> Self {
+//         Self {
+//             inner: UnionFind::new(),
+//             map: HashMap::new(),
+//         }
+//     }
 
-    pub fn len(&self) -> usize {
-        self.map.len()
-    }
+//     pub fn len(&self) -> usize {
+//         self.map.len()
+//     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+//     pub fn is_empty(&self) -> bool {
+//         self.len() == 0
+//     }
 
-    fn get(&mut self, node: K) -> usize {
-        match self.map.entry(node) {
-            Entry::Occupied(entry) => *entry.get(),
-            Entry::Vacant(entry) => *entry.insert(self.inner.make_set()),
-        }
-    }
+//     fn get(&mut self, node: K) -> usize {
+//         match self.map.entry(node) {
+//             Entry::Occupied(entry) => *entry.get(),
+//             Entry::Vacant(entry) => *entry.insert(self.inner.make_set()),
+//         }
+//     }
 
-    pub fn union(&mut self, source: K, target: K) {
-        let x = self.get(source);
-        let y = self.get(target);
+//     pub fn union(&mut self, source: K, target: K) {
+//         let x = self.get(source);
+//         let y = self.get(target);
 
-        self.inner.union(x, y);
-    }
+//         self.inner.union(x, y);
+//     }
 
-    pub fn nodes(self) -> impl Iterator<Item = (K, usize)> {
-        self.map.into_iter().map(move |(node, i)| {
-            let label = self.inner.find(i);
+//     pub fn nodes(self) -> impl Iterator<Item = (K, usize)> {
+//         self.map.into_iter().map(move |(node, i)| {
+//             let label = self.inner.find(i);
 
-            (node, label)
-        })
-    }
+//             (node, label)
+//         })
+//     }
 
-    pub fn largest_component(self) -> impl Iterator<Item = K> {
-        let largest = self.inner.largest().unwrap();
+//     pub fn largest_component(self) -> impl Iterator<Item = K> {
+//         let largest = self.inner.largest().unwrap();
 
-        self.map.into_iter().flat_map(move |(node, i)| {
-            if self.inner.find(i) == largest {
-                Some(node)
-            } else {
-                None
-            }
-        })
-    }
+//         self.map.into_iter().flat_map(move |(node, i)| {
+//             if self.inner.find(i) == largest {
+//                 Some(node)
+//             } else {
+//                 None
+//             }
+//         })
+//     }
 
-    pub fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
-        self.inner.sizes()
-    }
-}
+//     pub fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
+//         self.inner.sizes()
+//     }
+// }

@@ -112,7 +112,6 @@ macro_rules! command_list {
 ## Matrix & network-related commands
     matrix      Convert CSV data to matrix data
     network     Convert CSV data to network data
-    union-find  Apply the union-find algorithm on a CSV edge list
 "
     };
 }
@@ -279,8 +278,6 @@ enum Command {
     Transform,
     Transpose,
     T,
-    #[serde(rename = "union-find")]
-    UnionFind,
     V,
     View,
     Vocab,
@@ -361,7 +358,6 @@ impl Command {
             Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose | Command::T => cmd::transpose::run(argv),
-            Command::UnionFind => cmd::union_find::run(argv),
             Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
         }

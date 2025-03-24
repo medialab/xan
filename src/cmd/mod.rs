@@ -57,6 +57,5 @@ pub mod tokenize;
 pub mod top;
 pub mod transform;
 pub mod transpose;
-pub mod union_find;
 pub mod view;
 pub mod vocab;

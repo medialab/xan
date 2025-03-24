@@ -2,6 +2,10 @@
 
 ## 0.48.0 (provisional)
 
+*Breaking*
+
+* Dropping `xan union-find`. See `xan network` now for similar utilities.
+
 *Features*
 
 * Adding scraping selectors `prev_sibling`, `next_sibling`, `find_ancestor` & `last`.
