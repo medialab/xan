@@ -15,6 +15,7 @@ Supported output formats:
            ref: https://graphology.github.io/serialization.html
     gexf - Graph eXchange XML Format
            ref: https://gexf.net/
+    nodelist - CSV nodelist
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
@@ -22,7 +23,7 @@ Usage:
     xan network --help
 
 xan network options:
-    -f, --format <format>     One of "json" or "gexf".
+    -f, --format <format>     One of "json", "gexf" or "nodelist".
                               [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of "1.2"
                               or "1.3".
@@ -44,6 +45,10 @@ network bipartite options:
                          use disjoint sets of keys (i.e. if you know they share
                          no common keys at all). Incorrect graphs will be produced
                          if some keys are used by both partitions!
+
+network -f "nodelist" options:
+    --degrees  Whether to compute node degrees and add relevant columns to the
+               CSV output.
 
 Common options:
     -h, --help             Display this message

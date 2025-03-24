@@ -145,6 +145,47 @@ struct ModelAttribute {
     json_type: JSONType,
 }
 
+#[derive(Debug)]
+pub enum DegreeMap {
+    Undirected(Vec<usize>),
+    Directed(Vec<(usize, usize)>),
+}
+
+impl DegreeMap {
+    fn new_undirected(capacity: usize) -> Self {
+        Self::Undirected(vec![0; capacity])
+    }
+
+    fn new_directed(capacity: usize) -> Self {
+        Self::Directed(vec![(0, 0); capacity])
+    }
+
+    fn new(undirected: bool, capacity: usize) -> Self {
+        if undirected {
+            Self::new_undirected(capacity)
+        } else {
+            Self::new_directed(capacity)
+        }
+    }
+
+    fn is_undirected(&self) -> bool {
+        matches!(self, Self::Undirected(_))
+    }
+
+    fn add(&mut self, source: usize, target: usize) {
+        match self {
+            Self::Undirected(map) => {
+                map[source] += 1;
+                map[target] += 1;
+            }
+            Self::Directed(map) => {
+                map[source].1 += 1;
+                map[target].0 += 1;
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct GraphBuilder {
     options: GraphOptions,
@@ -258,6 +299,16 @@ impl GraphBuilder {
         if let Some(sets) = self.disjoint_sets.as_mut() {
             sets.union(source, target);
         }
+    }
+
+    pub fn compute_degrees(&self) -> DegreeMap {
+        let mut degree_map = DegreeMap::new(self.is_undirected(), self.nodes.len());
+
+        for (source, target) in self.edges.keys().copied() {
+            degree_map.add(source, target);
+        }
+
+        degree_map
     }
 
     pub fn build(self) -> Graph {
@@ -482,7 +533,11 @@ impl Graph {
         Ok(())
     }
 
-    pub fn write_csv_nodelist<W: Write>(&self, writer: W) -> CliResult<()> {
+    pub fn write_csv_nodelist<W: Write>(
+        &self,
+        writer: W,
+        degree_map: Option<DegreeMap>,
+    ) -> CliResult<()> {
         let mut writer = Config::new(&None).csv_writer_from_writer(writer);
 
         let mut record = csv::ByteRecord::new();
@@ -492,9 +547,18 @@ impl Graph {
             record.push_field(attr.name.as_bytes());
         }
 
+        if let Some(map) = &degree_map {
+            record.push_field(b"degree");
+
+            if !map.is_undirected() {
+                record.push_field(b"in_degree");
+                record.push_field(b"out_degree");
+            }
+        }
+
         writer.write_byte_record(&record)?;
 
-        for node in self.nodes.iter() {
+        for (i, node) in self.nodes.iter().enumerate() {
             record.clear();
             record.push_field(node.key.as_bytes());
 
@@ -505,6 +569,20 @@ impl Graph {
             } else {
                 for _ in self.node_model.iter() {
                     record.push_field(b"");
+                }
+            }
+
+            if let Some(map) = &degree_map {
+                match map {
+                    DegreeMap::Directed(degrees) => {
+                        let degree = degrees[i];
+                        record.push_field((degree.0 + degree.1).to_string().as_bytes());
+                        record.push_field(degree.0.to_string().as_bytes());
+                        record.push_field(degree.1.to_string().as_bytes());
+                    }
+                    DegreeMap::Undirected(degrees) => {
+                        record.push_field(degrees[i].to_string().as_bytes());
+                    }
                 }
             }
 

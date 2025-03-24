@@ -53,6 +53,10 @@ network bipartite options:
                          no common keys at all). Incorrect graphs will be produced
                          if some keys are used by both partitions!
 
+network -f \"nodelist\" options:
+    --degrees  Whether to compute node degrees and add relevant columns to the
+               CSV output.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -79,6 +83,7 @@ struct Args {
     flag_nodes: Option<String>,
     flag_node_column: SelectColumns,
     flag_disjoint_keys: bool,
+    flag_degrees: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -268,14 +273,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ))?;
     }
 
-    let graph = (if args.cmd_edgelist {
+    let builder = (if args.cmd_edgelist {
         args.edgelist()
     } else if args.cmd_bipartite {
         args.bipartite()
     } else {
         unreachable!()
-    })?
-    .build();
+    })?;
+
+    let degree_map = args.flag_degrees.then(|| builder.compute_degrees());
+
+    let graph = builder.build();
 
     if args.flag_stats {
         colored::control::set_override(true);
@@ -317,7 +325,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match args.flag_format.as_str() {
         "gexf" => graph.write_gexf(&mut writer, &args.flag_gexf_version),
         "json" => graph.write_json(&mut writer),
-        "nodelist" => graph.write_csv_nodelist(&mut writer),
+        "nodelist" => graph.write_csv_nodelist(&mut writer, degree_map),
         _ => Err(format!("unsupported format: {}!", &args.flag_format))?,
     }
 }
