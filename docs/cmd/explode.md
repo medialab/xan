@@ -36,7 +36,7 @@ Usage:
 explode options:
     --sep <sep>          Separator to split the cells.
                          [default: |]
-    -S, --singular       Singularize (supporting only very simple English-centric cases)
+    -S, --singularize    Singularize (supporting only very simple English-centric cases)
                          the exploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New names for the exploded columns. Must be written
                          in CSV format if exploding multiple columns.

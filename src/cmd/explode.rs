@@ -54,7 +54,7 @@ Usage:
 explode options:
     --sep <sep>          Separator to split the cells.
                          [default: |]
-    -S, --singular       Singularize (supporting only very simple English-centric cases)
+    -S, --singularize    Singularize (supporting only very simple English-centric cases)
                          the exploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New names for the exploded columns. Must be written
                          in CSV format if exploding multiple columns.
@@ -75,7 +75,7 @@ struct Args {
     arg_columns: SelectColumns,
     arg_input: Option<String>,
     flag_sep: String,
-    flag_singular: bool,
+    flag_singularize: bool,
     flag_rename: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -85,7 +85,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_singular && args.flag_rename.is_some() {
+    if args.flag_singularize && args.flag_rename.is_some() {
         Err("-S/--singular cannot work with -r/--rename!")?;
     }
 
@@ -127,7 +127,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect();
     }
 
-    if args.flag_singular {
+    if args.flag_singularize {
         headers = headers
             .iter()
             .zip(sel_mask.iter())

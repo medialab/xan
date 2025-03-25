@@ -81,8 +81,8 @@ fn implode_rename() {
 }
 
 #[test]
-fn implode_plural() {
-    let wrk = Workdir::new("implode_plural");
+fn implode_pluralize() {
+    let wrk = Workdir::new("implode_pluralize");
     wrk.create(
         "data.csv",
         vec![
@@ -94,7 +94,7 @@ fn implode_plural() {
         ],
     );
     let mut cmd = wrk.command("implode");
-    cmd.arg("color").arg("--plural").arg("data.csv");
+    cmd.arg("color").arg("--pluralize").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![

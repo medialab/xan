@@ -55,8 +55,8 @@ fn explode_rename() {
 }
 
 #[test]
-fn explode_singular() {
-    let wrk = Workdir::new("explode_singular");
+fn explode_singularize() {
+    let wrk = Workdir::new("explode_singularize");
     wrk.create(
         "data.csv",
         vec![

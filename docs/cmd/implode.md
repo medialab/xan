@@ -34,7 +34,7 @@ Usage:
 implode options:
     --sep <sep>          Separator that will be used to join the diverging cells.
                          [default: |]
-    -P, --plural         Pluralize (supporting only very simple English-centric cases)
+    -P, --pluralize      Pluralize (supporting only very simple English-centric cases)
                          the imploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
                          Does not work with -P, --plural.

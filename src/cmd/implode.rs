@@ -49,7 +49,7 @@ Usage:
 implode options:
     --sep <sep>          Separator that will be used to join the diverging cells.
                          [default: |]
-    -P, --plural         Pluralize (supporting only very simple English-centric cases)
+    -P, --pluralize      Pluralize (supporting only very simple English-centric cases)
                          the imploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
                          Does not work with -P, --plural.
@@ -74,7 +74,7 @@ struct Args {
     arg_columns: SelectColumns,
     arg_input: Option<String>,
     flag_sep: String,
-    flag_plural: bool,
+    flag_pluralize: bool,
     flag_rename: Option<String>,
     flag_cmp: Option<SelectColumns>,
     flag_output: Option<String>,
@@ -103,7 +103,7 @@ fn compare_sel(first: &csv::ByteRecord, second: &csv::ByteRecord, sel: &Selectio
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_plural && args.flag_rename.is_some() {
+    if args.flag_pluralize && args.flag_rename.is_some() {
         Err("-P/--plural cannot work with -r/--rename!")?;
     }
 
@@ -143,7 +143,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect();
     }
 
-    if args.flag_plural {
+    if args.flag_pluralize {
         headers = headers
             .iter()
             .zip(sel_mask.iter())

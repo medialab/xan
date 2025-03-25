@@ -5,6 +5,8 @@
 *Breaking*
 
 * Dropping `xan union-find`. See `xan network` now for similar utilities.
+* `xan explode --singular` becomes `xan explode --singularize`.
+* `xan implode --pluralize` becomes `xan implode --pluralize`.
 
 *Features*
 
