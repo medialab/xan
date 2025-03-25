@@ -12,6 +12,7 @@
 * Adding `xan scrape images`.
 * Adding `xan search -u/--url-prefix`.
 * Adding `xan network -f nodelist` and `xan network --degrees`.
+* Adding various format aliases to `xan from`.
 
 *Fixes*
 

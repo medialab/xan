@@ -32,7 +32,7 @@ impl SupportedFormat {
             "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
             "jsonl" | "ndjson" => Self::NdJSON,
             "json" => Self::JSONArray,
-            "txt" => Self::Text,
+            "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
             _ => return None,
         })
