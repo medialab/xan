@@ -172,7 +172,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (cell, mask) in record.iter().zip(sel_mask.iter()) {
                 if let Some(j) = mask {
-                    output_record.push_field(&splits[*j][i]);
+                    output_record.push_field(splits[*j][i]);
                 } else {
                     output_record.push_field(cell);
                 }

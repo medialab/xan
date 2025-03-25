@@ -2341,6 +2341,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tar"
+version = "0.4.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d863878d212c87a19c1a610eb53bb01fe12951c0501cf5a0d65f724914a667a"
+dependencies = [
+ "filetime",
+ "libc",
+]
+
+[[package]]
 name = "tdigest"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2859,6 +2869,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "shlex",
+ "tar",
  "tdigest",
  "termsize",
  "textwrap",

@@ -16,6 +16,7 @@
 * Adding `xan network -f nodelist` and `xan network --degrees`.
 * Adding various format aliases to `xan from`.
 * Adding `xan explode -D/--drop-empty`.
+* Adding `xan from tar`.
 
 *Fixes*
 

@@ -6,6 +6,7 @@ use std::{
 };
 
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
+use flate2::read::GzDecoder;
 use serde::de::{Deserialize, Deserializer, Error};
 use serde_json::{Map, Value};
 
@@ -24,6 +25,7 @@ enum SupportedFormat {
     JSONArray,
     Text,
     Npy,
+    Tar,
 }
 
 impl SupportedFormat {
@@ -34,11 +36,16 @@ impl SupportedFormat {
             "json" => Self::JSONArray,
             "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
+            "tar" | "tar.gz" => Self::Tar,
             _ => return None,
         })
     }
 
     fn infer_from_extension(path: &str) -> Option<Self> {
+        if path.ends_with(".tar.gz") {
+            return Some(Self::Tar);
+        }
+
         Self::parse(
             Path::new(path)
                 .extension()
@@ -65,21 +72,22 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods   - OpenOffice spreadsheet
-    xls   - Excel spreasheet
-    xlsb  - Excel spreasheet
-    xlsx  - Excel spreasheet
-
-    json    - JSON array or object
-    ndjson  - Newline-delimited JSON
-    jsonl   - Newline-delimited JSON
-
-    txt - text lines
-
-    npy - Numpy array
+    ods    - OpenOffice spreadsheet
+    xls    - Excel spreasheet
+    xlsb   - Excel spreasheet
+    xlsx   - Excel spreasheet
+    json   - JSON array or object
+    ndjson - Newline-delimited JSON
+    jsonl  - Newline-delimited JSON
+    txt    - text lines
+    npy    - Numpy array
+    tar    - Tarball archive
 
 Some formats can be streamed, some others require the full file to be loaded into
-memory. The streamable formats are `ndjson`, `jsonl`, `txt` and `npy`.
+memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
+
+Tarball extraction was designed for utf8-encoded text files. Expect weird or
+broken results with other encodings or binary files.
 
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
@@ -343,6 +351,53 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_tar(&self) -> CliResult<()> {
+        let rdr: Box<dyn Read> = match self.arg_input.as_ref() {
+            None => Box::new(io::stdin()),
+            Some(p) => Box::new(fs::File::open(p)?),
+        };
+
+        let rdr = GzDecoder::new(rdr);
+        let mut archive = tar::Archive::new(rdr);
+
+        let mut wtr = self.writer()?;
+
+        let mut record = csv::ByteRecord::new();
+        let mut bytes: Vec<u8> = Vec::new();
+
+        record.push_field(b"path");
+        record.push_field(b"size");
+        record.push_field(b"content");
+
+        wtr.write_byte_record(&record)?;
+
+        for result in archive.entries()? {
+            let mut entry = result?;
+
+            if entry.size() == 0 {
+                continue;
+            }
+
+            bytes.clear();
+
+            if entry.path_bytes().ends_with(b".gz") {
+                let mut inner_gz = GzDecoder::new(&mut entry);
+                inner_gz.read_to_end(&mut bytes)?;
+            } else {
+                entry.read_to_end(&mut bytes)?;
+            }
+
+            record.clear();
+            record.push_field(&entry.path_bytes());
+            record.push_field(entry.size().to_string().as_bytes());
+            record.push_field(&bytes);
+
+            wtr.write_byte_record(&record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -373,5 +428,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::JSONArray => args.convert_json_array(),
         SupportedFormat::Text => args.convert_text_lines(),
         SupportedFormat::Npy => args.convert_npy(),
+        SupportedFormat::Tar => args.convert_tar(),
     }
 }

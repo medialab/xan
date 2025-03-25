@@ -9,21 +9,22 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods   - OpenOffice spreadsheet
-    xls   - Excel spreasheet
-    xlsb  - Excel spreasheet
-    xlsx  - Excel spreasheet
-
-    json    - JSON array or object
-    ndjson  - Newline-delimited JSON
-    jsonl   - Newline-delimited JSON
-
-    txt - text lines
-
-    npy - Numpy array
+    ods    - OpenOffice spreadsheet
+    xls    - Excel spreasheet
+    xlsb   - Excel spreasheet
+    xlsx   - Excel spreasheet
+    json   - JSON array or object
+    ndjson - Newline-delimited JSON
+    jsonl  - Newline-delimited JSON
+    txt    - text lines
+    npy    - Numpy array
+    tar    - Tarball archive
 
 Some formats can be streamed, some others require the full file to be loaded into
-memory. The streamable formats are `ndjson`, `jsonl`, `txt` and `npy`.
+memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
+
+Tarball extraction was designed for utf8-encoded text files. Expect weird or
+broken results with other encodings or binary files.
 
 from options:
     -f, --format <format>  Format to convert from. Will be inferred from file
