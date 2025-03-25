@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -304,6 +305,90 @@ impl LRUTrieMap<()> {
 
 pub type LRUTrie = LRUTrieMap<()>;
 
+struct LRUTrieMultiMapNode<V> {
+    value: V,
+    next: Option<NonZeroUsize>,
+}
+
+impl<V> LRUTrieMultiMapNode<V> {
+    fn new(value: V) -> Self {
+        Self { value, next: None }
+    }
+}
+
+pub struct LongestMatchingPrefixValues<'a, V> {
+    nodes: &'a Vec<LRUTrieMultiMapNode<V>>,
+    current_node: Option<usize>,
+}
+
+impl<'a, V> Iterator for LongestMatchingPrefixValues<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current_node.map(|i| {
+            let node = &self.nodes[i - 1];
+
+            if let Some(previous_index) = &node.next {
+                self.current_node = Some(previous_index.get());
+            } else {
+                self.current_node = None;
+            }
+
+            &node.value
+        })
+    }
+}
+
+pub struct LRUTrieMultiMap<V> {
+    trie: LRUTrieMap<(usize, usize)>,
+    nodes: Vec<LRUTrieMultiMapNode<V>>,
+}
+
+impl<V> LRUTrieMultiMap<V> {
+    pub fn new() -> Self {
+        Self {
+            trie: LRUTrieMap::new(),
+            nodes: Vec::new(),
+        }
+    }
+
+    pub fn insert(&mut self, url: &str, value: V) -> Result<(), ParseError> {
+        let tagged_url = url.parse::<TaggedUrl>()?;
+        let stems = LRUStems::from_tagged_url(&tagged_url, true);
+
+        let mut current_node = &mut self.trie.root;
+        let next_id = self.nodes.len() + 1;
+
+        for stem in stems.into_iter() {
+            current_node = current_node.add_child(stem);
+        }
+
+        if let Some((_, tail)) = &mut current_node.value {
+            let new_node = LRUTrieMultiMapNode::new(value);
+            self.nodes[*tail - 1].next = Some(NonZeroUsize::new(next_id).unwrap());
+            *tail = next_id;
+            self.nodes.push(new_node);
+        } else {
+            self.nodes.push(LRUTrieMultiMapNode::new(value));
+            current_node.value = Some((next_id, next_id));
+        }
+
+        Ok(())
+    }
+
+    pub fn longest_matching_prefix_values(
+        &self,
+        url: &str,
+    ) -> Result<LongestMatchingPrefixValues<V>, ParseError> {
+        self.trie
+            .longest_matching_prefix_value(url)
+            .map(|found| LongestMatchingPrefixValues {
+                nodes: &self.nodes,
+                current_node: found.map(|(head, _)| *head),
+            })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -384,5 +469,38 @@ mod tests {
             true
         );
         assert_eq!(trie.is_match("http://liberation.fr").unwrap(), false);
+    }
+
+    #[test]
+    fn test_lru_trie_multimap() {
+        let mut trie: LRUTrieMultiMap<usize> = LRUTrieMultiMap::new();
+
+        trie.insert("http://www.lemonde.fr", 1).unwrap();
+        trie.insert("http://lefigaro.fr/business", 2).unwrap();
+        trie.insert("http://www.lemonde.fr", 3).unwrap();
+
+        assert_eq!(
+            trie.longest_matching_prefix_values("http://lemonde.fr/path/to.html")
+                .unwrap()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![1, 3]
+        );
+
+        assert_eq!(
+            trie.longest_matching_prefix_values("http://lefigaro.fr/business/path.html")
+                .unwrap()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+
+        assert_eq!(
+            trie.longest_matching_prefix_values("http://liberation.fr")
+                .unwrap()
+                .copied()
+                .collect::<Vec<_>>(),
+            Vec::<usize>::new()
+        );
     }
 }
