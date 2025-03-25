@@ -9,7 +9,7 @@ use regex_automata::{meta::Regex as LowLevelRegex, util::syntax};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::urls::{LRUStems, TaggedUrl};
+use crate::urls::{LRUStems, LRUTrie, TaggedUrl};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -41,6 +41,7 @@ enum Matcher {
     RegexSet(LowLevelRegex),
     HashSet(HashSet<Vec<u8>>, bool),
     UrlPrefix(LRUStems),
+    UrlTrie(LRUTrie),
 }
 
 impl Matcher {
@@ -75,6 +76,10 @@ impl Matcher {
             Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
                 None => false,
                 Some(url) => stems.is_simplified_match(url),
+            },
+            Self::UrlTrie(trie) => match from_utf8(cell).ok() {
+                None => false,
+                Some(url) => trie.is_match(url).unwrap_or(false),
             },
         }
     }
@@ -148,6 +153,16 @@ impl Matcher {
                 None => 0,
                 Some(url) => {
                     if stems.is_simplified_match(url) {
+                        1
+                    } else {
+                        0
+                    }
+                }
+            },
+            Self::UrlTrie(trie) => match from_utf8(cell).ok() {
+                None => 0,
+                Some(url) => {
+                    if trie.is_match(url).unwrap_or(false) {
                         1
                     } else {
                         0
@@ -369,7 +384,14 @@ impl Args {
                         )
                     }
                 } else if self.flag_url_prefix {
-                    unimplemented!()
+                    let mut trie = LRUTrie::new();
+
+                    for result in patterns {
+                        let url = result?;
+                        trie.add(&url)?;
+                    }
+
+                    Matcher::UrlTrie(trie)
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new(

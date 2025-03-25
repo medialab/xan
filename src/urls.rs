@@ -1,4 +1,4 @@
-// use std::collections::BTreeMap;
+use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -36,7 +36,7 @@ impl FromStr for TaggedUrl {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 enum LRUStemKind {
     Scheme,
     Port,
@@ -63,7 +63,7 @@ impl LRUStemKind {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
 pub struct LRUStem {
     string: String,
     kind: LRUStemKind,
@@ -172,6 +172,10 @@ impl LRUStems {
             false
         }
     }
+
+    pub fn into_iter(self) -> impl Iterator<Item = LRUStem> {
+        self.0.into_iter()
+    }
 }
 
 impl Deref for LRUStems {
@@ -212,36 +216,93 @@ pub fn should_follow_href<T: AsRef<[u8]>>(href: T) -> bool {
     true
 }
 
-// #[derive(Default)]
-// struct LRUTrieMapNode<V> {
-//     value: Option<V>,
-//     children: BTreeMap<LRUStem, LRUTrieMapNode<V>>,
-//     descendants_count: usize,
-// }
+#[derive(Debug)]
+struct LRUTrieMapNode<V> {
+    value: Option<V>,
+    children: BTreeMap<LRUStem, LRUTrieMapNode<V>>,
+}
 
-// impl<V> LRUTrieMapNode<V> {
-//     pub fn empty() -> Self {
-//         Self {
-//             value: None,
-//             children: BTreeMap::new(),
-//             descendants_count: 0,
-//         }
-//     }
-// }
+impl<V> LRUTrieMapNode<V> {
+    pub fn empty() -> Self {
+        Self {
+            value: None,
+            children: BTreeMap::new(),
+        }
+    }
 
-// pub struct LRUTrieMap<V> {
-//     root: LRUTrieMapNode<V>,
-// }
+    fn add_child(&mut self, stem: LRUStem) -> &mut LRUTrieMapNode<V> {
+        self.children
+            .entry(stem)
+            .or_insert_with(LRUTrieMapNode::empty)
+    }
 
-// impl<V> LRUTrieMap<V> {
-//     pub fn new() -> Self {
-//         Self {
-//             root: LRUTrieMapNode::empty(),
-//         }
-//     }
-// }
+    fn get_child(&self, stem: &LRUStem) -> Option<&LRUTrieMapNode<V>> {
+        self.children.get(stem)
+    }
+}
 
-// TODO: LRUTrieMultiMap later on
+#[derive(Debug)]
+pub struct LRUTrieMap<V> {
+    root: LRUTrieMapNode<V>,
+}
+
+impl<V> LRUTrieMap<V> {
+    pub fn new() -> Self {
+        Self {
+            root: LRUTrieMapNode::empty(),
+        }
+    }
+
+    pub fn insert(&mut self, url: &str, value: V) -> Result<(), ParseError> {
+        let tagged_url = url.parse::<TaggedUrl>()?;
+        let stems = LRUStems::from_tagged_url(&tagged_url, true);
+
+        let mut current_node = &mut self.root;
+
+        for stem in stems.into_iter() {
+            current_node = current_node.add_child(stem);
+        }
+
+        current_node.value = Some(value);
+
+        Ok(())
+    }
+
+    pub fn longest_matching_prefix_value(&self, url: &str) -> Result<Option<&V>, ParseError> {
+        let tagged_url = url.parse::<TaggedUrl>()?;
+        let stems = LRUStems::from_tagged_url(&tagged_url, true);
+
+        let mut matching_value = None;
+        let mut current_node = &self.root;
+
+        for stem in stems.into_iter() {
+            if let Some(child) = current_node.get_child(&stem) {
+                current_node = child;
+            } else {
+                break;
+            }
+        }
+
+        if let Some(value) = &current_node.value {
+            matching_value = Some(value);
+        }
+
+        Ok(matching_value)
+    }
+
+    pub fn is_match(&self, url: &str) -> Result<bool, ParseError> {
+        self.longest_matching_prefix_value(url)
+            .map(|value| value.is_some())
+    }
+}
+
+impl LRUTrieMap<()> {
+    pub fn add(&mut self, url: &str) -> Result<(), ParseError> {
+        self.insert(url, ())
+    }
+}
+
+pub type LRUTrie = LRUTrieMap<()>;
 
 #[cfg(test)]
 mod tests {
@@ -303,5 +364,25 @@ mod tests {
         for (url, expected) in tests {
             assert_eq!(should_follow_href(url), expected, "{}", url);
         }
+    }
+
+    #[test]
+    fn test_lru_trie() {
+        let mut trie = LRUTrie::new();
+        trie.add("http://www.lemonde.fr").unwrap();
+        trie.add("http://lefigaro.fr/business").unwrap();
+
+        assert_eq!(trie.is_match("http://lemonde.fr").unwrap(), true);
+        assert_eq!(
+            trie.is_match("http://lemonde.fr/path/to.html").unwrap(),
+            true
+        );
+        assert_eq!(trie.is_match("http://lefigaro.fr").unwrap(), false);
+        assert_eq!(
+            trie.is_match("http://lefigaro.fr/business/article.html")
+                .unwrap(),
+            true
+        );
+        assert_eq!(trie.is_match("http://liberation.fr").unwrap(), false);
     }
 }

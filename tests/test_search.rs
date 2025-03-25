@@ -596,3 +596,45 @@ fn search_url_prefix() {
     let expected = vec![svec!["url"], svec!["http://lemonde.fr/pixels/one.html"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_patterns_url_prefix() {
+    let wrk = Workdir::new("search_patterns_url_prefix");
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["url"],
+            svec!["http://www.lemonde.fr"],
+            svec!["lefigaro.fr/business"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["url"],
+            svec!["http://lemonde.fr"],
+            svec!["http://lemonde.fr/path/to.html"],
+            svec!["http://lefigaro.fr"],
+            svec!["http://lefigaro.fr/business/article.html"],
+            svec!["http://liberation.fr"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-u")
+        .arg("lemonde.fr/pixels")
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "url"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["url"],
+        svec!["http://lemonde.fr"],
+        svec!["http://lemonde.fr/path/to.html"],
+        svec!["http://lefigaro.fr/business/article.html"],
+    ];
+    assert_eq!(got, expected);
+}
