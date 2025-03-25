@@ -167,12 +167,7 @@ impl LRUStems {
     pub fn is_simplified_match(&self, target: &str) -> bool {
         if let Ok(tagged_url) = target.parse::<TaggedUrl>() {
             let stems = Self::from_tagged_url(&tagged_url, true);
-
-            if stems.len() < self.len() {
-                return false;
-            }
-
-            self.iter().zip(stems.iter()).all(|(a, b)| a == b)
+            stems.starts_with(self)
         } else {
             false
         }
