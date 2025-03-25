@@ -42,6 +42,7 @@ explode options:
                          in CSV format if exploding multiple columns.
                          See 'xan rename' help for more details.
                          Does not work with -S, --singular.
+    -D, --drop-empty     Drop rows when selected cells are empty.
 
 Common options:
     -h, --help             Display this message

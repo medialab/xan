@@ -27,6 +27,30 @@ fn explode() {
 }
 
 #[test]
+fn explode_drop_empty() {
+    let wrk = Workdir::new("explode_drop_empty");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "colors"],
+            svec!["Mary", ""],
+            svec!["John", "blue|orange"],
+            svec!["Jack", ""],
+        ],
+    );
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors").arg("--drop-empty").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "colors"],
+        svec!["John", "blue"],
+        svec!["John", "orange"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn explode_rename() {
     let wrk = Workdir::new("explode_rename");
     wrk.create(

@@ -60,6 +60,7 @@ explode options:
                          in CSV format if exploding multiple columns.
                          See 'xan rename' help for more details.
                          Does not work with -S, --singular.
+    -D, --drop-empty     Drop rows when selected cells are empty.
 
 Common options:
     -h, --help             Display this message
@@ -77,6 +78,7 @@ struct Args {
     flag_sep: String,
     flag_singularize: bool,
     flag_rename: Option<String>,
+    flag_drop_empty: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -147,21 +149,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = csv::ByteRecord::new();
 
-    while rdr.read_byte_record(&mut record)? {
-        let splits: Vec<Vec<&[u8]>> = sel
-            .select(&record)
-            .map(|cell| cell.split_str(&args.flag_sep).collect())
-            .collect();
+    'main: while rdr.read_byte_record(&mut record)? {
+        let mut splits: Vec<Vec<&[u8]>> = Vec::with_capacity(sel.len());
+
+        for cell in sel.select(&record) {
+            if args.flag_drop_empty && cell.is_empty() {
+                continue 'main;
+            }
+
+            splits.push(cell.split_str(&args.flag_sep).collect());
+        }
 
         if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
             return Err(CliError::Other(
                 "inconsistent exploded length accross columns.".to_string(),
             ));
-        }
-
-        if splits[0].is_empty() {
-            wtr.write_byte_record(&record)?;
-            continue;
         }
 
         for i in 0..splits[0].len() {
