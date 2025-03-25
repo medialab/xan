@@ -148,6 +148,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = csv::ByteRecord::new();
+    let mut output_record = csv::ByteRecord::new();
 
     'main: while rdr.read_byte_record(&mut record)? {
         let mut splits: Vec<Vec<&[u8]>> = Vec::with_capacity(sel.len());
@@ -167,17 +168,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for i in 0..splits[0].len() {
-            let output_record: csv::ByteRecord = record
-                .iter()
-                .zip(sel_mask.iter())
-                .map(|(cell, mask)| {
-                    if let Some(j) = mask {
-                        splits[*j][i]
-                    } else {
-                        cell
-                    }
-                })
-                .collect();
+            output_record.clear();
+
+            for (cell, mask) in record.iter().zip(sel_mask.iter()) {
+                if let Some(j) = mask {
+                    output_record.push_field(&splits[*j][i]);
+                } else {
+                    output_record.push_field(cell);
+                }
+            }
 
             wtr.write_byte_record(&output_record)?;
         }

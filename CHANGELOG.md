@@ -25,6 +25,10 @@
 * Fixing `parent` scraping selector.
 * Adding missing higher-order functions documentation to `xan help`.
 
+*Performance*
+
+* Improving performance of `xan explode`.
+
 ## 0.47.1
 
 *Fixes*
