@@ -28,7 +28,7 @@ By comparison, column-oriented data formats such as parquet are not able to stre
 
 But of course, CSV is terrible if you are only interested in specific columns because you will indeed need to read all of a row only to access the part you are interested in.
 
-Column-oriented data format are of course a very good fit for the dataframes mindset of R, pandas and such. But critics of CSV coming from this set of pratices tend to only care about use-cases where everything is expected to fit into memory.
+Column-oriented data format are of course a very good fit for the dataframes mindset of R, pandas and such. But critics of CSV coming from this set of practices tend to only care about use-cases where everything is expected to fit into memory.
 
 ## 5. CSV can be appended to
 
