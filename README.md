@@ -618,6 +618,7 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 
 * [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
 * [Parsing and visualizing dates with xan](./docs/cookbook/dates.md)
+* [Joining files by URL prefixes](./docs/cookbook/urls.md)
 * [Miscellaneous](./docs/cookbook/misc.md)
 
 ## News
