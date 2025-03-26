@@ -43,6 +43,8 @@ Usage:
     xan url-join --help
 
 join options:
+    -S, --simplified             Drop irrelevant parts of the urls, like the scheme,
+                                 `www.` subdomains etc. to facilitate matches.
     --left                       Write every row from input file in the output, with empty
                                  padding cells on the right when no url from the second
                                  file produced any match.
@@ -67,6 +69,7 @@ struct Args {
     arg_input: String,
     arg_url_column: SelectColumns,
     arg_urls: String,
+    flag_simplified: bool,
     flag_left: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -119,7 +122,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Indexing the urls
-    let mut trie: LRUTrieMultiMap<csv::ByteRecord> = LRUTrieMultiMap::new();
+    let mut trie: LRUTrieMultiMap<csv::ByteRecord> = if args.flag_simplified {
+        LRUTrieMultiMap::new_simplified()
+    } else {
+        LRUTrieMultiMap::new()
+    };
 
     for result in urls_reader.into_byte_records() {
         let record = result?;

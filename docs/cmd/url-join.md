@@ -28,6 +28,8 @@ Usage:
     xan url-join --help
 
 join options:
+    -S, --simplified             Drop irrelevant parts of the urls, like the scheme,
+                                 `www.` subdomains etc. to facilitate matches.
     --left                       Write every row from input file in the output, with empty
                                  padding cells on the right when no url from the second
                                  file produced any match.

@@ -245,18 +245,27 @@ impl<V> LRUTrieMapNode<V> {
 #[derive(Debug)]
 pub struct LRUTrieMap<V> {
     root: LRUTrieMapNode<V>,
+    simplified: bool,
 }
 
 impl<V> LRUTrieMap<V> {
     pub fn new() -> Self {
         Self {
             root: LRUTrieMapNode::empty(),
+            simplified: false,
         }
+    }
+
+    pub fn new_simplified() -> Self {
+        let mut trie = Self::new();
+        trie.simplified = true;
+
+        trie
     }
 
     pub fn insert(&mut self, url: &str, value: V) -> Result<(), ParseError> {
         let tagged_url = url.parse::<TaggedUrl>()?;
-        let stems = LRUStems::from_tagged_url(&tagged_url, true);
+        let stems = LRUStems::from_tagged_url(&tagged_url, self.simplified);
 
         let mut current_node = &mut self.root;
 
@@ -271,7 +280,7 @@ impl<V> LRUTrieMap<V> {
 
     pub fn longest_matching_prefix_value(&self, url: &str) -> Result<Option<&V>, ParseError> {
         let tagged_url = url.parse::<TaggedUrl>()?;
-        let stems = LRUStems::from_tagged_url(&tagged_url, true);
+        let stems = LRUStems::from_tagged_url(&tagged_url, self.simplified);
 
         let mut matching_value = None;
         let mut current_node = &self.root;
@@ -358,9 +367,16 @@ impl<V> LRUTrieMultiMap<V> {
         }
     }
 
+    pub fn new_simplified() -> Self {
+        Self {
+            trie: LRUTrieMap::new_simplified(),
+            nodes: Vec::new(),
+        }
+    }
+
     pub fn insert(&mut self, url: &str, value: V) -> Result<(), ParseError> {
         let tagged_url = url.parse::<TaggedUrl>()?;
-        let stems = LRUStems::from_tagged_url(&tagged_url, true);
+        let stems = LRUStems::from_tagged_url(&tagged_url, self.trie.simplified);
 
         let mut current_node = &mut self.trie.root;
         let next_id = self.nodes.len() + 1;
