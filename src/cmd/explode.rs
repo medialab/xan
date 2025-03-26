@@ -12,6 +12,8 @@ fn singularize(name: &[u8]) -> Vec<u8> {
     if name.ends_with(b"ies") {
         vec.truncate(vec.len() - 3);
         vec.push(b'y');
+    } else if name.ends_with(b"oes") {
+        vec.truncate(vec.len() - 2);
     } else if name.ends_with(b"s") {
         vec.truncate(vec.len() - 1);
     }

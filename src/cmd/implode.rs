@@ -9,6 +9,8 @@ fn pluralize(name: &[u8]) -> Vec<u8> {
     if name.ends_with(b"y") {
         vec.truncate(vec.len() - 1);
         vec.extend(b"ies");
+    } else if name.ends_with(b"o") {
+        vec.extend(b"es");
     } else {
         vec.push(b's');
     }
