@@ -330,7 +330,7 @@ pub struct LongestMatchingPrefixValues<'a, V> {
     current_node: Option<usize>,
 }
 
-impl<'a, V> LongestMatchingPrefixValues<'a, V> {
+impl<V> LongestMatchingPrefixValues<'_, V> {
     pub fn has_next(&self) -> bool {
         self.current_node.is_some()
     }
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_lru_trie() {
-        let mut trie = LRUTrie::new();
+        let mut trie = LRUTrie::new_simplified();
         trie.add("http://www.lemonde.fr").unwrap();
         trie.add("http://lefigaro.fr/business").unwrap();
 
@@ -495,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_lru_trie_multimap() {
-        let mut trie: LRUTrieMultiMap<usize> = LRUTrieMultiMap::new();
+        let mut trie: LRUTrieMultiMap<usize> = LRUTrieMultiMap::new_simplified();
 
         trie.insert("http://www.lemonde.fr", 1).unwrap();
         trie.insert("http://lefigaro.fr/business", 2).unwrap();

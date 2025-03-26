@@ -384,7 +384,7 @@ impl Args {
                         )
                     }
                 } else if self.flag_url_prefix {
-                    let mut trie = LRUTrie::new();
+                    let mut trie = LRUTrie::new_simplified();
 
                     for result in patterns {
                         let url = result?;

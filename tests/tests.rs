@@ -59,6 +59,7 @@ mod test_to;
 mod test_tokenize;
 mod test_top;
 mod test_transform;
+mod test_url_join;
 mod test_vocab;
 
 pub type CsvVecs = Vec<Vec<String>>;
