@@ -30,6 +30,7 @@
 *Performance*
 
 * Improving performance of `xan explode`.
+* Improving performance of `xan implode`.
 
 ## 0.47.1
 

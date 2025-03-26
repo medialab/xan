@@ -164,6 +164,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sep = args.flag_sep.as_bytes();
     let mut previous: Option<csv::ByteRecord> = None;
     let mut accumulator: Vec<Vec<Vec<u8>>> = Vec::with_capacity(sel.len());
+    let mut imploded_record = csv::ByteRecord::new();
 
     for result in rdr.into_byte_records() {
         let record = result?;
@@ -177,21 +178,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if should_flush {
                 // Flushing
-                let imploded_record: csv::ByteRecord = previous_record
-                    .iter()
-                    .zip(sel_mask.iter())
-                    .map(|(cell, mask)| {
-                        if let Some(i) = mask {
-                            accumulator
+                imploded_record.clear();
+
+                for (cell, mask) in previous_record.iter().zip(sel_mask.iter()) {
+                    if let Some(i) = mask {
+                        imploded_record.push_field(
+                            &accumulator
                                 .iter()
                                 .map(|acc| acc[*i].clone())
                                 .collect::<Vec<_>>()
-                                .join(sep)
-                        } else {
-                            cell.to_vec()
-                        }
-                    })
-                    .collect();
+                                .join(sep),
+                        );
+                    } else {
+                        imploded_record.push_field(cell);
+                    }
+                }
 
                 wtr.write_byte_record(&imploded_record)?;
 
@@ -205,22 +206,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Flushing last instance
     if !accumulator.is_empty() {
-        let imploded_record: csv::ByteRecord = previous
-            .unwrap()
-            .iter()
-            .zip(sel_mask)
-            .map(|(cell, mask)| {
-                if let Some(i) = mask {
-                    accumulator
+        imploded_record.clear();
+
+        for (cell, mask) in previous.unwrap().iter().zip(sel_mask) {
+            if let Some(i) = mask {
+                imploded_record.push_field(
+                    &accumulator
                         .iter()
                         .map(|acc| acc[i].clone())
                         .collect::<Vec<_>>()
-                        .join(sep)
-                } else {
-                    cell.to_vec()
-                }
-            })
-            .collect();
+                        .join(sep),
+                );
+            } else {
+                imploded_record.push_field(cell);
+            }
+        }
 
         wtr.write_byte_record(&imploded_record)?;
     }
