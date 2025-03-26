@@ -2809,7 +2809,7 @@ checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 
 [[package]]
 name = "xan"
-version = "0.47.1"
+version = "0.48.0"
 dependencies = [
  "aho-corasick",
  "arrayvec 0.7.6",
