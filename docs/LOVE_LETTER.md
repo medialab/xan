@@ -62,4 +62,6 @@ This means you can very well use a CSV output as a way to efficiently resume an 
 
 It clearly means CSV must be doing something right.
 
+Signed: [xan](https://github.com/medialab/xan#readme), the CSV magician
+
 <!-- flaws about multiplexing, asv -->
