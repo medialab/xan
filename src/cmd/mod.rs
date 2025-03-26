@@ -57,5 +57,6 @@ pub mod tokenize;
 pub mod top;
 pub mod transform;
 pub mod transpose;
+pub mod url_join;
 pub mod view;
 pub mod vocab;

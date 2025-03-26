@@ -63,7 +63,8 @@ macro_rules! command_list {
 ## Combine multiple CSV files
     cat         Concatenate by row or column
     join        Join CSV files
-    regex-join  Fuzzy join a CSV files using regex patterns
+    regex-join  Fuzzy join CSV files using regex patterns
+    url-join    Join CSV files on url prefixes
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns
@@ -278,6 +279,8 @@ enum Command {
     Transform,
     Transpose,
     T,
+    #[serde(rename = "url-join")]
+    UrlJoin,
     V,
     View,
     Vocab,
@@ -358,6 +361,7 @@ impl Command {
             Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose | Command::T => cmd::transpose::run(argv),
+            Command::UrlJoin => cmd::url_join::run(argv),
             Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
         }

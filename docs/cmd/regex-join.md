@@ -29,7 +29,7 @@ keeping any match-related column from the pattern file.
 
 This said, if you only need to filter rows of the second file and don't
 actually need to join columns from the patterns file, you should
-probably use `xan search --patterns` instead.
+probably use `xan search --regex --patterns` instead.
 
 Usage:
     xan regex-join [options] <columns> <input> <pattern-column> <patterns>

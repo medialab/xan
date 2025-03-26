@@ -89,7 +89,7 @@ keeping any match-related column from the pattern file.
 
 This said, if you only need to filter rows of the second file and don't
 actually need to join columns from the patterns file, you should
-probably use `xan search --patterns` instead.
+probably use `xan search --regex --patterns` instead.
 
 Usage:
     xan regex-join [options] <columns> <input> <pattern-column> <patterns>
@@ -189,13 +189,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Indexing the patterns
     let mut patterns: Vec<String> = Vec::new();
-    let mut regex_rows: Vec<csv::ByteRecord> = Vec::new();
+    let mut regex_records: Vec<csv::ByteRecord> = Vec::new();
 
-    for row in patterns_reader.into_byte_records() {
-        let row = row?;
+    for record in patterns_reader.into_byte_records() {
+        let record = record?;
 
-        patterns.push(String::from_utf8(row[pattern_cell_index].to_vec()).unwrap());
-        regex_rows.push(row);
+        patterns.push(String::from_utf8(record[pattern_cell_index].to_vec()).unwrap());
+        regex_records.push(record);
     }
 
     let regex_set = regex::bytes::RegexSetBuilder::new(&patterns)
@@ -215,13 +215,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 },
                 move |record| -> CliResult<Vec<csv::ByteRecord>> {
-                    let mut row = record?;
+                    let mut record = record?;
 
-                    let mut rows_to_emit: Vec<csv::ByteRecord> = Vec::new();
+                    let mut records_to_emit: Vec<csv::ByteRecord> = Vec::new();
 
                     let mut total_matches: Vec<usize> = Vec::new();
 
-                    for cell in sel.select(&row) {
+                    for cell in sel.select(&record) {
                         let matches = regex_set.matches(cell).into_iter().collect::<Vec<_>>();
 
                         if total_matches.is_empty() {
@@ -232,35 +232,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     for i in total_matches.iter() {
-                        let mut row_to_write = row.clone();
-                        row_to_write.extend(&regex_rows[*i]);
-                        rows_to_emit.push(row_to_write);
+                        let mut record_to_write = record.clone();
+                        record_to_write.extend(&regex_records[*i]);
+                        records_to_emit.push(record_to_write);
                     }
 
                     if !inner && total_matches.is_empty() {
-                        row.extend(&padding);
-                        rows_to_emit.push(row);
+                        record.extend(&padding);
+                        records_to_emit.push(record);
                     }
 
-                    Ok(rows_to_emit)
+                    Ok(records_to_emit)
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
-                let rows_to_emit = result?;
+                let records_to_emit = result?;
 
-                for row in rows_to_emit {
-                    writer.write_byte_record(&row)?;
+                for record in records_to_emit {
+                    writer.write_byte_record(&record)?;
                 }
 
                 Ok(())
             })?;
     } else {
-        let mut row = csv::ByteRecord::new();
+        let mut record = csv::ByteRecord::new();
 
-        while reader.read_byte_record(&mut row)? {
+        while reader.read_byte_record(&mut record)? {
             let mut total_matches: Vec<usize> = Vec::new();
 
-            for cell in sel.select(&row) {
+            for cell in sel.select(&record) {
                 let matches = regex_set.matches(cell).into_iter().collect::<Vec<_>>();
 
                 if total_matches.is_empty() {
@@ -271,14 +271,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             for i in total_matches.iter() {
-                let mut row_to_write = row.clone();
-                row_to_write.extend(&regex_rows[*i]);
-                writer.write_byte_record(&row_to_write)?;
+                let mut record_to_write = record.clone();
+                record_to_write.extend(&regex_records[*i]);
+                writer.write_byte_record(&record_to_write)?;
             }
 
             if !inner && total_matches.is_empty() {
-                row.extend(&padding);
-                writer.write_byte_record(&row)?;
+                record.extend(&padding);
+                writer.write_byte_record(&record)?;
             }
         }
     }

@@ -17,6 +17,7 @@
 * Adding various format aliases to `xan from`.
 * Adding `xan explode -D/--drop-empty`.
 * Adding `xan from tar`.
+* Adding `xan url-join`.
 
 *Fixes*
 

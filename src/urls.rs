@@ -321,6 +321,12 @@ pub struct LongestMatchingPrefixValues<'a, V> {
     current_node: Option<usize>,
 }
 
+impl<'a, V> LongestMatchingPrefixValues<'a, V> {
+    pub fn has_next(&self) -> bool {
+        self.current_node.is_some()
+    }
+}
+
 impl<'a, V> Iterator for LongestMatchingPrefixValues<'a, V> {
     type Item = &'a V;
 
