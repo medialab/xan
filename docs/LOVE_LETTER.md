@@ -52,7 +52,7 @@ What's more, strings are often already optimally represented and the overhead of
 
 ## 8. Reverse CSV is still valid CSV
 
-This one is not often realized by everyone but a reversed (byte by byte) CSV file, is still valid CSV. This is only made possible because of the genius idea to escape quotes by doubling them, which means escaping is a palindrom. It would not work if CSV used a backslash-based escaping scheme, as is most common when representing string literals.
+This one is not often realized by everyone but a reversed (byte by byte) CSV file, is still valid CSV. This is only made possible because of the genius idea to escape quotes by doubling them, which means escaping is a palindrome. It would not work if CSV used a backslash-based escaping scheme, as is most common when representing string literals.
 
 But why should you care? Well, this means you can read very efficiently and very easily the last rows of a CSV file. Just feed the bytes of your file in reverse order to a CSV parser, then reverse the yielded rows and their cells' bytes and you are done (maybe read the header row before though).
 
