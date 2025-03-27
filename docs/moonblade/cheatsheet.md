@@ -215,7 +215,7 @@ map.name
 ## Higher-order functions
 
 Higher-order functions, such as `map` or `filter`, also exists in the language
-and can be given anonymoys functions like so:
+and can be given anonymous functions like so:
 
 ```javascript
 map(numbers, x => x + 2)
