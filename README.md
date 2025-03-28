@@ -51,13 +51,19 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 
 `xan` can be installed using cargo (it usually comes with [Rust](https://www.rust-lang.org/tools/install)):
 
-```
+```bash
 cargo install xan
+```
+
+You can also tweak the build flags to make sure the Rust compiler is able to leverage all your CPU's features:
+
+```bash
+CARGO_BUILD_RUSTFLAGS='-C target-cpu=native' cargo install xan
 ```
 
 You can also install the latest dev version thusly:
 
-```
+```bash
 cargo install --git https://github.com/medialab/xan
 ```
 
