@@ -6,6 +6,7 @@
 
 * Adding `xan input --tabs`.
 * Adding `xan input -S/--skip-headers`.
+* Adding `xan input --vcf`.
 
 ## 0.48.0
 

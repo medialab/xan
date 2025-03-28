@@ -58,6 +58,7 @@ lazy_static! {
     static ref MAIN_SECTION_REGEX: Regex = Regex::new("(?m)^#+.+").unwrap();
     static ref MAIN_COMMAND_REGEX: Regex = Regex::new(r"(?m)^\s{4}[\w\-]+").unwrap();
     static ref MAIN_ALIAS_REGEX: Regex = Regex::new(r"\([^\)\s]+\)").unwrap();
+    static ref URL_REGEX: Regex = Regex::new(r"https?://\S+").unwrap();
 }
 
 pub fn colorize_help(help: &str) -> String {
@@ -73,6 +74,8 @@ pub fn colorize_help(help: &str) -> String {
     let help = DIMMED_REGEX.replace_all(&help, |caps: &Captures| {
         caps[0].dimmed().white().to_string()
     });
+
+    let help = URL_REGEX.replace_all(&help, |caps: &Captures| caps[0].blue().to_string());
 
     help.into_owned()
 }
