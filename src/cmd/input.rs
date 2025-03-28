@@ -3,11 +3,11 @@ use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = "
-Read CSV data with special quoting rules.
+Read unusually formatted CSV data.
 
 Generally, all xan commands support basic options like specifying the delimiter
 used in CSV data. This does not cover all possible types of CSV data. For
-example, some CSV files don't use '\"' for quotes or use different escaping
+example, some CSV files don't use `\"` for quotes or use different escaping
 styles.
 
 Usage:

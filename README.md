@@ -537,7 +537,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 
 - [**behead**](./docs/cmd/behead.md): Drop header from CSV file
 - [**rename**](./docs/cmd/rename.md): Rename columns of a CSV file
-- [**input**](./docs/cmd/input.md): Read CSV data with special quoting rules
+- [**input**](./docs/cmd/input.md): Read unusually formatted CSV data
 - [**fixlengths**](./docs/cmd/fixlengths.md): Makes all rows have same length
 - [**fmt**](./docs/cmd/fmt.md): Format CSV output (change field delimiter)
 - [**explode**](./docs/cmd/explode.md): Explode rows based on some column separator

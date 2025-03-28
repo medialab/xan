@@ -80,7 +80,7 @@ macro_rules! command_list {
 ## Format, convert & recombobulate
     behead        Drop header from CSV file
     rename        Rename columns of a CSV file
-    input         Read CSV data with special quoting rules
+    input         Read unusually formatted CSV data
     fixlengths    Makes all rows have same length
     fmt           Format CSV output (change field delimiter)
     explode       Explode rows based on some column separator
