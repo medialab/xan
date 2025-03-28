@@ -9,7 +9,8 @@ This means being able to process CSV data with peculiar quoting rules
 using --quote or --no-quoting, or dealing with character escaping with --escape.
 
 This command also makes it possible to process CSV files containing metadata and
-headers before the tabular data itself, with -S/--skip-headers or --vcf.
+headers before the tabular data itself, with -S/--skip-headers, -L/--skip-lines
+or --vcf.
 
 Usage:
     xan input [options] [<input>]
@@ -20,9 +21,10 @@ input options:
     --escape <char>               The escape character to use. When not specified,
                                   quotes are escaped by doubling them.
     --no-quoting                  Disable quoting completely.
-    -S, --skip-headers <pattern>  Skip header lines starting with the given pattern.
+    -L, --skip-lines <n>          Skip the first <n> lines of the file.
+    -H, --skip-headers <pattern>  Skip header lines starting with the given pattern.
     --vcf                         Process a \"Variant Call Format\" tabular file with headers.
-                                  A shorthand for --tabs -S '##' and some processing over the
+                                  A shorthand for --tabs -H '##' and some processing over the
                                   first column name: https://fr.wikipedia.org/wiki/Variant_Call_Format
 
 Common options:
@@ -39,6 +41,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_tabs: bool,
     flag_quote: Delimiter,
+    flag_skip_lines: Option<usize>,
     flag_skip_headers: Option<String>,
     flag_vcf: bool,
     flag_escape: Option<Delimiter>,
@@ -62,10 +65,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
+    if args.flag_skip_headers.is_some() && args.flag_skip_lines.is_some() {
+        Err("-L/--skip-lines does not work with -H/--skip-headers!")?;
+    }
+
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(true)
-        .flexible(args.flag_skip_headers.is_some())
+        .flexible(args.flag_skip_headers.is_some() || args.flag_skip_lines.is_some())
         .quote(args.flag_quote.as_byte());
 
     let wconfig = Config::new(&args.flag_output);
@@ -82,8 +89,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = rconfig.reader()?;
     let mut headers_have_been_skipped = false;
+    let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut row)? {
+        i += 1;
+
         if let Some(pattern) = &args.flag_skip_headers {
             if !headers_have_been_skipped {
                 if !row[0].starts_with(pattern.as_bytes()) {
@@ -105,6 +115,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 } else {
                     continue;
                 }
+            }
+        } else if let Some(skip_lines) = args.flag_skip_lines {
+            if i <= skip_lines {
+                continue;
             }
         }
 

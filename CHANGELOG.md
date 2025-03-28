@@ -5,7 +5,8 @@
 *Features*
 
 * Adding `xan input --tabs`.
-* Adding `xan input -S/--skip-headers`.
+* Adding `xan input -H/--skip-headers`.
+* Adding `xan input -L/--skip-lines`.
 * Adding `xan input --vcf`.
 
 ## 0.48.0
