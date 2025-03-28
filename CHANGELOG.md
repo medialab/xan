@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.49.0 (provisional)
+
+*Features*
+
+* Adding `xan input --tabs`.
+
 ## 0.48.0
 
 *Breaking*

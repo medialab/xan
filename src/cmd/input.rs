@@ -14,10 +14,11 @@ Usage:
     xan input [options] [<input>]
 
 input options:
-    --quote <arg>          The quote character to use. [default: \"]
-    --escape <arg>         The escape character to use. When not specified,
-                           quotes are escaped by doubling them.
-    --no-quoting           Disable quoting completely.
+    --tabs           Same as -d '\t', i.e. use tabulations as delimiter.
+    --quote <char>   The quote character to use. [default: \"]
+    --escape <char>  The escape character to use. When not specified,
+                     quotes are escaped by doubling them.
+    --no-quoting     Disable quoting completely.
 
 Common options:
     -h, --help             Display this message
@@ -31,17 +32,29 @@ struct Args {
     arg_input: Option<String>,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
+    flag_tabs: bool,
     flag_quote: Delimiter,
     flag_escape: Option<Delimiter>,
     flag_no_quoting: bool,
 }
 
+impl Args {
+    fn resolve(&mut self) {
+        if self.flag_tabs {
+            self.flag_delimiter = Some(Delimiter(b'\t'));
+        }
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
+
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(true)
         .quote(args.flag_quote.as_byte());
+
     let wconfig = Config::new(&args.flag_output);
 
     if let Some(escape) = args.flag_escape {
@@ -53,10 +66,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = rconfig.reader()?;
     let mut wtr = wconfig.writer()?;
+
     let mut row = csv::ByteRecord::new();
+
     while rdr.read_byte_record(&mut row)? {
         wtr.write_record(&row)?;
     }
+
     wtr.flush()?;
+
     Ok(())
 }

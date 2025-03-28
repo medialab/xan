@@ -13,10 +13,11 @@ Usage:
     xan input [options] [<input>]
 
 input options:
-    --quote <arg>          The quote character to use. [default: "]
-    --escape <arg>         The escape character to use. When not specified,
-                           quotes are escaped by doubling them.
-    --no-quoting           Disable quoting completely.
+    --tabs           Same as -d '	', i.e. use tabulations as delimiter.
+    --quote <char>   The quote character to use. [default: "]
+    --escape <char>  The escape character to use. When not specified,
+                     quotes are escaped by doubling them.
+    --no-quoting     Disable quoting completely.
 
 Common options:
     -h, --help             Display this message
