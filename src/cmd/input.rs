@@ -14,11 +14,12 @@ Usage:
     xan input [options] [<input>]
 
 input options:
-    --tabs           Same as -d '\t', i.e. use tabulations as delimiter.
-    --quote <char>   The quote character to use. [default: \"]
-    --escape <char>  The escape character to use. When not specified,
-                     quotes are escaped by doubling them.
-    --no-quoting     Disable quoting completely.
+    --tabs                        Same as -d '\t', i.e. use tabulations as delimiter.
+    --quote <char>                The quote character to use. [default: \"]
+    --escape <char>               The escape character to use. When not specified,
+                                  quotes are escaped by doubling them.
+    --no-quoting                  Disable quoting completely.
+    -S, --skip-headers <pattern>  Skip header lines starting with the given pattern.
 
 Common options:
     -h, --help             Display this message
@@ -34,6 +35,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_tabs: bool,
     flag_quote: Delimiter,
+    flag_skip_headers: Option<String>,
     flag_escape: Option<Delimiter>,
     flag_no_quoting: bool,
 }
@@ -53,6 +55,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(true)
+        .flexible(args.flag_skip_headers.is_some())
         .quote(args.flag_quote.as_byte());
 
     let wconfig = Config::new(&args.flag_output);
@@ -64,12 +67,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         rconfig = rconfig.quoting(false);
     }
 
-    let mut rdr = rconfig.reader()?;
     let mut wtr = wconfig.writer()?;
-
     let mut row = csv::ByteRecord::new();
 
+    let mut rdr = rconfig.reader()?;
+    let mut headers_have_been_skipped = false;
+
     while rdr.read_byte_record(&mut row)? {
+        if let Some(pattern) = &args.flag_skip_headers {
+            if !headers_have_been_skipped {
+                if !row[0].starts_with(pattern.as_bytes()) {
+                    headers_have_been_skipped = true;
+                } else {
+                    continue;
+                }
+            }
+        }
+
         wtr.write_record(&row)?;
     }
 

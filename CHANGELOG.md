@@ -5,6 +5,7 @@
 *Features*
 
 * Adding `xan input --tabs`.
+* Adding `xan input -S/--skip-headers`.
 
 ## 0.48.0
 
