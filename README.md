@@ -31,6 +31,12 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 ## Summary
 
 * [How to install](#how-to-install)
+  * [Cargo](#cargo)
+  * [Homebrew (macOS)](#homebrew-macos)
+  * [Arch Linux](#arch-linux)
+  * [Nix](#nix)
+  * [Pre-built binaries](#pre-built-binaries)
+  * [Installing completions](#installing-completions)
 * [Quick tour](#quick-tour)
 * [Available commands](#available-commands)
 * [General flags and IO model](#general-flags-and-io-model)
@@ -55,16 +61,13 @@ You can also install the latest dev version thusly:
 cargo install --git https://github.com/medialab/xan
 ```
 
-### Pre-built binaries
+### Homebrew (macOS)
 
-Pre-built binaries can be found attached to every GitHub [releases](https://github.com/medialab/xan/releases/latest).
+`xan` can be installed with [Homebrew](https://brew.sh/) on macOS thusly:
 
-Currently supported targets include:
-
-- `x86_64-unknown-linux-musl`
-- `x86_64-pc-windows-gnu`
-
-Feel free to open a PR to improve the CI by adding relevant targets.
+```bash
+brew install xan
+```
 
 ### Arch Linux
 
@@ -83,6 +86,17 @@ use `nix-shell` to enter an ephemeral shell.
 ```bash
 nix-shell -p xan
 ```
+
+### Pre-built binaries
+
+Pre-built binaries can be found attached to every GitHub [releases](https://github.com/medialab/xan/releases/latest).
+
+Currently supported targets include:
+
+- `x86_64-unknown-linux-musl`
+- `x86_64-pc-windows-gnu`
+
+Feel free to open a PR to improve the CI by adding relevant targets.
 
 ### Installing completions
 
