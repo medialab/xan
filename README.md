@@ -67,6 +67,14 @@ You can also install the latest dev version thusly:
 cargo install --git https://github.com/medialab/xan
 ```
 
+### Scoop (Windows)
+
+`xan` can be installed using [Scoop](https://scoop.sh/) on Windows:
+
+```powershell
+scoop install xan
+```
+
 ### Homebrew (macOS)
 
 `xan` can be installed with [Homebrew](https://brew.sh/) on macOS thusly:
