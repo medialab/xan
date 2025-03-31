@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::str::from_utf8;
@@ -171,6 +172,81 @@ impl Matcher {
             },
         }
     }
+
+    fn replace<'a>(&self, cell: &'a [u8], with: &'a [u8]) -> Cow<'a, [u8]> {
+        match self {
+            Self::Empty => {
+                if cell.is_empty() {
+                    Cow::Borrowed(with)
+                } else {
+                    Cow::Borrowed(cell)
+                }
+            }
+            Self::NonEmpty => {
+                if cell.is_empty() {
+                    Cow::Borrowed(cell)
+                } else {
+                    Cow::Borrowed(with)
+                }
+            }
+            Self::Substring(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    Cow::Owned(pattern.replace_all_bytes(&cell.to_lowercase(), &[with]))
+                } else {
+                    Cow::Owned(pattern.replace_all_bytes(cell, &[with]))
+                }
+            }
+            Self::Regex(pattern) => pattern.replace_all(cell, with),
+            Self::Exact(pattern, case_insensitive) => {
+                if *case_insensitive {
+                    if &cell.to_lowercase() == pattern {
+                        Cow::Borrowed(with)
+                    } else {
+                        Cow::Borrowed(cell)
+                    }
+                } else if cell == pattern {
+                    Cow::Borrowed(with)
+                } else {
+                    Cow::Borrowed(cell)
+                }
+            }
+            Self::RegexSet(_) => unreachable!(),
+            Self::Regexes(_) => unreachable!(),
+            Self::HashSet(patterns, case_insensitive) => {
+                if *case_insensitive {
+                    if patterns.contains(&cell.to_lowercase()) {
+                        Cow::Borrowed(with)
+                    } else {
+                        Cow::Borrowed(cell)
+                    }
+                } else if patterns.contains(cell) {
+                    Cow::Borrowed(with)
+                } else {
+                    Cow::Borrowed(cell)
+                }
+            }
+            Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
+                None => Cow::Borrowed(cell),
+                Some(url) => {
+                    if stems.is_simplified_match(url) {
+                        Cow::Borrowed(with)
+                    } else {
+                        Cow::Borrowed(cell)
+                    }
+                }
+            },
+            Self::UrlTrie(trie) => match from_utf8(cell).ok() {
+                None => Cow::Borrowed(cell),
+                Some(url) => {
+                    if trie.is_match(url).unwrap_or(false) {
+                        Cow::Borrowed(with)
+                    } else {
+                        Cow::Borrowed(cell)
+                    }
+                }
+            },
+        }
+    }
 }
 
 // NOTE: a -U, --unbuffered flag that flushes on each match does not solve
@@ -259,6 +335,8 @@ search options:
                              count the total number of non-overlapping pattern matches per
                              row and report it in a new column with given name.
                              Does not work with -v/--invert-match.
+    -R, --replace <with>     If given, the command will not filter rows but will instead
+                             replace matches with the given replacement.
     --overlapping            When used with -c/--count, return the count of overlapping
                              matches. Note that this can sometimes be one order of magnitude
                              slower that counting non-overlapping matches.
@@ -294,6 +372,7 @@ struct Args {
     flag_regex: bool,
     flag_url_prefix: bool,
     flag_count: Option<String>,
+    flag_replace: Option<String>,
     flag_limit: Option<NonZeroUsize>,
     flag_patterns: Option<String>,
     flag_pattern_column: Option<SelectColumns>,
@@ -432,8 +511,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--overlapping only works with -c/--count!")?;
     }
 
-    if args.flag_count.is_some() && args.flag_invert_match {
-        Err("-c/--count does not work with -v/--invert-match!")?;
+    if args.flag_count.is_some() || args.flag_replace.is_some() {
+        if args.flag_invert_match {
+            Err("-c/--count & -R/--replace do not work with -v/--invert-match!")?;
+        }
+
+        if args.flag_all {
+            Err("-c/--count & -R/--replace do not work with -A/--all!")?;
+        }
     }
 
     if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
@@ -442,6 +527,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_ignore_case && args.flag_url_prefix {
         Err("-u/--url-prefix & -i/--ignore-case are not compatible!")?;
+    }
+
+    if args.flag_count.is_some() && args.flag_replace.is_some() {
+        Err("-c/--count does not work with -R/--replace!")?;
+    }
+
+    if args.flag_patterns.is_some() && args.flag_replace.is_some() {
+        unimplemented!()
     }
 
     let matcher = args.build_matcher()?;
@@ -465,12 +558,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = csv::ByteRecord::new();
+    let mut replaced_record = csv::ByteRecord::new();
     let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
 
-        if args.flag_count.is_some() {
+        if let Some(replacement) = &args.flag_replace {
+            replaced_record.clear();
+
+            for cell in sel.select(&record) {
+                let replaced_cell = matcher.replace(cell, replacement.as_bytes());
+                replaced_record.push_field(&replaced_cell);
+
+                if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
+                    is_match = true;
+                }
+            }
+
+            wtr.write_byte_record(&replaced_record)?;
+        } else if args.flag_count.is_some() {
             let count: usize = sel
                 .select(&record)
                 .map(|cell| matcher.count(cell, args.flag_overlapping))

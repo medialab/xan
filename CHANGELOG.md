@@ -8,6 +8,7 @@
 * Adding `xan input -H/--skip-headers`.
 * Adding `xan input -L/--skip-lines`.
 * Adding `xan input --vcf`.
+* Adding `xan search -R/--replace`.
 
 ## 0.48.0
 

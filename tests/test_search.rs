@@ -638,3 +638,20 @@ fn search_patterns_url_prefix() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_replace() {
+    let wrk = Workdir::new("search_replace");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["number"], svec!["3,4"], svec!["2"], svec!["10,7"]],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg(",").args(["--replace", "."]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["number"], svec!["3.4"], svec!["2"], svec!["10.7"]];
+    assert_eq!(got, expected);
+}
