@@ -55,7 +55,7 @@ struct Args {
 impl Args {
     fn resolve(&mut self) {
         if let Some(path) = &self.arg_input {
-            if path.ends_with(".vcf") {
+            if path.ends_with(".vcf") || path.ends_with(".vcf.gz") {
                 self.flag_vcf = true;
             }
         }

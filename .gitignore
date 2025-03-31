@@ -4,6 +4,7 @@ target
 *.csv
 *.tsv
 *.vcf
+*.gz
 *.idx
 builds
 .vscode
