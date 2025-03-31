@@ -27,6 +27,9 @@ check out the `xan help cheatsheet` command.
 
 For a list of available functions, use `xan help functions`.
 
+If you want to create multiple columns in a single pass, take a look
+at `xan select --append --evaluate` instead.
+
 Miscellaneous tricks:
 
 1. Copying a column:

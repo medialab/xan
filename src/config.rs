@@ -111,6 +111,8 @@ impl ReverseRead {
 pub trait SeekRead: Seek + Read {}
 impl<T: Seek + Read> SeekRead for T {}
 
+type PairResult = CliResult<(String, Option<String>)>;
+
 #[derive(Debug)]
 pub struct Config {
     pub path: Option<PathBuf>, // None implies <stdin>
@@ -416,6 +418,56 @@ impl Config {
                         None
                     } else {
                         Some(Ok(line))
+                    }
+                }
+            },
+        )))
+    }
+
+    pub fn pairs(
+        &self,
+        select: (&Option<SelectColumns>, &Option<SelectColumns>),
+    ) -> CliResult<Box<dyn Iterator<Item = PairResult>>> {
+        if let Some(first_sel) = &select.0 {
+            let mut csv_reader = self.reader()?;
+            let headers = csv_reader.byte_headers()?;
+            let first_column_index = first_sel.single_selection(headers, !self.no_headers)?;
+            let second_column_index_opt = select
+                .1
+                .as_ref()
+                .map(|sel| sel.single_selection(headers, !self.no_headers))
+                .transpose()?;
+
+            return Ok(Box::new(csv_reader.into_byte_records().map(
+                move |result| match result {
+                    Err(e) => Err(e)?,
+                    Ok(record) => {
+                        let a = String::from_utf8(record[first_column_index].to_vec())
+                            .expect("could not decode utf8");
+
+                        let b = second_column_index_opt.map(|second_column_index| {
+                            String::from_utf8(record[second_column_index].to_vec())
+                                .expect("could not decode utf8")
+                        });
+
+                        Ok((a, b))
+                    }
+                },
+            )));
+        }
+
+        let lines_reader = self.io_buf_reader()?;
+
+        Ok(Box::new(lines_reader.lines().filter_map(
+            |result| match result {
+                Err(e) => Some(Err(CliError::from(e))),
+                Ok(mut line) => {
+                    line.truncate(line.trim_end().len());
+
+                    if line.is_empty() {
+                        None
+                    } else {
+                        Some(Ok((line, None)))
                     }
                 }
             },

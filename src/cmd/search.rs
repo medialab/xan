@@ -1,16 +1,16 @@
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::str::from_utf8;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
 use regex::bytes::{Regex, RegexBuilder};
-use regex_automata::{meta::Regex as LowLevelRegex, util::syntax};
+use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::urls::{LRUStems, LRUTrie, TaggedUrl};
+use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -32,6 +32,42 @@ fn count_overlapping_matches(regex: &Regex, haystack: &[u8]) -> usize {
     count
 }
 
+fn regex_set_replace_all<'a>(
+    regex: &RegexSet,
+    cell: &'a [u8],
+    replacements: &'a [Vec<u8>],
+) -> Cow<'a, [u8]> {
+    let mut bytes = Vec::new();
+
+    let mut last_match: Option<usize> = None;
+
+    for captures in regex.captures_iter(cell) {
+        if bytes.capacity() == 0 {
+            bytes.reserve(cell.len());
+        }
+
+        let m = captures.get_match().unwrap();
+
+        if let Some(end) = last_match {
+            bytes.extend(&cell[end..m.start()]);
+        } else {
+            bytes.extend(&cell[..m.start()]);
+        }
+
+        captures.interpolate_bytes_into(cell, &replacements[m.pattern().as_usize()], &mut bytes);
+
+        last_match.replace(m.end());
+    }
+
+    if let Some(end) = last_match {
+        bytes.extend(&cell[end..]);
+    } else {
+        return Cow::Borrowed(cell);
+    }
+
+    Cow::Owned(bytes)
+}
+
 enum Matcher {
     Empty,
     NonEmpty,
@@ -39,10 +75,10 @@ enum Matcher {
     Exact(Vec<u8>, bool),
     Regex(Regex),
     Regexes(Vec<Regex>),
-    RegexSet(LowLevelRegex),
-    HashSet(HashSet<Vec<u8>>, bool),
+    RegexSet(RegexSet),
+    HashMap(HashMap<Vec<u8>, usize>, bool),
     UrlPrefix(LRUStems),
-    UrlTrie(LRUTrie),
+    UrlTrie(LRUTrieMap<usize>),
 }
 
 impl Matcher {
@@ -67,11 +103,11 @@ impl Matcher {
                 }
             }
             Self::RegexSet(set) => set.is_match(cell),
-            Self::HashSet(patterns, case_insensitive) => {
+            Self::HashMap(patterns, case_insensitive) => {
                 if *case_insensitive {
-                    patterns.contains(&cell.to_lowercase())
+                    patterns.contains_key(&cell.to_lowercase())
                 } else {
-                    patterns.contains(cell)
+                    patterns.contains_key(cell)
                 }
             }
             Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
@@ -137,14 +173,14 @@ impl Matcher {
                 .iter()
                 .map(|pattern| count_overlapping_matches(pattern, cell))
                 .sum(),
-            Self::HashSet(patterns, case_insensitive) => {
+            Self::HashMap(patterns, case_insensitive) => {
                 if *case_insensitive {
-                    if patterns.contains(&cell.to_lowercase()) {
+                    if patterns.contains_key(&cell.to_lowercase()) {
                         1
                     } else {
                         0
                     }
-                } else if patterns.contains(cell) {
+                } else if patterns.contains_key(cell) {
                     1
                 } else {
                     0
@@ -173,11 +209,11 @@ impl Matcher {
         }
     }
 
-    fn replace<'a>(&self, cell: &'a [u8], with: &'a [u8]) -> Cow<'a, [u8]> {
+    fn replace<'a>(&self, cell: &'a [u8], replacements: &'a [Vec<u8>]) -> Cow<'a, [u8]> {
         match self {
             Self::Empty => {
                 if cell.is_empty() {
-                    Cow::Borrowed(with)
+                    Cow::Borrowed(&replacements[0])
                 } else {
                     Cow::Borrowed(cell)
                 }
@@ -186,41 +222,41 @@ impl Matcher {
                 if cell.is_empty() {
                     Cow::Borrowed(cell)
                 } else {
-                    Cow::Borrowed(with)
+                    Cow::Borrowed(&replacements[0])
                 }
             }
             Self::Substring(pattern, case_insensitive) => {
                 if *case_insensitive {
-                    Cow::Owned(pattern.replace_all_bytes(&cell.to_lowercase(), &[with]))
+                    Cow::Owned(pattern.replace_all_bytes(&cell.to_lowercase(), replacements))
                 } else {
-                    Cow::Owned(pattern.replace_all_bytes(cell, &[with]))
+                    Cow::Owned(pattern.replace_all_bytes(cell, replacements))
                 }
             }
-            Self::Regex(pattern) => pattern.replace_all(cell, with),
+            Self::Regex(pattern) => pattern.replace_all(cell, &replacements[0]),
             Self::Exact(pattern, case_insensitive) => {
                 if *case_insensitive {
                     if &cell.to_lowercase() == pattern {
-                        Cow::Borrowed(with)
+                        Cow::Borrowed(&replacements[0])
                     } else {
                         Cow::Borrowed(cell)
                     }
                 } else if cell == pattern {
-                    Cow::Borrowed(with)
+                    Cow::Borrowed(&replacements[0])
                 } else {
                     Cow::Borrowed(cell)
                 }
             }
-            Self::RegexSet(_) => unreachable!(),
+            Self::RegexSet(set) => regex_set_replace_all(set, cell, replacements),
             Self::Regexes(_) => unreachable!(),
-            Self::HashSet(patterns, case_insensitive) => {
+            Self::HashMap(patterns, case_insensitive) => {
                 if *case_insensitive {
-                    if patterns.contains(&cell.to_lowercase()) {
-                        Cow::Borrowed(with)
+                    if let Some(i) = patterns.get(&cell.to_lowercase()) {
+                        Cow::Borrowed(&replacements[*i])
                     } else {
                         Cow::Borrowed(cell)
                     }
-                } else if patterns.contains(cell) {
-                    Cow::Borrowed(with)
+                } else if let Some(i) = patterns.get(&cell.to_lowercase()) {
+                    Cow::Borrowed(&replacements[*i])
                 } else {
                     Cow::Borrowed(cell)
                 }
@@ -229,7 +265,7 @@ impl Matcher {
                 None => Cow::Borrowed(cell),
                 Some(url) => {
                     if stems.is_simplified_match(url) {
-                        Cow::Borrowed(with)
+                        Cow::Borrowed(&replacements[0])
                     } else {
                         Cow::Borrowed(cell)
                     }
@@ -238,8 +274,8 @@ impl Matcher {
             Self::UrlTrie(trie) => match from_utf8(cell).ok() {
                 None => Cow::Borrowed(cell),
                 Some(url) => {
-                    if trie.is_match(url).unwrap_or(false) {
-                        Cow::Borrowed(with)
+                    if let Ok(Some(i)) = trie.longest_matching_prefix_value(url) {
+                        Cow::Borrowed(&replacements[*i])
                     } else {
                         Cow::Borrowed(cell)
                     }
@@ -253,24 +289,33 @@ impl Matcher {
 // early termination when piping to `xan slice` because flush won't get a broken
 // pipe when writing nothing.
 static USAGE: &str = "
-Keep rows of given CSV file if ANY of the selected columns contains a desired
-substring.
+Keep rows of given CSV file if ANY of the selected column matches the given pattern
+or patterns.
 
-Can also be used to search for exact matches using the -e, --exact flag.
+This command has several flags selecting the way to perform the match:
 
-Can also be used to search using a regular expression using the -r, --regex flag.
+    * (default): matching a substring (e.g. \"john\" in \"My name is john\")
+    * -e, --exact: exact match
+    * -r, --regex: using a regular expression
+    * -u, --url-prefix: matching by url prefix (e.g. \"lemonde.fr/business\")
+    * -N, --non-empty: finding non-empty cells (does not need a pattern)
+    * -E, --empty: finding empty cells (does not need a pattern)
 
-Can also be used to search by url prefix (e.g. \"lemonde.fr/business\") using
-the -u, --url-prefix flag.
+Searching for rows with any column containing \"john\":
 
-Can also be used to search for empty or non-empty selections. For instance,
-keeping only rows where selection is not fully empty:
+    $ xan search \"john\" file.csv > matches.csv
 
-    $ xan search --non-empty file.csv
+Searching for rows where any column has *exactly* the value \"john\":
 
-Or keeping only rows where selection has any empty column:
+    $ xan search -e \"john\" file.csv > matches.csv
 
-    $ xan search --empty file.csv
+Keeping only rows where selection is not fully empty:
+
+    $ xan search -s user_id --non-empty file.csv > users-with-id.csv
+
+Keeping only rows where selection has any empty column:
+
+    $ xan search -s user_id --empty file.csv > users-without-id.csv
 
 When using a regular expression, be sure to mind bash escape rules (prefer single
 quotes around your expression and don't forget to use backslashes when needed):
@@ -279,9 +324,10 @@ quotes around your expression and don't forget to use backslashes when needed):
 
 To restrict the columns that will be searched you can use the -s, --select flag.
 
-All search modes can also be case-insensitive using -i, --ignore-case.
+All search modes (except -u/--url-prefix) can also be case-insensitive
+using -i, --ignore-case.
 
-Finally, this command is also able to search for multiple patterns at once.
+This command is also able to search for multiple patterns at once.
 To do so, you must give a text file with one pattern per line to the --patterns
 flag, or a CSV file containing a column of to indicate using --pattern-column.
 
@@ -301,6 +347,23 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 
     $ xan slice -l 10 people.csv | xan search --patterns - --pattern-column name file.csv > matches.csv
 
+This command can also count the number of matches and report it in a new column,
+using the -c/--count flag.
+
+Finally, this command is able to replace matched values through the -R/--replace
+flag and the --replacement-column flag when combined with --patterns & --pattern-column.
+
+Cleaning thousands separators (usually commas \",\" in English) from numerical columns:
+
+    $ xan search , --replace . -s 'count_*' file.csv
+
+Replacing color names to their French counterpart:
+
+    $ echo 'english,french\\nred,rouge\\ngreen,vert' | \\
+    $ xan search -e \\
+    $   --patterns - --pattern-column english --replacement-column french \\
+    $   -s color file.csv > translated.csv
+
 Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]
@@ -309,40 +372,44 @@ Usage:
     xan search --help
 
 search options:
-    -e, --exact              Perform an exact match.
-    -r, --regex              Use a regex to perform the match.
-    -E, --empty              Search for empty cells, i.e. filter out
-                             any completely non-empty selection.
-    -N, --non-empty          Search for non-empty cells, i.e. filter out
-                             any completely empty selection.
-    -u, --url-prefix         Match by url prefix, i.e. cells must contain urls
-                             matching the searched url prefix. Urls are first
-                             reordered using a scheme called a LRU, that you can
-                             read about here:
-                             https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
-    --patterns <path>        Path to a text file (use \"-\" for stdin), containing multiple
-                             patterns, one per line, to search at once.
-    --pattern-column <name>  When given a column name, --patterns file will be considered a CSV
-                             and patterns to search will be extracted from the given column.
-    -i, --ignore-case        Case insensitive search.
-    -s, --select <arg>       Select the columns to search. See 'xan select -h'
-                             for the full syntax.
-    -v, --invert-match       Select only rows that did not match
-    -A, --all                Only return a row when ALL columns from the given selection
-                             match the desired pattern, instead of returning a row
-                             when ANY column matches.
-    -c, --count <column>     If given, the command will not filter rows but will instead
-                             count the total number of non-overlapping pattern matches per
-                             row and report it in a new column with given name.
-                             Does not work with -v/--invert-match.
-    -R, --replace <with>     If given, the command will not filter rows but will instead
-                             replace matches with the given replacement.
-    --overlapping            When used with -c/--count, return the count of overlapping
-                             matches. Note that this can sometimes be one order of magnitude
-                             slower that counting non-overlapping matches.
-    -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
-                             buffering some times (e.g. when searching for very few
-                             rows in a big file before piping to `view` or `flatten`).
+    -e, --exact                  Perform an exact match.
+    -r, --regex                  Use a regex to perform the match.
+    -E, --empty                  Search for empty cells, i.e. filter out
+                                 any completely non-empty selection.
+    -N, --non-empty              Search for non-empty cells, i.e. filter out
+                                 any completely empty selection.
+    -u, --url-prefix             Match by url prefix, i.e. cells must contain urls
+                                 matching the searched url prefix. Urls are first
+                                 reordered using a scheme called a LRU, that you can
+                                 read about here:
+                                 https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+    --patterns <path>            Path to a text file (use \"-\" for stdin), containing multiple
+                                 patterns, one per line, to search at once.
+    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
+                                 and patterns to search will be extracted from the given column.
+    --replacement-column <name>  When given with both --patterns & --pattern-column, indicates the
+                                 column containing a replacement when a match occurs. Does not
+                                 work with -R/--replace.
+    -i, --ignore-case            Case insensitive search.
+    -s, --select <arg>           Select the columns to search. See 'xan select -h'
+                                 for the full syntax.
+    -v, --invert-match           Select only rows that did not match
+    -A, --all                    Only return a row when ALL columns from the given selection
+                                 match the desired pattern, instead of returning a row
+                                 when ANY column matches.
+    -c, --count <column>         If given, the command will not filter rows but will instead
+                                 count the total number of non-overlapping pattern matches per
+                                 row and report it in a new column with given name.
+                                 Does not work with -v/--invert-match.
+    -R, --replace <with>         If given, the command will not filter rows but will instead
+                                 replace matches with the given replacement.
+                                 Does not work with --replacement-column.
+    --overlapping                When used with -c/--count, return the count of overlapping
+                                 matches. Note that this can sometimes be one order of magnitude
+                                 slower that counting non-overlapping matches.
+    -l, --limit <n>              Maximum of number rows to return. Useful to avoid downstream
+                                 buffering some times (e.g. when searching for very few
+                                 rows in a big file before piping to `view` or `flatten`).
 
 Common options:
     -h, --help             Display this message
@@ -376,117 +443,162 @@ struct Args {
     flag_limit: Option<NonZeroUsize>,
     flag_patterns: Option<String>,
     flag_pattern_column: Option<SelectColumns>,
+    flag_replacement_column: Option<SelectColumns>,
 }
 
+type Replacements = Option<Vec<Vec<u8>>>;
+
 impl Args {
-    fn build_matcher(&self) -> Result<Matcher, CliError> {
+    fn build_matcher(&self) -> Result<(Matcher, Replacements), CliError> {
         if self.flag_non_empty {
-            return Ok(Matcher::NonEmpty);
+            return Ok((Matcher::NonEmpty, None));
         }
 
         if self.flag_empty {
-            return Ok(Matcher::Empty);
+            return Ok((Matcher::Empty, None));
         }
 
         match self.flag_patterns.as_ref() {
             None => {
                 let pattern = self.arg_pattern.as_ref().unwrap();
+                let replacements = self
+                    .flag_replace
+                    .as_ref()
+                    .map(|replacement| vec![replacement.clone().into_bytes()]);
 
                 Ok(if self.flag_exact {
                     if self.flag_ignore_case {
-                        Matcher::Exact(pattern.as_bytes().to_lowercase(), true)
+                        (
+                            Matcher::Exact(pattern.as_bytes().to_lowercase(), true),
+                            replacements,
+                        )
                     } else {
-                        Matcher::Exact(pattern.as_bytes().to_vec(), false)
+                        (
+                            Matcher::Exact(pattern.as_bytes().to_vec(), false),
+                            replacements,
+                        )
                     }
                 } else if self.flag_regex {
-                    Matcher::Regex(
-                        RegexBuilder::new(pattern)
-                            .case_insensitive(self.flag_ignore_case)
-                            .build()?,
+                    (
+                        Matcher::Regex(
+                            RegexBuilder::new(pattern)
+                                .case_insensitive(self.flag_ignore_case)
+                                .build()?,
+                        ),
+                        replacements,
                     )
                 } else if self.flag_url_prefix {
                     let tagged_url = pattern.parse::<TaggedUrl>()?;
 
-                    Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
+                    (
+                        Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true)),
+                        replacements,
+                    )
                 } else {
-                    Matcher::Substring(
-                        AhoCorasick::new([if self.flag_ignore_case {
-                            pattern.to_lowercase()
-                        } else {
-                            pattern.to_string()
-                        }])?,
-                        self.flag_ignore_case,
+                    (
+                        Matcher::Substring(
+                            AhoCorasick::new([if self.flag_ignore_case {
+                                pattern.to_lowercase()
+                            } else {
+                                pattern.to_string()
+                            }])?,
+                            self.flag_ignore_case,
+                        ),
+                        replacements,
                     )
                 })
             }
             Some(_) => {
-                let patterns = Config::new(&self.flag_patterns)
+                let pairs = Config::new(&self.flag_patterns)
                     .delimiter(self.flag_delimiter)
-                    .lines(&self.flag_pattern_column)?;
+                    .pairs((&self.flag_pattern_column, &self.flag_replacement_column))?
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let (patterns, replacements): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+
+                let replacements = if self.flag_replacement_column.is_some() {
+                    Some(
+                        replacements
+                            .into_iter()
+                            .map(|o| o.unwrap().into_bytes())
+                            .collect::<Vec<_>>(),
+                    )
+                } else {
+                    self.flag_replace
+                        .as_ref()
+                        .map(|replacement| vec![replacement.clone().into_bytes(); patterns.len()])
+                };
 
                 Ok(if self.flag_exact {
-                    Matcher::HashSet(
-                        patterns
-                            .map(|pattern| {
-                                pattern.map(|p| {
-                                    if self.flag_ignore_case {
-                                        p.to_lowercase().into_bytes()
-                                    } else {
-                                        p.into_bytes()
-                                    }
-                                })
-                            })
-                            .collect::<Result<HashSet<_>, _>>()?,
-                        self.flag_ignore_case,
-                    )
+                    let mut map = HashMap::with_capacity(patterns.len());
+
+                    for (i, pattern) in patterns.into_iter().enumerate() {
+                        map.insert(
+                            if self.flag_ignore_case {
+                                pattern.to_lowercase().into_bytes()
+                            } else {
+                                pattern.into_bytes()
+                            },
+                            i,
+                        );
+                    }
+
+                    (Matcher::HashMap(map, self.flag_ignore_case), replacements)
                 } else if self.flag_regex {
                     if self.flag_overlapping {
-                        Matcher::Regexes(
-                            patterns
-                                .map(|pattern| {
-                                    pattern.and_then(|p| {
-                                        RegexBuilder::new(&p)
+                        (
+                            Matcher::Regexes(
+                                patterns
+                                    .iter()
+                                    .map(|pattern| {
+                                        RegexBuilder::new(pattern)
                                             .case_insensitive(self.flag_ignore_case)
                                             .build()
                                             .map_err(CliError::from)
                                     })
-                                })
-                                .collect::<Result<Vec<_>, _>>()?,
+                                    .collect::<Result<Vec<_>, _>>()?,
+                            ),
+                            replacements,
                         )
                     } else {
-                        Matcher::RegexSet(
-                            LowLevelRegex::builder()
-                                .syntax(
-                                    syntax::Config::new().case_insensitive(self.flag_ignore_case),
-                                )
-                                .build_many(&patterns.collect::<Result<Vec<_>, _>>()?)?,
+                        (
+                            Matcher::RegexSet(
+                                RegexSet::builder()
+                                    .syntax(
+                                        syntax::Config::new()
+                                            .case_insensitive(self.flag_ignore_case),
+                                    )
+                                    .build_many(&patterns.iter().collect::<Vec<_>>())?,
+                            ),
+                            replacements,
                         )
                     }
                 } else if self.flag_url_prefix {
-                    let mut trie = LRUTrie::new_simplified();
+                    let mut trie = LRUTrieMap::new_simplified();
 
-                    for result in patterns {
-                        let url = result?;
-                        trie.add(&url)?;
+                    for (i, url) in patterns.iter().enumerate() {
+                        trie.insert(url, i)?;
                     }
 
-                    Matcher::UrlTrie(trie)
+                    (Matcher::UrlTrie(trie), replacements)
                 } else {
-                    Matcher::Substring(
-                        AhoCorasick::new(
-                            &patterns
-                                .map(|pattern| {
-                                    pattern.map(|p| {
+                    (
+                        Matcher::Substring(
+                            AhoCorasick::new(
+                                patterns
+                                    .into_iter()
+                                    .map(|pattern| {
                                         if self.flag_ignore_case {
-                                            p.to_lowercase()
+                                            pattern.to_lowercase()
                                         } else {
-                                            p
+                                            pattern
                                         }
                                     })
-                                })
-                                .collect::<Result<Vec<_>, _>>()?,
-                        )?,
-                        self.flag_ignore_case,
+                                    .collect::<Vec<_>>(),
+                            )?,
+                            self.flag_ignore_case,
+                        ),
+                        replacements,
                     )
                 })
             }
@@ -533,11 +645,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-c/--count does not work with -R/--replace!")?;
     }
 
-    if args.flag_patterns.is_some() && args.flag_replace.is_some() {
-        unimplemented!()
+    if args.flag_replace.is_some() && args.flag_replacement_column.is_some() {
+        Err("-R/--replace does not work with --replacement-column!")?;
     }
 
-    let matcher = args.build_matcher()?;
+    if args.flag_replacement_column.is_some()
+        && (args.flag_patterns.is_none() || args.flag_pattern_column.is_none())
+    {
+        Err("--replacement-column requires both --patterns & --pattern-column!")?;
+    }
+
+    let (matcher, replacements_opt) = args.build_matcher()?;
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -564,11 +683,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
 
-        if let Some(replacement) = &args.flag_replace {
+        if let Some(replacements) = &replacements_opt {
             replaced_record.clear();
 
             for cell in sel.select(&record) {
-                let replaced_cell = matcher.replace(cell, replacement.as_bytes());
+                let replaced_cell = matcher.replace(cell, replacements);
                 replaced_record.push_field(&replaced_cell);
 
                 if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {

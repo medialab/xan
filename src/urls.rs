@@ -307,11 +307,13 @@ impl<V> LRUTrieMap<V> {
 }
 
 impl LRUTrieMap<()> {
+    #[allow(unused)]
     pub fn add(&mut self, url: &str) -> Result<(), ParseError> {
         self.insert(url, ())
     }
 }
 
+#[allow(unused)]
 pub type LRUTrie = LRUTrieMap<()>;
 
 struct LRUTrieMultiMapNode<V> {

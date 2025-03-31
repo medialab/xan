@@ -655,3 +655,254 @@ fn search_replace() {
     let expected = vec![svec!["number"], svec!["3.4"], svec!["2"], svec!["10.7"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_replace_regex() {
+    let wrk = Workdir::new("search_replace_regex");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["john berry"], svec!["mike apple"]],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("\\w+ (\\w+)")
+        .arg("--regex")
+        .args(["--replace", "name: $1"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["name: berry"], svec!["name: apple"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_patterns_replace() {
+    let wrk = Workdir::new("search_patterns_replace");
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["color", "replacement"],
+            svec!["red", "rouge"],
+            svec!["green", "vert"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color"],
+            svec!["this is red"],
+            svec!["this is blue"],
+            svec!["this is green"],
+            svec!["this is yellow"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--replace", "."])
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "color"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color"],
+        svec!["this is ."],
+        svec!["this is blue"],
+        svec!["this is ."],
+        svec!["this is yellow"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "color"])
+        .args(["--replacement-column", "replacement"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color"],
+        svec!["this is rouge"],
+        svec!["this is blue"],
+        svec!["this is vert"],
+        svec!["this is yellow"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_patterns_exact_replace() {
+    let wrk = Workdir::new("search_patterns_exact_replace");
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["color", "replacement"],
+            svec!["red", "rouge"],
+            svec!["green", "vert"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color"],
+            svec!["this is red"],
+            svec!["red"],
+            svec!["this is green"],
+            svec!["green"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--replace", "."])
+        .arg("-e")
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "color"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color"],
+        svec!["this is red"],
+        svec!["."],
+        svec!["this is green"],
+        svec!["."],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .arg("-e")
+        .args(["--pattern-column", "color"])
+        .args(["--replacement-column", "replacement"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color"],
+        svec!["this is red"],
+        svec!["rouge"],
+        svec!["this is green"],
+        svec!["vert"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_patterns_regex_replace() {
+    let wrk = Workdir::new("search_patterns_regex_replace");
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["color", "replacement"],
+            svec!["this is (orange|red)", "color=$1"],
+            svec!["this is (green)", "vert=$1"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["color"],
+            svec!["this is red; this is orange"],
+            svec!["this is blue ok"],
+            svec!["this is green ok"],
+            svec!["this is yellow"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--replace", "."])
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "color"])
+        .arg("-r")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color"],
+        svec![".; ."],
+        svec!["this is blue ok"],
+        svec![". ok"],
+        svec!["this is yellow"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "color"])
+        .args(["--replacement-column", "replacement"])
+        .arg("-r")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color"],
+        svec!["color=red; color=orange"],
+        svec!["this is blue ok"],
+        svec!["vert=green ok"],
+        svec!["this is yellow"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_patterns_url_replace() {
+    let wrk = Workdir::new("search_patterns_url_replace");
+
+    wrk.create(
+        "urls.csv",
+        vec![
+            svec!["url", "color"],
+            svec!["lemonde.fr", "yellow"],
+            svec!["lefigaro.fr", "blue"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["url"],
+            svec!["lemonde.fr/test"],
+            svec!["liberation.fr/test"],
+            svec!["lefigaro.fr/test"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--replace", "."])
+        .arg("-u")
+        .args(["--patterns", "urls.csv"])
+        .args(["--pattern-column", "url"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["url"],
+        svec!["."],
+        svec!["liberation.fr/test"],
+        svec!["."],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "urls.csv"])
+        .arg("-u")
+        .args(["--pattern-column", "url"])
+        .args(["--replacement-column", "color"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["url"],
+        svec!["yellow"],
+        svec!["liberation.fr/test"],
+        svec!["blue"],
+    ];
+    assert_eq!(got, expected);
+}
