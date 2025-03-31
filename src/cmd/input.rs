@@ -9,8 +9,11 @@ This means being able to process CSV data with peculiar quoting rules
 using --quote or --no-quoting, or dealing with character escaping with --escape.
 
 This command also makes it possible to process CSV files containing metadata and
-headers before the tabular data itself, with -S/--skip-headers, -L/--skip-lines
-or --vcf.
+headers before the tabular data itself, with -S/--skip-headers, -L/--skip-lines.
+
+This command is also able to recognize VCF files, from bioinformatics, out of the
+box, either when the command is given a path with a `.vcf`extension or when
+explicitly passing the --vcf flag.
 
 Usage:
     xan input [options] [<input>]
@@ -26,6 +29,7 @@ input options:
     --vcf                         Process a \"Variant Call Format\" tabular file with headers.
                                   A shorthand for --tabs -H '##' and some processing over the
                                   first column name: https://fr.wikipedia.org/wiki/Variant_Call_Format
+                                  Will be toggled by default if given file has a `.vcf` extension.
 
 Common options:
     -h, --help             Display this message
@@ -50,6 +54,12 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
+        if let Some(path) = &self.arg_input {
+            if path.ends_with(".vcf") {
+                self.flag_vcf = true;
+            }
+        }
+
         if self.flag_vcf {
             self.flag_tabs = true;
             self.flag_skip_headers = Some("##".to_string());

@@ -3,6 +3,7 @@ build
 target
 *.csv
 *.tsv
+*.vcf
 *.idx
 builds
 .vscode
