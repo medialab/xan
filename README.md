@@ -32,6 +32,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 
 * [How to install](#how-to-install)
   * [Cargo](#cargo)
+  * [Scoop (Windows)](#scoop-windows)
   * [Homebrew (macOS)](#homebrew-macos)
   * [Arch Linux](#arch-linux)
   * [Nix](#nix)
@@ -65,6 +66,15 @@ You can also install the latest dev version thusly:
 
 ```bash
 cargo install --git https://github.com/medialab/xan
+```
+
+### Scoop (Windows)
+
+`xan` can be installed using [Scoop](https://scoop.sh/) on Windows:
+
+```powershell
+scoop bucket add extras
+scoop install xan
 ```
 
 ### Homebrew (macOS)
