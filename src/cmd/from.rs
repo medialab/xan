@@ -42,9 +42,7 @@ impl SupportedFormat {
     }
 
     fn infer_from_extension(path: &str) -> Option<Self> {
-        if path.ends_with(".tar.gz") {
-            return Some(Self::Tar);
-        }
+        let path = path.strip_suffix(".gz").unwrap_or(path);
 
         Self::parse(
             Path::new(path)
