@@ -18,10 +18,16 @@ box, either by detecting their extension or through dedicated flags:
 
     - VCF (\"Variant Call Format\") files:
         extensions: `.vcf`, `.vcf.gz`
+        flag: --vcf
         reference: https://en.wikipedia.org/wiki/Variant_Call_Format
     - GTF (\"Gene Transfert Format\") files:
         extension: `.gtf`, `.gtf.gz`, `.gff2`, `.gff2.gz`
+        flag: --gtf
         reference: https://en.wikipedia.org/wiki/Gene_transfer_format
+    - GFF (\"General Feature Format\") files:
+        extension: `.gff`, `.gff.gz`, `.gff3`, `.gff3.gz`
+        flag: --gff
+        reference: https://en.wikipedia.org/wiki/General_feature_format
 
 Usage:
     xan input [options] [<input>]
@@ -34,9 +40,12 @@ input options:
     --no-quoting                  Disable quoting completely.
     -L, --skip-lines <n>          Skip the first <n> lines of the file.
     -H, --skip-headers <pattern>  Skip header lines matching the given regex pattern.
+    -R, --skip-rows <pattern>     Skip rows matching the given regex pattern.
     --vcf                         Process a VCF file. Shorthand for --tabs -H '^##' and
                                   some processing over the first column name.
-    --gtf                         Process a GTF file. Shorthand for --tabs -G '^#!'.
+    --gtf                         Process a GTF file. Shorthand for --tabs -H '^#!'.
+    --gff                         Process a GFF file. Shorthand for --tabs -H '^#[#!]'
+                                  and -R '^###$'.
 
 Common options:
     -h, --help             Display this message
@@ -54,8 +63,10 @@ struct Args {
     flag_quote: Delimiter,
     flag_skip_lines: Option<usize>,
     flag_skip_headers: Option<String>,
+    flag_skip_rows: Option<String>,
     flag_vcf: bool,
     flag_gtf: bool,
+    flag_gff: bool,
     flag_escape: Option<Delimiter>,
     flag_no_quoting: bool,
 }
@@ -74,6 +85,14 @@ impl Args {
             {
                 self.flag_gtf = true;
             }
+
+            if path.ends_with(".gff")
+                || path.ends_with(".gff.gz")
+                || path.ends_with(".gff3")
+                || path.ends_with(".gff3.gz")
+            {
+                self.flag_gff = true;
+            }
         }
 
         if self.flag_vcf {
@@ -84,6 +103,12 @@ impl Args {
         if self.flag_gtf {
             self.flag_tabs = true;
             self.flag_skip_headers = Some("^#!".to_string());
+        }
+
+        if self.flag_gff {
+            self.flag_tabs = true;
+            self.flag_skip_headers = Some("^#[#!]".to_string());
+            self.flag_skip_rows = Some("^###$".to_string());
         }
 
         if self.flag_tabs {
@@ -103,11 +128,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(true)
-        .flexible(args.flag_skip_headers.is_some() || args.flag_skip_lines.is_some())
+        .flexible(
+            args.flag_skip_headers.is_some()
+                || args.flag_skip_lines.is_some()
+                || args.flag_skip_rows.is_some(),
+        )
         .quote(args.flag_quote.as_byte());
 
     let skip_headers = args
         .flag_skip_headers
+        .as_ref()
+        .map(|p| Regex::new(p))
+        .transpose()?;
+
+    let skip_rows = args
+        .flag_skip_rows
         .as_ref()
         .map(|p| Regex::new(p))
         .transpose()?;
@@ -155,6 +190,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         } else if let Some(skip_lines) = args.flag_skip_lines {
             if i <= skip_lines {
+                continue;
+            }
+        }
+
+        if let Some(pattern) = &skip_rows {
+            if pattern.is_match(record.as_slice()) {
                 continue;
             }
         }
