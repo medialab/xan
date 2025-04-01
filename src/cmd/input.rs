@@ -13,9 +13,15 @@ using --quote or --no-quoting, or dealing with character escaping with --escape.
 This command also makes it possible to process CSV files containing metadata and
 headers before the tabular data itself, with -S/--skip-headers, -L/--skip-lines.
 
-This command is also able to recognize VCF files, from bioinformatics, out of the
-box, either when the command is given a path with a `.vcf` extension or when
-explicitly passing the --vcf flag.
+This command also recognizes variant of TSV files from bioinformatics out of the
+box, either by detecting their extension or through dedicated flags:
+
+    - VCF (\"Variant Call Format\") files:
+        extensions: `.vcf`, `.vcf.gz`
+        reference: https://en.wikipedia.org/wiki/Variant_Call_Format
+    - GTF (\"Gene Transfert Format\") files:
+        extension: `.gtf`, `.gtf.gz`, `.gff2`, `.gff2.gz`
+        reference: https://en.wikipedia.org/wiki/Gene_transfer_format
 
 Usage:
     xan input [options] [<input>]
@@ -28,10 +34,9 @@ input options:
     --no-quoting                  Disable quoting completely.
     -L, --skip-lines <n>          Skip the first <n> lines of the file.
     -H, --skip-headers <pattern>  Skip header lines matching the given regex pattern.
-    --vcf                         Process a \"Variant Call Format\" tabular file with headers.
-                                  A shorthand for --tabs -H '^##' and some processing over the
-                                  first column name: https://en.wikipedia.org/wiki/Variant_Call_Format
-                                  Will be toggled by default if given file has a `.vcf` extension.
+    --vcf                         Process a VCF file. Shorthand for --tabs -H '^##' and
+                                  some processing over the first column name.
+    --gtf                         Process a GTF file. Shorthand for --tabs -G '^#!'.
 
 Common options:
     -h, --help             Display this message
@@ -50,6 +55,7 @@ struct Args {
     flag_skip_lines: Option<usize>,
     flag_skip_headers: Option<String>,
     flag_vcf: bool,
+    flag_gtf: bool,
     flag_escape: Option<Delimiter>,
     flag_no_quoting: bool,
 }
@@ -60,11 +66,24 @@ impl Args {
             if path.ends_with(".vcf") || path.ends_with(".vcf.gz") {
                 self.flag_vcf = true;
             }
+
+            if path.ends_with(".gtf")
+                || path.ends_with(".gtf.gz")
+                || path.ends_with(".gff2")
+                || path.ends_with(".gff2.gz")
+            {
+                self.flag_gtf = true;
+            }
         }
 
         if self.flag_vcf {
             self.flag_tabs = true;
             self.flag_skip_headers = Some("^##".to_string());
+        }
+
+        if self.flag_gtf {
+            self.flag_tabs = true;
+            self.flag_skip_headers = Some("^#!".to_string());
         }
 
         if self.flag_tabs {
