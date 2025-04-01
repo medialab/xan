@@ -11,7 +11,7 @@ This command also makes it possible to process CSV files containing metadata and
 headers before the tabular data itself, with -S/--skip-headers, -L/--skip-lines.
 
 This command is also able to recognize VCF files, from bioinformatics, out of the
-box, either when the command is given a path with a `.vcf`extension or when
+box, either when the command is given a path with a `.vcf` extension or when
 explicitly passing the --vcf flag.
 
 Usage:
@@ -27,7 +27,7 @@ input options:
     -H, --skip-headers <pattern>  Skip header lines starting with the given pattern.
     --vcf                         Process a "Variant Call Format" tabular file with headers.
                                   A shorthand for --tabs -H '##' and some processing over the
-                                  first column name: https://fr.wikipedia.org/wiki/Variant_Call_Format
+                                  first column name: https://en.wikipedia.org/wiki/Variant_Call_Format
                                   Will be toggled by default if given file has a `.vcf` extension.
 
 Common options:
