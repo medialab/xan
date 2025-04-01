@@ -7,7 +7,7 @@
 * Adding `xan input --tabs`.
 * Adding `xan input -H/--skip-headers`.
 * Adding `xan input -L/--skip-lines`.
-* Adding `xan input -R/--skip-row`.
+* Adding `xan input -R/--skip-rows`.
 * Adding `xan input --vcf, --gtf`.
 * Adding `xan search -R/--replace` & `xan search --replacement-column`.
 * Adding `xan rename -S/--slugify`.
