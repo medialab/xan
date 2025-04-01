@@ -506,7 +506,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 
 *Search & filter*
 
-- [**search**](./docs/cmd/search.md): Search for patterns in CSV data
+- [**search**](./docs/cmd/search.md): Search for (or replace) patterns in CSV data
 - [**filter**](./docs/cmd/filter.md): Only keep some CSV rows based on an evaluated expression
 - [**slice**](./docs/cmd/slice.md): Slice rows of CSV file
 - [**top**](./docs/cmd/top.md): Find top rows of a CSV file according to some column

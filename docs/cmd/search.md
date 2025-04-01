@@ -2,10 +2,10 @@
 # xan search
 
 ```txt
-Keep rows of given CSV file if ANY of the selected column matches the given pattern
-or patterns.
+Search for (or replace) patterns in CSV data. That is to say keep rows of given
+CSV file if ANY of the selected column matches the given pattern or patterns.
 
-This command has several flags selecting the way to perform the match:
+This command has several flags to select the way to perform a match:
 
     * (default): matching a substring (e.g. "john" in "My name is john")
     * -e, --exact: exact match
