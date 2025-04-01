@@ -30,6 +30,7 @@ Column names with characters that need escaping:
 
 Usage:
     xan rename [options] --prefix <prefix> [<input>]
+    xan rename [options] --slugify [<input>]
     xan rename [options] <columns> [<input>]
     xan rename --help
 
@@ -38,6 +39,10 @@ rename options:
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
     -p, --prefix <prefix>  Prefix to add to all the column names.
+    -S, --slugify          Transform the column name so that they are safe to
+                           be used as identifiers. Will typically replace
+                           whitespace & dashes with underscores, drop accentuation
+                           etc.
     -f, --force            Ignore unknown columns to be renamed.
 
 Common options:

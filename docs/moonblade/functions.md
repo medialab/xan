@@ -218,7 +218,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Aggregation functions
 
-- **mean**(*numbers*) -> `number?`: Return the means of the given numbers.
+- **mean**(*numbers*) -> `number?`: Return the mean of the given numbers.
+- **sum**(*numbers*) -> `number?`: Return the sum of the given numbers, or nothing if the sum overflowed.
 
 ## Fuzzy matching & information retrieval
 

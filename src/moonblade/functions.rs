@@ -27,7 +27,7 @@ use uuid::Uuid;
 use crate::dates;
 use crate::urls::LRUStems;
 
-use super::agg::aggregators::Welford;
+use super::agg::aggregators::{Sum, Welford};
 use super::error::EvaluationError;
 use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
@@ -208,6 +208,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
         ),
+        "sum" => (sum, FunctionArguments::unary()),
         "s_stemmer" => (s_stemmer_fn, FunctionArguments::unary()),
         "eq" => (
             |args| sequence_compare(args, Ordering::is_eq),
@@ -1102,6 +1103,17 @@ fn mean(args: BoundArguments) -> FunctionResult {
     }
 
     Ok(DynamicValue::from(welford.mean()))
+}
+
+fn sum(args: BoundArguments) -> FunctionResult {
+    let items = args.get1().try_as_list()?;
+    let mut sum = Sum::new();
+
+    for item in items {
+        sum.add(item.try_as_number()?);
+    }
+
+    Ok(DynamicValue::from(sum.get()))
 }
 
 // IO

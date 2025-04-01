@@ -500,7 +500,13 @@
         "name": "mean",
         "arguments": ["numbers"],
         "returns": "number?",
-        "help": "Return the means of the given numbers."
+        "help": "Return the mean of the given numbers."
+      },
+      {
+        "name": "sum",
+        "arguments": ["numbers"],
+        "returns": "number?",
+        "help": "Return the sum of the given numbers, or nothing if the sum overflowed."
       }
     ]
   },
