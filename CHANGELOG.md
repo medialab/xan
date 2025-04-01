@@ -16,6 +16,7 @@
 *Fixes*
 
 * `xan view --no-headers` now automatically toggles `--hide-headers`.
+* `xan from` correctly decompress some gzipped formats.
 
 ## 0.48.0
 

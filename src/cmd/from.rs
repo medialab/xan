@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::{
     fs,
-    io::{self, BufRead, BufReader, Cursor, Read},
+    io::{self, BufRead, Cursor, Read},
     path::Path,
 };
 
@@ -15,8 +15,6 @@ use crate::json::for_each_json_value_as_csv_record;
 use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
 use crate::CliResult;
-
-// TODO: support json array value as paths or serialize them with a separator
 
 #[derive(Debug, Clone, Copy)]
 enum SupportedFormat {
@@ -83,6 +81,9 @@ Supported formats:
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
+
+Some formats will handle gzip decompression on the fly if the filename ends
+in `.gz`: `json`, `ndjson`, `jsonl` and `txt`.
 
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
@@ -190,11 +191,7 @@ impl Args {
 
     fn convert_ndjson(&self) -> CliResult<()> {
         let mut wtr = self.writer()?;
-
-        let rdr: Box<dyn BufRead> = match self.arg_input.as_ref() {
-            None => Box::new(BufReader::new(io::stdin())),
-            Some(p) => Box::new(BufReader::new(fs::File::open(p)?)),
-        };
+        let rdr = Config::new(&self.arg_input).io_buf_reader()?;
 
         for_each_json_value_as_csv_record(
             rdr.lines().map(|line| -> Result<Value, CliError> {
@@ -211,10 +208,7 @@ impl Args {
     }
 
     fn convert_json_array(&self) -> CliResult<()> {
-        let mut rdr: Box<dyn Read> = match self.arg_input.as_ref() {
-            None => Box::new(io::stdin()),
-            Some(p) => Box::new(fs::File::open(p)?),
-        };
+        let mut rdr = Config::new(&self.arg_input).io_reader()?;
 
         let mut contents = String::new();
         rdr.read_to_string(&mut contents)?;
@@ -257,11 +251,7 @@ impl Args {
     }
 
     fn convert_text_lines(&self) -> CliResult<()> {
-        let rdr: Box<dyn BufRead> = match self.arg_input.as_ref() {
-            None => Box::new(BufReader::new(io::stdin())),
-            Some(p) => Box::new(BufReader::new(fs::File::open(p)?)),
-        };
-
+        let rdr = Config::new(&self.arg_input).io_buf_reader()?;
         let mut wtr = self.writer()?;
         wtr.write_record([&self.flag_column])?;
 
