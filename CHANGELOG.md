@@ -11,6 +11,10 @@
 * Adding `xan input --vcf, --gtf`.
 * Adding `xan search -R/--replace` & `xan search --replacement-column`.
 
+*Fixes*
+
+* `xan view --no-headers` now automatically toggles `--hide-headers`.
+
 ## 0.48.0
 
 *Breaking*

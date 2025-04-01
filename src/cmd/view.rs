@@ -234,7 +234,7 @@ view options:
     -E, --sanitize-emojis   Replace emojis by their shortcode to avoid formatting issues.
     -S, --significance <n>  Maximum floating point significance used to format numbers.
     -I, --hide-index        Hide the row index on the left.
-    -H, --hide-headers      Hide the headers.
+    -H, --hide-headers      Hide the headers. Implied when -n, --no-headers is given.
     -M, --hide-info         Hide information about number of displayed columns, rows etc.
     -g, --groupby <cols>    Isolate and emphasize groups of rows, represented by consecutive
                             rows with identical values in selected columns.
@@ -273,6 +273,10 @@ impl Args {
     fn resolve(&mut self) {
         if self.flag_all {
             self.flag_limit = 0;
+        }
+
+        if self.flag_no_headers {
+            self.flag_hide_headers = true;
         }
     }
 
