@@ -10,6 +10,7 @@
 * Adding `xan input -R/--skip-row`.
 * Adding `xan input --vcf, --gtf`.
 * Adding `xan search -R/--replace` & `xan search --replacement-column`.
+* Adding `xan rename -S/--slugify`.
 
 *Fixes*
 

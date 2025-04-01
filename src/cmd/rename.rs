@@ -1,7 +1,25 @@
+use lazy_static::lazy_static;
+use regex::Regex;
+use unidecode::unidecode;
+
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
+
+lazy_static! {
+    static ref TO_UNDERSCORE_REGEX: Regex = Regex::new(r"[\s\-]").unwrap();
+    static ref TO_DROP_REGEX: Regex = Regex::new(r#"[^A-Za-z0-9_]"#).unwrap();
+}
+
+fn slugify(name: &[u8]) -> String {
+    let name = std::str::from_utf8(name).expect("invalid utf-8");
+    let name = TO_UNDERSCORE_REGEX.replace_all(name, "_");
+    let name = unidecode(&name);
+    let name = TO_DROP_REGEX.replace_all(&name, "");
+
+    name.into_owned()
+}
 
 static USAGE: &str = "
 Rename columns of a CSV file. Can also be used to add headers to a headless
@@ -32,6 +50,7 @@ Column names with characters that need escaping:
 
 Usage:
     xan rename [options] --prefix <prefix> [<input>]
+    xan rename [options] --slugify [<input>]
     xan rename [options] <columns> [<input>]
     xan rename --help
 
@@ -40,6 +59,10 @@ rename options:
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
     -p, --prefix <prefix>  Prefix to add to all the column names.
+    -S, --slugify          Transform the column name so that they are safe to
+                           be used as identifiers. Will typically replace
+                           whitespace & dashes with underscores, drop accentuation
+                           etc.
     -f, --force            Ignore unknown columns to be renamed.
 
 Common options:
@@ -61,6 +84,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_prefix: Option<String>,
+    flag_slugify: bool,
     flag_force: bool,
 }
 
@@ -79,7 +103,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_no_headers {
         if args.flag_prefix.is_some() {
-            Err("Cannot use --prefix with --no-headers!")?;
+            Err("Cannot use -p/--prefix with --no-headers!")?;
+        }
+
+        if args.flag_slugify {
+            Err("Cannot use -S/--slugify with -n/--no-headers!")?;
         }
 
         let rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
@@ -136,6 +164,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let renamed_headers: csv::ByteRecord = if nothing_to_do {
         headers.clone()
+    } else if args.flag_slugify {
+        headers
+            .iter()
+            .zip(selection.indexed_mask(headers.len()))
+            .map(|(h, o)| {
+                if o.is_some() {
+                    slugify(h).into_bytes()
+                } else {
+                    h.to_vec()
+                }
+            })
+            .collect()
     } else if let Some(prefix) = args.flag_prefix {
         headers
             .iter()
@@ -181,4 +221,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     Ok(wtr.flush()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::slugify;
+
+    #[test]
+    fn test_slugify() {
+        assert_eq!(
+            slugify("a two (éléphant)1".as_bytes()),
+            "a_two_elephant1".to_string()
+        );
+    }
 }

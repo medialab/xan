@@ -88,6 +88,38 @@ fn rename_prefix_select() {
 }
 
 #[test]
+fn rename_slugify() {
+    let wrk = Workdir::new("rename_slugify");
+    wrk.create(
+        "data.csv",
+        vec![svec!["name of éléphant", "year-date"], svec!["John", "24"]],
+    );
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["--slugify"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name_of_elephant", "year_date"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn rename_slugify_select() {
+    let wrk = Workdir::new("rename_slugify");
+    wrk.create(
+        "data.csv",
+        vec![svec!["name of éléphant", "year-date"], svec!["John", "24"]],
+    );
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["--slugify"]).args(["-s", "0"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name_of_elephant", "year-date"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn rename_escapable_name() {
     let wrk = Workdir::new("rename_escapable_name");
     wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
