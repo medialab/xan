@@ -1,3 +1,5 @@
+use regex::bytes::Regex;
+
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
@@ -25,9 +27,9 @@ input options:
                                   quotes are escaped by doubling them.
     --no-quoting                  Disable quoting completely.
     -L, --skip-lines <n>          Skip the first <n> lines of the file.
-    -H, --skip-headers <pattern>  Skip header lines starting with the given pattern.
+    -H, --skip-headers <pattern>  Skip header lines matching the given regex pattern.
     --vcf                         Process a \"Variant Call Format\" tabular file with headers.
-                                  A shorthand for --tabs -H '##' and some processing over the
+                                  A shorthand for --tabs -H '^##' and some processing over the
                                   first column name: https://en.wikipedia.org/wiki/Variant_Call_Format
                                   Will be toggled by default if given file has a `.vcf` extension.
 
@@ -62,7 +64,7 @@ impl Args {
 
         if self.flag_vcf {
             self.flag_tabs = true;
-            self.flag_skip_headers = Some("##".to_string());
+            self.flag_skip_headers = Some("^##".to_string());
         }
 
         if self.flag_tabs {
@@ -85,6 +87,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .flexible(args.flag_skip_headers.is_some() || args.flag_skip_lines.is_some())
         .quote(args.flag_quote.as_byte());
 
+    let skip_headers = args
+        .flag_skip_headers
+        .as_ref()
+        .map(|p| Regex::new(p))
+        .transpose()?;
+
     let wconfig = Config::new(&args.flag_output);
 
     if let Some(escape) = args.flag_escape {
@@ -95,22 +103,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut wtr = wconfig.writer()?;
-    let mut row = csv::ByteRecord::new();
+    let mut record = csv::ByteRecord::new();
 
     let mut rdr = rconfig.reader()?;
     let mut headers_have_been_skipped = false;
     let mut i: usize = 0;
 
-    while rdr.read_byte_record(&mut row)? {
+    while rdr.read_byte_record(&mut record)? {
         i += 1;
 
-        if let Some(pattern) = &args.flag_skip_headers {
+        if let Some(pattern) = &skip_headers {
             if !headers_have_been_skipped {
-                if !row[0].starts_with(pattern.as_bytes()) {
+                if !pattern.is_match(record.as_slice()) {
                     headers_have_been_skipped = true;
 
                     if args.flag_vcf {
-                        row = row
+                        record = record
                             .iter()
                             .enumerate()
                             .map(|(i, cell)| {
@@ -132,7 +140,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        wtr.write_record(&row)?;
+        wtr.write_record(&record)?;
     }
 
     wtr.flush()?;

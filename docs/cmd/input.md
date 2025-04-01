@@ -24,9 +24,9 @@ input options:
                                   quotes are escaped by doubling them.
     --no-quoting                  Disable quoting completely.
     -L, --skip-lines <n>          Skip the first <n> lines of the file.
-    -H, --skip-headers <pattern>  Skip header lines starting with the given pattern.
+    -H, --skip-headers <pattern>  Skip header lines matching the given regex pattern.
     --vcf                         Process a "Variant Call Format" tabular file with headers.
-                                  A shorthand for --tabs -H '##' and some processing over the
+                                  A shorthand for --tabs -H '^##' and some processing over the
                                   first column name: https://en.wikipedia.org/wiki/Variant_Call_Format
                                   Will be toggled by default if given file has a `.vcf` extension.
 
