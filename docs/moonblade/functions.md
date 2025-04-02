@@ -252,7 +252,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **filesize**(*string*) -> `int`: Return the size of given file in bytes.
 - **isfile**(*string*) -> `bool`: Return whether the given path is an existing file on disk.
 - **move**(*source_path*, *target_path*) -> `string`: Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
-- **path_join**(*string*, *\*strings*) -> `string` (aliases: **pjoin**): Join multiple paths correctly.
+- **pathjoin**(*string*, *\*strings*) -> `string` (aliases: **pjoin**): Join multiple paths correctly.
 - **read**(*path*, *encoding=?*, *errors=?*) -> `string`: Read file at path. Default encoding is "utf-8". Default error handling policy is "replace", and can be one of "replace", "ignore" or "strict".
 - **read_csv**(*path*) -> `list[map]`: Read and parse CSV file at path, returning its rows as a list of maps with headers as keys.
 - **read_json**(*path*) -> `any`: Read and parse JSON file at path.

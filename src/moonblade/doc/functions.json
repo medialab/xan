@@ -662,7 +662,7 @@
         "help": "Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience."
       },
       {
-        "name": "path_join",
+        "name": "pathjoin",
         "aliases": ["pjoin"],
         "arguments": ["string", "*strings"],
         "returns": "string",
