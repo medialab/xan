@@ -613,17 +613,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("`xan parallel cat` without -P/--preprocess or -S/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
     }
 
-    if let Some(threads) = args.flag_threads {
-        ThreadPoolBuilder::new()
-            .num_threads(threads.get())
-            .build_global()
-            .expect("could not build thread pool!");
-    }
-
     let inputs = args.inputs()?;
 
     if inputs.is_empty() {
         Err("no files to process!\nDid you forget stdin or arguments?")?;
+    }
+
+    if let Some(threads) = args.flag_threads {
+        ThreadPoolBuilder::new()
+            .num_threads(threads.get().min(inputs.len()))
+            .build_global()
+            .expect("could not build thread pool!");
     }
 
     let progress_bar = if args.flag_progress {
