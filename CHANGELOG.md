@@ -16,6 +16,7 @@
 * Adding `xan search -R/--replace` & `xan search --replacement-column`.
 * Adding `xan rename -S/--slugify`.
 * Adding moonblade function `sum`.
+* Adding support for `.psv`, `.ssv` & `.scsv` file extensions.
 
 *Fixes*
 

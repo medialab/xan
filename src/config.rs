@@ -135,12 +135,14 @@ impl Config {
             None => (None, b','),
             Some(ref s) if s.deref() == "-" => (None, b','),
             Some(ref s) => {
-                let delim = if s.ends_with(".tsv")
-                    || s.ends_with(".tab")
-                    || s.ends_with(".tsv.gz")
-                    || s.ends_with(".tab.gz")
-                {
+                let raw_s = s.strip_suffix(".gz").unwrap_or(s);
+
+                let delim = if raw_s.ends_with(".tsv") || raw_s.ends_with(".tab") {
                     b'\t'
+                } else if raw_s.ends_with(".ssv") || raw_s.ends_with(".scsv") {
+                    b';'
+                } else if raw_s.ends_with(".psv") {
+                    b'|'
                 } else {
                     b','
                 };
