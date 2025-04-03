@@ -62,37 +62,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for result in rdr.byte_records() {
         let record = result?;
 
-        match previous.as_mut() {
-            None => {
-                wtr.write_byte_record(&record)?;
-                previous = Some(record);
-            }
-            Some(previous_record) => {
-                let filled_record = mask
-                    .iter()
-                    .enumerate()
-                    .map(|(i, opt)| {
-                        let current_cell = &record[i];
+        // Default value
+        if let Some(value) = &args.flag_value {
+            wtr.write_record(mask.iter().enumerate().map(|(i, opt)| {
+                let current_cell = &record[i];
 
-                        if opt.is_some() {
-                            if !current_cell.is_empty() {
-                                current_cell
-                            } else if let Some(value) = &args.flag_value {
-                                value.as_bytes()
-                            } else {
-                                &previous_record[i]
+                match (opt.is_some(), current_cell.is_empty()) {
+                    (true, true) => value.as_bytes(),
+                    _ => current_cell,
+                }
+            }))?;
+        }
+        // Forward filling
+        else {
+            match previous.as_mut() {
+                None => {
+                    wtr.write_byte_record(&record)?;
+                    previous = Some(record);
+                }
+                Some(previous_record) => {
+                    let filled_record = mask
+                        .iter()
+                        .enumerate()
+                        .map(|(i, opt)| {
+                            let current_cell = &record[i];
+
+                            match (opt.is_some(), current_cell.is_empty()) {
+                                (true, true) => &previous_record[i],
+                                _ => current_cell,
                             }
-                        } else {
-                            current_cell
-                        }
-                    })
-                    .collect::<csv::ByteRecord>();
+                        })
+                        .collect::<csv::ByteRecord>();
 
-                wtr.write_byte_record(&filled_record)?;
+                    wtr.write_byte_record(&filled_record)?;
 
-                *previous_record = filled_record;
-            }
-        };
+                    *previous_record = filled_record;
+                }
+            };
+        }
     }
 
     Ok(wtr.flush()?)

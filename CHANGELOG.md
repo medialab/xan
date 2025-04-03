@@ -17,6 +17,7 @@
 
 * `xan view --no-headers` now automatically toggles `--hide-headers`.
 * `xan from` correctly decompress some gzipped formats.
+* `xan fill -v` correctly fills empty cells at beginning of files.
 
 ## 0.48.0
 
