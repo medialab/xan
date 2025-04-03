@@ -17,6 +17,7 @@
 * Adding `xan rename -S/--slugify`.
 * Adding moonblade function `sum`.
 * Adding support for `.psv`, `.ssv` & `.scsv` file extensions.
+* Adding `xan headers -s/--start`.
 
 *Fixes*
 

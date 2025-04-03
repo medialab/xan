@@ -33,6 +33,8 @@ headers options:
     -j, --just-names  Only show the header names (hide column index).
     --csv             Return headers as a CSV file, with file path as
                       column names.
+    -s, --start <n>   Column indices will start from given number.
+                      [default: 0]
 
 Common options:
     -h, --help             Display this message
@@ -46,6 +48,7 @@ struct Args {
     arg_input: Vec<String>,
     flag_just_names: bool,
     flag_csv: bool,
+    flag_start: usize,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
 }
@@ -139,7 +142,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if !args.flag_just_names {
                 print!(
                     "{}",
-                    util::unicode_aware_rpad(&j.to_string(), left_column_size, " ")
+                    util::unicode_aware_rpad(
+                        &(args.flag_start + j).to_string(),
+                        left_column_size,
+                        " "
+                    )
                 );
             }
 
