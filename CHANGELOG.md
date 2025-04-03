@@ -2,6 +2,10 @@
 
 ## 0.49.0 (provisional)
 
+*Breaking*
+
+* Dropping mostly useless `-p/--parallel` & `-c/--chunk-size` flags in `xan agg` & `xan groupby`. They were only useful when the inner aggregated expression was costly (i.e. reading files) and you can use `xan map -p` upstream for this instead. See also `xan parallel (agg | groupby)` if you want to work in parallel over multiple files.
+
 *Features*
 
 * Adding `xan input --tabs`.

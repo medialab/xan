@@ -40,12 +40,6 @@ agg options:
                                - "ignore": ignore row altogether
                                - "log": print error to stderr
                              [default: panic].
-    -p, --parallel           Whether to use parallelization to speed up computations.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores.
-    -c, --chunk-size <size>  Number of rows in a batch to send to a thread at once when
-                             using -p, --parallel.
-                             [default: 4096]
 
 Common options:
     -h, --help               Display this message

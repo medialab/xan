@@ -1,12 +1,5 @@
-use std::cell::RefCell;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-
-use rayon::prelude::*;
-use thread_local::ThreadLocal;
-
 use crate::config::{Config, Delimiter};
-use crate::util::{self, ChunksIteratorExt};
+use crate::util;
 use crate::CliResult;
 
 use crate::moonblade::AggregationProgram;
@@ -58,12 +51,6 @@ agg options:
                                - \"ignore\": ignore row altogether
                                - \"log\": print error to stderr
                              [default: panic].
-    -p, --parallel           Whether to use parallelization to speed up computations.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores.
-    -c, --chunk-size <size>  Number of rows in a batch to send to a thread at once when
-                             using -p, --parallel.
-                             [default: 4096]
 
 Common options:
     -h, --help               Display this message
@@ -82,8 +69,6 @@ struct Args {
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_errors: String,
-    flag_parallel: bool,
-    flag_chunk_size: NonZeroUsize,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -103,52 +88,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_record(program.headers())?;
 
-    if !args.flag_parallel {
-        let mut record = csv::ByteRecord::new();
-        let mut index: usize = 0;
+    let mut record = csv::ByteRecord::new();
+    let mut index: usize = 0;
 
-        while rdr.read_byte_record(&mut record)? {
-            program
-                .run_with_record(index, &record)
-                .or_else(|error| error_policy.handle_row_error(index, error))?;
+    while rdr.read_byte_record(&mut record)? {
+        program
+            .run_with_record(index, &record)
+            .or_else(|error| error_policy.handle_row_error(index, error))?;
 
-            index += 1;
-        }
-    } else {
-        // NOTE: it looks like parallelization is basically moot if the inner
-        // expressions are trivial. Reading the CSV file linearly is the bottleneck here.
-        // This means that if what is parallelized runs faster than actually reading
-        // the CSV file, parallelization does not yield any performance increase.
-        // This can somehow be tweaked by sending chunks, but not that much.
-        // So if you read files or perform costly computations for each row, it might be
-        // worthwhile. Else it will actually hurt performance...
-        let local: Arc<ThreadLocal<RefCell<AggregationProgram>>> = Arc::new(ThreadLocal::new());
-
-        rdr.into_byte_records()
-            .enumerate()
-            .chunks(args.flag_chunk_size)
-            .par_bridge()
-            .try_for_each(|chunk| -> CliResult<()> {
-                for (index, rdr_result) in chunk {
-                    let record = rdr_result?;
-
-                    let mut local_program =
-                        local.get_or(|| RefCell::new(program.clone())).borrow_mut();
-
-                    local_program
-                        .run_with_record(index, &record)
-                        .or_else(|error| error_policy.handle_row_error(index, error))?;
-                }
-
-                Ok(())
-            })?;
-
-        for local_program in Arc::try_unwrap(local).unwrap().into_iter() {
-            program.merge(local_program.into_inner());
-        }
+        index += 1;
     }
 
-    wtr.write_byte_record(&error_policy.handle_error(program.finalize(args.flag_parallel))?)?;
+    wtr.write_byte_record(&error_policy.handle_error(program.finalize(false))?)?;
 
     Ok(wtr.flush()?)
 }

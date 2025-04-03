@@ -75,9 +75,6 @@ groupby options:
                               - \"ignore\": ignore row altogether
                               - \"log\": print error to stderr
                             [default: panic].
-    -p, --parallel          Whether to use parallelization to speed up computations.
-                            Will automatically select a suitable number of threads to use
-                            based on your number of cores.
 
 Common options:
     -h, --help               Display this message
@@ -99,7 +96,6 @@ struct Args {
     flag_keep: Option<SelectColumns>,
     flag_sorted: bool,
     flag_errors: String,
-    flag_parallel: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -168,7 +164,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         write_group(
                             &mut wtr,
                             current_group,
-                            &error_policy.handle_error(program.finalize(args.flag_parallel))?,
+                            &error_policy.handle_error(program.finalize(false))?,
                         )?;
                         program.clear();
                         current = Some(group);
@@ -188,7 +184,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write_group(
                 &mut wtr,
                 &current_group,
-                &error_policy.handle_error(program.finalize(args.flag_parallel))?,
+                &error_policy.handle_error(program.finalize(false))?,
             )?;
         }
     } else {
@@ -212,7 +208,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             index += 1;
         }
 
-        for result in program.into_byte_records(args.flag_parallel) {
+        for result in program.into_byte_records(false) {
             let (group, group_record) = error_policy.handle_error(result)?;
 
             write_group(&mut wtr, &group, &group_record)?;

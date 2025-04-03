@@ -195,29 +195,6 @@ fn agg_min_max_strings() {
 }
 
 #[test]
-fn agg_parallel() {
-    let wrk = Workdir::new("agg_parallel");
-    wrk.create(
-        "data.csv",
-        vec![
-            svec!["n"],
-            svec!["1"],
-            svec!["2"],
-            svec!["3"],
-            svec!["4"],
-            svec!["6"],
-        ],
-    );
-
-    let mut cmd = wrk.command("agg");
-    cmd.arg("sum(n) as sum").arg("-p").arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["sum"], svec!["16"]];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn agg_types() {
     let wrk = Workdir::new("agg_types");
     wrk.create(

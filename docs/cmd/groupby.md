@@ -52,9 +52,6 @@ groupby options:
                               - "ignore": ignore row altogether
                               - "log": print error to stderr
                             [default: panic].
-    -p, --parallel          Whether to use parallelization to speed up computations.
-                            Will automatically select a suitable number of threads to use
-                            based on your number of cores.
 
 Common options:
     -h, --help               Display this message
