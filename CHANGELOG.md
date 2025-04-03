@@ -12,7 +12,7 @@
 * Adding `xan input -H/--skip-headers`.
 * Adding `xan input -L/--skip-lines`.
 * Adding `xan input -R/--skip-rows`.
-* Adding `xan input --vcf, --gtf`.
+* Adding `xan input --vcf, --gtf, --gff`.
 * Adding `xan search -R/--replace` & `xan search --replacement-column`.
 * Adding `xan rename -S/--slugify`.
 * Adding moonblade function `sum`.
