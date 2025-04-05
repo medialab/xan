@@ -113,6 +113,9 @@ unicode-width = "0.2.0"
 url = "2.5.4"
 uuid = { version = "1.16.0", features = ["v4"] }
 
+[patch.crates-io]
+zip = { git = "https://github.com/zip-rs/zip2", rev = "77cde6a" }
+
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
 pager = "0.16.1"
