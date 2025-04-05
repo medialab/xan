@@ -187,7 +187,7 @@ pub fn run() {
         let to_complete_item = to_complete
             .trim_matches(['\'', '"'])
             .split([',', ':'])
-            .last()
+            .next_back()
             .unwrap();
 
         for path in find_csv_files_to_test() {
