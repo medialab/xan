@@ -35,13 +35,6 @@ impl DynamicNumber {
         }
     }
 
-    pub fn is_nan(&self) -> bool {
-        match self {
-            Self::Float(f) => f.is_nan(),
-            Self::Integer(_) => false,
-        }
-    }
-
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))
     }
@@ -105,31 +98,31 @@ impl DynamicNumber {
     }
 
     pub fn floor(self) -> Self {
-        self.map_float_to_int(|n| n.floor())
+        self.map_float_to_int(f64::floor)
     }
 
     pub fn ceil(self) -> Self {
-        self.map_float_to_int(|n| n.ceil())
+        self.map_float_to_int(f64::ceil)
     }
 
     pub fn trunc(self) -> Self {
-        self.map_float_to_int(|n| n.trunc())
+        self.map_float_to_int(f64::trunc)
     }
 
     pub fn round(self) -> Self {
-        self.map_float_to_int(|n| n.round())
+        self.map_float_to_int(f64::round)
     }
 
     pub fn ln(self) -> Self {
-        self.map_float(|n| n.ln())
+        self.map_float(f64::ln)
     }
 
     pub fn exp(self) -> Self {
-        self.map_float(|n| n.exp())
+        self.map_float(f64::exp)
     }
 
     pub fn sqrt(self) -> Self {
-        self.map_float(|n| n.sqrt())
+        self.map_float(f64::sqrt)
     }
 }
 
