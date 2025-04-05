@@ -25,6 +25,7 @@
 * `xan from` correctly decompress some gzipped formats.
 * `xan fill -v` correctly fills empty cells at beginning of files.
 * `xan parallel -t` will not use more threads than inputs.
+* Fixing `xan stats` panicking when encountering NaN values.
 
 ## 0.48.0
 

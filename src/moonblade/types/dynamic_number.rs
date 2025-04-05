@@ -124,6 +124,13 @@ impl DynamicNumber {
     pub fn sqrt(self) -> Self {
         self.map_float(f64::sqrt)
     }
+
+    pub fn is_nan(&self) -> bool {
+        match self {
+            Self::Integer(_) => false,
+            Self::Float(f) => f.is_nan(),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for DynamicNumber {

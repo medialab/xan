@@ -222,23 +222,26 @@ impl Stats {
         let cell = std::str::from_utf8(cell).expect("could not decode as utf-8");
 
         if let Ok(number) = cell.parse::<DynamicNumber>() {
-            let float = number.as_float();
-
-            self.sum.add(number);
-            self.welford.add(float);
-            self.extent.add(number);
-
-            match number {
-                DynamicNumber::Float(_) => self.types.set_float(),
-                DynamicNumber::Integer(_) => self.types.set_int(),
-            };
-
-            if let Some(numbers) = self.numbers.as_mut() {
-                numbers.add(number);
+            if number.is_float() {
+                self.types.set_float();
+            } else {
+                self.types.set_int();
             }
 
-            if let Some(approx_quantiles) = self.approx_quantiles.as_mut() {
-                approx_quantiles.add(float);
+            if !number.is_nan() {
+                let float = number.as_float();
+
+                self.sum.add(number);
+                self.welford.add(float);
+                self.extent.add(number);
+
+                if let Some(numbers) = self.numbers.as_mut() {
+                    numbers.add(number);
+                }
+
+                if let Some(approx_quantiles) = self.approx_quantiles.as_mut() {
+                    approx_quantiles.add(float);
+                }
             }
         } else if dates::could_be_date(cell) {
             self.types.set_date();
