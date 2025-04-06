@@ -1,5 +1,5 @@
 // Config
-WHITESPACE = _{ " " | "\n" }
+WHITESPACE = _{ " " | "\n" | "\t" }
 COMMENT    = _{ "# " ~ (!"\n" ~ ANY)* }
 
 // Literals

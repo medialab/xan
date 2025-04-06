@@ -26,6 +26,7 @@
 * `xan fill -v` correctly fills empty cells at beginning of files.
 * `xan parallel -t` will not use more threads than inputs.
 * Fixing `xan stats` panicking when encountering NaN values.
+* Allowing tabs to be understood as whitespace in moonblade expressions.
 
 ## 0.48.0
 
