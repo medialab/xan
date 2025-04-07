@@ -30,6 +30,7 @@
 * Allowing tabs to be understood as whitespace in moonblade expressions.
 * Fixing `xan join --cross` when joined files don't have the same number of columns.
 * Adding missing `-n/--no-headers` & `-d/--delimiter` to `xan to`.
+* Fixing `xan progress -B` with gzipped files.
 
 ## 0.48.0
 

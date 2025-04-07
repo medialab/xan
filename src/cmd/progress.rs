@@ -1,9 +1,10 @@
 use std::fs::File;
-use std::io::{self, ErrorKind::BrokenPipe};
+use std::io::{self, ErrorKind::BrokenPipe, Read};
 use std::path::PathBuf;
 use std::time::Duration;
 
 use bytesize::MB;
+use flate2::read::GzDecoder;
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
 use crate::config::{Config, Delimiter};
@@ -174,21 +175,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     console::set_colors_enabled(true);
 
     if args.flag_bytes {
-        let (total, file): (Option<u64>, Box<dyn io::Read>) = match args.arg_input {
-            None => (None, Box::new(io::stdin())),
+        let (total, file, is_gzipped): (Option<u64>, Box<dyn io::Read>, bool) = match args.arg_input
+        {
+            None => (None, Box::new(io::stdin()), false),
             Some(p) => {
+                let is_gzipped = p.ends_with(".gz");
+
                 let p = PathBuf::from(p);
 
                 let bytes = p.metadata()?.len();
                 let f = File::open(p)?;
 
-                (Some(bytes), Box::new(f))
+                (Some(bytes), Box::new(f), is_gzipped)
             }
         };
 
         let bar = EnhancedProgressBar::new(total.or(args.flag_total), args.flag_title, true);
 
-        let mut wrapper = bar.inner.wrap_read(file);
+        let mut wrapper: Box<dyn Read> = Box::new(bar.inner.wrap_read(file));
+
+        if is_gzipped {
+            wrapper = Box::new(GzDecoder::new(wrapper));
+        }
+
         let mut wtr = Config::new(&args.flag_output).io_writer()?;
 
         io::copy(&mut wrapper, &mut wtr).map_err(|err| {
