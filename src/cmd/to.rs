@@ -7,8 +7,9 @@ use npyz::WriterBuilder;
 use rust_xlsxwriter::Workbook;
 use unicode_width::UnicodeWidthStr;
 
-use crate::config::Config;
+use crate::config::{Config, Delimiter};
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
+use crate::select::SelectColumns;
 use crate::util;
 use crate::xml::XMLWriter;
 use crate::CliResult;
@@ -27,10 +28,13 @@ Supported formats:
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
     npy     - Numpy array
+    txt     - Text lines
     xlsx    - Excel spreasheet
 
 Some formats can be streamed, some others require the full CSV file to be loaded into
-memory. The streamable formats are `html`, `jsonl` and `ndjson`.
+memory.
+
+Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     -B, --buffer-size <size>  Number of CSV rows to sample to infer column types.
@@ -42,9 +46,18 @@ NPY options:
     --dtype <type>  Number type to use for the npy conversion. Must be one of \"f32\"
                     or \"f64\". [default: f64]
 
+TXT options:
+    -s, --select <column>  Column of file to emit as text. Will error if file
+                           to convert to text has multiple columns or if
+                           selection yields more than a single column.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
+    -n, --no-headers       When set, the first row will not be evaled
+                           as headers.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
+                           Must be a single character.
 ";
 
 #[derive(Deserialize)]
@@ -52,6 +65,9 @@ struct Args {
     arg_format: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
+    flag_no_headers: bool,
+    flag_select: SelectColumns,
+    flag_delimiter: Option<Delimiter>,
     flag_buffer_size: NonZeroUsize,
     flag_nulls: bool,
     flag_omit: bool,
@@ -315,11 +331,36 @@ impl Args {
 
         Ok(())
     }
+
+    fn convert_to_txt<R: Read>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        mut writer: Box<dyn Write>,
+    ) -> CliResult<()> {
+        let headers = rdr.byte_headers()?.clone();
+        let column_index = self
+            .flag_select
+            .single_selection(&headers, !self.flag_no_headers).map_err(|_| {
+                "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
+            })?;
+
+        let mut record = csv::ByteRecord::new();
+
+        while rdr.read_byte_record(&mut record)? {
+            let cell = &record[column_index];
+            writer.write_all(cell)?;
+            writer.write_all(b"\n")?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    let conf = Config::new(&args.arg_input);
+    let conf = Config::new(&args.arg_input)
+        .no_headers(args.flag_no_headers)
+        .delimiter(args.flag_delimiter);
     let rdr = conf.reader()?;
 
     let writer: Box<dyn Write> = match &args.flag_output {
@@ -333,6 +374,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "jsonl" | "ndjson" => args.convert_to_ndjson(rdr, writer),
         "md" => args.convert_to_md(rdr, writer),
         "npy" => args.convert_to_npy(rdr, writer),
+        "txt" | "text" => args.convert_to_txt(rdr, writer),
         "xlsx" => args.convert_to_xlsx(rdr, writer),
         _ => Err("could not export the file to this format!")?,
     }

@@ -18,6 +18,7 @@
 * Adding moonblade function `sum`.
 * Adding support for `.psv`, `.ssv` & `.scsv` file extensions.
 * Adding `xan headers -s/--start`.
+* Adding `xan to txt`.
 
 *Fixes*
 
@@ -28,6 +29,7 @@
 * Fixing `xan stats` panicking when encountering NaN values.
 * Allowing tabs to be understood as whitespace in moonblade expressions.
 * Fixing `xan join --cross` when joined files don't have the same number of columns.
+* Adding missing `-n/--no-headers` & `-d/--delimiter` to `xan to`.
 
 ## 0.48.0
 
