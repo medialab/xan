@@ -45,6 +45,8 @@ hist options:
     -u, --unit <unit>        Value unit.
     -D, --dates              Set to indicate your values are dates (supporting year, year-month or
                              year-month-day). This will sort the bars by date, and add missing dates.
+    -G, --compress-gaps <n>  If given, will compress gaps of minimum <n> consecutive
+                             entries set to 0 and replace it with an ellipsis.
 
 Common options:
     -h, --help             Display this message

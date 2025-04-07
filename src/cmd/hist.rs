@@ -60,6 +60,8 @@ hist options:
     -u, --unit <unit>        Value unit.
     -D, --dates              Set to indicate your values are dates (supporting year, year-month or
                              year-month-day). This will sort the bars by date, and add missing dates.
+    -G, --compress-gaps <n>  If given, will compress gaps of minimum <n> consecutive
+                             entries set to 0 and replace it with an ellipsis.
 
 Common options:
     -h, --help             Display this message
@@ -87,6 +89,7 @@ struct Args {
     flag_category: Option<SelectColumns>,
     flag_bar_size: String,
     flag_dates: bool,
+    flag_compress_gaps: Option<usize>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -245,7 +248,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let scale = LinearScale::new((0.0, domain_max), (0.0, bar_cols as f64));
 
-        for (i, bar) in histogram.bars().enumerate() {
+        for (i, bar_opt) in histogram
+            .compressed_bars(args.flag_compress_gaps)
+            .into_iter()
+            .enumerate()
+        {
+            if bar_opt.is_none() {
+                println!("...");
+                continue;
+            }
+
+            let bar = bar_opt.unwrap();
+
             let bar_width = scale.map(bar.value);
 
             let mut bar_as_chars =
@@ -391,8 +405,47 @@ impl Histogram {
         self.bars.iter().map(|bar| bar.value).sum()
     }
 
-    fn bars(&self) -> impl Iterator<Item = &Bar> {
-        self.bars.iter()
+    fn compressed_bars(&self, min_gap_size_opt: Option<usize>) -> Vec<Option<&Bar>> {
+        match min_gap_size_opt {
+            Some(min_gaph_size) => {
+                let mut result = Vec::with_capacity(self.bars.len());
+
+                let mut i: usize = 0;
+
+                while i < self.bars.len() {
+                    let bar = &self.bars[i];
+
+                    if bar.value == 0.0 {
+                        let mut j: usize = i + 1;
+                        let mut streak: usize = 1;
+
+                        while j < self.bars.len() {
+                            let next_bar = &self.bars[j];
+
+                            if next_bar.value == 0.0 {
+                                streak += 1;
+                            } else {
+                                break;
+                            }
+
+                            j += 1;
+                        }
+
+                        if streak >= min_gaph_size {
+                            i = j;
+                            result.push(None);
+                            continue;
+                        }
+                    }
+
+                    result.push(Some(bar));
+                    i += 1;
+                }
+
+                result
+            }
+            None => self.bars.iter().map(Some).collect(),
+        }
     }
 
     fn label_max_width(&self) -> Option<usize> {

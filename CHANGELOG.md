@@ -20,6 +20,7 @@
 * Adding `xan headers -s/--start`.
 * Adding `xan to txt`.
 * Adding `xan behead -A/--append`.
+* Adding `xan hist -G/--compress-gaps`.
 
 *Fixes*
 
