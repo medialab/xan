@@ -529,3 +529,29 @@ fn agg_correlation() {
     let expected = vec![svec!["c", "r"], svec!["3.8", "0.442939783914149"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_cols() {
+    let wrk = Workdir::new("agg_cols");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "a", "b"],
+            svec!["john", "3", "5"],
+            svec!["lucy", "6", "1"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("mean(cell) as mean")
+        .args(["--cols", "a,b"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "a", "b", "mean"],
+        svec!["john", "3", "5", "4"],
+        svec!["lucy", "6", "1", "3.5"],
+    ];
+    assert_eq!(got, expected);
+}

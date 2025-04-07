@@ -1,4 +1,5 @@
 use crate::config::{Config, Delimiter};
+use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -33,6 +34,27 @@ You can rename the output columns using the 'as' syntax:
 
     $ xan agg 'sum(n) as sum, max(replies_count) as \"Max Replies\"' file.csv
 
+This command can also be used to aggregate a selection of columns per row,
+instead of aggregating the whole file, when using the --cols flag. In which
+case the expression will take a single variable named `cell`, representing
+the value of the column currently processed.
+
+For instance, given the following CSV file:
+
+name,count1,count2
+john,3,6
+lucy,10,7
+
+Running the following command (notice the `cell` variable in expression):
+
+    $ xan agg --cols count1,count2 'sum(cell) as sum'
+
+Will produce the following output:
+
+name,count1,count2,sum
+john,3,6,9
+lucy,10,7,17
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -51,6 +73,10 @@ agg options:
                                - \"ignore\": ignore row altogether
                                - \"log\": print error to stderr
                              [default: panic].
+    --cols <columns>         Aggregate a selection of columns per row
+                             instead of the whole file. A special `cell`
+                             variable will represent the value of a
+                             selected column in the aggregation expression.
 
 Common options:
     -h, --help               Display this message
@@ -69,6 +95,7 @@ struct Args {
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_errors: String,
+    flag_cols: Option<SelectColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -84,22 +111,59 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let headers = rdr.byte_headers()?;
 
-    let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
+    // --cols
+    if let Some(cols) = &args.flag_cols {
+        let sel = cols.selection(headers, !args.flag_no_headers)?;
 
-    wtr.write_record(program.headers())?;
+        let mut working_record = csv::ByteRecord::new();
+        working_record.push_field(b"cell");
 
-    let mut record = csv::ByteRecord::new();
-    let mut index: usize = 0;
+        let mut program = AggregationProgram::parse(&args.arg_expression, &working_record)?;
 
-    while rdr.read_byte_record(&mut record)? {
-        program
-            .run_with_record(index, &record)
-            .or_else(|error| error_policy.handle_row_error(index, error))?;
+        wtr.write_record(headers.iter().chain(program.headers()))?;
 
-        index += 1;
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            program.clear();
+
+            for cell in sel.select(&record) {
+                working_record.clear();
+                working_record.push_field(cell);
+
+                program
+                    .run_with_record(index, &working_record)
+                    .or_else(|error| error_policy.handle_row_error(index, error))?;
+            }
+
+            wtr.write_record(
+                record
+                    .iter()
+                    .chain(error_policy.handle_error(program.finalize(false))?.iter()),
+            )?;
+
+            index += 1;
+        }
     }
+    // Regular
+    else {
+        let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
 
-    wtr.write_byte_record(&error_policy.handle_error(program.finalize(false))?)?;
+        wtr.write_record(program.headers())?;
 
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            program
+                .run_with_record(index, &record)
+                .or_else(|error| error_policy.handle_row_error(index, error))?;
+
+            index += 1;
+        }
+
+        wtr.write_byte_record(&error_policy.handle_error(program.finalize(false))?)?;
+    }
     Ok(wtr.flush()?)
 }

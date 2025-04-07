@@ -21,6 +21,7 @@
 * Adding `xan to txt`.
 * Adding `xan behead -A/--append`.
 * Adding `xan hist -G/--compress-gaps`.
+* Adding `xan agg --cols`.
 
 *Fixes*
 

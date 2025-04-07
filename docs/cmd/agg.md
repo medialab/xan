@@ -22,6 +22,27 @@ You can rename the output columns using the 'as' syntax:
 
     $ xan agg 'sum(n) as sum, max(replies_count) as "Max Replies"' file.csv
 
+This command can also be used to aggregate a selection of columns per row,
+instead of aggregating the whole file, when using the --cols flag. In which
+case the expression will take a single variable named `cell`, representing
+the value of the column currently processed.
+
+For instance, given the following CSV file:
+
+name,count1,count2
+john,3,6
+lucy,10,7
+
+Running the following command (notice the `cell` variable in expression):
+
+    $ xan agg --cols count1,count2 'sum(cell) as sum'
+
+Will produce the following output:
+
+name,count1,count2,sum
+john,3,6,9
+lucy,10,7,17
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -40,6 +61,10 @@ agg options:
                                - "ignore": ignore row altogether
                                - "log": print error to stderr
                              [default: panic].
+    --cols <columns>         Aggregate a selection of columns per row
+                             instead of the whole file. A special `cell`
+                             variable will represent the value of a
+                             selected column in the aggregation expression.
 
 Common options:
     -h, --help               Display this message
