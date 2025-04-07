@@ -5,9 +5,9 @@ use std::ops::{Add, AddAssign, Div, Mul, Neg, Rem, Sub};
 use std::str::FromStr;
 
 use btoi::btoi;
-use serde::de::{Deserialize, Deserializer, Error};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
 pub enum DynamicNumber {
     Float(f64),
     Integer(i64),
@@ -133,12 +133,13 @@ impl DynamicNumber {
     }
 }
 
-impl<'de> Deserialize<'de> for DynamicNumber {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<DynamicNumber, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for DynamicNumber {
+    type Error = String;
 
-        raw.parse::<DynamicNumber>()
-            .map_err(|_| D::Error::custom(format!("cannot parse {} as number", raw)))
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value
+            .parse::<Self>()
+            .map_err(|_| format!("cannot parse {} as number", &value))
     }
 }
 

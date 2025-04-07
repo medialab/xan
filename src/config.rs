@@ -1,6 +1,7 @@
 #[allow(deprecated, unused_imports)]
 use std::ascii::AsciiExt;
 use std::borrow::{Borrow, ToOwned};
+use std::convert::TryFrom;
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, prelude::*, BufReader, IsTerminal, Read, SeekFrom};
@@ -9,13 +10,13 @@ use std::path::PathBuf;
 
 use crate::index::Indexed;
 use flate2::read::GzDecoder;
-use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::{CliError, CliResult};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(try_from = "String")]
 pub struct Delimiter(pub u8);
 
 /// Delimiter represents values that can be passed from the command line that
@@ -29,10 +30,11 @@ impl Delimiter {
     }
 }
 
-impl<'de> Deserialize<'de> for Delimiter {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Delimiter, D::Error> {
-        let c = String::deserialize(d)?;
-        match &*c {
+impl TryFrom<String> for Delimiter {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
             r"\t" => Ok(Delimiter(b'\t')),
             s => {
                 if s.len() != 1 {
@@ -41,7 +43,7 @@ impl<'de> Deserialize<'de> for Delimiter {
                                        ASCII character.",
                         s
                     );
-                    return Err(D::Error::custom(msg));
+                    return Err(msg);
                 }
                 let c = s.chars().next().unwrap();
                 if c.is_ascii() {
@@ -52,7 +54,7 @@ impl<'de> Deserialize<'de> for Delimiter {
                                        to ASCII delimiter.",
                         c
                     );
-                    Err(D::Error::custom(msg))
+                    Err(msg)
                 }
             }
         }

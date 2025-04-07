@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::{
     fs,
@@ -7,7 +8,6 @@ use std::{
 
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
 use flate2::read::GzDecoder;
-use serde::de::{Deserialize, Deserializer, Error};
 use serde_json::{Map, Value};
 
 use crate::config::Config;
@@ -16,7 +16,8 @@ use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
 use crate::CliResult;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
 enum SupportedFormat {
     Xls,
     NdJSON,
@@ -51,12 +52,11 @@ impl SupportedFormat {
     }
 }
 
-impl<'de> Deserialize<'de> for SupportedFormat {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for SupportedFormat {
+    type Error = String;
 
-        SupportedFormat::parse(&raw)
-            .ok_or_else(|| D::Error::custom(format!("unknown format \"{}\"", &raw)))
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        SupportedFormat::parse(&value).ok_or_else(|| format!("unknown format \"{}\"", &value))
     }
 }
 

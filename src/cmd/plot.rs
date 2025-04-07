@@ -3,6 +3,7 @@
 //  - https://github.com/ratatui/ratatui/issues/1391
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 
 use indexmap::IndexMap;
@@ -11,7 +12,6 @@ use jiff::{
     tz::TimeZone,
     Timestamp, Unit, Zoned, ZonedRound,
 };
-use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -30,7 +30,8 @@ use crate::{CliError, CliResult};
 
 const TYPICAL_COLS: usize = 35;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
 struct Marker(symbols::Marker);
 
 impl Marker {
@@ -39,27 +40,23 @@ impl Marker {
     }
 }
 
-impl<'de> Deserialize<'de> for Marker {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for Marker {
+    type Error = String;
 
-        Ok(Self(match raw.as_str() {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(Self(match value.as_str() {
             "dot" => symbols::Marker::Dot,
             "braille" => symbols::Marker::Braille,
             "halfblock" => symbols::Marker::HalfBlock,
             "block" => symbols::Marker::Block,
             "bar" => symbols::Marker::Bar,
-            _ => {
-                return Err(D::Error::custom(format!(
-                    "unknown marker type \"{}\"!",
-                    raw
-                )))
-            }
+            _ => return Err(format!("unknown marker type \"{}\"!", value)),
         }))
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
 struct Granularity(Unit);
 
 impl Granularity {
@@ -68,23 +65,18 @@ impl Granularity {
     }
 }
 
-impl<'de> Deserialize<'de> for Granularity {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for Granularity {
+    type Error = String;
 
-        Ok(Self(match raw.as_str() {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(Self(match value.as_str() {
             "year" | "years" => Unit::Year,
             "month" | "months" => Unit::Month,
             "day" | "days" => Unit::Day,
             "hour" | "hours" => Unit::Hour,
             "minute" | "minutes" => Unit::Minute,
             "second" | "seconds" => Unit::Second,
-            _ => {
-                return Err(D::Error::custom(format!(
-                    "invalid granularity \"{}\"!",
-                    raw
-                )))
-            }
+            _ => return Err(format!("invalid granularity \"{}\"!", value)),
         }))
     }
 }

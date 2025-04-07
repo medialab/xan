@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
-use std::convert::From;
 use std::fmt;
 
 use std::sync::Arc;

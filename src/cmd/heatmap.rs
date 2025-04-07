@@ -1,8 +1,8 @@
+use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
 use numfmt::{Formatter, Precision};
-use serde::de::{Deserialize, Deserializer, Error};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -15,6 +15,8 @@ fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
 }
 
+#[derive(Deserialize)]
+#[serde(try_from = "String")]
 enum Normalization {
     Full,
     Column,
@@ -31,20 +33,15 @@ impl Normalization {
     }
 }
 
-impl<'de> Deserialize<'de> for Normalization {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for Normalization {
+    type Error = String;
 
-        Ok(match raw.as_str() {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
             "all" | "full" => Self::Full,
             "col" | "cols" | "column" | "columns" => Self::Column,
             "row" | "rows" => Self::Row,
-            _ => {
-                return Err(D::Error::custom(format!(
-                    "unsupported normalization \"{}\"",
-                    &raw
-                )))
-            }
+            _ => return Err(format!("unsupported normalization \"{}\"", &value)),
         })
     }
 }

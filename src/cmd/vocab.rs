@@ -7,11 +7,11 @@
 
 use std::cmp::Ordering;
 use std::collections::{hash_map::Entry, HashMap};
+use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use bstr::ByteSlice;
-use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -20,7 +20,8 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(try_from = "String")]
 struct SignificanceLevel(f64);
 
 impl SignificanceLevel {
@@ -29,12 +30,12 @@ impl SignificanceLevel {
     }
 }
 
-impl<'de> Deserialize<'de> for SignificanceLevel {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for SignificanceLevel {
+    type Error = String;
 
+    fn try_from(value: String) -> Result<Self, Self::Error> {
         // Thresholds for k=1
-        Ok(Self(match raw.as_str() {
+        Ok(Self(match value.as_str() {
             ".5" | "0.5" => 0.45,
             ".1" | "0.1" => 2.71,
             ".05" | "0.05" => 3.84,
@@ -42,12 +43,7 @@ impl<'de> Deserialize<'de> for SignificanceLevel {
             ".01" | "0.01" => 6.63,
             ".005" | "0.005" => 7.88,
             ".001" | "0.001" => 10.83,
-            _ => {
-                return Err(D::Error::custom(format!(
-                    "unsupported significance threshold \"{}\"",
-                    &raw
-                )))
-            }
+            _ => return Err(format!("unsupported significance threshold \"{}\"", &value)),
         }))
     }
 }
@@ -595,7 +591,8 @@ impl From<Token> for TokenStats {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize)]
+#[serde(try_from = "String")]
 enum TfWeighting {
     Count,
     Binary,
@@ -615,20 +612,20 @@ impl TfWeighting {
     }
 }
 
-impl<'de> Deserialize<'de> for TfWeighting {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for TfWeighting {
+    type Error = String;
 
-        Ok(match raw.as_str() {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
             "count" => Self::Count,
             "binary" => Self::Binary,
             "ratio" => Self::Ratio,
             "log-normal" => Self::LogNormal,
             _ => {
-                return Err(D::Error::custom(format!(
+                return Err(format!(
                     "unsupported significance --tf-weight \"{}\"",
-                    &raw
-                )))
+                    &value
+                ))
             }
         })
     }

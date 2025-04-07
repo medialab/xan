@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::fmt;
 use std::iter::repeat;
 use std::ops;
 use std::str::FromStr;
 
-use serde::de::{Deserialize, Deserializer, Error};
-
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
+#[serde(try_from = "String")]
 pub struct SelectColumns {
     selectors: Vec<Selector>,
     invert: bool,
@@ -127,10 +127,11 @@ impl fmt::Debug for SelectColumns {
     }
 }
 
-impl<'de> Deserialize<'de> for SelectColumns {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
-        Self::parse(&raw).map_err(D::Error::custom)
+impl TryFrom<String> for SelectColumns {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
     }
 }
 

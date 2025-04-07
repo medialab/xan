@@ -1,10 +1,10 @@
+use std::convert::TryFrom;
 use std::mem;
 use std::ops::Sub;
 
 use colored::Colorize;
 use colorgrad::{BasisGradient, Color, Gradient};
 use jiff::{tz::TimeZone, Timestamp, Unit};
-use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::util;
 
@@ -300,7 +300,8 @@ impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
 pub enum GradientName {
     // Sequential
     OrRd,
@@ -387,13 +388,13 @@ impl GradientName {
     }
 }
 
-impl<'de> Deserialize<'de> for GradientName {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+impl TryFrom<String> for GradientName {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
         use GradientName::*;
 
-        let raw = String::deserialize(d)?;
-
-        Ok(match raw.as_str() {
+        Ok(match value.as_str() {
             "or_rd" => OrRd,
             "viridis" => Viridis,
             "inferno" => Inferno,
@@ -406,12 +407,13 @@ impl<'de> Deserialize<'de> for GradientName {
             "rd_yl_bu" => RdYlBu,
             "rd_yl_gn" => RdYlGn,
             "spectral" => Spectral,
-            _ => return Err(D::Error::custom(format!("unknown gradient \"{}\"", &raw))),
+            _ => return Err(format!("unknown gradient \"{}\"", &value)),
         })
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(try_from = "String")]
 pub enum ScaleType {
     #[default]
     Linear,
@@ -444,14 +446,14 @@ impl ScaleType {
     // }
 }
 
-impl<'de> Deserialize<'de> for ScaleType {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(d)?;
+impl TryFrom<String> for ScaleType {
+    type Error = String;
 
-        Ok(match raw.as_str() {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
             "lin" => Self::Linear,
             "log" => Self::Log10,
-            _ => return Err(D::Error::custom(format!("unknown scale type \"{}\"", raw))),
+            _ => return Err(format!("unknown scale type \"{}\"", &value)),
         })
     }
 }
