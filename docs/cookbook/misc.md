@@ -32,8 +32,6 @@ xan filter -p 'pathjoin("downloaded", path) | read | !contains(_, /yomguithereal
 Let's say you want to delete all files whose path can be found in a column of CSV file. You can select said column and format it with `xan` before piping to `xargs`:
 
 ```bash
-xan select path files.csv | \
-xan behead | \
-xan fmt --quote-never | \
+xan to txt -s path files.csv | \
 xargs -I {} rm {};
 ```
