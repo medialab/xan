@@ -27,6 +27,7 @@
 * `xan parallel -t` will not use more threads than inputs.
 * Fixing `xan stats` panicking when encountering NaN values.
 * Allowing tabs to be understood as whitespace in moonblade expressions.
+* Fixing `xan join --cross` when joined files don't have the same number of columns.
 
 ## 0.48.0
 

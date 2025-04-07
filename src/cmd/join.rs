@@ -312,7 +312,7 @@ impl Args {
         let left_sel = left.selection(left_reader.byte_headers()?)?;
         let right_sel = right.selection(right_reader.byte_headers()?)?;
 
-        if left_sel.len() != right_sel.len() {
+        if !self.flag_cross && left_sel.len() != right_sel.len() {
             Err("not the same number of columns selected on left & right!")?;
         }
 
