@@ -1,60 +1,24 @@
+<!-- Generated -->
 # xan count
 
-The `count` command returns the number of rows of a CSV file.
+```txt
+Prints a count of the number of records in the CSV data.
 
-It will not include the header row in the returned count, unless you provide the `-n/--no-headers` flag.
+Note that the count will not include the header row (unless --no-headers is
+given).
 
-So, given this particular file:
+Usage:
+    xan count [options] [<input>]
 
-*people.csv*
+count options:
+    --csv  Output the result as a single column, single row CSV file with
+           a "count" header.
 
-| name      | surname |
-| --------- | ------- |
-| John      | Black   |
-| Lucy      | Red     |
-| Guillaume | Orange  |
-
-The following command:
-
-```bash
-xan count people.csv
+Common options:
+    -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout.
+    -n, --no-headers       When set, the first row will not be included in
+                           the count.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
+                           Must be a single character.
 ```
-
-Will return `3`.
-
-## Counting CSV files having no headers
-
-Given this file:
-
-*people.csv*
-
-<table>
-  <tr>
-    <td>John</td>
-    <td>Black</td>
-  </tr>
-  <tr>
-    <td>Lucy</td>
-    <td>Red</td>
-  </tr>
-  <tr>
-    <td>Guillaume</td>
-    <td>Orange</td>
-  </tr>
-</table>
-
-The following command:
-
-```bash
-xan count -n people.csv
-```
-
-Will return `3`.
-
-Note that this is not always identical to the simpler:
-
-```bash
-wc -l people.csv
-```
-
-because the `xan count` command is of course CSV-aware and will be able to tolerate properly escaped newlines within cell values.

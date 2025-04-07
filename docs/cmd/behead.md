@@ -1,51 +1,20 @@
+<!-- Generated -->
 # xan behead
 
-The `behead` command simply removes the header row from target CSV file.
+```txt
+Drop a CSV file's header.
 
-This is mostly useful to conform with other tools that don't expect header rows or to easily pipe the result into other unix commands expecting simple lines of data.
+Usage:
+    xan behead [options] [<input>]
+    xan guillotine [options] [<input>]
 
-This means this file:
+behead options:
+    -A, --append  Only drop headers if output already exists and
+                  is not empty. Requires -o/--output to be set.
 
-*people.csv*
-
-<table>
-  <tr>
-    <th>Name</th>
-    <th>Surname</th>
-  </tr>
-  <tr>
-    <td>John</td>
-    <td>Black</td>
-  </tr>
-  <tr>
-    <td>Lucy</td>
-    <td>Red</td>
-  </tr>
-  <tr>
-    <td>Guillaume</td>
-    <td>Orange</td>
-  </tr>
-</table>
-
-Will become:
-
-<table>
-  <tr>
-    <td>John</td>
-    <td>Black</td>
-  </tr>
-  <tr>
-    <td>Lucy</td>
-    <td>Red</td>
-  </tr>
-  <tr>
-    <td>Guillaume</td>
-    <td>Orange</td>
-  </tr>
-</table>
-
-If you run:
-
-```bash
-xan behead people.csv
+Common options:
+    -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
+                           Must be a single character.
 ```

@@ -19,6 +19,7 @@
 * Adding support for `.psv`, `.ssv` & `.scsv` file extensions.
 * Adding `xan headers -s/--start`.
 * Adding `xan to txt`.
+* Adding `xan behead -A/--append`.
 
 *Fixes*
 
