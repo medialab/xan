@@ -19,6 +19,7 @@ mod index;
 mod json;
 mod moonblade;
 mod ratatui;
+mod read;
 mod scales;
 mod select;
 mod urls;

@@ -3,14 +3,15 @@ use std::ascii::AsciiExt;
 use std::borrow::{Borrow, ToOwned};
 use std::convert::TryFrom;
 use std::env;
-use std::fs::{self, File};
-use std::io::{self, prelude::*, BufReader, IsTerminal, Read, SeekFrom};
+use std::fs;
+use std::io::{self, prelude::*, BufReader, IsTerminal, Read};
 use std::ops::Deref;
 use std::path::PathBuf;
 
 use crate::index::Indexed;
 use flate2::read::GzDecoder;
 
+use crate::read::ReverseRead;
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::{CliError, CliResult};
@@ -57,55 +58,6 @@ impl TryFrom<String> for Delimiter {
                     Err(msg)
                 }
             }
-        }
-    }
-}
-
-struct ReverseRead {
-    input: Box<File>,
-    offset: u64,
-    ptr: u64,
-}
-
-impl Read for ReverseRead {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let buff_size = buf.len() as u64;
-
-        if self.ptr == self.offset {
-            return Ok(0);
-        }
-
-        if self.offset + buff_size > self.ptr {
-            let e = (self.ptr - self.offset) as usize;
-
-            self.input.seek(SeekFrom::Start(self.offset))?;
-            self.input.read_exact(&mut buf[0..e])?;
-
-            buf[0..e].reverse();
-
-            self.ptr = self.offset;
-
-            Ok(e)
-        } else {
-            let new_position = self.ptr - buff_size;
-
-            self.input.seek(SeekFrom::Start(new_position))?;
-            self.input.read_exact(buf)?;
-            buf.reverse();
-
-            self.ptr -= buff_size;
-
-            Ok(buff_size as usize)
-        }
-    }
-}
-
-impl ReverseRead {
-    fn build(input: Box<File>, filesize: u64, offset: u64) -> ReverseRead {
-        ReverseRead {
-            input,
-            offset,
-            ptr: filesize,
         }
     }
 }
@@ -532,7 +484,7 @@ impl Config {
                 Ok(x) => match x.borrow().stream_position() {
                     Ok(_) => {
                         let filesize = x.metadata()?.len();
-                        Ok(Box::new(ReverseRead::build(Box::new(x), filesize, offset)))
+                        Ok(Box::new(ReverseRead::new(x, filesize, offset)))
                     }
                     Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
                 },
