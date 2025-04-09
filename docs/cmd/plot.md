@@ -64,6 +64,8 @@ plot options:
                                [default: lin]
     --y-scale <scale>          Apply a scale to the y axis. Can be one of "lin" or "log".
                                [default: lin]
+    -C, --force-colors         Force colors even if output is not supposed to be able to
+                               handle them.
     -i, --ignore               Ignore values that cannot be correctly parsed.
 
 Common options:

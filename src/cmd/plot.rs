@@ -144,6 +144,8 @@ plot options:
                                [default: lin]
     --y-scale <scale>          Apply a scale to the y axis. Can be one of \"lin\" or \"log\".
                                [default: lin]
+    -C, --force-colors         Force colors even if output is not supposed to be able to
+                               handle them.
     -i, --ignore               Ignore values that cannot be correctly parsed.
 
 Common options:
@@ -184,6 +186,7 @@ struct Args {
     flag_y_max: Option<f64>,
     flag_x_scale: ScaleType,
     flag_y_scale: ScaleType,
+    flag_force_colors: bool,
     flag_ignore: bool,
 }
 
@@ -285,6 +288,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if matches!(args.flag_y_ticks, Some(n) if n.get() < 2) {
         Err("--y-ticks must be > 1!")?;
+    }
+
+    if args.flag_force_colors {
+        colored::control::set_override(true);
     }
 
     let has_added_series = !args.flag_add_series.is_empty();
