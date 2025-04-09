@@ -34,6 +34,7 @@
 * Fixing `xan join --cross` when joined files don't have the same number of columns.
 * Adding missing `-n/--no-headers` & `-d/--delimiter` to `xan to`.
 * Fixing `xan progress -B` with gzipped files.
+* Adding missing `-C/--force-colors` to `xan plot`.
 
 ## 0.48.0
 
