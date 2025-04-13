@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.48.0"  #:version
+version = "0.48.0" #:version
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
@@ -8,7 +8,7 @@ authors = [
   "Laura Miguel <laura.miguel@sciencespo.fr>",
   "César Pichon <cesar.pichon@sciencespo.fr>",
   "Anna Charles <anna.charles@sciencespo.fr>",
-  "Julien Pontoire <julien.pontoire@sciencespo.fr>"
+  "Julien Pontoire <julien.pontoire@sciencespo.fr>",
 ]
 description = "The CSV magician"
 documentation = "https://github.com/medialab/xan#readme"
@@ -29,7 +29,7 @@ include = [
   "src/moonblade/doc/*.json",
   "src/moonblade/doc/*.md",
   "src/moonblade/doc/*.txt",
-  "tests/**/*.rs"
+  "tests/**/*.rs",
 ]
 
 [[bin]]
@@ -50,7 +50,9 @@ btoi = "0.4.3"
 bytesize = "2.0.1"
 calamine = "0.26.1"
 colored = "2.0.0"
-colorgrad = { version = "0.7.0", default-features = false, features = ["preset"] }
+colorgrad = { version = "0.7.0", default-features = false, features = [
+  "preset",
+] }
 console = "0.15.8"
 crossbeam-channel = "0.2.4"
 csv = "1.3.1"
@@ -106,6 +108,7 @@ textwrap = "0.16.1"
 threadpool = "1.3"
 thread_local = "1.1.8"
 topk = "0.5.0"
+toml = "0.8"
 transient-btree-index = "0.5.1"
 unidecode = "0.3.0"
 unicode-segmentation = "1.12.0"

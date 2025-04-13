@@ -322,7 +322,11 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let file_config: util::FileConfig = util::load_config("config.toml")?;
+    let config_args: Vec<String> = file_config.view.flags.clone();
+    let mut merged_args: Vec<&str> = argv.to_vec();
+    merged_args.extend(config_args.iter().map(|s| s.as_str()));
+    let mut args: Args = util::get_args(USAGE, &merged_args)?;
     args.resolve();
 
     let mut env_var_argv = vec!["xan", "view"];
