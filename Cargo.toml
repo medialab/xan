@@ -113,8 +113,9 @@ unicode-width = "0.2.0"
 url = "2.5.4"
 uuid = { version = "1.16.0", features = ["v4"] }
 
-[patch.crates-io]
-zip = { git = "https://github.com/zip-rs/zip2", rev = "77cde6a" }
+# NOTE: this is necessary until the `zip` crate fix their semver violation
+# or until both `calamine` and `rust_xlsxwriter` pin their dependency.
+zip = "=2.5.0"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
