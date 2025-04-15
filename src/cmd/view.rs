@@ -1,6 +1,7 @@
 use std::env;
 use std::io::{self, Write};
 use std::num::NonZeroUsize;
+use std::path::Path;
 use std::str::FromStr;
 
 use colored::{self, Colorize};
@@ -322,7 +323,23 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let config_path_env =
+        env::var_os("XDG_CONFIG_HOME").map(|xdg| Path::new(&xdg).join("xan/config.toml"));
+
+    let config_args: Vec<String> = if let Some(config_path) = config_path_env {
+        if config_path.exists() {
+            let file_config: util::FileConfig = util::load_config(config_path)?;
+            file_config.view.flags.clone()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
+    let mut merged_args: Vec<&str> = argv.to_vec();
+    merged_args.extend(config_args.iter().map(|s| s.as_str()));
+    let mut args: Args = util::get_args(USAGE, &merged_args)?;
     args.resolve();
 
     let mut env_var_argv = vec!["xan", "view"];

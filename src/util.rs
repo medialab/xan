@@ -28,6 +28,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::config::{Config, Delimiter};
 use crate::dates;
 use crate::select::SelectColumns;
+use crate::CliError;
 use crate::CliResult;
 
 pub fn version() -> String {
@@ -858,6 +859,22 @@ pub fn bytes_cursor_from_read<R: io::Read>(source: &mut R) -> io::Result<io::Cur
     let mut bytes = Vec::<u8>::new();
     source.read_to_end(&mut bytes)?;
     Ok(io::Cursor::new(bytes))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ViewConfig {
+    pub flags: Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FileConfig {
+    pub view: ViewConfig,
+}
+
+pub fn load_config<P: AsRef<Path>>(filename: P) -> Result<FileConfig, CliError> {
+    let content = fs::read_to_string(filename)?;
+    let config: FileConfig = toml::from_str(&content).map_err(CliError::from)?;
+    Ok(config)
 }
 
 // A custom implementation de/serializing ext-sort chunks as CSV

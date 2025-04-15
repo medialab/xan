@@ -203,6 +203,10 @@ Please choose one of the following commands/flags:\n{}",
                 eprintln!("{}", msg);
                 process::exit(1);
             }
+            Err(CliError::Toml(msg)) => {
+                eprintln!("{}", msg);
+                process::exit(1);
+            }
             // NOTE: I am not super fan to handle this as an error case...
             Err(CliError::Help(usage)) => {
                 println!("{}", usage);
@@ -378,6 +382,7 @@ pub enum CliError {
     Io(io::Error),
     Other(String),
     Help(String),
+    Toml(toml::de::Error),
 }
 
 impl fmt::Display for CliError {
@@ -388,6 +393,7 @@ impl fmt::Display for CliError {
             CliError::Io(ref e) => e.fmt(f),
             CliError::Other(ref s) => f.write_str(s),
             CliError::Help(ref s) => f.write_str(s),
+            CliError::Toml(ref e) => e.fmt(f),
         }
     }
 }
@@ -535,5 +541,11 @@ impl From<url::ParseError> for CliError {
 impl From<()> for CliError {
     fn from(_: ()) -> CliError {
         CliError::Other("unknown error".to_string())
+    }
+}
+
+impl From<toml::de::Error> for CliError {
+    fn from(err: toml::de::Error) -> CliError {
+        CliError::Toml(err)
     }
 }
