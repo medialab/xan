@@ -119,7 +119,7 @@ impl Args {
 
             match &self.flag_source_column {
                 None => {
-                    if i == 0 {
+                    if !self.flag_no_headers && i == 0 {
                         conf.write_headers(&mut rdr, &mut wtr)?;
                     }
                     while rdr.read_byte_record(&mut row)? {
@@ -127,7 +127,7 @@ impl Args {
                     }
                 }
                 Some(source_column) => {
-                    if i == 0 {
+                    if !self.flag_no_headers && i == 0 {
                         let headers = rdr.byte_headers()?;
                         wtr.write_record([source_column.as_bytes()].into_iter().chain(headers))?;
                     }

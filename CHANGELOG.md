@@ -5,6 +5,7 @@
 *Fixes*
 
 * Fixing compilation with musl.
+* Fixing `xan cat rows -n`.
 
 ## 0.49.0
 
