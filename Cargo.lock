@@ -2194,9 +2194,9 @@ dependencies = [
 
 [[package]]
 name = "rust_xlsxwriter"
-version = "0.84.2"
+version = "0.84.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "471ad60b86a26bae9b541a7c3561174c22f474202e653b78f47549939d6b93fa"
+checksum = "a844d972bb19f538ccf0f26383b70d8aa14ff97854f0558d1cd822d611e7da5f"
 dependencies = [
  "zip",
 ]
@@ -3211,9 +3211,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.5.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27c03817464f64e23f6f37574b4fdc8cf65925b5bfd2b0f2aedf959791941f88"
+checksum = "938cc23ac49778ac8340e366ddc422b2227ea176edb447e23fc0627608dddadd"
 dependencies = [
  "aes",
  "arbitrary",
@@ -3222,6 +3222,7 @@ dependencies = [
  "crc32fast",
  "crossbeam-utils 0.8.21",
  "deflate64",
+ "displaydoc",
  "flate2",
  "getrandom 0.3.2",
  "hmac",
@@ -3230,6 +3231,7 @@ dependencies = [
  "memchr",
  "pbkdf2",
  "sha1",
+ "thiserror 2.0.12",
  "time",
  "xz2",
  "zeroize",

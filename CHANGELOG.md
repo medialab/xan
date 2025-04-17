@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.49.1
+
+*Fixes*
+
+* Fixing compilation with musl.
+
 ## 0.49.0
 
 *Breaking*

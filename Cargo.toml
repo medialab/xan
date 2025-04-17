@@ -115,7 +115,7 @@ uuid = { version = "1.16.0", features = ["v4"] }
 
 # NOTE: this is necessary until the `zip` crate fix their semver violation
 # or until both `calamine` and `rust_xlsxwriter` pin their dependency.
-zip = "=2.5.0"
+zip = "=2.4.1"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
