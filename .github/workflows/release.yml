@@ -20,6 +20,7 @@ jobs:
           changelog: CHANGELOG.md
           # (required) GitHub token for creating GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
+          allow-missing-changelog: true
 
   upload-assets:
     needs: create-release
