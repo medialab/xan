@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.49.2
+
+*Fixes*
+
+* Overhauling & fixing CI builds.
+
 ## 0.49.1
 
 *Fixes*
