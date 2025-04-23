@@ -297,6 +297,10 @@ impl Args {
             from_argv.flag_hide_index = true;
         }
 
+        if !from_argv.flag_hide_info && from_env.flag_hide_info {
+            from_argv.flag_hide_info = true;
+        }
+
         if !from_argv.flag_pager && from_env.flag_pager {
             from_argv.flag_pager = true;
         }
