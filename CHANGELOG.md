@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.49.3 (provisional)
+
+*Fixes*
+
+* Adding missing `-M/--hide-info` support with `XAN_VIEW_ARGS`.
+
 ## 0.49.2
 
 *Fixes*

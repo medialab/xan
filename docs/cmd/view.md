@@ -20,7 +20,7 @@ the -e/--expand and -C/--force-colors flags before piping like so:
 Finally, it is possible to customize the default behavior of this command through
 the "XAN_VIEW_ARGS" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
-and -S/--significance, -I/--hide-index.
+and -S/--significance, -I/--hide-index & -M/--hide-info.
 
 So if you want, for instance, to use the borderles theme, hide the index column and
 restrict the number of floating points decimals to be shown by default:
