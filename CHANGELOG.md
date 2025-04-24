@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.50.0 (provisional)
+
+*Features*
+
+* Adding moonblade function `log10`.
+
 ## 0.49.3
 
 *Fixes*
