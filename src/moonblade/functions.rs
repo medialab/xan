@@ -133,6 +133,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::ln),
             FunctionArguments::unary(),
         ),
+        "log10" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::log10),
+            FunctionArguments::unary(),
+        ),
         "lower" => (lower, FunctionArguments::unary()),
         "lru" => (lru, FunctionArguments::unary()),
         "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),

@@ -57,20 +57,22 @@
         "help": "Return the natural logarithm of x."
       },
       {
+        "name": "log10",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return the base 10 logarithm of x."
+      },
+      {
         "name": "max",
         "arguments": ["x", "y", "*n"],
-        "alternatives": [
-          ["list_of_numbers"]
-        ],
+        "alternatives": [["list_of_numbers"]],
         "returns": "number",
         "help": "Return the maximum number."
       },
       {
         "name": "min",
         "arguments": ["x", "y", "*n"],
-        "alternatives": [
-          ["list_of_numbers"]
-        ],
+        "alternatives": [["list_of_numbers"]],
         "returns": "number",
         "help": "Return the minimum number."
       },
@@ -248,9 +250,7 @@
       {
         "name": "fmt",
         "arguments": ["string", "*replacements"],
-        "alternatives": [
-          ["string", "map"]
-        ],
+        "alternatives": [["string", "map"]],
         "returns": "string",
         "help": "Format a string by replacing \"{}\" occurrences by subsequent arguments.\n\nExample: `fmt(\"Hello {} {}\", name, surname)` will replace the first \"{}\" by the value of the name column, then the second one by the value of the surname column.\n\nCan also be given a substitution map like so:\n`fmt(\"Hello {name}\", {name: \"John\"})`."
       },
