@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.49.3 (provisional)
+## 0.49.3
 
 *Fixes*
 
 * Adding missing `-M/--hide-info` support with `XAN_VIEW_ARGS`.
+* Pinning MSRV to `1.81.0` in CI builds to avoid Windows Defender false positives.
 
 ## 0.49.2
 
