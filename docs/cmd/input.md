@@ -17,7 +17,7 @@ box, either by detecting their extension or through dedicated flags:
         extensions: `.vcf`, `.vcf.gz`
         flag: --vcf
         reference: https://en.wikipedia.org/wiki/Variant_Call_Format
-    - GTF ("Gene Transfert Format") files:
+    - GTF ("Gene Transfer Format") files:
         extension: `.gtf`, `.gtf.gz`, `.gff2`, `.gff2.gz`
         flag: --gtf
         reference: https://en.wikipedia.org/wiki/Gene_transfer_format
