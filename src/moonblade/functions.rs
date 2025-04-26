@@ -132,8 +132,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "log" => (
             |args| {
                 match args.len() {
-                    1 => unary_arithmetic_op(args, |n| n.log(None)),
-                    2 => binary_arithmetic_op(args, |n, base| n.log(Some(base))),
+                    1 => unary_arithmetic_op(args, DynamicNumber::log),
+                    2 => binary_arithmetic_op(args, DynamicNumber::log),
                 }
             },
             FunctionArguments::with_range(1..=2),
