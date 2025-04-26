@@ -57,10 +57,10 @@
         "help": "Return the natural logarithm of x."
       },
       {
-        "name": "log10",
-        "arguments": ["x"],
+        "name": "log",
+        "arguments": ["x", "y"],
         "returns": "number",
-        "help": "Return the base 10 logarithm of x."
+        "help": "Return the base y logarithm of x."
       },
       {
         "name": "max",
