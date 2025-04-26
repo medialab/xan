@@ -130,12 +130,13 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
         "log" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::ln),
-            FunctionArguments::unary(),
-        ),
-        "log10" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::log10),
-            FunctionArguments::unary(),
+            |args| {
+                match args.len() {
+                    1 => unary_arithmetic_op(args, |n| n.log(None)),
+                    2 => binary_arithmetic_op(args, |n, base| n.log(Some(base))),
+                }
+            },
+            FunctionArguments::with_range(1..=2),
         ),
         "lower" => (lower, FunctionArguments::unary()),
         "lru" => (lru, FunctionArguments::unary()),
