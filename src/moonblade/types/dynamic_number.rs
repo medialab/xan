@@ -113,12 +113,18 @@ impl DynamicNumber {
         self.map_float_to_int(f64::round)
     }
 
-    pub fn ln(self) -> Self {
-        self.map_float(f64::ln)
-    }
-
-    pub fn log10(self) -> Self {
-        self.map_float(f64::log10)
+    pub fn log(self, base: Option<Self>) -> Self {
+        match base {
+            None => self.map_float(f64::ln),
+            Some(base) => {
+                let base_val = base.as_float();
+                if base == std::f64::consts::E {
+                    self.map_float(f64::ln)
+                } else {
+                    self.map_float(|n| n.log(base_val))
+                }
+            }
+        }
     }
 
     pub fn exp(self) -> Self {
