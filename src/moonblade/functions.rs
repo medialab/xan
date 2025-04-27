@@ -135,13 +135,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 match args.len() {
                     1 => unary_arithmetic_op(args, |arg: DynamicNumber| arg.log(None)),
                     2 => binary_arithmetic_op(args, |arg0: DynamicNumber, arg1: DynamicNumber| arg0.log(Some(arg1))),
-                    _ => Err(
-                        EvaluationError::InvalidArity(InvalidArity::from_arity(
-                            Arity::Range(1..=2),
-                            args.len(),
-                        ))
-                        .specify("log"),
-                    ),
+                    _ => Err(EvaluationError::InvalidArity(InvalidArity::from_arity(
+                        Arity::Range(1..=2),
+                        args.len(),
+                    ))),
                 }
             },
             FunctionArguments::with_range(1..=2),
