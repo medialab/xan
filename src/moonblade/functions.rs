@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use crate::dates;
 use crate::urls::LRUStems;
-use crate::moonblade::error::{InvalidArity};
+use crate::moonblade::error::InvalidArity;
 
 use super::agg::aggregators::{Sum, Welford};
 use super::error::EvaluationError;
