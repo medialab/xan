@@ -118,7 +118,7 @@ impl DynamicNumber {
             None => self.map_float(f64::ln),
             Some(base) => {
                 let base_val = base.as_float();
-                if base == std::f64::consts::E {
+                if base == Self::Float(std::f64::consts::E) {
                     self.map_float(f64::ln)
                 } else {
                     self.map_float(|n| n.log(base_val))
