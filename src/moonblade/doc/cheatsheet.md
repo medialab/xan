@@ -122,6 +122,7 @@ null
 'hello'
 # Typical escaping
 "Hello\nThis is world!"
+# Supported: \n, \r, \t, \\, \", \', \0, \x67 and \u{1F60A}
 
 # Binary strings (single or double quotes)
 b"hello"
