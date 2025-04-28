@@ -132,8 +132,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "log" => (
             |args| {
                 match args.len() {
-                    1 => unary_arithmetic_op(args, |arg: DynamicNumber| arg.log(None)),
-                    2 => binary_arithmetic_op(args, |arg0: DynamicNumber, arg1: DynamicNumber| arg0.log(Some(arg1))),
+                    1 => unary_arithmetic_op(args, DynamicNumber::ln),
+                    2 => binary_arithmetic_op(args, DynamicNumber::log),
                     n => unreachable!("function \"log\" expected 1 or 2 arguments, but received {}", n),
                 }
             },
