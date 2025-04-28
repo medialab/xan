@@ -5,6 +5,7 @@
 *Features*
 
 * Adding moonblade function `log10`.
+* Adding `\0`, `\x..` and `\u{......}` literals to moonblade strings.
 
 ## 0.49.3
 

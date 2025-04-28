@@ -121,8 +121,26 @@ fn build_string(pair: Pair<Rule>) -> String {
                             "\\" => '\\',
                             "\"" => '"',
                             "'" => '\'',
+                            "0" => '\0',
                             _ => unreachable!(),
                         });
+                    }
+                    Rule::byte => {
+                        string.push(char::from(
+                            u8::from_str_radix(&inner.as_str()[1..], 16).unwrap(),
+                        ));
+                    }
+                    Rule::unicode => {
+                        string.push(
+                            char::from_u32(
+                                u32::from_str_radix(
+                                    &inner.as_str()[2..inner.as_str().len() - 1],
+                                    16,
+                                )
+                                .unwrap(),
+                            )
+                            .unwrap(),
+                        );
                     }
                     _ => unreachable!(),
                 }
