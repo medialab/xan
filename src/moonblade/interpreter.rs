@@ -848,7 +848,11 @@ mod tests {
     fn test_pathjoin() {
         assert_eq!(
             eval_code("pathjoin('one', 'two', 'three')"),
-            Ok(DynamicValue::from("one/two/three"))
+            Ok(DynamicValue::from(if cfg!(windows) {
+                "one\\two\\three"
+            } else {
+                "one/two/three"
+            }))
         );
     }
 
