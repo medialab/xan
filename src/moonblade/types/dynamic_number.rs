@@ -117,8 +117,8 @@ impl DynamicNumber {
         self.map_float(f64::ln)
     }
 
-    pub fn log10(self) -> Self {
-        self.map_float(f64::log10)
+    pub fn log(self, base: Self) -> Self {
+        self.map_float(|n| n.log(base.as_float()))
     }
 
     pub fn exp(self) -> Self {
