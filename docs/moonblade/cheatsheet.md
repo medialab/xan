@@ -99,6 +99,10 @@ can also use "unsure" identifiers, postfixed with `?` like so:
 text? || content?
 ```
 
+Note that the language does not have user-defined variables and identifiers always
+refer to some column or some program-defined value like in `xan tokenize --flatmap`
+or `xan dedup --choose`.
+
 ## Literal values & data types
 
 ```python
