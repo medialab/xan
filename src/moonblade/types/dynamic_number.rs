@@ -118,7 +118,23 @@ impl DynamicNumber {
     }
 
     pub fn log(self, base: Self) -> Self {
-        self.map_float(|n| n.log(base.as_float()))
+        let base = base.as_float();
+
+        if base == 2.0 {
+            self.map_float(f64::log2)
+        } else if base == 10.0 {
+            self.map_float(f64::log10)
+        } else {
+            self.map_float(|n| n.log(base))
+        }
+    }
+
+    pub fn log2(self) -> Self {
+        self.map_float(f64::log2)
+    }
+
+    pub fn log10(self) -> Self {
+        self.map_float(f64::log10)
     }
 
     pub fn exp(self) -> Self {

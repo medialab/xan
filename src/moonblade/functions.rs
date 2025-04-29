@@ -130,14 +130,20 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
         "log" => (
-            |args| {
-                match args.len() {
-                    1 => unary_arithmetic_op(args, DynamicNumber::ln),
-                    2 => binary_arithmetic_op(args, DynamicNumber::log),
-                    n => unreachable!("function \"log\" expected 1 or 2 arguments, but received {}", n),
-                }
+            |args| match args.len() {
+                1 => unary_arithmetic_op(args, DynamicNumber::ln),
+                2 => binary_arithmetic_op(args, DynamicNumber::log),
+                _ => unreachable!(),
             },
             FunctionArguments::with_range(1..=2),
+        ),
+        "log2" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::log2),
+            FunctionArguments::unary(),
+        ),
+        "log10" => (
+            |args| unary_arithmetic_op(args, DynamicNumber::log10),
+            FunctionArguments::unary(),
         ),
         "lower" => (lower, FunctionArguments::unary()),
         "lru" => (lru, FunctionArguments::unary()),

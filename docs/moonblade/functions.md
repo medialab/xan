@@ -123,8 +123,9 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **div**(*x*, *y*, *\*n*) -> `number`: Divide two or more numbers.
 - **idiv**(*x*, *y*) -> `number`: Integer division of two numbers.
 - **floor**(*x*) -> `number`: Return the smallest integer lower than or equal to x.
-- **log**(*x*) -> `number`: Return the natural logarithm of x.
-- **log**(*x*, *y*) -> `number`: Return the base y logarithm of x.
+- **log**(*x*, *base?*) -> `number`: Return the natural or custom base logarithm of x.
+- **log2**(*x*) -> `number`: Return the base 2 logarithm of x.
+- **log10**(*x*) -> `number`: Return the base 10 logarithm of x.
 - **max**(*x*, *y*, *\*n*) -> `number`: Return the maximum number.
 - **max**(*list_of_numbers*) -> `number`: Return the maximum number.
 - **min**(*x*, *y*, *\*n*) -> `number`: Return the minimum number.

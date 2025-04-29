@@ -52,15 +52,21 @@
       },
       {
         "name": "log",
-        "arguments": ["x"],
+        "arguments": ["x", "base?"],
         "returns": "number",
-        "help": "Return the natural logarithm of x."
+        "help": "Return the natural or custom base logarithm of x."
       },
       {
-        "name": "log",
-        "arguments": ["x", "y"],
+        "name": "log2",
+        "arguments": ["x"],
         "returns": "number",
-        "help": "Return the base y logarithm of x."
+        "help": "Return the base 2 logarithm of x."
+      },
+      {
+        "name": "log10",
+        "arguments": ["x"],
+        "returns": "number",
+        "help": "Return the base 10 logarithm of x."
       },
       {
         "name": "max",

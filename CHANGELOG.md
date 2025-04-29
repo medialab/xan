@@ -4,7 +4,7 @@
 
 *Features*
 
-* Adding moonblade function `log10`.
+* Adding moonblade function `log2`, `log10` and support for custom base with an optional argument of `log`.
 * Adding `\0`, `\x..` and `\u{......}` literals to moonblade strings.
 
 ## 0.49.3
