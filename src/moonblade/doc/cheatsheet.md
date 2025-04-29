@@ -22,7 +22,7 @@ apply here too.
 
 - [Basic examples](#basic-examples)
 - [Literal values & data types](#literal-values--data-types)
-- [Referencing columns](#literal-values)
+- [Referencing columns](#referencing-columns)
 - [Operators & calling functions](#operators--calling-functions)
 - [Indexing & slicing](#indexing--slicing)
 - [Higher-order functions](#higher-order-functions)
