@@ -138,7 +138,18 @@ struct Args {
     arg_command: Option<Command>,
 }
 
+// Ref: https://github.com/medialab/xan/issues/566
+#[cfg(not(windows))]
+fn set_virtual_terminal() {}
+
+#[cfg(windows)]
+fn set_virtual_terminal() {
+    colored::control::set_virtual_terminal(true).ok();
+}
+
 fn main() {
+    set_virtual_terminal();
+
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| {
             d.options_first(true)
