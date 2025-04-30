@@ -1,0 +1,44 @@
+{
+  "language": "eng",
+  "license": "MIT",
+  "title": "xan, the CSV magician.",
+  "upload_type": "software",
+  "keywords": [
+    "rust",
+    "cli",
+    "terminal",
+    "data manipulation",
+    "csv",
+    "tsv"
+  ],
+  "creators": [
+    {
+      "orcid": "0000-0003-4916-8472",
+      "affiliation": "médialab - Sciences Po",
+      "name": "Guillaume Plique"
+    },
+    {
+      "orcid": "0000-0003-4074-2976",
+      "affiliation": "médialab - Sciences Po",
+      "name": "Béatrice Mazoyer"
+    },
+    {
+      "affiliation": "médialab - Sciences Po",
+      "name": "Laura Miguel"
+    },
+    {
+      "affiliation": "médialab - Sciences Po",
+      "name": "César Pichon"
+    },
+    {
+      "affiliation": "médialab - Sciences Po",
+      "name": "Anna Charles"
+    },
+    {
+      "affiliation": "médialab - Sciences Po",
+      "name": "Julien Pontoire"
+    }
+  ],
+  "access_right": "open",
+  "description": "<p>A CSV-centric data manipulation CLI tool written in Rust.</p>"
+}
