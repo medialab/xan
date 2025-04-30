@@ -329,14 +329,13 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     let mut rdr = rconfig.reader()?;
     let mut wtr = Config::new(&args.output).writer()?;
 
-    let mut headers = csv::ByteRecord::new();
+    let headers = rdr.byte_headers()?.clone();
     let mut modified_headers = csv::ByteRecord::new();
     let mut must_write_headers = false;
     let mut column_to_replace: Option<usize> = None;
     let mut map_expr = args.map_expr.clone();
 
     if !args.no_headers {
-        headers = rdr.byte_headers()?.clone();
         modified_headers = headers.clone();
 
         if !headers.is_empty() {

@@ -11,6 +11,7 @@
 
 * Better color support for legacy Windows terminals.
 * Fixing `to_timezone` function with UTC timestamps on some platforms where jiff is built "bundled".
+* Fixing moonblade commands (e.g. `filter`, `map` etc.) when using `-n/--no-headers`.
 
 ## 0.49.3
 
