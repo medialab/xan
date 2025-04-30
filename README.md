@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/medialab/xan/workflows/Tests/badge.svg)](https://github.com/medialab/xan/actions)
+[![Build Status](https://github.com/medialab/xan/workflows/Tests/badge.svg)](https://github.com/medialab/xan/actions) [![DOI](https://zenodo.org/badge/140488417.svg)](https://doi.org/10.5281/zenodo.15310200)
 
 # `xan`, the CSV magician
 
@@ -46,6 +46,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 * [Expression language reference](#expression-language-reference)
 * [Cookbook](#cookbook)
 * [News](#news)
+* [How to cite?](#how-to-cite)
 * [Frequently Asked Questions](#frequently-asked-questions)
 
 ## How to install
@@ -660,6 +661,14 @@ For news about the tool's evolutions feel free to read:
 
 1. the [changelog](CHANGELOG.md)
 2. the [xan zines](./docs/XANZINE.md)
+
+## How to cite?
+
+`xan` is published on [Zenodo](https://zenodo.org/) as [10.5281/zenodo.15310200](https://doi.org/10.5281/zenodo.15310200).
+
+You can cite it thusly:
+
+> Guillaume Plique, Béatrice Mazoyer, Laura Miguel, César Pichon, Anna Charles, & Julien Pontoire. (2025). xan, the CSV magician. (0.50.0). Zenodo. https://doi.org/10.5281/zenodo.15310200
 
 ## Frequently Asked Questions
 
