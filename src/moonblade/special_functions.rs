@@ -67,6 +67,11 @@ pub fn get_special_function(
             Some(runtime_col),
             FunctionArguments::with_range(1..=2),
         ),
+        "col?" => (
+            Some(comptime_unsure_col),
+            Some(runtime_unsure_col),
+            FunctionArguments::with_range(1..=2),
+        ),
         "cols" => (
             Some(|call: &FunctionCall, headers: &ByteRecord| {
                 comptime_cols_headers(call, headers, ConcreteExpr::Column)
@@ -118,6 +123,18 @@ fn comptime_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionRe
         match column_indexation.find_column_index(headers, headers.len()) {
             Some(index) => return Ok(Some(ConcreteExpr::Column(index))),
             None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
+        };
+    }
+
+    Ok(None)
+}
+
+fn comptime_unsure_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionResult {
+    // Statically analyzable col?() function call
+    if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
+        match column_indexation.find_column_index(headers, headers.len()) {
+            Some(index) => return Ok(Some(ConcreteExpr::Column(index))),
+            None => return Ok(Some(ConcreteExpr::Value(DynamicValue::None))),
         };
     }
 
@@ -250,6 +267,7 @@ fn runtime_col(
         args.first()
             .unwrap()
             .evaluate(index, record, context, globals, lambda_variables)?;
+
     let pos = match args.get(1) {
         Some(p) => Some(p.evaluate(index, record, context, globals, lambda_variables)?),
         None => None,
@@ -265,6 +283,36 @@ fn runtime_col(
                 "col",
                 EvaluationError::ColumnNotFound(indexation),
             )),
+            Some(index) => Ok(DynamicValue::from(&record[index])),
+        },
+    }
+}
+
+fn runtime_unsure_col(
+    index: Option<usize>,
+    record: &ByteRecord,
+    context: &EvaluationContext,
+    args: &[ConcreteExpr],
+    globals: Option<&GlobalVariables>,
+    lambda_variables: Option<&LambdaArguments>,
+) -> EvaluationResult {
+    let name_or_pos =
+        args.first()
+            .unwrap()
+            .evaluate(index, record, context, globals, lambda_variables)?;
+
+    let pos = match args.get(1) {
+        Some(p) => Some(p.evaluate(index, record, context, globals, lambda_variables)?),
+        None => None,
+    };
+
+    match ColumIndexationBy::from_bound_arguments(name_or_pos, pos) {
+        None => Err(SpecifiedEvaluationError::new(
+            "col",
+            EvaluationError::Custom("invalid arguments".to_string()),
+        )),
+        Some(indexation) => match context.get_column_index(&indexation) {
+            None => Ok(DynamicValue::None),
             Some(index) => Ok(DynamicValue::from(&record[index])),
         },
     }

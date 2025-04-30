@@ -6,6 +6,7 @@
 
 * Adding moonblade function `log2`, `log10` and support for custom base with an optional argument of `log`.
 * Adding `\0`, `\x..` and `\u{......}` literals to moonblade strings.
+* Adding moonblade function `col?`.
 
 *Fixes*
 

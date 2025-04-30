@@ -234,6 +234,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 - **coalesce**(*\*args*) -> `T`: Return first truthy value.
 - **col**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names.
+- **col?**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
 - **cols**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[bytes]`: Return list of cell values from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns.
 - **err**(*msg*) -> `error`: Make the expression return a custom error.
 - **float**(*any*) -> `float`: Cast value as float and raise an error if impossible.

@@ -561,6 +561,12 @@
         "help": "Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names."
       },
       {
+        "name": "col?",
+        "arguments": ["name_or_pos", "nth?"],
+        "returns": "bytes",
+        "help": "Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null."
+      },
+      {
         "name": "cols",
         "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
         "returns": "list[bytes]",

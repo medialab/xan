@@ -92,11 +92,13 @@ If an identifier or a `col` call tries to access an inexisting column in target
 CSV file, `xan` will usually throw an error before even attempting to evaluate
 the given expression. This can be problematic sometimes when you want to process
 many different files with slightly different column names. To this end, you
-can also use "unsure" identifiers, postfixed with `?` like so:
+can also use "unsure" identifiers, postfixed with `?`, or the `col?` function like so:
 
 ```python
 # Will return the "text" column or the "content" one if not found
 text? || content?
+# Same but for column with complicated names etc.
+col?("Subscription Date")
 ```
 
 Note that the language does not have user-defined variables and identifiers always
