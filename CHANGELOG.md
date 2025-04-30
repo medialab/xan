@@ -10,6 +10,7 @@
 *Fixes*
 
 * Better color support for legacy Windows terminals.
+* Fixing `to_timezone` function with UTC timestamps on some platforms where jiff is built "bundled".
 
 ## 0.49.3
 

@@ -275,6 +275,12 @@ impl DynamicValue {
     pub fn try_as_timezone(&self) -> Result<TimeZone, EvaluationError> {
         let name = self.try_as_str()?;
 
+        // NOTE: this condition is necessary on some platform until
+        // https://github.com/BurntSushi/jiff/issues/346 is released.
+        if name == "UTC" {
+            return Ok(TimeZone::UTC);
+        }
+
         TimeZone::get(&name)
             .map_err(|_| EvaluationError::DateTime(format!("{} is not a valid timezone", name)))
     }
