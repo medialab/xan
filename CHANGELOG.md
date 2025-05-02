@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.50.1 (provisional)
+
+*Fixes*
+
+* Adding missing highlight for `NULL` values in `xan view` & `xan flatten`.
+
 ## 0.50.0
 
 *Features*

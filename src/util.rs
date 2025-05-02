@@ -420,8 +420,8 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
             return ColorOrStyles::Color(Color::Cyan)
         }
-        "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>" | "<null>"
-        | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
+        "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
+        | "<null>" | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
         _ => (),
     };
 
