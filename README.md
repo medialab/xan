@@ -672,6 +672,10 @@ You can cite it thusly:
 
 ## Frequently Asked Questions
 
+### How to perform a semi-join or anti-join
+
+Check out `xan search --patterns`.
+
 ### How to display a vertical bar chart?
 
 Rotate your screen ;\)
