@@ -8,12 +8,10 @@ use std::io::{self, prelude::*, BufReader, IsTerminal, Read};
 use std::ops::Deref;
 use std::path::PathBuf;
 
-use crate::index::Indexed;
 use flate2::read::GzDecoder;
 
 use crate::read::ReverseRead;
 use crate::select::{SelectColumns, Selection};
-use crate::util;
 use crate::{CliError, CliResult};
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -70,7 +68,6 @@ type PairResult = CliResult<(String, Option<String>)>;
 #[derive(Debug)]
 pub struct Config {
     pub path: Option<PathBuf>, // None implies <stdin>
-    idx_path: Option<PathBuf>,
     select_columns: Option<SelectColumns>,
     delimiter: u8,
     pub no_headers: bool,
@@ -106,7 +103,6 @@ impl Config {
         };
         Config {
             path,
-            idx_path: None,
             select_columns: None,
             delimiter: delim,
             no_headers: false,
@@ -237,57 +233,6 @@ impl Config {
 
     pub fn reader(&self) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
-    }
-
-    pub fn reader_file(&self) -> io::Result<csv::Reader<Box<dyn SeekRead>>> {
-        self.io_reader_for_random_access_with_cursor_fallback()
-            .map(|f| self.csv_reader_from_reader(f))
-    }
-
-    pub fn index_files(&self) -> io::Result<Option<(csv::Reader<fs::File>, fs::File)>> {
-        let (csv_file, idx_file) = match (&self.path, &self.idx_path) {
-            (&None, &None) => return Ok(None),
-            (&None, &Some(_)) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Cannot use <stdin> with indexes",
-                    // Some(format!("index file: {}", p.display()))
-                ));
-            }
-            (Some(p), &None) => {
-                // We generally don't want to report an error here, since we're
-                // passively trying to find an index.
-                let idx_file = match fs::File::open(util::idx_path(p)) {
-                    // TODO: Maybe we should report an error if the file exists
-                    // but is not readable.
-                    Err(_) => return Ok(None),
-                    Ok(f) => f,
-                };
-                (fs::File::open(p)?, idx_file)
-            }
-            (Some(p), Some(ip)) => (fs::File::open(p)?, fs::File::open(ip)?),
-        };
-        // If the CSV data was last modified after the index file was last
-        // modified, then return an error and demand the user regenerate the
-        // index.
-        let data_modified = util::last_modified(&csv_file.metadata()?);
-        let idx_modified = util::last_modified(&idx_file.metadata()?);
-        if data_modified > idx_modified {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "The CSV file was modified after the index file. \
-                 Please re-create the index.",
-            ));
-        }
-        let csv_rdr = self.csv_reader_from_reader(csv_file);
-        Ok(Some((csv_rdr, idx_file)))
-    }
-
-    pub fn indexed(&self) -> CliResult<Option<Indexed<fs::File, fs::File>>> {
-        match self.index_files()? {
-            None => Ok(None),
-            Some((r, i)) => Ok(Some(Indexed::open(r, i)?)),
-        }
     }
 
     pub fn io_reader(&self) -> io::Result<Box<dyn io::Read + Send + 'static>> {
@@ -439,32 +384,6 @@ impl Config {
                     Ok(_) => Ok(Box::new(x)),
                     Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
                 },
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    Err(io::Error::new(io::ErrorKind::NotFound, msg))
-                }
-            },
-        }
-    }
-
-    pub fn io_reader_for_random_access_with_cursor_fallback(
-        &self,
-    ) -> io::Result<Box<dyn SeekRead + 'static>> {
-        match self.path {
-            None => Ok(Box::new(util::bytes_cursor_from_read(&mut io::stdin())?)),
-            Some(ref p) => match fs::File::open(p) {
-                Ok(mut x) => {
-                    if p.to_string_lossy().ends_with(".gz") {
-                        Ok(Box::new(util::bytes_cursor_from_read(
-                            &mut GzDecoder::new(x),
-                        )?))
-                    } else {
-                        match x.borrow().stream_position() {
-                            Ok(_) => Ok(Box::new(x)),
-                            Err(_) => Ok(Box::new(util::bytes_cursor_from_read(&mut x)?)),
-                        }
-                    }
-                }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
                     Err(io::Error::new(io::ErrorKind::NotFound, msg))

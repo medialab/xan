@@ -5,10 +5,6 @@
 Randomly samples CSV data uniformly using memory proportional to the size of
 the sample.
 
-When an index is present, this command will use random indexing if the sample
-size is less than 10% of the total number of records. This allows for efficient
-sampling such that the entire CSV file is not parsed.
-
 This command is intended to provide a means to sample from a CSV data set that
 is too big to fit into memory (for example, for use with commands like 'xan freq'
 or 'xan stats'). It will however visit every CSV record exactly

@@ -9,67 +9,40 @@ macro_rules! slice_tests {
             use super::test_slice;
 
             #[test]
-            fn headers_no_index() {
-                let name = concat!(stringify!($name), "headers_no_index");
-                test_slice(name, $start, $end, $expected, true, false, false);
+            fn headers() {
+                let name = concat!(stringify!($name), "headers");
+                test_slice(name, $start, $end, $expected, true, false);
             }
 
             #[test]
-            fn no_headers_no_index() {
-                let name = concat!(stringify!($name), "no_headers_no_index");
-                test_slice(name, $start, $end, $expected, false, false, false);
+            fn no_headers() {
+                let name = concat!(stringify!($name), "no_headers");
+                test_slice(name, $start, $end, $expected, false, false);
             }
 
             #[test]
-            fn headers_index() {
-                let name = concat!(stringify!($name), "headers_index");
-                test_slice(name, $start, $end, $expected, true, true, false);
+            fn headers_len() {
+                let name = concat!(stringify!($name), "headers_len");
+                test_slice(name, $start, $end, $expected, true, true);
             }
 
             #[test]
-            fn no_headers_index() {
-                let name = concat!(stringify!($name), "no_headers_index");
-                test_slice(name, $start, $end, $expected, false, true, false);
-            }
-
-            #[test]
-            fn headers_no_index_len() {
-                let name = concat!(stringify!($name), "headers_no_index_len");
-                test_slice(name, $start, $end, $expected, true, false, true);
-            }
-
-            #[test]
-            fn no_headers_no_index_len() {
-                let name = concat!(stringify!($name), "no_headers_no_index_len");
-                test_slice(name, $start, $end, $expected, false, false, true);
-            }
-
-            #[test]
-            fn headers_index_len() {
-                let name = concat!(stringify!($name), "headers_index_len");
-                test_slice(name, $start, $end, $expected, true, true, true);
-            }
-
-            #[test]
-            fn no_headers_index_len() {
-                let name = concat!(stringify!($name), "no_headers_index_len");
-                test_slice(name, $start, $end, $expected, false, true, true);
+            fn no_headers_len() {
+                let name = concat!(stringify!($name), "no_headers_len");
+                test_slice(name, $start, $end, $expected, false, true);
             }
         }
     };
 }
 
-fn setup(name: &str, headers: bool, use_index: bool) -> (Workdir, process::Command) {
+fn setup(name: &str, headers: bool) -> (Workdir, process::Command) {
     let wrk = Workdir::new(name);
     let mut data = vec![svec!["a"], svec!["b"], svec!["c"], svec!["d"], svec!["e"]];
     if headers {
         data.insert(0, svec!["header"]);
     }
-    if use_index {
-        wrk.create_indexed("in.csv", data);
-    } else {
-        wrk.create("in.csv", data);
-    }
+
+    wrk.create("in.csv", data);
 
     let mut cmd = wrk.command("slice");
     cmd.arg("in.csv");
@@ -83,10 +56,9 @@ fn test_slice(
     end: Option<usize>,
     expected: &[&str],
     headers: bool,
-    use_index: bool,
     as_len: bool,
 ) {
-    let (wrk, mut cmd) = setup(name, headers, use_index);
+    let (wrk, mut cmd) = setup(name, headers);
     if let Some(start) = start {
         cmd.arg("--start").arg(&start.to_string());
     }
@@ -113,8 +85,8 @@ fn test_slice(
     assert_eq!(got, expected);
 }
 
-fn test_index(name: &str, idx: usize, expected: &str, headers: bool, use_index: bool) {
-    let (wrk, mut cmd) = setup(name, headers, use_index);
+fn test_index(name: &str, idx: usize, expected: &str, headers: bool) {
+    let (wrk, mut cmd) = setup(name, headers);
     cmd.arg("--index").arg(&idx.to_string());
     if !headers {
         cmd.arg("--no-headers");
@@ -136,19 +108,11 @@ slice_tests!(slice_all, None, None, &["a", "b", "c", "d", "e"]);
 
 #[test]
 fn slice_index() {
-    test_index("slice_index", 1, "b", true, false);
+    test_index("slice_index", 1, "b", true);
 }
 #[test]
 fn slice_index_no_headers() {
-    test_index("slice_index_no_headers", 1, "b", false, false);
-}
-#[test]
-fn slice_index_withindex() {
-    test_index("slice_index_withindex", 1, "b", true, true);
-}
-#[test]
-fn slice_index_no_headers_withindex() {
-    test_index("slice_index_no_headers_withindex", 1, "b", false, true);
+    test_index("slice_index_no_headers", 1, "b", false);
 }
 
 #[test]
@@ -171,29 +135,6 @@ fn slice_indices() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n"], svec!["one"], svec!["four"], svec!["five"]];
-    assert_eq!(got, expected);
-}
-
-#[test]
-fn slice_indices_indexed() {
-    let wrk = Workdir::new("slice_indices_indexed");
-    wrk.create_indexed(
-        "data.csv",
-        vec![
-            svec!["n"],
-            svec!["zero"],
-            svec!["one"],
-            svec!["two"],
-            svec!["three"],
-            svec!["four"],
-            svec!["five"],
-        ],
-    );
-    let mut cmd = wrk.command("slice");
-    cmd.args(["-i", "0,2,4"]).arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["n"], svec!["zero"], svec!["two"], svec!["four"]];
     assert_eq!(got, expected);
 }
 

@@ -27,7 +27,6 @@ pub mod heatmap;
 pub mod help;
 pub mod hist;
 pub mod implode;
-pub mod index;
 pub mod input;
 pub mod join;
 pub mod map;

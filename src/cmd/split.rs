@@ -2,11 +2,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crossbeam_channel as channel;
-use threadpool::ThreadPool;
-
 use crate::config::{Config, Delimiter};
-use crate::index::Indexed;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
@@ -23,13 +19,6 @@ Usage:
 split options:
     -s, --size <arg>       The number of records to write into each chunk.
                            [default: 500]
-    -j, --jobs <arg>       The number of spliting jobs to run in parallel.
-                           This only works when the given CSV data has
-                           an index already created. Note that a file handle
-                           is opened for each job.
-                           When set to '0', the number of jobs is set to the
-                           number of CPUs detected.
-                           [default: 0]
     --filename <filename>  A filename template to use when constructing
                            the names of the output files.  The string '{}'
                            will be replaced by a value based on the value
@@ -50,7 +39,6 @@ struct Args {
     arg_input: Option<String>,
     arg_outdir: String,
     flag_size: usize,
-    flag_jobs: usize,
     flag_filename: FilenameTemplate,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -63,10 +51,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     fs::create_dir_all(&args.arg_outdir)?;
 
-    match args.rconfig().indexed()? {
-        Some(idx) => args.parallel_split(idx),
-        None => args.sequential_split(),
-    }
+    args.sequential_split()
 }
 
 impl Args {
@@ -90,33 +75,6 @@ impl Args {
         Ok(())
     }
 
-    fn parallel_split(&self, idx: Indexed<fs::File, fs::File>) -> CliResult<()> {
-        let nchunks = util::num_of_chunks(idx.count() as usize, self.flag_size);
-        let pool = ThreadPool::new(self.njobs());
-        let (tx, rx) = channel::bounded::<()>(0);
-        for i in 0..nchunks {
-            let args = self.clone();
-            let tx = tx.clone();
-            pool.execute(move || {
-                let conf = args.rconfig();
-                let mut idx = conf.indexed().unwrap().unwrap();
-                let headers = idx.byte_headers().unwrap().clone();
-                let mut wtr = args.new_writer(&headers, i * args.flag_size).unwrap();
-
-                idx.seek((i * args.flag_size) as u64).unwrap();
-                for row in idx.byte_records().take(args.flag_size) {
-                    let row = row.unwrap();
-                    wtr.write_byte_record(&row).unwrap();
-                }
-                wtr.flush().unwrap();
-                drop(tx);
-            });
-        }
-        drop(tx);
-        rx.recv();
-        Ok(())
-    }
-
     fn new_writer(
         &self,
         headers: &csv::ByteRecord,
@@ -136,13 +94,5 @@ impl Args {
         Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
-    }
-
-    fn njobs(&self) -> usize {
-        if self.flag_jobs == 0 {
-            num_cpus::get()
-        } else {
-            self.flag_jobs
-        }
     }
 }

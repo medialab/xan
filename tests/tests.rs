@@ -1,11 +1,5 @@
 #![allow(dead_code)]
 
-extern crate serde_derive;
-
-extern crate csv;
-extern crate filetime;
-extern crate rand;
-
 use std::fmt;
 use std::mem::transmute;
 use std::ops;
@@ -36,7 +30,6 @@ mod test_frequency;
 mod test_groupby;
 mod test_headers;
 mod test_implode;
-mod test_index;
 mod test_join;
 mod test_map;
 mod test_merge;

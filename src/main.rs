@@ -15,7 +15,6 @@ mod collections;
 mod config;
 mod dates;
 mod graph;
-mod index;
 mod json;
 mod moonblade;
 mod ratatui;
@@ -259,7 +258,6 @@ enum Command {
     Help,
     Hist,
     Implode,
-    Index,
     Input,
     Join,
     Map,
@@ -344,7 +342,6 @@ impl Command {
             }
             Command::Hist => cmd::hist::run(argv),
             Command::Implode => cmd::implode::run(argv),
-            Command::Index => cmd::index::run(argv),
             Command::Input => cmd::input::run(argv),
             Command::Join => cmd::join::run(argv),
             Command::Network => cmd::network::run(argv),

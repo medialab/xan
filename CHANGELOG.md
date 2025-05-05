@@ -2,6 +2,10 @@
 
 ## 0.51.0 (provisional)
 
+*Breaking*
+
+* Dropping undocumented `xan index` and related interactions (in `xan count`, `xan sample`, `xan slice` & `xan split --jobs`).
+
 *Features*
 
 * Adding `xan count -a/--approx`.

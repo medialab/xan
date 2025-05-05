@@ -11,11 +11,6 @@ record in the CSV data.
 If the end of the range isn't specified, then the slice continues to the last
 record in the CSV data.
 
-This operation can be made much faster by creating an index with 'xan index'
-first. Namely, a slice on an index requires parsing just the rows that are
-sliced. Without an index, all rows up to the first row in the slice must be
-parsed.
-
 Finally, this command is also able to find the first record to slice in
 constant time using the -B, --byte-offset if you know its byte offset in
 the file. This only works with seekable inputs, e.g. files but no stdin or

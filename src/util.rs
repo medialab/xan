@@ -5,7 +5,7 @@ use std::fs;
 use std::io;
 use std::num::NonZeroUsize;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::str;
 use std::thread;
@@ -140,32 +140,6 @@ pub fn errif_greater_one_stdin(inps: &[Config]) -> Result<(), String> {
         return Err("At most one <stdin> input is allowed.".to_owned());
     }
     Ok(())
-}
-
-pub fn num_of_chunks(nitems: usize, chunk_size: usize) -> usize {
-    if chunk_size == 0 {
-        return nitems;
-    }
-    let mut n = nitems / chunk_size;
-    if nitems % chunk_size != 0 {
-        n += 1;
-    }
-    n
-}
-
-pub fn last_modified(md: &fs::Metadata) -> u64 {
-    use filetime::FileTime;
-    FileTime::from_last_modification_time(md).seconds() as u64
-}
-
-pub fn idx_path(csv_path: &Path) -> PathBuf {
-    let mut p = csv_path
-        .to_path_buf()
-        .into_os_string()
-        .into_string()
-        .unwrap();
-    p.push_str(".idx");
-    PathBuf::from(&p)
 }
 
 pub type Idx = Option<usize>;
@@ -852,12 +826,6 @@ impl<T: Deref<Target = str>, I: Iterator<Item = T>> JoinIteratorExt for I {
 
         string
     }
-}
-
-pub fn bytes_cursor_from_read<R: io::Read>(source: &mut R) -> io::Result<io::Cursor<Vec<u8>>> {
-    let mut bytes = Vec::<u8>::new();
-    source.read_to_end(&mut bytes)?;
-    Ok(io::Cursor::new(bytes))
 }
 
 // A custom implementation de/serializing ext-sort chunks as CSV

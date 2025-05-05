@@ -2,12 +2,10 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::io;
 
-use rand::seq::SliceRandom;
 use rand::Rng;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
-use crate::index::Indexed;
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliError;
@@ -18,10 +16,6 @@ type GroupKey = Vec<Vec<u8>>;
 static USAGE: &str = "
 Randomly samples CSV data uniformly using memory proportional to the size of
 the sample.
-
-When an index is present, this command will use random indexing if the sample
-size is less than 10% of the total number of records. This allows for efficient
-sampling such that the entire CSV file is not parsed.
 
 This command is intended to provide a means to sample from a CSV data set that
 is too big to fit into memory (for example, for use with commands like 'xan freq'
@@ -78,68 +72,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sample_size = args.arg_sample_size;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
-    let sampled = match rconfig.indexed()? {
-        Some(mut idx) => {
-            if args.flag_groupby.is_some() {
-                Err("could not use -g with indexed file !")?;
-            }
 
-            if args.flag_weight.is_some() {
-                let mut rdr = rconfig.reader()?;
-                rconfig.write_headers(&mut rdr, &mut wtr)?;
+    let mut rdr = rconfig.reader()?;
+    rconfig.write_headers(&mut rdr, &mut wtr)?;
+    let byte_headers = rdr.byte_headers()?;
 
-                let weight_column_index = rconfig.single_selection(rdr.byte_headers()?)?;
+    let group_sel_opt = args
+        .flag_groupby
+        .map(|s| s.selection(byte_headers, !args.flag_no_headers))
+        .transpose()?;
 
-                sample_weighted_reservoir(
-                    &mut rdr,
-                    sample_size,
-                    args.flag_seed,
-                    weight_column_index,
-                )?
-            } else if do_random_access(sample_size, idx.count()) {
-                rconfig.write_headers(&mut *idx, &mut wtr)?;
-                sample_random_access(&mut idx, sample_size)?
-            } else {
-                let mut rdr = rconfig.reader()?;
-                rconfig.write_headers(&mut rdr, &mut wtr)?;
-                sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
-            }
+    let sampled = if args.flag_weight.is_some() {
+        let weight_column_index = rconfig.single_selection(byte_headers)?;
+
+        if let Some(group_sel) = group_sel_opt {
+            sample_weighted_reservoir_grouped(
+                &mut rdr,
+                sample_size,
+                args.flag_seed,
+                weight_column_index,
+                group_sel,
+            )?
+        } else {
+            sample_weighted_reservoir(&mut rdr, sample_size, args.flag_seed, weight_column_index)?
         }
-        _ => {
-            let mut rdr = rconfig.reader()?;
-            rconfig.write_headers(&mut rdr, &mut wtr)?;
-            let byte_headers = rdr.byte_headers()?;
-
-            let group_sel_opt = args
-                .flag_groupby
-                .map(|s| s.selection(byte_headers, !args.flag_no_headers))
-                .transpose()?;
-
-            if args.flag_weight.is_some() {
-                let weight_column_index = rconfig.single_selection(byte_headers)?;
-
-                if let Some(group_sel) = group_sel_opt {
-                    sample_weighted_reservoir_grouped(
-                        &mut rdr,
-                        sample_size,
-                        args.flag_seed,
-                        weight_column_index,
-                        group_sel,
-                    )?
-                } else {
-                    sample_weighted_reservoir(
-                        &mut rdr,
-                        sample_size,
-                        args.flag_seed,
-                        weight_column_index,
-                    )?
-                }
-            } else if let Some(group_sel) = group_sel_opt {
-                sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
-            } else {
-                sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
-            }
-        }
+    } else if let Some(group_sel) = group_sel_opt {
+        sample_reservoir_grouped(&mut rdr, sample_size, args.flag_seed, group_sel)?
+    } else {
+        sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
     };
 
     for row in sampled.into_iter() {
@@ -147,26 +107,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     Ok(wtr.flush()?)
-}
-
-fn sample_random_access<R, I>(
-    idx: &mut Indexed<R, I>,
-    sample_size: u64,
-) -> CliResult<Vec<csv::ByteRecord>>
-where
-    R: io::Read + io::Seek,
-    I: io::Read + io::Seek,
-{
-    let mut all_indices = (0..idx.count()).collect::<Vec<_>>();
-    let mut rng = rand::rng();
-    all_indices.shuffle(&mut rng);
-
-    let mut sampled = Vec::with_capacity(sample_size as usize);
-    for i in all_indices.into_iter().take(sample_size as usize) {
-        idx.seek(i)?;
-        sampled.push(idx.byte_records().next().unwrap()?);
-    }
-    Ok(sampled)
 }
 
 fn sample_reservoir<R: io::Read>(
@@ -194,6 +134,7 @@ fn sample_reservoir<R: io::Read>(
     }
     Ok(reservoir)
 }
+
 struct GroupReservoir {
     records: Vec<csv::ByteRecord>,
     count: usize,
@@ -332,8 +273,4 @@ fn sample_weighted_reservoir_grouped<R: io::Read>(
         .flatten()
         .map(|record| record.row())
         .collect())
-}
-
-fn do_random_access(sample_size: u64, total: u64) -> bool {
-    sample_size <= (total / 10)
 }
