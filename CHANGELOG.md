@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.50.1 (provisional)
+## 0.51.0 (provisional)
+
+*Features*
+
+* Adding `xan count -a/--approx`.
 
 *Fixes*
 
