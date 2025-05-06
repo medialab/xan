@@ -105,6 +105,14 @@ Note that the language does not have user-defined variables and identifiers alwa
 refer to some column or some program-defined value like in `xan tokenize --flatmap`
 or `xan dedup --choose`.
 
+This said, the pipeline operator (`|`) refers to the result of the left-hand side
+expression through the special `_` identifier. This can be used to avoid repetition
+sometimes:
+
+```python
+split(date, '/') | fmt('{}-{}-{}', _[2], _[0], _[1])
+```
+
 ## Literal values & data types
 
 ```python
