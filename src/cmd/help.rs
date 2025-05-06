@@ -1,8 +1,11 @@
+use std::fmt::Write;
+
 use colored::Colorize;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use textwrap::{fill, indent};
 
+use crate::pager::Pager;
 use crate::util;
 use crate::CliResult;
 
@@ -731,8 +734,8 @@ Usage:
 
 help options:
     -O, --open             Open the desired docs in a web browser.
-    -p, --pager            Pipe the help into a pager (Same as piping
-                           with forced colors into `less -SRi`).
+    -p, --pager            Open the help in a pager. Keybindings can be found here:
+                           https://docs.rs/minus/latest/minus/index.html#default-keybindings
     -S, --section <query>  Filter the `functions` doc to only include
                            sections matching the given case-insensitive
                            query.
@@ -757,41 +760,27 @@ struct Args {
 }
 
 impl Args {
+    fn cmd(&self) -> &'static str {
+        if self.cmd_cheatsheet {
+            "cheatsheet"
+        } else if self.cmd_functions {
+            "functions"
+        } else if self.cmd_aggs {
+            "aggs"
+        } else if self.cmd_scraping {
+            "scraping"
+        } else {
+            unreachable!()
+        }
+    }
+
     fn open(&self) {
         let url = format!(
             "https://github.com/medialab/xan/blob/master/docs/moonblade/{}.md",
-            if self.cmd_cheatsheet {
-                "cheatsheet"
-            } else if self.cmd_functions {
-                "functions"
-            } else if self.cmd_aggs {
-                "aggs"
-            } else if self.cmd_scraping {
-                "scraping"
-            } else {
-                unreachable!()
-            }
+            self.cmd()
         );
 
         opener::open_browser(url).expect("could not open browser");
-    }
-
-    fn setup_pager(&self) -> CliResult<()> {
-        if !self.flag_pager {
-            return Ok(());
-        }
-
-        #[cfg(not(windows))]
-        {
-            colored::control::set_override(true);
-            pager::Pager::with_pager("less -SRi").setup();
-            Ok(())
-        }
-
-        #[cfg(windows)]
-        {
-            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?
-        }
     }
 }
 
@@ -812,48 +801,54 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-S/--section <query> only works with the `functions` subcommand!")?;
     }
 
+    let mut pager = Pager::new(args.flag_pager)?;
+    pager.set_prompt(&format!("xan help {}", args.cmd()))?;
+
     if args.cmd_cheatsheet {
         if args.flag_json {
             Err("cheatsheet does not support --json!")?;
         }
 
         if args.flag_md {
-            println!("{}", get_cheatsheet_str());
+            writeln!(&mut pager, "{}", get_cheatsheet_str())?;
         } else {
-            args.setup_pager()?;
-            println!("{}", get_colorized_cheatsheet());
+            writeln!(&mut pager, "{}", get_colorized_cheatsheet())?;
         }
     } else if args.cmd_functions {
         if args.flag_json {
-            println!("{}", get_functions_help_json_str());
+            writeln!(&mut pager, "{}", get_functions_help_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_functions_help().to_md(&parse_operators_help()));
+            write!(
+                &mut pager,
+                "{}",
+                parse_functions_help().to_md(&parse_operators_help())
+            )?;
         } else {
-            args.setup_pager()?;
-            print!(
+            write!(
+                &mut pager,
                 "{}",
                 parse_functions_help().to_txt(&parse_operators_help(), &args.flag_section)
-            );
+            )?;
         }
     } else if args.cmd_aggs {
         if args.flag_json {
-            println!("{}", get_aggs_help_json_str());
+            writeln!(&mut pager, "{}", get_aggs_help_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_aggs_help().to_md());
+            write!(&mut pager, "{}", parse_aggs_help().to_md())?;
         } else {
-            args.setup_pager()?;
-            print!("{}", parse_aggs_help().to_txt());
+            write!(&mut pager, "{}", parse_aggs_help().to_txt())?;
         }
     } else if args.cmd_scraping {
         if args.flag_json {
-            println!("{}", get_scraping_functions_json_str());
+            writeln!(&mut pager, "{}", get_scraping_functions_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_scraping_help().to_md());
+            write!(&mut pager, "{}", parse_scraping_help().to_md())?;
         } else {
-            args.setup_pager()?;
-            print!("{}", parse_scraping_help().to_txt());
+            write!(&mut pager, "{}", parse_scraping_help().to_txt())?;
         }
     }
+
+    pager.print()?;
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use std::env;
-use std::io::{self, Write};
+use std::fmt::{self, Write};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
@@ -8,6 +8,7 @@ use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::pager::Pager;
 use crate::select::SelectColumns;
 use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
@@ -348,7 +349,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 
-    let output = io::stdout();
+    let mut pager = Pager::new(args.flag_pager)?;
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
     let rows = termsize::get().map(|size| size.rows as usize);
@@ -498,21 +499,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let all_columns_shown = displayed_columns.len() == headers.len();
 
-    // NOTE: we setup the pager when everything has been read and process and no error
-    // occurred along the way, so that we don't get to read a paged error
-    if args.flag_pager {
-        #[cfg(not(windows))]
-        {
-            pager::Pager::with_pager("less -SR").setup();
-        }
-
-        #[cfg(windows)]
-        {
-            Err("The -p/--pager flag does not work on windows, sorry :'(".to_string())?;
-        }
-    }
-
-    let write_info = || -> Result<(), io::Error> {
+    let write_info = |output: &mut Pager| -> Result<(), fmt::Error> {
         if args.flag_hide_info {
             return Ok(());
         }
@@ -525,7 +512,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             util::format_number(displayed_columns.len() - len_offset);
 
         writeln!(
-            &output,
+            output,
             "Displaying {} col{} from {} of {}",
             if all_columns_shown {
                 format!("{}", pretty_headers_len.cyan())
@@ -558,7 +545,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Bottom,
     }
 
-    let write_horizontal_ruler = |pos: HRPosition| -> Result<(), io::Error> {
+    let write_horizontal_ruler = |output: &mut Pager, pos: HRPosition| -> Result<(), fmt::Error> {
         let mut s = String::new();
 
         if theme.external_borders {
@@ -608,19 +595,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             });
         }
 
-        writeln!(&output, "{}", s.dimmed())?;
+        writeln!(output, "{}", s.dimmed())?;
 
         Ok(())
     };
 
-    let write_row = |row: Vec<colored::ColoredString>, mut dimmed: bool| -> Result<(), io::Error> {
+    let write_row = |output: &mut Pager,
+                     row: Vec<colored::ColoredString>,
+                     mut dimmed: bool|
+     -> Result<(), fmt::Error> {
         if !theme.striped {
             dimmed = false;
         }
 
         if theme.external_borders {
             write!(
-                &output,
+                output,
                 "{}",
                 format!("{}{}", theme.vertical(), padding).dimmed()
             )?;
@@ -629,21 +619,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for (i, cell) in row.iter().enumerate() {
             if i != 0 {
                 write!(
-                    &output,
+                    output,
                     "{}",
                     format!("{}{}{}", padding, theme.vertical(), padding).dimmed()
                 )?;
             }
 
             if dimmed {
-                write!(&output, "{}", cell.clone().reversed())?;
+                write!(output, "{}", cell.clone().reversed())?;
             } else {
-                write!(&output, "{}", cell)?;
+                write!(output, "{}", cell)?;
             }
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 write!(
-                    &output,
+                    output,
                     "{}",
                     format!("{}{}{}…", padding, theme.vertical(), padding).dimmed(),
                 )?;
@@ -652,24 +642,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if theme.external_borders {
             write!(
-                &output,
+                output,
                 "{}",
                 format!("{}{}", padding, theme.vertical()).dimmed()
             )?;
         }
 
-        writeln!(&output)?;
+        writeln!(output)?;
 
         Ok(())
     };
 
-    let write_headers = |above: bool| -> Result<(), io::Error> {
+    let write_headers = |output: &mut Pager, above: bool| -> Result<(), fmt::Error> {
         if above || theme.hr_under_headers {
-            write_horizontal_ruler(if above {
-                HRPosition::Bottom
-            } else {
-                HRPosition::Middle
-            })?;
+            write_horizontal_ruler(
+                output,
+                if above {
+                    HRPosition::Bottom
+                } else {
+                    HRPosition::Middle
+                },
+            )?;
         }
 
         let headers_row: Vec<colored::ColoredString> = displayed_columns
@@ -687,21 +680,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(headers_row, false)?;
+        write_row(output, headers_row, false)?;
 
         if !above || theme.hr_under_headers {
-            write_horizontal_ruler(if above {
-                HRPosition::Middle
-            } else {
-                HRPosition::Top
-            })?;
+            write_horizontal_ruler(
+                output,
+                if above {
+                    HRPosition::Middle
+                } else {
+                    HRPosition::Top
+                },
+            )?;
         }
 
         Ok(())
     };
 
-    writeln!(&output)?;
-    write_info()?;
+    writeln!(&mut pager)?;
+    write_info(&mut pager)?;
 
     // NOTE: we stop if there is nothing to show
     let nothing_to_show =
@@ -712,9 +708,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.flag_hide_headers {
-        write_horizontal_ruler(HRPosition::Bottom)?;
+        write_horizontal_ruler(&mut pager, HRPosition::Bottom)?;
     } else {
-        write_headers(true)?;
+        write_headers(&mut pager, true)?;
     }
 
     let mut last_group: Option<Vec<String>> = None;
@@ -743,7 +739,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if need_to_draw_hr {
-            write_horizontal_ruler(HRPosition::Middle)?;
+            write_horizontal_ruler(&mut pager, HRPosition::Middle)?;
         }
 
         let row: Vec<colored::ColoredString> = displayed_columns
@@ -785,7 +781,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(row, record_i % 2 == 0)?;
+        write_row(&mut pager, row, record_i % 2 == 0)?;
         record_i += 1;
     }
 
@@ -795,21 +791,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|col| util::unicode_aware_rpad_with_ellipsis("…", col.allowed_width, " ").dimmed())
             .collect();
 
-        write_row(row, record_i % 2 == 0)?;
+        write_row(&mut pager, row, record_i % 2 == 0)?;
     }
 
     if need_to_repeat_headers {
         if args.flag_hide_headers {
-            write_horizontal_ruler(HRPosition::Top)?;
+            write_horizontal_ruler(&mut pager, HRPosition::Top)?;
         } else {
-            write_headers(false)?;
+            write_headers(&mut pager, false)?;
         }
-        write_info()?;
-        writeln!(&output)?;
+        write_info(&mut pager)?;
+        writeln!(&mut pager)?;
     } else {
-        write_horizontal_ruler(HRPosition::Top)?;
-        writeln!(&output)?;
+        write_horizontal_ruler(&mut pager, HRPosition::Top)?;
+        writeln!(&mut pager)?;
     }
+
+    pager.print()?;
 
     Ok(())
 }

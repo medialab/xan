@@ -78,6 +78,7 @@ num_cpus = "1.4"
 npyz = "0.8.3"
 opener = "0.7.2"
 ordered-float = "5.0.0"
+minus = { version = "5.6.1", features = ["static_output", "search"] }
 paltoquet = "0.11.0"
 pariter = "0.5.1"
 pest = "2.7.15"

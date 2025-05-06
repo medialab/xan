@@ -17,6 +17,7 @@ mod dates;
 mod graph;
 mod json;
 mod moonblade;
+mod pager;
 mod ratatui;
 mod read;
 mod scales;
@@ -536,6 +537,18 @@ impl From<serde_json::Error> for CliError {
 
 impl From<url::ParseError> for CliError {
     fn from(value: url::ParseError) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
+impl From<minus::MinusError> for CliError {
+    fn from(value: minus::MinusError) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
+impl From<std::fmt::Error> for CliError {
+    fn from(value: std::fmt::Error) -> Self {
         CliError::Other(value.to_string())
     }
 }
