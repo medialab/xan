@@ -9,6 +9,7 @@
 *Features*
 
 * Adding `xan count -a/--approx`.
+* Adding `xan slice -E/--end-byte`.
 
 *Fixes*
 

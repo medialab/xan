@@ -1,6 +1,7 @@
 use std::io::{Read, SeekFrom};
 
 use crate::config::{Config, Delimiter};
+use crate::read::read_byte_record_up_to;
 use crate::util;
 use crate::CliResult;
 
@@ -35,8 +36,12 @@ slice options:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
                            be useful to access a particular slice of records in
                            constant time, without needing to read preceding bytes.
+                           You must provide a byte offset starting a CSV record or
+                           the output could be corrupted. This requires the input
+                           to be seekable (stdin or gzipped files not supported).
+    -E, --end-byte <b>     Only read up to provided position in byte, exclusive.
                            This requires the input to be seekable (stdin or gzipped
-                           files are not supported, for instance).
+                           files not supported).
 
 Common options:
     -h, --help             Display this message
@@ -56,7 +61,8 @@ struct Args {
     flag_end: Option<usize>,
     flag_len: Option<usize>,
     flag_index: Option<String>,
-    flag_byte_offset: Option<usize>,
+    flag_byte_offset: Option<u64>,
+    flag_end_byte: Option<u64>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -84,9 +90,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut rdr = rconf.csv_reader_from_reader(inner);
 
                     let mut pos = csv::Position::new();
-                    pos.set_byte(offset as u64);
+                    pos.set_byte(offset);
 
-                    rdr.seek_raw(SeekFrom::Start(offset as u64), pos)?;
+                    rdr.seek_raw(SeekFrom::Start(offset), pos)?;
 
                     args.no_index_plural(rdr)
                 } else {
@@ -105,9 +111,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut rdr = rconf.csv_reader_from_reader(inner);
 
         let mut pos = csv::Position::new();
-        pos.set_byte(offset as u64);
+        pos.set_byte(offset);
 
-        rdr.seek_raw(SeekFrom::Start(offset as u64), pos)?;
+        rdr.seek_raw(SeekFrom::Start(offset), pos)?;
 
         args.no_index(rdr)
     } else {
@@ -126,7 +132,7 @@ impl Args {
         let (start, end) = self.range()?;
         let mut i: usize = 0;
 
-        while rdr.read_byte_record(&mut record)? {
+        while read_byte_record_up_to(&mut rdr, &mut record, self.flag_end_byte)? {
             i += 1;
 
             if i <= start {
@@ -152,7 +158,7 @@ impl Args {
         let mut record = csv::ByteRecord::new();
         let mut i: usize = 0;
 
-        while rdr.read_byte_record(&mut record)? {
+        while read_byte_record_up_to(&mut rdr, &mut record, self.flag_end_byte)? {
             if indices.contains(&i) {
                 wtr.write_byte_record(&record)?;
             }

@@ -113,3 +113,23 @@ pub fn sample_record_sizes<R: Read + Seek>(
 
     Ok(RecordSizesSample::new(i, max_record_size, welford.mean()))
 }
+
+pub fn read_byte_record_up_to<R: Read>(
+    reader: &mut Reader<R>,
+    record: &mut ByteRecord,
+    up_to: Option<u64>,
+) -> Result<bool, csv::Error> {
+    let was_read = reader.read_byte_record(record)?;
+
+    if !was_read {
+        return Ok(false);
+    }
+
+    if let Some(byte) = up_to {
+        if record.position().unwrap().byte() >= byte {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}

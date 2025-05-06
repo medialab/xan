@@ -32,8 +32,12 @@ slice options:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
                            be useful to access a particular slice of records in
                            constant time, without needing to read preceding bytes.
+                           You must provide a byte offset starting a CSV record or
+                           the output could be corrupted. This requires the input
+                           to be seekable (stdin or gzipped files not supported).
+    -E, --end-byte <b>     Only read up to provided position in byte, exclusive.
                            This requires the input to be seekable (stdin or gzipped
-                           files are not supported, for instance).
+                           files not supported).
 
 Common options:
     -h, --help             Display this message
