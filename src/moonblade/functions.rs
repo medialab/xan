@@ -577,6 +577,22 @@ fn get_subroutine<'a>(
                 value.chars().nth(index as usize).map(DynamicValue::from)
             }
         }
+        DynamicValue::Bytes(value) => {
+            let mut index = key.try_as_i64()?;
+
+            if index < 0 {
+                index += value.len() as i64;
+            }
+
+            if index < 0 {
+                None
+            } else {
+                let value =
+                    std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?;
+
+                value.chars().nth(index as usize).map(DynamicValue::from)
+            }
+        }
         DynamicValue::List(list) => {
             let mut index = key.try_as_i64()?;
 

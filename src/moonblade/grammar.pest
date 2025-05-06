@@ -26,7 +26,7 @@ unicode_hex              =  { hex{1, 6} }
 predefined               =  { "n" | "r" | "t" | "\\" | "\"" | "'" | "0" }
 byte                     =  { "x" ~ hex{2} }
 unicode                  =  { "u" ~ "{" ~ unicode_hex ~ "}" }
-escape                   =  { "\\" ~ (predefined  | byte | unicode) }
+escape                   =  { "\\" ~ (predefined | byte | unicode) }
 single_quoted_string     = _{ "'" ~ (raw_single_quoted_string | escape)* ~ "'" }
 double_quoted_string     = _{ "\"" ~ (raw_double_quoted_string | escape | " ")* ~ "\"" }
 string                   = ${ single_quoted_string | double_quoted_string }
@@ -119,9 +119,10 @@ func_chain = { func ~ (point ~ func)* }
 lambda     = { (ident | ("(" ~ (ident ~ ","?)* ~ ")")) ~ "=>" ~ expr }
 
 // Expressions
-full_slice  =  { unary_operator* ~ term ~ ":" ~ unary_operator* ~ term }
-start_slice =  { unary_operator* ~ term ~ ":" }
-end_slice   =  { ":" ~ unary_operator* ~ term }
+slice_term  =  { unary_operator* ~ term }
+full_slice  =  { slice_term ~ ":" ~ slice_term }
+start_slice =  { slice_term ~ ":" }
+end_slice   =  { ":" ~ slice_term }
 slice       = _{ full_slice | start_slice | end_slice }
 expr        =  { unary_operator* ~ term ~ (binary_operator ~ unary_operator* ~ term | open_indexing ~ (slice | unary_operator* ~ term) ~ "]")* }
 term        = _{

@@ -219,22 +219,22 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                 }
                 Rule::full_slice => {
                     let mut pairs = primary.into_inner();
-                    let start = parse_int(pairs.next().unwrap())?;
-                    let end = parse_int(pairs.next().unwrap())?;
+                    let start = pratt_parse(pairs.next().unwrap().into_inner())?;
+                    let end = pratt_parse(pairs.next().unwrap().into_inner())?;
 
-                    Expr::Slice(Slice::Closed(start, end))
+                    Expr::Slice(Slice::Closed(Box::new(start), Box::new(end)))
                 }
                 Rule::start_slice => {
                     let mut pairs = primary.into_inner();
-                    let start = parse_int(pairs.next().unwrap())?;
+                    let start = pratt_parse(pairs.next().unwrap().into_inner())?;
 
-                    Expr::Slice(Slice::From(start))
+                    Expr::Slice(Slice::From(Box::new(start)))
                 }
                 Rule::end_slice => {
                     let mut pairs = primary.into_inner();
-                    let end = parse_int(pairs.next().unwrap())?;
+                    let end = pratt_parse(pairs.next().unwrap().into_inner())?;
 
-                    Expr::Slice(Slice::To(end))
+                    Expr::Slice(Slice::To(Box::new(end)))
                 }
                 Rule::string => Expr::Str(build_string(primary)),
                 Rule::binary_string => Expr::BStr(build_string(primary).into_bytes()),
@@ -311,10 +311,10 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                         "slice",
                         match slice {
                             Slice::Closed(start, end) => {
-                                vec![lhs?, Expr::Int(start), Expr::Int(end)]
+                                vec![lhs?, *start, *end]
                             }
-                            Slice::From(start) => vec![lhs?, Expr::Int(start)],
-                            Slice::To(end) => vec![lhs?, Expr::Int(0), Expr::Int(end)],
+                            Slice::From(start) => vec![lhs?, *start],
+                            Slice::To(end) => vec![lhs?, Expr::Int(0), *end],
                             Slice::Full => unreachable!(),
                         },
                     )),
@@ -438,7 +438,7 @@ pub enum Expr {
     List(Vec<Expr>),
     Map(Vec<(String, Expr)>),
     Regex(String, bool),
-    Slice(Slice<i64>),
+    Slice(Slice<Box<Expr>>),
     StarSlice(Slice<DynamicValue>),
     Bool(bool),
     Underscore,
