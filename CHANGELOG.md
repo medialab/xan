@@ -22,6 +22,7 @@
 * Fixing `xan transform -n`.
 * Fixing `xan view -g -s`.
 * Fixing moonblade concretization wrt branching.
+* Fixing `xan behead -o` and `xan behead -Ao`.
 
 ## 0.50.0
 

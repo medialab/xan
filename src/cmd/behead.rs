@@ -45,7 +45,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     let wtr_conf = Config::new(&args.flag_output);
-    let mut wtr = wtr_conf.writer_with_options(OpenOptions::new().append(args.flag_append))?;
+    let mut wtr = wtr_conf.writer_with_options(
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(args.flag_append),
+    )?;
     let mut record = csv::ByteRecord::new();
 
     if args.flag_append && wtr_conf.path.unwrap().metadata()?.len() == 0 {
