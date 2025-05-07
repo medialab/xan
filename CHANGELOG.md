@@ -18,6 +18,7 @@
 * Fixing moonblade slicing wrt negative indexing and nontrivial inner expression.
 * Fixing moonblade `get` function for bytes.
 * Fixing `xan sort -e` skipping first record of each chunk.
+* Fixing `xan transform -n`.
 
 ## 0.50.0
 

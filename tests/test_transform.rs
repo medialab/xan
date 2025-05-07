@@ -16,6 +16,21 @@ fn transform() {
 }
 
 #[test]
+fn transform_no_headers() {
+    let wrk = Workdir::new("transform_no_headers");
+    wrk.create("data.csv", vec![svec!["1", "2"], svec!["2", "3"]]);
+    let mut cmd = wrk.command("transform");
+    cmd.arg("-n")
+        .arg("1")
+        .arg("add(col(0), col(1))")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["1", "3"], svec!["2", "5"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn transform_rename() {
     let wrk = Workdir::new("transform_rename");
     wrk.create(

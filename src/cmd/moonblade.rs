@@ -88,7 +88,7 @@ impl MoonbladeOutputValue {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum MoonbladeMode {
     #[default]
     Map,
@@ -120,7 +120,7 @@ impl MoonbladeMode {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum MoonbladeErrorPolicy {
     #[default]
     Panic,
@@ -202,7 +202,7 @@ impl TryFrom<String> for MoonbladeErrorPolicy {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct MoonbladeCmdArgs {
     pub target_column: Option<String>,
     pub rename_column: Option<String>,
@@ -335,6 +335,15 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
     let mut column_to_replace: Option<usize> = None;
     let mut map_expr = args.map_expr.clone();
 
+    if args.mode.is_transform() {
+        rconfig = rconfig.select(SelectColumns::parse(&args.target_column.clone().unwrap())?);
+        let idx = rconfig.single_selection(&headers)?;
+
+        // NOTE: binding implicit last value to target column value
+        map_expr = format!("col({}) | {}", idx, map_expr);
+        column_to_replace = Some(idx);
+    }
+
     if !args.no_headers {
         modified_headers = headers.clone();
 
@@ -346,18 +355,9 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                     modified_headers.push_field(target_column.as_bytes());
                 }
             } else if args.mode.is_transform() {
-                if let Some(name) = &args.target_column {
-                    rconfig = rconfig.select(SelectColumns::parse(name)?);
-                    let idx = rconfig.single_selection(&headers)?;
-
-                    if let Some(renamed) = &args.rename_column {
-                        modified_headers = modified_headers.replace_at(idx, renamed.as_bytes());
-                    }
-
-                    column_to_replace = Some(idx);
-
-                    // NOTE: binding implicit last value to target column value
-                    map_expr = format!("col({}) | {}", idx, map_expr);
+                if let Some(renamed) = &args.rename_column {
+                    modified_headers =
+                        modified_headers.replace_at(column_to_replace.unwrap(), renamed.as_bytes());
                 }
             } else if args.mode.is_flatmap() {
                 if let Some(replaced) = &args.rename_column {
