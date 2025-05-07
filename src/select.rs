@@ -568,6 +568,10 @@ impl Selection {
         }
     }
 
+    pub fn insert(&mut self, index: usize, element: usize) {
+        self.0.insert(index, element);
+    }
+
     pub fn select<'a, 'b>(&'a self, row: &'b csv::ByteRecord) -> impl Iterator<Item = &'b [u8]>
     where
         'a: 'b,
