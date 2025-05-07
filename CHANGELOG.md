@@ -20,6 +20,7 @@
 * Fixing `xan sort -e` skipping first record of each chunk.
 * Fixing `xan transform -n`.
 * Fixing `xan view -g -s`.
+* Fixing moonblade concretization wrt branching.
 
 ## 0.50.0
 

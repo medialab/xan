@@ -321,7 +321,7 @@ impl ConcreteSpecialFunctionCall {
     fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         // NOTE: other special function are not suitable for late
         // statical evaluation.
-        if ["col", "cols", "headers", "index"].contains(&self.name.as_str()) {
+        if ["col", "cols", "headers", "index", "if", "unless"].contains(&self.name.as_str()) {
             return false;
         }
 
@@ -421,10 +421,34 @@ fn concretize_call(
             }
         }
 
+        // TODO: at some point it might be nice to refactor comptime evaluation
+        // to better take care of complex cases such as branching & trying.
+
+        // NOTE: special case wrt branching
+        if function_name == "if" || function_name == "unless" {
+            let condition = concretize_expression(call.args[0].clone().1, headers, globals)?;
+
+            if let Ok(value) = condition.try_unwrap() {
+                let path = if function_name == "if" {
+                    if value.is_truthy() {
+                        1
+                    } else {
+                        2
+                    }
+                } else if value.is_truthy() {
+                    2
+                } else {
+                    1
+                };
+
+                return concretize_expression(call.args[path].clone().1, headers, globals);
+            }
+        }
+
         let concrete_args = concretize_arguments(&arguments, call.args, headers, globals);
 
         // NOTE: special case of bubbling-up exceptions
-        if function_name.as_str() == "try" && concrete_args.is_err() {
+        if function_name == "try" && concrete_args.is_err() {
             return Ok(ConcreteExpr::Value(DynamicValue::None));
         }
 
