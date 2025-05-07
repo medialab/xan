@@ -16,6 +16,7 @@
 * Adding missing highlight for `NULL` values in `xan view` & `xan flatten`.
 * Fixing moonblade slicing wrt negative indexing and nontrivial inner expression.
 * Fixing moonblade `get` function for bytes.
+* Fixing `xan sort -e` skipping first record of each chunk.
 
 ## 0.50.0
 

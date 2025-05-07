@@ -862,7 +862,9 @@ impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
 
     fn new(reader: io::Take<io::BufReader<fs::File>>) -> Self {
         CsvExternalChunk {
-            reader: csv::Reader::from_reader(reader),
+            reader: csv::ReaderBuilder::new()
+                .has_headers(false)
+                .from_reader(reader),
         }
     }
 
