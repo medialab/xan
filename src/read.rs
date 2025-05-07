@@ -1,6 +1,6 @@
-use std::io::{self, Read, Seek, SeekFrom};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 
-use csv::{ByteRecord, Reader};
+use csv::{ByteRecord, Position, Reader, ReaderBuilder};
 
 use crate::moonblade::agg::Welford;
 
@@ -73,6 +73,10 @@ impl RecordSizesSample {
     pub fn mean(&self) -> Option<f64> {
         self.stats.map(|(_, m)| m)
     }
+
+    pub fn max(&self) -> Option<u64> {
+        self.stats.map(|(m, _)| m)
+    }
 }
 
 pub fn sample_record_sizes<R: Read + Seek>(
@@ -132,4 +136,190 @@ pub fn read_byte_record_up_to<R: Read>(
     }
 
     Ok(true)
+}
+
+#[derive(Debug, Clone, Copy)]
+enum NextRecordOffsetInferrence {
+    Start,
+    End,
+    TooHeterogeneous,
+    NotEnoughData,
+    WasInQuoted(u64),
+    WasInUnquoted(u64),
+}
+
+impl NextRecordOffsetInferrence {
+    fn failed(&self) -> bool {
+        matches!(self, Self::TooHeterogeneous | Self::NotEnoughData)
+    }
+
+    fn offset(&self) -> Option<u64> {
+        match self {
+            Self::WasInQuoted(offset) | Self::WasInUnquoted(offset) => Some(*offset),
+            _ => None,
+        }
+    }
+}
+
+struct RecordInfo {
+    byte_offset: u64,
+    fields: usize,
+}
+
+fn infer_next_record_offset_from_random_position<R: Read + Seek>(
+    reader: &mut Reader<R>,
+    offset: u64,
+    max_record_size: u64,
+    expected_field_count: usize,
+    sample_size: u64,
+) -> Result<NextRecordOffsetInferrence, csv::Error> {
+    // First we seek to given random position
+    let mut pos = Position::new();
+    pos.set_byte(offset);
+    reader.seek_raw(SeekFrom::Start(offset), pos)?;
+
+    debug_assert!(sample_size > 0);
+
+    let end_byte = offset + max_record_size * sample_size;
+
+    let mut record_infos: Vec<RecordInfo> = Vec::with_capacity(sample_size as usize);
+    let mut record = ByteRecord::new();
+
+    while read_byte_record_up_to(reader, &mut record, Some(end_byte))? {
+        record_infos.push(RecordInfo {
+            byte_offset: record.position().unwrap().byte(),
+            fields: record.len(),
+        });
+    }
+
+    if record_infos.len() < 2 {
+        return Ok(NextRecordOffsetInferrence::NotEnoughData);
+    }
+
+    // NOTE: we never return the current record, only the next one, because
+    // even if we have found the expected number of fields in current record,
+    // we cannot likely have read the beginning of first field without reading
+    // backwards.
+    if record_infos[1..]
+        .iter()
+        .all(|info| info.fields == expected_field_count)
+    {
+        return Ok(NextRecordOffsetInferrence::WasInUnquoted(
+            record_infos[1].byte_offset,
+        ));
+    }
+
+    // We could not infer next record position, we try again with a
+    // double quote prepended to the stream
+    let mut pos = Position::new();
+    pos.set_byte(offset);
+    reader.seek_raw(SeekFrom::Start(offset), pos)?;
+
+    // TODO: quote char must be known if different
+    let mut altered_reader = ReaderBuilder::new()
+        .flexible(true)
+        .has_headers(false)
+        .from_reader(Cursor::new("\"").chain(reader.get_mut()));
+
+    record_infos.clear();
+    let up_to = max_record_size * 16 + 1;
+
+    while read_byte_record_up_to(&mut altered_reader, &mut record, Some(up_to))? {
+        record_infos.push(RecordInfo {
+            byte_offset: record.position().unwrap().byte(),
+            fields: record.len(),
+        });
+    }
+
+    if record_infos.len() < 2 {
+        return Ok(NextRecordOffsetInferrence::NotEnoughData);
+    }
+
+    if record_infos[1..]
+        .iter()
+        .all(|info| info.fields == expected_field_count)
+    {
+        return Ok(NextRecordOffsetInferrence::WasInQuoted(
+            offset + record_infos[1].byte_offset - 1,
+        ));
+    }
+
+    Ok(NextRecordOffsetInferrence::TooHeterogeneous)
+}
+
+fn segment_file(file_len: u64, chunks: usize) -> Vec<u64> {
+    let mut offsets = vec![0];
+
+    if chunks < 2 {
+        return offsets;
+    }
+
+    for i in 1..chunks {
+        offsets.push(((i as f64 / chunks as f64) * file_len as f64).floor() as u64);
+    }
+
+    offsets
+}
+
+pub fn segment_csv_file<R: Read + Seek>(
+    reader: &mut Reader<R>,
+    chunks: usize,
+    init_sample_size: u64,
+    jump_sample_size: u64,
+) -> Result<Option<Vec<(u64, u64)>>, csv::Error> {
+    let field_count = reader.byte_headers()?.len();
+
+    if field_count == 0 {
+        return Ok(None);
+    }
+
+    let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
+    let sample = sample_record_sizes(reader, init_sample_size)?;
+
+    let max_record_size = match sample.max() {
+        None => return Ok(None),
+        Some(m) => m,
+    };
+
+    // TODO: return single offset if some invariant is not met, e.g. when
+    // the file is too small typically
+
+    let mut segments = segment_file(file_len, chunks)
+        .iter()
+        .copied()
+        .map(|offset| {
+            if offset == 0 {
+                Ok(NextRecordOffsetInferrence::Start)
+            } else {
+                infer_next_record_offset_from_random_position(
+                    reader,
+                    offset,
+                    max_record_size,
+                    field_count,
+                    jump_sample_size,
+                )
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if segments.iter().any(NextRecordOffsetInferrence::failed) {
+        return Ok(None);
+    }
+
+    segments.push(NextRecordOffsetInferrence::End);
+
+    let offsets = segments
+        .windows(2)
+        .map(|window| {
+            (
+                match window[0] {
+                    NextRecordOffsetInferrence::Start => 0u64,
+                    _ => window[0].offset().unwrap(),
+                },
+                window[1].offset().unwrap_or(file_len),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    Ok(Some(offsets))
 }
