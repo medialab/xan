@@ -120,13 +120,17 @@ macro_rules! command_list {
 static USAGE: &str = concat!(
     "
 Usage:
-    xan <command> [<args>...]
+    xan [options] <command> [<args>...]
     xan [options]
 
 Options:
     -h, --help    Display this message
     <command> -h  Display the command help message
     --version     Print version info and exit
+
+Common options:
+    -n, --no-headers       Typically used to indicate that input file has no headers.
+    -d, --delimiter <arg>  Typically used to indicate a custom delimiter.
 
 Commands:",
     command_list!()
