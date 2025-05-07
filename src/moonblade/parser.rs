@@ -105,7 +105,8 @@ fn build_string(pair: Pair<Rule>) -> String {
         match inner.as_rule() {
             Rule::raw_double_quoted_string
             | Rule::raw_single_quoted_string
-            | Rule::raw_regex_string => {
+            | Rule::raw_regex_string
+            | Rule::raw_backtick_quoted_string => {
                 string.push_str(inner.as_str());
             }
             Rule::regex_flag => break,
@@ -121,6 +122,7 @@ fn build_string(pair: Pair<Rule>) -> String {
                             "\\" => '\\',
                             "\"" => '"',
                             "'" => '\'',
+                            "`" => '`',
                             "0" => '\0',
                             _ => unreachable!(),
                         });

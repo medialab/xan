@@ -11,6 +11,7 @@
 * Adding `xan count -a/--approx`.
 * Adding `xan slice -E/--end-byte`.
 * Allowing `-n/--no-headers` and `-d/--delimiter` flags to appear beforecolorize_main_help subcommands.
+* Adding backtick quoted strings to moonblade.
 
 *Fixes*
 

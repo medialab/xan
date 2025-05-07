@@ -13,7 +13,13 @@ Usage:
 
 split options:
     -s, --size <arg>       The number of records to write into each chunk.
-                           [default: 500]
+                           [default: 4096]
+    -c, --chunks <n>       Divide the file into approximately <n> chunks having
+                           roughly the same number of records. Target file must be
+                           seekable (e.g. this will not work with stdin nor gzipped
+                           files).
+    --segments             When used with -c/--chunks, output the byte offsets of
+                           found segments insteads.
     --filename <filename>  A filename template to use when constructing
                            the names of the output files.  The string '{}'
                            will be replaced by a value based on the value

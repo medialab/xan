@@ -131,16 +131,19 @@ false
 # Null value
 null
 
-# Strings (single or double quotes)
+# Strings (single quotes, double quotes, backticks)
 "hello"
 'hello'
+`hello`
+
 # Typical escaping
 "Hello\nThis is world!"
 # Supported: \n, \r, \t, \\, \", \', \0, \x67 and \u{1F60A}
 
-# Binary strings (single or double quotes)
+# Binary strings (single quotes, double quotes, backticks)
 b"hello"
 b'hello'
+b`hello`
 
 # Regexes
 /john/
