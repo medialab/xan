@@ -183,6 +183,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
             FunctionArguments::binary(),
         ),
+        "printf" => (printf, FunctionArguments::variadic(2)),
         "random" => (random, FunctionArguments::nullary()),
         "read" => (
             read,
@@ -517,6 +518,33 @@ fn fmt_number(mut args: BoundArguments) -> FunctionResult {
     let number = args.pop1().try_as_number()?;
 
     Ok(DynamicValue::from(crate::util::format_number(number)))
+}
+
+fn printf(args: BoundArguments) -> FunctionResult {
+    let l = args.len() - 1;
+
+    let mut args_iter = args.into_iter();
+    let fmt_arg = args_iter.next().unwrap();
+    let fmt = fmt_arg.try_as_str()?;
+
+    let mut fmt_args: Vec<Box<dyn sprintf::Printf>> = Vec::with_capacity(l);
+
+    for arg in args_iter {
+        match arg {
+            DynamicValue::Integer(i) => fmt_args.push(Box::new(i)),
+            DynamicValue::Float(f) => fmt_args.push(Box::new(f)),
+            _ => fmt_args.push(Box::new(arg.try_as_str()?.into_owned())),
+        };
+    }
+
+    let fmt_args_refs = fmt_args.iter().map(|b| b.as_ref()).collect::<Vec<_>>();
+
+    match sprintf::vsprintf(&fmt, &fmt_args_refs) {
+        Ok(string) => Ok(DynamicValue::from(string)),
+        Err(_) => Err(EvaluationError::Custom(
+            "printf formatting error".to_string(),
+        )),
+    }
 }
 
 // Lists & Sequences

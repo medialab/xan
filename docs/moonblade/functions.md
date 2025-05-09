@@ -163,9 +163,10 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 - **bytesize**(*string*) -> `string`: Return a number of bytes in human-readable format (KB, MB, GB, etc.).
 - **escape_regex**(*string*) -> `string`: Escape a string so it can be used safely in a regular expression.
-- **fmt**(*string*, *\*replacements*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
+- **fmt**(*string*, *\*arguments*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
 - **fmt**(*string*, *map*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
 - **lower**(*string*) -> `string`: Lowercase string.
+- **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments.
 - **numfmt**(*number*) -> `string`: Format a number with thousands separator and proper significance.
 - **trim**(*string*, *chars?*) -> `string`: Trim string of leading & trailing whitespace or provided characters.
 - **ltrim**(*string*, *chars?*) -> `string`: Trim string of leading whitespace or provided characters.

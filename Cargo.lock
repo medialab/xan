@@ -2184,6 +2184,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
 
 [[package]]
+name = "sprintf"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2597858e7b64b053ffb5e34589f8132c2798f1d2389cfafc695d1d0a7aa6d0ef"
+dependencies = [
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2819,6 +2828,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "shlex",
+ "sprintf",
  "tar",
  "tdigest",
  "termsize",

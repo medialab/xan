@@ -243,7 +243,7 @@
       },
       {
         "name": "fmt",
-        "arguments": ["string", "*replacements"],
+        "arguments": ["string", "*arguments"],
         "alternatives": [["string", "map"]],
         "returns": "string",
         "help": "Format a string by replacing \"{}\" occurrences by subsequent arguments.\n\nExample: `fmt(\"Hello {} {}\", name, surname)` will replace the first \"{}\" by the value of the name column, then the second one by the value of the surname column.\n\nCan also be given a substitution map like so:\n`fmt(\"Hello {name}\", {name: \"John\"})`."
@@ -253,6 +253,12 @@
         "arguments": ["string"],
         "returns": "string",
         "help": "Lowercase string."
+      },
+      {
+        "name": "printf",
+        "arguments": ["format", "*arguments"],
+        "returns": "string",
+        "help": "Apply printf formatting with given format and arguments."
       },
       {
         "name": "numfmt",
