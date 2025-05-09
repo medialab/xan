@@ -180,11 +180,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(2..=3),
         ),
         "lpad" => (
-            |args| pad(pad::Alignment::Left, args),
+            |args| pad(pad::Alignment::Right, args),
             FunctionArguments::with_range(2..=3),
         ),
         "rpad" => (
-            |args| pad(pad::Alignment::Right, args),
+            |args| pad(pad::Alignment::Left, args),
             FunctionArguments::with_range(2..=3),
         ),
         "parse_dataurl" => (parse_dataurl, FunctionArguments::unary()),
