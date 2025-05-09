@@ -53,18 +53,27 @@ impl<R: Seek + Read> ReverseRead<R> {
     }
 }
 
+#[derive(Debug)]
 pub struct InitialRecordsSample {
     count: u64,
     stats: Option<(u64, f64)>,
     first_record_offset: u64,
+    profile: Vec<f64>,
 }
 
 impl InitialRecordsSample {
-    fn new(count: u64, max: Option<u64>, mean: Option<f64>, first_record_offset: u64) -> Self {
+    fn new(
+        count: u64,
+        max: Option<u64>,
+        mean: Option<f64>,
+        first_record_offset: u64,
+        profile: Vec<f64>,
+    ) -> Self {
         Self {
             count,
             stats: max.map(|m| (m, mean.unwrap())),
             first_record_offset,
+            profile,
         }
     }
 
@@ -81,13 +90,31 @@ impl InitialRecordsSample {
     }
 }
 
+fn cosine(profile: &[f64], other: &[usize]) -> f64 {
+    let mut self_norm = 0.0;
+    let mut other_norm = 0.0;
+    let mut intersection = 0.0;
+
+    for (a, b) in profile
+        .iter()
+        .copied()
+        .zip(other.iter().copied().map(|i| i as f64))
+    {
+        self_norm += a * a;
+        other_norm += b * b;
+        intersection += a * b;
+    }
+
+    intersection / (self_norm * other_norm).sqrt()
+}
+
 pub fn sample_initial_records<R: Read + Seek>(
     reader: &mut Reader<R>,
     max_records_to_read: u64,
 ) -> Result<InitialRecordsSample, csv::Error> {
     // NOTE: it is important to make sure headers have been read
     // so that the first record size does not include header bytes.
-    reader.byte_headers()?;
+    let field_count = reader.byte_headers()?.len();
 
     let mut record = ByteRecord::new();
 
@@ -96,6 +123,7 @@ pub fn sample_initial_records<R: Read + Seek>(
     let mut welford = Welford::new();
     let mut first_record_offset = 0;
     let mut last_offset = reader.position().byte();
+    let mut profiles: Vec<Vec<usize>> = Vec::with_capacity(max_records_to_read as usize);
 
     while i < max_records_to_read && reader.read_byte_record(&mut record)? {
         if i == 0 {
@@ -118,15 +146,22 @@ pub fn sample_initial_records<R: Read + Seek>(
 
         welford.add(record_size as f64);
 
+        profiles.push(record.iter().map(|cell| cell.len()).collect());
+
         i += 1;
         last_offset = record_byte_pos;
     }
+
+    let profile = (0..field_count)
+        .map(|j| profiles.iter().map(|p| p[j] as f64).sum::<f64>() / profiles.len() as f64)
+        .collect::<Vec<_>>();
 
     Ok(InitialRecordsSample::new(
         i,
         max_record_size,
         welford.mean(),
         first_record_offset,
+        profile,
     ))
 }
 
@@ -176,12 +211,14 @@ impl NextRecordOffsetInferrence {
 struct RecordInfo {
     byte_offset: u64,
     fields: usize,
+    profile: Vec<usize>,
 }
 
 fn infer_next_record_offset_from_random_position<R: Read + Seek>(
     reader: &mut Reader<R>,
     offset: u64,
     max_record_size: u64,
+    profile: &[f64],
     expected_field_count: usize,
     sample_size: u64,
 ) -> Result<NextRecordOffsetInferrence, csv::Error> {
@@ -202,6 +239,7 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
         unquoted_record_infos.push(RecordInfo {
             byte_offset: record.position().unwrap().byte(),
             fields: record.len(),
+            profile: record.iter().map(|cell| cell.len()).collect(),
         });
     }
 
@@ -223,6 +261,7 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
         quoted_record_infos.push(RecordInfo {
             byte_offset: record.position().unwrap().byte(),
             fields: record.len(),
+            profile: record.iter().map(|cell| cell.len()).collect(),
         });
     }
 
@@ -245,8 +284,24 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
             NextRecordOffsetInferrence::WasInQuoted(offset + quoted_record_infos[1].byte_offset - 1)
         }
         (false, false) => {
-            // TODO: here we have an embarrassing tie that must be addressed.
-            NextRecordOffsetInferrence::WasInUnquoted(unquoted_record_infos[1].byte_offset)
+            // Sometimes we might fall within a cell whose contents suspiciously yield
+            // the same record structure. In this case we rely on cosine similarity over
+            // record profiles to make sure we select the correct offset.
+            let unquoted_offset = unquoted_record_infos[1].byte_offset;
+            let quoted_offset = offset + quoted_record_infos[1].byte_offset - 1;
+
+            if unquoted_offset == quoted_offset {
+                NextRecordOffsetInferrence::WasInUnquoted(unquoted_offset)
+            } else {
+                let unquoted_cosine = cosine(profile, &unquoted_record_infos[1].profile);
+                let quoted_cosine = cosine(profile, &quoted_record_infos[1].profile);
+
+                if unquoted_cosine > quoted_cosine {
+                    NextRecordOffsetInferrence::WasInUnquoted(unquoted_offset)
+                } else {
+                    NextRecordOffsetInferrence::WasInQuoted(quoted_offset)
+                }
+            }
         }
     })
 }
@@ -278,6 +333,7 @@ pub fn segment_csv_file<R: Read + Seek>(
     }
 
     let sample = sample_initial_records(reader, init_sample_size)?;
+
     let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
 
     let max_record_size = match sample.max() {
@@ -300,6 +356,7 @@ pub fn segment_csv_file<R: Read + Seek>(
                     reader,
                     offset,
                     max_record_size,
+                    &sample.profile,
                     field_count,
                     jump_sample_size,
                 )

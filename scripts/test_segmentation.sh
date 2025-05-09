@@ -8,7 +8,7 @@ XAN=./target/release/xan
 
 echo $($XAN count $1)
 
-for i in $(seq 1 64);
+for i in $(seq 1 128);
 do
   declare -i total=0
 

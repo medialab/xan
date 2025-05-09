@@ -96,7 +96,7 @@ impl Args {
         let target = rconfig.io_reader_for_random_access()?;
         let mut reader = rconfig.csv_reader_from_reader(target);
 
-        let offsets_opt = segment_csv_file(&mut reader, self.flag_chunks.unwrap().get(), 128, 16)?;
+        let offsets_opt = segment_csv_file(&mut reader, self.flag_chunks.unwrap().get(), 128, 8)?;
 
         match offsets_opt {
             None => Err("could not find segments!")?,
