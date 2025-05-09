@@ -53,16 +53,18 @@ impl<R: Seek + Read> ReverseRead<R> {
     }
 }
 
-pub struct RecordSizesSample {
+pub struct InitialRecordsSample {
     count: u64,
     stats: Option<(u64, f64)>,
+    first_record_offset: u64,
 }
 
-impl RecordSizesSample {
-    fn new(count: u64, max: Option<u64>, mean: Option<f64>) -> Self {
+impl InitialRecordsSample {
+    fn new(count: u64, max: Option<u64>, mean: Option<f64>, first_record_offset: u64) -> Self {
         Self {
             count,
             stats: max.map(|m| (m, mean.unwrap())),
+            first_record_offset,
         }
     }
 
@@ -79,10 +81,10 @@ impl RecordSizesSample {
     }
 }
 
-pub fn sample_record_sizes<R: Read + Seek>(
+pub fn sample_initial_records<R: Read + Seek>(
     reader: &mut Reader<R>,
     max_records_to_read: u64,
-) -> Result<RecordSizesSample, csv::Error> {
+) -> Result<InitialRecordsSample, csv::Error> {
     // NOTE: it is important to make sure headers have been read
     // so that the first record size does not include header bytes.
     reader.byte_headers()?;
@@ -92,9 +94,14 @@ pub fn sample_record_sizes<R: Read + Seek>(
     let mut i: u64 = 0;
     let mut max_record_size = None;
     let mut welford = Welford::new();
+    let mut first_record_offset = 0;
     let mut last_offset = reader.position().byte();
 
     while i < max_records_to_read && reader.read_byte_record(&mut record)? {
+        if i == 0 {
+            first_record_offset = record.position().unwrap().byte();
+        }
+
         let record_byte_pos = reader.position().byte();
         let record_size = record_byte_pos - last_offset;
 
@@ -115,7 +122,12 @@ pub fn sample_record_sizes<R: Read + Seek>(
         last_offset = record_byte_pos;
     }
 
-    Ok(RecordSizesSample::new(i, max_record_size, welford.mean()))
+    Ok(InitialRecordsSample::new(
+        i,
+        max_record_size,
+        welford.mean(),
+        first_record_offset,
+    ))
 }
 
 pub fn read_byte_record_up_to<R: Read>(
@@ -273,8 +285,8 @@ pub fn segment_csv_file<R: Read + Seek>(
         return Ok(None);
     }
 
+    let sample = sample_initial_records(reader, init_sample_size)?;
     let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
-    let sample = sample_record_sizes(reader, init_sample_size)?;
 
     let max_record_size = match sample.max() {
         None => return Ok(None),
@@ -283,6 +295,7 @@ pub fn segment_csv_file<R: Read + Seek>(
 
     // TODO: return single offset if some invariant is not met, e.g. when
     // the file is too small typically
+    // TODO: also mind cases where the file is empty or too short
 
     let mut segments = segment_file(file_len, chunks)
         .iter()
@@ -313,7 +326,7 @@ pub fn segment_csv_file<R: Read + Seek>(
         .map(|window| {
             (
                 match window[0] {
-                    NextRecordOffsetInferrence::Start => 0u64,
+                    NextRecordOffsetInferrence::Start => sample.first_record_offset,
                     _ => window[0].offset().unwrap(),
                 },
                 window[1].offset().unwrap_or(file_len),

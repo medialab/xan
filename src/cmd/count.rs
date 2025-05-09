@@ -2,7 +2,7 @@ use std::io::{Seek, SeekFrom};
 use std::num::NonZeroU64;
 
 use crate::config::{Config, Delimiter};
-use crate::read::sample_record_sizes;
+use crate::read::sample_initial_records;
 use crate::util;
 use crate::CliResult;
 
@@ -58,7 +58,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let sample_size = args.flag_sample_size.get();
 
-        let sample = sample_record_sizes(&mut rdr, sample_size)?;
+        let sample = sample_initial_records(&mut rdr, sample_size)?;
 
         if sample.count() < sample_size {
             sample.count()

@@ -92,10 +92,6 @@ impl Args {
     }
 
     fn segments(&self) -> CliResult<()> {
-        if !self.flag_segments {
-            unimplemented!()
-        }
-
         let rconfig = self.rconfig().flexible(true);
         let target = rconfig.io_reader_for_random_access()?;
         let mut reader = rconfig.csv_reader_from_reader(target);

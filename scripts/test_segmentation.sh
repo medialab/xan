@@ -19,7 +19,5 @@ do
     ((total += $count))
   done
 
-  ((total--))
-
   echo "--chunks=$i -> $total"
 done
