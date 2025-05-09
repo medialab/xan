@@ -5,6 +5,7 @@
 *Breaking*
 
 * Dropping undocumented `xan index` and related interactions (in `xan count`, `xan sample`, `xan slice` & `xan split --jobs`).
+* Dropping now useless `coalesce` moonblade function.
 
 *Features*
 
@@ -23,6 +24,7 @@
 * Fixing `xan view -g -s`.
 * Fixing moonblade concretization wrt branching.
 * Fixing `xan behead -o` and `xan behead -Ao`.
+* Reorganizing `xan help functions`.
 
 ## 0.50.0
 

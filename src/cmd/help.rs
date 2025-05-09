@@ -359,11 +359,26 @@ fn join_arguments(args: &[String]) -> String {
 
 impl FunctionHelp {
     fn to_txt(&self) -> String {
-        fn single_form(name: &str, args_opt: Option<&Vec<String>>, returns: &str) -> String {
+        fn single_form(
+            name: &str,
+            aliases: Option<&Vec<String>>,
+            args_opt: Option<&Vec<String>>,
+            returns: &str,
+        ) -> String {
             if let Some(args) = args_opt {
                 format!(
-                    "- {}({}) -> {}\n",
+                    "- {}{}({}) -> {}\n",
                     name.cyan(),
+                    if let Some(names) = aliases {
+                        ", ".to_string()
+                            + &names
+                                .iter()
+                                .map(|name| name.cyan().to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                    } else {
+                        "".to_string()
+                    },
                     join_arguments(args),
                     returns.magenta()
                 )
@@ -377,18 +392,19 @@ impl FunctionHelp {
         // Main call
         string.push_str(&single_form(
             &self.name,
+            self.aliases.as_ref(),
             self.arguments.as_ref(),
             &self.returns,
         ));
 
-        // Aliases
-        for alias in self.aliases.iter().flatten() {
-            string.push_str(&single_form(alias, self.arguments.as_ref(), &self.returns));
-        }
-
         // Alternatives
         for alternative in self.alternatives.iter().flatten() {
-            string.push_str(&single_form(&self.name, Some(alternative), &self.returns));
+            string.push_str(&single_form(
+                &self.name,
+                self.aliases.as_ref(),
+                Some(alternative),
+                &self.returns,
+            ));
         }
 
         string.push_str(&colorize_functions_help(&indent(&wrap(&self.help), "    ")));

@@ -1,5 +1,87 @@
 [
   {
+    "title": "Boolean operations & branching",
+    "functions": [
+      {
+        "name": "and",
+        "arguments": ["a", "b", "*n"],
+        "returns": "T",
+        "help": "Perform boolean AND operation on two or more values."
+      },
+      {
+        "name": "if",
+        "arguments": ["cond", "then", "else?"],
+        "returns": "T",
+        "help": "Evaluate condition and switch to correct branch."
+      },
+      {
+        "name": "unless",
+        "arguments": ["cond", "then", "else?"],
+        "returns": "T",
+        "help": "Shorthand for `if(not(cond), then, else?)`"
+      },
+      {
+        "name": "not",
+        "arguments": ["a"],
+        "returns": "bool",
+        "help": "Perform boolean NOT operation."
+      },
+      {
+        "name": "or",
+        "arguments": ["a", "b", "*n"],
+        "returns": "T",
+        "help": "Perform boolean OR operation on two or more values."
+      },
+      {
+        "name": "try",
+        "arguments": ["T"],
+        "returns": "T",
+        "help": "Attempt to evaluate given expression and return null if it raised an error."
+      }
+    ]
+  },
+  {
+    "title": "Comparison",
+    "functions": [
+      {
+        "name": "eq",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence equality."
+      },
+      {
+        "name": "ne",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence inequality."
+      },
+      {
+        "name": "gt",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 > s2."
+      },
+      {
+        "name": "ge",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 >= s2."
+      },
+      {
+        "name": "lt",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 < s2."
+      },
+      {
+        "name": "le",
+        "arguments": ["s1", "s2"],
+        "returns": "bool",
+        "help": "Test string or sequence s1 <= s2."
+      }
+    ]
+  },
+  {
     "title": "Arithmetics",
     "functions": [
       {
@@ -43,6 +125,18 @@
         "arguments": ["x", "y"],
         "returns": "number",
         "help": "Integer division of two numbers."
+      },
+      {
+        "name": "int",
+        "arguments": ["any"],
+        "returns": "int",
+        "help": "Cast value as int and raise an error if impossible."
+      },
+      {
+        "name": "float",
+        "arguments": ["any"],
+        "returns": "float",
+        "help": "Cast value as float and raise an error if impossible."
       },
       {
         "name": "floor",
@@ -133,125 +227,19 @@
     ]
   },
   {
-    "title": "Boolean operations & branching",
+    "title": "Formatting",
     "functions": [
       {
-        "name": "and",
-        "arguments": ["a", "b", "*n"],
-        "returns": "T",
-        "help": "Perform boolean AND operation on two or more values."
-      },
-      {
-        "name": "if",
-        "arguments": ["cond", "then", "else?"],
-        "returns": "T",
-        "help": "Evaluate condition and switch to correct branch."
-      },
-      {
-        "name": "unless",
-        "arguments": ["cond", "then", "else?"],
-        "returns": "T",
-        "help": "Shorthand for `if(not(cond), then, else?)`"
-      },
-      {
-        "name": "not",
-        "arguments": ["a"],
-        "returns": "bool",
-        "help": "Perform boolean NOT operation."
-      },
-      {
-        "name": "or",
-        "arguments": ["a", "b", "*n"],
-        "returns": "T",
-        "help": "Perform boolean OR operation on two or more values."
-      }
-    ]
-  },
-  {
-    "title": "Comparison",
-    "functions": [
-      {
-        "name": "eq",
-        "arguments": ["s1", "s2"],
-        "returns": "bool",
-        "help": "Test string or sequence equality."
-      },
-      {
-        "name": "ne",
-        "arguments": ["s1", "s2"],
-        "returns": "bool",
-        "help": "Test string or sequence inequality."
-      },
-      {
-        "name": "gt",
-        "arguments": ["s1", "s2"],
-        "returns": "bool",
-        "help": "Test string or sequence s1 > s2."
-      },
-      {
-        "name": "ge",
-        "arguments": ["s1", "s2"],
-        "returns": "bool",
-        "help": "Test string or sequence s1 >= s2."
-      },
-      {
-        "name": "lt",
-        "arguments": ["s1", "s2"],
-        "returns": "bool",
-        "help": "Test string or sequence s1 < s2."
-      },
-      {
-        "name": "le",
-        "arguments": ["s1", "s2"],
-        "returns": "bool",
-        "help": "Test string or sequence s1 <= s2."
-      }
-    ]
-  },
-  {
-    "title": "String & sequence helpers",
-    "functions": [
-      {
-        "name": "compact",
-        "arguments": ["list"],
-        "returns": "list",
-        "help": "Drop all falsey values from given list."
-      },
-      {
-        "name": "concat",
-        "arguments": ["string", "*strings"],
+        "name": "bytesize",
+        "arguments": ["string"],
         "returns": "string",
-        "help": "Concatenate given strings into a single one."
-      },
-      {
-        "name": "contains",
-        "arguments": ["seq", "subseq"],
-        "returns": "bool",
-        "help": "Find if subseq can be found in seq. Subseq can be a regular expression."
-      },
-      {
-        "name": "count",
-        "arguments": ["seq", "pattern"],
-        "returns": "int",
-        "help": "Count number of times pattern appear in seq. Pattern can be a regular expression."
-      },
-      {
-        "name": "endswith",
-        "arguments": ["string", "pattern"],
-        "returns": "bool",
-        "help": "Test if string ends with pattern."
+        "help": "Return a number of bytes in human-readable format (KB, MB, GB, etc.)."
       },
       {
         "name": "escape_regex",
         "arguments": ["string"],
         "returns": "string",
         "help": "Escape a string so it can be used safely in a regular expression."
-      },
-      {
-        "name": "first",
-        "arguments": ["seq"],
-        "returns": "T",
-        "help": "Get first element of sequence."
       },
       {
         "name": "fmt",
@@ -261,16 +249,118 @@
         "help": "Format a string by replacing \"{}\" occurrences by subsequent arguments.\n\nExample: `fmt(\"Hello {} {}\", name, surname)` will replace the first \"{}\" by the value of the name column, then the second one by the value of the surname column.\n\nCan also be given a substitution map like so:\n`fmt(\"Hello {name}\", {name: \"John\"})`."
       },
       {
-        "name": "get",
-        "arguments": ["target", "index_or_key", "default?"],
-        "returns": "T",
-        "help": "Get nth element of sequence (can use negative indexing), or key of mapping. Returns nothing if index or key is not found or alternatively the provided default value."
+        "name": "lower",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Lowercase string."
       },
       {
-        "name": "join",
-        "arguments": ["seq", "sep"],
+        "name": "numfmt",
+        "arguments": ["number"],
         "returns": "string",
-        "help": "Join sequence by separator."
+        "help": "Format a number with thousands separator and proper significance."
+      },
+      {
+        "name": "trim",
+        "arguments": ["string", "chars?"],
+        "returns": "string",
+        "help": "Trim string of leading & trailing whitespace or provided characters."
+      },
+      {
+        "name": "ltrim",
+        "arguments": ["string", "chars?"],
+        "returns": "string",
+        "help": "Trim string of leading whitespace or provided characters."
+      },
+      {
+        "name": "rtrim",
+        "arguments": ["string", "chars?"],
+        "returns": "string",
+        "help": "Trim string of trailing whitespace or provided characters."
+      },
+      {
+        "name": "upper",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Uppercase string."
+      }
+    ]
+  },
+  {
+    "title": "Strings",
+    "functions": [
+      {
+        "name": "count",
+        "arguments": ["string", "substring"],
+        "alternatives": [
+          ["string", "regex"]
+        ],
+        "returns": "int",
+        "help": "Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases."
+      },
+      {
+        "name": "endswith",
+        "arguments": ["string", "substring"],
+        "returns": "bool",
+        "help": "Test if string ends with substring."
+      },
+      {
+        "name": "match",
+        "arguments": ["string", "regex", "group"],
+        "returns": "string",
+        "help": "Return a regex pattern match on the string."
+      },
+      {
+        "name": "replace",
+        "arguments": ["string", "substring", "replacement"],
+        "alternatives": [
+          ["string", "regex", "replacement"]
+        ],
+        "returns": "string",
+        "help": "Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches."
+      },
+      {
+        "name": "split",
+        "arguments": ["string", "substring", "max?"],
+        "alternatives": [
+          ["string", "regex", "max?"]
+        ],
+        "returns": "list",
+        "help": "Split a string by a given separator substring. Can also split using a regex pattern."
+      },
+      {
+        "name": "startswith",
+        "arguments": ["string", "substring"],
+        "returns": "bool",
+        "help": "Test if string starts with substring."
+      }
+    ]
+  },
+  {
+    "title": "Strings, lists and maps",
+    "functions": [
+      {
+        "name": "concat",
+        "arguments": ["string", "*strings"],
+        "returns": "string",
+        "help": "Concatenate given strings into a single one."
+      },
+      {
+        "name": "contains",
+        "arguments": ["string", "substring"],
+        "alternatives": [
+          ["string", "regex"],
+          ["list", "item"],
+          ["map", "key"]
+        ],
+        "returns": "bool",
+        "help": "If target is a string: return whether substring can be found in it or return whether given regular expression matched.\n\nIf target is a list, returns whether given item was found in it.\n\nIf target is a map, returns whether given key was found in it."
+      },
+      {
+        "name": "first",
+        "arguments": ["seq"],
+        "returns": "T",
+        "help": "Get first element of sequence."
       },
       {
         "name": "last",
@@ -285,75 +375,89 @@
         "help": "Get length of sequence."
       },
       {
-        "name": "ltrim",
-        "arguments": ["string", "pattern?"],
-        "returns": "string",
-        "help": "Trim string of leading whitespace or provided characters."
-      },
-      {
-        "name": "lower",
-        "arguments": ["string"],
-        "returns": "string",
-        "help": "Lowercase string."
-      },
-      {
-        "name": "match",
-        "arguments": ["string", "pattern", "group"],
-        "returns": "string",
-        "help": "Return a regex pattern match on the string."
-      },
-      {
-        "name": "numfmt",
-        "arguments": ["number"],
-        "returns": "string",
-        "help": "Format a number with thousands separator and proper significance."
-      },
-      {
-        "name": "replace",
-        "arguments": ["string", "pattern", "replacement"],
-        "returns": "string",
-        "help": "Replace pattern in string. Can use a regex."
-      },
-      {
-        "name": "rtrim",
-        "arguments": ["string", "pattern?"],
-        "returns": "string",
-        "help": "Trim string of trailing whitespace or provided characters."
+        "name": "get",
+        "arguments": ["string", "index", "default?"],
+        "alternatives": [
+          ["list", "index", "default?"],
+          ["map", "key", "default?"]
+        ],
+        "returns": "any",
+        "help": "If target is a string, return the nth unicode char. If target is a list, return the nth item. Indices are zero-based and can be negative to access items in reverse. If target is a map, return the value associated with given key. All variants can also take a default value when desired item is not found."
       },
       {
         "name": "slice",
         "arguments": ["seq", "start", "end?"],
         "returns": "seq",
         "help": "Return slice of sequence."
-      },
-      {
-        "name": "split",
-        "arguments": ["string", "sep", "max?"],
-        "returns": "list",
-        "help": "Split a string by separator."
-      },
-      {
-        "name": "startswith",
-        "arguments": ["string", "pattern"],
-        "returns": "bool",
-        "help": "Test if string starts with pattern."
-      },
-      {
-        "name": "trim",
-        "arguments": ["string", "pattern?"],
-        "returns": "string",
-        "help": "Trim string of leading & trailing whitespace or provided characters."
-      },
-      {
-        "name": "upper",
-        "arguments": ["string"],
-        "returns": "string",
-        "help": "Uppercase string."
       }
     ]
   },
   {
-    "title": "Dates",
+    "title": "Lists",
+    "functions": [
+      {
+        "name": "compact",
+        "arguments": ["list"],
+        "returns": "list",
+        "help": "Drop all falsey values from given list."
+      },
+      {
+        "name": "filter",
+        "arguments": ["list", "lambda"],
+        "returns": "list",
+        "help": "Return a list containing only elements for which given lambda returned true.\nFor instance: `filter(names, name => name.startswith('A'))`"
+      },
+      {
+        "name": "index_by",
+        "arguments": ["list", "key"],
+        "returns": "map",
+        "help": "Create a map from item key to collection item."
+      },
+      {
+        "name": "join",
+        "arguments": ["list", "sep"],
+        "returns": "string",
+        "help": "Join sequence by separator."
+      },
+      {
+        "name": "map",
+        "arguments": ["list", "lambda"],
+        "returns": "list",
+        "help": "Return a list with elements transformed by given lambda.\nFor instance: `map(numbers, n => n + 3)`"
+      },
+      {
+        "name": "mean",
+        "arguments": ["numbers"],
+        "returns": "number?",
+        "help": "Return the mean of the given numbers."
+      },
+      {
+        "name": "sum",
+        "arguments": ["numbers"],
+        "returns": "number?",
+        "help": "Return the sum of the given numbers, or nothing if the sum overflowed."
+      }
+    ]
+  },
+  {
+    "title": "Maps",
+    "functions": [
+      {
+        "name": "keys",
+        "arguments": ["map"],
+        "returns": "[string]",
+        "help": "Return a list of the map's keys."
+      },
+      {
+        "name": "values",
+        "arguments": ["map"],
+        "returns": "[T]",
+        "help": "Return a list of the map's values."
+      }
+    ]
+  },
+  {
+    "title": "Dates & time",
     "functions": [
       {
         "name": "datetime",
@@ -426,23 +530,6 @@
     ]
   },
   {
-    "title": "Higher-order functions",
-    "functions": [
-      {
-        "name": "filter",
-        "arguments": ["list", "lambda"],
-        "returns": "list",
-        "help": "Return a list containing only elements for which given lambda returned true."
-      },
-      {
-        "name": "map",
-        "arguments": ["list", "lambda"],
-        "returns": "list",
-        "help": "Return a list with elements transformed by given lambda."
-      }
-    ]
-  },
-  {
     "title": "Urls & web-related",
     "functions": [
       {
@@ -458,6 +545,12 @@
         "help": "Convert the given URL to LRU format.\nFor more info, read this: https://github.com/medialab/ural#about-lrus"
       },
       {
+        "name": "mime_ext",
+        "arguments": ["string"],
+        "returns": "string",
+        "help": "Return the extension related to given mime type."
+      },
+      {
         "name": "parse_dataurl",
         "arguments": ["string"],
         "returns": "[string, bytes]",
@@ -468,51 +561,6 @@
         "arguments": ["string", "string"],
         "returns": "string",
         "help": "Join an url with the given addendum."
-      }
-    ]
-  },
-  {
-    "title": "Collections (list of maps) functions",
-    "functions": [
-      {
-        "name": "index_by",
-        "arguments": ["collection", "key"],
-        "returns": "map",
-        "help": "Create a map from item key to collection item."
-      }
-    ]
-  },
-  {
-    "title": "Map functions",
-    "functions": [
-      {
-        "name": "keys",
-        "arguments": ["map"],
-        "returns": "[string]",
-        "help": "Return a list of the map's keys."
-      },
-      {
-        "name": "values",
-        "arguments": ["map"],
-        "returns": "[T]",
-        "help": "Return a list of the map's values."
-      }
-    ]
-  },
-  {
-    "title": "Aggregation functions",
-    "functions": [
-      {
-        "name": "mean",
-        "arguments": ["numbers"],
-        "returns": "number?",
-        "help": "Return the mean of the given numbers."
-      },
-      {
-        "name": "sum",
-        "arguments": ["numbers"],
-        "returns": "number?",
-        "help": "Return the sum of the given numbers, or nothing if the sum overflowed."
       }
     ]
   },
@@ -549,12 +597,6 @@
     "title": "Utils",
     "functions": [
       {
-        "name": "coalesce",
-        "arguments": ["*args"],
-        "returns": "T",
-        "help": "Return first truthy value."
-      },
-      {
         "name": "col",
         "arguments": ["name_or_pos", "nth?"],
         "returns": "bytes",
@@ -579,12 +621,6 @@
         "help": "Make the expression return a custom error."
       },
       {
-        "name": "float",
-        "arguments": ["any"],
-        "returns": "float",
-        "help": "Cast value as float and raise an error if impossible."
-      },
-      {
         "name": "headers",
         "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
         "returns": "list[string]",
@@ -595,30 +631,6 @@
         "arguments": [],
         "returns": "int?",
         "help": "Return the row's index, if applicable."
-      },
-      {
-        "name": "int",
-        "arguments": ["any"],
-        "returns": "int",
-        "help": "Cast value as int and raise an error if impossible."
-      },
-      {
-        "name": "mime_ext",
-        "arguments": ["string"],
-        "returns": "string",
-        "help": "Return the extension related to given mime type."
-      },
-      {
-        "name": "parse_json",
-        "arguments": ["string"],
-        "returns": "any",
-        "help": "Parse the given string as JSON."
-      },
-      {
-        "name": "try",
-        "arguments": ["T"],
-        "returns": "T",
-        "help": "Attempt to evaluate given expression and return null if it raised an error."
       },
       {
         "name": "typeof",
@@ -636,12 +648,6 @@
         "arguments": ["string"],
         "returns": "string",
         "help": "Return absolute & canonicalized path."
-      },
-      {
-        "name": "bytesize",
-        "arguments": ["string"],
-        "returns": "string",
-        "help": "Return a number of bytes in human-readable format (KB, MB, GB, etc.)."
       },
       {
         "name": "copy",
@@ -672,6 +678,12 @@
         "arguments": ["source_path", "target_path"],
         "returns": "string",
         "help": "Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience."
+      },
+      {
+        "name": "parse_json",
+        "arguments": ["string"],
+        "returns": "any",
+        "help": "Parse the given string as JSON."
       },
       {
         "name": "pathjoin",
@@ -707,7 +719,7 @@
     ]
   },
   {
-    "title": "Random",
+    "title": "Randomness & hashing",
     "functions": [
       {
         "name": "md5",

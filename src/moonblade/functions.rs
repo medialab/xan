@@ -84,7 +84,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::ceil),
             FunctionArguments::unary(),
         ),
-        "coalesce" => (coalesce, FunctionArguments::variadic(2)),
         "compact" => (compact, FunctionArguments::unary()),
         "concat" => (concat, FunctionArguments::variadic(2)),
         "contains" => (contains, FunctionArguments::binary()),
@@ -1023,17 +1022,6 @@ where
     }
 
     Ok(DynamicValue::from(min_item.map(|t| t.1)))
-}
-
-// Utilities
-fn coalesce(args: BoundArguments) -> FunctionResult {
-    for arg in args {
-        if arg.is_truthy() {
-            return Ok(arg);
-        }
-    }
-
-    Ok(DynamicValue::None)
 }
 
 // Boolean

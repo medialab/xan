@@ -846,14 +846,6 @@ mod tests {
     }
 
     #[test]
-    fn test_coalesce() {
-        assert_eq!(
-            eval_code("coalesce(null, false, 'test')"),
-            Ok(DynamicValue::from("test"))
-        );
-    }
-
-    #[test]
     fn test_bool() {
         assert_eq!(eval_code("not(true)"), Ok(DynamicValue::from(false)));
         assert_eq!(eval_code("and(true, false)"), Ok(DynamicValue::from(false)));
