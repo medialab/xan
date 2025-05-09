@@ -154,15 +154,14 @@ pub fn read_byte_record_up_to<R: Read>(
 enum NextRecordOffsetInferrence {
     Start,
     End,
-    TooHeterogeneous,
-    NotEnoughData,
+    Fail,
     WasInQuoted(u64),
     WasInUnquoted(u64),
 }
 
 impl NextRecordOffsetInferrence {
     fn failed(&self) -> bool {
-        matches!(self, Self::TooHeterogeneous | Self::NotEnoughData)
+        matches!(self, Self::Fail)
     }
 
     fn offset(&self) -> Option<u64> {
@@ -173,6 +172,7 @@ impl NextRecordOffsetInferrence {
     }
 }
 
+#[derive(Debug)]
 struct RecordInfo {
     byte_offset: u64,
     fields: usize,
@@ -194,35 +194,18 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
 
     let end_byte = offset + max_record_size * sample_size;
 
-    let mut record_infos: Vec<RecordInfo> = Vec::with_capacity(sample_size as usize);
+    // Reading as potentially unquoted
+    let mut unquoted_record_infos: Vec<RecordInfo> = Vec::with_capacity(sample_size as usize);
     let mut record = ByteRecord::new();
 
     while read_byte_record_up_to(reader, &mut record, Some(end_byte))? {
-        record_infos.push(RecordInfo {
+        unquoted_record_infos.push(RecordInfo {
             byte_offset: record.position().unwrap().byte(),
             fields: record.len(),
         });
     }
 
-    if record_infos.len() < 2 {
-        return Ok(NextRecordOffsetInferrence::NotEnoughData);
-    }
-
-    // NOTE: we never return the current record, only the next one, because
-    // even if we have found the expected number of fields in current record,
-    // we cannot likely have read the beginning of first field without reading
-    // backwards.
-    if record_infos[1..]
-        .iter()
-        .all(|info| info.fields == expected_field_count)
-    {
-        return Ok(NextRecordOffsetInferrence::WasInUnquoted(
-            record_infos[1].byte_offset,
-        ));
-    }
-
-    // We could not infer next record position, we try again with a
-    // double quote prepended to the stream
+    // Reading as potentially quoted
     let mut pos = Position::new();
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
@@ -233,30 +216,39 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
         .has_headers(false)
         .from_reader(Cursor::new("\"").chain(reader.get_mut()));
 
-    record_infos.clear();
+    let mut quoted_record_infos: Vec<RecordInfo> = Vec::with_capacity(sample_size as usize);
     let up_to = max_record_size * 16 + 1;
 
     while read_byte_record_up_to(&mut altered_reader, &mut record, Some(up_to))? {
-        record_infos.push(RecordInfo {
+        quoted_record_infos.push(RecordInfo {
             byte_offset: record.position().unwrap().byte(),
             fields: record.len(),
         });
     }
 
-    if record_infos.len() < 2 {
-        return Ok(NextRecordOffsetInferrence::NotEnoughData);
-    }
+    let unquoted_is_invalid = unquoted_record_infos.len() < 2
+        || !unquoted_record_infos[1..]
+            .iter()
+            .all(|info| info.fields == expected_field_count);
 
-    if record_infos[1..]
-        .iter()
-        .all(|info| info.fields == expected_field_count)
-    {
-        return Ok(NextRecordOffsetInferrence::WasInQuoted(
-            offset + record_infos[1].byte_offset - 1,
-        ));
-    }
+    let quoted_is_invalid = quoted_record_infos.len() < 2
+        || !quoted_record_infos[1..]
+            .iter()
+            .all(|info| info.fields == expected_field_count);
 
-    Ok(NextRecordOffsetInferrence::TooHeterogeneous)
+    Ok(match (unquoted_is_invalid, quoted_is_invalid) {
+        (true, true) => NextRecordOffsetInferrence::Fail,
+        (false, true) => {
+            NextRecordOffsetInferrence::WasInUnquoted(unquoted_record_infos[1].byte_offset)
+        }
+        (true, false) => {
+            NextRecordOffsetInferrence::WasInQuoted(offset + quoted_record_infos[1].byte_offset - 1)
+        }
+        (false, false) => {
+            // TODO: here we have an embarrassing tie that must be addressed.
+            NextRecordOffsetInferrence::WasInUnquoted(unquoted_record_infos[1].byte_offset)
+        }
+    })
 }
 
 fn segment_file(file_len: u64, chunks: usize) -> Vec<u64> {
