@@ -530,7 +530,7 @@ pub fn unicode_aware_pad<'a>(
 
     if left {
         for _ in 0..(width - string_width) {
-            padded.push_str(&padding);
+            padded.push_str(padding);
         }
 
         padded.push_str(string);
@@ -538,7 +538,7 @@ pub fn unicode_aware_pad<'a>(
         padded.push_str(string);
 
         for _ in 0..(width - string_width) {
-            padded.push_str(&padding);
+            padded.push_str(padding);
         }
     }
 

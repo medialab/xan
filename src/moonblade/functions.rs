@@ -146,7 +146,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "lower" => (lower, FunctionArguments::unary()),
         "lru" => (lru, FunctionArguments::unary()),
-        "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),
         "match" => (regex_match, FunctionArguments::with_range(2..=3)),
         "max" => (variadic_max, FunctionArguments::variadic(2)),
         "md5" => (md5, FunctionArguments::unary()),
@@ -176,6 +175,18 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "not" => (not, FunctionArguments::unary()),
         "or" => (or, FunctionArguments::variadic(2)),
+        "pad" => (
+            |args| pad(pad::Alignment::Middle, args),
+            FunctionArguments::with_range(2..=3),
+        ),
+        "lpad" => (
+            |args| pad(pad::Alignment::Left, args),
+            FunctionArguments::with_range(2..=3),
+        ),
+        "rpad" => (
+            |args| pad(pad::Alignment::Right, args),
+            FunctionArguments::with_range(2..=3),
+        ),
         "parse_dataurl" => (parse_dataurl, FunctionArguments::unary()),
         "parse_json" => (parse_json, FunctionArguments::unary()),
         "pjoin" | "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
@@ -200,7 +211,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::round),
             FunctionArguments::unary(),
         ),
-        "rtrim" => (rtrim, FunctionArguments::with_range(1..=2)),
         "slice" => (slice, FunctionArguments::with_range(2..=3)),
         "split" => (split, FunctionArguments::with_range(2..=3)),
         "sqrt" => (
@@ -251,6 +261,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "to_timezone" => (to_timezone, FunctionArguments::nary(3)),
         "to_local_timezone" => (to_local_timezone, FunctionArguments::binary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
+        "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),
+        "rtrim" => (rtrim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
             |args| unary_arithmetic_op(args, DynamicNumber::trunc),
             FunctionArguments::unary(),
@@ -279,52 +291,64 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
 }
 
 // Strings
-fn trim(args: BoundArguments) -> FunctionResult {
-    let chars_opt = args.get(1);
+macro_rules! make_trim_fn {
+    ($name: ident, $trim: ident, $trim_matches: ident) => {
+        fn $name(args: BoundArguments) -> FunctionResult {
+            let chars_opt = args.get(1);
 
-    Ok(match chars_opt {
-        None => match args.get1() {
-            DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.trim()),
-            value => DynamicValue::from(value.try_as_str()?.trim()),
-        },
-        Some(chars) => {
-            let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-            DynamicValue::from(args.get1_str()?.trim_matches(|c| pattern.contains(&c)))
+            Ok(match chars_opt {
+                None => match args.get1() {
+                    DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.$trim()),
+                    value => DynamicValue::from(value.try_as_str()?.$trim()),
+                },
+                Some(chars) => {
+                    let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
+                    DynamicValue::from(args.get1_str()?.$trim_matches(|c| pattern.contains(&c)))
+                }
+            })
         }
-    })
+    };
 }
 
-fn ltrim(args: BoundArguments) -> FunctionResult {
-    let chars_opt = args.get(1);
+make_trim_fn!(trim, trim, trim_matches);
+make_trim_fn!(ltrim, trim_start, trim_start_matches);
+make_trim_fn!(rtrim, trim_end, trim_end_matches);
 
-    Ok(match chars_opt {
-        None => match args.get1() {
-            DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.trim_start()),
-            value => DynamicValue::from(value.try_as_str()?.trim_start()),
-        },
-        Some(chars) => {
-            let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-            DynamicValue::from(
-                args.get1_str()?
-                    .trim_start_matches(|c| pattern.contains(&c)),
-            )
+fn pad(alignment: pad::Alignment, args: BoundArguments) -> FunctionResult {
+    use pad::PadStr;
+
+    let mut args_iter = args.into_iter();
+    let first_arg = args_iter.next().unwrap();
+    let string = first_arg.try_as_str()?;
+
+    let width = args_iter.next().unwrap().try_as_usize()?;
+    let padding_char = match args_iter.next() {
+        None => ' ',
+        Some(value) => {
+            let padding_string = value.try_as_str()?;
+
+            match padding_string.chars().count() {
+                0 => {
+                    return Err(EvaluationError::Custom(
+                        "provided padding char is empty".to_string(),
+                    ));
+                }
+                1 => padding_string.chars().next().unwrap(),
+                2.. => {
+                    return Err(EvaluationError::Custom(
+                        "provided padding char is longer than a char".to_string(),
+                    ));
+                }
+            }
         }
-    })
-}
+    };
 
-fn rtrim(args: BoundArguments) -> FunctionResult {
-    let chars_opt = args.get(1);
-
-    Ok(match chars_opt {
-        None => match args.get1() {
-            DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.trim_end()),
-            value => DynamicValue::from(value.try_as_str()?.trim_end()),
-        },
-        Some(chars) => {
-            let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
-            DynamicValue::from(args.get1_str()?.trim_end_matches(|c| pattern.contains(&c)))
-        }
-    })
+    Ok(DynamicValue::from(string.pad(
+        width,
+        padding_char,
+        alignment,
+        false,
+    )))
 }
 
 fn escape_regex(args: BoundArguments) -> FunctionResult {

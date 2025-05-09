@@ -255,6 +255,24 @@
         "help": "Lowercase string."
       },
       {
+        "name": "pad",
+        "arguments": ["string", "width", "char?"],
+        "returns": "string",
+        "help": "Pad given string with spaces or given character so that it is least given width."
+      },
+      {
+        "name": "lpad",
+        "arguments": ["string", "width", "char?"],
+        "returns": "string",
+        "help": "Left pad given string with spaces or given character so that it is least given width."
+      },
+      {
+        "name": "rpad",
+        "arguments": ["string", "width", "char?"],
+        "returns": "string",
+        "help": "Right pad given string with spaces or given character so that it is least given width."
+      },
+      {
         "name": "printf",
         "arguments": ["format", "*arguments"],
         "returns": "string",

@@ -1578,6 +1578,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pad"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2ad9b889f1b12e0b9ee24db044b5129150d5eada288edc800f789928dc8c0e3"
+dependencies = [
+ "unicode-width 0.1.14",
+]
+
+[[package]]
 name = "pager"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2809,6 +2818,7 @@ dependencies = [
  "numfmt",
  "opener",
  "ordered-float 5.0.0",
+ "pad",
  "pager",
  "paltoquet",
  "pariter",

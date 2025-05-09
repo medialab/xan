@@ -166,6 +166,9 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **fmt**(*string*, *\*arguments*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
 - **fmt**(*string*, *map*) -> `string`: Format a string by replacing "{}" occurrences by subsequent arguments.<br>Example: `fmt("Hello {} {}", name, surname)` will replace the first "{}" by the value of the name column, then the second one by the value of the surname column.<br>Can also be given a substitution map like so:<br>`fmt("Hello {name}", {name: "John"})`.
 - **lower**(*string*) -> `string`: Lowercase string.
+- **pad**(*string*, *width*, *char?*) -> `string`: Pad given string with spaces or given character so that it is least given width.
+- **lpad**(*string*, *width*, *char?*) -> `string`: Left pad given string with spaces or given character so that it is least given width.
+- **rpad**(*string*, *width*, *char?*) -> `string`: Right pad given string with spaces or given character so that it is least given width.
 - **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments.
 - **numfmt**(*number*) -> `string`: Format a number with thousands separator and proper significance.
 - **trim**(*string*, *chars?*) -> `string`: Trim string of leading & trailing whitespace or provided characters.
