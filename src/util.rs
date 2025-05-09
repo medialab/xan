@@ -526,15 +526,20 @@ pub fn unicode_aware_pad<'a>(
         return Cow::Borrowed(string);
     }
 
-    let mut padded = String::new();
-    let padding = padding.repeat(width - string_width);
+    let mut padded = String::with_capacity(width);
 
     if left {
-        padded.push_str(&padding);
+        for _ in 0..(width - string_width) {
+            padded.push_str(&padding);
+        }
+
         padded.push_str(string);
     } else {
         padded.push_str(string);
-        padded.push_str(&padding);
+
+        for _ in 0..(width - string_width) {
+            padded.push_str(&padding);
+        }
     }
 
     Cow::Owned(padded)
