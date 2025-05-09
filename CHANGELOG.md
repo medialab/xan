@@ -11,7 +11,7 @@
 
 * Adding `xan count -a/--approx`.
 * Adding `xan slice -E/--end-byte`.
-* Allowing `-n/--no-headers` and `-d/--delimiter` flags to appear beforecolorize_main_help subcommands.
+* Allowing `-n/--no-headers` and `-d/--delimiter` flags to appear before subcommands.
 * Adding backtick quoted strings to moonblade.
 * Adding moonblade `printf` function.
 * Adding moonblade `pad`, `lpad` & `rpad` functions.
