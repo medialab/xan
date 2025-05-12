@@ -25,6 +25,7 @@ enum SupportedFormat {
     Text,
     Npy,
     Tar,
+    Md,
 }
 
 impl SupportedFormat {
@@ -36,6 +37,7 @@ impl SupportedFormat {
             "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
+            "md" => Self::Md,
             _ => return None,
         })
     }
@@ -78,6 +80,7 @@ Supported formats:
     txt    - text lines
     npy    - Numpy array
     tar    - Tarball archive
+    md     - Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
@@ -386,6 +389,51 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_markdown(&self) -> CliResult<()> {
+        use markdown::mdast::{Node, Table};
+
+        let mut rdr = Config::new(&self.arg_input).io_buf_reader()?;
+        let mut buf = String::new();
+        rdr.read_to_string(&mut buf)?;
+
+        // Use GitHub Flavored Markdown (GFM) for table support.
+        let tree = markdown::to_mdast(&buf, &markdown::ParseOptions::gfm())?;
+
+        fn find_table(n: &Node) -> Option<&Table> {
+            if let Node::Table(table) = n {
+                Some(table)
+            } else {
+                n.children()?.iter().map(find_table).flatten().next()
+            }
+        }
+        let table = find_table(&tree).ok_or("target Markdown does not contain a table")?;
+        let rows = &table.children;
+
+        let mut wtr = self.writer()?;
+        let mut record = csv::ByteRecord::new();
+        for row in rows {
+            for cell in row.children().into_iter().flatten() {
+                // `cell.to_string()` drops formatting so extract raw string from `buf`.
+                // Position of whole cell includes border `|` character so
+                // get range from start of first child to end of last child.
+                if let Some(range) = (|| {
+                    let kids = cell.children()?;
+                    let first = kids.first()?.position()?;
+                    let last = kids.last()?.position()?;
+                    Some(first.start.offset..last.end.offset)
+                })() {
+                    record.push_field(buf[range].as_bytes());
+                } else {
+                    record.push_field(&[]);
+                }
+            }
+            wtr.write_byte_record(&record)?;
+            record.clear();
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -417,5 +465,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::Text => args.convert_text_lines(),
         SupportedFormat::Npy => args.convert_npy(),
         SupportedFormat::Tar => args.convert_tar(),
+        SupportedFormat::Md => args.convert_markdown(),
     }
 }
