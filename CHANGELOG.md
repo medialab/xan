@@ -23,6 +23,7 @@
 * Fixing moonblade `get` function for bytes.
 * Fixing `xan sort -e` skipping first record of each chunk.
 * Fixing `xan sort -e` stability.
+* More accurate `xan sort -e` memory usage calculations.
 * Fixing `xan transform -n`.
 * Fixing `xan view -g -s`.
 * Fixing moonblade concretization wrt branching.

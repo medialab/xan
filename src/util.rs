@@ -848,8 +848,7 @@ impl DeepSizedByteRecord {
 
 impl DeepSizeOf for DeepSizedByteRecord {
     fn deep_size_of(&self) -> usize {
-        // Good enough approximation...
-        self.0.as_slice().len() + (self.0.len().saturating_sub(1))
+        std::mem::size_of::<csv::ByteRecord>() + self.0.as_slice().len()
     }
 
     fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
