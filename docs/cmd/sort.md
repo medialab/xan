@@ -21,7 +21,8 @@ sort options:
                               Needs a column name. Can only be used with --uniq.
     -u, --uniq                When set, identical consecutive lines will be dropped
                               to keep only one line per sorted value.
-    -U, --unstable            Unstable sort. Can improve performance.
+    -U, --unstable            Unstable sort. Can improve performance. Does not work
+                              with -e/--external.
     -p, --parallel            Whether to use parallelism to improve performance.
     -e, --external            Whether to use external sorting if you cannot fit the
                               whole file in memory.

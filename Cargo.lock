@@ -772,9 +772,9 @@ dependencies = [
 
 [[package]]
 name = "ext-sort"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcf73e44617eab501beba39234441a194cf138629d3b6447f81f573e1c3d0a13"
+checksum = "cf5d3b056bcc471d38082b8c453acb6670f7327fd44219b3c411e40834883569"
 dependencies = [
  "deepsize",
  "log",

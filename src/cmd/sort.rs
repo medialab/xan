@@ -59,7 +59,8 @@ sort options:
                               Needs a column name. Can only be used with --uniq.
     -u, --uniq                When set, identical consecutive lines will be dropped
                               to keep only one line per sorted value.
-    -U, --unstable            Unstable sort. Can improve performance.
+    -U, --unstable            Unstable sort. Can improve performance. Does not work
+                              with -e/--external.
     -p, --parallel            Whether to use parallelism to improve performance.
     -e, --external            Whether to use external sorting if you cannot fit the
                               whole file in memory.
@@ -116,8 +117,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let count = &args.flag_count;
 
     if !count.is_none() && !args.flag_uniq {
-        Err("--count can only be used with --uniq")?;
+        Err("-c/--count can only be used with -u/--uniq!")?;
     };
+
+    if args.flag_unstable && args.flag_external {
+        Err("-U/--unstable cannot be used with -e/--external!")?;
+    }
 
     let mut rdr = rconfig.reader()?;
 
