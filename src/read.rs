@@ -210,8 +210,36 @@ impl NextRecordOffsetInferrence {
 #[derive(Debug)]
 struct RecordInfo {
     byte_offset: u64,
-    fields: usize,
     profile: Vec<usize>,
+}
+
+fn next_record_info<R: Read>(
+    reader: &mut Reader<R>,
+    end_byte: u64,
+    expected_field_count: usize,
+) -> Result<Option<RecordInfo>, csv::Error> {
+    let mut i: usize = 0;
+    let mut info: Option<RecordInfo> = None;
+    let mut record = ByteRecord::new();
+
+    while read_byte_record_up_to(reader, &mut record, Some(end_byte))? {
+        if i > 0 {
+            if record.len() != expected_field_count {
+                return Ok(None);
+            }
+
+            if i == 1 {
+                info = Some(RecordInfo {
+                    byte_offset: record.position().unwrap().byte(),
+                    profile: record.iter().map(|cell| cell.len()).collect(),
+                });
+            }
+        }
+
+        i += 1;
+    }
+
+    Ok(info)
 }
 
 fn infer_next_record_offset_from_random_position<R: Read + Seek>(
@@ -229,19 +257,10 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
 
     debug_assert!(sample_size > 0);
 
-    let end_byte = offset + max_record_size * sample_size;
+    let mut end_byte = offset + max_record_size * sample_size;
 
     // Reading as potentially unquoted
-    let mut unquoted_record_infos: Vec<RecordInfo> = Vec::with_capacity(sample_size as usize);
-    let mut record = ByteRecord::new();
-
-    while read_byte_record_up_to(reader, &mut record, Some(end_byte))? {
-        unquoted_record_infos.push(RecordInfo {
-            byte_offset: record.position().unwrap().byte(),
-            fields: record.len(),
-            profile: record.iter().map(|cell| cell.len()).collect(),
-        });
-    }
+    let unquoted_next_record_info = next_record_info(reader, end_byte, expected_field_count)?;
 
     // Reading as potentially quoted
     let mut pos = Position::new();
@@ -254,47 +273,29 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
         .has_headers(false)
         .from_reader(Cursor::new("\"").chain(reader.get_mut()));
 
-    let mut quoted_record_infos: Vec<RecordInfo> = Vec::with_capacity(sample_size as usize);
-    let up_to = max_record_size * 16 + 1;
+    end_byte = max_record_size * sample_size + 1;
 
-    while read_byte_record_up_to(&mut altered_reader, &mut record, Some(up_to))? {
-        quoted_record_infos.push(RecordInfo {
-            byte_offset: record.position().unwrap().byte(),
-            fields: record.len(),
-            profile: record.iter().map(|cell| cell.len()).collect(),
-        });
-    }
+    let quoted_next_record_info =
+        next_record_info(&mut altered_reader, end_byte, expected_field_count)?;
 
-    let unquoted_is_invalid = unquoted_record_infos.len() < 2
-        || !unquoted_record_infos[1..]
-            .iter()
-            .all(|info| info.fields == expected_field_count);
-
-    let quoted_is_invalid = quoted_record_infos.len() < 2
-        || !quoted_record_infos[1..]
-            .iter()
-            .all(|info| info.fields == expected_field_count);
-
-    Ok(match (unquoted_is_invalid, quoted_is_invalid) {
-        (true, true) => NextRecordOffsetInferrence::Fail,
-        (false, true) => {
-            NextRecordOffsetInferrence::WasInUnquoted(unquoted_record_infos[1].byte_offset)
+    Ok(match (unquoted_next_record_info, quoted_next_record_info) {
+        (None, None) => NextRecordOffsetInferrence::Fail,
+        (Some(info), None) => NextRecordOffsetInferrence::WasInUnquoted(info.byte_offset),
+        (None, Some(info)) => {
+            NextRecordOffsetInferrence::WasInQuoted(offset + info.byte_offset - 1)
         }
-        (true, false) => {
-            NextRecordOffsetInferrence::WasInQuoted(offset + quoted_record_infos[1].byte_offset - 1)
-        }
-        (false, false) => {
+        (Some(unquoted_info), Some(quoted_info)) => {
             // Sometimes we might fall within a cell whose contents suspiciously yield
             // the same record structure. In this case we rely on cosine similarity over
             // record profiles to make sure we select the correct offset.
-            let unquoted_offset = unquoted_record_infos[1].byte_offset;
-            let quoted_offset = offset + quoted_record_infos[1].byte_offset - 1;
+            let unquoted_offset = unquoted_info.byte_offset;
+            let quoted_offset = offset + quoted_info.byte_offset - 1;
 
             if unquoted_offset == quoted_offset {
                 NextRecordOffsetInferrence::WasInUnquoted(unquoted_offset)
             } else {
-                let unquoted_cosine = cosine(profile, &unquoted_record_infos[1].profile);
-                let quoted_cosine = cosine(profile, &quoted_record_infos[1].profile);
+                let unquoted_cosine = cosine(profile, &unquoted_info.profile);
+                let quoted_cosine = cosine(profile, &quoted_info.profile);
 
                 if unquoted_cosine > quoted_cosine {
                     NextRecordOffsetInferrence::WasInUnquoted(unquoted_offset)
