@@ -1,3 +1,5 @@
+use std::fs;
+
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -8,8 +10,8 @@ use crate::moonblade::SelectionProgram;
 use crate::cmd::moonblade::MoonbladeErrorPolicy;
 
 static USAGE: &str = "
-Select columns from CSV data using a shorthand notation or by
-evaluating an expression on each row (using the -e, --evaluate flag).
+Select columns from CSV data using a shorthand notation or by evaluating an expression
+on each row (using the -e/--evaluate or -f/--evaluate-file flag).
 
 This command lets you manipulate columns of CSV data. You can re-order
 them, duplicate them, transform them or even drop them in the process.
@@ -95,25 +97,34 @@ multiple `xan map` commands piped together:
 
   $ xan select -Ae 'a + b as c, len(name) as name_len'
 
+If your expression becomes too complicated, you can write it in a file and
+use the -f/--evaluate-file flag instead:
+
+  $ xan select -f selection.moonblade
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
 For a list of available functions, use `xan help functions`.
 
 Usage:
+    xan select -e <expr> [options] [<input>]
+    xan select -f <path> [options] [<input>]
     xan select [options] [--] <selection> [<input>]
     xan select --help
 
 select options:
-    -A, --append           Append the selection to the rows instead of
-                           replacing them.
-    -e, --evaluate         Toggle expression evaluation rather than using the
-                           shorthand notation.
-    -E, --errors <policy>  What to do with evaluation errors. One of:
-                             - \"panic\": exit on first error
-                             - \"ignore\": ignore row altogether
-                             - \"log\": print error to stderr
-                           [default: panic].
+    -A, --append                Append the selection to the rows instead of
+                                replacing them.
+    -e, --evaluate <expr>       Toggle expression evaluation rather than using the
+                                shorthand notation.
+    -f, --evaluate-file <path>  If given, evaluate the selection expression found
+                                in file at <path>.
+    -E, --errors <policy>       What to do with evaluation errors. One of:
+                                  - \"panic\": exit on first error
+                                  - \"ignore\": ignore row altogether
+                                  - \"log\": print error to stderr
+                                [default: panic].
 
 Common options:
     -h, --help             Display this message
@@ -128,17 +139,33 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_selection: String,
+    arg_selection: SelectColumns,
     flag_append: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_evaluate: bool,
+    flag_evaluate: Option<String>,
+    flag_evaluate_file: Option<String>,
     flag_errors: String,
 }
 
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate.is_some() && self.flag_evaluate_file.is_some() {
+            Err("cannot use both -e/--evaluate & -f/--evaluate-file!")?;
+        }
+
+        if let Some(path) = &self.flag_evaluate_file {
+            self.flag_evaluate = Some(fs::read_to_string(path)?);
+        }
+
+        Ok(())
+    }
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve()?;
 
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -150,9 +177,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let headers = rdr.byte_headers()?.clone();
 
-    if !args.flag_evaluate {
-        let parsed_selection = SelectColumns::parse(&args.arg_selection)?;
-        rconfig = rconfig.select(parsed_selection);
+    if let Some(expr) = &args.flag_evaluate {
+        let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
+
+        let program = SelectionProgram::parse(expr, &headers)?;
+
+        if args.flag_append {
+            wtr.write_record(headers.iter().chain(program.headers()))?;
+        } else {
+            wtr.write_record(program.headers())?;
+        }
+
+        let index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            let output_record =
+                error_policy.handle_error(program.run_with_record(index, &record))?;
+
+            if args.flag_append {
+                wtr.write_record(record.iter().chain(output_record.iter()))?;
+            } else {
+                wtr.write_byte_record(&output_record)?;
+            }
+        }
+    } else {
+        rconfig = rconfig.select(args.arg_selection);
 
         let sel = rconfig.selection(&headers)?;
 
@@ -171,29 +220,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 wtr.write_record(record.iter().chain(sel.select(&record)))?;
             } else {
                 wtr.write_record(sel.select(&record))?;
-            }
-        }
-    } else {
-        let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
-
-        let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
-
-        if args.flag_append {
-            wtr.write_record(headers.iter().chain(program.headers()))?;
-        } else {
-            wtr.write_record(program.headers())?;
-        }
-
-        let index: usize = 0;
-
-        while rdr.read_byte_record(&mut record)? {
-            let output_record =
-                error_policy.handle_error(program.run_with_record(index, &record))?;
-
-            if args.flag_append {
-                wtr.write_record(record.iter().chain(output_record.iter()))?;
-            } else {
-                wtr.write_byte_record(&output_record)?;
             }
         }
     }

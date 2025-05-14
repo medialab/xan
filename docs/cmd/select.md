@@ -2,8 +2,8 @@
 # xan select
 
 ```txt
-Select columns from CSV data using a shorthand notation or by
-evaluating an expression on each row (using the -e, --evaluate flag).
+Select columns from CSV data using a shorthand notation or by evaluating an expression
+on each row (using the -e/--evaluate or -f/--evaluate-file flag).
 
 This command lets you manipulate columns of CSV data. You can re-order
 them, duplicate them, transform them or even drop them in the process.
@@ -89,25 +89,34 @@ multiple `xan map` commands piped together:
 
   $ xan select -Ae 'a + b as c, len(name) as name_len'
 
+If your expression becomes too complicated, you can write it in a file and
+use the -f/--evaluate-file flag instead:
+
+  $ xan select -f selection.moonblade
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
 For a list of available functions, use `xan help functions`.
 
 Usage:
+    xan select -e <expr> [options] [<input>]
+    xan select -f <path> [options] [<input>]
     xan select [options] [--] <selection> [<input>]
     xan select --help
 
 select options:
-    -A, --append           Append the selection to the rows instead of
-                           replacing them.
-    -e, --evaluate         Toggle expression evaluation rather than using the
-                           shorthand notation.
-    -E, --errors <policy>  What to do with evaluation errors. One of:
-                             - "panic": exit on first error
-                             - "ignore": ignore row altogether
-                             - "log": print error to stderr
-                           [default: panic].
+    -A, --append                Append the selection to the rows instead of
+                                replacing them.
+    -e, --evaluate <expr>       Toggle expression evaluation rather than using the
+                                shorthand notation.
+    -f, --evaluate-file <path>  If given, evaluate the selection expression found
+                                in file at <path>.
+    -E, --errors <policy>       What to do with evaluation errors. One of:
+                                  - "panic": exit on first error
+                                  - "ignore": ignore row altogether
+                                  - "log": print error to stderr
+                                [default: panic].
 
 Common options:
     -h, --help             Display this message

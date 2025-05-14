@@ -15,6 +15,7 @@
 * Adding backtick quoted strings to moonblade.
 * Adding moonblade `printf` function.
 * Adding moonblade `pad`, `lpad` & `rpad` functions.
+* Adding `xan select -f/--evaluate-file`.
 
 *Fixes*
 

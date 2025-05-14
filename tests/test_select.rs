@@ -193,8 +193,7 @@ fn select_evaluate() {
         ],
     );
     let mut cmd = wrk.command("select");
-    cmd.arg("-e")
-        .arg("name, name as name_copy, count1 + count2 as total")
+    cmd.args(["-e", "name, name as name_copy, count1 + count2 as total"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -241,9 +240,8 @@ fn select_evaluate_append() {
         ],
     );
     let mut cmd = wrk.command("select");
-    cmd.arg("-e")
+    cmd.args(["-e", "count1 + count2 as total"])
         .arg("-A")
-        .arg("count1 + count2 as total")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
