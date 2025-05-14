@@ -37,7 +37,7 @@ impl SupportedFormat {
             "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
-            "md" => Self::Md,
+            "md" | "markdown" => Self::Md,
             _ => return None,
         })
     }
@@ -70,17 +70,18 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods    - OpenOffice spreadsheet
-    xls    - Excel spreasheet
-    xlsb   - Excel spreasheet
-    xlsx   - Excel spreasheet
-    json   - JSON array or object
-    ndjson - Newline-delimited JSON
-    jsonl  - Newline-delimited JSON
-    txt    - text lines
-    npy    - Numpy array
-    tar    - Tarball archive
-    md     - Markdown table
+    ods      - OpenOffice spreadsheet
+    xls      - Excel spreasheet
+    xlsb     - Excel spreasheet
+    xlsx     - Excel spreasheet
+    json     - JSON array or object
+    ndjson   - Newline-delimited JSON
+    jsonl    - Newline-delimited JSON
+    txt      - text lines
+    npy      - Numpy array
+    tar      - Tarball archive
+    md       - Markdown table
+    markdown - Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
