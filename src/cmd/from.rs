@@ -404,7 +404,7 @@ impl Args {
             if let Node::Table(table) = n {
                 Some(table)
             } else {
-                n.children()?.iter().map(find_table).flatten().next()
+                n.children()?.iter().filter_map(find_table).next()
             }
         }
         let table = find_table(&tree).ok_or("target Markdown does not contain a table")?;
