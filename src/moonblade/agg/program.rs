@@ -10,11 +10,9 @@ use super::aggregators::{
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use crate::moonblade::interpreter::{
-    concretize_expression, eval_expression, ConcreteExpr, EvaluationContext,
-};
+use crate::moonblade::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
-use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments};
+use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
 // NOTE: we are boxing some ones to avoid going over size=64
 #[derive(Debug, Clone)]
@@ -111,7 +109,7 @@ impl Aggregator {
     fn get_final_value(
         &self,
         method: &ConcreteAggregationMethod,
-        context: &EvaluationContext,
+        headers_index: &HeadersIndex,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         Ok(match (method, self) {
             (ConcreteAggregationMethod::All, Self::AllAny(inner)) => {
@@ -137,7 +135,7 @@ impl Aggregator {
                         let mut strings = Vec::new();
 
                         for (index, record) in inner.top_records() {
-                            let value = eval_expression(expr, Some(index), &record, context)?;
+                            let value = eval_expression(expr, Some(index), &record, headers_index)?;
 
                             strings.push(
                                 value
@@ -206,7 +204,9 @@ impl Aggregator {
                 if let Some((index, record)) = inner.argmin() {
                     match expr_opt {
                         None => DynamicValue::from(*index),
-                        Some(expr) => return eval_expression(expr, Some(*index), record, context),
+                        Some(expr) => {
+                            return eval_expression(expr, Some(*index), record, headers_index)
+                        }
                     }
                 } else {
                     DynamicValue::None
@@ -234,7 +234,9 @@ impl Aggregator {
                 if let Some((index, record)) = inner.argmax() {
                     match expr_opt {
                         None => DynamicValue::from(*index),
-                        Some(expr) => return eval_expression(expr, Some(*index), record, context),
+                        Some(expr) => {
+                            return eval_expression(expr, Some(*index), record, headers_index)
+                        }
                     }
                 } else {
                     DynamicValue::None
@@ -643,9 +645,9 @@ impl CompositeAggregator {
         &self,
         handle: usize,
         method: &ConcreteAggregationMethod,
-        context: &EvaluationContext,
+        headers_index: &HeadersIndex,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        self.methods[handle].get_final_value(method, context)
+        self.methods[handle].get_final_value(method, headers_index)
     }
 }
 
@@ -1026,13 +1028,13 @@ impl ConcreteAggregationPlanner {
     fn results<'a>(
         &'a self,
         aggregators: &'a [CompositeAggregator],
-        context: &'a EvaluationContext,
+        headers_index: &'a HeadersIndex,
     ) -> impl Iterator<Item = Result<DynamicValue, SpecifiedEvaluationError>> + 'a {
         self.output_plan.iter().map(move |unit| {
             aggregators[unit.expr_index].get_final_value(
                 unit.aggregator_index,
                 &unit.agg_method,
-                context,
+                headers_index,
             )
         })
     }
@@ -1046,16 +1048,16 @@ fn run_with_record_on_aggregators(
     aggregators: &mut Vec<CompositeAggregator>,
     index: usize,
     record: &ByteRecord,
-    context: &EvaluationContext,
+    headers_index: &HeadersIndex,
 ) -> Result<(), SpecifiedEvaluationError> {
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(eval_expression(expr, Some(index), record, context)?),
+            Some(expr) => Some(eval_expression(expr, Some(index), record, headers_index)?),
         };
 
         if let Some(pair_expr) = &unit.pair_expr {
-            let second_value = eval_expression(pair_expr, Some(index), record, context)?;
+            let second_value = eval_expression(pair_expr, Some(index), record, headers_index)?;
 
             return aggregator
                 .process_pair(index, value.unwrap(), second_value)
@@ -1082,7 +1084,7 @@ fn run_with_record_on_aggregators(
 pub struct AggregationProgram {
     aggregators: Vec<CompositeAggregator>,
     planner: ConcreteAggregationPlanner,
-    context: EvaluationContext,
+    headers_index: HeadersIndex,
 }
 
 impl AggregationProgram {
@@ -1094,7 +1096,7 @@ impl AggregationProgram {
         Ok(Self {
             planner,
             aggregators,
-            context: EvaluationContext::new(headers),
+            headers_index: HeadersIndex::from_headers(headers),
         })
     }
 
@@ -1122,7 +1124,7 @@ impl AggregationProgram {
             &mut self.aggregators,
             index,
             record,
-            &self.context,
+            &self.headers_index,
         )
     }
 
@@ -1137,7 +1139,7 @@ impl AggregationProgram {
 
         let mut record = ByteRecord::new();
 
-        for value in self.planner.results(&self.aggregators, &self.context) {
+        for value in self.planner.results(&self.aggregators, &self.headers_index) {
             record.push_field(&value?.serialize_as_bytes());
         }
 
@@ -1151,7 +1153,7 @@ type GroupKey = Vec<Vec<u8>>;
 pub struct GroupAggregationProgram {
     planner: ConcreteAggregationPlanner,
     groups: ClusteredInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
-    context: EvaluationContext,
+    headers_index: HeadersIndex,
 }
 
 impl GroupAggregationProgram {
@@ -1162,7 +1164,7 @@ impl GroupAggregationProgram {
         Ok(Self {
             planner,
             groups: ClusteredInsertHashmap::new(),
-            context: EvaluationContext::new(headers),
+            headers_index: HeadersIndex::from_headers(headers),
         })
     }
 
@@ -1194,7 +1196,13 @@ impl GroupAggregationProgram {
             .groups
             .insert_with(group, || planner.instantiate_aggregators());
 
-        run_with_record_on_aggregators(&self.planner, aggregators, index, record, &self.context)
+        run_with_record_on_aggregators(
+            &self.planner,
+            aggregators,
+            index,
+            record,
+            &self.headers_index,
+        )
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
@@ -1206,7 +1214,7 @@ impl GroupAggregationProgram {
         parallel: bool,
     ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), SpecifiedEvaluationError>> {
         let planner = self.planner;
-        let context = self.context;
+        let headers_index = self.headers_index;
 
         self.groups
             .into_iter()
@@ -1217,7 +1225,7 @@ impl GroupAggregationProgram {
 
                 let mut record = ByteRecord::new();
 
-                for value in planner.results(&aggregators, &context) {
+                for value in planner.results(&aggregators, &headers_index) {
                     record.push_field(&value?.serialize_as_bytes());
                 }
 

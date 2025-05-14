@@ -14,11 +14,6 @@ use super::types::{
     HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
 };
 
-// NOTE: the evaluation arguments could be splitted into transient evaluation
-// context that MUST be mutated before each evaluation and needs to be managed
-// by the user or a threadsafe program, and permanent evaluation context, such
-// as the headers index, computed at concretization time.
-
 #[derive(Debug, Default, Clone)]
 pub struct GlobalVariables {
     slots: ArrayVec<(String, DynamicValue), 2>,
@@ -58,20 +53,44 @@ impl GlobalVariables {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct EvaluationContext {
-    headers_index: HeadersIndex,
+#[derive(Debug, Clone)]
+pub struct EvaluationContext<'a> {
+    pub index: Option<usize>,
+    pub record: &'a ByteRecord,
+    pub headers_index: &'a HeadersIndex,
+    pub globals: Option<&'a GlobalVariables>,
+    pub lambda_variables: Option<&'a LambdaArguments>,
 }
 
-impl EvaluationContext {
-    pub fn new<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
+impl<'a> EvaluationContext<'a> {
+    fn dummy(record: &'a ByteRecord, headers_index: &'a HeadersIndex) -> Self {
         Self {
-            headers_index: HeadersIndex::from_headers(headers),
+            index: None,
+            record,
+            headers_index,
+            globals: None,
+            lambda_variables: None,
         }
     }
 
-    pub fn get_column_index(&self, indexation: &ColumIndexationBy) -> Option<usize> {
-        self.headers_index.get(indexation)
+    pub fn with_lambda_variables(&self, variables: &'a LambdaArguments) -> Self {
+        Self {
+            index: self.index,
+            record: self.record,
+            headers_index: self.headers_index,
+            globals: self.globals,
+            lambda_variables: Some(variables),
+        }
+    }
+
+    pub fn with_globals(&self, globals: &'a GlobalVariables) -> Self {
+        Self {
+            index: self.index,
+            record: self.record,
+            headers_index: self.headers_index,
+            globals: Some(globals),
+            lambda_variables: self.lambda_variables,
+        }
     }
 }
 
@@ -145,25 +164,21 @@ impl ConcreteExpr {
         }
     }
 
-    fn bind(
-        &self,
-        record: &ByteRecord,
-        globals: Option<&GlobalVariables>,
-        lambda_variables: Option<&LambdaArguments>,
-    ) -> Result<DynamicValue, EvaluationError> {
+    fn bind(&self, context: &EvaluationContext) -> Result<DynamicValue, EvaluationError> {
         Ok(match self {
             Self::Value(value) => value.clone(),
-            Self::Column(index) => match record.get(*index) {
+            Self::Column(index) => match context.record.get(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
                 Some(cell) => DynamicValue::from(cell),
             },
             Self::GlobalVariable(index) => {
-                match globals.expect("globals were not set!").get(*index) {
+                match context.globals.expect("globals were not set!").get(*index) {
                     None => return Err(EvaluationError::GlobalVariableOutOfRange(*index)),
                     Some(value) => value.clone(),
                 }
             }
-            Self::LambdaBinding(name) => lambda_variables
+            Self::LambdaBinding(name) => context
+                .lambda_variables
                 .expect("lambda_variables MUST be set")
                 .get(name)
                 .clone(),
@@ -175,26 +190,15 @@ impl ConcreteExpr {
         })
     }
 
-    pub fn evaluate(
-        &self,
-        index: Option<usize>,
-        record: &ByteRecord,
-        context: &EvaluationContext,
-        globals: Option<&GlobalVariables>,
-        lambda_variables: Option<&LambdaArguments>,
-    ) -> EvaluationResult {
+    pub fn evaluate(&self, context: &EvaluationContext) -> EvaluationResult {
         match self {
-            Self::Call(function_call) => {
-                function_call.run(index, record, context, globals, lambda_variables)
-            }
-            Self::SpecialCall(function_call) => {
-                function_call.run(index, record, context, globals, lambda_variables)
-            }
+            Self::Call(function_call) => function_call.run(context),
+            Self::SpecialCall(function_call) => function_call.run(context),
             Self::List(items) => {
                 let mut bound = Vec::with_capacity(items.len());
 
                 for item in items {
-                    bound.push(item.evaluate(index, record, context, globals, lambda_variables)?);
+                    bound.push(item.evaluate(context)?);
                 }
 
                 Ok(DynamicValue::from(bound))
@@ -203,17 +207,12 @@ impl ConcreteExpr {
                 let mut bound = HashMap::with_capacity(pairs.len());
 
                 for (k, v) in pairs {
-                    bound.insert(
-                        k.to_string(),
-                        v.evaluate(index, record, context, globals, lambda_variables)?,
-                    );
+                    bound.insert(k.to_string(), v.evaluate(context)?);
                 }
 
                 Ok(DynamicValue::from(bound))
             }
-            _ => self
-                .bind(record, globals, lambda_variables)
-                .map_err(|err| err.anonymous()),
+            _ => self.bind(context).map_err(|err| err.anonymous()),
         }
     }
 }
@@ -238,56 +237,27 @@ impl ConcreteFunctionCall {
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(
-            None,
-            &ByteRecord::new(),
-            &EvaluationContext::default(),
-            None,
-            None,
-        )
+        let record = ByteRecord::new();
+        let headers_index = HeadersIndex::default();
+
+        self.run(&EvaluationContext::dummy(&record, &headers_index))
     }
 
-    fn run(
-        &self,
-        index: Option<usize>,
-        record: &ByteRecord,
-        context: &EvaluationContext,
-        globals: Option<&GlobalVariables>,
-        lambda_variables: Option<&LambdaArguments>,
-    ) -> EvaluationResult {
+    fn run(&self, context: &EvaluationContext) -> EvaluationResult {
         let mut bound_args = BoundArguments::new();
 
         for arg in self.args.iter() {
             match arg {
                 ConcreteExpr::Call(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(
-                        index,
-                        record,
-                        context,
-                        globals,
-                        lambda_variables,
-                    )?);
+                    bound_args.push(sub_function_call.run(context)?);
                 }
                 ConcreteExpr::SpecialCall(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(
-                        index,
-                        record,
-                        context,
-                        globals,
-                        lambda_variables,
-                    )?);
+                    bound_args.push(sub_function_call.run(context)?);
                 }
-                ConcreteExpr::List(_) | ConcreteExpr::Map(_) => bound_args.push(arg.evaluate(
-                    index,
-                    record,
-                    context,
-                    globals,
-                    lambda_variables,
-                )?),
-                _ => bound_args.push(
-                    arg.bind(record, globals, lambda_variables)
-                        .map_err(|err| err.specify(&self.name))?,
-                ),
+                ConcreteExpr::List(_) | ConcreteExpr::Map(_) => {
+                    bound_args.push(arg.evaluate(context)?)
+                }
+                _ => bound_args.push(arg.bind(context).map_err(|err| err.specify(&self.name))?),
             }
         }
 
@@ -331,31 +301,14 @@ impl ConcreteSpecialFunctionCall {
     }
 
     fn static_run(&self) -> EvaluationResult {
-        self.run(
-            None,
-            &ByteRecord::new(),
-            &EvaluationContext::default(),
-            None,
-            None,
-        )
+        let record = ByteRecord::new();
+        let headers_index = HeadersIndex::default();
+
+        self.run(&EvaluationContext::dummy(&record, &headers_index))
     }
 
-    fn run(
-        &self,
-        index: Option<usize>,
-        record: &ByteRecord,
-        context: &EvaluationContext,
-        globals: Option<&GlobalVariables>,
-        lambda_variables: Option<&LambdaArguments>,
-    ) -> EvaluationResult {
-        (self.function)(
-            index,
-            record,
-            context,
-            &self.args,
-            globals,
-            lambda_variables,
-        )
+    fn run(&self, context: &EvaluationContext) -> EvaluationResult {
+        (self.function)(context, &self.args)
     }
 }
 
@@ -603,25 +556,41 @@ pub fn eval_expression_with_globals(
     expr: &ConcreteExpr,
     index: Option<usize>,
     record: &ByteRecord,
-    context: &EvaluationContext,
+    headers_index: &HeadersIndex,
     globals: &GlobalVariables,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    expr.evaluate(index, record, context, Some(globals), None)
+    let context = EvaluationContext {
+        index,
+        record,
+        headers_index,
+        globals: Some(globals),
+        lambda_variables: None,
+    };
+
+    expr.evaluate(&context)
 }
 
 pub fn eval_expression(
     expr: &ConcreteExpr,
     index: Option<usize>,
     record: &ByteRecord,
-    context: &EvaluationContext,
+    headers_index: &HeadersIndex,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    expr.evaluate(index, record, context, None, None)
+    let context = EvaluationContext {
+        index,
+        record,
+        headers_index,
+        globals: None,
+        lambda_variables: None,
+    };
+
+    expr.evaluate(&context)
 }
 
 #[derive(Clone, Debug)]
 pub struct Program {
     pub expr: ConcreteExpr,
-    context: EvaluationContext,
+    headers_index: HeadersIndex,
 }
 
 impl Program {
@@ -633,7 +602,7 @@ impl Program {
 
         Ok(Self {
             expr,
-            context: EvaluationContext::new(headers),
+            headers_index: HeadersIndex::from_headers(headers),
         })
     }
 
@@ -649,7 +618,7 @@ impl Program {
 
         Ok(Self {
             expr,
-            context: EvaluationContext::new(headers),
+            headers_index: HeadersIndex::from_headers(headers),
         })
     }
 
@@ -658,7 +627,7 @@ impl Program {
         index: usize,
         record: &ByteRecord,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression(&self.expr, Some(index), record, &self.context)
+        eval_expression(&self.expr, Some(index), record, &self.headers_index)
     }
 
     pub fn run_with_record_and_globals(
@@ -667,7 +636,13 @@ impl Program {
         record: &ByteRecord,
         globals: &GlobalVariables,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression_with_globals(&self.expr, Some(index), record, &self.context, globals)
+        eval_expression_with_globals(
+            &self.expr,
+            Some(index),
+            record,
+            &self.headers_index,
+            globals,
+        )
     }
 
     pub fn generate_key(

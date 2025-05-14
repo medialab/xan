@@ -12,7 +12,7 @@ use scraper::{Element, ElementRef, Html, Node, Selector};
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
 use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
-use super::types::{Argument, DynamicValue, FunctionArguments};
+use super::types::{Argument, DynamicValue, FunctionArguments, HeadersIndex};
 
 trait HtmlExt {
     fn get_element(&self, id: NodeId) -> ElementRef;
@@ -448,8 +448,6 @@ struct ConcreteScrapingLeaf {
 impl ConcreteScrapingLeaf {
     fn evaluate(
         &self,
-        index: Option<usize>,
-        record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
@@ -470,7 +468,7 @@ impl ConcreteScrapingLeaf {
                 let mut globals = GlobalVariables::of("value");
                 globals.set_value(0, value);
 
-                expr.evaluate(index, record, context, Some(&globals), None)
+                expr.evaluate(&context.with_globals(&globals))
             }
         }
     }
@@ -495,18 +493,16 @@ impl ConcreteScrapingNode {
     fn evaluate(
         &self,
         scratch: &mut Vec<DynamicValue>,
-        index: Option<usize>,
-        record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
     ) -> Result<(), SpecifiedEvaluationError> {
         match self {
             Self::Leaf(leaf) => {
-                scratch.push(leaf.evaluate(index, record, context, html, selection)?);
+                scratch.push(leaf.evaluate(context, html, selection)?);
             }
             Self::Brackets(brackets) => {
-                brackets.evaluate(scratch, index, record, context, html, selection)?;
+                brackets.evaluate(scratch, context, html, selection)?;
             }
         };
 
@@ -528,8 +524,6 @@ impl ConcreteScrapingBrackets {
     fn evaluate(
         &self,
         scratch: &mut Vec<DynamicValue>,
-        index: Option<usize>,
-        record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
@@ -537,7 +531,7 @@ impl ConcreteScrapingBrackets {
         let selection = self.selection_expr.evaluate(html, selection);
 
         for node in self.nodes.iter() {
-            node.evaluate(scratch, index, record, context, html, &selection)?;
+            node.evaluate(scratch, context, html, &selection)?;
         }
 
         Ok(())
@@ -555,14 +549,12 @@ impl ConcreteScraper {
     fn evaluate(
         &self,
         scratch: &mut Vec<DynamicValue>,
-        index: Option<usize>,
-        record: &ByteRecord,
         context: &EvaluationContext,
         html: &Html,
         selection: &Selection,
     ) -> Result<(), SpecifiedEvaluationError> {
         for brackets in self.0.iter() {
-            brackets.evaluate(scratch, index, record, context, html, selection)?;
+            brackets.evaluate(scratch, context, html, selection)?;
         }
 
         Ok(())
@@ -769,7 +761,7 @@ fn concretize_scraper(
 #[derive(Debug, Clone)]
 pub struct ScrapingProgram {
     scraper: ConcreteScraper,
-    context: EvaluationContext,
+    headers_index: HeadersIndex,
     pub capacity: usize,
 }
 
@@ -784,7 +776,7 @@ impl ScrapingProgram {
         let capacity = concrete_scraper.names().count();
 
         Ok(Self {
-            context: EvaluationContext::new(headers),
+            headers_index: HeadersIndex::from_headers(headers),
             scraper: concrete_scraper,
             capacity,
         })
@@ -803,14 +795,16 @@ impl ScrapingProgram {
         let selection = Selection::Singular(html.root_element().id());
         let mut scratch = Vec::with_capacity(self.capacity);
 
-        self.scraper.evaluate(
-            &mut scratch,
-            Some(index),
+        let context = EvaluationContext {
+            index: Some(index),
             record,
-            &self.context,
-            html,
-            &selection,
-        )?;
+            headers_index: &self.headers_index,
+            globals: None,
+            lambda_variables: None,
+        };
+
+        self.scraper
+            .evaluate(&mut scratch, &context, html, &selection)?;
 
         Ok(scratch)
     }
@@ -826,14 +820,16 @@ impl ScrapingProgram {
             let selection = Selection::Singular(element.id());
             let mut scratch = Vec::with_capacity(self.capacity);
 
-            self.scraper.evaluate(
-                &mut scratch,
-                Some(index),
+            let context = EvaluationContext {
+                index: Some(index),
                 record,
-                &self.context,
-                html,
-                &selection,
-            )?;
+                headers_index: &self.headers_index,
+                globals: None,
+                lambda_variables: None,
+            };
+
+            self.scraper
+                .evaluate(&mut scratch, &context, html, &selection)?;
 
             Ok(scratch)
         })

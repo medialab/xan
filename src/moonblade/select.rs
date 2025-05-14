@@ -1,13 +1,14 @@
 use csv::ByteRecord;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
-use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr, EvaluationContext};
+use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use super::parser::parse_named_expressions;
+use super::types::HeadersIndex;
 
 #[derive(Clone)]
 pub struct SelectionProgram {
     exprs: Vec<(ConcreteExpr, String)>,
-    context: EvaluationContext,
+    headers_index: HeadersIndex,
 }
 
 impl SelectionProgram {
@@ -22,7 +23,7 @@ impl SelectionProgram {
 
         Ok(Self {
             exprs,
-            context: EvaluationContext::new(headers),
+            headers_index: HeadersIndex::from_headers(headers),
         })
     }
 
@@ -38,7 +39,7 @@ impl SelectionProgram {
         let mut output_record = csv::ByteRecord::new();
 
         for (expr, _) in self.exprs.iter() {
-            let value = eval_expression(expr, Some(index), record, &self.context)?;
+            let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
             output_record.push_field(&value.serialize_as_bytes());
         }
 
