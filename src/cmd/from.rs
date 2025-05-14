@@ -113,6 +113,11 @@ Text lines options:
     -c, --column <name>    Name of the column to create.
                            [default: value]
 
+Markdown options:
+    -s, --select <n>       Select nth table in document, starting at 0.
+                           Negative index can be used to select from the end.
+                           [default: 0]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -128,6 +133,7 @@ struct Args {
     flag_key_column: String,
     flag_value_column: String,
     flag_column: String,
+    flag_select: isize,
 }
 
 impl Args {
@@ -401,16 +407,44 @@ impl Args {
         // Use GitHub Flavored Markdown (GFM) for table support.
         let tree = markdown::to_mdast(&buf, &markdown::ParseOptions::gfm())?;
 
-        fn find_table(n: &Node) -> Option<&Table> {
+        fn collect_tables_into<'a>(n: &'a Node, tables: &mut Vec<&'a Table>) {
             if let Node::Table(table) = n {
-                Some(table)
+                tables.push(table);
             } else {
-                n.children()?.iter().filter_map(find_table).next()
+                let Some(kids) = n.children() else { return };
+                for n in kids {
+                    collect_tables_into(n, tables);
+                }
             }
         }
-        let table = find_table(&tree).ok_or("target Markdown does not contain a table")?;
-        let rows = &table.children;
+        let mut tables = vec![];
+        collect_tables_into(&tree, &mut tables);
+        if tables.is_empty() {
+            Err("target Markdown does not contain a table")?;
+        }
+        let table = usize::try_from(self.flag_select)
+            .ok()
+            // select from end if negative.
+            .or_else(|| tables.len().checked_add_signed(self.flag_select))
+            .and_then(|i| tables.get(i))
+            .ok_or_else(|| {
+                let bounds = if self.flag_select >= 0 {
+                    [0, tables.len()].map(|n| n.to_string())
+                } else {
+                    // Saturating to avoid underflow.
+                    // isize::MIN is smallest supported number anyway due to type of `flag_select`. 
+                    let low = 0isize.saturating_sub_unsigned(tables.len());
+                    [-1, low].map(|n| n.to_string())
+                };
+                format!(
+                    "table index {} is out of bounds in target Markdown (must be between {} and {})",
+                    self.flag_select,
+                    bounds[0],
+                    bounds[1]
+                )
+            })?;
 
+        let rows = &table.children;
         let mut wtr = self.writer()?;
         let mut record = csv::ByteRecord::new();
         for row in rows {
