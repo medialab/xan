@@ -291,7 +291,7 @@ sum(
 )
 ```
 
-Comments can be added starting with `#` then at least a space:
+Comments can be added starting with `#`:
 
 ```python
 # Summing

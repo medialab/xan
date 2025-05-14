@@ -1,6 +1,6 @@
 // Config
 WHITESPACE = _{ " " | "\n" | "\t" }
-COMMENT    = _{ "# " ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ "#" ~ (!"\n" ~ ANY)* }
 
 // Literals
 true_lit   =  { "true" }
