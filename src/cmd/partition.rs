@@ -22,23 +22,25 @@ so if you know the cardinality of the paritioned column is very high, please
 sort the file on this column beforehand and use the -S/--sorted flag.
 
 Usage:
-    xan partition [options] <column> <outdir> [<input>]
+    xan partition [options] <column> [<input>]
     xan partition --help
 
 partition options:
-    --filename <filename>    A filename template to use when constructing
-                             the names of the output files.  The string '{}'
-                             will be replaced by a value based on the value
-                             of the field, but sanitized for shell safety.
-                             [default: {}.csv]
-    -p, --prefix-length <n>  Truncate the partition column after the
-                             specified number of bytes when creating the
-                             output file.
-    -S, --sorted             Use this flag if you know the file is sorted
-                             on the partition column in advance, so the command
-                             can run faster and with less memory and resources
-                             opened.
-    --drop                   Drop the partition column from results.
+    -O, --out-dir <dir>        Where to write the chunks. Defaults to current working
+                               directory.
+    -f, --filename <filename>  A filename template to use when constructing
+                               the names of the output files.  The string '{}'
+                               will be replaced by a value based on the value
+                               of the field, but sanitized for shell safety.
+                               [default: {}.csv]
+    -p, --prefix-length <n>    Truncate the partition column after the
+                               specified number of bytes when creating the
+                               output file.
+    -S, --sorted               Use this flag if you know the file is sorted
+                               on the partition column in advance, so the command
+                               can run faster and with less memory and resources
+                               opened.
+    --drop                     Drop the partition column from results.
 
 Common options:
     -h, --help             Display this message
@@ -53,7 +55,7 @@ Common options:
 struct Args {
     arg_column: SelectColumns,
     arg_input: Option<String>,
-    arg_outdir: String,
+    flag_out_dir: Option<String>,
     flag_filename: FilenameTemplate,
     flag_prefix_length: Option<usize>,
     flag_drop: bool,
@@ -64,7 +66,10 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    fs::create_dir_all(&args.arg_outdir)?;
+
+    if let Some(dir) = &args.flag_out_dir {
+        fs::create_dir_all(dir)?;
+    }
 
     // It would be nice to support efficient parallel partitions, but doing
     // do would involve more complicated inter-thread communication, with
@@ -98,7 +103,11 @@ impl Args {
         let mut rdr = rconfig.reader()?;
         let mut headers = rdr.byte_headers()?.clone();
         let key_col = self.key_column(&rconfig, &headers)?;
-        let mut gen = WriterGenerator::new(self.flag_filename.clone());
+        let mut generator = WriterGenerator::new(self.flag_filename.clone());
+        let out_dir = match &self.flag_out_dir {
+            Some(dir) => Path::new(dir),
+            None => Path::new(""),
+        };
 
         if self.flag_drop {
             headers = headers.remove(key_col);
@@ -121,7 +130,7 @@ impl Args {
                 match current {
                     Some((ref k, _)) if k == key => {}
                     _ => {
-                        let mut wtr = gen.writer(&self.arg_outdir, key)?;
+                        let mut wtr = generator.writer(out_dir, key)?;
 
                         if !rconfig.no_headers {
                             wtr.write_record(&headers)?;
@@ -156,7 +165,7 @@ impl Args {
                     Entry::Occupied(ref mut occupied) => occupied.get_mut(),
                     Entry::Vacant(vacant) => {
                         // We have a new key, so make a new writer.
-                        let mut wtr = gen.writer(&self.arg_outdir, key)?;
+                        let mut wtr = generator.writer(out_dir, key)?;
                         if !rconfig.no_headers {
                             wtr.write_record(&headers)?;
                         }

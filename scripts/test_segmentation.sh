@@ -12,7 +12,7 @@ for i in $(seq 1 128);
 do
   declare -i total=0
 
-  $XAN split --chunks $i --segments . $1 | $XAN select -e 'fmt("-B {} -E {}", from, to)' | $XAN behead | \
+  $XAN split --chunks $i --segments $1 | $XAN select -e 'fmt("-B {} -E {}", from, to)' | $XAN behead | \
   while read -r segment;
   do
     count=$($XAN slice $segment $1 | $XAN count)

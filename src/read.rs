@@ -165,6 +165,8 @@ pub fn sample_initial_records<R: Read + Seek>(
     ))
 }
 
+// BEWARE: this function assess whether the parsed record is too far AFTER the fact.
+// We do this because the given record might not have a position yet on first call.
 pub fn read_byte_record_up_to<R: Read>(
     reader: &mut Reader<R>,
     record: &mut ByteRecord,
@@ -255,32 +257,39 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
 
+    // TODO: other ReaderBuilder options must be known if different
+    let mut altered_reader = ReaderBuilder::new()
+        .flexible(true)
+        .has_headers(false)
+        .from_reader(reader.get_mut());
+
     debug_assert!(sample_size > 0);
 
-    let mut end_byte = offset + max_record_size * sample_size;
+    let mut end_byte = max_record_size * sample_size;
 
     // Reading as potentially unquoted
-    let unquoted_next_record_info = next_record_info(reader, end_byte, expected_field_count)?;
+    let unquoted_next_record_info =
+        next_record_info(&mut altered_reader, end_byte, expected_field_count)?;
 
     // Reading as potentially quoted
     let mut pos = Position::new();
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
 
-    // TODO: quote char must be known if different
+    // TODO: quote char & other ReaderBuilder options must be known if different
     let mut altered_reader = ReaderBuilder::new()
         .flexible(true)
         .has_headers(false)
         .from_reader(Cursor::new("\"").chain(reader.get_mut()));
 
-    end_byte = max_record_size * sample_size + 1;
+    end_byte += 1;
 
     let quoted_next_record_info =
         next_record_info(&mut altered_reader, end_byte, expected_field_count)?;
 
     Ok(match (unquoted_next_record_info, quoted_next_record_info) {
         (None, None) => NextRecordOffsetInferrence::Fail,
-        (Some(info), None) => NextRecordOffsetInferrence::WasInUnquoted(info.byte_offset),
+        (Some(info), None) => NextRecordOffsetInferrence::WasInUnquoted(offset + info.byte_offset),
         (None, Some(info)) => {
             NextRecordOffsetInferrence::WasInQuoted(offset + info.byte_offset - 1)
         }
@@ -288,7 +297,7 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
             // Sometimes we might fall within a cell whose contents suspiciously yield
             // the same record structure. In this case we rely on cosine similarity over
             // record profiles to make sure we select the correct offset.
-            let unquoted_offset = unquoted_info.byte_offset;
+            let unquoted_offset = offset + unquoted_info.byte_offset;
             let quoted_offset = offset + quoted_info.byte_offset - 1;
 
             if unquoted_offset == quoted_offset {
@@ -321,11 +330,25 @@ fn segment_file(file_len: u64, chunks: usize) -> Vec<u64> {
     offsets
 }
 
-pub fn segment_csv_file<R: Read + Seek>(
-    reader: &mut Reader<R>,
-    mut chunks: usize,
+pub struct SegmentationOptions {
+    chunks: usize,
     init_sample_size: u64,
     jump_sample_size: u64,
+}
+
+impl SegmentationOptions {
+    pub fn chunks(count: usize) -> Self {
+        Self {
+            chunks: count,
+            init_sample_size: 128,
+            jump_sample_size: 8,
+        }
+    }
+}
+
+pub fn segment_csv_file<R: Read + Seek>(
+    reader: &mut Reader<R>,
+    mut options: SegmentationOptions,
 ) -> Result<Option<Vec<(u64, u64)>>, csv::Error> {
     let field_count = reader.byte_headers()?.len();
 
@@ -334,7 +357,7 @@ pub fn segment_csv_file<R: Read + Seek>(
         return Ok(None);
     }
 
-    let sample = sample_initial_records(reader, init_sample_size)?;
+    let sample = sample_initial_records(reader, options.init_sample_size)?;
 
     let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
 
@@ -344,14 +367,17 @@ pub fn segment_csv_file<R: Read + Seek>(
     };
 
     // File is way too short
-    if sample.count() < chunks as u64 {
+    if sample.count() < options.chunks as u64 {
         return Ok(Some(vec![(0, file_len)]));
     }
 
     // Limiting number of chunks when file is too short
-    chunks = chunks.min((file_len / (max_record_size * jump_sample_size * 2)) as usize);
+    options.chunks = options
+        .chunks
+        .min((file_len / (max_record_size * options.jump_sample_size) - 1) as usize)
+        .max(1);
 
-    let mut segments = segment_file(file_len, chunks)
+    let mut segments = segment_file(file_len, options.chunks)
         .iter()
         .copied()
         .map(|offset| {
@@ -364,7 +390,7 @@ pub fn segment_csv_file<R: Read + Seek>(
                     max_record_size,
                     &sample.profile,
                     field_count,
-                    jump_sample_size,
+                    options.jump_sample_size,
                 )
             }
         })

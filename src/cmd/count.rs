@@ -53,8 +53,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let wconf = Config::new(&args.flag_output);
 
     let count = if args.flag_approx {
-        let file = conf.io_reader_for_random_access()?;
-        let mut rdr = conf.csv_reader_from_reader(file);
+        let mut rdr = conf.seekable_reader()?;
 
         let sample_size = args.flag_sample_size.get();
 

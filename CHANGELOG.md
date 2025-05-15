@@ -6,6 +6,9 @@
 
 * Dropping undocumented `xan index` and related interactions (in `xan count`, `xan sample`, `xan slice` & `xan split --jobs`).
 * Dropping now useless `coalesce` moonblade function.
+* `xan split` now accepts its output directory as an optional flag.
+* `xan partition` now accepts its output directory as an optional flag.
+* `xan split -s` becomes `xan split -S` to avoid confusion with the `-s/--select` flag used everywhere else.
 
 *Features*
 
@@ -17,6 +20,8 @@
 * Adding moonblade `pad`, `lpad` & `rpad` functions.
 * Adding `xan select -f/--evaluate-file`.
 * Adding multi-member gzip files support (to handle files compressed with `bgzip` notably).
+* Adding `xan split -f` & `xan partition -f` short flag for `--filename`.
+* Adding `xan split -c/--chunks` & `xan split --segments`.
 
 *Fixes*
 

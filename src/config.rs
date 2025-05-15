@@ -235,6 +235,10 @@ impl Config {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
+    pub fn seekable_reader(&self) -> io::Result<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
+        Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
+    }
+
     pub fn io_reader(&self) -> io::Result<Box<dyn io::Read + Send + 'static>> {
         Ok(match self.path {
             None => {
@@ -375,7 +379,7 @@ impl Config {
         )))
     }
 
-    pub fn io_reader_for_random_access(&self) -> io::Result<Box<dyn SeekRead + 'static>> {
+    pub fn io_reader_for_random_access(&self) -> io::Result<Box<dyn SeekRead + Send + 'static>> {
         let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
         match self.path {
             None => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
