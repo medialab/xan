@@ -323,12 +323,13 @@ fn segment_file(file_len: u64, chunks: usize) -> Vec<u64> {
 
 pub fn segment_csv_file<R: Read + Seek>(
     reader: &mut Reader<R>,
-    chunks: usize,
+    mut chunks: usize,
     init_sample_size: u64,
     jump_sample_size: u64,
 ) -> Result<Option<Vec<(u64, u64)>>, csv::Error> {
     let field_count = reader.byte_headers()?.len();
 
+    // File is completely empty
     if field_count == 0 {
         return Ok(None);
     }
@@ -338,13 +339,17 @@ pub fn segment_csv_file<R: Read + Seek>(
     let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
 
     let max_record_size = match sample.max() {
-        None => return Ok(None),
+        None => return Ok(None), // File has no records
         Some(m) => m,
     };
 
-    // TODO: return single offset if some invariant is not met, e.g. when
-    // the file is too small typically
-    // TODO: also mind cases where the file is empty or too short
+    // File is way too short
+    if sample.count() < chunks as u64 {
+        return Ok(Some(vec![(0, file_len)]));
+    }
+
+    // Limiting number of chunks when file is too short
+    chunks = chunks.min((file_len / (max_record_size * jump_sample_size * 2)) as usize);
 
     let mut segments = segment_file(file_len, chunks)
         .iter()
