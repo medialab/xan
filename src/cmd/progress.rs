@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bytesize::MB;
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use indicatif::{HumanCount, ProgressBar, ProgressStyle};
 
 use crate::config::{Config, Delimiter};
@@ -195,7 +195,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut wrapper: Box<dyn Read> = Box::new(bar.inner.wrap_read(file));
 
         if is_gzipped {
-            wrapper = Box::new(GzDecoder::new(wrapper));
+            wrapper = Box::new(MultiGzDecoder::new(wrapper));
         }
 
         let mut wtr = Config::new(&args.flag_output).io_writer()?;

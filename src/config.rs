@@ -8,7 +8,7 @@ use std::io::{self, prelude::*, BufReader, IsTerminal, Read};
 use std::ops::Deref;
 use std::path::PathBuf;
 
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 
 use crate::read::ReverseRead;
 use crate::select::{SelectColumns, Selection};
@@ -247,7 +247,7 @@ impl Config {
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
                     if p.to_string_lossy().ends_with(".gz") {
-                        Box::new(GzDecoder::new(x))
+                        Box::new(MultiGzDecoder::new(x))
                     } else {
                         Box::new(x)
                     }
@@ -272,7 +272,7 @@ impl Config {
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
                     if p.to_string_lossy().ends_with(".gz") {
-                        Box::new(BufReader::new(GzDecoder::new(x)))
+                        Box::new(BufReader::new(MultiGzDecoder::new(x)))
                     } else {
                         Box::new(BufReader::new(x))
                     }

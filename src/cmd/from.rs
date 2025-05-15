@@ -7,7 +7,7 @@ use std::{
 };
 
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use serde_json::{Map, Value};
 
 use crate::config::Config;
@@ -346,7 +346,7 @@ impl Args {
             Some(p) => Box::new(fs::File::open(p)?),
         };
 
-        let rdr = GzDecoder::new(rdr);
+        let rdr = MultiGzDecoder::new(rdr);
         let mut archive = tar::Archive::new(rdr);
 
         let mut wtr = self.writer()?;
@@ -370,7 +370,7 @@ impl Args {
             bytes.clear();
 
             if entry.path_bytes().ends_with(b".gz") {
-                let mut inner_gz = GzDecoder::new(&mut entry);
+                let mut inner_gz = MultiGzDecoder::new(&mut entry);
                 inner_gz.read_to_end(&mut bytes)?;
             } else {
                 entry.read_to_end(&mut bytes)?;

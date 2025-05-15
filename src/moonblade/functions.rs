@@ -11,7 +11,7 @@ use base64::prelude::*;
 use bstr::ByteSlice;
 use bytesize::ByteSize;
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use jiff::{fmt::strtime, tz::TimeZone, Timestamp, Zoned};
 use lazy_static::lazy_static;
 use mime2ext::mime2ext;
@@ -1250,7 +1250,7 @@ fn abstract_read(
             let mut buffer: Vec<u8> = Vec::new();
 
             if path.ends_with(".gz") {
-                let mut gz = GzDecoder::new(file);
+                let mut gz = MultiGzDecoder::new(file);
                 gz.read_to_end(&mut buffer)
                     .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
             } else {
@@ -1266,7 +1266,7 @@ fn abstract_read(
             let mut buffer = String::new();
 
             if path.ends_with(".gz") {
-                let mut gz = GzDecoder::new(file);
+                let mut gz = MultiGzDecoder::new(file);
                 gz.read_to_string(&mut buffer)
                     .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
             } else {

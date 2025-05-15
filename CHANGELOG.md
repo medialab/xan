@@ -16,6 +16,7 @@
 * Adding moonblade `printf` function.
 * Adding moonblade `pad`, `lpad` & `rpad` functions.
 * Adding `xan select -f/--evaluate-file`.
+* Adding multi-member gzip files support (to handle files compressed with `bgzip` notably).
 
 *Fixes*
 

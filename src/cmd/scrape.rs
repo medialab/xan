@@ -6,7 +6,7 @@ use std::str::from_utf8;
 
 use bstr::ByteSlice;
 use colored::Colorize;
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use lazy_static::lazy_static;
 use pariter::IteratorExt;
 use regex::bytes::Regex;
@@ -29,7 +29,7 @@ fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
     let file = File::open(path)?;
 
     Ok(if filename.ends_with(".gz") {
-        Box::new(GzDecoder::new(file))
+        Box::new(MultiGzDecoder::new(file))
     } else {
         Box::new(file)
     })
