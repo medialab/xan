@@ -55,10 +55,10 @@ impl<R: Seek + Read> ReverseRead<R> {
 
 #[derive(Debug)]
 pub struct InitialRecordsSample {
-    count: u64,
+    pub count: u64,
     stats: Option<(u64, f64)>,
-    first_record_offset: u64,
-    profile: Vec<f64>,
+    pub first_record_offset: u64,
+    pub profile: Vec<f64>,
 }
 
 impl InitialRecordsSample {
@@ -75,10 +75,6 @@ impl InitialRecordsSample {
             first_record_offset,
             profile,
         }
-    }
-
-    pub fn count(&self) -> u64 {
-        self.count
     }
 
     pub fn mean(&self) -> Option<f64> {
@@ -187,23 +183,30 @@ pub fn read_byte_record_up_to<R: Read>(
     Ok(true)
 }
 
-#[derive(Debug, Clone, Copy)]
-enum NextRecordOffsetInferrence {
+#[derive(Debug, Clone)]
+pub enum NextRecordOffsetInferrence {
     Start,
     End,
     Fail,
-    WasInQuoted(u64),
-    WasInUnquoted(u64),
+    WasInQuoted(u64, ByteRecord),
+    WasInUnquoted(u64, ByteRecord),
 }
 
 impl NextRecordOffsetInferrence {
-    fn failed(&self) -> bool {
+    pub fn failed(&self) -> bool {
         matches!(self, Self::Fail)
     }
 
-    fn offset(&self) -> Option<u64> {
+    pub fn offset(&self) -> Option<u64> {
         match self {
-            Self::WasInQuoted(offset) | Self::WasInUnquoted(offset) => Some(*offset),
+            Self::WasInQuoted(offset, _) | Self::WasInUnquoted(offset, _) => Some(*offset),
+            _ => None,
+        }
+    }
+
+    pub fn into_record(self) -> Option<ByteRecord> {
+        match self {
+            Self::WasInQuoted(_, record) | Self::WasInUnquoted(_, record) => Some(record),
             _ => None,
         }
     }
@@ -211,8 +214,21 @@ impl NextRecordOffsetInferrence {
 
 #[derive(Debug)]
 struct RecordInfo {
-    byte_offset: u64,
-    profile: Vec<usize>,
+    record: ByteRecord,
+}
+
+impl RecordInfo {
+    fn profile(&self) -> Vec<usize> {
+        self.record.iter().map(|cell| cell.len()).collect()
+    }
+
+    fn byte_offset(&self) -> u64 {
+        self.record.position().unwrap().byte()
+    }
+
+    fn into_inner(self) -> ByteRecord {
+        self.record
+    }
 }
 
 fn next_record_info<R: Read>(
@@ -232,8 +248,7 @@ fn next_record_info<R: Read>(
 
             if i == 1 {
                 info = Some(RecordInfo {
-                    byte_offset: record.position().unwrap().byte(),
-                    profile: record.iter().map(|cell| cell.len()).collect(),
+                    record: record.clone(),
                 });
             }
         }
@@ -244,7 +259,7 @@ fn next_record_info<R: Read>(
     Ok(info)
 }
 
-fn infer_next_record_offset_from_random_position<R: Read + Seek>(
+pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
     reader: &mut Reader<R>,
     offset: u64,
     max_record_size: u64,
@@ -289,27 +304,37 @@ fn infer_next_record_offset_from_random_position<R: Read + Seek>(
 
     Ok(match (unquoted_next_record_info, quoted_next_record_info) {
         (None, None) => NextRecordOffsetInferrence::Fail,
-        (Some(info), None) => NextRecordOffsetInferrence::WasInUnquoted(offset + info.byte_offset),
-        (None, Some(info)) => {
-            NextRecordOffsetInferrence::WasInQuoted(offset + info.byte_offset - 1)
-        }
+        (Some(info), None) => NextRecordOffsetInferrence::WasInUnquoted(
+            offset + info.byte_offset(),
+            info.into_inner(),
+        ),
+        (None, Some(info)) => NextRecordOffsetInferrence::WasInQuoted(
+            offset + info.byte_offset() - 1,
+            info.into_inner(),
+        ),
         (Some(unquoted_info), Some(quoted_info)) => {
             // Sometimes we might fall within a cell whose contents suspiciously yield
             // the same record structure. In this case we rely on cosine similarity over
             // record profiles to make sure we select the correct offset.
-            let unquoted_offset = offset + unquoted_info.byte_offset;
-            let quoted_offset = offset + quoted_info.byte_offset - 1;
+            let unquoted_offset = offset + unquoted_info.byte_offset();
+            let quoted_offset = offset + quoted_info.byte_offset() - 1;
 
             if unquoted_offset == quoted_offset {
-                NextRecordOffsetInferrence::WasInUnquoted(unquoted_offset)
+                NextRecordOffsetInferrence::WasInUnquoted(
+                    unquoted_offset,
+                    unquoted_info.into_inner(),
+                )
             } else {
-                let unquoted_cosine = cosine(profile, &unquoted_info.profile);
-                let quoted_cosine = cosine(profile, &quoted_info.profile);
+                let unquoted_cosine = cosine(profile, &unquoted_info.profile());
+                let quoted_cosine = cosine(profile, &quoted_info.profile());
 
                 if unquoted_cosine > quoted_cosine {
-                    NextRecordOffsetInferrence::WasInUnquoted(unquoted_offset)
+                    NextRecordOffsetInferrence::WasInUnquoted(
+                        unquoted_offset,
+                        unquoted_info.into_inner(),
+                    )
                 } else {
-                    NextRecordOffsetInferrence::WasInQuoted(quoted_offset)
+                    NextRecordOffsetInferrence::WasInQuoted(quoted_offset, quoted_info.into_inner())
                 }
             }
         }
@@ -367,7 +392,7 @@ pub fn segment_csv_file<R: Read + Seek>(
     };
 
     // File is way too short
-    if sample.count() < options.chunks as u64 {
+    if sample.count < options.chunks as u64 {
         return Ok(Some(vec![(0, file_len)]));
     }
 
@@ -384,7 +409,7 @@ pub fn segment_csv_file<R: Read + Seek>(
             if offset == 0 {
                 Ok(NextRecordOffsetInferrence::Start)
             } else {
-                infer_next_record_offset_from_random_position(
+                find_next_record_offset_from_random_position(
                     reader,
                     offset,
                     max_record_size,

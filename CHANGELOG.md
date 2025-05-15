@@ -22,6 +22,7 @@
 * Adding multi-member gzip files support (to handle files compressed with `bgzip` notably).
 * Adding `xan split -f` & `xan partition -f` short flag for `--filename`.
 * Adding `xan split -c/--chunks` & `xan split --segments`.
+* Adding `xan sample -§/--cursed`.
 
 *Fixes*
 

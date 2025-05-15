@@ -23,6 +23,14 @@ sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
     -g, --groupby <cols>   Return a sample per group.
+    --cursed               Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
+                           distribution (source: trust me), without requiring to read
+                           the whole file. Instead, we will randomly jump through it
+                           like a dark wizard. This means the sampled file must
+                           be large enough and seekable, so no stdin nor gzipped files.
+                           Rows at the very end of the file might be discriminated against
+                           because they are not cool enough.
+                           Does not work with -w/--weight nor -g/--groupby.
 
 Common options:
     -h, --help             Display this message

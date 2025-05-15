@@ -1,11 +1,12 @@
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
-use std::io;
+use std::collections::{BinaryHeap, HashMap};
+use std::io::{self, Seek, SeekFrom};
 
 use rand::Rng;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
+use crate::read::{find_next_record_offset_from_random_position, sample_initial_records};
 use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliError;
@@ -35,6 +36,14 @@ sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
     -g, --groupby <cols>   Return a sample per group.
+    -§, --cursed           Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
+                           distribution (source: trust me), without requiring to read
+                           the whole file. Instead, we will randomly jump through it
+                           like a dark wizard. This means the sampled file must
+                           be large enough and seekable, so no stdin nor gzipped files.
+                           Rows at the very end of the file might be discriminated against
+                           because they are not cool enough.
+                           Does not work with -w/--weight nor -g/--groupby.
 
 Common options:
     -h, --help             Display this message
@@ -57,10 +66,16 @@ struct Args {
     flag_seed: Option<usize>,
     flag_weight: Option<SelectColumns>,
     flag_groupby: Option<SelectColumns>,
+    flag_cursed: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_cursed && (args.flag_groupby.is_some() || args.flag_weight.is_some()) {
+        Err("--cursed does not work with -g/--groubpy nor -w/--weight!")?;
+    }
+
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
@@ -74,7 +89,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
     let mut rdr = rconfig.reader()?;
-    rconfig.write_headers(&mut rdr, &mut wtr)?;
+
     let byte_headers = rdr.byte_headers()?;
 
     let group_sel_opt = args
@@ -82,7 +97,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|s| s.selection(byte_headers, !args.flag_no_headers))
         .transpose()?;
 
-    let sampled = if args.flag_weight.is_some() {
+    let sampled = if args.flag_cursed {
+        sample_cursed(&rconfig, sample_size, args.flag_seed)?
+    } else if args.flag_weight.is_some() {
         let weight_column_index = rconfig.single_selection(byte_headers)?;
 
         if let Some(group_sel) = group_sel_opt {
@@ -101,6 +118,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
     };
+
+    rconfig.write_headers(&mut rdr, &mut wtr)?;
 
     for row in sampled.into_iter() {
         wtr.write_byte_record(&row)?;
@@ -273,4 +292,52 @@ fn sample_weighted_reservoir_grouped<R: io::Read>(
         .flatten()
         .map(|record| record.row())
         .collect())
+}
+
+fn sample_cursed(
+    config: &Config,
+    sample_size: u64,
+    seed: Option<usize>,
+) -> CliResult<Vec<csv::ByteRecord>> {
+    let mut reader = config.seekable_reader()?;
+    let field_count = reader.byte_headers()?.len();
+    let sample = sample_initial_records(&mut reader, 64)?;
+
+    // TODO: better safeguard here. We must make sure sample size is <= 1/10 of the whole approx data
+    if sample.count <= sample_size {
+        Err("Don't be a fool! Your data is too short to be cursed. Just use regular sampling.")?;
+    }
+
+    let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
+    let max_record_size = sample.max().unwrap();
+    let range = sample.first_record_offset..(file_len - max_record_size * 8);
+
+    let mut rng = util::acquire_rng(seed);
+    let mut records: HashMap<u64, csv::ByteRecord> = HashMap::with_capacity(sample_size as usize);
+
+    'outer: while records.len() < sample_size as usize {
+        for _ in 0..5 {
+            let random_byte_offset = rng.random_range(range.clone());
+
+            if let Some(record) = find_next_record_offset_from_random_position(
+                &mut reader,
+                random_byte_offset,
+                max_record_size,
+                &sample.profile,
+                field_count,
+                8,
+            )?
+            .into_record()
+            {
+                records.insert(random_byte_offset, record);
+                continue 'outer;
+            } else {
+                continue;
+            }
+        }
+
+        Err("Your data is not cursed enough!")?;
+    }
+
+    Ok(records.into_values().collect())
 }

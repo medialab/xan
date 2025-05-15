@@ -59,8 +59,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let sample = sample_initial_records(&mut rdr, sample_size)?;
 
-        if sample.count() < sample_size {
-            sample.count()
+        if sample.count < sample_size {
+            sample.count
         } else {
             match sample.mean() {
                 Some(mean) => {
