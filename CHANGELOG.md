@@ -23,6 +23,7 @@
 * Adding `xan split -f` & `xan partition -f` short flag for `--filename`.
 * Adding `xan split -c/--chunks` & `xan split --segments`.
 * Adding `xan sample -§/--cursed`.
+* Adding `xan search -B/--breakdown` and the related `--name-column` flag.
 
 *Fixes*
 

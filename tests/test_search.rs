@@ -906,3 +906,55 @@ fn search_patterns_url_replace() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_patterns_breakdown() {
+    let wrk = Workdir::new("search_patterns_breakdown");
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["article", "name"],
+            svec!["le", "LE"],
+            svec!["la", "LA"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["text"],
+            svec!["le chien mange le fromage"],
+            svec!["le chien mange la souris"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .arg("-B")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "le", "la"],
+        svec!["le chien mange le fromage", "2", "0"],
+        svec!["le chien mange la souris", "1", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .arg("-B")
+        .args(["--name-column", "name"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "LE", "LA"],
+        svec!["le chien mange le fromage", "2", "0"],
+        svec!["le chien mange la souris", "1", "1"],
+    ];
+    assert_eq!(got, expected);
+}

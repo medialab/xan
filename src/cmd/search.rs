@@ -209,6 +209,71 @@ impl Matcher {
         }
     }
 
+    fn breakdown(&self, cell: &[u8], overlapping: bool, counts: &mut [usize]) {
+        match self {
+            Self::Empty
+            | Self::NonEmpty
+            | Self::Regex(_)
+            | Self::Exact(_, _)
+            | Self::UrlPrefix(_) => {
+                unreachable!()
+            }
+
+            Self::Substring(pattern, case_insensitive) => match (*case_insensitive, overlapping) {
+                (true, false) => {
+                    for m in pattern.find_iter(&cell.to_lowercase()) {
+                        counts[m.pattern().as_usize()] += 1;
+                    }
+                }
+                (false, false) => {
+                    for m in pattern.find_iter(cell) {
+                        counts[m.pattern().as_usize()] += 1;
+                    }
+                }
+                (true, true) => {
+                    for m in pattern.find_overlapping_iter(&cell.to_lowercase()) {
+                        counts[m.pattern().as_usize()] += 1;
+                    }
+                }
+                (false, true) => {
+                    for m in pattern.find_overlapping_iter(cell) {
+                        counts[m.pattern().as_usize()] += 1;
+                    }
+                }
+            },
+            Self::RegexSet(set) => {
+                if overlapping {
+                    unreachable!()
+                }
+
+                for m in set.find_iter(cell) {
+                    counts[m.pattern().as_usize()] += 1;
+                }
+            }
+            Self::Regexes(patterns) => {
+                for (i, pattern) in patterns.iter().enumerate() {
+                    counts[i] += count_overlapping_matches(pattern, cell);
+                }
+            }
+            Self::HashMap(patterns, case_insensitive) => {
+                if *case_insensitive {
+                    if let Some(id) = patterns.get(&cell.to_lowercase()) {
+                        counts[*id] += 1;
+                    }
+                } else if let Some(id) = patterns.get(cell) {
+                    counts[*id] += 1;
+                }
+            }
+            Self::UrlTrie(trie) => {
+                if let Ok(url) = from_utf8(cell) {
+                    if let Ok(Some(id)) = trie.longest_matching_prefix_value(url) {
+                        counts[*id] += 1;
+                    }
+                }
+            }
+        }
+    }
+
     fn replace<'a>(&self, cell: &'a [u8], replacements: &'a [Vec<u8>]) -> Cow<'a, [u8]> {
         match self {
             Self::Empty => {
@@ -383,13 +448,6 @@ search options:
                                  reordered using a scheme called a LRU, that you can
                                  read about here:
                                  https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
-    --patterns <path>            Path to a text file (use \"-\" for stdin), containing multiple
-                                 patterns, one per line, to search at once.
-    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
-                                 and patterns to search will be extracted from the given column.
-    --replacement-column <name>  When given with both --patterns & --pattern-column, indicates the
-                                 column containing a replacement when a match occurs. Does not
-                                 work with -R/--replace.
     -i, --ignore-case            Case insensitive search.
     -s, --select <arg>           Select the columns to search. See 'xan select -h'
                                  for the full syntax.
@@ -401,12 +459,27 @@ search options:
                                  count the total number of non-overlapping pattern matches per
                                  row and report it in a new column with given name.
                                  Does not work with -v/--invert-match.
+    -B, --breakdown              When used with --patterns, will count the total number of
+                                 non-overlapping matches per pattern and write this count in
+                                 one additional column per pattern. You might want to use
+                                 it with --overlapping sometimes when your patterns are themselves
+                                 overlapping.
+    --overlapping                When used with -c/--count or -B/--breakdown, return the count of
+                                 overlapping matches. Note that this can sometimes be one order of
+                                 magnitude slower that counting non-overlapping matches.
     -R, --replace <with>         If given, the command will not filter rows but will instead
                                  replace matches with the given replacement.
                                  Does not work with --replacement-column.
-    --overlapping                When used with -c/--count, return the count of overlapping
-                                 matches. Note that this can sometimes be one order of magnitude
-                                 slower that counting non-overlapping matches.
+    --patterns <path>            Path to a text file (use \"-\" for stdin), containing multiple
+                                 patterns, one per line, to search at once.
+    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
+                                 and patterns to search will be extracted from the given column.
+    --replacement-column <name>  When given with both --patterns & --pattern-column, indicates the
+                                 column containing a replacement when a match occurs. Does not
+                                 work with -R/--replace.
+    --name-column <name>         When given with -B/--breakdown, --patterns & --pattern-column,
+                                 indicates the column containing a pattern's name that will be used
+                                 as column name in the appended breakdown.
     -l, --limit <n>              Maximum of number rows to return. Useful to avoid downstream
                                  buffering some times (e.g. when searching for very few
                                  rows in a big file before piping to `view` or `flatten`).
@@ -441,167 +514,114 @@ struct Args {
     flag_count: Option<String>,
     flag_replace: Option<String>,
     flag_limit: Option<NonZeroUsize>,
+    flag_breakdown: bool,
     flag_patterns: Option<String>,
     flag_pattern_column: Option<SelectColumns>,
     flag_replacement_column: Option<SelectColumns>,
+    flag_name_column: Option<SelectColumns>,
 }
 
-type Replacements = Option<Vec<Vec<u8>>>;
-
 impl Args {
-    fn build_matcher(&self) -> Result<(Matcher, Replacements), CliError> {
+    fn build_matcher(&self, patterns: &Option<Vec<String>>) -> Result<Matcher, CliError> {
         if self.flag_non_empty {
-            return Ok((Matcher::NonEmpty, None));
+            return Ok(Matcher::NonEmpty);
         }
 
         if self.flag_empty {
-            return Ok((Matcher::Empty, None));
+            return Ok(Matcher::Empty);
         }
 
-        match self.flag_patterns.as_ref() {
+        match patterns {
             None => {
                 let pattern = self.arg_pattern.as_ref().unwrap();
-                let replacements = self
-                    .flag_replace
-                    .as_ref()
-                    .map(|replacement| vec![replacement.clone().into_bytes()]);
 
                 Ok(if self.flag_exact {
                     if self.flag_ignore_case {
-                        (
-                            Matcher::Exact(pattern.as_bytes().to_lowercase(), true),
-                            replacements,
-                        )
+                        Matcher::Exact(pattern.as_bytes().to_lowercase(), true)
                     } else {
-                        (
-                            Matcher::Exact(pattern.as_bytes().to_vec(), false),
-                            replacements,
-                        )
+                        Matcher::Exact(pattern.as_bytes().to_vec(), false)
                     }
                 } else if self.flag_regex {
-                    (
-                        Matcher::Regex(
-                            RegexBuilder::new(pattern)
-                                .case_insensitive(self.flag_ignore_case)
-                                .build()?,
-                        ),
-                        replacements,
+                    Matcher::Regex(
+                        RegexBuilder::new(pattern)
+                            .case_insensitive(self.flag_ignore_case)
+                            .build()?,
                     )
                 } else if self.flag_url_prefix {
                     let tagged_url = pattern.parse::<TaggedUrl>()?;
 
-                    (
-                        Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true)),
-                        replacements,
-                    )
+                    Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
                 } else {
-                    (
-                        Matcher::Substring(
-                            AhoCorasick::new([if self.flag_ignore_case {
-                                pattern.to_lowercase()
-                            } else {
-                                pattern.to_string()
-                            }])?,
-                            self.flag_ignore_case,
-                        ),
-                        replacements,
+                    Matcher::Substring(
+                        AhoCorasick::new([if self.flag_ignore_case {
+                            pattern.to_lowercase()
+                        } else {
+                            pattern.to_string()
+                        }])?,
+                        self.flag_ignore_case,
                     )
                 })
             }
-            Some(_) => {
-                let pairs = Config::new(&self.flag_patterns)
-                    .delimiter(self.flag_delimiter)
-                    .pairs((&self.flag_pattern_column, &self.flag_replacement_column))?
-                    .collect::<Result<Vec<_>, _>>()?;
+            Some(patterns) => Ok(if self.flag_exact {
+                let mut map = HashMap::with_capacity(patterns.len());
 
-                let (patterns, replacements): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+                for (i, pattern) in patterns.iter().enumerate() {
+                    map.insert(
+                        if self.flag_ignore_case {
+                            pattern.to_lowercase().into_bytes()
+                        } else {
+                            pattern.to_string().into_bytes()
+                        },
+                        i,
+                    );
+                }
 
-                let replacements = if self.flag_replacement_column.is_some() {
-                    Some(
-                        replacements
-                            .into_iter()
-                            .map(|o| o.unwrap().into_bytes())
+                Matcher::HashMap(map, self.flag_ignore_case)
+            } else if self.flag_regex {
+                if self.flag_overlapping {
+                    Matcher::Regexes(
+                        patterns
+                            .iter()
+                            .map(|pattern| {
+                                RegexBuilder::new(pattern)
+                                    .case_insensitive(self.flag_ignore_case)
+                                    .build()
+                                    .map_err(CliError::from)
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )
+                } else {
+                    Matcher::RegexSet(
+                        RegexSet::builder()
+                            .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
+                            .build_many(&patterns.iter().collect::<Vec<_>>())?,
+                    )
+                }
+            } else if self.flag_url_prefix {
+                let mut trie = LRUTrieMap::new_simplified();
+
+                for (i, url) in patterns.iter().enumerate() {
+                    trie.insert(url, i)?;
+                }
+
+                Matcher::UrlTrie(trie)
+            } else {
+                Matcher::Substring(
+                    AhoCorasick::new(
+                        patterns
+                            .iter()
+                            .map(|pattern| {
+                                if self.flag_ignore_case {
+                                    pattern.to_lowercase()
+                                } else {
+                                    pattern.to_string()
+                                }
+                            })
                             .collect::<Vec<_>>(),
-                    )
-                } else {
-                    self.flag_replace
-                        .as_ref()
-                        .map(|replacement| vec![replacement.clone().into_bytes(); patterns.len()])
-                };
-
-                Ok(if self.flag_exact {
-                    let mut map = HashMap::with_capacity(patterns.len());
-
-                    for (i, pattern) in patterns.into_iter().enumerate() {
-                        map.insert(
-                            if self.flag_ignore_case {
-                                pattern.to_lowercase().into_bytes()
-                            } else {
-                                pattern.into_bytes()
-                            },
-                            i,
-                        );
-                    }
-
-                    (Matcher::HashMap(map, self.flag_ignore_case), replacements)
-                } else if self.flag_regex {
-                    if self.flag_overlapping {
-                        (
-                            Matcher::Regexes(
-                                patterns
-                                    .iter()
-                                    .map(|pattern| {
-                                        RegexBuilder::new(pattern)
-                                            .case_insensitive(self.flag_ignore_case)
-                                            .build()
-                                            .map_err(CliError::from)
-                                    })
-                                    .collect::<Result<Vec<_>, _>>()?,
-                            ),
-                            replacements,
-                        )
-                    } else {
-                        (
-                            Matcher::RegexSet(
-                                RegexSet::builder()
-                                    .syntax(
-                                        syntax::Config::new()
-                                            .case_insensitive(self.flag_ignore_case),
-                                    )
-                                    .build_many(&patterns.iter().collect::<Vec<_>>())?,
-                            ),
-                            replacements,
-                        )
-                    }
-                } else if self.flag_url_prefix {
-                    let mut trie = LRUTrieMap::new_simplified();
-
-                    for (i, url) in patterns.iter().enumerate() {
-                        trie.insert(url, i)?;
-                    }
-
-                    (Matcher::UrlTrie(trie), replacements)
-                } else {
-                    (
-                        Matcher::Substring(
-                            AhoCorasick::new(
-                                patterns
-                                    .into_iter()
-                                    .map(|pattern| {
-                                        if self.flag_ignore_case {
-                                            pattern.to_lowercase()
-                                        } else {
-                                            pattern
-                                        }
-                                    })
-                                    .collect::<Vec<_>>(),
-                            )?,
-                            self.flag_ignore_case,
-                        ),
-                        replacements,
-                    )
-                })
-            }
+                    )?,
+                    self.flag_ignore_case,
+                )
+            }),
         }
     }
 }
@@ -619,8 +639,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix or -r/--regex!")?;
     }
 
-    if args.flag_overlapping && args.flag_count.is_none() {
-        Err("--overlapping only works with -c/--count!")?;
+    if args.flag_overlapping && args.flag_count.is_none() && !args.flag_breakdown {
+        Err("--overlapping only works with -c/--count! or -B/--breakdown!")?;
     }
 
     if args.flag_count.is_some() || args.flag_replace.is_some() {
@@ -655,7 +675,63 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--replacement-column requires both --patterns & --pattern-column!")?;
     }
 
-    let (matcher, replacements_opt) = args.build_matcher()?;
+    if args.flag_name_column.is_some()
+        && (args.flag_patterns.is_none() || args.flag_pattern_column.is_none())
+    {
+        Err("--name-column requires both --patterns & --pattern-column!")?;
+    }
+
+    if args.flag_breakdown {
+        if args.flag_patterns.is_none() {
+            Err("-B/--breakdown requires --patterns!")?;
+        }
+
+        if args.flag_count.is_some() {
+            Err("-c/--count does not work with -B/--breakdown!")?;
+        }
+    }
+
+    let pairs = args
+        .flag_patterns
+        .as_ref()
+        .map(|path| {
+            Config::new(&Some(path.clone()))
+                .delimiter(args.flag_delimiter)
+                .pairs((
+                    &args.flag_pattern_column,
+                    &args
+                        .flag_replacement_column
+                        .clone()
+                        .or(args.flag_name_column.clone()),
+                ))?
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .map(|pairs| {
+            let (patterns, associated): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+
+            let associated = (args.flag_replacement_column.is_some()
+                || args.flag_name_column.is_some())
+            .then(|| {
+                associated
+                    .into_iter()
+                    .map(|o| o.unwrap().into_bytes())
+                    .collect::<Vec<_>>()
+            });
+
+            (patterns, associated)
+        });
+
+    let (patterns, associated) = pairs.unzip();
+
+    let matcher = args.build_matcher(&patterns)?;
+    let patterns_len = patterns.as_ref().map(|p| p.len()).unwrap_or(1);
+
+    let associated = associated.flatten().or_else(|| {
+        args.flag_replace
+            .as_ref()
+            .map(|replacement| vec![replacement.clone().into_bytes(); patterns_len])
+    });
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -670,6 +746,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(column_name) = &args.flag_count {
         headers.push_field(column_name.as_bytes());
+    } else if args.flag_breakdown {
+        if let Some(column_names) = &associated {
+            for column_name in column_names {
+                headers.push_field(column_name);
+            }
+        } else {
+            for pattern in patterns.unwrap().iter() {
+                headers.push_field(pattern.as_bytes());
+            }
+        }
     }
 
     if !rconfig.no_headers {
@@ -683,7 +769,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
 
-        if let Some(replacements) = &replacements_opt {
+        if args.flag_breakdown {
+            let mut counts = vec![0; patterns_len];
+
+            for cell in sel.select(&record) {
+                matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+            }
+
+            for count in counts.into_iter() {
+                record.push_field(count.to_string().as_bytes());
+            }
+
+            wtr.write_byte_record(&record)?;
+        } else if let Some(replacements) = &associated {
             replaced_record.clear();
 
             for cell in sel.select(&record) {

@@ -96,13 +96,6 @@ search options:
                                  reordered using a scheme called a LRU, that you can
                                  read about here:
                                  https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
-    --patterns <path>            Path to a text file (use "-" for stdin), containing multiple
-                                 patterns, one per line, to search at once.
-    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
-                                 and patterns to search will be extracted from the given column.
-    --replacement-column <name>  When given with both --patterns & --pattern-column, indicates the
-                                 column containing a replacement when a match occurs. Does not
-                                 work with -R/--replace.
     -i, --ignore-case            Case insensitive search.
     -s, --select <arg>           Select the columns to search. See 'xan select -h'
                                  for the full syntax.
@@ -114,12 +107,27 @@ search options:
                                  count the total number of non-overlapping pattern matches per
                                  row and report it in a new column with given name.
                                  Does not work with -v/--invert-match.
+    -B, --breakdown              When used with --patterns, will count the total number of
+                                 non-overlapping matches per pattern and write this count in
+                                 one additional column per pattern. You might want to use
+                                 it with --overlapping sometimes when your patterns are themselves
+                                 overlapping.
+    --overlapping                When used with -c/--count or -B/--breakdown, return the count of
+                                 overlapping matches. Note that this can sometimes be one order of
+                                 magnitude slower that counting non-overlapping matches.
     -R, --replace <with>         If given, the command will not filter rows but will instead
                                  replace matches with the given replacement.
                                  Does not work with --replacement-column.
-    --overlapping                When used with -c/--count, return the count of overlapping
-                                 matches. Note that this can sometimes be one order of magnitude
-                                 slower that counting non-overlapping matches.
+    --patterns <path>            Path to a text file (use "-" for stdin), containing multiple
+                                 patterns, one per line, to search at once.
+    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
+                                 and patterns to search will be extracted from the given column.
+    --replacement-column <name>  When given with both --patterns & --pattern-column, indicates the
+                                 column containing a replacement when a match occurs. Does not
+                                 work with -R/--replace.
+    --name-column <name>         When given with -B/--breakdown, --patterns & --pattern-column,
+                                 indicates the column containing a pattern's name that will be used
+                                 as column name in the appended breakdown.
     -l, --limit <n>              Maximum of number rows to return. Useful to avoid downstream
                                  buffering some times (e.g. when searching for very few
                                  rows in a big file before piping to `view` or `flatten`).
