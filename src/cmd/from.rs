@@ -25,6 +25,7 @@ enum SupportedFormat {
     Text,
     Npy,
     Tar,
+    Md,
 }
 
 impl SupportedFormat {
@@ -36,6 +37,7 @@ impl SupportedFormat {
             "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
+            "md" | "markdown" => Self::Md,
             _ => return None,
         })
     }
@@ -68,16 +70,18 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods    - OpenOffice spreadsheet
-    xls    - Excel spreasheet
-    xlsb   - Excel spreasheet
-    xlsx   - Excel spreasheet
-    json   - JSON array or object
-    ndjson - Newline-delimited JSON
-    jsonl  - Newline-delimited JSON
-    txt    - text lines
-    npy    - Numpy array
-    tar    - Tarball archive
+    ods      - OpenOffice spreadsheet
+    xls      - Excel spreasheet
+    xlsb     - Excel spreasheet
+    xlsx     - Excel spreasheet
+    json     - JSON array or object
+    ndjson   - Newline-delimited JSON
+    jsonl    - Newline-delimited JSON
+    txt      - text lines
+    npy      - Numpy array
+    tar      - Tarball archive
+    md       - Markdown table
+    markdown - Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
@@ -109,6 +113,11 @@ Text lines options:
     -c, --column <name>    Name of the column to create.
                            [default: value]
 
+Markdown options:
+    -s, --select <n>       Select nth table in document, starting at 0.
+                           Negative index can be used to select from the end.
+                           [default: 0]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -124,6 +133,7 @@ struct Args {
     flag_key_column: String,
     flag_value_column: String,
     flag_column: String,
+    flag_select: isize,
 }
 
 impl Args {
@@ -386,6 +396,79 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_markdown(&self) -> CliResult<()> {
+        use markdown::mdast::{Node, Table};
+
+        let mut rdr = Config::new(&self.arg_input).io_buf_reader()?;
+        let mut buf = String::new();
+        rdr.read_to_string(&mut buf)?;
+
+        // Use GitHub Flavored Markdown (GFM) for table support.
+        let tree = markdown::to_mdast(&buf, &markdown::ParseOptions::gfm())?;
+
+        fn collect_tables_into<'a>(n: &'a Node, tables: &mut Vec<&'a Table>) {
+            if let Node::Table(table) = n {
+                tables.push(table);
+            } else {
+                let Some(kids) = n.children() else { return };
+                for n in kids {
+                    collect_tables_into(n, tables);
+                }
+            }
+        }
+        let mut tables = vec![];
+        collect_tables_into(&tree, &mut tables);
+        if tables.is_empty() {
+            Err("target Markdown does not contain a table")?;
+        }
+        let table = usize::try_from(self.flag_select)
+            .ok()
+            // select from end if negative.
+            .or_else(|| tables.len().checked_add_signed(self.flag_select))
+            .and_then(|i| tables.get(i))
+            .ok_or_else(|| {
+                let bounds = if self.flag_select >= 0 {
+                    [0, tables.len()].map(|n| n.to_string())
+                } else {
+                    // Saturating to avoid underflow.
+                    // isize::MIN is smallest supported number anyway due to type of `flag_select`. 
+                    let low = 0isize.saturating_sub_unsigned(tables.len());
+                    [-1, low].map(|n| n.to_string())
+                };
+                format!(
+                    "table index {} is out of bounds in target Markdown (must be between {} and {})",
+                    self.flag_select,
+                    bounds[0],
+                    bounds[1]
+                )
+            })?;
+
+        let rows = &table.children;
+        let mut wtr = self.writer()?;
+        let mut record = csv::ByteRecord::new();
+        for row in rows {
+            for cell in row.children().into_iter().flatten() {
+                // `cell.to_string()` drops formatting so extract raw string from `buf`.
+                // Position of whole cell includes border `|` character so
+                // get range from start of first child to end of last child.
+                if let Some(range) = (|| {
+                    let kids = cell.children()?;
+                    let first = kids.first()?.position()?;
+                    let last = kids.last()?.position()?;
+                    Some(first.start.offset..last.end.offset)
+                })() {
+                    record.push_field(buf[range].as_bytes());
+                } else {
+                    record.push_field(&[]);
+                }
+            }
+            wtr.write_byte_record(&record)?;
+            record.clear();
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -417,5 +500,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::Text => args.convert_text_lines(),
         SupportedFormat::Npy => args.convert_npy(),
         SupportedFormat::Tar => args.convert_tar(),
+        SupportedFormat::Md => args.convert_markdown(),
     }
 }
