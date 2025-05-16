@@ -24,6 +24,7 @@
 * Adding `xan split -c/--chunks` & `xan split --segments`.
 * Adding `xan sample -§/--cursed`.
 * Adding `xan search -B/--breakdown` and the related `--name-column` flag.
+* Adding `xan parallel -F/--single-file`.
 
 *Fixes*
 

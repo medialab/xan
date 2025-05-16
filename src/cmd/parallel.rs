@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal, Seek, SeekFrom};
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,6 +15,7 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 use crate::cmd::progress::get_progress_style;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
+use crate::read::{read_byte_record_up_to, segment_csv_file, SegmentationOptions};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
@@ -330,6 +331,7 @@ impl StatsTables {
     }
 }
 
+#[derive(Debug)]
 struct FileChunk {
     file_path: String,
     from: u64,
@@ -338,22 +340,36 @@ struct FileChunk {
 }
 
 impl FileChunk {
-    fn path(&self) -> String {
+    fn name(&self) -> String {
         format!("{}@chunk-{}", self.file_path, self.position)
     }
 }
 
+#[derive(Debug)]
 enum Input {
     Path(String),
     FileChunk(FileChunk),
 }
 
 impl Input {
-    fn path(&self) -> Cow<str> {
+    fn name(&self) -> Cow<str> {
         match self {
             Self::Path(p) => Cow::Borrowed(p),
-            Self::FileChunk(chunk) => Cow::Owned(chunk.path()),
+            Self::FileChunk(chunk) => Cow::Owned(chunk.name()),
         }
+    }
+}
+
+struct InputReader {
+    csv_reader: BoxedReader,
+    headers: csv::ByteRecord,
+    _children: Option<Children>,
+    up_to: Option<u64>,
+}
+
+impl InputReader {
+    fn read_byte_record(&mut self, record: &mut csv::ByteRecord) -> Result<bool, csv::Error> {
+        read_byte_record_up_to(&mut self.csv_reader, record, self.up_to)
     }
 }
 
@@ -419,6 +435,8 @@ Usage:
     xan p --help
 
 parallel options:
+    -F, --single-file            Parallelize computation over a single uncompressed
+                                 CSV file on disk instead.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
     -S, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
@@ -477,6 +495,7 @@ struct Args {
     arg_inputs: Vec<String>,
     arg_expr: Option<String>,
     arg_group: Option<SelectColumns>,
+    flag_single_file: bool,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_progress: bool,
@@ -496,7 +515,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
-type Reader = csv::Reader<Box<dyn io::Read + Send>>;
+type BoxedReader = csv::Reader<Box<dyn io::Read + Send>>;
 
 impl Args {
     fn new_stats(&self) -> Stats {
@@ -521,12 +540,12 @@ impl Args {
         stats
     }
 
-    fn inputs(&self) -> CliResult<Vec<Input>> {
+    fn inputs(&self) -> CliResult<(Vec<Input>, Option<usize>)> {
         let inputs = if !self.arg_inputs.is_empty() {
             self.arg_inputs.clone()
         } else {
             if io::stdin().is_terminal() {
-                return Ok(vec![]);
+                return Ok((vec![], None));
             }
 
             Config::stdin()
@@ -538,12 +557,53 @@ impl Args {
             Err("no files to process!\nDid you forget stdin or arguments?")?;
         }
 
-        Ok(inputs.into_iter().map(Input::Path).collect())
+        if self.flag_single_file {
+            if inputs.len() > 1 {
+                Err("-F/--single-file can only work with a single path as input!")?;
+            }
+
+            let target = inputs.first().unwrap();
+            let config = Config::new(&Some(target.clone()))
+                .delimiter(self.flag_delimiter)
+                .no_headers(self.flag_no_headers);
+
+            let mut reader = config.seekable_reader()?;
+
+            match segment_csv_file(
+                &mut reader,
+                SegmentationOptions::chunks(
+                    self.flag_threads
+                        .map(|t| t.get())
+                        .unwrap_or_else(num_cpus::get_physical),
+                ),
+            )? {
+                None => Err("could not segment file correctly!")?,
+                Some(segments) => {
+                    let chunks_hint = Some(segments.len());
+
+                    return Ok((
+                        segments
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, (from, to))| {
+                                Input::FileChunk(FileChunk {
+                                    file_path: target.clone(),
+                                    from,
+                                    to,
+                                    position: i,
+                                })
+                            })
+                            .collect(),
+                        chunks_hint,
+                    ));
+                }
+            }
+        }
+
+        Ok((inputs.into_iter().map(Input::Path).collect(), None))
     }
 
-    fn reader(&self, input: &Input) -> CliResult<(Reader, Option<Children>)> {
-        debug_assert!(!matches!(input, Input::FileChunk(_)));
-
+    fn read(&self, input: &Input) -> CliResult<InputReader> {
         Ok(if let Some(preprocessing) = &self.flag_shell_preprocess {
             if preprocessing.trim().is_empty() {
                 Err("-S, --shell-preprocess cannot be an empty command!")?;
@@ -558,7 +618,7 @@ impl Args {
             let mut cat = Command::new("cat")
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
-                .arg(input.path().as_ref())
+                .arg(input.name().as_ref()) // TODO: don't use name
                 .spawn()
                 .expect("could not spawn \"cat\"");
 
@@ -569,12 +629,21 @@ impl Args {
                 .spawn()
                 .expect("could not spawn shell preprocessing");
 
-            (
-                config.csv_reader_from_reader(Box::new(
-                    child.stdout.take().expect("cannot read child stdout"),
-                )),
-                Some(Children::pair(cat, child)),
-            )
+            let mut reader: BoxedReader = config.csv_reader_from_reader(Box::new(
+                child.stdout.take().expect("cannot read child stdout"),
+            ));
+
+            // NOTE: this must happen before reading headers to ensure correct drop
+            let _children = Some(Children::pair(cat, child));
+
+            let headers = reader.byte_headers()?.clone();
+
+            InputReader {
+                csv_reader: reader,
+                headers,
+                _children,
+                up_to: None,
+            }
         } else if let Some(preprocessing) = &self.flag_preprocess {
             if preprocessing.trim().is_empty() {
                 Err("-P, --preprocess cannot be an empty command!")?;
@@ -611,7 +680,7 @@ impl Args {
                 } else {
                     // First command in pipeline must read the file
                     command.stdin(Stdio::null());
-                    command.arg(input.path().as_ref());
+                    command.arg(input.name().as_ref()); // TODO: don't use name
                 }
 
                 children.push(command.spawn().expect("could not spawn preprocessing"));
@@ -621,23 +690,64 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            (
-                config.csv_reader_from_reader(Box::new(
-                    children
-                        .last_mut()
-                        .unwrap()
-                        .stdout
-                        .take()
-                        .expect("cannot read child stdout"),
-                )),
-                Some(Children::from(children)),
-            )
-        } else {
-            let config = Config::new(&Some(input.path().into_owned()))
-                .delimiter(self.flag_delimiter)
-                .no_headers(self.flag_no_headers);
+            let mut reader: BoxedReader = config.csv_reader_from_reader(Box::new(
+                children
+                    .last_mut()
+                    .unwrap()
+                    .stdout
+                    .take()
+                    .expect("cannot read child stdout"),
+            ));
 
-            (config.reader()?, None)
+            let headers = reader.byte_headers()?.clone();
+
+            InputReader {
+                csv_reader: reader,
+                headers,
+                _children: Some(Children::from(children)),
+                up_to: None,
+            }
+        } else {
+            match input {
+                Input::Path(p) => {
+                    let config = Config::new(&Some(p.to_string()))
+                        .delimiter(self.flag_delimiter)
+                        .no_headers(self.flag_no_headers);
+
+                    let mut reader: BoxedReader = config.reader()?;
+
+                    let headers = reader.byte_headers()?.clone();
+
+                    InputReader {
+                        csv_reader: reader,
+                        headers,
+                        _children: None,
+                        up_to: None,
+                    }
+                }
+                Input::FileChunk(file_chunk) => {
+                    let config = Config::new(&Some(file_chunk.file_path.to_string()))
+                        .delimiter(self.flag_delimiter)
+                        .no_headers(self.flag_no_headers);
+
+                    let mut reader = config.seekable_reader()?;
+                    let headers = reader.byte_headers()?.clone();
+
+                    let config = config.no_headers(true);
+                    let mut io_reader = reader.into_inner();
+
+                    io_reader.seek(SeekFrom::Start(file_chunk.from))?;
+
+                    let reader: BoxedReader = config.csv_reader_from_reader(io_reader);
+
+                    InputReader {
+                        csv_reader: reader,
+                        headers,
+                        _children: None,
+                        up_to: Some(file_chunk.to - file_chunk.from),
+                    }
+                }
+            }
         })
     }
 
@@ -669,22 +779,22 @@ impl Args {
             };
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let (mut reader, _children_guard) = self.reader(input)?;
-                let path = input.path();
+                let mut input_reader = self.read(input)?;
+                let name = input.name();
 
-                let bar = progress_bar.start(&path);
+                let bar = progress_bar.start(&name);
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
 
-                while reader.read_byte_record(&mut record)? {
+                while input_reader.read_byte_record(&mut record)? {
                     count += 1;
 
                     ParallelProgressBar::tick(&bar);
                 }
 
                 let mut output_record = csv::ByteRecord::new();
-                output_record.push_field(path.as_bytes());
+                output_record.push_field(name.as_bytes());
                 output_record.push_field(count.to_string().as_bytes());
 
                 writer_mutex
@@ -692,7 +802,7 @@ impl Args {
                     .unwrap()
                     .write_byte_record(&output_record)?;
 
-                progress_bar.stop(&path);
+                progress_bar.stop(&name);
 
                 Ok(())
             })?;
@@ -704,15 +814,15 @@ impl Args {
             let total_count = AtomicUsize::new(0);
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let (mut reader, _children_guard) = self.reader(input)?;
-                let path = input.path();
+                let mut input_reader = self.read(input)?;
+                let name = input.name();
 
-                let bar = progress_bar.start(&path);
+                let bar = progress_bar.start(&name);
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
 
-                while reader.read_byte_record(&mut record)? {
+                while input_reader.read_byte_record(&mut record)? {
                     count += 1;
 
                     ParallelProgressBar::tick(&bar);
@@ -720,7 +830,7 @@ impl Args {
 
                 total_count.fetch_add(count, Ordering::Relaxed);
 
-                progress_bar.stop(&path);
+                progress_bar.stop(&name);
 
                 Ok(())
             })?;
@@ -768,15 +878,13 @@ impl Args {
         };
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let (mut reader, _children_guard) = self.reader(input)?;
-            let path = input.path();
+            let mut input_reader = self.read(input)?;
+            let name = input.name();
 
-            let bar = progress_bar.start(&path);
-
-            let mut headers = reader.byte_headers()?.clone();
+            let bar = progress_bar.start(&name);
 
             if let Some(source_column) = &self.flag_source_column {
-                headers.push_field(source_column.as_bytes());
+                input_reader.headers.push_field(source_column.as_bytes());
             }
 
             let mut buffer: Vec<csv::ByteRecord> = if let Some(buffer_size) = buffer_size_opt {
@@ -785,29 +893,29 @@ impl Args {
                 Vec::new()
             };
 
-            for result in reader.byte_records() {
+            let mut record = csv::ByteRecord::new();
+
+            while input_reader.read_byte_record(&mut record)? {
                 if matches!(buffer_size_opt, Some(buffer_size) if buffer.len() == buffer_size) {
-                    flush(&headers, &buffer)?;
+                    flush(&input_reader.headers, &buffer)?;
 
                     buffer.clear();
                 }
 
-                let mut record = result?;
-
                 if self.flag_source_column.is_some() {
-                    record.push_field(path.as_bytes());
+                    record.push_field(name.as_bytes());
                 }
 
-                buffer.push(record);
+                buffer.push(record.clone());
 
                 ParallelProgressBar::tick(&bar);
             }
 
             if !buffer.is_empty() {
-                flush(&headers, &buffer)?;
+                flush(&input_reader.headers, &buffer)?;
             }
 
-            progress_bar.stop(&path);
+            progress_bar.stop(&name);
 
             Ok(())
         })?;
@@ -830,19 +938,19 @@ impl Args {
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let (mut reader, _children_guard) = self.reader(input)?;
-            let path = input.path();
+            let mut input_reader = self.read(input)?;
+            let name = input.name();
 
-            let bar = progress_bar.start(&path);
+            let bar = progress_bar.start(&name);
 
-            let headers = reader.byte_headers()?.clone();
-            let sel = self.flag_select.selection(&headers, true)?;
+            let sel = self.flag_select.selection(&input_reader.headers, true)?;
 
-            let mut freq_tables = FrequencyTables::with_capacity(sel.collect(&headers));
+            let mut freq_tables =
+                FrequencyTables::with_capacity(sel.collect(&input_reader.headers));
 
             let mut record = csv::ByteRecord::new();
 
-            while reader.read_byte_record(&mut record)? {
+            while input_reader.read_byte_record(&mut record)? {
                 for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
                     if let Some(sep) = &self.flag_sep {
                         for subcell in cell.split_str(sep) {
@@ -858,7 +966,7 @@ impl Args {
 
             total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
-            progress_bar.stop(&path);
+            progress_bar.stop(&name);
 
             Ok(())
         })?;
@@ -901,19 +1009,18 @@ impl Args {
         let total_stats_mutex = Mutex::new(StatsTables::new());
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let (mut reader, _children_guard) = self.reader(input)?;
-            let path = input.path();
+            let mut input_reader = self.read(input)?;
+            let name = input.name();
 
-            let bar = progress_bar.start(&path);
+            let bar = progress_bar.start(&name);
 
-            let headers = reader.byte_headers()?.clone();
-            let sel = self.flag_select.selection(&headers, true)?;
+            let sel = self.flag_select.selection(&input_reader.headers, true)?;
 
             let mut local_stats =
-                StatsTables::with_capacity(sel.collect(&headers), || self.new_stats());
+                StatsTables::with_capacity(sel.collect(&input_reader.headers), || self.new_stats());
             let mut record = csv::ByteRecord::new();
 
-            while reader.read_byte_record(&mut record)? {
+            while input_reader.read_byte_record(&mut record)? {
                 for (cell, stats) in sel.select(&record).zip(local_stats.iter_mut()) {
                     stats.process(cell);
                 }
@@ -923,7 +1030,7 @@ impl Args {
 
             total_stats_mutex.lock().unwrap().merge(local_stats)?;
 
-            progress_bar.stop(&path);
+            progress_bar.stop(&name);
 
             Ok(())
         })?;
@@ -944,18 +1051,18 @@ impl Args {
         let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let (mut reader, _children_guard) = self.reader(input)?;
-            let path = input.path();
+            let mut input_reader = self.read(input)?;
+            let name = input.name();
 
-            let bar = progress_bar.start(&path);
+            let bar = progress_bar.start(&name);
 
             let mut record = csv::ByteRecord::new();
             let mut program =
-                AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), reader.byte_headers()?)?;
+                AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &input_reader.headers)?;
 
             let mut index: usize = 0;
 
-            while reader.read_byte_record(&mut record)? {
+            while input_reader.read_byte_record(&mut record)? {
                 program.run_with_record(index, &record)?;
                 index += 1;
 
@@ -969,7 +1076,7 @@ impl Args {
                 None => *total_program_opt = Some(program),
             };
 
-            progress_bar.stop(&path);
+            progress_bar.stop(&name);
 
             Ok(())
         })?;
@@ -992,21 +1099,26 @@ impl Args {
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let (mut reader, _children_guard) = self.reader(input)?;
-            let path = input.path();
-            let headers = reader.byte_headers()?.clone();
+            let mut input_reader = self.read(input)?;
+            let name = input.name();
 
-            let sel = self.arg_group.clone().unwrap().selection(&headers, true)?;
+            let sel = self
+                .arg_group
+                .clone()
+                .unwrap()
+                .selection(&input_reader.headers, true)?;
 
-            let bar = progress_bar.start(&path);
+            let bar = progress_bar.start(&name);
 
             let mut record = csv::ByteRecord::new();
-            let mut program =
-                GroupAggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers)?;
+            let mut program = GroupAggregationProgram::parse(
+                self.arg_expr.as_ref().unwrap(),
+                &input_reader.headers,
+            )?;
 
             let mut index: usize = 0;
 
-            while reader.read_byte_record(&mut record)? {
+            while input_reader.read_byte_record(&mut record)? {
                 let group = sel.collect(&record);
 
                 program.run_with_record(group, index, &record)?;
@@ -1019,10 +1131,10 @@ impl Args {
 
             match total_program_opt.as_mut() {
                 Some((_, current_program)) => current_program.merge(program),
-                None => *total_program_opt = Some((sel.collect(&headers), program)),
+                None => *total_program_opt = Some((sel.collect(&input_reader.headers), program)),
             };
 
-            progress_bar.stop(&path);
+            progress_bar.stop(&name);
 
             Ok(())
         })?;
@@ -1055,11 +1167,16 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let inputs = args.inputs()?;
+    let (inputs, chunks_hint) = args.inputs()?;
 
     if let Some(threads) = args.flag_threads {
+        let threads = match chunks_hint {
+            Some(count) => threads.get().min(count),
+            None => threads.get().min(inputs.len()),
+        };
+
         ThreadPoolBuilder::new()
-            .num_threads(threads.get().min(inputs.len()))
+            .num_threads(threads)
             .build_global()
             .expect("could not build thread pool!");
     }
