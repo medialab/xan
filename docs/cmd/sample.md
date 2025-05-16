@@ -23,13 +23,16 @@ sample options:
     --seed <number>        RNG seed.
     -w, --weight <column>  Column containing weights to bias the sample.
     -g, --groupby <cols>   Return a sample per group.
-    --cursed               Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
+    -§, --cursed           Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
                            distribution (source: trust me), without requiring to read
                            the whole file. Instead, we will randomly jump through it
                            like a dark wizard. This means the sampled file must
                            be large enough and seekable, so no stdin nor gzipped files.
                            Rows at the very end of the file might be discriminated against
-                           because they are not cool enough.
+                           because they are not cool enough. If desired sample size is
+                           deemed too large for the estimated total number of rows, the
+                           c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀  routine will fallback to normal reservoir sampling to
+                           sidestep the pain of learning O(∞) is actually a thing.
                            Does not work with -w/--weight nor -g/--groupby.
 
 Common options:

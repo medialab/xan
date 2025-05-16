@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-use std::io::{self, Seek, SeekFrom};
+use std::io;
 
 use rand::Rng;
 
@@ -42,7 +42,10 @@ sample options:
                            like a dark wizard. This means the sampled file must
                            be large enough and seekable, so no stdin nor gzipped files.
                            Rows at the very end of the file might be discriminated against
-                           because they are not cool enough.
+                           because they are not cool enough. If desired sample size is
+                           deemed too large for the estimated total number of rows, the
+                           c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀  routine will fallback to normal reservoir sampling to
+                           sidestep the pain of learning O(∞) is actually a thing.
                            Does not work with -w/--weight nor -g/--groupby.
 
 Common options:
@@ -73,7 +76,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_cursed && (args.flag_groupby.is_some() || args.flag_weight.is_some()) {
-        Err("--cursed does not work with -g/--groubpy nor -w/--weight!")?;
+        Err("-§/--cursed does not work with -g/--groubpy nor -w/--weight!")?;
     }
 
     let mut rconfig = Config::new(&args.arg_input)
@@ -300,31 +303,29 @@ fn sample_cursed(
     seed: Option<usize>,
 ) -> CliResult<Vec<csv::ByteRecord>> {
     let mut reader = config.seekable_reader()?;
-    let field_count = reader.byte_headers()?.len();
-    let sample = sample_initial_records(&mut reader, 64)?;
+    let sample = sample_initial_records(&mut reader, 64)?.ok_or("file is empty!")?;
 
-    // TODO: better safeguard here. We must make sure sample size is <= 1/10 of the whole approx data
-    if sample.count <= sample_size {
-        Err("Don't be a fool! Your data is too short to be cursed. Just use regular sampling.")?;
+    // If sample size is too large wrt whole file approximated number of records we fall back to
+    // traditional reservoir sampling:
+    if sample_size > (sample.exact_or_approx_count() as f64 * 0.1).ceil() as u64 {
+        return sample_reservoir(&mut config.reader()?, sample_size, seed);
     }
 
-    let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
-    let max_record_size = sample.max().unwrap();
-    let range = sample.first_record_offset..(file_len - max_record_size * 8);
+    // NOTE: we don't need to avoid headers because next record found will always be not the headers
+    let range = 0..(sample.file_len - sample.max_record_size * 8);
 
     let mut rng = util::acquire_rng(seed);
     let mut records: HashMap<u64, csv::ByteRecord> = HashMap::with_capacity(sample_size as usize);
 
     'outer: while records.len() < sample_size as usize {
+        // NOTE: we only attempt 5 times to find a not yet sampled record
         for _ in 0..5 {
             let random_byte_offset = rng.random_range(range.clone());
 
             if let Some(record) = find_next_record_offset_from_random_position(
                 &mut reader,
                 random_byte_offset,
-                max_record_size,
-                &sample.profile,
-                field_count,
+                &sample,
                 8,
             )?
             .into_record()

@@ -1,4 +1,3 @@
-use std::io::{Seek, SeekFrom};
 use std::num::NonZeroU64;
 
 use crate::config::{Config, Delimiter};
@@ -22,7 +21,7 @@ count options:
                        first rows. Target must be seekable, which means this cannot
                        work on a stream fed through stdin nor with gzipped data.
     --sample-size <n>  Number of rows to sample when using -a, --approx.
-                       [default: 1024]
+                       [default: 512]
 
 Common options:
     -h, --help             Display this message
@@ -55,21 +54,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let count = if args.flag_approx {
         let mut rdr = conf.seekable_reader()?;
 
-        let sample_size = args.flag_sample_size.get();
-
-        let sample = sample_initial_records(&mut rdr, sample_size)?;
-
-        if sample.count < sample_size {
-            sample.count
-        } else {
-            match sample.mean() {
-                Some(mean) => {
-                    let file_len = rdr.into_inner().seek(SeekFrom::End(0))?;
-
-                    (file_len as f64 / mean).ceil() as u64
-                }
-                None => 0,
-            }
+        match sample_initial_records(&mut rdr, args.flag_sample_size.get())? {
+            None => 0,
+            Some(sample) => sample.exact_or_approx_count(),
         }
     } else {
         let mut rdr = conf.reader()?;

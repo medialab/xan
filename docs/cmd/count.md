@@ -17,7 +17,7 @@ count options:
                        first rows. Target must be seekable, which means this cannot
                        work on a stream fed through stdin nor with gzipped data.
     --sample-size <n>  Number of rows to sample when using -a, --approx.
-                       [default: 1024]
+                       [default: 512]
 
 Common options:
     -h, --help             Display this message

@@ -55,34 +55,30 @@ impl<R: Seek + Read> ReverseRead<R> {
 
 #[derive(Debug)]
 pub struct InitialRecordsSample {
-    pub count: u64,
-    stats: Option<(u64, f64)>,
+    pub size: u64,
+    pub max_record_size: u64,
+    pub mean_record_size: f64,
     pub first_record_offset: u64,
     pub profile: Vec<f64>,
+    pub file_len: u64,
+    pub eof: bool,
 }
 
 impl InitialRecordsSample {
-    fn new(
-        count: u64,
-        max: Option<u64>,
-        mean: Option<f64>,
-        first_record_offset: u64,
-        profile: Vec<f64>,
-    ) -> Self {
-        Self {
-            count,
-            stats: max.map(|m| (m, mean.unwrap())),
-            first_record_offset,
-            profile,
+    pub fn field_count(&self) -> usize {
+        self.profile.len()
+    }
+
+    pub fn approx_count(&self) -> u64 {
+        (self.file_len as f64 / self.mean_record_size).ceil() as u64
+    }
+
+    pub fn exact_or_approx_count(&self) -> u64 {
+        if self.eof {
+            self.size
+        } else {
+            self.approx_count()
         }
-    }
-
-    pub fn mean(&self) -> Option<f64> {
-        self.stats.map(|(_, m)| m)
-    }
-
-    pub fn max(&self) -> Option<u64> {
-        self.stats.map(|(m, _)| m)
     }
 }
 
@@ -104,10 +100,11 @@ fn cosine(profile: &[f64], other: &[usize]) -> f64 {
     intersection / (self_norm * other_norm).sqrt()
 }
 
+// BEWARE: this functions seeks to the end of file to assess file len!
 pub fn sample_initial_records<R: Read + Seek>(
     reader: &mut Reader<R>,
     max_records_to_read: u64,
-) -> Result<InitialRecordsSample, csv::Error> {
+) -> Result<Option<InitialRecordsSample>, csv::Error> {
     // NOTE: it is important to make sure headers have been read
     // so that the first record size does not include header bytes.
     let field_count = reader.byte_headers()?.len();
@@ -148,17 +145,26 @@ pub fn sample_initial_records<R: Read + Seek>(
         last_offset = record_byte_pos;
     }
 
+    if i == 0 {
+        return Ok(None);
+    }
+
     let profile = (0..field_count)
         .map(|j| profiles.iter().map(|p| p[j] as f64).sum::<f64>() / profiles.len() as f64)
         .collect::<Vec<_>>();
 
-    Ok(InitialRecordsSample::new(
-        i,
-        max_record_size,
-        welford.mean(),
+    let eof = !reader.read_byte_record(&mut record)?;
+    let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
+
+    Ok(Some(InitialRecordsSample {
+        size: i,
+        max_record_size: max_record_size.unwrap(),
+        mean_record_size: welford.mean().unwrap(),
         first_record_offset,
         profile,
-    ))
+        file_len,
+        eof,
+    }))
 }
 
 // BEWARE: this function assess whether the parsed record is too far AFTER the fact.
@@ -262,10 +268,8 @@ fn next_record_info<R: Read>(
 pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
     reader: &mut Reader<R>,
     offset: u64,
-    max_record_size: u64,
-    profile: &[f64],
-    expected_field_count: usize,
-    sample_size: u64,
+    sample: &InitialRecordsSample,
+    jump: u64,
 ) -> Result<NextRecordOffsetInferrence, csv::Error> {
     // First we seek to given random position
     let mut pos = Position::new();
@@ -278,13 +282,13 @@ pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
         .has_headers(false)
         .from_reader(reader.get_mut());
 
-    debug_assert!(sample_size > 0);
+    debug_assert!(jump > 0);
 
-    let mut end_byte = max_record_size * sample_size;
+    let mut end_byte = sample.max_record_size * jump;
 
     // Reading as potentially unquoted
     let unquoted_next_record_info =
-        next_record_info(&mut altered_reader, end_byte, expected_field_count)?;
+        next_record_info(&mut altered_reader, end_byte, sample.field_count())?;
 
     // Reading as potentially quoted
     let mut pos = Position::new();
@@ -300,7 +304,7 @@ pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
     end_byte += 1;
 
     let quoted_next_record_info =
-        next_record_info(&mut altered_reader, end_byte, expected_field_count)?;
+        next_record_info(&mut altered_reader, end_byte, sample.field_count())?;
 
     Ok(match (unquoted_next_record_info, quoted_next_record_info) {
         (None, None) => NextRecordOffsetInferrence::Fail,
@@ -325,8 +329,8 @@ pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
                     unquoted_info.into_inner(),
                 )
             } else {
-                let unquoted_cosine = cosine(profile, &unquoted_info.profile());
-                let quoted_cosine = cosine(profile, &quoted_info.profile());
+                let unquoted_cosine = cosine(&sample.profile, &unquoted_info.profile());
+                let quoted_cosine = cosine(&sample.profile, &quoted_info.profile());
 
                 if unquoted_cosine > quoted_cosine {
                     NextRecordOffsetInferrence::WasInUnquoted(
@@ -375,34 +379,23 @@ pub fn segment_csv_file<R: Read + Seek>(
     reader: &mut Reader<R>,
     mut options: SegmentationOptions,
 ) -> Result<Option<Vec<(u64, u64)>>, csv::Error> {
-    let field_count = reader.byte_headers()?.len();
-
-    // File is completely empty
-    if field_count == 0 {
-        return Ok(None);
-    }
-
-    let sample = sample_initial_records(reader, options.init_sample_size)?;
-
-    let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
-
-    let max_record_size = match sample.max() {
-        None => return Ok(None), // File has no records
-        Some(m) => m,
+    let sample = match sample_initial_records(reader, options.init_sample_size)? {
+        None => return Ok(None),
+        Some(s) => s,
     };
 
     // File is way too short
-    if sample.count < options.chunks as u64 {
-        return Ok(Some(vec![(0, file_len)]));
+    if sample.size < options.chunks as u64 {
+        return Ok(Some(vec![(0, sample.file_len)]));
     }
 
     // Limiting number of chunks when file is too short
     options.chunks = options
         .chunks
-        .min((file_len / (max_record_size * options.jump_sample_size) - 1) as usize)
+        .min((sample.file_len / (sample.max_record_size * options.jump_sample_size) - 1) as usize)
         .max(1);
 
-    let mut segments = segment_file(file_len, options.chunks)
+    let mut segments = segment_file(sample.file_len, options.chunks)
         .iter()
         .copied()
         .map(|offset| {
@@ -412,9 +405,7 @@ pub fn segment_csv_file<R: Read + Seek>(
                 find_next_record_offset_from_random_position(
                     reader,
                     offset,
-                    max_record_size,
-                    &sample.profile,
-                    field_count,
+                    &sample,
                     options.jump_sample_size,
                 )
             }
@@ -435,7 +426,7 @@ pub fn segment_csv_file<R: Read + Seek>(
                     NextRecordOffsetInferrence::Start => sample.first_record_offset,
                     _ => window[0].offset().unwrap(),
                 },
-                window[1].offset().unwrap_or(file_len),
+                window[1].offset().unwrap_or(sample.file_len),
             )
         })
         .collect::<Vec<_>>();
