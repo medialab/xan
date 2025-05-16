@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::io::{self, IsTerminal};
@@ -329,6 +330,33 @@ impl StatsTables {
     }
 }
 
+struct FileChunk {
+    file_path: String,
+    from: u64,
+    to: u64,
+    position: usize,
+}
+
+impl FileChunk {
+    fn path(&self) -> String {
+        format!("{}@chunk-{}", self.file_path, self.position)
+    }
+}
+
+enum Input {
+    Path(String),
+    FileChunk(FileChunk),
+}
+
+impl Input {
+    fn path(&self) -> Cow<str> {
+        match self {
+            Self::Path(p) => Cow::Borrowed(p),
+            Self::FileChunk(chunk) => Cow::Owned(chunk.path()),
+        }
+    }
+}
+
 static USAGE: &str = "
 Process CSV datasets split into multiple files, in parallel.
 
@@ -493,27 +521,35 @@ impl Args {
         stats
     }
 
-    fn inputs(&self) -> CliResult<Vec<String>> {
-        if !self.arg_inputs.is_empty() {
-            Ok(self.arg_inputs.clone())
+    fn inputs(&self) -> CliResult<Vec<Input>> {
+        let inputs = if !self.arg_inputs.is_empty() {
+            self.arg_inputs.clone()
         } else {
             if io::stdin().is_terminal() {
                 return Ok(vec![]);
             }
 
-            Ok(Config::empty()
+            Config::stdin()
                 .lines(&self.flag_path_column)?
-                .collect::<Result<Vec<_>, _>>()?)
+                .collect::<Result<Vec<_>, _>>()?
+        };
+
+        if inputs.is_empty() {
+            Err("no files to process!\nDid you forget stdin or arguments?")?;
         }
+
+        Ok(inputs.into_iter().map(Input::Path).collect())
     }
 
-    fn reader(&self, path: &str) -> CliResult<(Reader, Option<Children>)> {
+    fn reader(&self, input: &Input) -> CliResult<(Reader, Option<Children>)> {
+        debug_assert!(!matches!(input, Input::FileChunk(_)));
+
         Ok(if let Some(preprocessing) = &self.flag_shell_preprocess {
             if preprocessing.trim().is_empty() {
                 Err("-S, --shell-preprocess cannot be an empty command!")?;
             }
 
-            let config = Config::empty()
+            let config = Config::stdin()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -522,7 +558,7 @@ impl Args {
             let mut cat = Command::new("cat")
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
-                .arg(path)
+                .arg(input.path().as_ref())
                 .spawn()
                 .expect("could not spawn \"cat\"");
 
@@ -575,13 +611,13 @@ impl Args {
                 } else {
                     // First command in pipeline must read the file
                     command.stdin(Stdio::null());
-                    command.arg(path);
+                    command.arg(input.path().as_ref());
                 }
 
                 children.push(command.spawn().expect("could not spawn preprocessing"));
             }
 
-            let config = Config::empty()
+            let config = Config::stdin()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -597,49 +633,31 @@ impl Args {
                 Some(Children::from(children)),
             )
         } else {
-            let config = Config::new(&Some(path.to_string()))
+            let config = Config::new(&Some(input.path().into_owned()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
             (config.reader()?, None)
         })
     }
-}
 
-pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    fn progress_bar(&self, total: usize) -> ParallelProgressBar {
+        if self.flag_progress {
+            console::set_colors_enabled(true);
+            colored::control::set_override(true);
 
-    if args.cmd_cat && args.flag_preprocess.is_none() && args.flag_shell_preprocess.is_none() {
-        Err("`xan parallel cat` without -P/--preprocess or -S/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
+            ParallelProgressBar::new(total)
+        } else {
+            ParallelProgressBar::hidden()
+        }
     }
 
-    let inputs = args.inputs()?;
+    fn count(self, inputs: Vec<Input>) -> CliResult<()> {
+        let progress_bar = self.progress_bar(inputs.len());
 
-    if inputs.is_empty() {
-        Err("no files to process!\nDid you forget stdin or arguments?")?;
-    }
-
-    if let Some(threads) = args.flag_threads {
-        ThreadPoolBuilder::new()
-            .num_threads(threads.get().min(inputs.len()))
-            .build_global()
-            .expect("could not build thread pool!");
-    }
-
-    let progress_bar = if args.flag_progress {
-        console::set_colors_enabled(true);
-        colored::control::set_override(true);
-
-        ParallelProgressBar::new(inputs.len())
-    } else {
-        ParallelProgressBar::hidden()
-    };
-
-    // Count
-    if args.cmd_count {
-        if let Some(source_column_name) = &args.flag_source_column {
+        if let Some(source_column_name) = &self.flag_source_column {
             let writer_mutex = {
-                let mut writer = Config::new(&args.flag_output).writer()?;
+                let mut writer = Config::new(&self.flag_output).writer()?;
 
                 let mut output_headers = csv::ByteRecord::new();
                 output_headers.push_field(source_column_name.as_bytes());
@@ -650,10 +668,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Mutex::new(writer)
             };
 
-            inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-                let (mut reader, _children_guard) = args.reader(path)?;
+            inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+                let (mut reader, _children_guard) = self.reader(input)?;
+                let path = input.path();
 
-                let bar = progress_bar.start(path);
+                let bar = progress_bar.start(&path);
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
@@ -673,7 +692,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .unwrap()
                     .write_byte_record(&output_record)?;
 
-                progress_bar.stop(path);
+                progress_bar.stop(&path);
 
                 Ok(())
             })?;
@@ -684,10 +703,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             let total_count = AtomicUsize::new(0);
 
-            inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-                let (mut reader, _children_guard) = args.reader(path)?;
+            inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+                let (mut reader, _children_guard) = self.reader(input)?;
+                let path = input.path();
 
-                let bar = progress_bar.start(path);
+                let bar = progress_bar.start(&path);
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
@@ -700,7 +720,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 total_count.fetch_add(count, Ordering::Relaxed);
 
-                progress_bar.stop(path);
+                progress_bar.stop(&path);
 
                 Ok(())
             })?;
@@ -709,19 +729,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             println!("{}", total_count.into_inner());
         }
+
+        Ok(())
     }
-    // Cat
-    else if args.cmd_cat {
+
+    fn cat(self, inputs: Vec<Input>) -> CliResult<()> {
+        if self.flag_preprocess.is_none() && self.flag_shell_preprocess.is_none() {
+            Err("`xan parallel cat` without -P/--preprocess or -S/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
+        }
+
+        let progress_bar = self.progress_bar(inputs.len());
+
         // NOTE: the bool tracks whether headers were already written
         let writer_mutex = Arc::new(Mutex::new((
             false,
-            Config::new(&args.flag_output).writer()?,
+            Config::new(&self.flag_output).writer()?,
         )));
 
-        let buffer_size_opt = if args.flag_buffer_size <= 0 {
+        let buffer_size_opt = if self.flag_buffer_size <= 0 {
             None
         } else {
-            Some(args.flag_buffer_size as usize)
+            Some(self.flag_buffer_size as usize)
         };
 
         let flush = |headers: &csv::ByteRecord, records: &[csv::ByteRecord]| -> CliResult<()> {
@@ -739,14 +767,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(())
         };
 
-        inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-            let (mut reader, _children_guard) = args.reader(path)?;
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let (mut reader, _children_guard) = self.reader(input)?;
+            let path = input.path();
 
-            let bar = progress_bar.start(path);
+            let bar = progress_bar.start(&path);
 
             let mut headers = reader.byte_headers()?.clone();
 
-            if let Some(source_column) = &args.flag_source_column {
+            if let Some(source_column) = &self.flag_source_column {
                 headers.push_field(source_column.as_bytes());
             }
 
@@ -765,7 +794,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 let mut record = result?;
 
-                if args.flag_source_column.is_some() {
+                if self.flag_source_column.is_some() {
                     record.push_field(path.as_bytes());
                 }
 
@@ -778,7 +807,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 flush(&headers, &buffer)?;
             }
 
-            progress_bar.stop(path);
+            progress_bar.stop(&path);
 
             Ok(())
         })?;
@@ -791,18 +820,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .unwrap()
             .1
             .flush()?;
+
+        Ok(())
     }
-    // Freq
-    else if args.cmd_freq {
+
+    fn freq(self, inputs: Vec<Input>) -> CliResult<()> {
+        let progress_bar = self.progress_bar(inputs.len());
+
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
-        inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-            let (mut reader, _children_guard) = args.reader(path)?;
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let (mut reader, _children_guard) = self.reader(input)?;
+            let path = input.path();
 
-            let bar = progress_bar.start(path);
+            let bar = progress_bar.start(&path);
 
             let headers = reader.byte_headers()?.clone();
-            let sel = args.flag_select.selection(&headers, true)?;
+            let sel = self.flag_select.selection(&headers, true)?;
 
             let mut freq_tables = FrequencyTables::with_capacity(sel.collect(&headers));
 
@@ -810,7 +844,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             while reader.read_byte_record(&mut record)? {
                 for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
-                    if let Some(sep) = &args.flag_sep {
+                    if let Some(sep) = &self.flag_sep {
                         for subcell in cell.split_str(sep) {
                             table.inc(subcell.to_vec());
                         }
@@ -824,12 +858,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
-            progress_bar.stop(path);
+            progress_bar.stop(&path);
 
             Ok(())
         })?;
 
-        let mut writer = Config::new(&args.flag_output).writer()?;
+        let mut writer = Config::new(&self.flag_output).writer()?;
 
         let mut output_record = csv::ByteRecord::new();
         output_record.extend([b"field", b"value", b"count"]);
@@ -854,24 +888,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         progress_bar.succeed();
         writer.flush()?;
+
+        Ok(())
     }
-    // Stats
-    else if args.cmd_stats {
-        let mut writer = Config::new(&args.flag_output).writer()?;
-        writer.write_byte_record(&args.new_stats().headers())?;
+
+    fn stats(self, inputs: Vec<Input>) -> CliResult<()> {
+        let progress_bar = self.progress_bar(inputs.len());
+
+        let mut writer = Config::new(&self.flag_output).writer()?;
+        writer.write_byte_record(&self.new_stats().headers())?;
 
         let total_stats_mutex = Mutex::new(StatsTables::new());
 
-        inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-            let (mut reader, _children_guard) = args.reader(path)?;
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let (mut reader, _children_guard) = self.reader(input)?;
+            let path = input.path();
 
-            let bar = progress_bar.start(path);
+            let bar = progress_bar.start(&path);
 
             let headers = reader.byte_headers()?.clone();
-            let sel = args.flag_select.selection(&headers, true)?;
+            let sel = self.flag_select.selection(&headers, true)?;
 
             let mut local_stats =
-                StatsTables::with_capacity(sel.collect(&headers), || args.new_stats());
+                StatsTables::with_capacity(sel.collect(&headers), || self.new_stats());
             let mut record = csv::ByteRecord::new();
 
             while reader.read_byte_record(&mut record)? {
@@ -884,7 +923,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             total_stats_mutex.lock().unwrap().merge(local_stats)?;
 
-            progress_bar.stop(path);
+            progress_bar.stop(&path);
 
             Ok(())
         })?;
@@ -895,19 +934,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         progress_bar.succeed();
         writer.flush()?;
+
+        Ok(())
     }
-    // Agg
-    else if args.cmd_agg {
+
+    fn agg(self, inputs: Vec<Input>) -> CliResult<()> {
+        let progress_bar = self.progress_bar(inputs.len());
+
         let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
-        inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-            let (mut reader, _children_guard) = args.reader(path)?;
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let (mut reader, _children_guard) = self.reader(input)?;
+            let path = input.path();
 
-            let bar = progress_bar.start(path);
+            let bar = progress_bar.start(&path);
 
             let mut record = csv::ByteRecord::new();
             let mut program =
-                AggregationProgram::parse(args.arg_expr.as_ref().unwrap(), reader.byte_headers()?)?;
+                AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), reader.byte_headers()?)?;
 
             let mut index: usize = 0;
 
@@ -925,35 +969,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 None => *total_program_opt = Some(program),
             };
 
-            progress_bar.stop(path);
+            progress_bar.stop(&path);
 
             Ok(())
         })?;
 
         if let Some(mut total_program) = total_program_mutex.into_inner().unwrap() {
-            let mut writer = Config::new(&args.flag_output).writer()?;
+            let mut writer = Config::new(&self.flag_output).writer()?;
             writer.write_record(total_program.headers())?;
             writer.write_byte_record(&total_program.finalize(true)?)?;
         }
 
         progress_bar.succeed();
+
+        Ok(())
     }
-    // Groupby
-    else if args.cmd_groupby {
+
+    fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
+        let progress_bar = self.progress_bar(inputs.len());
+
         let total_program_mutex: Mutex<Option<(Vec<Vec<u8>>, GroupAggregationProgram)>> =
             Mutex::new(None);
 
-        inputs.par_iter().try_for_each(|path| -> CliResult<()> {
-            let (mut reader, _children_guard) = args.reader(path)?;
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let (mut reader, _children_guard) = self.reader(input)?;
+            let path = input.path();
             let headers = reader.byte_headers()?.clone();
 
-            let sel = args.arg_group.clone().unwrap().selection(&headers, true)?;
+            let sel = self.arg_group.clone().unwrap().selection(&headers, true)?;
 
-            let bar = progress_bar.start(path);
+            let bar = progress_bar.start(&path);
 
             let mut record = csv::ByteRecord::new();
             let mut program =
-                GroupAggregationProgram::parse(args.arg_expr.as_ref().unwrap(), &headers)?;
+                GroupAggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers)?;
 
             let mut index: usize = 0;
 
@@ -973,13 +1022,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 None => *total_program_opt = Some((sel.collect(&headers), program)),
             };
 
-            progress_bar.stop(path);
+            progress_bar.stop(&path);
 
             Ok(())
         })?;
 
         if let Some((group_headers, total_program)) = total_program_mutex.into_inner().unwrap() {
-            let mut writer = Config::new(&args.flag_output).writer()?;
+            let mut writer = Config::new(&self.flag_output).writer()?;
             let mut output_record = csv::ByteRecord::new();
             output_record.extend(group_headers);
             output_record.extend(total_program.headers());
@@ -998,6 +1047,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         progress_bar.succeed();
+
+        Ok(())
+    }
+}
+
+pub fn run(argv: &[&str]) -> CliResult<()> {
+    let args: Args = util::get_args(USAGE, argv)?;
+
+    let inputs = args.inputs()?;
+
+    if let Some(threads) = args.flag_threads {
+        ThreadPoolBuilder::new()
+            .num_threads(threads.get().min(inputs.len()))
+            .build_global()
+            .expect("could not build thread pool!");
+    }
+
+    if args.cmd_count {
+        args.count(inputs)?;
+    } else if args.cmd_cat {
+        args.cat(inputs)?;
+    } else if args.cmd_freq {
+        args.freq(inputs)?;
+    } else if args.cmd_stats {
+        args.stats(inputs)?;
+    } else if args.cmd_agg {
+        args.agg(inputs)?;
+    } else if args.cmd_groupby {
+        args.groupby(inputs)?;
+    } else {
+        unreachable!()
     }
 
     Ok(())

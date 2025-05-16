@@ -116,7 +116,7 @@ impl Config {
         }
     }
 
-    pub fn empty() -> Config {
+    pub fn stdin() -> Config {
         Self::new(&None)
     }
 
