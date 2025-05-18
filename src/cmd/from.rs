@@ -398,27 +398,21 @@ impl Args {
     }
 
     fn convert_markdown(&self) -> CliResult<()> {
-        use markdown::mdast::{Node, Table};
+        use comrak::{Arena, parse_document, Options};
+        use comrak::nodes::NodeValue;
 
         let mut rdr = Config::new(&self.arg_input).io_buf_reader()?;
         let mut buf = String::new();
         rdr.read_to_string(&mut buf)?;
 
-        // Use GitHub Flavored Markdown (GFM) for table support.
-        let tree = markdown::to_mdast(&buf, &markdown::ParseOptions::gfm())?;
+        let arena = Arena::new();
+        let mut options = Options::default();
+        options.extension.table = true;
+        let root = parse_document(&arena, &buf, &options);
+        let tables = root.descendants().filter(|n| {
+            matches!(n.data.borrow().value, NodeValue::Table(_))
+        }).collect::<Vec<_>>();
 
-        fn collect_tables_into<'a>(n: &'a Node, tables: &mut Vec<&'a Table>) {
-            if let Node::Table(table) = n {
-                tables.push(table);
-            } else {
-                let Some(kids) = n.children() else { return };
-                for n in kids {
-                    collect_tables_into(n, tables);
-                }
-            }
-        }
-        let mut tables = vec![];
-        collect_tables_into(&tree, &mut tables);
         if tables.is_empty() {
             Err("target Markdown does not contain a table")?;
         }
@@ -444,21 +438,36 @@ impl Args {
                 )
             })?;
 
-        let rows = &table.children;
         let mut wtr = self.writer()?;
         let mut record = csv::ByteRecord::new();
-        for row in rows {
-            for cell in row.children().into_iter().flatten() {
+        let lines = buf.lines().collect::<Vec<_>>();
+        for row in table.children() {
+            // Ignore non-row nodes, though there shouldn't be any.
+            if !matches!(row.data.borrow().value, NodeValue::TableRow(_)) {
+                continue;
+            }
+            for cell in row.children() {
+                // Ignore non-cell nodes, though there shouldn't be any.
+                if !matches!(cell.data.borrow().value, NodeValue::TableCell) {
+                    continue;
+                }
+
                 // `cell.to_string()` drops formatting so extract raw string from `buf`.
-                // Position of whole cell includes border `|` character so
-                // get range from start of first child to end of last child.
-                if let Some(range) = (|| {
-                    let kids = cell.children()?;
-                    let first = kids.first()?.position()?;
-                    let last = kids.last()?.position()?;
-                    Some(first.start.offset..last.end.offset)
+                // Position of whole cell includes padding so get range from start
+                // of first child to end of last child.
+                if let Some((start, end)) = (|| {
+                    let first = cell.first_child()?.data.borrow();
+                    let last = cell.last_child()?.data.borrow();
+                    Some((first.sourcepos.start, last.sourcepos.end))
                 })() {
-                    record.push_field(buf[range].as_bytes());
+                    if start.line != end.line {
+                        // Markdown does not support multiline table cells
+                        // so this shouldn't happen.
+                        return Err("Unsupported multiline Markdown table cell".into());
+                    }
+                    // sourcepos is 1-based, inclusive, and by bytes not characters
+                    let line = lines[start.line-1].as_bytes();
+                    record.push_field(&line[start.column-1..end.column]);
                 } else {
                     record.push_field(&[]);
                 }
