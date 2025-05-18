@@ -114,7 +114,7 @@ Text lines options:
                            [default: value]
 
 Markdown options:
-    -s, --select <n>       Select nth table in document, starting at 0.
+    -n, --nth-table <n>    Select nth table in document, starting at 0.
                            Negative index can be used to select from the end.
                            [default: 0]
 
@@ -133,7 +133,7 @@ struct Args {
     flag_key_column: String,
     flag_value_column: String,
     flag_column: String,
-    flag_select: isize,
+    flag_nth_table: isize,
 }
 
 impl Args {
@@ -416,13 +416,13 @@ impl Args {
         if tables.is_empty() {
             Err("target Markdown does not contain a table")?;
         }
-        let table = usize::try_from(self.flag_select)
+        let table = usize::try_from(self.flag_nth_table)
             .ok()
             // select from end if negative.
-            .or_else(|| tables.len().checked_add_signed(self.flag_select))
+            .or_else(|| tables.len().checked_add_signed(self.flag_nth_table))
             .and_then(|i| tables.get(i))
             .ok_or_else(|| {
-                let bounds = if self.flag_select >= 0 {
+                let bounds = if self.flag_nth_table >= 0 {
                     [0, tables.len()].map(|n| n.to_string())
                 } else {
                     // Saturating to avoid underflow.
@@ -432,7 +432,7 @@ impl Args {
                 };
                 format!(
                     "table index {} is out of bounds in target Markdown (must be between {} and {})",
-                    self.flag_select,
+                    self.flag_nth_table,
                     bounds[0],
                     bounds[1]
                 )
