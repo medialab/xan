@@ -25,6 +25,7 @@ enum SupportedFormat {
     Text,
     Npy,
     Tar,
+    Md,
 }
 
 impl SupportedFormat {
@@ -36,6 +37,7 @@ impl SupportedFormat {
             "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
+            "md" | "markdown" => Self::Md,
             _ => return None,
         })
     }
@@ -68,16 +70,18 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods    - OpenOffice spreadsheet
-    xls    - Excel spreasheet
-    xlsb   - Excel spreasheet
-    xlsx   - Excel spreasheet
-    json   - JSON array or object
-    ndjson - Newline-delimited JSON
-    jsonl  - Newline-delimited JSON
-    txt    - text lines
-    npy    - Numpy array
-    tar    - Tarball archive
+    ods      - OpenOffice spreadsheet
+    xls      - Excel spreasheet
+    xlsb     - Excel spreasheet
+    xlsx     - Excel spreasheet
+    json     - JSON array or object
+    ndjson   - Newline-delimited JSON
+    jsonl    - Newline-delimited JSON
+    txt      - text lines
+    npy      - Numpy array
+    tar      - Tarball archive
+    md       - Markdown table
+    markdown - Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
@@ -109,6 +113,11 @@ Text lines options:
     -c, --column <name>    Name of the column to create.
                            [default: value]
 
+Markdown options:
+    -n, --nth-table <n>    Select nth table in document, starting at 0.
+                           Negative index can be used to select from the end.
+                           [default: 0]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -124,6 +133,7 @@ struct Args {
     flag_key_column: String,
     flag_value_column: String,
     flag_column: String,
+    flag_nth_table: isize,
 }
 
 impl Args {
@@ -386,6 +396,88 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_markdown(&self) -> CliResult<()> {
+        use comrak::{Arena, parse_document, Options};
+        use comrak::nodes::NodeValue;
+
+        let mut rdr = Config::new(&self.arg_input).io_buf_reader()?;
+        let mut buf = String::new();
+        rdr.read_to_string(&mut buf)?;
+
+        let arena = Arena::new();
+        let mut options = Options::default();
+        options.extension.table = true;
+        let root = parse_document(&arena, &buf, &options);
+        let tables = root.descendants().filter(|n| {
+            matches!(n.data.borrow().value, NodeValue::Table(_))
+        }).collect::<Vec<_>>();
+
+        if tables.is_empty() {
+            Err("target Markdown does not contain a table")?;
+        }
+        let table = usize::try_from(self.flag_nth_table)
+            .ok()
+            // select from end if negative.
+            .or_else(|| tables.len().checked_add_signed(self.flag_nth_table))
+            .and_then(|i| tables.get(i))
+            .ok_or_else(|| {
+                let bounds = if self.flag_nth_table >= 0 {
+                    [0, tables.len()].map(|n| n.to_string())
+                } else {
+                    // Saturating to avoid underflow.
+                    // isize::MIN is smallest supported number anyway due to type of `flag_select`. 
+                    let low = 0isize.saturating_sub_unsigned(tables.len());
+                    [-1, low].map(|n| n.to_string())
+                };
+                format!(
+                    "table index {} is out of bounds in target Markdown (must be between {} and {})",
+                    self.flag_nth_table,
+                    bounds[0],
+                    bounds[1]
+                )
+            })?;
+
+        let mut wtr = self.writer()?;
+        let mut record = csv::ByteRecord::new();
+        let lines = buf.lines().collect::<Vec<_>>();
+        for row in table.children() {
+            // Ignore non-row nodes, though there shouldn't be any.
+            if !matches!(row.data.borrow().value, NodeValue::TableRow(_)) {
+                continue;
+            }
+            for cell in row.children() {
+                // Ignore non-cell nodes, though there shouldn't be any.
+                if !matches!(cell.data.borrow().value, NodeValue::TableCell) {
+                    continue;
+                }
+
+                // `cell.to_string()` drops formatting so extract raw string from `buf`.
+                // Position of whole cell includes padding so get range from start
+                // of first child to end of last child.
+                if let Some((start, end)) = (|| {
+                    let first = cell.first_child()?.data.borrow();
+                    let last = cell.last_child()?.data.borrow();
+                    Some((first.sourcepos.start, last.sourcepos.end))
+                })() {
+                    if start.line != end.line {
+                        // Markdown does not support multiline table cells
+                        // so this shouldn't happen.
+                        return Err("Unsupported multiline Markdown table cell".into());
+                    }
+                    // sourcepos is 1-based, inclusive, and by bytes not characters
+                    let line = lines[start.line-1].as_bytes();
+                    record.push_field(&line[start.column-1..end.column]);
+                } else {
+                    record.push_field(&[]);
+                }
+            }
+            wtr.write_byte_record(&record)?;
+            record.clear();
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -417,5 +509,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::Text => args.convert_text_lines(),
         SupportedFormat::Npy => args.convert_npy(),
         SupportedFormat::Tar => args.convert_tar(),
+        SupportedFormat::Md => args.convert_markdown(),
     }
 }
