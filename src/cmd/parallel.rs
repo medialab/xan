@@ -34,10 +34,11 @@ struct Bars {
     multi: MultiProgress,
     bars: Mutex<Vec<(String, ProgressBar)>>,
     total: u64,
+    chunks: bool,
 }
 
 impl Bars {
-    fn new(total: usize) -> Self {
+    fn new(total: usize, chunks: bool) -> Self {
         let main = ProgressBar::new(total as u64);
         let multi = MultiProgress::new();
         multi.add(main.clone());
@@ -47,6 +48,7 @@ impl Bars {
             multi,
             bars: Mutex::new(Vec::new()),
             total: total as u64,
+            chunks,
         };
 
         bars.set_color("blue");
@@ -55,8 +57,12 @@ impl Bars {
     }
 
     fn set_color(&self, color: &str) {
-        self.main
-            .set_style(get_progress_style(Some(self.total), color, false, "files"));
+        self.main.set_style(get_progress_style(
+            Some(self.total),
+            color,
+            false,
+            if self.chunks { "chunks" } else { "files" },
+        ));
         self.main.tick();
     }
 
@@ -120,9 +126,9 @@ impl ParallelProgressBar {
         Self { bars: None }
     }
 
-    fn new(total: usize) -> Self {
+    fn new(total: usize, chunks: bool) -> Self {
         Self {
-            bars: Some(Bars::new(total)),
+            bars: Some(Bars::new(total, chunks)),
         }
     }
 
@@ -351,6 +357,13 @@ impl Input {
         match self {
             Self::Path(p) => Cow::Borrowed(p),
             Self::FileChunk(chunk) => Cow::Owned(chunk.name()),
+        }
+    }
+
+    fn path(&self) -> &str {
+        match self {
+            Self::Path(p) => p,
+            Self::FileChunk(chunk) => &chunk.file_path,
         }
     }
 }
@@ -613,6 +626,10 @@ impl Args {
 
             let shell = env::var("SHELL").expect("$SHELL is not set!");
 
+            // NOTE: here we are relying on cat to avoid spinning a thread.
+            // I haven't benchmarked this but I suspect `cat` does a better job
+            // than what I could do regarding buffering etc. It's true we could
+            // save up a process though, so we might want to benchmark this.
             let mut cat = match input {
                 Input::Path(p) => Command::new("cat")
                     .stdin(Stdio::null())
@@ -668,6 +685,22 @@ impl Args {
 
             let mut children: Vec<Child> = Vec::new();
 
+            if let Input::FileChunk(file_chunk) = input {
+                children.push(
+                    Command::new(exe.clone())
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .arg("slice")
+                        .arg("-B")
+                        .arg(file_chunk.from.to_string())
+                        .arg("-E")
+                        .arg(file_chunk.to.to_string())
+                        .arg(&file_chunk.file_path)
+                        .spawn()
+                        .expect("could not spawn \"xan slice\""),
+                );
+            }
+
             for mut step in preprocessing.split(|token| token == "|") {
                 let mut command = Command::new(exe.clone());
                 command.stdout(Stdio::piped());
@@ -693,7 +726,7 @@ impl Args {
                 } else {
                     // First command in pipeline must read the file
                     command.stdin(Stdio::null());
-                    command.arg(input.name().as_ref()); // TODO: don't use name
+                    command.arg(input.path());
                 }
 
                 children.push(command.spawn().expect("could not spawn preprocessing"));
@@ -763,7 +796,7 @@ impl Args {
             console::set_colors_enabled(true);
             colored::control::set_override(true);
 
-            ParallelProgressBar::new(total)
+            ParallelProgressBar::new(total, self.flag_single_file)
         } else {
             ParallelProgressBar::hidden()
         }

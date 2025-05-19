@@ -30,6 +30,21 @@ fn parallel_count_single_file() {
 }
 
 #[test]
+fn parallel_count_single_file_preprocess() {
+    let wrk = Workdir::new("parallel_count_single_file_preprocess");
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("count")
+        .args(["-P", "search -es Category Disc"])
+        .arg("-F")
+        .arg(wrk.resource("series.csv"));
+
+    let got: String = wrk.stdout(&mut cmd);
+
+    assert_eq!(got.trim(), "85");
+}
+
+#[test]
 fn parallel_count_source_column() {
     let wrk = Workdir::new("parallel_count_source_column");
     wrk.create(

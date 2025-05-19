@@ -13,5 +13,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Overriding rust version to project MSRV
+        run: |
+          echo Before override
+          rustup --version
+          rustup override set 1.81.0
+          echo After override
+          rustup --version
       - name: Tests
         run: cargo test
