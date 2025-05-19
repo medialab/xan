@@ -4,6 +4,7 @@ use std::iter;
 use std::num::NonZeroUsize;
 
 use npyz::WriterBuilder;
+use pad::PadStr;
 use rust_xlsxwriter::Workbook;
 use unicode_width::UnicodeWidthStr;
 
@@ -237,8 +238,24 @@ impl Args {
         mut rdr: csv::Reader<R>,
         mut writer: Box<dyn Write>,
     ) -> CliResult<()> {
+        fn escape_md_table_cell(cell: &str) -> String {
+            cell.replace("|", "\\|")
+                .replace("<", "\\<")
+                .replace(">", "\\>")
+        }
+
         let headers = rdr.headers()?.clone();
-        let records = rdr.into_records().collect::<Result<Vec<_>, _>>()?;
+        let records = rdr
+            .into_records()
+            .map(|result| {
+                result.map(|record| {
+                    record
+                        .into_iter()
+                        .map(escape_md_table_cell)
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let widths = headers
             .iter()
@@ -255,7 +272,7 @@ impl Args {
         write!(&mut writer, "|")?;
 
         for (header, width) in headers.iter().zip(widths.iter()) {
-            write!(&mut writer, " {:<width$} |", header, width = width)?;
+            write!(&mut writer, " {} |", header.pad_to_width(*width))?;
         }
 
         writeln!(&mut writer)?;
@@ -263,12 +280,7 @@ impl Args {
         write!(&mut writer, "|")?;
 
         for width in widths.iter().copied() {
-            write!(
-                &mut writer,
-                " {:<width$} |",
-                "-".repeat(width),
-                width = width
-            )?;
+            write!(&mut writer, " {} |", "-".repeat(width))?;
         }
 
         writeln!(&mut writer)?;
@@ -277,12 +289,7 @@ impl Args {
             write!(&mut writer, "|")?;
 
             for (cell, width) in record.into_iter().zip(widths.iter()) {
-                let cell = cell
-                    .replace("|", "\\|")
-                    .replace("<", "\\<")
-                    .replace(">", "\\>");
-
-                write!(&mut writer, " {:<width$} |", cell, width = width)?;
+                write!(&mut writer, " {} |", cell.pad_to_width(*width))?;
             }
 
             writeln!(&mut writer)?;

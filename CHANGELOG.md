@@ -41,6 +41,7 @@
 * Fixing `xan behead -o` and `xan behead -Ao`.
 * Reorganizing `xan help functions`.
 * Fixing lexicographic extent merging in `xan parallel stats`.
+* Fixing `xan to md` width alignment.
 
 ## 0.50.0
 
