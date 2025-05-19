@@ -203,18 +203,30 @@ Please choose one of the following commands/flags:\n{}",
             Ok(()) => process::exit(0),
             Err(CliError::Flag(err)) => err.exit(),
             Err(CliError::Csv(err)) => {
-                eprintln!("{}", err);
+                eprintln!(
+                    "xan {}: {}",
+                    env::args().nth(1).unwrap_or("".to_string()),
+                    err
+                );
                 process::exit(1);
             }
             Err(CliError::Io(ref err)) if err.kind() == io::ErrorKind::BrokenPipe => {
                 process::exit(0);
             }
             Err(CliError::Io(err)) => {
-                eprintln!("{}", err);
+                eprintln!(
+                    "xan {}: {}",
+                    env::args().nth(1).unwrap_or("".to_string()),
+                    err
+                );
                 process::exit(1);
             }
             Err(CliError::Other(msg)) => {
-                eprintln!("{}", msg);
+                eprintln!(
+                    "xan {}: {}",
+                    env::args().nth(1).unwrap_or("".to_string()),
+                    msg
+                );
                 process::exit(1);
             }
             // NOTE: I am not super fan to handle this as an error case...
@@ -301,7 +313,7 @@ enum Command {
 }
 
 impl Command {
-    fn run(self) -> CliResult<()> {
+    fn run(&self) -> CliResult<()> {
         let argv: Vec<_> = env::args().collect();
         let argv: Vec<_> = argv.iter().map(|s| &**s).collect();
         let argv = &*argv;

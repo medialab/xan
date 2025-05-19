@@ -43,6 +43,10 @@
 * Fixing lexicographic extent merging in `xan parallel stats`.
 * Fixing `xan to md` width alignment.
 
+*Quality of Life*
+
+* Prepending xan subcommand to error messages.
+
 ## 0.50.0
 
 *Features*
