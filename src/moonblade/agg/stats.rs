@@ -51,6 +51,7 @@ impl Stats {
         self.count.merge(other.count);
         self.extent.merge(other.extent);
         self.length_extent.merge(other.length_extent);
+        self.lexicograhic_extent.merge(other.lexicograhic_extent);
         self.welford.merge(other.welford);
         self.sum.merge(other.sum);
         self.types.merge(other.types);

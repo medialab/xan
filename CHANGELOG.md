@@ -39,6 +39,7 @@
 * Fixing moonblade concretization wrt branching.
 * Fixing `xan behead -o` and `xan behead -Ao`.
 * Reorganizing `xan help functions`.
+* Fixing lexicographic extent merging in `xan parallel stats`.
 
 ## 0.50.0
 
