@@ -407,8 +407,8 @@ Finally, preprocessing on each file can be done using two different methods:
 1. Using only xan subcommands with -P, --preprocess:
     $ xan parallel count -P \"search -s name John | slice -l 10\" file.csv
 
-2. Using a shell subcommand passed to \"$SHELL -c\" with -S, --shell-preprocess:
-    $ xan parallel count -S \"xan search -s name John | xan slice -l 10\" file.csv
+2. Using a shell subcommand passed to \"$SHELL -c\" with -H, --shell-preprocess:
+    $ xan parallel count -H \"xan search -s name John | xan slice -l 10\" file.csv
 
 The second preprocessing option will of course not work in DOS-based shells and Powershell
 on Windows.
@@ -433,7 +433,7 @@ parallel options:
     -F, --single-file            Parallelize computation over a single uncompressed
                                  CSV file on disk instead.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
-    -S, --shell-preprocess <op>  Preprocessing commands that will run directly in your
+    -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
     --progress                   Display a progress bar for the parallel tasks.
     -t, --threads <n>            Number of threads to use. Will default to a sensible
@@ -601,9 +601,10 @@ impl Args {
     }
 
     fn reader(&self, input: &Input) -> CliResult<InputReader> {
-        Ok(if let Some(preprocessing) = &self.flag_shell_preprocess {
+        // Shell preprocessing
+        if let Some(preprocessing) = &self.flag_shell_preprocess {
             if preprocessing.trim().is_empty() {
-                Err("-S, --shell-preprocess cannot be an empty command!")?;
+                Err("-H, --shell-preprocess cannot be an empty command!")?;
             }
 
             let config = Config::stdin()
@@ -612,12 +613,25 @@ impl Args {
 
             let shell = env::var("SHELL").expect("$SHELL is not set!");
 
-            let mut cat = Command::new("cat")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .arg(input.name().as_ref()) // TODO: don't use name
-                .spawn()
-                .expect("could not spawn \"cat\"");
+            let mut cat = match input {
+                Input::Path(p) => Command::new("cat")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .arg(p)
+                    .spawn()
+                    .expect("could not spawn \"cat\""),
+                Input::FileChunk(file_chunk) => Command::new(env::current_exe()?)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .arg("slice")
+                    .arg("-B")
+                    .arg(file_chunk.from.to_string())
+                    .arg("-E")
+                    .arg(file_chunk.to.to_string())
+                    .arg(&file_chunk.file_path)
+                    .spawn()
+                    .expect("could not spawn \"xan slice\""),
+            };
 
             let mut child = Command::new(shell)
                 .stdin(cat.stdout.take().expect("could not consume cat stdout"))
@@ -635,13 +649,15 @@ impl Args {
 
             let headers = reader.byte_headers()?.clone();
 
-            InputReader {
+            Ok(InputReader {
                 csv_reader: reader,
                 headers,
                 _children,
                 up_to: None,
-            }
-        } else if let Some(preprocessing) = &self.flag_preprocess {
+            })
+        }
+        // Standard preprocessing
+        else if let Some(preprocessing) = &self.flag_preprocess {
             if preprocessing.trim().is_empty() {
                 Err("-P, --preprocess cannot be an empty command!")?;
             }
@@ -698,13 +714,15 @@ impl Args {
 
             let headers = reader.byte_headers()?.clone();
 
-            InputReader {
+            Ok(InputReader {
                 csv_reader: reader,
                 headers,
                 _children: Some(Children::from(children)),
                 up_to: None,
-            }
-        } else {
+            })
+        }
+        // No preprocessing
+        else {
             match input {
                 Input::Path(p) => {
                     let config = Config::new(&Some(p.to_string()))
@@ -715,12 +733,12 @@ impl Args {
 
                     let headers = reader.byte_headers()?.clone();
 
-                    InputReader {
+                    Ok(InputReader {
                         csv_reader: reader,
                         headers,
                         _children: None,
                         up_to: None,
-                    }
+                    })
                 }
                 Input::FileChunk(file_chunk) => {
                     let config = Config::new(&Some(file_chunk.file_path.to_string()))
@@ -729,15 +747,15 @@ impl Args {
 
                     let reader = config.reader_at_position(file_chunk.from)?;
 
-                    InputReader {
+                    Ok(InputReader {
                         csv_reader: reader,
                         headers: file_chunk.headers.clone(),
                         _children: None,
                         up_to: Some(file_chunk.to - file_chunk.from),
-                    }
+                    })
                 }
             }
-        })
+        }
     }
 
     fn progress_bar(&self, total: usize) -> ParallelProgressBar {
@@ -834,7 +852,7 @@ impl Args {
 
     fn cat(self, inputs: Vec<Input>) -> CliResult<()> {
         if self.flag_preprocess.is_none() && self.flag_shell_preprocess.is_none() {
-            Err("`xan parallel cat` without -P/--preprocess or -S/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
+            Err("`xan parallel cat` without -P/--preprocess or -H/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
         }
 
         let progress_bar = self.progress_bar(inputs.len());

@@ -42,6 +42,7 @@
 * Reorganizing `xan help functions`.
 * Fixing lexicographic extent merging in `xan parallel stats`.
 * Fixing `xan to md` width alignment.
+* Renaming `xan parallel --shell-preprocessing` short flag to be `-H` because it was being overriden by `-S/--source-column`.
 
 *Quality of Life*
 
