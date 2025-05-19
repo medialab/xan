@@ -175,8 +175,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     console::set_colors_enabled(true);
 
     if args.flag_bytes {
-        let (total, file, is_gzipped): (Option<u64>, Box<dyn io::Read>, bool) = match args.arg_input
-        {
+        let (total, file, is_gzipped): (Option<u64>, Box<dyn Read>, bool) = match args.arg_input {
             None => (None, Box::new(io::stdin()), false),
             Some(p) => {
                 let is_gzipped = p.ends_with(".gz");
