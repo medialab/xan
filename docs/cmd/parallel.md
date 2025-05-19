@@ -63,6 +63,8 @@ Usage:
     xan p --help
 
 parallel options:
+    -F, --single-file            Parallelize computation over a single uncompressed
+                                 CSV file on disk instead.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
     -S, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.

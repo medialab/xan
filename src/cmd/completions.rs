@@ -17,6 +17,10 @@ To enable those completions system-wide, you can also run:
 For `zsh`, run:
     $ xan completions zsh >> ~/.zshrc
 
+For `zsh` you might also need to load Bash compatibility wrt completions thusly:
+
+    $ echo 'autoload -Uz bashcompinit && bashcompinit' >> ~/.zshrc
+
 You will need to reload you shell or source your main shell
 configuration file (`source ~/,bashrc` for bash, for instance) for
 the completions to be activated (this is only required once).

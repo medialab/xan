@@ -126,6 +126,10 @@ Run the following command to understand how to install those completions:
 
 ```bash
 xan completions -h
+
+# With zsh you might also need to add this to your initialization to make
+# sure Bash compatibility is loaded:
+autoload -Uz bashcompinit && bashcompinit
 ```
 
 ## Quick tour
