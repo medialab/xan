@@ -767,8 +767,7 @@ pub struct ScrapingProgram {
 
 impl ScrapingProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let scraper =
-            parse_scraper(code).map_err(|_| ConcretizationError::ParseError(code.to_string()))?;
+        let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
 
         let concrete_scraper =
             concretize_scraper(scraper, headers, Some(&GlobalVariables::of("value")))?;

@@ -596,7 +596,7 @@ pub struct Program {
 impl Program {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let expr = match parse_expression(code) {
-            Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
+            Err(err) => return Err(ConcretizationError::ParseError(err)),
             Ok(parsed_expr) => concretize_expression(parsed_expr, headers, None)?,
         };
 
@@ -612,7 +612,7 @@ impl Program {
         globals: &GlobalVariables,
     ) -> Result<Self, ConcretizationError> {
         let expr = match parse_expression(code) {
-            Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
+            Err(err) => return Err(ConcretizationError::ParseError(err)),
             Ok(parsed_expr) => concretize_expression(parsed_expr, headers, Some(globals))?,
         };
 

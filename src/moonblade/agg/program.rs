@@ -927,8 +927,7 @@ fn concretize_aggregations(
 }
 
 fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, ConcretizationError> {
-    let parsed_aggregations =
-        parse_aggregations(code).map_err(|_| ConcretizationError::ParseError(code.to_string()))?;
+    let parsed_aggregations = parse_aggregations(code).map_err(ConcretizationError::ParseError)?;
 
     concretize_aggregations(parsed_aggregations, headers)
 }

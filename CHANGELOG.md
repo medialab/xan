@@ -46,6 +46,7 @@
 *Quality of Life*
 
 * Prepending xan subcommand to error messages.
+* Better error messages when moonblade expressions cannot be parsed.
 
 ## 0.50.0
 

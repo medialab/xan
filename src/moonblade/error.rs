@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use super::parser::ParseError;
 use super::types::{Arity, ColumIndexationBy, DynamicValue};
 use crate::dates::ZonedParseError;
 
@@ -19,7 +20,7 @@ fn format_column_indexation_error(
 
 #[derive(Debug, PartialEq)]
 pub enum ConcretizationError {
-    ParseError(String),
+    ParseError(ParseError),
     ColumnNotFound(ColumIndexationBy),
     InvalidRegex(String),
     UnknownFunction(String),
@@ -37,7 +38,7 @@ impl Display for ConcretizationError {
             Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
             Self::UnknownFunction(name) => write!(f, "unknown function \"{}\"", name),
             Self::UnknownArgumentName(arg_name) => write!(f, "unknown argument \"{}\"", arg_name),
-            Self::ParseError(expr) => write!(f, "could not parse expression: {}", expr),
+            Self::ParseError(err) => write!(f, "could not parse expression: {}", err),
             Self::InvalidRegex(pattern) => write!(f, "invalid regex {}", pattern),
             Self::InvalidArity(name, arity) => write!(f, "{}: {}", name, arity),
             Self::TooManyArguments(actual) => {

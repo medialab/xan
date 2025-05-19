@@ -1,5 +1,7 @@
 // En tant que chef, je m'engage à ce que nous ne nous
 // fassions pas *tous* tuer.
+use std::fmt;
+
 use lazy_static::lazy_static;
 use pest::{
     iterators::{Pair, Pairs},
@@ -570,6 +572,15 @@ impl Expr {
 pub enum ParseError {
     Pest(Box<pest::error::Error<Rule>>),
     Custom(String),
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Pest(err) => write!(f, "{}", err),
+            Self::Custom(msg) => write!(f, "{}", msg),
+        }
+    }
 }
 
 impl From<pest::error::Error<Rule>> for ParseError {

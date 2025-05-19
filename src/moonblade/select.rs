@@ -14,7 +14,7 @@ pub struct SelectionProgram {
 impl SelectionProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let exprs = match parse_named_expressions(code) {
-            Err(_) => return Err(ConcretizationError::ParseError(code.to_string())),
+            Err(err) => return Err(ConcretizationError::ParseError(err)),
             Ok(parsed_exprs) => parsed_exprs
                 .into_iter()
                 .map(|e| concretize_expression(e.0.clone(), headers, None).map(|c| (c, e.1)))
