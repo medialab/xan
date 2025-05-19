@@ -178,6 +178,16 @@ impl Workdir {
         o.parse().ok().expect("fromstr")
     }
 
+    pub fn resource(&self, name: &str) -> PathBuf {
+        let mut p = self.root.parent().unwrap().parent().unwrap().to_path_buf();
+
+        p.push("tests");
+        p.push("resources");
+        p.push(name);
+
+        p
+    }
+
     pub fn path(&self, name: &str) -> PathBuf {
         self.dir.join(name)
     }

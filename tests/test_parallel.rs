@@ -18,6 +18,18 @@ fn parallel_count() {
 }
 
 #[test]
+fn parallel_count_single_file() {
+    let wrk = Workdir::new("parallel_count_single_file");
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("count").arg("-F").arg(wrk.resource("series.csv"));
+
+    let got: String = wrk.stdout(&mut cmd);
+
+    assert_eq!(got.trim(), "432");
+}
+
+#[test]
 fn parallel_count_source_column() {
     let wrk = Workdir::new("parallel_count_source_column");
     wrk.create(
@@ -73,6 +85,30 @@ fn parallel_freq() {
         svec!["color", "red", "2"],
         svec!["color", "yellow", "1"],
     ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn parallel_freq_single_file() {
+    let wrk = Workdir::new("parallel_freq_single_file");
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("freq")
+        .args(["-s", "Category"])
+        .arg("-F")
+        .arg(wrk.resource("series.csv"));
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["field", "value", "count"],
+        svec!["Category", "Vinyl", "94"],
+        svec!["Category", "Disc", "85"],
+        svec!["Category", "Other", "75"],
+        svec!["Category", "Download", "66"],
+        svec!["Category", "Tape", "64"],
+        svec!["Category", "Streaming", "48"],
+    ];
+
     assert_eq!(got, expected);
 }
 
