@@ -4,7 +4,7 @@ use std::borrow::{Borrow, ToOwned};
 use std::convert::TryFrom;
 use std::env;
 use std::fs;
-use std::io::{self, prelude::*, BufReader, IsTerminal, Read};
+use std::io::{self, prelude::*, BufReader, IsTerminal, Read, SeekFrom};
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -235,6 +235,13 @@ impl Config {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
+    pub fn reader_at_position(
+        &self,
+        position: u64,
+    ) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
+        Ok(self.csv_reader_from_reader(self.io_reader_at_position(position)?))
+    }
+
     pub fn seekable_reader(&self) -> io::Result<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
     }
@@ -394,6 +401,31 @@ impl Config {
                 }
             },
         }
+    }
+
+    pub fn io_reader_at_position(
+        &self,
+        position: u64,
+    ) -> io::Result<Box<dyn Read + Send + 'static>> {
+        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
+
+        let mut reader = match self.path {
+            None => return Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
+            Some(ref p) => match fs::File::open(p) {
+                Ok(x) => match x.borrow().stream_position() {
+                    Ok(_) => x,
+                    Err(_) => return Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
+                },
+                Err(err) => {
+                    let msg = format!("failed to open {}: {}", p.display(), err);
+                    return Err(io::Error::new(io::ErrorKind::NotFound, msg));
+                }
+            },
+        };
+
+        reader.seek(SeekFrom::Start(position))?;
+
+        Ok(Box::new(reader))
     }
 
     pub fn io_reader_for_reverse_reading(

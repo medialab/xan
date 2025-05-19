@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
-use std::io::{self, IsTerminal, Seek, SeekFrom};
+use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -337,6 +337,7 @@ struct FileChunk {
     from: u64,
     to: u64,
     position: usize,
+    headers: csv::ByteRecord,
 }
 
 impl FileChunk {
@@ -568,6 +569,7 @@ impl Args {
                 .no_headers(self.flag_no_headers);
 
             let mut reader = config.seekable_reader()?;
+            let headers = reader.byte_headers()?.clone();
 
             match segment_csv_file(
                 &mut reader,
@@ -591,6 +593,7 @@ impl Args {
                                     from,
                                     to,
                                     position: i,
+                                    headers: headers.clone(),
                                 })
                             })
                             .collect(),
@@ -603,7 +606,7 @@ impl Args {
         Ok((inputs.into_iter().map(Input::Path).collect(), None))
     }
 
-    fn read(&self, input: &Input) -> CliResult<InputReader> {
+    fn reader(&self, input: &Input) -> CliResult<InputReader> {
         Ok(if let Some(preprocessing) = &self.flag_shell_preprocess {
             if preprocessing.trim().is_empty() {
                 Err("-S, --shell-preprocess cannot be an empty command!")?;
@@ -728,21 +731,13 @@ impl Args {
                 Input::FileChunk(file_chunk) => {
                     let config = Config::new(&Some(file_chunk.file_path.to_string()))
                         .delimiter(self.flag_delimiter)
-                        .no_headers(self.flag_no_headers);
+                        .no_headers(true);
 
-                    let mut reader = config.seekable_reader()?;
-                    let headers = reader.byte_headers()?.clone();
-
-                    let config = config.no_headers(true);
-                    let mut io_reader = reader.into_inner();
-
-                    io_reader.seek(SeekFrom::Start(file_chunk.from))?;
-
-                    let reader: BoxedReader = config.csv_reader_from_reader(io_reader);
+                    let reader = config.reader_at_position(file_chunk.from)?;
 
                     InputReader {
                         csv_reader: reader,
-                        headers,
+                        headers: file_chunk.headers.clone(),
                         _children: None,
                         up_to: Some(file_chunk.to - file_chunk.from),
                     }
@@ -779,7 +774,7 @@ impl Args {
             };
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.read(input)?;
+                let mut input_reader = self.reader(input)?;
                 let name = input.name();
 
                 let bar = progress_bar.start(&name);
@@ -814,7 +809,7 @@ impl Args {
             let total_count = AtomicUsize::new(0);
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.read(input)?;
+                let mut input_reader = self.reader(input)?;
                 let name = input.name();
 
                 let bar = progress_bar.start(&name);
@@ -878,7 +873,7 @@ impl Args {
         };
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.read(input)?;
+            let mut input_reader = self.reader(input)?;
             let name = input.name();
 
             let bar = progress_bar.start(&name);
@@ -938,7 +933,7 @@ impl Args {
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.read(input)?;
+            let mut input_reader = self.reader(input)?;
             let name = input.name();
 
             let bar = progress_bar.start(&name);
@@ -1009,7 +1004,7 @@ impl Args {
         let total_stats_mutex = Mutex::new(StatsTables::new());
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.read(input)?;
+            let mut input_reader = self.reader(input)?;
             let name = input.name();
 
             let bar = progress_bar.start(&name);
@@ -1051,7 +1046,7 @@ impl Args {
         let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.read(input)?;
+            let mut input_reader = self.reader(input)?;
             let name = input.name();
 
             let bar = progress_bar.start(&name);
@@ -1099,7 +1094,7 @@ impl Args {
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.read(input)?;
+            let mut input_reader = self.reader(input)?;
             let name = input.name();
 
             let sel = self
