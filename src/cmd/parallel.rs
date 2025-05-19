@@ -154,12 +154,6 @@ struct Children {
 }
 
 impl Children {
-    fn pair(one: Child, two: Child) -> Self {
-        Self {
-            children: vec![one, two],
-        }
-    }
-
     fn wait(&mut self) -> io::Result<()> {
         for child in self.children.iter_mut() {
             child.wait()?;
@@ -637,7 +631,7 @@ impl Args {
             ));
 
             // NOTE: this must happen before reading headers to ensure correct drop
-            let _children = Some(Children::pair(cat, child));
+            let _children = Some(Children::from(vec![cat, child]));
 
             let headers = reader.byte_headers()?.clone();
 
