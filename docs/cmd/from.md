@@ -9,16 +9,18 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods    - OpenOffice spreadsheet
-    xls    - Excel spreasheet
-    xlsb   - Excel spreasheet
-    xlsx   - Excel spreasheet
-    json   - JSON array or object
-    ndjson - Newline-delimited JSON
-    jsonl  - Newline-delimited JSON
-    txt    - text lines
-    npy    - Numpy array
-    tar    - Tarball archive
+    ods      - OpenOffice spreadsheet
+    xls      - Excel spreasheet
+    xlsb     - Excel spreasheet
+    xlsx     - Excel spreasheet
+    json     - JSON array or object
+    ndjson   - Newline-delimited JSON
+    jsonl    - Newline-delimited JSON
+    txt      - text lines
+    npy      - Numpy array
+    tar      - Tarball archive
+    md       - Markdown table
+    markdown - Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
@@ -49,6 +51,11 @@ JSON options:
 Text lines options:
     -c, --column <name>    Name of the column to create.
                            [default: value]
+
+Markdown options:
+    -n, --nth-table <n>    Select nth table in document, starting at 0.
+                           Negative index can be used to select from the end.
+                           [default: 0]
 
 Common options:
     -h, --help             Display this message

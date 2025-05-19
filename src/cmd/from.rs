@@ -398,10 +398,10 @@ impl Args {
     }
 
     fn convert_markdown(&self) -> CliResult<()> {
-        use comrak::{Arena, parse_document, Options};
         use comrak::nodes::NodeValue;
+        use comrak::{parse_document, Arena, Options};
 
-        let mut rdr = Config::new(&self.arg_input).io_buf_reader()?;
+        let mut rdr = Config::new(&self.arg_input).io_reader()?;
         let mut buf = String::new();
         rdr.read_to_string(&mut buf)?;
 
@@ -409,9 +409,10 @@ impl Args {
         let mut options = Options::default();
         options.extension.table = true;
         let root = parse_document(&arena, &buf, &options);
-        let tables = root.descendants().filter(|n| {
-            matches!(n.data.borrow().value, NodeValue::Table(_))
-        }).collect::<Vec<_>>();
+        let tables = root
+            .descendants()
+            .filter(|n| matches!(n.data.borrow().value, NodeValue::Table(_)))
+            .collect::<Vec<_>>();
 
         if tables.is_empty() {
             Err("target Markdown does not contain a table")?;
@@ -426,7 +427,7 @@ impl Args {
                     [0, tables.len()].map(|n| n.to_string())
                 } else {
                     // Saturating to avoid underflow.
-                    // isize::MIN is smallest supported number anyway due to type of `flag_select`. 
+                    // isize::MIN is smallest supported number anyway due to type of `flag_select`.
                     let low = 0isize.saturating_sub_unsigned(tables.len());
                     [-1, low].map(|n| n.to_string())
                 };
@@ -466,8 +467,8 @@ impl Args {
                         return Err("Unsupported multiline Markdown table cell".into());
                     }
                     // sourcepos is 1-based, inclusive, and by bytes not characters
-                    let line = lines[start.line-1].as_bytes();
-                    record.push_field(&line[start.column-1..end.column]);
+                    let line = lines[start.line - 1].as_bytes();
+                    record.push_field(&line[start.column - 1..end.column]);
                 } else {
                     record.push_field(&[]);
                 }
