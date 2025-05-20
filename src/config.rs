@@ -235,12 +235,12 @@ impl Config {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
-    pub fn reader_at_position(
-        &self,
-        position: u64,
-    ) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
-        Ok(self.csv_reader_from_reader(self.io_reader_at_position(position)?))
-    }
+    // pub fn reader_at_position(
+    //     &self,
+    //     position: u64,
+    // ) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
+    //     Ok(self.csv_reader_from_reader(self.io_reader_at_position(position)?))
+    // }
 
     pub fn seekable_reader(&self) -> io::Result<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))

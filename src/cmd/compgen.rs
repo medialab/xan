@@ -68,6 +68,7 @@ static COMMANDS: [&str; 58] = [
 static HELP_SUBCOMMANDS: [&str; 4] = ["cheatsheet", "functions", "aggs", "scraping"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
+static PARALLEL_SUBCOMMANDS: [&str; 7] = ["count", "cat", "freq", "stats", "agg", "groupby", "map"];
 static SCRAPE_SUBCOMMANDS: [&str; 5] = ["title", "canonical", "links", "urls", "images"];
 static TOKENIZE_SUBCOMMANDS: [&str; 3] = ["words", "sentences", "paragraphs"];
 static VOCAB_SUBCOMMANDS: [&str; 5] = ["corpus", "doc", "doc-token", "token", "cooc"];
@@ -144,6 +145,12 @@ pub fn run() {
         }
     } else if word_before == "network" && !to_complete.starts_with('-') {
         for subcommand in NETWORK_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
+            }
+        }
+    } else if word_before == "parallel" && !to_complete.starts_with('-') {
+        for subcommand in PARALLEL_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
                 println!("{}", subcommand);
             }

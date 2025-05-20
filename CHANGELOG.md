@@ -26,6 +26,7 @@
 * Adding `xan search -B/--breakdown` and the related `--name-column` flag.
 * Adding `xan parallel -F/--single-file`.
 * Adding `xan from md`.
+* Adding `xan parallel map`.
 
 *Fixes*
 
@@ -43,6 +44,7 @@
 * Fixing lexicographic extent merging in `xan parallel stats`.
 * Fixing `xan to md` width alignment.
 * Renaming `xan parallel --shell-preprocessing` short flag to be `-H` because it was being overriden by `-S/--source-column`.
+* Adding missing subcommand completions for `xan parallel`.
 
 *Quality of Life*
 

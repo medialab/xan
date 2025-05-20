@@ -39,6 +39,21 @@ parallel reduce operation:
     - `agg`: parallelize a custom aggregation. See "xan agg -h" for more details.
     - `groupby`: parallelize a custom grouped aggregation. See "xan groupby -h"
         for more details.
+    - `map`: writes the result of given preprocessing in a new
+        file besides the original one. This subcommand takes a filename template
+        where `{}` will be replaced by the name of each target file without any
+        extension (`.csv` or `.csv.gz` would be stripped for instance), or by
+        a chunk id, when using -F/--single-file.
+
+For instance, the following command:
+
+    $ xan parallel map '{}_freq.csv' -P 'freq -s Category' *.csv
+
+Will create a file suffixed "_freq.csv" for each CSV file in current directory
+containing its frequency table for the "Category" command.
+
+Note also that the `xan parallel map` subcommand, used with the -F/--single-file
+flag, is basically a parallel split.
 
 Finally, preprocessing on each file can be done using two different methods:
 
@@ -58,13 +73,15 @@ Usage:
     xan parallel stats [options] [<inputs>...]
     xan parallel agg [options] <expr> [<inputs>...]
     xan parallel groupby [options] <group> <expr> [<inputs>...]
+    xan parallel map <template> [options] [<inputs>...]
+    xan parallel --help
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
     xan p freq [options] [<inputs>...]
     xan p stats [options] [<inputs>...]
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
-    xan parallel --help
+    xan p map <template> [options] [<inputs>...]
     xan p --help
 
 parallel options:

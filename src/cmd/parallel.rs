@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
+use std::fs::File;
 use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -17,7 +19,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::read::{read_byte_record_up_to, segment_csv_file, SegmentationOptions};
 use crate::select::SelectColumns;
-use crate::util;
+use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
 fn get_spinner_style(path: ColoredString) -> ProgressStyle {
@@ -361,9 +363,43 @@ impl Input {
             Self::FileChunk(chunk) => &chunk.file_path,
         }
     }
+
+    fn headers(&self) -> Option<csv::ByteRecord> {
+        match self {
+            Self::FileChunk(chunk) => Some(chunk.headers.clone()),
+            _ => None,
+        }
+    }
 }
 
 struct InputReader {
+    config: Config,
+    reader: Box<dyn io::Read + Send>,
+    headers: Option<csv::ByteRecord>,
+    _children: Option<Children>,
+    up_to: Option<u64>,
+    bar: Option<ProgressBar>,
+}
+
+impl InputReader {
+    fn into_csv_reader(self) -> CliResult<CsvInputReader> {
+        let mut csv_reader = self.config.csv_reader_from_reader(self.reader);
+        let headers = match self.headers {
+            None => csv_reader.byte_headers()?.clone(),
+            Some(h) => h,
+        };
+
+        Ok(CsvInputReader {
+            csv_reader,
+            headers,
+            _children: self._children,
+            up_to: self.up_to,
+            bar: self.bar,
+        })
+    }
+}
+
+struct CsvInputReader {
     csv_reader: BoxedReader,
     headers: csv::ByteRecord,
     _children: Option<Children>,
@@ -371,7 +407,7 @@ struct InputReader {
     bar: Option<ProgressBar>,
 }
 
-impl InputReader {
+impl CsvInputReader {
     fn read_byte_record(&mut self, record: &mut csv::ByteRecord) -> Result<bool, csv::Error> {
         read_byte_record_up_to(&mut self.csv_reader, record, self.up_to)
     }
@@ -421,6 +457,21 @@ parallel reduce operation:
     - `agg`: parallelize a custom aggregation. See \"xan agg -h\" for more details.
     - `groupby`: parallelize a custom grouped aggregation. See \"xan groupby -h\"
         for more details.
+    - `map`: writes the result of given preprocessing in a new
+        file besides the original one. This subcommand takes a filename template
+        where `{}` will be replaced by the name of each target file without any
+        extension (`.csv` or `.csv.gz` would be stripped for instance), or by
+        a chunk id, when using -F/--single-file.
+
+For instance, the following command:
+
+    $ xan parallel map '{}_freq.csv' -P 'freq -s Category' *.csv
+
+Will create a file suffixed \"_freq.csv\" for each CSV file in current directory
+containing its frequency table for the \"Category\" command.
+
+Note also that the `xan parallel map` subcommand, used with the -F/--single-file
+flag, is basically a parallel split.
 
 Finally, preprocessing on each file can be done using two different methods:
 
@@ -440,13 +491,15 @@ Usage:
     xan parallel stats [options] [<inputs>...]
     xan parallel agg [options] <expr> [<inputs>...]
     xan parallel groupby [options] <group> <expr> [<inputs>...]
+    xan parallel map <template> [options] [<inputs>...]
+    xan parallel --help
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
     xan p freq [options] [<inputs>...]
     xan p stats [options] [<inputs>...]
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
-    xan parallel --help
+    xan p map <template> [options] [<inputs>...]
     xan p --help
 
 parallel options:
@@ -510,9 +563,11 @@ struct Args {
     cmd_stats: bool,
     cmd_agg: bool,
     cmd_groupby: bool,
+    cmd_map: bool,
     arg_inputs: Vec<String>,
     arg_expr: Option<String>,
     arg_group: Option<SelectColumns>,
+    arg_template: Option<FilenameTemplate>,
     flag_single_file: bool,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
@@ -623,7 +678,11 @@ impl Args {
         Ok((inputs.into_iter().map(Input::Path).collect(), None))
     }
 
-    fn reader(&self, input: &Input, progress_bar: &ParallelProgressBar) -> CliResult<InputReader> {
+    fn io_reader(
+        &self,
+        input: &Input,
+        progress_bar: &ParallelProgressBar,
+    ) -> CliResult<InputReader> {
         let bar = progress_bar.start(&input.name());
 
         // Shell preprocessing
@@ -669,18 +728,15 @@ impl Args {
                 .spawn()
                 .expect("could not spawn shell preprocessing");
 
-            let mut reader: BoxedReader = config.csv_reader_from_reader(Box::new(
-                child.stdout.take().expect("cannot read child stdout"),
-            ));
+            let reader = Box::new(child.stdout.take().expect("cannot read child stdout"));
 
             // NOTE: this must happen before reading headers to ensure correct drop
             let _children = Some(Children::from(vec![cat, child]));
 
-            let headers = reader.byte_headers()?.clone();
-
             Ok(InputReader {
-                csv_reader: reader,
-                headers,
+                config,
+                reader,
+                headers: input.headers(),
                 _children,
                 up_to: None,
                 bar,
@@ -767,20 +823,17 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let mut reader: BoxedReader = config.csv_reader_from_reader(Box::new(
-                children
-                    .last_mut()
-                    .unwrap()
-                    .stdout
-                    .take()
-                    .expect("cannot read child stdout"),
-            ));
-
-            let headers = reader.byte_headers()?.clone();
-
             Ok(InputReader {
-                csv_reader: reader,
-                headers,
+                config,
+                reader: Box::new(
+                    children
+                        .last_mut()
+                        .unwrap()
+                        .stdout
+                        .take()
+                        .expect("cannot read child stdout"),
+                ),
+                headers: input.headers(),
                 _children: Some(Children::from(children)),
                 up_to: None,
                 bar,
@@ -794,13 +847,12 @@ impl Args {
                         .delimiter(self.flag_delimiter)
                         .no_headers(self.flag_no_headers);
 
-                    let mut reader: BoxedReader = config.reader()?;
-
-                    let headers = reader.byte_headers()?.clone();
+                    let reader = config.io_reader()?;
 
                     Ok(InputReader {
-                        csv_reader: reader,
-                        headers,
+                        config,
+                        reader,
+                        headers: None,
                         _children: None,
                         up_to: None,
                         bar,
@@ -811,11 +863,12 @@ impl Args {
                         .delimiter(self.flag_delimiter)
                         .no_headers(true);
 
-                    let reader = config.reader_at_position(file_chunk.from)?;
+                    let reader = config.io_reader_at_position(file_chunk.from)?;
 
                     Ok(InputReader {
-                        csv_reader: reader,
-                        headers: file_chunk.headers.clone(),
+                        config,
+                        reader,
+                        headers: Some(file_chunk.headers.clone()),
                         _children: None,
                         up_to: Some(file_chunk.to - file_chunk.from),
                         bar,
@@ -823,6 +876,15 @@ impl Args {
                 }
             }
         }
+    }
+
+    fn reader(
+        &self,
+        input: &Input,
+        progress_bar: &ParallelProgressBar,
+    ) -> CliResult<CsvInputReader> {
+        self.io_reader(input, progress_bar)
+            .and_then(InputReader::into_csv_reader)
     }
 
     fn progress_bar(&self, total: usize) -> ParallelProgressBar {
@@ -1217,6 +1279,61 @@ impl Args {
 
         Ok(())
     }
+
+    fn map(mut self, inputs: Vec<Input>) -> CliResult<()> {
+        if !self.flag_single_file
+            && self.flag_preprocess.is_none()
+            && self.flag_shell_preprocess.is_none()
+        {
+            Err("`xan parallel map` without -F/--single-file and -P/--preprocess or -H/--shell-preprocess is pointless ;).")?;
+        }
+
+        // NOTE: this work only for CSV output, which has to be the case with -F/--single-file
+        // If we don't do this, the output chunk do not have proper headers, and the chunking
+        // is not done properly.
+        if self.flag_single_file
+            && self.flag_preprocess.is_none()
+            && self.flag_shell_preprocess.is_none()
+        {
+            self.flag_preprocess = Some("slice".to_string());
+        }
+
+        let progress_bar = self.progress_bar(inputs.len());
+        let template = self.arg_template.clone().unwrap();
+
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let mut input_reader = self.io_reader(input, &progress_bar)?;
+
+            let err = || format!("Could not extract file base from path {}", input.path());
+
+            let absolute_path = Path::new(input.path()).canonicalize().map_err(|_| err())?;
+
+            let file_id = match input {
+                Input::Path(_) => Cow::Borrowed(
+                    absolute_path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .and_then(|name| name.split(".").next())
+                        .ok_or_else(err)?,
+                ),
+                Input::FileChunk(file_chunk) => Cow::Owned(format!("{:0>4}", file_chunk.position)),
+            };
+
+            let file_name = template.filename(&file_id);
+            let mut file_path = PathBuf::from(absolute_path.parent().ok_or_else(err)?);
+            file_path.push(file_name);
+
+            let mut output = File::create(file_path)?;
+
+            io::copy(&mut input_reader.reader, &mut output)?;
+
+            Ok(())
+        })?;
+
+        progress_bar.succeed();
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -1255,6 +1372,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.agg(inputs)?;
     } else if args.cmd_groupby {
         args.groupby(inputs)?;
+    } else if args.cmd_map {
+        args.map(inputs)?;
     } else {
         unreachable!()
     }
