@@ -681,7 +681,25 @@ impl Args {
 
             let exe = env::current_exe()?;
 
-            let preprocessing = shlex::split(preprocessing).expect("could not shlex");
+            let raw_preprocessing = shlex::split(preprocessing).ok_or_else(|| {
+                format!("could not parse shell expression: {}", preprocessing.cyan())
+            })?;
+
+            let mut preprocessing = Vec::with_capacity(raw_preprocessing.len());
+
+            // NOTE: renormalizing tokens around pipes (e.g. when given a pipe
+            // that is not separated by a space `progress |search -es Category`).
+            for token in raw_preprocessing.into_iter() {
+                if let Some(rest) = token.strip_prefix("|") {
+                    preprocessing.push("|".to_string());
+                    preprocessing.push(rest.trim().to_string());
+                } else if let Some(rest) = token.strip_suffix("|") {
+                    preprocessing.push(rest.trim().to_string());
+                    preprocessing.push("|".to_string());
+                } else {
+                    preprocessing.push(token);
+                }
+            }
 
             let mut children: Vec<Child> = Vec::new();
 
@@ -702,6 +720,7 @@ impl Args {
             }
 
             for mut step in preprocessing.split(|token| token == "|") {
+                dbg!(step);
                 let mut command = Command::new(exe.clone());
                 command.stdout(Stdio::piped());
 

@@ -229,10 +229,9 @@ Please choose one of the following commands/flags:\n{}",
                 );
                 process::exit(1);
             }
-            // NOTE: I am not super fan to handle this as an error case...
-            Err(CliError::Help(usage)) => {
+            Err(CliError::Help(usage, exit_code)) => {
                 println!("{}", usage);
-                process::exit(0);
+                process::exit(exit_code);
             }
         },
     }
@@ -401,7 +400,7 @@ pub enum CliError {
     Csv(csv::Error),
     Io(io::Error),
     Other(String),
-    Help(String),
+    Help(String, i32),
 }
 
 impl fmt::Display for CliError {
@@ -411,7 +410,7 @@ impl fmt::Display for CliError {
             CliError::Csv(ref e) => e.fmt(f),
             CliError::Io(ref e) => e.fmt(f),
             CliError::Other(ref s) => f.write_str(s),
-            CliError::Help(ref s) => f.write_str(s),
+            CliError::Help(ref s, _) => f.write_str(s),
         }
     }
 }
@@ -425,13 +424,16 @@ impl From<docopt::Error> for CliError {
                 let usage = util::colorize_help(&usage);
 
                 match kind.as_ref() {
-                    docopt::Error::Help => CliError::Help(usage),
-                    _ => CliError::Other(format!(
-                        "{}\n\n{} Use the {} flag for more information.",
-                        util::colorize_help(&usage),
-                        "Invalid command!".red(),
-                        "-h,--help".cyan()
-                    )),
+                    docopt::Error::Help => CliError::Help(usage, 0),
+                    _ => CliError::Help(
+                        format!(
+                            "{}\n\n{} Use the {} flag for more information.",
+                            util::colorize_help(&usage),
+                            "Invalid command!".red(),
+                            "-h,--help".cyan()
+                        ),
+                        1,
+                    ),
                 }
             }
             _ => CliError::Flag(err),
