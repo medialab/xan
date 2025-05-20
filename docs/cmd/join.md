@@ -21,6 +21,9 @@ Note that this command is able to consume streams such as stdin (in which case
 the file name must be "-" to indicate which file will be read from stdin) and
 gzipped files out of the box.
 
+Finally, if what you want is to perform a semi join or anti join, check out
+the `xan search --patterns` command instead.
+
 # Memory considerations
 
     - `inner join`: the command does not try to be clever and

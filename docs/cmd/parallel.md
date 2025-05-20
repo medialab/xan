@@ -40,8 +40,8 @@ Finally, preprocessing on each file can be done using two different methods:
 1. Using only xan subcommands with -P, --preprocess:
     $ xan parallel count -P "search -s name John | slice -l 10" file.csv
 
-2. Using a shell subcommand passed to "$SHELL -c" with -S, --shell-preprocess:
-    $ xan parallel count -S "xan search -s name John | xan slice -l 10" file.csv
+2. Using a shell subcommand passed to "$SHELL -c" with -H, --shell-preprocess:
+    $ xan parallel count -H "xan search -s name John | xan slice -l 10" file.csv
 
 The second preprocessing option will of course not work in DOS-based shells and Powershell
 on Windows.
@@ -66,7 +66,7 @@ parallel options:
     -F, --single-file            Parallelize computation over a single uncompressed
                                  CSV file on disk instead.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
-    -S, --shell-preprocess <op>  Preprocessing commands that will run directly in your
+    -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
     --progress                   Display a progress bar for the parallel tasks.
     -t, --threads <n>            Number of threads to use. Will default to a sensible
