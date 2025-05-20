@@ -1228,6 +1228,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let (inputs, chunks_hint) = args.inputs()?;
 
+    if inputs.len() == 1 && !args.flag_single_file {
+        eprintln!(
+            "{}",
+            "warning: processing a single file. Did you forget -F/--single-file!".yellow()
+        );
+    }
+
     if let Some(threads) = args.flag_threads {
         let threads = match chunks_hint {
             Some(count) => threads.get().min(count),
