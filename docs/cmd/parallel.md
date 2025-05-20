@@ -2,11 +2,16 @@
 # xan parallel
 
 ```txt
-Process CSV datasets split into multiple files, in parallel.
+Parallel processing of either a single, uncompressed CSV file that
+will be read as chunks or a dataset of multiple files.
 
-The CSV files composing said dataset can be given as multiple arguments to the
-command, or given through stdin, one path per line or in a CSV column when
-using --path-column:
+To process a single CSV file in parallel, use the -F/--single-file flag:
+
+    $ xan parallel count -F docs.csv
+
+To process multiple files at once, you must give their paths as multiple
+arguments to the command or give them through stdin with one path
+per line or in a CSV column when using the --path-column flag:
 
     Multiple arguments through shell glob:
     $ xan parallel count data/**/docs.csv
@@ -64,11 +69,14 @@ Usage:
 
 parallel options:
     -F, --single-file            Parallelize computation over a single uncompressed
-                                 CSV file on disk instead.
+                                 CSV file on disk instead of processing multiple
+                                 files in parallel.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
-    --progress                   Display a progress bar for the parallel tasks.
+    --progress                   Display a progress bar for the parallel tasks. The
+                                 per file/chunk bars will tick once per CSV row only
+                                 AFTER pre-processing!
     -t, --threads <n>            Number of threads to use. Will default to a sensible
                                  number based on the available CPUs.
     --path-column <name>         Name of the path column if stdin is given as a CSV file

@@ -573,7 +573,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 
 *Parallel operation over multiple CSV files*
 
-- [**parallel (p)**](./docs/cmd/parallel.md): Map-reduce-like parallel computation over multiple CSV files
+- [**parallel (p)**](./docs/cmd/parallel.md): Map-reduce-like parallel computation
 
 *Generate CSV files*
 

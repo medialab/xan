@@ -96,7 +96,7 @@ macro_rules! command_list {
     partition   Partition CSV data based on a column value
 
 ## Parallel operation over multiple CSV files
-    parallel (p) Map-reduce-like parallel computation over multiple CSV files
+    parallel (p) Map-reduce-like parallel computation
 
 ## Generate CSV files
     range       Create a CSV file from a numerical range
