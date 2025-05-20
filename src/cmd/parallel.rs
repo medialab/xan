@@ -66,28 +66,29 @@ impl Bars {
         self.main.tick();
     }
 
-    fn start(&self, path: &str) -> ProgressBar {
+    fn start(&self, name: &str) -> ProgressBar {
         let bar = ProgressBar::new_spinner();
-        bar.set_style(get_spinner_style(path.cyan()));
+        bar.set_style(get_spinner_style(name.cyan()));
 
         self.bars.lock().unwrap().push((
-            path.to_string(),
+            name.to_string(),
             self.multi.insert_before(&self.main, bar.clone()),
         ));
 
         bar
     }
 
-    fn stop(&self, path: &str) {
+    fn stop(&self, name: &str) {
         self.bars.lock().unwrap().retain_mut(|(p, b)| {
-            if p != path {
+            if p != name {
                 true
             } else {
-                b.set_style(get_spinner_style(path.green()));
+                b.set_style(get_spinner_style(p.green()));
                 b.abandon();
                 false
             }
         });
+
         self.main.inc(1);
     }
 
@@ -136,15 +137,9 @@ impl ParallelProgressBar {
         self.bars.as_ref().map(|bars| bars.start(path))
     }
 
-    fn tick(bar_opt: &Option<ProgressBar>) {
-        if let Some(bar) = bar_opt {
-            bar.inc(1);
-        }
-    }
-
-    fn stop(&self, path: &str) {
+    fn stop(&self, name: &str) {
         if let Some(bars) = &self.bars {
-            bars.stop(path);
+            bars.stop(name);
         }
     }
 
@@ -373,11 +368,18 @@ struct InputReader {
     headers: csv::ByteRecord,
     _children: Option<Children>,
     up_to: Option<u64>,
+    bar: Option<ProgressBar>,
 }
 
 impl InputReader {
     fn read_byte_record(&mut self, record: &mut csv::ByteRecord) -> Result<bool, csv::Error> {
         read_byte_record_up_to(&mut self.csv_reader, record, self.up_to)
+    }
+
+    fn tick(&self) {
+        if let Some(bar) = &self.bar {
+            bar.inc(1);
+        }
     }
 }
 
@@ -613,7 +615,9 @@ impl Args {
         Ok((inputs.into_iter().map(Input::Path).collect(), None))
     }
 
-    fn reader(&self, input: &Input) -> CliResult<InputReader> {
+    fn reader(&self, input: &Input, progress_bar: &ParallelProgressBar) -> CliResult<InputReader> {
+        let bar = progress_bar.start(&input.name());
+
         // Shell preprocessing
         if let Some(preprocessing) = &self.flag_shell_preprocess {
             if preprocessing.trim().is_empty() {
@@ -671,6 +675,7 @@ impl Args {
                 headers,
                 _children,
                 up_to: None,
+                bar,
             })
         }
         // Standard preprocessing
@@ -770,6 +775,7 @@ impl Args {
                 headers,
                 _children: Some(Children::from(children)),
                 up_to: None,
+                bar,
             })
         }
         // No preprocessing
@@ -789,6 +795,7 @@ impl Args {
                         headers,
                         _children: None,
                         up_to: None,
+                        bar,
                     })
                 }
                 Input::FileChunk(file_chunk) => {
@@ -803,6 +810,7 @@ impl Args {
                         headers: file_chunk.headers.clone(),
                         _children: None,
                         up_to: Some(file_chunk.to - file_chunk.from),
+                        bar,
                     })
                 }
             }
@@ -837,10 +845,8 @@ impl Args {
             };
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.reader(input)?;
+                let mut input_reader = self.reader(input, &progress_bar)?;
                 let name = input.name();
-
-                let bar = progress_bar.start(&name);
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
@@ -848,7 +854,7 @@ impl Args {
                 while input_reader.read_byte_record(&mut record)? {
                     count += 1;
 
-                    ParallelProgressBar::tick(&bar);
+                    input_reader.tick();
                 }
 
                 let mut output_record = csv::ByteRecord::new();
@@ -860,7 +866,7 @@ impl Args {
                     .unwrap()
                     .write_byte_record(&output_record)?;
 
-                progress_bar.stop(&name);
+                progress_bar.stop(&input.name());
 
                 Ok(())
             })?;
@@ -872,10 +878,7 @@ impl Args {
             let total_count = AtomicUsize::new(0);
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.reader(input)?;
-                let name = input.name();
-
-                let bar = progress_bar.start(&name);
+                let mut input_reader = self.reader(input, &progress_bar)?;
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
@@ -883,12 +886,12 @@ impl Args {
                 while input_reader.read_byte_record(&mut record)? {
                     count += 1;
 
-                    ParallelProgressBar::tick(&bar);
+                    input_reader.tick();
                 }
 
                 total_count.fetch_add(count, Ordering::Relaxed);
 
-                progress_bar.stop(&name);
+                progress_bar.stop(&input.name());
 
                 Ok(())
             })?;
@@ -936,10 +939,8 @@ impl Args {
         };
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input)?;
+            let mut input_reader = self.reader(input, &progress_bar)?;
             let name = input.name();
-
-            let bar = progress_bar.start(&name);
 
             if let Some(source_column) = &self.flag_source_column {
                 input_reader.headers.push_field(source_column.as_bytes());
@@ -966,14 +967,14 @@ impl Args {
 
                 buffer.push(record.clone());
 
-                ParallelProgressBar::tick(&bar);
+                input_reader.tick();
             }
 
             if !buffer.is_empty() {
                 flush(&input_reader.headers, &buffer)?;
             }
 
-            progress_bar.stop(&name);
+            progress_bar.stop(&input.name());
 
             Ok(())
         })?;
@@ -996,10 +997,7 @@ impl Args {
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input)?;
-            let name = input.name();
-
-            let bar = progress_bar.start(&name);
+            let mut input_reader = self.reader(input, &progress_bar)?;
 
             let sel = self.flag_select.selection(&input_reader.headers, true)?;
 
@@ -1019,12 +1017,12 @@ impl Args {
                     }
                 }
 
-                ParallelProgressBar::tick(&bar);
+                input_reader.tick();
             }
 
             total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
-            progress_bar.stop(&name);
+            progress_bar.stop(&input.name());
 
             Ok(())
         })?;
@@ -1067,10 +1065,7 @@ impl Args {
         let total_stats_mutex = Mutex::new(StatsTables::new());
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input)?;
-            let name = input.name();
-
-            let bar = progress_bar.start(&name);
+            let mut input_reader = self.reader(input, &progress_bar)?;
 
             let sel = self.flag_select.selection(&input_reader.headers, true)?;
 
@@ -1083,12 +1078,12 @@ impl Args {
                     stats.process(cell);
                 }
 
-                ParallelProgressBar::tick(&bar);
+                input_reader.tick();
             }
 
             total_stats_mutex.lock().unwrap().merge(local_stats)?;
 
-            progress_bar.stop(&name);
+            progress_bar.stop(&input.name());
 
             Ok(())
         })?;
@@ -1109,10 +1104,7 @@ impl Args {
         let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input)?;
-            let name = input.name();
-
-            let bar = progress_bar.start(&name);
+            let mut input_reader = self.reader(input, &progress_bar)?;
 
             let mut record = csv::ByteRecord::new();
             let mut program =
@@ -1124,7 +1116,7 @@ impl Args {
                 program.run_with_record(index, &record)?;
                 index += 1;
 
-                ParallelProgressBar::tick(&bar);
+                input_reader.tick();
             }
 
             let mut total_program_opt = total_program_mutex.lock().unwrap();
@@ -1134,7 +1126,7 @@ impl Args {
                 None => *total_program_opt = Some(program),
             };
 
-            progress_bar.stop(&name);
+            progress_bar.stop(&input.name());
 
             Ok(())
         })?;
@@ -1157,16 +1149,13 @@ impl Args {
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input)?;
-            let name = input.name();
+            let mut input_reader = self.reader(input, &progress_bar)?;
 
             let sel = self
                 .arg_group
                 .clone()
                 .unwrap()
                 .selection(&input_reader.headers, true)?;
-
-            let bar = progress_bar.start(&name);
 
             let mut record = csv::ByteRecord::new();
             let mut program = GroupAggregationProgram::parse(
@@ -1182,7 +1171,7 @@ impl Args {
                 program.run_with_record(group, index, &record)?;
                 index += 1;
 
-                ParallelProgressBar::tick(&bar);
+                input_reader.tick();
             }
 
             let mut total_program_opt = total_program_mutex.lock().unwrap();
@@ -1192,7 +1181,7 @@ impl Args {
                 None => *total_program_opt = Some((sel.collect(&input_reader.headers), program)),
             };
 
-            progress_bar.stop(&name);
+            progress_bar.stop(&input.name());
 
             Ok(())
         })?;
