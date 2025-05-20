@@ -720,7 +720,6 @@ impl Args {
             }
 
             for mut step in preprocessing.split(|token| token == "|") {
-                dbg!(step);
                 let mut command = Command::new(exe.clone());
                 command.stdout(Stdio::piped());
 
