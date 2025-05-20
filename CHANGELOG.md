@@ -45,11 +45,13 @@
 * Fixing `xan to md` width alignment.
 * Renaming `xan parallel --shell-preprocessing` short flag to be `-H` because it was being overriden by `-S/--source-column`.
 * Adding missing subcommand completions for `xan parallel`.
+* Fixing `xan parallel` default threads count heuristic.
 
 *Quality of Life*
 
 * Prepending xan subcommand to error messages.
 * Better error messages when moonblade expressions cannot be parsed.
+* Displaying number of threads actually used when using `xan parallel`.
 
 ## 0.50.0
 

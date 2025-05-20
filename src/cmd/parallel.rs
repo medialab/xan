@@ -36,21 +36,24 @@ struct Bars {
     multi: MultiProgress,
     bars: Mutex<Vec<(String, ProgressBar)>>,
     total: u64,
-    chunks: bool,
+    chunked: bool,
 }
 
 impl Bars {
-    fn new(total: usize, chunks: bool) -> Self {
+    fn new(total: usize, threads: usize, chunked: bool) -> Self {
         let main = ProgressBar::new(total as u64);
+
         let multi = MultiProgress::new();
         multi.add(main.clone());
+
+        main.set_prefix(format!("(t={}) ", threads));
 
         let bars = Bars {
             main,
             multi,
             bars: Mutex::new(Vec::new()),
             total: total as u64,
-            chunks,
+            chunked,
         };
 
         bars.set_color("blue");
@@ -63,7 +66,7 @@ impl Bars {
             Some(self.total),
             color,
             false,
-            if self.chunks { "chunks" } else { "files" },
+            if self.chunked { "chunks" } else { "files" },
         ));
         self.main.tick();
     }
@@ -129,9 +132,9 @@ impl ParallelProgressBar {
         Self { bars: None }
     }
 
-    fn new(total: usize, chunks: bool) -> Self {
+    fn new(total: usize, threads: usize, chunked: bool) -> Self {
         Self {
-            bars: Some(Bars::new(total, chunks)),
+            bars: Some(Bars::new(total, threads, chunked)),
         }
     }
 
@@ -892,7 +895,13 @@ impl Args {
             console::set_colors_enabled(true);
             colored::control::set_override(true);
 
-            ParallelProgressBar::new(total, self.flag_single_file)
+            ParallelProgressBar::new(
+                total,
+                self.flag_threads
+                    .expect("at that point, threads cannot be None")
+                    .get(),
+                self.flag_single_file,
+            )
         } else {
             ParallelProgressBar::hidden()
         }
@@ -1337,7 +1346,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
 
     let (inputs, chunks_hint) = args.inputs()?;
 
@@ -1348,17 +1357,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
     }
 
-    if let Some(threads) = args.flag_threads {
-        let threads = match chunks_hint {
-            Some(count) => threads.get().min(count),
-            None => threads.get().min(inputs.len()),
-        };
-
-        ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global()
-            .expect("could not build thread pool!");
+    if args.flag_threads.is_none() {
+        args.flag_threads = Some(NonZeroUsize::new(num_cpus::get_physical()).unwrap());
     }
+
+    let mut threads = args.flag_threads.unwrap().get();
+
+    match chunks_hint {
+        Some(t) => {
+            threads = threads.min(t);
+        }
+        None => {
+            threads = threads.min(inputs.len());
+        }
+    };
+
+    ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build_global()
+        .expect("could not build thread pool!");
+
+    args.flag_threads = Some(NonZeroUsize::new(threads).unwrap());
 
     if args.cmd_count {
         args.count(inputs)?;
