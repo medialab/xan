@@ -15,8 +15,6 @@ Usage:
     xan count [options] [<input>]
 
 count options:
-    --csv              Output the result as a single column, single row CSV file
-                       with a \"count\" header.
     -a, --approx       Attempt to approximate a CSV file row count by sampling its
                        first rows. Target must be seekable, which means this cannot
                        work on a stream fed through stdin nor with gzipped data.
@@ -35,7 +33,6 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_csv: bool,
     flag_approx: bool,
     flag_sample_size: NonZeroU64,
     flag_no_headers: bool,
@@ -68,21 +65,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         count
     };
 
-    if args.flag_csv {
-        let mut writer = wconf.writer()?;
-        let mut record = csv::ByteRecord::new();
-        record.push_field(b"count");
-        writer.write_byte_record(&record)?;
-
-        record.clear();
-        record.push_field(format!("{}", count).as_bytes());
-        writer.write_byte_record(&record)?;
-
-        writer.flush()?;
-    } else {
-        let mut writer = wconf.io_writer()?;
-        writeln!(writer, "{}", count)?;
-    }
+    let mut writer = wconf.io_writer()?;
+    writeln!(writer, "{}", count)?;
 
     Ok(())
 }

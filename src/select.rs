@@ -135,6 +135,12 @@ impl TryFrom<String> for SelectColumns {
     }
 }
 
+impl Default for SelectColumns {
+    fn default() -> Self {
+        Self::parse("").unwrap()
+    }
+}
+
 struct SelectorParser {
     chars: Vec<char>,
     pos: usize,

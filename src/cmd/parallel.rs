@@ -576,7 +576,7 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct Args {
     cmd_count: bool,
     cmd_cat: bool,

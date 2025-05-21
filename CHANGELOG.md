@@ -9,6 +9,7 @@
 * `xan split` now accepts its output directory as an optional flag.
 * `xan partition` now accepts its output directory as an optional flag.
 * `xan split -s` becomes `xan split -S` to avoid confusion with the `-s/--select` flag used everywhere else.
+* Dropping useless `xan count --csv` flag.
 
 *Features*
 
