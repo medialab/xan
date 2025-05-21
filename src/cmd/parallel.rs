@@ -577,8 +577,8 @@ Common options:
 ";
 
 #[derive(Deserialize, Default)]
-struct Args {
-    cmd_count: bool,
+pub struct Args {
+    pub cmd_count: bool,
     cmd_cat: bool,
     cmd_freq: bool,
     cmd_stats: bool,
@@ -608,6 +608,26 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+}
+
+impl Args {
+    pub fn single_file(path: &Option<String>) -> CliResult<Self> {
+        match path {
+            Some(p) => {
+                if p.ends_with(".gz") {
+                    Err("cannot parallelize over gzipped file!")?;
+                }
+
+                Ok(Self {
+                    flag_single_file: true,
+                    flag_buffer_size: 1024,
+                    arg_inputs: vec![p.to_string()],
+                    ..Default::default()
+                })
+            }
+            None => Err("cannot parallelize over stdin! You must provide a file path.")?,
+        }
+    }
 }
 
 type BoxedReader = csv::Reader<Box<dyn io::Read + Send>>;
@@ -1375,59 +1395,63 @@ impl Args {
 
         Ok(())
     }
+
+    pub fn run(mut self) -> CliResult<()> {
+        let (inputs, chunks_hint) = self.inputs()?;
+
+        if inputs.len() == 1 && !self.flag_single_file {
+            eprintln!(
+                "{}",
+                "warning: processing a single file. Did you forget -F/--single-file!".yellow()
+            );
+        }
+
+        if self.flag_threads.is_none() {
+            self.flag_threads = Some(NonZeroUsize::new(num_cpus::get()).unwrap());
+        }
+
+        let mut threads = self.flag_threads.unwrap().get();
+
+        match chunks_hint {
+            Some(t) => {
+                threads = threads.min(t);
+            }
+            None => {
+                threads = threads.min(inputs.len());
+            }
+        };
+
+        ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .expect("could not build thread pool!");
+
+        self.flag_threads = Some(NonZeroUsize::new(threads).unwrap());
+
+        if self.cmd_count {
+            self.count(inputs)?;
+        } else if self.cmd_cat {
+            self.cat(inputs)?;
+        } else if self.cmd_freq {
+            self.freq(inputs)?;
+        } else if self.cmd_stats {
+            self.stats(inputs)?;
+        } else if self.cmd_agg {
+            self.agg(inputs)?;
+        } else if self.cmd_groupby {
+            self.groupby(inputs)?;
+        } else if self.cmd_map {
+            self.map(inputs)?;
+        } else {
+            unreachable!()
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = util::get_args(USAGE, argv)?;
 
-    let (inputs, chunks_hint) = args.inputs()?;
-
-    if inputs.len() == 1 && !args.flag_single_file {
-        eprintln!(
-            "{}",
-            "warning: processing a single file. Did you forget -F/--single-file!".yellow()
-        );
-    }
-
-    if args.flag_threads.is_none() {
-        args.flag_threads = Some(NonZeroUsize::new(num_cpus::get()).unwrap());
-    }
-
-    let mut threads = args.flag_threads.unwrap().get();
-
-    match chunks_hint {
-        Some(t) => {
-            threads = threads.min(t);
-        }
-        None => {
-            threads = threads.min(inputs.len());
-        }
-    };
-
-    ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build_global()
-        .expect("could not build thread pool!");
-
-    args.flag_threads = Some(NonZeroUsize::new(threads).unwrap());
-
-    if args.cmd_count {
-        args.count(inputs)?;
-    } else if args.cmd_cat {
-        args.cat(inputs)?;
-    } else if args.cmd_freq {
-        args.freq(inputs)?;
-    } else if args.cmd_stats {
-        args.stats(inputs)?;
-    } else if args.cmd_agg {
-        args.agg(inputs)?;
-    } else if args.cmd_groupby {
-        args.groupby(inputs)?;
-    } else if args.cmd_map {
-        args.map(inputs)?;
-    } else {
-        unreachable!()
-    }
-
-    Ok(())
+    args.run()
 }

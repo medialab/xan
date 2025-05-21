@@ -11,13 +11,17 @@ Usage:
     xan count [options] [<input>]
 
 count options:
-    --csv              Output the result as a single column, single row CSV file
-                       with a "count" header.
-    -a, --approx       Attempt to approximate a CSV file row count by sampling its
-                       first rows. Target must be seekable, which means this cannot
-                       work on a stream fed through stdin nor with gzipped data.
-    --sample-size <n>  Number of rows to sample when using -a, --approx.
-                       [default: 512]
+    -p, --parallel           Whether to use parallelization to speed up counting.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
+    -a, --approx             Attempt to approximate a CSV file row count by sampling its
+                             first rows. Target must be seekable, which means this cannot
+                             work on a stream fed through stdin nor with gzipped data.
+    --sample-size <n>        Number of rows to sample when using -a, --approx.
+                             [default: 512]
 
 Common options:
     -h, --help             Display this message

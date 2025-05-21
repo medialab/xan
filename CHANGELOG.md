@@ -28,6 +28,7 @@
 * Adding `xan parallel -F/--single-file`.
 * Adding `xan from md`.
 * Adding `xan parallel map`.
+* Adding `xan parallel -p/--parallel -t/--threads`.
 
 *Fixes*
 
