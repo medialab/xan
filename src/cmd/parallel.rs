@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -548,6 +548,12 @@ parallel stats options:
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
 
+parallel map options:
+    -O, --output-dir <dir>  Write processed files in given directory, instead of beside
+                            input files. Beware: this does not attempt to replicate
+                            folder hierarchies, so all the processed files will be
+                            written in the same given output directory.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -586,6 +592,7 @@ struct Args {
     flag_quartiles: bool,
     flag_approx: bool,
     flag_nulls: bool,
+    flag_output_dir: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -1309,6 +1316,15 @@ impl Args {
 
         let progress_bar = self.progress_bar(inputs.len());
         let template = self.arg_template.clone().unwrap();
+        let output_dir = self
+            .flag_output_dir
+            .as_ref()
+            .map(|dir| -> CliResult<&Path> {
+                let path = Path::new(dir);
+                fs::create_dir_all(path)?;
+                Ok(path)
+            })
+            .transpose()?;
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.io_reader(input, &progress_bar)?;
@@ -1329,7 +1345,10 @@ impl Args {
             };
 
             let file_name = template.filename(&file_id);
-            let mut file_path = PathBuf::from(absolute_path.parent().ok_or_else(err)?);
+            let mut file_path = match output_dir.as_ref() {
+                Some(dir) => PathBuf::from(dir),
+                None => PathBuf::from(absolute_path.parent().ok_or_else(err)?),
+            };
             file_path.push(file_name);
 
             let mut output = File::create(file_path)?;
