@@ -658,14 +658,12 @@ impl Args {
     fn inputs(&self) -> CliResult<(Vec<Input>, Option<usize>)> {
         let inputs = if !self.arg_inputs.is_empty() {
             self.arg_inputs.clone()
+        } else if io::stdin().is_terminal() {
+            vec![]
         } else {
-            if io::stdin().is_terminal() {
-                vec![]
-            } else {
-                Config::stdin()
-                    .lines(&self.flag_path_column)?
-                    .collect::<Result<Vec<_>, _>>()?
-            }
+            Config::stdin()
+                .lines(&self.flag_path_column)?
+                .collect::<Result<Vec<_>, _>>()?
         };
 
         if inputs.is_empty() {
@@ -801,7 +799,9 @@ impl Args {
             // NOTE: renormalizing tokens around pipes (e.g. when given a pipe
             // that is not separated by a space `progress |search -es Category`).
             for token in raw_preprocessing.into_iter() {
-                if let Some(rest) = token.strip_prefix("|") {
+                if token == "|" {
+                    preprocessing.push(token);
+                } else if let Some(rest) = token.strip_prefix("|") {
                     preprocessing.push("|".to_string());
                     preprocessing.push(rest.trim().to_string());
                 } else if let Some(rest) = token.strip_suffix("|") {
