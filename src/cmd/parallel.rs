@@ -660,12 +660,12 @@ impl Args {
             self.arg_inputs.clone()
         } else {
             if io::stdin().is_terminal() {
-                return Ok((vec![], None));
+                vec![]
+            } else {
+                Config::stdin()
+                    .lines(&self.flag_path_column)?
+                    .collect::<Result<Vec<_>, _>>()?
             }
-
-            Config::stdin()
-                .lines(&self.flag_path_column)?
-                .collect::<Result<Vec<_>, _>>()?
         };
 
         if inputs.is_empty() {
