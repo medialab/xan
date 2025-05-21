@@ -6,7 +6,6 @@
 // https://pbil.univ-lyon1.fr/R/pdf/tdr35.pdf
 
 use std::cmp::Ordering;
-use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::rc::Rc;
@@ -14,6 +13,7 @@ use std::rc::Rc;
 use bstr::ByteSlice;
 
 use crate::collections::ClusteredInsertHashmap;
+use crate::collections::{hash_map::Entry, HashMap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;

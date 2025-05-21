@@ -1,10 +1,10 @@
-use std::collections::hash_map::{Entry, HashMap};
 use std::io;
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
 use csv::ByteRecord;
 
+use crate::collections::{hash_map::Entry, HashMap};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
 use crate::util;

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::str::from_utf8;
 
@@ -8,6 +7,7 @@ use bstr::ByteSlice;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
+use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};

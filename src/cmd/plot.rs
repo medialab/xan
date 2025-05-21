@@ -1,11 +1,10 @@
 // Issue tracking:
 //  - https://github.com/ratatui/ratatui/issues/334
 //  - https://github.com/ratatui/ratatui/issues/1391
-
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 
+use ahash::RandomState;
 use indexmap::IndexMap;
 use jiff::{
     civil::{Date, DateTime, Time},
@@ -20,6 +19,7 @@ use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
+use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::dates::{infer_temporal_granularity, parse_partial_date};
 use crate::ratatui::print_ratatui_frame_to_stdout;
@@ -1306,7 +1306,7 @@ impl Series {
 
 #[derive(Default)]
 struct CategoricalSeries {
-    mapping: IndexMap<Vec<u8>, Series>,
+    mapping: IndexMap<Vec<u8>, Series, RandomState>,
 }
 
 impl CategoricalSeries {

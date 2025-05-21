@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::cmp::{max, Ordering, PartialOrd};
-use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
@@ -24,6 +23,7 @@ use rand::Rng;
 use unidecode::unidecode;
 use uuid::Uuid;
 
+use crate::collections::HashMap;
 use crate::dates;
 use crate::urls::LRUStems;
 

@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::fmt;
 use std::iter::repeat;
 use std::ops;
 use std::str::FromStr;
+
+use crate::collections::HashSet;
 
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]

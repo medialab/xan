@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::iter;
 use std::sync::Arc;
@@ -8,6 +7,8 @@ use ego_tree::NodeId;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use scraper::{Element, ElementRef, Html, Node, Selector};
+
+use crate::collections::HashMap;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};

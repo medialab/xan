@@ -1,8 +1,8 @@
-use std::collections::{hash_map::Entry, HashMap};
 use std::io::{self, Write};
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
+use crate::collections::{hash_map::Entry, HashMap};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::select::SelectColumns;

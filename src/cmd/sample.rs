@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::io;
 
 use rand::Rng;
 
 use crate::collections::ClusteredInsertHashmap;
+use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::read::{find_next_record_offset_from_random_position, sample_initial_records};
 use crate::select::{SelectColumns, Selection};

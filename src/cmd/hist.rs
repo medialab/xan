@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use ahash::RandomState;
 use colored::Colorize;
 use indexmap::{map::Entry, IndexMap};
 use jiff::{civil::Date, Unit};
@@ -130,7 +131,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|name| name.single_selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
-    let mut category_colors: IndexMap<String, usize> = IndexMap::new();
+    let mut category_colors: IndexMap<String, usize, RandomState> =
+        IndexMap::with_hasher(RandomState::new());
     let mut categories_overflow: Vec<String> = Vec::new();
 
     while rdr.read_record(&mut record)? {

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::{self, IsTerminal};
@@ -16,6 +15,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
 
 use crate::cmd::progress::get_progress_style;
+use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::read::{read_byte_record_up_to, segment_csv_file, SegmentationOptions};

@@ -1,5 +1,6 @@
-use std::collections::HashMap;
 use std::hash::Hash;
+
+use crate::collections::HashMap;
 
 #[derive(Debug)]
 pub struct IncrementalId<K> {

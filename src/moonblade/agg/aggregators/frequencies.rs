@@ -1,7 +1,6 @@
 use std::cmp::{Ordering, Reverse};
-use std::collections::HashMap;
 
-use crate::collections::FixedReverseHeap;
+use crate::collections::{FixedReverseHeap, HashMap};
 
 #[derive(Debug, Clone)]
 pub struct Frequencies {

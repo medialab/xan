@@ -1,11 +1,10 @@
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::Path;
 
 use regex::Regex;
 
+use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util::{self, FilenameTemplate, ImmutableRecordHelpers};

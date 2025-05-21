@@ -6,17 +6,18 @@
 // but that it is not guaranteed to be the insertion order!
 use std::hash::Hash;
 
+use ahash::RandomState;
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 
 #[derive(Debug, Clone)]
 pub struct ClusteredInsertHashmap<K, V> {
-    map: IndexMap<K, V>,
+    map: IndexMap<K, V, RandomState>,
 }
 
 impl<K, V> Default for ClusteredInsertHashmap<K, V> {
     fn default() -> Self {
         Self {
-            map: IndexMap::new(),
+            map: IndexMap::with_hasher(RandomState::new()),
         }
     }
 }

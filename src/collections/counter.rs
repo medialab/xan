@@ -1,9 +1,10 @@
 use std::cmp::Reverse;
-use std::collections::HashMap;
 use std::hash::Hash;
 
 use rayon::prelude::*;
 use topk::FilteredSpaceSaving;
+
+use crate::collections::HashMap;
 
 use super::fixed_reverse_heap::FixedReverseHeap;
 

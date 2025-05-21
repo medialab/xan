@@ -1,9 +1,10 @@
-use std::collections::HashMap;
 use std::fmt;
 
 use arrayvec::ArrayVec;
 use csv::ByteRecord;
 use regex::RegexBuilder;
+
+use crate::collections::HashMap;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::functions::{get_function, Function};

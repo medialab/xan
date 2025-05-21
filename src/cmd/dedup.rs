@@ -1,9 +1,9 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet};
-
+use ahash::RandomState;
 use dlv_list::{Index, VecList};
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use transient_btree_index::{BtreeConfig, BtreeIndex};
 
+use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::ChooseProgram;
 use crate::select::SelectColumns;
@@ -352,7 +352,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Unsorted choose
         (false, DedupMode::Choose(expr)) => {
-            let mut map: IndexMap<DeduplicationKey, csv::ByteRecord> = IndexMap::new();
+            let mut map: IndexMap<DeduplicationKey, csv::ByteRecord, RandomState> =
+                IndexMap::with_hasher(RandomState::new());
             let mut program = ChooseProgram::parse(&expr, &headers)?;
             let mut record = csv::ByteRecord::new();
             let mut index: usize = 0;

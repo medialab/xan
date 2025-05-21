@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
@@ -11,6 +10,7 @@ use paltoquet::tokenizers::{
 use pariter::IteratorExt;
 use regex::Regex;
 
+use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
 use crate::select::SelectColumns;

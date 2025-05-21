@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fmt;
 
 use std::sync::Arc;
@@ -14,6 +14,7 @@ use serde::{
 };
 use url::Url;
 
+use crate::collections::HashMap;
 use crate::dates;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::utils::downgrade_float;

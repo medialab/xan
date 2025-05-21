@@ -49,6 +49,10 @@
 * Adding missing subcommand completions for `xan parallel`.
 * Better default threads count heuristics.
 
+*Performance*
+
+* Switching hashmaps to `ahash`.
+
 *Quality of Life*
 
 * Prepending xan subcommand to error messages.

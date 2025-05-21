@@ -1,14 +1,14 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Not;
 use std::rc::Rc;
 
+use ahash::RandomState;
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use jiff::Zoned;
 use serde_json::Value;
 
-use crate::collections::UnionFind;
+use crate::collections::{HashMap, UnionFind};
 use crate::config::Config;
 use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
@@ -192,7 +192,7 @@ pub struct GraphBuilder {
     disjoint_sets: Option<UnionFind>,
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
-    nodes: IndexMap<Rc<String>, Node>,
+    nodes: IndexMap<Rc<String>, Node, RandomState>,
     edges: HashMap<(usize, usize), Edge>,
 }
 

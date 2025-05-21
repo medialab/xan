@@ -9,3 +9,10 @@ pub use counter::Counter;
 pub use fixed_reverse_heap::{FixedReverseHeap, FixedReverseHeapMap, FixedReverseHeapMapWithTies};
 pub use incremental_id::IncrementalId;
 pub use union_find::UnionFind;
+
+pub use ahash::AHashMap as HashMap;
+pub use ahash::AHashSet as HashSet;
+
+pub mod hash_map {
+    pub use std::collections::hash_map::Entry;
+}

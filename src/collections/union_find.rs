@@ -1,4 +1,4 @@
-// use std::collections::{hash_map::Entry, HashMap};
+// use crate::collections::{hash_map::Entry, HashMap};
 // use std::hash::Hash;
 
 #[derive(Debug)]
