@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -22,11 +22,20 @@ use crate::select::SelectColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
-fn get_spinner_style(path: ColoredString) -> ProgressStyle {
-    ProgressStyle::with_template(&format!(
-        "{{spinner}} {{human_pos:>11}} rows of {} in {{elapsed}} ({{per_sec}})",
-        path
-    ))
+fn get_spinner_style(path: ColoredString, unspecified: bool) -> ProgressStyle {
+    ProgressStyle::with_template(
+        &(if unspecified {
+            format!(
+                "{{spinner}} {{decimal_bytes:>11}} of {} in {{elapsed}} ({{decimal_bytes_per_sec}})",
+                path
+            )
+        } else {
+            format!(
+                "{{spinner}} {{human_pos:>11}} rows of {} in {{elapsed}} ({{per_sec}})",
+                path
+            )
+        }),
+    )
     .unwrap()
     .tick_chars("⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈⣿")
 }
@@ -37,10 +46,11 @@ struct Bars {
     bars: Mutex<Vec<(String, ProgressBar)>>,
     total: u64,
     chunked: bool,
+    unspecified: bool,
 }
 
 impl Bars {
-    fn new(total: usize, threads: usize, chunked: bool) -> Self {
+    fn new(total: usize, threads: usize, chunked: bool, unspecified: bool) -> Self {
         let main = ProgressBar::new(total as u64);
 
         let multi = MultiProgress::new();
@@ -54,6 +64,7 @@ impl Bars {
             bars: Mutex::new(Vec::new()),
             total: total as u64,
             chunked,
+            unspecified,
         };
 
         bars.set_color("blue");
@@ -73,12 +84,14 @@ impl Bars {
 
     fn start(&self, name: &str) -> ProgressBar {
         let bar = ProgressBar::new_spinner();
-        bar.set_style(get_spinner_style(name.cyan()));
+        bar.set_style(get_spinner_style(name.cyan(), self.unspecified));
 
         self.bars.lock().unwrap().push((
             name.to_string(),
             self.multi.insert_before(&self.main, bar.clone()),
         ));
+
+        self.main.tick();
 
         bar
     }
@@ -88,8 +101,9 @@ impl Bars {
             if p != name {
                 true
             } else {
-                b.set_style(get_spinner_style(p.green()));
+                b.set_style(get_spinner_style(p.green(), self.unspecified));
                 b.abandon();
+
                 false
             }
         });
@@ -132,9 +146,9 @@ impl ParallelProgressBar {
         Self { bars: None }
     }
 
-    fn new(total: usize, threads: usize, chunked: bool) -> Self {
+    fn new(total: usize, threads: usize, chunked: bool, unspecified: bool) -> Self {
         Self {
-            bars: Some(Bars::new(total, threads, chunked)),
+            bars: Some(Bars::new(total, threads, chunked, unspecified)),
         }
     }
 
@@ -548,12 +562,6 @@ parallel stats options:
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
 
-parallel map options:
-    -O, --output-dir <dir>  Write processed files in given directory, instead of beside
-                            input files. Beware: this does not attempt to replicate
-                            folder hierarchies, so all the processed files will be
-                            written in the same given output directory.
-
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -592,7 +600,6 @@ struct Args {
     flag_quartiles: bool,
     flag_approx: bool,
     flag_nulls: bool,
-    flag_output_dir: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -908,6 +915,7 @@ impl Args {
                     .expect("at that point, threads cannot be None")
                     .get(),
                 self.flag_single_file,
+                self.cmd_map,
             )
         } else {
             ParallelProgressBar::hidden()
@@ -1316,15 +1324,6 @@ impl Args {
 
         let progress_bar = self.progress_bar(inputs.len());
         let template = self.arg_template.clone().unwrap();
-        let output_dir = self
-            .flag_output_dir
-            .as_ref()
-            .map(|dir| -> CliResult<&Path> {
-                let path = Path::new(dir);
-                fs::create_dir_all(path)?;
-                Ok(path)
-            })
-            .transpose()?;
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.io_reader(input, &progress_bar)?;
@@ -1345,15 +1344,18 @@ impl Args {
             };
 
             let file_name = template.filename(&file_id);
-            let mut file_path = match output_dir.as_ref() {
-                Some(dir) => PathBuf::from(dir),
-                None => PathBuf::from(absolute_path.parent().ok_or_else(err)?),
-            };
+            let mut file_path = PathBuf::from(absolute_path.parent().ok_or_else(err)?);
             file_path.push(file_name);
 
             let mut output = File::create(file_path)?;
 
-            io::copy(&mut input_reader.reader, &mut output)?;
+            if let Some(bar) = &input_reader.bar {
+                io::copy(&mut bar.wrap_read(&mut input_reader.reader), &mut output)?;
+            } else {
+                io::copy(&mut input_reader.reader, &mut output)?;
+            }
+
+            progress_bar.stop(&input.name());
 
             Ok(())
         })?;
