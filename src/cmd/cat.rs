@@ -147,27 +147,36 @@ impl Args {
     }
 
     fn cat_rows_with_input(&self) -> CliResult<()> {
-        let paths =
-            Config::new(&Some(self.flag_paths.clone().unwrap())).lines(&self.flag_path_column)?;
+        let paths_file_config = Config::new(&Some(self.flag_paths.clone().unwrap()))
+            .no_headers(self.flag_path_column.is_some());
+        let paths = paths_file_config.lines(&self.flag_path_column)?;
 
         let mut record = csv::ByteRecord::new();
         let mut wtr = Config::new(&self.flag_output).writer()?;
 
-        let mut headers_written = self.flag_no_headers;
+        let mut headers_written = if self.flag_source_column.is_some() {
+            false
+        } else {
+            self.flag_no_headers
+        };
 
-        for result in paths {
+        for (i, result) in paths.enumerate() {
             let path = result?;
+
+            let current_file_should_be_read_as_headerless = self.flag_no_headers || i > 0;
 
             let mut reader = Config::new(&Some(path.clone()))
                 .delimiter(self.flag_delimiter)
-                .no_headers(self.flag_no_headers)
+                .no_headers(current_file_should_be_read_as_headerless)
                 .reader()?;
 
             match &self.flag_source_column {
                 None => {
                     if !headers_written {
-                        let headers = reader.byte_headers()?;
-                        wtr.write_byte_record(headers)?;
+                        let original_headers = reader.byte_headers()?;
+                        if !original_headers.is_empty() || !self.flag_no_headers {
+                            wtr.write_byte_record(original_headers)?;
+                        }
                         headers_written = true;
                     }
 
@@ -177,10 +186,14 @@ impl Args {
                 }
                 Some(source_column) => {
                     if !headers_written {
-                        let headers = reader.byte_headers()?;
-                        wtr.write_record(
-                            [source_column.as_bytes()].into_iter().chain(headers.iter()),
-                        )?;
+                        let original_headers = reader.byte_headers()?.clone();
+
+                        let mut new_output_headers = csv::ByteRecord::new();
+                        new_output_headers.push_field(source_column.as_bytes());
+                        for header_field in original_headers.iter() {
+                            new_output_headers.push_field(header_field);
+                        }
+                        wtr.write_byte_record(&new_output_headers)?;
                         headers_written = true;
                     }
 
