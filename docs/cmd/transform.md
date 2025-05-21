@@ -24,7 +24,11 @@ mary,SUE
 Note that the given expression will be given the target column as its implicit
 value, which means that the latter command can also be written as:
 
-    $ xan transform surname 'upper'
+    $ xan transform surname 'upper(_)'
+
+Or even shorter:
+
+    $ xan transfrom surname upper
 
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.

@@ -30,6 +30,7 @@
 * Adding `xan parallel map`.
 * Adding `xan parallel -p/--parallel -t/--threads`.
 * Adding `xan count -p/-t`.
+* Adding piped column access to expression given to `xan flatmap -r`.
 
 *Fixes*
 

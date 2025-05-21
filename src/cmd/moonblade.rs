@@ -342,6 +342,15 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         // NOTE: binding implicit last value to target column value
         map_expr = format!("col({}) | {}", idx, map_expr);
         column_to_replace = Some(idx);
+    } else if args.mode.is_flatmap() {
+        if let Some(replaced) = &args.rename_column {
+            rconfig = rconfig.select(SelectColumns::parse(replaced)?);
+            let idx = rconfig.single_selection(&headers)?;
+
+            // NOTE: binding implicit last value to target column value
+            map_expr = format!("col({}) | {}", idx, map_expr);
+            column_to_replace = Some(idx);
+        }
     }
 
     if !args.no_headers {
@@ -360,15 +369,11 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                         modified_headers.replace_at(column_to_replace.unwrap(), renamed.as_bytes());
                 }
             } else if args.mode.is_flatmap() {
-                if let Some(replaced) = &args.rename_column {
-                    rconfig = rconfig.select(SelectColumns::parse(replaced)?);
-                    let idx = rconfig.single_selection(&headers)?;
-
+                if args.rename_column.is_some() {
                     if let Some(renamed) = &args.target_column {
-                        modified_headers = modified_headers.replace_at(idx, renamed.as_bytes());
+                        modified_headers = modified_headers
+                            .replace_at(column_to_replace.unwrap(), renamed.as_bytes());
                     }
-
-                    column_to_replace = Some(idx);
                 } else if let Some(target_column) = &args.target_column {
                     modified_headers.push_field(target_column.as_bytes());
                 }
