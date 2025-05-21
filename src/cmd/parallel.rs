@@ -651,7 +651,7 @@ impl Args {
                 SegmentationOptions::chunks(
                     self.flag_threads
                         .map(|t| t.get())
-                        .unwrap_or_else(num_cpus::get_physical),
+                        .unwrap_or_else(num_cpus::get),
                 ),
             )? {
                 None => Err("could not segment file correctly!")?,
@@ -1358,7 +1358,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.flag_threads.is_none() {
-        args.flag_threads = Some(NonZeroUsize::new(num_cpus::get_physical()).unwrap());
+        args.flag_threads = Some(NonZeroUsize::new(num_cpus::get()).unwrap());
     }
 
     let mut threads = args.flag_threads.unwrap().get();

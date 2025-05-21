@@ -582,11 +582,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
             .parallel_map_custom(
                 |o| {
-                    if let Some(count) = threads {
-                        o.threads(count)
-                    } else {
-                        o
-                    }
+                   o.threads(threads.unwrap_or_else(num_cpus::get))
                 },
                 move |(index, result)| -> CliResult<(csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;

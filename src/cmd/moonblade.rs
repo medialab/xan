@@ -392,13 +392,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         rdr.into_byte_records()
             .enumerate()
             .parallel_map_custom(
-                |o| {
-                    if let Some(count) = threads {
-                        o.threads(count)
-                    } else {
-                        o
-                    }
-                },
+                |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
                 move |(i, record)| -> CliResult<(
                     usize,
                     csv::ByteRecord,

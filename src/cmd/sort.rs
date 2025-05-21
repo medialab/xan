@@ -247,7 +247,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .with_buffer(MemoryLimitedBufferBuilder::new(args.flag_memory_limit * MB));
 
         if args.flag_parallel {
-            sorter_builder = sorter_builder.with_threads_number(num_cpus::get_physical());
+            sorter_builder = sorter_builder.with_threads_number(num_cpus::get());
         }
 
         let sorter: ExternalSorter<
