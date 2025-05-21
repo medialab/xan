@@ -28,8 +28,7 @@
 * Adding `xan parallel -F/--single-file`.
 * Adding `xan from md`.
 * Adding `xan parallel map`.
-* Adding `xan parallel -p/--parallel -t/--threads`.
-* Adding `xan count -p/-t`.
+* Adding `xan count -p/--parallel -t/--threads`.
 * Adding piped column access to expression given to `xan flatmap -r`.
 
 *Fixes*
