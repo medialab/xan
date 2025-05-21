@@ -12,6 +12,10 @@ Prints a count of the number of records in the CSV data.
 Note that the count will not include the header row (unless --no-headers is
 given).
 
+You can also use the -p/--parallel or -t/--threads flag to count the number
+of records of the file in parallel to go faster. But this cannot work on streams
+or gzipped data.
+
 Usage:
     xan count [options] [<input>]
 

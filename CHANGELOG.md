@@ -29,6 +29,7 @@
 * Adding `xan from md`.
 * Adding `xan parallel map`.
 * Adding `xan parallel -p/--parallel -t/--threads`.
+* Adding `xan count -p/-t`.
 
 *Fixes*
 
