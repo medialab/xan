@@ -506,7 +506,7 @@ pub fn concretize_expression(
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
         Expr::Underscore => {
-            panic!("found underscore while concretizing expression!\nThis suggests that moonblade::parser::Expr::fill_underscore is not doing its job properly.");
+            return Err(ConcretizationError::UnfillableUnderscore);
         }
         Expr::Null => ConcreteExpr::Value(DynamicValue::None),
         Expr::Bool(v) => ConcreteExpr::Value(DynamicValue::Boolean(v)),
