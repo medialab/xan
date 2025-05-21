@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use bstr::ByteSlice;
 use colored::{ColoredString, Colorize};
+use flate2::{write::GzEncoder, Compression};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
 
@@ -562,6 +563,9 @@ parallel stats options:
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
 
+parallel map options:
+    -z, --compress  Use this flag to gzip the processed files.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -600,6 +604,7 @@ struct Args {
     flag_quartiles: bool,
     flag_approx: bool,
     flag_nulls: bool,
+    flag_compress: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -1347,7 +1352,13 @@ impl Args {
             let mut file_path = PathBuf::from(absolute_path.parent().ok_or_else(err)?);
             file_path.push(file_name);
 
-            let mut output = File::create(file_path)?;
+            let output_file = File::create(file_path)?;
+
+            let mut output: Box<dyn io::Write> = if self.flag_compress {
+                Box::new(GzEncoder::new(output_file, Compression::default()))
+            } else {
+                Box::new(output_file)
+            };
 
             if let Some(bar) = &input_reader.bar {
                 io::copy(&mut bar.wrap_read(&mut input_reader.reader), &mut output)?;

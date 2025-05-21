@@ -127,6 +127,9 @@ parallel stats options:
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
 
+parallel map options:
+    -z, --compress  Use this flag to gzip the processed files.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
