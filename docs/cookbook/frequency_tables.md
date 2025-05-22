@@ -167,3 +167,9 @@ do
   xan sort -s domain $path > $(basename -s.csv $path)_sorted.csv
 done
 ```
+
+Or, if you want to do so in parallel using `xan parallel`:
+
+```bash
+xan parallel map '{}_sorted.csv' *_domains.csv -P 'sort -s domain'
+```
