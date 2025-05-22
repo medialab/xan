@@ -2845,7 +2845,7 @@ checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 
 [[package]]
 name = "xan"
-version = "0.50.0"
+version = "0.51.0-rc1"
 dependencies = [
  "ahash",
  "aho-corasick",
