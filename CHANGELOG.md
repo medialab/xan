@@ -11,6 +11,7 @@
 * `xan split -s` becomes `xan split -S` to avoid confusion with the `-s/--select` flag used everywhere else.
 * Dropping useless `xan count --csv` flag.
 * Dropping `xan freq -t/--threshold`. Use `xan freq | xan filter 'count >= n'` instead.
+* Adding `xan slice -I/--indices` taking care of `xan slice -i` polymorphism taking multiple indices before.
 
 *Features*
 

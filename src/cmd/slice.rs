@@ -20,19 +20,23 @@ constant time using the -B, --byte-offset if you know its byte offset in
 the file. This only works with seekable inputs, e.g. files but no stdin or
 gzipped files.
 
+TODO: explain how byte & conditions affect
+
 Usage:
     xan slice [options] [<input>]
 
 slice options:
-    -s, --start <n>        The index of the record to slice from.
-    --skip <n>             Same as -s, --start.
-    -e, --end <n>          The index of the record to slice to.
-    -l, --len <n>          The length of the slice (can be used instead
-                           of --end).
-    -i, --index <i>        Slice a single record (shortcut for -s N -l 1).
-                           You can also provide multiples indices separated by
-                           commas, e.g. \"1,4,67,89\". Note that selected records
-                           will be emitted in file order.
+    -s, --start <n>    The index of the record to slice from.
+    --skip <n>         Same as -s, --start.
+    -e, --end <n>      The index of the record to slice to.
+    -l, --len <n>      The length of the slice (can be used instead of --end).
+    -i, --index <i>    Slice a single record (shortcut for -s N -l 1).
+    -I, --indices <i>  Return a slice containing multiple indices at once.
+                       You must provide the indices separated by commas,
+                       e.g. \"1,4,67,89\". Note that selected records will be
+                       emitted in file order, not in the order given.
+
+slice options related to byte offets:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
                            be useful to access a particular slice of records in
                            constant time, without needing to read preceding bytes.
@@ -60,7 +64,8 @@ struct Args {
     flag_skip: Option<usize>,
     flag_end: Option<usize>,
     flag_len: Option<usize>,
-    flag_index: Option<String>,
+    flag_index: Option<usize>,
+    flag_indices: Option<String>,
     flag_byte_offset: Option<u64>,
     flag_end_byte: Option<u64>,
     flag_output: Option<String>,
@@ -80,29 +85,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
-    match &args.flag_index {
-        Some(indices) if indices.contains(',') => {
-            return {
-                let rconf = args.rconfig();
+    if args.flag_indices.is_some() {
+        return {
+            let rconf = args.rconfig();
 
-                if let Some(offset) = args.flag_byte_offset {
-                    let inner = rconf.io_reader_for_random_access()?;
-                    let mut rdr = rconf.csv_reader_from_reader(inner);
+            if let Some(offset) = args.flag_byte_offset {
+                let inner = rconf.io_reader_for_random_access()?;
+                let mut rdr = rconf.csv_reader_from_reader(inner);
 
-                    let mut pos = csv::Position::new();
-                    pos.set_byte(offset);
+                let mut pos = csv::Position::new();
+                pos.set_byte(offset);
 
-                    rdr.seek_raw(SeekFrom::Start(offset), pos)?;
+                rdr.seek_raw(SeekFrom::Start(offset), pos)?;
 
-                    args.no_index_plural(rdr)
-                } else {
-                    let rdr = rconf.reader()?;
-                    args.no_index_plural(rdr)
-                }
-            };
-        }
-        _ => (),
-    };
+                args.run_plural(rdr)
+            } else {
+                let rdr = rconf.reader()?;
+                args.run_plural(rdr)
+            }
+        };
+    }
 
     let rconf = args.rconfig();
 
@@ -115,15 +117,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         rdr.seek_raw(SeekFrom::Start(offset), pos)?;
 
-        args.no_index(rdr)
+        args.run(rdr)
     } else {
         let rdr = rconf.reader()?;
-        args.no_index(rdr)
+        args.run(rdr)
     }
 }
 
 impl Args {
-    fn no_index<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
+    fn run<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
         self.rconfig().write_headers(&mut rdr, &mut wtr)?;
 
@@ -149,7 +151,7 @@ impl Args {
         Ok(wtr.flush()?)
     }
 
-    fn no_index_plural<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
+    fn run_plural<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
         self.rconfig().write_headers(&mut rdr, &mut wtr)?;
 
@@ -174,19 +176,17 @@ impl Args {
     }
 
     fn range(&self) -> Result<(usize, usize), String> {
-        let index: Option<usize> = self
-            .flag_index
-            .as_ref()
-            .map(|string| string.parse::<usize>())
-            .transpose()
-            .map_err(|_| "could not parse -i/--index!")?;
-
-        util::range(self.flag_start, self.flag_end, self.flag_len, index)
+        util::range(
+            self.flag_start,
+            self.flag_end,
+            self.flag_len,
+            self.flag_index,
+        )
     }
 
     // NOTE: there is room to optimize, but this seems pointless currently
     fn plural_indices(&self) -> Result<Vec<usize>, &str> {
-        self.flag_index
+        self.flag_indices
             .as_ref()
             .unwrap()
             .split(',')

@@ -131,7 +131,7 @@ fn slice_indices() {
         ],
     );
     let mut cmd = wrk.command("slice");
-    cmd.args(["-i", "1,5,4"]).arg("data.csv");
+    cmd.args(["-I", "1,5,4"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n"], svec!["one"], svec!["four"], svec!["five"]];
