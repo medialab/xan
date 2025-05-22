@@ -32,15 +32,19 @@ John,blue
 Mary,yellow
 Mary,red
 
+Note that this example is voluntarily simplistic and you should probably rely on
+the `explode` command instead, if what you need is just to split cells by a
+separator.
+
 Also, when using the -r/--replace flag, the given expression will be considered
 as a pipe being fed with target column so you can use `_` as a convenience. This
 means the above command can be rewritten thusly:
 
     $ xan flatmap 'split(_, "|")' color -r colors
 
-Note that if the expression returns an empty list or a falsey value, no row will
+Finally, if the expression returns an empty list or a falsey value, no row will
 be written in the output for the current input row. This means one can use the
-flatmap command as a sort of combined map and filter in a single pass over the CSV file.
+`flatmap` command as a sort of `filter` + `map` in a single pass over the CSV file.
 
 For instance, given the following CSV file:
 
