@@ -16,7 +16,8 @@
 *Features*
 
 * Adding `xan count -a/--approx`.
-* Adding `xan slice -E/--end-byte`.
+* Adding `xan slice --end-byte`.
+* Adding `xan slice -S/--start-condition` & `xan slice -E/--end-condition`.
 * Allowing `-n/--no-headers` and `-d/--delimiter` flags to appear before subcommands.
 * Adding backtick quoted strings to moonblade.
 * Adding moonblade `printf` function.

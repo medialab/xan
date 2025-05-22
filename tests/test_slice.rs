@@ -160,3 +160,50 @@ fn slice_byte_offset() {
     let expected = vec![svec!["n"], svec!["two"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn slice_conditions() {
+    let wrk = Workdir::new("slice_conditions");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["0"],
+            svec!["1"],
+            svec!["2"],
+            svec!["3"],
+            svec!["4"],
+            svec!["5"],
+        ],
+    );
+
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-S", "n > 3"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["4"], svec!["5"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-S", "n > 3"]).args(["-l", "1"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["4"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-E", "n >= 2"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["0"], svec!["1"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-S", "n > 1"])
+        .args(["-E", "n >= 3"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["2"]];
+    assert_eq!(got, expected);
+}
