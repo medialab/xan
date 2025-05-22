@@ -19,11 +19,15 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
         }
     }
 
-    pub fn add(&mut self, key: K) {
+    pub fn inc(&mut self, key: K, count: u64) {
         self.map
             .entry(key)
-            .and_modify(|count| *count += 1)
-            .or_insert(1);
+            .and_modify(|c| *c += count)
+            .or_insert(count);
+    }
+
+    pub fn add(&mut self, key: K) {
+        self.inc(key, 1);
     }
 
     pub fn into_total_and_sorted_vec(self, parallel: bool) -> (u64, Vec<(K, u64)>) {
@@ -84,13 +88,23 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
             self.into_total_and_sorted_vec(parallel)
         }
     }
+
+    pub fn merge(&mut self, mut other: Self) {
+        if other.map.len() > self.map.len() {
+            std::mem::swap(self, &mut other);
+        }
+
+        for (v, c) in other.map.into_iter() {
+            self.inc(v, c);
+        }
+    }
 }
 
 pub struct ApproxCounter<K: Eq + Hash + Send + Ord> {
     map: FilteredSpaceSaving<K>,
 }
 
-impl<K: Eq + Hash + Send + Ord> ApproxCounter<K> {
+impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
     pub fn new(k: usize) -> Self {
         Self {
             map: FilteredSpaceSaving::new(k),
@@ -111,6 +125,10 @@ impl<K: Eq + Hash + Send + Ord> ApproxCounter<K> {
 
         (total, items)
     }
+
+    pub fn merge(&mut self, other: Self) {
+        self.map.merge(&other.map).unwrap()
+    }
 }
 
 pub enum Counter<K: Eq + Hash + Send + Ord> {
@@ -118,7 +136,7 @@ pub enum Counter<K: Eq + Hash + Send + Ord> {
     Approximate(Box<ApproxCounter<K>>),
 }
 
-impl<K: Eq + Hash + Send + Ord> Counter<K> {
+impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
     pub fn new(approx_capacity: Option<usize>) -> Self {
         match approx_capacity {
             Some(k) => Self::Approximate(Box::new(ApproxCounter::new(k))),
@@ -146,5 +164,15 @@ impl<K: Eq + Hash + Send + Ord> Counter<K> {
             Self::Exact(inner) => inner.into_total_and_items(limit, parallel),
             Self::Approximate(inner) => inner.into_total_and_top(),
         }
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        match (self, other) {
+            (Self::Exact(inner_self), Self::Exact(inner_other)) => inner_self.merge(inner_other),
+            (Self::Approximate(inner_self), Self::Approximate(inner_other)) => {
+                inner_self.merge(*inner_other)
+            }
+            _ => unreachable!(),
+        };
     }
 }

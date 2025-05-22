@@ -15,7 +15,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
 
 use crate::cmd::progress::get_progress_style;
-use crate::collections::HashMap;
+use crate::collections::Counter;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::read::{read_byte_record_up_to, segment_csv_file, SegmentationOptions};
@@ -208,83 +208,61 @@ impl From<Vec<Child>> for Children {
     }
 }
 
-#[derive(Default)]
-struct FrequencyTable {
-    map: HashMap<Vec<u8>, u64>,
-}
-
-impl FrequencyTable {
-    fn inc(&mut self, key: Vec<u8>) {
-        self.add(key, 1);
-    }
-
-    fn add(&mut self, key: Vec<u8>, count: u64) {
-        self.map
-            .entry(key)
-            .and_modify(|current_count| *current_count += count)
-            .or_insert(count);
-    }
-}
+type TotalAndItems = (u64, Vec<(Vec<u8>, u64)>);
 
 struct FrequencyTables {
-    tables: Vec<(Vec<u8>, FrequencyTable)>,
+    counters: Vec<(Vec<u8>, Counter<Vec<u8>>)>,
 }
 
 impl FrequencyTables {
     fn new() -> Self {
-        Self { tables: Vec::new() }
+        Self {
+            counters: Vec::new(),
+        }
     }
 
     fn with_capacity(selected_headers: Vec<Vec<u8>>) -> Self {
-        let mut freq_tables = Self {
-            tables: Vec::with_capacity(selected_headers.len()),
+        let mut freq_counters = Self {
+            counters: Vec::with_capacity(selected_headers.len()),
         };
 
         for header in selected_headers {
-            freq_tables.tables.push((header, FrequencyTable::default()));
+            freq_counters.counters.push((header, Counter::new(None)));
         }
 
-        freq_tables
+        freq_counters
     }
 
-    fn iter_mut(&mut self) -> impl Iterator<Item = &mut FrequencyTable> {
-        self.tables.iter_mut().map(|(_, t)| t)
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut Counter<Vec<u8>>> {
+        self.counters.iter_mut().map(|(_, t)| t)
     }
 
     fn merge(&mut self, other: Self) -> Result<(), &str> {
-        if self.tables.is_empty() {
-            self.tables = other.tables;
+        // First time merge
+        if self.counters.is_empty() {
+            self.counters = other.counters;
             return Ok(());
         }
 
         let error_msg = "inconsistent column selection across files!";
 
-        if self.tables.len() != other.tables.len() {
+        if self.counters.len() != other.counters.len() {
             return Err(error_msg);
         }
 
-        for (i, (name, table)) in other.tables.into_iter().enumerate() {
-            let (current_name, current_table) = &mut self.tables[i];
-
-            if current_name != &name {
-                return Err(error_msg);
-            }
-
-            for (key, count) in table.map {
-                current_table.add(key, count);
-            }
+        for ((_, self_counter), (_, other_counter)) in
+            self.counters.iter_mut().zip(other.counters.into_iter())
+        {
+            self_counter.merge(other_counter);
         }
 
         Ok(())
     }
 
-    fn into_sorted(self) -> impl Iterator<Item = (Vec<u8>, Vec<(Vec<u8>, u64)>)> {
-        self.tables.into_iter().map(|(name, table)| {
-            let mut items: Vec<_> = table.map.into_iter().collect();
-            items.par_sort_unstable_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
-
-            (name, items)
-        })
+    fn into_total_and_items(self) -> impl Iterator<Item = (Vec<u8>, TotalAndItems)> {
+        self.counters
+            .into_iter()
+            .map(|(name, counter)| (name, counter.into_total_and_items(None, true)))
     }
 }
 
@@ -317,6 +295,7 @@ impl StatsTables {
     }
 
     fn merge(&mut self, other: Self) -> Result<(), &str> {
+        // First time merge
         if self.tables.is_empty() {
             self.tables = other.tables;
             return Ok(());
@@ -1127,13 +1106,13 @@ impl Args {
             let mut record = csv::ByteRecord::new();
 
             while input_reader.read_byte_record(&mut record)? {
-                for (table, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
+                for (counter, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
                     if let Some(sep) = &self.flag_sep {
                         for subcell in cell.split_str(sep) {
-                            table.inc(subcell.to_vec());
+                            counter.add(subcell.to_vec());
                         }
                     } else {
-                        table.inc(cell.to_vec());
+                        counter.add(cell.to_vec());
                     }
                 }
 
@@ -1159,7 +1138,7 @@ impl Args {
             .into_inner()
             .unwrap();
 
-        for (field, items) in total_freq_tables.into_sorted() {
+        for (field, (_, items)) in total_freq_tables.into_total_and_items() {
             for (value, count) in items {
                 output_record.clear();
                 output_record.push_field(&field);
