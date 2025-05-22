@@ -97,7 +97,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let potential_headers = rdr.headers()?.clone();
     let potential_headers = sel
-        .select_string_record(&potential_headers)
+        .select(&potential_headers)
         .collect::<csv::StringRecord>();
     let mut headers: Vec<String> = Vec::new();
 
@@ -158,9 +158,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     while rdr.read_record(&mut record)? {
-        let record = sel
-            .select_string_record(&record)
-            .collect::<csv::StringRecord>();
+        let record = sel.select(&record).collect::<csv::StringRecord>();
         if record_index > 0 {
             println!();
         }

@@ -482,8 +482,7 @@ impl JSONTypeInferrenceBuffer {
     }
 
     pub fn process(&mut self, record: StringRecord) {
-        self.inferrence
-            .process(self.selection.select_string_record(&record));
+        self.inferrence.process(self.selection.select(&record));
         self.buffer.push(record);
     }
 
@@ -496,8 +495,8 @@ impl JSONTypeInferrenceBuffer {
         'b: 'a,
     {
         self.selection
-            .select_string_record(headers)
-            .zip(self.selection.select_string_record(record))
+            .select(headers)
+            .zip(self.selection.select(record))
             .enumerate()
             .map(|(i, (header, value))| {
                 self.inferrence
@@ -509,7 +508,7 @@ impl JSONTypeInferrenceBuffer {
     pub fn mutate_attributes(&self, attributes: &mut OmittableAttributes, record: &StringRecord) {
         for ((cell, current_value), json_type) in self
             .selection
-            .select_string_record(record)
+            .select(record)
             .zip(attributes.values_mut())
             .zip(self.inferrence.json_types.iter())
         {

@@ -395,9 +395,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let headers = rdr.headers()?.clone();
-    let mut headers = sel
-        .select_string_record(&headers)
-        .collect::<csv::StringRecord>();
+    let mut headers = sel.select(&headers).collect::<csv::StringRecord>();
 
     if !args.flag_hide_index {
         headers = headers.prepend(theme.index_column_header);
@@ -440,7 +438,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 None => break,
                 Some((i, record)) => {
                     let mut record = sel
-                        .select_string_record(&record?)
+                        .select(&record?)
                         .map(|cell| {
                             let mut cell = cell.to_string();
 
@@ -739,7 +737,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for record in records.iter() {
         let (need_to_draw_hr, need_to_erase_sel) = if let Some(groupby_sel) = &groupby_sel_opt {
             let current_key = groupby_sel
-                .select_string_record(record)
+                .select(record)
                 .map(|cell| cell.to_string())
                 .collect::<Vec<_>>();
 

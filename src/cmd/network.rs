@@ -122,7 +122,7 @@ impl Args {
             let node_headers = node_reader.headers()?.clone();
 
             graph_builder.set_node_model(
-                node_attr_sel.select_string_record(&node_headers),
+                node_attr_sel.select(&node_headers),
                 node_attr_inferrence.types(),
             );
 
@@ -178,7 +178,7 @@ impl Args {
         let edge_headers = edge_reader.headers()?.clone();
 
         graph_builder.set_edge_model(
-            edge_attr_sel.select_string_record(&edge_headers),
+            edge_attr_sel.select(&edge_headers),
             edge_attr_inferrence.types(),
         );
 

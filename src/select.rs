@@ -579,25 +579,18 @@ impl Selection {
         self.0.insert(index, element);
     }
 
-    pub fn select<'a, 'b>(&'a self, row: &'b csv::ByteRecord) -> impl Iterator<Item = &'b [u8]>
-    where
-        'a: 'b,
-    {
-        self.iter().map(move |i| &row[*i])
-    }
-
-    pub fn select_string_record<'a, 'b>(
+    pub fn select<'a, 'b, T: 'b + ?Sized>(
         &'a self,
-        row: &'b csv::StringRecord,
-    ) -> impl Iterator<Item = &'b str>
+        row: &'b impl ops::Index<usize, Output = T>,
+    ) -> impl Iterator<Item = &'b T>
     where
         'a: 'b,
     {
-        self.iter().map(move |i| &row[*i])
+        self.iter().map(|i| &row[*i])
     }
 
     pub fn collect(&self, row: &csv::ByteRecord) -> Vec<Vec<u8>> {
-        self.select(row).map(|f| f.to_vec()).collect()
+        self.select(row).map(|f| f.into()).collect()
     }
 
     pub fn sort_and_dedup(&mut self) {
