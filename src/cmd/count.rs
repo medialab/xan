@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::num::{NonZeroU64, NonZeroUsize};
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
@@ -45,7 +45,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_parallel: bool,
-    flag_threads: Option<usize>,
+    flag_threads: Option<NonZeroUsize>,
     flag_approx: bool,
     flag_sample_size: NonZeroU64,
     flag_no_headers: bool,
@@ -61,7 +61,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-p/--parallel or -t/--threads cannot be used with -a/--approx!")?;
         }
 
-        let mut parallel_args = ParallelArgs::single_file(&args.arg_input)?;
+        let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
+
         parallel_args.cmd_count = true;
 
         return parallel_args.run();

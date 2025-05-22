@@ -1,10 +1,12 @@
+use std::num::NonZeroUsize;
+
+use crate::cmd::parallel::Args as ParallelArgs;
+use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
+use crate::moonblade::Stats;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-
-use crate::collections::ClusteredInsertHashmap;
-use crate::moonblade::Stats;
 
 type GroupKey = Vec<Vec<u8>>;
 
@@ -47,24 +49,34 @@ lex_last           (default) - Last string in lexical order
 min_length         (default) - Minimum string length
 max_length         (default) - Maximum string length
 
+Stats can be computed in parallel using the -p/--parallel or -t/--threads flags.
+But note that this cannot work on streams or gzipped data and does not support
+the -g/--groubpy flag.
+
 Usage:
     xan stats [options] [<input>]
 
 stats options:
-    -s, --select <arg>     Select a subset of columns to compute stats for.
-                           See 'xan select --help' for the format details.
-                           This is provided here because piping 'xan select'
-                           into 'xan stats' will disable the use of indexing.
-    -g, --groupby <cols>   If given, will compute stats per group as defined by
-                           the given column selection.
-    -A, --all              Shorthand for -cq.
-    -c, --cardinality      Show cardinality and modes.
-                           This requires storing all CSV data in memory.
-    -q, --quartiles        Show quartiles.
-                           This requires storing all CSV data in memory.
-    -a, --approx           Compute approximated statistics.
-    --nulls                Include empty values in the population size for computing
-                           mean and standard deviation.
+    -s, --select <arg>       Select a subset of columns to compute stats for.
+                             See 'xan select --help' for the format details.
+                             This is provided here because piping 'xan select'
+                             into 'xan stats' will disable the use of indexing.
+    -g, --groupby <cols>     If given, will compute stats per group as defined by
+                             the given column selection.
+    -A, --all                Shorthand for -cq.
+    -c, --cardinality        Show cardinality and modes.
+                             This requires storing all CSV data in memory.
+    -q, --quartiles          Show quartiles.
+                             This requires storing all CSV data in memory.
+    -a, --approx             Compute approximated statistics.
+    --nulls                  Include empty values in the population size for computing
+                             mean and standard deviation.
+    -p, --parallel           Whether to use parallelization to speed up counting.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help             Display this message
@@ -86,6 +98,8 @@ struct Args {
     flag_quartiles: bool,
     flag_approx: bool,
     flag_nulls: bool,
+    flag_parallel: bool,
+    flag_threads: Option<NonZeroUsize>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -117,6 +131,24 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_parallel || args.flag_threads.is_some() {
+        if args.flag_groupby.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with -g/--groupby!")?;
+        }
+
+        let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
+
+        parallel_args.cmd_stats = true;
+        parallel_args.flag_select = args.flag_select;
+        parallel_args.flag_all = args.flag_all;
+        parallel_args.flag_cardinality = args.flag_cardinality;
+        parallel_args.flag_quartiles = args.flag_quartiles;
+        parallel_args.flag_approx = args.flag_approx;
+        parallel_args.flag_nulls = args.flag_nulls;
+
+        return parallel_args.run();
+    }
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)

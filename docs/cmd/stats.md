@@ -40,24 +40,34 @@ lex_last           (default) - Last string in lexical order
 min_length         (default) - Minimum string length
 max_length         (default) - Maximum string length
 
+Stats can be computed in parallel using the -p/--parallel or -t/--threads flags.
+But note that this cannot work on streams or gzipped data and does not support
+the -g/--groubpy flag.
+
 Usage:
     xan stats [options] [<input>]
 
 stats options:
-    -s, --select <arg>     Select a subset of columns to compute stats for.
-                           See 'xan select --help' for the format details.
-                           This is provided here because piping 'xan select'
-                           into 'xan stats' will disable the use of indexing.
-    -g, --groupby <cols>   If given, will compute stats per group as defined by
-                           the given column selection.
-    -A, --all              Shorthand for -cq.
-    -c, --cardinality      Show cardinality and modes.
-                           This requires storing all CSV data in memory.
-    -q, --quartiles        Show quartiles.
-                           This requires storing all CSV data in memory.
-    -a, --approx           Compute approximated statistics.
-    --nulls                Include empty values in the population size for computing
-                           mean and standard deviation.
+    -s, --select <arg>       Select a subset of columns to compute stats for.
+                             See 'xan select --help' for the format details.
+                             This is provided here because piping 'xan select'
+                             into 'xan stats' will disable the use of indexing.
+    -g, --groupby <cols>     If given, will compute stats per group as defined by
+                             the given column selection.
+    -A, --all                Shorthand for -cq.
+    -c, --cardinality        Show cardinality and modes.
+                             This requires storing all CSV data in memory.
+    -q, --quartiles          Show quartiles.
+                             This requires storing all CSV data in memory.
+    -a, --approx             Compute approximated statistics.
+    --nulls                  Include empty values in the population size for computing
+                             mean and standard deviation.
+    -p, --parallel           Whether to use parallelization to speed up counting.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help             Display this message

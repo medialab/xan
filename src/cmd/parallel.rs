@@ -581,7 +581,7 @@ pub struct Args {
     pub cmd_count: bool,
     cmd_cat: bool,
     cmd_freq: bool,
-    cmd_stats: bool,
+    pub cmd_stats: bool,
     cmd_agg: bool,
     cmd_groupby: bool,
     cmd_map: bool,
@@ -597,13 +597,13 @@ pub struct Args {
     flag_path_column: Option<SelectColumns>,
     flag_buffer_size: isize,
     flag_source_column: Option<String>,
-    flag_select: SelectColumns,
+    pub flag_select: SelectColumns,
     flag_sep: Option<String>,
-    flag_all: bool,
-    flag_cardinality: bool,
-    flag_quartiles: bool,
-    flag_approx: bool,
-    flag_nulls: bool,
+    pub flag_all: bool,
+    pub flag_cardinality: bool,
+    pub flag_quartiles: bool,
+    pub flag_approx: bool,
+    pub flag_nulls: bool,
     flag_compress: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -611,7 +611,7 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn single_file(path: &Option<String>) -> CliResult<Self> {
+    pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
         match path {
             Some(p) => {
                 if p.ends_with(".gz") {
@@ -619,6 +619,7 @@ impl Args {
                 }
 
                 Ok(Self {
+                    flag_threads: threads,
                     flag_single_file: true,
                     flag_buffer_size: 1024,
                     arg_inputs: vec![p.to_string()],
