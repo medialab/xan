@@ -11,8 +11,8 @@ value - Some distinct value of the column
 count - Number of rows containing this value
 
 By default, there is a row for the N most frequent values for each field in the
-data. The number of values can be tweaked with --limit and --threshold flags
-respectively.
+data. The number of returned values can be tweaked with -l/--limit or you can
+disable the limit altogether using the -A/--all flag.
 
 Since this computes an exact frequency table, memory proportional to the
 cardinality of each selected column is required. If you expect this will overflow
@@ -36,14 +36,11 @@ frequency options:
     -A, --all              Remove the limit.
     -l, --limit <arg>      Limit the frequency table to the N most common
                            items. Use -A, -all or set to 0 to disable the limit.
-                           It will be combined with -t/--threshold.
                            [default: 10]
     -a, --approx           If set, return the items most likely having the top counts,
                            as per given --limit. Won't work if --limit is 0 or
                            with -A, --all. Accuracy of results increases with the given
                            limit.
-    -t, --threshold <arg>  If set, won't return items having a count less than
-                           this given threshold. It is combined with -l/--limit.
     -N, --no-extra         Don't include empty cells & remaining counts.
     -p, --parallel         Allow sorting to be done in parallel. This is only
                            useful with -l/--limit set to 0, or with -A, --all.
