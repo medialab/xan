@@ -34,6 +34,7 @@
 * Adding `xan count -p/--parallel & -t/--threads`.
 * Adding `xan stats -p/--parallel & -t/--threads`.
 * Adding piped column access to expression given to `xan flatmap -r`.
+* Adding `xan rename -R/--replace` & `xan rename -x/--suffix`.
 
 *Fixes*
 

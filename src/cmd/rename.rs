@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use regex::bytes::Regex as BytesRegex;
 use regex::Regex;
 use unidecode::unidecode;
 
@@ -49,7 +50,9 @@ Column names with characters that need escaping:
     $ xan rename 'NAME OF PERSON,\"AGE, \"\"OF\"\" PERSON\"' file.csv
 
 Usage:
+    xan rename [options] --replace <pattern> <replacement> [<input>]
     xan rename [options] --prefix <prefix> [<input>]
+    xan rename [options] --suffix <suffix> [<input>]
     xan rename [options] --slugify [<input>]
     xan rename [options] <columns> [<input>]
     xan rename --help
@@ -58,11 +61,14 @@ rename options:
     -s, --select <arg>     Select the columns to rename. See 'xan select -h'
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
-    -p, --prefix <prefix>  Prefix to add to all the column names.
+    -p, --prefix <prefix>  Prefix to add to all column names.
+    -x, --suffix <suffix>  Suffix to add to all column names.
     -S, --slugify          Transform the column name so that they are safe to
                            be used as identifiers. Will typically replace
                            whitespace & dashes with underscores, drop accentuation
                            etc.
+    -R, --replace          Replace matches of a pattern by given replacement in
+                           column names.
     -f, --force            Ignore unknown columns to be renamed.
 
 Common options:
@@ -79,12 +85,16 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_columns: Option<String>,
+    arg_pattern: Option<String>,
+    arg_replacement: Option<String>,
     flag_select: Option<SelectColumns>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_prefix: Option<String>,
+    flag_suffix: Option<String>,
     flag_slugify: bool,
+    flag_replace: bool,
     flag_force: bool,
 }
 
@@ -106,8 +116,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("Cannot use -p/--prefix with --no-headers!")?;
         }
 
+        if args.flag_suffix.is_some() {
+            Err("Cannot use -x/--suffix with --no-headers!")?;
+        }
+
         if args.flag_slugify {
             Err("Cannot use -S/--slugify with -n/--no-headers!")?;
+        }
+
+        if args.flag_replace {
+            Err("Cannot use -R/--replace with -n/--no-headers!")?;
         }
 
         let rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
@@ -183,6 +201,33 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|(h, o)| {
                 if o.is_some() {
                     [prefix.as_bytes(), h].concat()
+                } else {
+                    h.to_vec()
+                }
+            })
+            .collect()
+    } else if let Some(suffix) = args.flag_suffix {
+        headers
+            .iter()
+            .zip(selection.indexed_mask(headers.len()))
+            .map(|(h, o)| {
+                if o.is_some() {
+                    [h, suffix.as_bytes()].concat()
+                } else {
+                    h.to_vec()
+                }
+            })
+            .collect()
+    } else if args.flag_replace {
+        let pattern = BytesRegex::new(&args.arg_pattern.unwrap())?;
+        let replacement = args.arg_replacement.unwrap();
+
+        headers
+            .iter()
+            .zip(selection.indexed_mask(headers.len()))
+            .map(|(h, o)| {
+                if o.is_some() {
+                    pattern.replace_all(h, replacement.as_bytes()).into_owned()
                 } else {
                     h.to_vec()
                 }

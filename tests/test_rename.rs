@@ -73,6 +73,19 @@ fn rename_prefix() {
 }
 
 #[test]
+fn rename_suffix() {
+    let wrk = Workdir::new("rename_suffix");
+    wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["--suffix", "_test"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name_test", "age_test"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn rename_prefix_select() {
     let wrk = Workdir::new("rename_prefix_select");
     wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
@@ -184,5 +197,18 @@ fn rename_force() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["name", "age"], svec!["John", "24"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn rename_replace() {
+    let wrk = Workdir::new("rename_replace");
+    wrk.create("data.csv", vec![svec!["name", "age"], svec!["John", "24"]]);
+
+    let mut cmd = wrk.command("rename");
+    cmd.args(["--replace", "a", "$0 b"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["na bme", "a bge"], svec!["John", "24"]];
     assert_eq!(got, expected);
 }
