@@ -48,7 +48,7 @@
 * Fixing lexicographic extent merging in `xan parallel stats`.
 * Fixing `xan to md` width alignment.
 * Renaming `xan parallel --shell-preprocessing` short flag to be `-H` because it was being overriden by `-S/--source-column`.
-* Adding missing subcommand completions for `xan parallel`.
+* Adding missing subcommand completions for `xan parallel` & `xan cat`.
 * Better default threads count heuristics.
 * Better `xan plot -T` date parsing.
 

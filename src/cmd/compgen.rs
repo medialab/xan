@@ -66,6 +66,7 @@ static COMMANDS: [&str; 58] = [
 ];
 
 static HELP_SUBCOMMANDS: [&str; 4] = ["cheatsheet", "functions", "aggs", "scraping"];
+static CAT_SUBCOMMANDS: [&str; 2] = ["rows", "columns"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
 static PARALLEL_SUBCOMMANDS: [&str; 7] = ["count", "cat", "freq", "stats", "agg", "groupby", "map"];
@@ -133,6 +134,12 @@ pub fn run() {
         }
     } else if word_before == "help" && !to_complete.starts_with('-') {
         for subcommand in HELP_SUBCOMMANDS {
+            if subcommand.starts_with(to_complete) {
+                println!("{}", subcommand);
+            }
+        }
+    } else if word_before == "cat" && !to_complete.starts_with('-') {
+        for subcommand in CAT_SUBCOMMANDS {
             if subcommand.starts_with(to_complete) {
                 println!("{}", subcommand);
             }
