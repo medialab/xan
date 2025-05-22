@@ -7,7 +7,7 @@ use std::num::NonZeroUsize;
 use ahash::RandomState;
 use indexmap::IndexMap;
 use jiff::{
-    civil::{Date, DateTime, Time},
+    civil::{Date, Time},
     tz::TimeZone,
     Timestamp, Unit, Zoned, ZonedRound,
 };
@@ -21,7 +21,7 @@ use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
-use crate::dates::{infer_temporal_granularity, parse_partial_date};
+use crate::dates::{infer_temporal_granularity, parse_partial_date, parse_zoned};
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectColumns;
@@ -784,12 +784,8 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
 
     let string = std::str::from_utf8(cell).map_err(|_| format_error())?;
 
-    let zoned = if let Ok(z) = string.parse::<Zoned>() {
+    let zoned = if let Ok(z) = parse_zoned(string, None, None) {
         z
-    } else if let Ok(datetime) = string.parse::<DateTime>() {
-        datetime
-            .to_zoned(TimeZone::system())
-            .map_err(|_| format_error())?
     } else if let Ok(date) = string.parse::<Date>() {
         date.to_datetime(Time::default())
             .to_zoned(TimeZone::system())
