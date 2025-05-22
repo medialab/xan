@@ -323,15 +323,15 @@ fn sample_cursed(
         for _ in 0..5 {
             let random_byte_offset = rng.random_range(range.clone());
 
-            if let Some(record) = find_next_record_offset_from_random_position(
+            if let Some((record, offset)) = find_next_record_offset_from_random_position(
                 &mut reader,
                 random_byte_offset,
                 &sample,
                 8,
             )?
-            .into_record()
+            .into_record_with_offset()
             {
-                records.insert(random_byte_offset, record);
+                records.insert(offset, record);
                 continue 'outer;
             } else {
                 continue;

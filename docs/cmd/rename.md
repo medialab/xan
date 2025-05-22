@@ -29,7 +29,9 @@ Column names with characters that need escaping:
     $ xan rename 'NAME OF PERSON,"AGE, ""OF"" PERSON"' file.csv
 
 Usage:
+    xan rename [options] --replace <pattern> <replacement> [<input>]
     xan rename [options] --prefix <prefix> [<input>]
+    xan rename [options] --suffix <suffix> [<input>]
     xan rename [options] --slugify [<input>]
     xan rename [options] <columns> [<input>]
     xan rename --help
@@ -38,11 +40,14 @@ rename options:
     -s, --select <arg>     Select the columns to rename. See 'xan select -h'
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
-    -p, --prefix <prefix>  Prefix to add to all the column names.
+    -p, --prefix <prefix>  Prefix to add to all column names.
+    -x, --suffix <suffix>  Suffix to add to all column names.
     -S, --slugify          Transform the column name so that they are safe to
                            be used as identifiers. Will typically replace
                            whitespace & dashes with underscores, drop accentuation
                            etc.
+    -R, --replace          Replace matches of a pattern by given replacement in
+                           column names.
     -f, --force            Ignore unknown columns to be renamed.
 
 Common options:
