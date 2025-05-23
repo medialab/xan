@@ -417,7 +417,7 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 This command can also count the number of matches and report it in a new column,
 using the -c/--count flag.
 
-Finally, this command is able to replace matched values through the -R/--replace
+This command is able to replace matched values through the -R/--replace
 flag and the --replacement-column flag when combined with --patterns & --pattern-column.
 
 Cleaning thousands separators (usually commas \",\" in English) from numerical columns:
@@ -430,6 +430,24 @@ Replacing color names to their French counterpart:
     $ xan search -e \\
     $   --patterns - --pattern-column english --replacement-column french \\
     $   -s color file.csv > translated.csv
+
+Finally, this command can leverage multithreading to run faster using
+the -p/--parallel or -t/--threads flags. This said, the boost given by
+parallelisation might differ a lot and depends on the complexity and number of
+queries. That is to say `xan search --empty` might not be significantly faster
+when parallelized while `xan search -i étern` would.
+
+Also, you might want to try `xan parallel cat` instead because it could be
+faster in some scenarios at the cost of an increase in memory usage (and it
+won't work on streams and gzipped data).
+
+For instance, the following `search` command:
+
+    $ xan search -i eternity -p file.csv
+
+Would directly translate to:
+
+    $ xan parallel cat -P 'search -i eternity' -F file.csv
 
 Usage:
     xan search [options] --non-empty [<input>]
