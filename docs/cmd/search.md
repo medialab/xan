@@ -2,8 +2,7 @@
 # xan search
 
 ```txt
-Search for (or replace) patterns in CSV data. That is to say keep rows of given
-CSV file if ANY of the selected column matches the given pattern or patterns.
+Search for (or replace) patterns in CSV data.
 
 This command has several flags to select the way to perform a match:
 
@@ -60,11 +59,18 @@ Feeding CSV column as patterns through stdin (using "-"):
 
     $ xan slice -l 10 people.csv | xan search --patterns - --pattern-column name file.csv > matches.csv
 
-This command can also count the number of matches and report it in a new column,
-using the -c/--count flag.
+Now this command is also able to perform search-adjacent operations:
 
-This command is able to replace matched values through the -R/--replace
-flag and the --replacement-column flag when combined with --patterns & --pattern-column.
+    - Replacing matches with -R/--replace or --replacement-column
+    - Reporting the total number of matches in a new column with -c/--count
+    - Reporting a breakdown of number of matches per query given through --patterns
+      with -B/--breakdown.
+
+For instance:
+
+Reporting number of matches:
+
+    $ xan search -s headline -i france -c france_count file.csv
 
 Cleaning thousands separators (usually commas "," in English) from numerical columns:
 
@@ -76,6 +82,11 @@ Replacing color names to their French counterpart:
     $ xan search -e \
     $   --patterns - --pattern-column english --replacement-column french \
     $   -s color file.csv > translated.csv
+
+Computing a breakdown of matches per query:
+
+    $ xan search -s headline --patterns queries.csv \
+    $   --pattern-column query --name-column name file.csv > breakdown.csv
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
@@ -102,40 +113,54 @@ Usage:
     xan search [options] <pattern> [<input>]
     xan search --help
 
+search modes:
+    -e, --exact       Perform an exact match.
+    -r, --regex       Use a regex to perform the match.
+    -E, --empty       Search for empty cells, i.e. filter out
+                      any completely non-empty selection.
+    -N, --non-empty   Search for non-empty cells, i.e. filter out
+                      any completely empty selection.
+    -u, --url-prefix  Match by url prefix, i.e. cells must contain urls
+                      matching the searched url prefix. Urls are first
+                      reordered using a scheme called a LRU, that you can
+                      read about here:
+                      https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+
 search options:
-    -e, --exact                  Perform an exact match.
-    -r, --regex                  Use a regex to perform the match.
-    -E, --empty                  Search for empty cells, i.e. filter out
-                                 any completely non-empty selection.
-    -N, --non-empty              Search for non-empty cells, i.e. filter out
-                                 any completely empty selection.
-    -u, --url-prefix             Match by url prefix, i.e. cells must contain urls
-                                 matching the searched url prefix. Urls are first
-                                 reordered using a scheme called a LRU, that you can
-                                 read about here:
-                                 https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
-    -i, --ignore-case            Case insensitive search.
-    -s, --select <arg>           Select the columns to search. See 'xan select -h'
-                                 for the full syntax.
-    -v, --invert-match           Select only rows that did not match
-    -A, --all                    Only return a row when ALL columns from the given selection
-                                 match the desired pattern, instead of returning a row
-                                 when ANY column matches.
-    -c, --count <column>         If given, the command will not filter rows but will instead
-                                 count the total number of non-overlapping pattern matches per
-                                 row and report it in a new column with given name.
-                                 Does not work with -v/--invert-match.
-    -B, --breakdown              When used with --patterns, will count the total number of
-                                 non-overlapping matches per pattern and write this count in
-                                 one additional column per pattern. You might want to use
-                                 it with --overlapping sometimes when your patterns are themselves
-                                 overlapping.
-    --overlapping                When used with -c/--count or -B/--breakdown, return the count of
-                                 overlapping matches. Note that this can sometimes be one order of
-                                 magnitude slower that counting non-overlapping matches.
-    -R, --replace <with>         If given, the command will not filter rows but will instead
-                                 replace matches with the given replacement.
-                                 Does not work with --replacement-column.
+    -i, --ignore-case        Case insensitive search.
+    -v, --invert-match       Select only rows that did not match
+    -s, --select <arg>       Select the columns to search. See 'xan select -h'
+                             for the full syntax.
+    -A, --all                Only return a row when ALL columns from the given selection
+                             match the desired pattern, instead of returning a row
+                             when ANY column matches.
+    -c, --count <column>     If given, the command will not filter rows but will instead
+                             count the total number of non-overlapping pattern matches per
+                             row and report it in a new column with given name.
+                             Does not work with -v/--invert-match.
+    -B, --breakdown          When used with --patterns, will count the total number of
+                             non-overlapping matches per pattern and write this count in
+                             one additional column per pattern. You might want to use
+                             it with --overlapping sometimes when your patterns are themselves
+                             overlapping.
+    --overlapping            When used with -c/--count or -B/--breakdown, return the count of
+                             overlapping matches. Note that this can sometimes be one order of
+                             magnitude slower that counting non-overlapping matches.
+    -R, --replace <with>     If given, the command will not filter rows but will instead
+                             replace matches with the given replacement.
+                             Does not work with --replacement-column.
+    -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
+                             buffering some times (e.g. when searching for very few
+                             rows in a big file before piping to `view` or `flatten`).
+                             Does not work with -p/--parallel nor -t/--threads.
+    -p, --parallel           Whether to use parallelization to speed up computation.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
+
+search options for multiple patterns:
     --patterns <path>            Path to a text file (use "-" for stdin), containing multiple
                                  patterns, one per line, to search at once.
     --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
@@ -146,15 +171,6 @@ search options:
     --name-column <name>         When given with -B/--breakdown, --patterns & --pattern-column,
                                  indicates the column containing a pattern's name that will be used
                                  as column name in the appended breakdown.
-    -l, --limit <n>              Maximum of number rows to return. Useful to avoid downstream
-                                 buffering some times (e.g. when searching for very few
-                                 rows in a big file before piping to `view` or `flatten`).
-    -p, --parallel               Whether to use parallelization to speed up computation.
-                                 Will automatically select a suitable number of threads to use
-                                 based on your number of cores. Use -t, --threads if you want to
-                                 indicate the number of threads yourself.
-    -t, --threads <threads>      Parellize computations using this many threads. Use -p, --parallel
-                                 if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help             Display this message
