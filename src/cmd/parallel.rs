@@ -221,13 +221,15 @@ impl FrequencyTables {
         }
     }
 
-    fn with_capacity(selected_headers: Vec<Vec<u8>>) -> Self {
+    fn with_capacity(selected_headers: Vec<Vec<u8>>, approx_capacity: Option<usize>) -> Self {
         let mut freq_counters = Self {
             counters: Vec::with_capacity(selected_headers.len()),
         };
 
         for header in selected_headers {
-            freq_counters.counters.push((header, Counter::new(None)));
+            freq_counters
+                .counters
+                .push((header, Counter::new(approx_capacity)));
         }
 
         freq_counters
@@ -259,10 +261,13 @@ impl FrequencyTables {
         Ok(())
     }
 
-    fn into_total_and_items(self) -> impl Iterator<Item = (Vec<u8>, TotalAndItems)> {
+    fn into_total_and_items(
+        self,
+        limit: Option<usize>,
+    ) -> impl Iterator<Item = (Vec<u8>, TotalAndItems)> {
         self.counters
             .into_iter()
-            .map(|(name, counter)| (name, counter.into_total_and_items(None, true)))
+            .map(move |(name, counter)| (name, counter.into_total_and_items(limit, true)))
     }
 }
 
@@ -530,6 +535,15 @@ parallel freq options:
     -s, --select <cols>  Columns for which to build frequency tables.
     --sep <char>         Split the cell into multiple values to count using the
                          provided separator.
+    -A, --all            Remove the limit.
+    -l, --limit <arg>    Limit the frequency table to the N most common
+                         items. Use -A, -all or set to 0 to disable the limit.
+                         [default: 10]
+    -a, --approx         If set, return the items most likely having the top counts,
+                         as per given --limit. Won't work if --limit is 0 or
+                         with -A, --all. Accuracy of results increases with the given
+                         limit.
+    -N, --no-extra       Don't include empty cells & remaining counts.
 
 parallel stats options:
     -s, --select <cols>    Columns for which to build statistics.
@@ -577,7 +591,9 @@ pub struct Args {
     flag_buffer_size: isize,
     flag_source_column: Option<String>,
     pub flag_select: SelectColumns,
-    flag_sep: Option<String>,
+    pub flag_sep: Option<String>,
+    pub flag_limit: usize,
+    pub flag_no_extra: bool,
     pub flag_all: bool,
     pub flag_cardinality: bool,
     pub flag_quartiles: bool,
@@ -1090,7 +1106,17 @@ impl Args {
         Ok(())
     }
 
-    fn freq(self, inputs: Vec<Input>) -> CliResult<()> {
+    fn freq(mut self, inputs: Vec<Input>) -> CliResult<()> {
+        if self.flag_all {
+            self.flag_limit = 0;
+        }
+
+        if self.flag_approx && self.flag_limit == 0 {
+            Err("-a, --approx cannot work with --limit=0 or -A, --all!")?;
+        }
+
+        let approx_capacity = self.flag_approx.then_some(self.flag_limit);
+
         let progress_bar = self.progress_bar(inputs.len());
 
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
@@ -1101,7 +1127,7 @@ impl Args {
             let sel = self.flag_select.selection(&input_reader.headers, true)?;
 
             let mut freq_tables =
-                FrequencyTables::with_capacity(sel.collect(&input_reader.headers));
+                FrequencyTables::with_capacity(sel.collect(&input_reader.headers), approx_capacity);
 
             let mut record = csv::ByteRecord::new();
 
@@ -1138,12 +1164,33 @@ impl Args {
             .into_inner()
             .unwrap();
 
-        for (field, (_, items)) in total_freq_tables.into_total_and_items() {
+        for (field, (total, items)) in
+            total_freq_tables.into_total_and_items(if self.flag_limit == 0 {
+                None
+            } else {
+                Some(self.flag_limit)
+            })
+        {
+            let mut emitted: u64 = 0;
+
             for (value, count) in items {
+                emitted += count;
+
                 output_record.clear();
                 output_record.push_field(&field);
                 output_record.push_field(&value);
                 output_record.push_field(count.to_string().as_bytes());
+
+                writer.write_byte_record(&output_record)?;
+            }
+
+            let remaining = total - emitted;
+
+            if !self.flag_no_extra && remaining > 0 {
+                output_record.clear();
+                output_record.push_field(&field);
+                output_record.push_field(b"<rest>");
+                output_record.push_field(remaining.to_string().as_bytes());
 
                 writer.write_byte_record(&output_record)?;
             }

@@ -12,6 +12,7 @@
 * Dropping useless `xan count --csv` flag.
 * Dropping `xan freq -t/--threshold`. Use `xan freq | xan filter 'count >= n'` instead.
 * Adding `xan slice -I/--indices` taking care of `xan slice -i` polymorphism taking multiple indices before.
+* `xan parallel freq` now follows `xan freq` behavior regarding limits.
 
 *Features*
 
@@ -35,6 +36,7 @@
 * Adding `xan stats -p/--parallel & -t/--threads`.
 * Adding piped column access to expression given to `xan flatmap -r`.
 * Adding `xan rename -R/--replace` & `xan rename -x/--suffix`.
+* Adding `xan parallel freq -l/--limit, -A/--all, -a/--approx & -N/--no-extra`.
 
 *Fixes*
 
