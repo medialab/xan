@@ -6,8 +6,10 @@ use std::env;
 use std::fs;
 use std::io::{self, prelude::*, BufReader, IsTerminal, Read, SeekFrom};
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use bgzip::index::BGZFIndex;
+use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
 
 use crate::read::ReverseRead;
@@ -388,13 +390,30 @@ impl Config {
 
     pub fn io_reader_for_random_access(&self) -> io::Result<Box<dyn SeekRead + Send + 'static>> {
         let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
+
         match self.path {
             None => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
             Some(ref p) => match fs::File::open(p) {
-                Ok(x) => match x.borrow().stream_position() {
-                    Ok(_) => Ok(Box::new(x)),
-                    Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
-                },
+                Ok(x) => {
+                    if p.to_string_lossy().ends_with(".gz") {
+                        let index_path_str = p.to_string_lossy() + ".gzi";
+                        let index_path = Path::new(index_path_str.as_ref());
+
+                        if index_path.is_file() {
+                            // TODO: don't unwrap
+                            let reader = BGZFReader::new(x).unwrap();
+                            let index =
+                                BGZFIndex::from_reader(fs::File::open(index_path)?).unwrap();
+
+                            return Ok(Box::new(IndexedBGZFReader::new(reader, index).unwrap()));
+                        }
+                    }
+
+                    match x.borrow().stream_position() {
+                        Ok(_) => Ok(Box::new(x)),
+                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
+                    }
+                }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
                     Err(io::Error::new(io::ErrorKind::NotFound, msg))
@@ -407,21 +426,7 @@ impl Config {
         &self,
         position: u64,
     ) -> io::Result<Box<dyn Read + Send + 'static>> {
-        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
-
-        let mut reader = match self.path {
-            None => return Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
-            Some(ref p) => match fs::File::open(p) {
-                Ok(x) => match x.borrow().stream_position() {
-                    Ok(_) => x,
-                    Err(_) => return Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
-                },
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    return Err(io::Error::new(io::ErrorKind::NotFound, msg));
-                }
-            },
-        };
+        let mut reader = self.io_reader_for_random_access()?;
 
         reader.seek(SeekFrom::Start(position))?;
 

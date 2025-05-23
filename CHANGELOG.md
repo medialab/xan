@@ -42,6 +42,7 @@ The **parallel** update.
 * Adding `xan rename -R/--replace` & `xan rename -x/--suffix`.
 * Adding `xan parallel freq -l/--limit, -A/--all, -a/--approx & -N/--no-extra`.
 * Adding `xan search -U/--unique-matches & --sep & --left`.
+* Adding parallelization through novel file segmentation of files compressed with `bgzip` when a `.gzi` index can be found.
 
 *Fixes*
 

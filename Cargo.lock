@@ -75,6 +75,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bgzip"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b64fd8980fb64af5951bc05de7772b598150a6f7eac42ec17f73e8489915f99b"
+dependencies = [
+ "flate2",
+ "log",
+ "rayon",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "binary-layout"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2851,6 +2863,7 @@ dependencies = [
  "aho-corasick",
  "arrayvec",
  "base64",
+ "bgzip",
  "bstr",
  "btoi",
  "bytesize",
