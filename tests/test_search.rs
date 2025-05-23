@@ -644,15 +644,40 @@ fn search_replace() {
     let wrk = Workdir::new("search_replace");
 
     wrk.create(
-        "data.csv",
+        "data1.csv",
         vec![svec!["number"], svec!["3,4"], svec!["2"], svec!["10,7"]],
     );
 
+    wrk.create(
+        "data2.csv",
+        vec![
+            svec!["id", "number"],
+            svec!["1", "3,4"],
+            svec!["2", "2"],
+            svec!["3", "10,7"],
+        ],
+    );
+
     let mut cmd = wrk.command("search");
-    cmd.arg(",").args(["--replace", "."]).arg("data.csv");
+    cmd.arg(",").args(["--replace", "."]).arg("data1.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["number"], svec!["3.4"], svec!["2"], svec!["10.7"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.arg(",")
+        .args(["--replace", "."])
+        .args(["-s", "number"])
+        .arg("data2.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "number"],
+        svec!["1", "3.4"],
+        svec!["2", "2"],
+        svec!["3", "10.7"],
+    ];
     assert_eq!(got, expected);
 }
 

@@ -61,6 +61,7 @@ The **parallel** update.
 * Adding missing subcommand completions for `xan parallel` & `xan cat`.
 * Better default threads count heuristics.
 * Better `xan plot -T` date parsing.
+* Fixing `xan search` replacements when using the `-s/--select` flag with a non-full selection.
 
 *Performance*
 

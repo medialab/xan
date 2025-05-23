@@ -185,9 +185,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if args.flag_slugify {
         headers
             .iter()
-            .zip(selection.indexed_mask(headers.len()))
-            .map(|(h, o)| {
-                if o.is_some() {
+            .zip(selection.mask(headers.len()))
+            .map(|(h, is_selected)| {
+                if is_selected {
                     slugify(h).into_bytes()
                 } else {
                     h.to_vec()
@@ -197,9 +197,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if let Some(prefix) = args.flag_prefix {
         headers
             .iter()
-            .zip(selection.indexed_mask(headers.len()))
-            .map(|(h, o)| {
-                if o.is_some() {
+            .zip(selection.mask(headers.len()))
+            .map(|(h, is_selected)| {
+                if is_selected {
                     [prefix.as_bytes(), h].concat()
                 } else {
                     h.to_vec()
@@ -209,9 +209,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else if let Some(suffix) = args.flag_suffix {
         headers
             .iter()
-            .zip(selection.indexed_mask(headers.len()))
-            .map(|(h, o)| {
-                if o.is_some() {
+            .zip(selection.mask(headers.len()))
+            .map(|(h, is_selected)| {
+                if is_selected {
                     [h, suffix.as_bytes()].concat()
                 } else {
                     h.to_vec()
@@ -224,9 +224,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         headers
             .iter()
-            .zip(selection.indexed_mask(headers.len()))
-            .map(|(h, o)| {
-                if o.is_some() {
+            .zip(selection.mask(headers.len()))
+            .map(|(h, is_selected)| {
+                if is_selected {
                     pattern.replace_all(h, replacement.as_bytes()).into_owned()
                 } else {
                     h.to_vec()

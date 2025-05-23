@@ -617,6 +617,13 @@ impl Selection {
         m
     }
 
+    pub fn mask(&self, alignment: usize) -> Vec<bool> {
+        self.indexed_mask(alignment)
+            .into_iter()
+            .map(|o| o.is_some())
+            .collect()
+    }
+
     pub fn len(&self) -> usize {
         self.0.len()
     }

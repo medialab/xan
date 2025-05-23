@@ -763,6 +763,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
+    let sel_mask = sel.mask(headers.len());
 
     if let Some(column_name) = &args.flag_count {
         headers.push_field(column_name.as_bytes());
@@ -814,9 +815,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     // else if let Some(replacements) = &associated {
                     //     replaced_record.clear();
 
-                    //     for cell in sel.select(&record) {
-                    //         let replaced_cell = matcher.replace(cell, replacements);
-                    //         replaced_record.push_field(&replaced_cell);
+                    //     for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
+                    //         if should_replace {
+                    //             let replaced_cell = matcher.replace(cell, replacements);
+                    //             replaced_record.push_field(&replaced_cell);
+
+                    //             if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
+                    //                 is_match = true;
+                    //             }
+                    //         } else {
+                    //             replaced_record.push_field(cell);
+                    //         }
                     //     }
 
                     //     wtr.write_byte_record(&replaced_record)?;
@@ -890,12 +899,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         else if let Some(replacements) = &associated {
             replaced_record.clear();
 
-            for cell in sel.select(&record) {
-                let replaced_cell = matcher.replace(cell, replacements);
-                replaced_record.push_field(&replaced_cell);
+            for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
+                if should_replace {
+                    let replaced_cell = matcher.replace(cell, replacements);
+                    replaced_record.push_field(&replaced_cell);
 
-                if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
-                    is_match = true;
+                    if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
+                        is_match = true;
+                    }
+                } else {
+                    replaced_record.push_field(cell);
                 }
             }
 

@@ -53,7 +53,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?;
 
     let sel = rconf.selection(headers)?;
-    let mask = sel.indexed_mask(headers.len());
+    let mask = sel.mask(headers.len());
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
@@ -64,10 +64,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Default value
         if let Some(value) = &args.flag_value {
-            wtr.write_record(mask.iter().enumerate().map(|(i, opt)| {
+            wtr.write_record(mask.iter().copied().enumerate().map(|(i, should_fill)| {
                 let current_cell = &record[i];
 
-                match (opt.is_some(), current_cell.is_empty()) {
+                match (should_fill, current_cell.is_empty()) {
                     (true, true) => value.as_bytes(),
                     _ => current_cell,
                 }
@@ -84,10 +84,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let filled_record = mask
                         .iter()
                         .enumerate()
-                        .map(|(i, opt)| {
+                        .map(|(i, should_fill)| {
                             let current_cell = &record[i];
 
-                            match (opt.is_some(), current_cell.is_empty()) {
+                            match (should_fill, current_cell.is_empty()) {
                                 (true, true) => &previous_record[i],
                                 _ => current_cell,
                             }

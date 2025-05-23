@@ -56,7 +56,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?;
 
     let sel = rconf.selection(headers)?;
-    let mask = sel.indexed_mask(headers.len());
+    let mask = sel.mask(headers.len());
 
     rconf.write_headers(&mut rdr, &mut wtr)?;
 
@@ -73,9 +73,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(current_key) if current_key == &key => {
                 let redacted_record = mask
                     .iter()
+                    .copied()
                     .zip(record.iter())
-                    .map(|(opt, cell)| {
-                        if opt.is_some() {
+                    .map(|(should_redact, cell)| {
+                        if should_redact {
                             redacted_string.as_bytes()
                         } else {
                             cell
