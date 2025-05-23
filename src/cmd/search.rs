@@ -812,50 +812,48 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         records_to_write.push(record);
                     }
                     // Replace
-                    // else if let Some(replacements) = &associated {
-                    //     replaced_record.clear();
+                    else if let Some(replacements) = &associated {
+                        let mut replaced_record =
+                            csv::ByteRecord::with_capacity(record.as_slice().len(), record.len());
 
-                    //     for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
-                    //         if should_replace {
-                    //             let replaced_cell = matcher.replace(cell, replacements);
-                    //             replaced_record.push_field(&replaced_cell);
+                        for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
+                            if should_replace {
+                                let replaced_cell = matcher.replace(cell, replacements);
+                                replaced_record.push_field(&replaced_cell);
+                            } else {
+                                replaced_record.push_field(cell);
+                            }
+                        }
 
-                    //             if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
-                    //                 is_match = true;
-                    //             }
-                    //         } else {
-                    //             replaced_record.push_field(cell);
-                    //         }
-                    //     }
-
-                    //     wtr.write_byte_record(&replaced_record)?;
-                    // }
+                        records_to_write.push(replaced_record);
+                    }
                     // Count
-                    // else if args.flag_count.is_some() {
-                    //     let count: usize = sel
-                    //         .select(&record)
-                    //         .map(|cell| matcher.count(cell, args.flag_overlapping))
-                    //         .sum();
+                    else if args.flag_count.is_some() {
+                        let count: usize = sel
+                            .select(&record)
+                            .map(|cell| matcher.count(cell, args.flag_overlapping))
+                            .sum();
 
-                    //     record.push_field(count.to_string().as_bytes());
-                    //     wtr.write_byte_record(&record)?;
-                    // }
+                        record.push_field(count.to_string().as_bytes());
+
+                        records_to_write.push(record);
+                    }
                     // Filter
-                    // else {
-                    //     let is_match = if args.flag_all {
-                    //         sel.select(&record).all(|cell| matcher.is_match(cell))
-                    //     } else {
-                    //         sel.select(&record).any(|cell| matcher.is_match(cell))
-                    //     };
+                    else {
+                        let mut is_match = if args.flag_all {
+                            sel.select(&record).all(|cell| matcher.is_match(cell))
+                        } else {
+                            sel.select(&record).any(|cell| matcher.is_match(cell))
+                        };
 
-                    //     if args.flag_invert_match {
-                    //         is_match = !is_match;
-                    //     }
+                        if args.flag_invert_match {
+                            is_match = !is_match;
+                        }
 
-                    //     if is_match {
-                    //         wtr.write_byte_record(&record)?;
-                    //     }
-                    // }
+                        if is_match {
+                            records_to_write.push(record);
+                        }
+                    }
 
                     Ok(records_to_write)
                 },
