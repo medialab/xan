@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 use std::str::from_utf8;
+use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
+use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
@@ -483,6 +485,12 @@ search options:
     -l, --limit <n>              Maximum of number rows to return. Useful to avoid downstream
                                  buffering some times (e.g. when searching for very few
                                  rows in a big file before piping to `view` or `flatten`).
+    -p, --parallel               Whether to use parallelization to speed up computation.
+                                 Will automatically select a suitable number of threads to use
+                                 based on your number of cores. Use -t, --threads if you want to
+                                 indicate the number of threads yourself.
+    -t, --threads <threads>      Parellize computations using this many threads. Use -p, --parallel
+                                 if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help             Display this message
@@ -519,6 +527,8 @@ struct Args {
     flag_pattern_column: Option<SelectColumns>,
     flag_replacement_column: Option<SelectColumns>,
     flag_name_column: Option<SelectColumns>,
+    flag_parallel: bool,
+    flag_threads: Option<NonZeroUsize>,
 }
 
 impl Args {
@@ -691,6 +701,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    let parallelization = match (args.flag_parallel, args.flag_threads) {
+        (true, None) => Some(None),
+        (_, Some(count)) => Some(Some(count.get())),
+        _ => None,
+    };
+
+    if args.flag_limit.is_some() && parallelization.is_some() {
+        Err("-l/--limit does not work with -p/--parallel nor -t/--threads!")?;
+    }
+
     let pairs = args
         .flag_patterns
         .as_ref()
@@ -762,6 +782,89 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(&headers)?;
     }
 
+    // Parallel path
+    if let Some(threads) = parallelization {
+        wtr.flush()?;
+
+        let matcher = Arc::new(matcher);
+
+        rdr.into_byte_records()
+            .parallel_map_custom(
+                |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+                move |result| -> CliResult<Vec<csv::ByteRecord>> {
+                    let mut record = result?;
+
+                    let mut records_to_write = Vec::new();
+
+                    // Breakdown
+                    if args.flag_breakdown {
+                        let mut counts = vec![0; patterns_len];
+
+                        for cell in sel.select(&record) {
+                            matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                        }
+
+                        for count in counts.into_iter() {
+                            record.push_field(count.to_string().as_bytes());
+                        }
+
+                        records_to_write.push(record);
+                    }
+                    // Replace
+                    // else if let Some(replacements) = &associated {
+                    //     replaced_record.clear();
+
+                    //     for cell in sel.select(&record) {
+                    //         let replaced_cell = matcher.replace(cell, replacements);
+                    //         replaced_record.push_field(&replaced_cell);
+                    //     }
+
+                    //     wtr.write_byte_record(&replaced_record)?;
+                    // }
+                    // Count
+                    // else if args.flag_count.is_some() {
+                    //     let count: usize = sel
+                    //         .select(&record)
+                    //         .map(|cell| matcher.count(cell, args.flag_overlapping))
+                    //         .sum();
+
+                    //     record.push_field(count.to_string().as_bytes());
+                    //     wtr.write_byte_record(&record)?;
+                    // }
+                    // Filter
+                    // else {
+                    //     let is_match = if args.flag_all {
+                    //         sel.select(&record).all(|cell| matcher.is_match(cell))
+                    //     } else {
+                    //         sel.select(&record).any(|cell| matcher.is_match(cell))
+                    //     };
+
+                    //     if args.flag_invert_match {
+                    //         is_match = !is_match;
+                    //     }
+
+                    //     if is_match {
+                    //         wtr.write_byte_record(&record)?;
+                    //     }
+                    // }
+
+                    Ok(records_to_write)
+                },
+            )
+            .try_for_each(|result| -> CliResult<()> {
+                let records_to_write = result?;
+
+                for record in records_to_write {
+                    wtr.write_byte_record(&record)?;
+                }
+
+                Ok(())
+            })?;
+
+        return Ok(());
+    }
+
+    // Single-threaded path
     let mut record = csv::ByteRecord::new();
     let mut replaced_record = csv::ByteRecord::new();
     let mut i: usize = 0;
@@ -769,6 +872,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
 
+        // Breakdown
         if args.flag_breakdown {
             let mut counts = vec![0; patterns_len];
 
@@ -781,7 +885,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             wtr.write_byte_record(&record)?;
-        } else if let Some(replacements) = &associated {
+        }
+        // Replace
+        else if let Some(replacements) = &associated {
             replaced_record.clear();
 
             for cell in sel.select(&record) {
@@ -794,7 +900,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             wtr.write_byte_record(&replaced_record)?;
-        } else if args.flag_count.is_some() {
+        }
+        // Count
+        else if args.flag_count.is_some() {
             let count: usize = sel
                 .select(&record)
                 .map(|cell| matcher.count(cell, args.flag_overlapping))
@@ -806,7 +914,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             record.push_field(count.to_string().as_bytes());
             wtr.write_byte_record(&record)?;
-        } else {
+        }
+        // Filter
+        else {
             is_match = if args.flag_all {
                 sel.select(&record).all(|cell| matcher.is_match(cell))
             } else {

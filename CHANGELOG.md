@@ -2,6 +2,8 @@
 
 ## 0.51.0 (provisional)
 
+The **parallel** update.
+
 *Breaking*
 
 * Dropping undocumented `xan index` and related interactions (in `xan count`, `xan sample`, `xan slice` & `xan split --jobs`).
@@ -35,6 +37,7 @@
 * Adding `xan count -p/--parallel & -t/--threads`.
 * Adding `xan freq -p/--parallel & -t/--threads`.
 * Adding `xan stats -p/--parallel & -t/--threads`.
+* Adding `xan search -p/--parallel & -t/--threads`.
 * Adding piped column access to expression given to `xan flatmap -r`.
 * Adding `xan rename -R/--replace` & `xan rename -x/--suffix`.
 * Adding `xan parallel freq -l/--limit, -A/--all, -a/--approx & -N/--no-extra`.
