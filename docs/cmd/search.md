@@ -90,9 +90,10 @@ Computing a breakdown of matches per query:
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
-parallelisation might differ a lot and depends on the complexity and number of
-queries. That is to say `xan search --empty` might not be significantly faster
-when parallelized while `xan search -i étern` would.
+parallelization might differ a lot and depends on the complexity and number of
+queries and also on the size of the haystacks. That is to say `xan search --empty`
+would not be significantly faster when parallelized whereas `xan search -i eternity`
+definitely would.
 
 Also, you might want to try `xan parallel cat` instead because it could be
 faster in some scenarios at the cost of an increase in memory usage (and it
@@ -138,11 +139,6 @@ search options:
                              count the total number of non-overlapping pattern matches per
                              row and report it in a new column with given name.
                              Does not work with -v/--invert-match.
-    -B, --breakdown          When used with --patterns, will count the total number of
-                             non-overlapping matches per pattern and write this count in
-                             one additional column per pattern. You might want to use
-                             it with --overlapping sometimes when your patterns are themselves
-                             overlapping.
     --overlapping            When used with -c/--count or -B/--breakdown, return the count of
                              overlapping matches. Note that this can sometimes be one order of
                              magnitude slower that counting non-overlapping matches.
@@ -161,6 +157,20 @@ search options:
                              if you want the number of threads to be automatically chosen instead.
 
 search options for multiple patterns:
+    -B, --breakdown              When used with --patterns, will count the total number of
+                                 non-overlapping matches per pattern and write this count in
+                                 one additional column per pattern. You might want to use
+                                 it with --overlapping sometimes when your patterns are themselves
+                                 overlapping.
+    -U, --unique-matches <name>  When used with --patterns, will add a column containing a list of
+                                 unique matched patterns for each row, separated by the --sep character.
+                                 Will not include rows that have no matches in the output unless
+                                 the --left flag is used. Patterns can also be given a name through
+                                 the --name-column flag.
+    --sep <char>                 Character to use to join pattern matches when using -U/--unique-matches.
+                                 [default: |]
+    --left                       Rows without any matches will be kept in the output when
+                                 using -U/--unique-matches.
     --patterns <path>            Path to a text file (use "-" for stdin), containing multiple
                                  patterns, one per line, to search at once.
     --pattern-column <name>      When given a column name, --patterns file will be considered a CSV

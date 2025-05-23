@@ -1,10 +1,11 @@
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
 use std::str::from_utf8;
 use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
-use bstr::ByteSlice;
+use bstr::{ByteSlice, ByteVec};
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
@@ -276,6 +277,73 @@ impl Matcher {
         }
     }
 
+    fn unique_matches(&self, cell: &[u8], overlapping: bool, matches: &mut BTreeSet<usize>) {
+        match self {
+            Self::Empty
+            | Self::NonEmpty
+            | Self::Regex(_)
+            | Self::Exact(_, _)
+            | Self::UrlPrefix(_) => {
+                unreachable!()
+            }
+
+            Self::Substring(pattern, case_insensitive) => match (*case_insensitive, overlapping) {
+                (true, false) => {
+                    for m in pattern.find_iter(&cell.to_lowercase()) {
+                        matches.insert(m.pattern().as_usize());
+                    }
+                }
+                (false, false) => {
+                    for m in pattern.find_iter(cell) {
+                        matches.insert(m.pattern().as_usize());
+                    }
+                }
+                (true, true) => {
+                    for m in pattern.find_overlapping_iter(&cell.to_lowercase()) {
+                        matches.insert(m.pattern().as_usize());
+                    }
+                }
+                (false, true) => {
+                    for m in pattern.find_overlapping_iter(cell) {
+                        matches.insert(m.pattern().as_usize());
+                    }
+                }
+            },
+            Self::RegexSet(set) => {
+                if overlapping {
+                    unreachable!()
+                }
+
+                for m in set.find_iter(cell) {
+                    matches.insert(m.pattern().as_usize());
+                }
+            }
+            Self::Regexes(patterns) => {
+                for (i, pattern) in patterns.iter().enumerate() {
+                    if pattern.is_match(cell) {
+                        matches.insert(i);
+                    }
+                }
+            }
+            Self::HashMap(patterns, case_insensitive) => {
+                if *case_insensitive {
+                    if let Some(id) = patterns.get(&cell.to_lowercase()) {
+                        matches.insert(*id);
+                    }
+                } else if let Some(id) = patterns.get(cell) {
+                    matches.insert(*id);
+                }
+            }
+            Self::UrlTrie(trie) => {
+                if let Ok(url) = from_utf8(cell) {
+                    if let Ok(Some(id)) = trie.longest_matching_prefix_value(url) {
+                        matches.insert(*id);
+                    }
+                }
+            }
+        }
+    }
+
     fn replace<'a>(&self, cell: &'a [u8], replacements: &'a [Vec<u8>]) -> Cow<'a, [u8]> {
         match self {
             Self::Empty => {
@@ -444,9 +512,10 @@ Computing a breakdown of matches per query:
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
-parallelisation might differ a lot and depends on the complexity and number of
-queries. That is to say `xan search --empty` might not be significantly faster
-when parallelized while `xan search -i étern` would.
+parallelization might differ a lot and depends on the complexity and number of
+queries and also on the size of the haystacks. That is to say `xan search --empty`
+would not be significantly faster when parallelized whereas `xan search -i eternity`
+definitely would.
 
 Also, you might want to try `xan parallel cat` instead because it could be
 faster in some scenarios at the cost of an increase in memory usage (and it
@@ -492,11 +561,6 @@ search options:
                              count the total number of non-overlapping pattern matches per
                              row and report it in a new column with given name.
                              Does not work with -v/--invert-match.
-    -B, --breakdown          When used with --patterns, will count the total number of
-                             non-overlapping matches per pattern and write this count in
-                             one additional column per pattern. You might want to use
-                             it with --overlapping sometimes when your patterns are themselves
-                             overlapping.
     --overlapping            When used with -c/--count or -B/--breakdown, return the count of
                              overlapping matches. Note that this can sometimes be one order of
                              magnitude slower that counting non-overlapping matches.
@@ -515,6 +579,20 @@ search options:
                              if you want the number of threads to be automatically chosen instead.
 
 search options for multiple patterns:
+    -B, --breakdown              When used with --patterns, will count the total number of
+                                 non-overlapping matches per pattern and write this count in
+                                 one additional column per pattern. You might want to use
+                                 it with --overlapping sometimes when your patterns are themselves
+                                 overlapping.
+    -U, --unique-matches <name>  When used with --patterns, will add a column containing a list of
+                                 unique matched patterns for each row, separated by the --sep character.
+                                 Will not include rows that have no matches in the output unless
+                                 the --left flag is used. Patterns can also be given a name through
+                                 the --name-column flag.
+    --sep <char>                 Character to use to join pattern matches when using -U/--unique-matches.
+                                 [default: |]
+    --left                       Rows without any matches will be kept in the output when
+                                 using -U/--unique-matches.
     --patterns <path>            Path to a text file (use \"-\" for stdin), containing multiple
                                  patterns, one per line, to search at once.
     --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
@@ -557,6 +635,9 @@ struct Args {
     flag_replace: Option<String>,
     flag_limit: Option<NonZeroUsize>,
     flag_breakdown: bool,
+    flag_unique_matches: Option<String>,
+    flag_sep: String,
+    flag_left: bool,
     flag_patterns: Option<String>,
     flag_pattern_column: Option<SelectColumns>,
     flag_replacement_column: Option<SelectColumns>,
@@ -683,18 +764,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix or -r/--regex!")?;
     }
 
-    if args.flag_overlapping && args.flag_count.is_none() && !args.flag_breakdown {
-        Err("--overlapping only works with -c/--count! or -B/--breakdown!")?;
+    if args.flag_overlapping
+        && args.flag_count.is_none()
+        && !args.flag_breakdown
+        && args.flag_unique_matches.is_none()
+    {
+        Err("--overlapping only works with -c/--count, -U/--unique-matches or -B/--breakdown!")?;
     }
 
-    if args.flag_count.is_some() || args.flag_replace.is_some() {
-        if args.flag_invert_match {
-            Err("-c/--count & -R/--replace do not work with -v/--invert-match!")?;
-        }
-
-        if args.flag_all {
-            Err("-c/--count & -R/--replace do not work with -A/--all!")?;
-        }
+    if (args.flag_count.is_some() || args.flag_replace.is_some()) && args.flag_invert_match {
+        Err("-c/--count & -R/--replace do not work with -v/--invert-match!")?;
     }
 
     if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
@@ -703,14 +782,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_ignore_case && args.flag_url_prefix {
         Err("-u/--url-prefix & -i/--ignore-case are not compatible!")?;
-    }
-
-    if args.flag_count.is_some() && args.flag_replace.is_some() {
-        Err("-c/--count does not work with -R/--replace!")?;
-    }
-
-    if args.flag_replace.is_some() && args.flag_replacement_column.is_some() {
-        Err("-R/--replace does not work with --replacement-column!")?;
     }
 
     if args.flag_replacement_column.is_some()
@@ -725,14 +796,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--name-column requires both --patterns & --pattern-column!")?;
     }
 
-    if args.flag_breakdown {
-        if args.flag_patterns.is_none() {
-            Err("-B/--breakdown requires --patterns!")?;
-        }
+    let actions_count: u8 = args.flag_count.is_some() as u8
+        + args.flag_replace.is_some() as u8
+        + args.flag_breakdown as u8
+        + args.flag_replacement_column.is_some() as u8
+        + args.flag_unique_matches.is_some() as u8;
 
-        if args.flag_count.is_some() {
-            Err("-c/--count does not work with -B/--breakdown!")?;
-        }
+    if actions_count > 1 {
+        Err("must use only one of -R/--replace, --replacement-column, -B/--breakdown, -c/--count, -U/--unique-matches!")?;
+    }
+
+    if args.flag_all && actions_count > 0 {
+        Err("-A/--all does not work with -R/--replace, --replacement-column, -B/--breakdown, -c/--count nor -U/--unique-matches!")?;
+    }
+
+    if args.flag_breakdown && args.flag_patterns.is_none() {
+        Err("-B/--breakdown requires --patterns!")?;
     }
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
@@ -807,10 +886,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 headers.push_field(column_name);
             }
         } else {
-            for pattern in patterns.unwrap().iter() {
+            for pattern in patterns.as_ref().unwrap().iter() {
                 headers.push_field(pattern.as_bytes());
             }
         }
+    } else if let Some(column_name) = &args.flag_unique_matches {
+        headers.push_field(column_name.as_bytes());
     }
 
     if !rconfig.no_headers {
@@ -844,6 +925,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         records_to_write.push(record);
+                    }
+                    // Unique matches
+                    else if args.flag_unique_matches.is_some() {
+                        let mut matches = BTreeSet::<usize>::new();
+
+                        for cell in sel.select(&record) {
+                            matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
+                        }
+
+                        if matches.is_empty() {
+                            if args.flag_left {
+                                record.push_field(b"");
+                                records_to_write.push(record);
+                            }
+                        } else {
+                            let mut matches_field: Vec<u8> = vec![];
+
+                            for (i, m) in matches.iter().copied().enumerate() {
+                                if let Some(names) = &associated {
+                                    matches_field.push_str(&names[m]);
+                                } else if let Some(p) = &patterns {
+                                    matches_field.push_str(&p[m]);
+                                } else {
+                                    matches_field.push_str(args.arg_pattern.as_ref().unwrap());
+                                }
+
+                                if i < matches.len() - 1 {
+                                    matches_field.push_str(&args.flag_sep);
+                                }
+                            }
+
+                            record.push_field(&matches_field);
+                            records_to_write.push(record);
+                        }
                     }
                     // Replace
                     else if let Some(replacements) = &associated {
@@ -908,6 +1023,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Single-threaded path
     let mut record = csv::ByteRecord::new();
     let mut replaced_record = csv::ByteRecord::new();
+    let mut matches = BTreeSet::<usize>::new();
     let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
@@ -926,6 +1042,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             wtr.write_byte_record(&record)?;
+        }
+        // Unique matches
+        else if args.flag_unique_matches.is_some() {
+            matches.clear();
+
+            for cell in sel.select(&record) {
+                matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
+            }
+
+            if matches.is_empty() {
+                if args.flag_left {
+                    record.push_field(b"");
+                    wtr.write_byte_record(&record)?;
+                }
+            } else {
+                let mut matches_field: Vec<u8> = vec![];
+
+                for (i, m) in matches.iter().copied().enumerate() {
+                    if let Some(names) = &associated {
+                        matches_field.push_str(&names[m]);
+                    } else if let Some(p) = &patterns {
+                        matches_field.push_str(&p[m]);
+                    } else {
+                        matches_field.push_str(args.arg_pattern.as_ref().unwrap());
+                    }
+
+                    if i < matches.len() - 1 {
+                        matches_field.push_str(&args.flag_sep);
+                    }
+                }
+
+                record.push_field(&matches_field);
+                wtr.write_byte_record(&record)?;
+            }
         }
         // Replace
         else if let Some(replacements) = &associated {

@@ -41,6 +41,7 @@ The **parallel** update.
 * Adding piped column access to expression given to `xan flatmap -r`.
 * Adding `xan rename -R/--replace` & `xan rename -x/--suffix`.
 * Adding `xan parallel freq -l/--limit, -A/--all, -a/--approx & -N/--no-extra`.
+* Adding `xan search -U/--unique-matches & --sep & --left`.
 
 *Fixes*
 

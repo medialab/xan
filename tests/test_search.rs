@@ -983,3 +983,90 @@ fn search_patterns_breakdown() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_patterns_unique_matches() {
+    let wrk = Workdir::new("search_patterns_unique_matches");
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["article", "name"],
+            svec!["la", "LA"],
+            svec!["le", "LE"],
+        ],
+    );
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["text"],
+            svec!["le chien mange le fromage"],
+            svec!["le chien mange la souris"],
+            svec!["coucou"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .args(["-U", "matches"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "matches"],
+        svec!["le chien mange le fromage", "le"],
+        svec!["le chien mange la souris", "la|le"],
+    ];
+    assert_eq!(got, expected);
+
+    // --name-column
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .args(["--name-column", "name"])
+        .args(["-U", "matches"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "matches"],
+        svec!["le chien mange le fromage", "LE"],
+        svec!["le chien mange la souris", "LA|LE"],
+    ];
+    assert_eq!(got, expected);
+
+    // --sep
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .args(["-U", "matches"])
+        .args(["--sep", "§"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "matches"],
+        svec!["le chien mange le fromage", "le"],
+        svec!["le chien mange la souris", "la§le"],
+    ];
+    assert_eq!(got, expected);
+
+    // --left
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .args(["-U", "matches"])
+        .arg("--left")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "matches"],
+        svec!["le chien mange le fromage", "le"],
+        svec!["le chien mange la souris", "la|le"],
+        svec!["coucou", ""],
+    ];
+    assert_eq!(got, expected);
+}
