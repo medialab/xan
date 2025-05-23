@@ -573,7 +573,7 @@ Common options:
 pub struct Args {
     pub cmd_count: bool,
     cmd_cat: bool,
-    cmd_freq: bool,
+    pub cmd_freq: bool,
     pub cmd_stats: bool,
     cmd_agg: bool,
     cmd_groupby: bool,
@@ -617,6 +617,7 @@ impl Args {
                     flag_threads: threads,
                     flag_single_file: true,
                     flag_buffer_size: 1024,
+                    flag_limit: 10,
                     arg_inputs: vec![p.to_string()],
                     ..Default::default()
                 })

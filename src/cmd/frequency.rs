@@ -1,6 +1,9 @@
+use std::num::NonZeroUsize;
+
 use bstr::ByteSlice;
 use csv::{self, ByteRecord};
 
+use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -30,29 +33,37 @@ your memory, you can compute an approximate top-k using the -a, --approx flag.
 To compute custom aggregations per group, beyond just counting, please be sure to
 check the `xan groupby` command instead.
 
+Frequency tables can be computed in parallel using the -p/--parallel or -t/--threads
+flags. But note that this cannot work on streams or gzipped data and does not support
+the -g/--groubpy flag.
+
 Usage:
     xan frequency [options] [<input>]
     xan freq [options] [<input>]
 
 frequency options:
-    -s, --select <arg>     Select a subset of columns to compute frequencies
-                           for. See 'xan select --help' for the selection language
-                           details.
-    --sep <char>           Split the cell into multiple values to count using the
-                           provided separator.
-    -g, --groupby <cols>   If given, will compute frequency tables per group
-                           as defined by the given columns.
-    -A, --all              Remove the limit.
-    -l, --limit <arg>      Limit the frequency table to the N most common
-                           items. Use -A, -all or set to 0 to disable the limit.
-                           [default: 10]
-    -a, --approx           If set, return the items most likely having the top counts,
-                           as per given --limit. Won't work if --limit is 0 or
-                           with -A, --all. Accuracy of results increases with the given
-                           limit.
-    -N, --no-extra         Don't include empty cells & remaining counts.
-    -p, --parallel         Allow sorting to be done in parallel. This is only
-                           useful with -l/--limit set to 0, or with -A, --all.
+    -s, --select <arg>       Select a subset of columns to compute frequencies
+                             for. See 'xan select --help' for the selection language
+                             details.
+    --sep <char>             Split the cell into multiple values to count using the
+                             provided separator.
+    -g, --groupby <cols>     If given, will compute frequency tables per group
+                             as defined by the given columns.
+    -A, --all                Remove the limit.
+    -l, --limit <arg>        Limit the frequency table to the N most common
+                             items. Use -A, -all or set to 0 to disable the limit.
+                             [default: 10]
+    -a, --approx             If set, return the items most likely having the top counts,
+                             as per given --limit. Won't work if --limit is 0 or
+                             with -A, --all. Accuracy of results increases with the
+                             given limit.
+    -N, --no-extra           Don't include empty cells & remaining counts.
+    -p, --parallel           Whether to use parallelization to speed up computation.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Hidden options:
     --no-limit-we-reach-for-the-sky  Nothing to see here...
@@ -81,6 +92,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
+    flag_threads: Option<NonZeroUsize>,
     flag_groupby: Option<SelectColumns>,
     flag_no_limit_we_reach_for_the_sky: bool,
 }
@@ -95,6 +107,24 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_parallel || args.flag_threads.is_some() {
+        if args.flag_groupby.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with -g/--groupby!")?;
+        }
+
+        let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
+
+        parallel_args.cmd_freq = true;
+        parallel_args.flag_select = args.flag_select;
+        parallel_args.flag_all = args.flag_all;
+        parallel_args.flag_limit = args.flag_limit;
+        parallel_args.flag_approx = args.flag_approx;
+        parallel_args.flag_no_extra = args.flag_no_extra;
+
+        return parallel_args.run();
+    }
+
     args.resolve();
 
     if args.flag_approx && args.flag_limit == 0 {
@@ -232,7 +262,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     } else {
                         Some(args.flag_limit)
                     },
-                    args.flag_parallel,
+                    false,
                 );
 
                 let mut emitted: u64 = 0;
@@ -315,7 +345,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 } else {
                     Some(args.flag_limit)
                 },
-                args.flag_parallel,
+                false,
             );
 
             let mut emitted: u64 = 0;

@@ -115,6 +115,15 @@ parallel freq options:
     -s, --select <cols>  Columns for which to build frequency tables.
     --sep <char>         Split the cell into multiple values to count using the
                          provided separator.
+    -A, --all            Remove the limit.
+    -l, --limit <arg>    Limit the frequency table to the N most common
+                         items. Use -A, -all or set to 0 to disable the limit.
+                         [default: 10]
+    -a, --approx         If set, return the items most likely having the top counts,
+                         as per given --limit. Won't work if --limit is 0 or
+                         with -A, --all. Accuracy of results increases with the given
+                         limit.
+    -N, --no-extra       Don't include empty cells & remaining counts.
 
 parallel stats options:
     -s, --select <cols>    Columns for which to build statistics.

@@ -62,7 +62,7 @@ stats options:
     -a, --approx             Compute approximated statistics.
     --nulls                  Include empty values in the population size for computing
                              mean and standard deviation.
-    -p, --parallel           Whether to use parallelization to speed up counting.
+    -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
                              indicate the number of threads yourself.
