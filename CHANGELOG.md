@@ -36,11 +36,7 @@ The **parallel** update.
 * Adding `xan parallel -F/--single-file`.
 * Adding `xan from md`.
 * Adding `xan parallel map`.
-* Adding `xan count -p/--parallel & -t/--threads`.
-* Adding `xan freq -p/--parallel & -t/--threads`.
-* Adding `xan stats -p/--parallel & -t/--threads`.
-* Adding `xan search -p/--parallel & -t/--threads`.
-* Adding `xan agg -p/--parallel & -t/--threads`.
+* Adding `-p/--parallel` & `-t/--threads` to `count`, `freq`, `stats`, `search`, `agg` & `groupby` commands.
 * Adding piped column access to expression given to `xan flatmap -r`.
 * Adding `xan rename -R/--replace` & `xan rename -x/--suffix`.
 * Adding `xan parallel freq -l/--limit, -A/--all, -a/--approx & -N/--no-extra`.
