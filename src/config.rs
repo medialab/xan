@@ -388,6 +388,22 @@ impl Config {
         )))
     }
 
+    pub fn is_indexed_gzip(&self) -> bool {
+        match self.path {
+            None => false,
+            Some(ref p) => {
+                if p.to_string_lossy().ends_with(".gz") {
+                    let index_path_str = p.to_string_lossy() + ".gzi";
+                    let index_path = Path::new(index_path_str.as_ref());
+
+                    index_path.is_file()
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
     pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
         let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
 

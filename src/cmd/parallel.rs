@@ -422,8 +422,14 @@ impl CsvInputReader {
 }
 
 static USAGE: &str = "
-Parallel processing of either a single, uncompressed CSV file that
-will be read as chunks or a dataset of multiple files.
+Parallel processing of CSV data.
+
+This command can either process a single CSV file by splitting it into one
+chunk per working thread, or a dataset comprised of multiple files on disk.
+
+When processing a single file, this command cannot work with streams (stdin)
+nor gzipped data, unless it was compressed with `bgzip -i` and a `.gzi` index
+file can be found beside the file.
 
 To process a single CSV file in parallel, use the -F/--single-file flag:
 
@@ -605,31 +611,23 @@ pub struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
-impl Args {
-    pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
-        match path {
-            Some(p) => {
-                if p.ends_with(".gz") {
-                    Err("cannot parallelize over gzipped file!")?;
-                }
-
-                Ok(Self {
-                    flag_threads: threads,
-                    flag_single_file: true,
-                    flag_buffer_size: 1024,
-                    flag_limit: 10,
-                    arg_inputs: vec![p.to_string()],
-                    ..Default::default()
-                })
-            }
-            None => Err("cannot parallelize over stdin! You must provide a file path.")?,
-        }
-    }
-}
-
 type BoxedReader = csv::Reader<Box<dyn io::Read + Send>>;
 
 impl Args {
+    pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
+        match path {
+            Some(p) => Ok(Self {
+                flag_threads: threads,
+                flag_single_file: true,
+                flag_buffer_size: 1024,
+                flag_limit: 10,
+                arg_inputs: vec![p.to_string()],
+                ..Default::default()
+            }),
+            None => Err("cannot parallelize over stdin! You must provide a file path.")?,
+        }
+    }
+
     fn new_stats(&self) -> Stats {
         let mut stats = Stats::new();
 
@@ -676,6 +674,10 @@ impl Args {
             let config = Config::new(&Some(target.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
+
+            if target.ends_with(".gz") && !config.is_indexed_gzip() {
+                Err("cannot parallelize over single gzipped file without .gzi index!")?;
+            }
 
             let mut reader = config.seekable_reader()?;
             let headers = reader.byte_headers()?.clone();

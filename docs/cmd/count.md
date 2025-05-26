@@ -9,7 +9,8 @@ given).
 
 You can also use the -p/--parallel or -t/--threads flag to count the number
 of records of the file in parallel to go faster. But this cannot work on streams
-or gzipped data.
+or gzipped files, unless a `.gzi` index (as created by `bgzip -i`) can be found
+beside it.
 
 Usage:
     xan count [options] [<input>]

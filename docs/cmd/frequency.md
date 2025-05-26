@@ -22,8 +22,8 @@ To compute custom aggregations per group, beyond just counting, please be sure t
 check the `xan groupby` command instead.
 
 Frequency tables can be computed in parallel using the -p/--parallel or -t/--threads
-flags. But note that this cannot work on streams or gzipped data and does not support
-the -g/--groubpy flag.
+flags. This cannot work on streams or gzipped files, unless a `.gzi` index (as
+created by `bgzip -i`) can be found beside it.
 
 Usage:
     xan frequency [options] [<input>]

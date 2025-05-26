@@ -2,8 +2,14 @@
 # xan parallel
 
 ```txt
-Parallel processing of either a single, uncompressed CSV file that
-will be read as chunks or a dataset of multiple files.
+Parallel processing of CSV data.
+
+This command can either process a single CSV file by splitting it into one
+chunk per working thread, or a dataset comprised of multiple files on disk.
+
+When processing a single file, this command cannot work with streams (stdin)
+nor gzipped data, unless it was compressed with `bgzip -i` and a `.gzi` index
+file can be found beside the file.
 
 To process a single CSV file in parallel, use the -F/--single-file flag:
 
