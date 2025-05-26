@@ -18,6 +18,10 @@ Retrieving rows at some indices:
 
     $ xan slice -I 4,5,19,65 file.csv
 
+Retrieving last 5 rows:
+
+    $ xan slice -L 5 file.csv
+
 Slicing rows starting at some byte offset in the file:
 
     $ xan slice -B 56356 file.csv
@@ -52,15 +56,19 @@ Usage:
     xan slice [options] [<input>]
 
 slice options to use with row indices:
-    -s, --start <n>    The index of the record to slice from.
+    -s, --start <n>    The index of the row to slice from.
     --skip <n>         Same as -s, --start.
-    -e, --end <n>      The index of the record to slice to.
+    -e, --end <n>      The index of the row to slice to.
     -l, --len <n>      The length of the slice (can be used instead of --end).
-    -i, --index <i>    Slice a single record (shortcut for -s N -l 1).
+    -i, --index <i>    Slice a single row (shortcut for -s N -l 1).
     -I, --indices <i>  Return a slice containing multiple indices at once.
                        You must provide the indices separated by commas,
-                       e.g. "1,4,67,89". Note that selected records will be
+                       e.g. "1,4,67,89". Note that selected rows will be
                        emitted in file order, not in the order given.
+    -L, --last <n>     Return last <n> rows from file. Incompatible with other
+                       flags. Runs in O(n) time & memory if file is seekable.
+                       Else runs in O(N) time (N being the total number of rows of
+                       the file) and O(n) memory.
 
 slice options to use with expressions:
     -S, --start-condition <expr>  Do not start yielding rows until given expression
@@ -70,9 +78,9 @@ slice options to use with expressions:
 
 slice options to use with byte offets:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
-                           be useful to access a particular slice of records in
+                           be useful to access a particular slice of rows in
                            constant time, without needing to read preceding bytes.
-                           You must provide a byte offset starting a CSV record or
+                           You must provide a byte offset starting a CSV row or
                            the output could be corrupted. This requires the input
                            to be seekable (stdin or gzipped files not supported).
     --end-byte <b>         Only read up to provided position in byte, exclusive.

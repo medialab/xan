@@ -23,7 +23,8 @@ check the `xan groupby` command instead.
 
 Frequency tables can be computed in parallel using the -p/--parallel or -t/--threads
 flags. This cannot work on streams or gzipped files, unless a `.gzi` index (as
-created by `bgzip -i`) can be found beside it.
+created by `bgzip -i`) can be found beside it. Parallelization is not compatible
+with the -g/--groupby option.
 
 Usage:
     xan frequency [options] [<input>]

@@ -42,7 +42,8 @@ max_length         (default) - Maximum string length
 
 Stats can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
-by `bgzip -i`) can be found beside it.
+by `bgzip -i`) can be found beside it. Parallelization is not compatible
+with the -g/--groupby option.
 
 Usage:
     xan stats [options] [<input>]

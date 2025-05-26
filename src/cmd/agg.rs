@@ -1,11 +1,12 @@
+use std::num::NonZeroUsize;
+
+use crate::cmd::moonblade::MoonbladeErrorPolicy;
+use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
+use crate::moonblade::AggregationProgram;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-
-use crate::moonblade::AggregationProgram;
-
-use crate::cmd::moonblade::MoonbladeErrorPolicy;
 
 // NOTE: what was tried for parallelization:
 //   1. Horizontal parallelization (by execution unit of the aggregation planner)
@@ -63,6 +64,11 @@ For a list of available functions, use `xan help functions`.
 For a list of available aggregation functions, use `xan help aggs`
 instead.
 
+Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
+But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
+by `bgzip -i`) can be found beside it. Parallelization is not compatible
+with the --cols nor -E/--errors options.
+
 Usage:
     xan agg [options] <expression> [<input>]
     xan agg --help
@@ -77,6 +83,12 @@ agg options:
                              instead of the whole file. A special `cell`
                              variable will represent the value of a
                              selected column in the aggregation expression.
+    -p, --parallel           Whether to use parallelization to speed up computation.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message
@@ -96,10 +108,29 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_errors: String,
     flag_cols: Option<SelectColumns>,
+    flag_parallel: bool,
+    flag_threads: Option<NonZeroUsize>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_parallel || args.flag_threads.is_some() {
+        if args.flag_cols.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with --cols!")?;
+        }
+
+        if args.flag_errors != "panic" {
+            Err("-p/--parallel or -t/--threads cannot be used with -E/--errors!")?;
+        }
+
+        let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
+
+        parallel_args.cmd_agg = true;
+        parallel_args.arg_expr = Some(args.arg_expression);
+
+        return parallel_args.run();
+    }
 
     let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
