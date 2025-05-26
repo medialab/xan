@@ -1,10 +1,6 @@
-use std::io;
-
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
-
-use crate::CliError;
 
 static USAGE: &str = "
 Reverse rows of CSV data.
@@ -67,22 +63,16 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
     let headers_size = if args.flag_no_headers {
         0
     } else {
-        let _ = config_csv_reader.byte_headers();
-        let position = config_csv_reader.position();
-        position.clone().byte()
+        config_csv_reader.byte_headers()?;
+        config_csv_reader.position().byte()
     };
 
     let reverse_reader = rconfig.io_reader_for_reverse_reading(headers_size);
-    match reverse_reader {
-        Err(_) => {
-            let msg =
-                "can't use provided input : needs to be loaded in the RAM using -m, --in-memory flag".to_string();
 
-            Err(CliError::from(io::Error::new(
-                io::ErrorKind::Unsupported,
-                msg,
-            )))
-        }
+    match reverse_reader {
+        Err(_) => Err(
+            "can't use provided input: needs to be loaded in the RAM using -m, --in-memory flag",
+        )?,
         Ok(rr) => {
             let mut wtr = Config::new(&args.flag_output).writer()?;
             let mut reverse_csv_reader = rconfig.csv_reader_from_reader(rr);
