@@ -558,6 +558,15 @@ impl From<url::ParseError> for CliError {
     }
 }
 
+impl From<bgzip::BGZFError> for CliError {
+    fn from(value: bgzip::BGZFError) -> Self {
+        match value {
+            bgzip::BGZFError::IoError(err) => From::from(err),
+            _ => CliError::Other(value.to_string()),
+        }
+    }
+}
+
 impl From<()> for CliError {
     fn from(_: ()) -> CliError {
         CliError::Other("unknown error".to_string())

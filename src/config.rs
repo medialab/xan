@@ -244,7 +244,7 @@ impl Config {
     //     Ok(self.csv_reader_from_reader(self.io_reader_at_position(position)?))
     // }
 
-    pub fn seekable_reader(&self) -> io::Result<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
+    pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
     }
 
@@ -388,11 +388,11 @@ impl Config {
         )))
     }
 
-    pub fn io_reader_for_random_access(&self) -> io::Result<Box<dyn SeekRead + Send + 'static>> {
+    pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
         let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
 
         match self.path {
-            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
+            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
                     if p.to_string_lossy().ends_with(".gz") {
@@ -400,23 +400,21 @@ impl Config {
                         let index_path = Path::new(index_path_str.as_ref());
 
                         if index_path.is_file() {
-                            // TODO: don't unwrap
-                            let reader = BGZFReader::new(x).unwrap();
-                            let index =
-                                BGZFIndex::from_reader(fs::File::open(index_path)?).unwrap();
+                            let reader = BGZFReader::new(x)?;
+                            let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
 
-                            return Ok(Box::new(IndexedBGZFReader::new(reader, index).unwrap()));
+                            return Ok(Box::new(IndexedBGZFReader::new(reader, index)?));
                         }
                     }
 
                     match x.borrow().stream_position() {
                         Ok(_) => Ok(Box::new(x)),
-                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
+                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
                     }
                 }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
-                    Err(io::Error::new(io::ErrorKind::NotFound, msg))
+                    Err(io::Error::new(io::ErrorKind::NotFound, msg))?
                 }
             },
         }
@@ -425,7 +423,7 @@ impl Config {
     pub fn io_reader_at_position(
         &self,
         position: u64,
-    ) -> io::Result<Box<dyn Read + Send + 'static>> {
+    ) -> CliResult<Box<dyn Read + Send + 'static>> {
         let mut reader = self.io_reader_for_random_access()?;
 
         reader.seek(SeekFrom::Start(position))?;
