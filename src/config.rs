@@ -450,24 +450,13 @@ impl Config {
     pub fn io_reader_for_reverse_reading(
         &self,
         offset: u64,
-    ) -> io::Result<Box<dyn io::Read + 'static>> {
-        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
-        match self.path {
-            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
-            Some(ref p) => match fs::File::open(p) {
-                Ok(x) => match x.borrow().stream_position() {
-                    Ok(_) => {
-                        let filesize = x.metadata()?.len();
-                        Ok(Box::new(ReverseRead::new(x, filesize, offset)))
-                    }
-                    Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg)),
-                },
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    Err(io::Error::new(io::ErrorKind::NotFound, msg))
-                }
-            },
-        }
+    ) -> CliResult<Box<dyn io::Read + 'static>> {
+        let mut reader = self.io_reader_for_random_access()?;
+
+        let filesize = reader.seek(SeekFrom::End(0))?;
+        reader.rewind()?;
+
+        Ok(Box::new(ReverseRead::new(reader, filesize, offset)))
     }
 
     pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {

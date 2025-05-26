@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::{Read, SeekFrom};
 
 use crate::config::{Config, Delimiter};
@@ -61,6 +62,10 @@ Retrieving rows at some indices:
 
     $ xan slice -I 4,5,19,65 file.csv
 
+Retrieving last 5 rows:
+
+    $ xan slice -L 5 file.csv
+
 Slicing rows starting at some byte offset in the file:
 
     $ xan slice -B 56356 file.csv
@@ -95,15 +100,19 @@ Usage:
     xan slice [options] [<input>]
 
 slice options to use with row indices:
-    -s, --start <n>    The index of the record to slice from.
+    -s, --start <n>    The index of the row to slice from.
     --skip <n>         Same as -s, --start.
-    -e, --end <n>      The index of the record to slice to.
+    -e, --end <n>      The index of the row to slice to.
     -l, --len <n>      The length of the slice (can be used instead of --end).
-    -i, --index <i>    Slice a single record (shortcut for -s N -l 1).
+    -i, --index <i>    Slice a single row (shortcut for -s N -l 1).
     -I, --indices <i>  Return a slice containing multiple indices at once.
                        You must provide the indices separated by commas,
-                       e.g. \"1,4,67,89\". Note that selected records will be
+                       e.g. \"1,4,67,89\". Note that selected rows will be
                        emitted in file order, not in the order given.
+    -L, --last <n>     Return last <n> rows from file. Incompatible with other
+                       flags. Runs in O(n) time & memory if file is seekable.
+                       Else runs in O(N) time (N being the total number of rows of
+                       the file) and O(n) memory.
 
 slice options to use with expressions:
     -S, --start-condition <expr>  Do not start yielding rows until given expression
@@ -113,9 +122,9 @@ slice options to use with expressions:
 
 slice options to use with byte offets:
     -B, --byte-offset <b>  Byte offset to seek to in the sliced file. This can
-                           be useful to access a particular slice of records in
+                           be useful to access a particular slice of rows in
                            constant time, without needing to read preceding bytes.
-                           You must provide a byte offset starting a CSV record or
+                           You must provide a byte offset starting a CSV row or
                            the output could be corrupted. This requires the input
                            to be seekable (stdin or gzipped files not supported).
     --end-byte <b>         Only read up to provided position in byte, exclusive.
@@ -141,6 +150,7 @@ struct Args {
     flag_len: Option<usize>,
     flag_index: Option<usize>,
     flag_indices: Option<String>,
+    flag_last: Option<usize>,
     flag_start_condition: Option<String>,
     flag_end_condition: Option<String>,
     flag_byte_offset: Option<u64>,
@@ -161,6 +171,10 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
+
+    if args.flag_last.is_some() {
+        return args.run_last();
+    }
 
     if args.flag_indices.is_some() {
         if args.flag_start_condition.is_some() || args.flag_end_condition.is_some() {
@@ -238,6 +252,61 @@ impl Args {
 
             record_index += 1;
         }
+
+        Ok(wtr.flush()?)
+    }
+
+    fn run_last(&self) -> CliResult<()> {
+        let rconf = self.rconfig().no_headers(true);
+        let mut rdr = rconf.reader()?;
+        let mut wtr = self.wconfig().writer()?;
+
+        let n = self.flag_last.unwrap();
+
+        let headers = rdr.byte_headers()?.clone();
+        let headers_size = rdr.position().byte();
+
+        if !self.flag_no_headers {
+            wtr.write_byte_record(&headers)?;
+        }
+
+        match rconf.io_reader_for_reverse_reading(headers_size) {
+            Ok(reverse_reader) => {
+                let mut reverse_csv_reader = rconf.csv_reader_from_reader(reverse_reader);
+
+                let records = reverse_csv_reader
+                    .byte_records()
+                    .take(n)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                for record in records.into_iter().rev() {
+                    wtr.write_record(
+                        record
+                            .iter()
+                            .rev()
+                            .map(|cell| cell.iter().rev().copied().collect::<Vec<_>>()),
+                    )?;
+                }
+            }
+            Err(_) => {
+                let mut buffer: VecDeque<csv::ByteRecord> = VecDeque::with_capacity(n);
+
+                for result in rdr
+                    .byte_records()
+                    .skip(if self.flag_no_headers { 0 } else { 1 })
+                {
+                    if buffer.len() >= n {
+                        buffer.pop_front();
+                    }
+
+                    buffer.push_back(result?);
+                }
+
+                for record in buffer {
+                    wtr.write_byte_record(&record)?;
+                }
+            }
+        };
 
         Ok(wtr.flush()?)
     }
