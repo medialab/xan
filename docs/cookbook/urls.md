@@ -1,7 +1,7 @@
 # Joining files by URL prefixes
 
 - [Use case](#use-case)
-- [Basic `xan url-join` usage](#basic-xan-url-join-usage)
+- [Basic `xan fuzzy-join -u/--url-prefix` usage](#basic-xan-fuzzy-join--u--url-prefix-usage)
 - [Keeping only certain columns from second file in final output](#keeping-only-certain-columns-from-second-file-in-final-output)
 - [What to do when entities are symbolized by multiple urls](#what-to-do-when-entities-are-symbolized-by-multiple-urls)
 - [Keeping rows from first file even if they do not match](#keeping-rows-from-first-file-even-if-they-do-not-match)
@@ -11,7 +11,7 @@
 
 ## Use case
 
-In this guide I will show you how to use the `xan url-join` command to "join" (i.e. match rows) two CSV files containing urls.
+In this guide I will show you how to use the `xan fuzzy-join -u/--url-prefix` command to "join" (i.e. match rows) two CSV files containing urls.
 
 The usecase is the following: let's say on the one hand you are interested by online media websites and you have a CSV file listing those medias along with some useful metadata:
 
@@ -41,12 +41,12 @@ But now if you want to be able to answer whether your users share more right-win
 | 3        | @mary        | https://www.liberation.fr/societe/sante/apres-la-vaccination... | left     |
 | ...      | ...          | ...                                                             | ...      |
 
-## Basic `xan url-join` usage
+## Basic `xan fuzzy-join -u/--url-prefix` usage
 
 Fortunately `xan` do this from the comfort of the command line (note that doing so correctly and efficiently is not completely straightforward and you can read more about it [at the end of this document](#the-difficulty-of-joining-files-by-urls) if you wish).
 
 ```bash
-xan url-join url tweets.csv homepage medias.csv > joined.csv
+xan fuzzy-join -u url tweets.csv homepage medias.csv > joined.csv
 ```
 
 Do so and you will get a `joined.csv` file with same columns as `tweets.csv` with 4 new columns `id`, `media`, `homepage` and `politics`, filled with relevant info from the `medias.csv` file when a match was found.
@@ -54,7 +54,7 @@ Do so and you will get a `joined.csv` file with same columns as `tweets.csv` wit
 The order in which the arguments are to be given can be hard to remember, so be sure to try `xan`'s help before doing things in reverse:
 
 ```bash
-xan url-join -h
+xan fuzzy-join -h
 ```
 
 ## Keeping only certain columns from second file in final output
@@ -64,7 +64,7 @@ In some cases, you may want to avoid copying all the columns from the second fil
 ```bash
 # `:2` in the selection means "first columns up to column with index 2, inclusive",
 # or said differently "the first three column",
-xan url-join url tweets.csv homepage medias.csv -R media_ | xan select :2,media_politics > joined.csv
+xan fuzzy-join -u url tweets.csv homepage medias.csv -R media_ | xan select :2,media_politics > joined.csv
 ```
 
 and you will get:
@@ -115,19 +115,19 @@ As such, the same metadata can be accessed through different urls.
 
 But you may also prefer keeping both urls in the same CSV line and to do so, people often keep them in a single cell, separated by a specific character such as `|`, `,` or just a simple whitespace, for instance.
 
-To handle this, `xan` can be told to "explode" the file before passing it to `url-join` downstream so you can represent your entities thusly:
+To handle this, `xan` can be told to "explode" the file before passing it to `fuzzy-join` downstream so you can represent your entities thusly:
 
 | id  | prefixes                                             | media   | politics |
 | --- | ---------------------------------------------------- | ------- | -------- |
 | 1   | https://www.lemonde.fr https://twitter.com/lemondefr | lemonde | center   |
 | ... | ...                                                  | ...     | ...      |
 
-You can then pipe `xan explode` into `xan url-join` to consider each prefix as a distinct row:
+You can then pipe `xan explode` into `xan fuzzy-join` to consider each prefix as a distinct row:
 
 ```bash
-# Note how "-" is meant to represent stdin in the url-join command
+# Note how "-" is meant to represent stdin in the fuzzy-join command
 xan explode prefixes --sep " " --rename prefix medias.csv | \
-xan url-join prefix - url tweets.csv > joined.csv
+xan fuzzy-join -u prefix - url tweets.csv > joined.csv
 ```
 
 ## Keeping rows from first file even if they do not match
@@ -156,7 +156,7 @@ and our medias file here:
 a left join using the following command:
 
 ```bash
-xan url-join url tweets.csv homepage medias.csv --left | xan select tweet_id,media > joined.csv
+xan fuzzy-join -u url tweets.csv homepage medias.csv --left | xan select tweet_id,media > joined.csv
 ```
 
 would produce:
@@ -172,7 +172,7 @@ would produce:
 
 ## Sidestepping issues related to http/https or www
 
-Differences between `http` & `https` and the presence of other url details irrelevant for prefix matching can sometimes cause issues. Fortunately, `xan url-join` has a `-S/--simplified` flag that will sidestep this issue by ignoring url scheme and usually irrelevant parts such as `www` subdomains, ports, user auth etc.
+Differences between `http` & `https` and the presence of other url details irrelevant for prefix matching can sometimes cause issues. Fortunately, `xan fuzzy-join` has a `-S/--simplified` flag that will sidestep this issue by ignoring url scheme and usually irrelevant parts such as `www` subdomains, ports, user auth etc.
 
 What's more, `xan` commands do not care whether url scheme is present. Which means given a slighlty altered medias file like this one:
 
@@ -187,7 +187,7 @@ What's more, `xan` commands do not care whether url scheme is present. Which mea
 we could match our tweets with the following command:
 
 ```bash
-xan url-join url tweets.csv homepage medias.csv -S > joined.csv
+xan fuzzy-join -u url tweets.csv homepage medias.csv -S > joined.csv
 ```
 
 ## What to do when you only want to filter the file

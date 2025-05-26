@@ -15,6 +15,7 @@ The **parallel** update.
 * Dropping `xan freq -t/--threshold`. Use `xan freq | xan filter 'count >= n'` instead.
 * Adding `xan slice -I/--indices` taking care of `xan slice -i` polymorphism taking multiple indices before.
 * `xan parallel freq` now follows `xan freq` behavior regarding limits.
+* Dropping `xan url-join` & `xan regex-join`. Both commands have been merged into a new `xan fuzzy-join` command using the `-u/--url-prefix` & `-r/--regex` flags respectively.
 
 *Features*
 

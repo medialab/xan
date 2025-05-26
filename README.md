@@ -536,8 +536,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 
 - [**cat**](./docs/cmd/cat.md): Concatenate by row or column
 - [**join**](./docs/cmd/join.md): Join CSV files
-- [**regex-join**](./docs/cmd/regex-join.md): Fuzzy join CSV files using regex patterns
-- [**url-join**](./docs/cmd/url-join.md): Join CSV files on url prefixes
+- [**fuzzy-join**](./docs/cmd/fuzzy-join.md): Join a CSV file with another containing patterns (e.g. regexes)
 - [**merge**](./docs/cmd/merge.md): Merge multiple similar already sorted CSV files
 
 *Add, transform, drop and move columns*

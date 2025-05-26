@@ -63,8 +63,7 @@ macro_rules! command_list {
 ## Combine multiple CSV files
     cat         Concatenate by row or column
     join        Join CSV files
-    regex-join  Fuzzy join CSV files using regex patterns
-    url-join    Join CSV files on url prefixes
+    fuzzy-join  Join a CSV file with another containing patterns (e.g. regexes)
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns
@@ -265,6 +264,8 @@ enum Command {
     Freq,
     Frequency,
     From,
+    #[serde(rename = "fuzzy-join")]
+    FuzzyJoin,
     Groupby,
     Guillotine,
     H,
@@ -285,8 +286,6 @@ enum Command {
     Plot,
     Progress,
     Range,
-    #[serde(rename = "regex-join")]
-    RegexJoin,
     Rename,
     Reverse,
     Sample,
@@ -304,8 +303,6 @@ enum Command {
     Transform,
     Transpose,
     T,
-    #[serde(rename = "url-join")]
-    UrlJoin,
     V,
     View,
     Vocab,
@@ -344,6 +341,7 @@ impl Command {
             Command::ForEach => cmd::foreach::run(argv),
             Command::Freq | Command::Frequency => cmd::frequency::run(argv),
             Command::From => cmd::from::run(argv),
+            Command::FuzzyJoin => cmd::fuzzy_join::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),
             Command::Heatmap => cmd::heatmap::run(argv),
@@ -368,7 +366,6 @@ impl Command {
             Command::Plot => cmd::plot::run(argv),
             Command::Progress => cmd::progress::run(argv),
             Command::Range => cmd::range::run(argv),
-            Command::RegexJoin => cmd::regex_join::run(argv),
             Command::Rename => cmd::rename::run(argv),
             Command::Reverse => cmd::reverse::run(argv),
             Command::Sample => cmd::sample::run(argv),
@@ -385,7 +382,6 @@ impl Command {
             Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose | Command::T => cmd::transpose::run(argv),
-            Command::UrlJoin => cmd::url_join::run(argv),
             Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
         }

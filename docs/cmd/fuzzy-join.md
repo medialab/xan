@@ -1,10 +1,17 @@
 <!-- Generated -->
-# xan regex-join
+# xan fuzzy-join
 
 ```txt
-Join a CSV file containing a column of regex patterns with another CSV file.
+Join a CSV file containing a column of patterns that will be matched with rows
+of another CSV file.
 
-The default behavior of this command is to be an 'inner join', which
+This command has several flags to select the way to perform matches:
+
+    * (default): matching a substring (e.g. "john" in "My name is john")
+    * -r, --regex: using a regular expression
+    * -u, --url-prefix: matching by url prefix (e.g. "lemonde.fr/business")
+
+The default behavior of this command is to do an 'inner join', which
 means only matched rows will be written in the output. Use the --left
 flag if you want to perform a 'left join' and keep every row of the searched
 file in the output.
@@ -15,13 +22,9 @@ while the second one will always be streamed.
 You can of course work on gzipped files if needed and feed one of both
 files from stdin by using `-` instead of a path.
 
-Note that this commands relies on a regexset under the hood and is
-more performant than just testing every regex pattern for each row
-of the other CSV file.
-
-This remains a costly operation, especially when testing a large
-number of regex patterns, so a -p/--parallel and -t/--threads
-flag can be used to use multiple CPUs and speed up the search.
+Fuzzy-join is a costly operation, especially when testing a large number of patterns,
+so a -p/--parallel and -t/--threads flag can be used to use multiple CPUs and
+speed up the search.
 
 A typical use-case for this command is to fuzzy search family
 names, using regex patterns, in some text column of a CSV file, all while
@@ -32,11 +35,19 @@ actually need to join columns from the patterns file, you should
 probably use `xan search --regex --patterns` instead.
 
 Usage:
-    xan regex-join [options] <columns> <input> <pattern-column> <patterns>
-    xan regex-join --help
+    xan fuzzy-join [options] <columns> <input> <pattern-columns> <patterns>
+    xan fuzzy-join --help
 
-join options:
-    -i, --ignore-case            Make the regex patterns case-insensitive.
+fuzzy-join options:
+    -r, --regex                  Join by regex patterns.
+    -u, --url-prefix             Join by url prefix, i.e. cells must contain urls
+                                 matching the searched url prefix. Urls are first
+                                 reordered using a scheme called a LRU, that you can
+                                 read about here:
+                                 https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+    -i, --ignore-case            Make the patterns case-insensitive.
+    -S, --simplified             When using -u/--url-prefix, drop irrelevant parts of the urls,
+                                 like the scheme, `www.` subdomains etc. to facilitate matches.
     --left                       Write every row from input file in the output, with empty
                                  padding cells on the right when no regex pattern from the second
                                  file produced any match.
