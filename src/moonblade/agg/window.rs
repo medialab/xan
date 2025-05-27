@@ -54,6 +54,7 @@ enum ConcreteWindowAggregation {
     Lead(ConcreteExpr, usize),
     Lag(ConcreteExpr, usize),
     RowNumber(usize),
+    RowIndex(usize),
     CumulativeSum(ConcreteExpr, Sum),
     CumulativeMin(ConcreteExpr, Option<DynamicNumber>),
     CumulativeMax(ConcreteExpr, Option<DynamicNumber>),
@@ -115,6 +116,11 @@ impl ConcreteWindowAggregation {
                 *counter += 1;
                 Ok(DynamicValue::from(*counter))
             }
+            Self::RowIndex(counter) => {
+                let idx = *counter;
+                *counter += 1;
+                Ok(DynamicValue::from(idx))
+            }
             Self::CumulativeSum(expr, sum) => {
                 let number = eval_expression_to_number(expr, index, record, headers_index)?;
 
@@ -160,7 +166,7 @@ impl ConcreteWindowAggregation {
 
     fn clear(&mut self) {
         match self {
-            Self::RowNumber(counter) => {
+            Self::RowNumber(counter) | Self::RowIndex(counter) => {
                 *counter = 0;
             }
             Self::CumulativeSum(_, sum) => {
@@ -182,7 +188,7 @@ impl ConcreteWindowAggregation {
 
 fn get_function(name: &str) -> Option<FunctionArguments> {
     Some(match name {
-        "row_number" => FunctionArguments::nullary(),
+        "row_number" | "row_index" => FunctionArguments::nullary(),
         "lag" | "lead" => FunctionArguments::with_range(1..=2),
         "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
         "rolling_sum" => FunctionArguments::binary(),
@@ -224,6 +230,9 @@ fn concretize_window_aggregations(
         match func_name.as_str() {
             "row_number" => {
                 concrete_aggs.push((agg.agg_name, ConcreteWindowAggregation::RowNumber(0)));
+            }
+            "row_index" => {
+                concrete_aggs.push((agg.agg_name, ConcreteWindowAggregation::RowIndex(0)));
             }
             "lead" | "lag" => {
                 let n = if agg.args.len() == 1 {
