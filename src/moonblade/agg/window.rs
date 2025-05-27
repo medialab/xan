@@ -55,7 +55,20 @@ enum ConcreteWindowAggregation {
     Lag(ConcreteExpr, usize),
     RowNumber(usize),
     CumulativeSum(ConcreteExpr, Sum),
+    CumulativeMin(ConcreteExpr, Option<DynamicNumber>),
+    CumulativeMax(ConcreteExpr, Option<DynamicNumber>),
     RollingSum(ConcreteExpr, RollingSum),
+}
+
+fn eval_expression_to_number(
+    expr: &ConcreteExpr,
+    index: usize,
+    record: &ByteRecord,
+    headers_index: &HeadersIndex,
+) -> Result<DynamicNumber, SpecifiedEvaluationError> {
+    let value = eval_expression(expr, Some(index), record, headers_index)?;
+
+    value.try_as_number().map_err(|err| err.anonymous())
 }
 
 impl ConcreteWindowAggregation {
@@ -103,15 +116,42 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(*counter))
             }
             Self::CumulativeSum(expr, sum) => {
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let number = eval_expression_to_number(expr, index, record, headers_index)?;
 
-                sum.add(value.try_as_number().map_err(|err| err.anonymous())?);
+                sum.add(number);
 
                 Ok(DynamicValue::from(sum.get()))
             }
+            Self::CumulativeMin(expr, min) => {
+                let number = eval_expression_to_number(expr, index, record, headers_index)?;
+
+                match min {
+                    None => *min = Some(number),
+                    Some(current) => {
+                        if number < *current {
+                            *current = number;
+                        }
+                    }
+                };
+
+                Ok(DynamicValue::from(*min))
+            }
+            Self::CumulativeMax(expr, max) => {
+                let number = eval_expression_to_number(expr, index, record, headers_index)?;
+
+                match max {
+                    None => *max = Some(number),
+                    Some(current) => {
+                        if number > *current {
+                            *current = number;
+                        }
+                    }
+                };
+
+                Ok(DynamicValue::from(*max))
+            }
             Self::RollingSum(expr, sum) => {
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
-                let number = value.try_as_number().map_err(|err| err.anonymous())?;
+                let number = eval_expression_to_number(expr, index, record, headers_index)?;
 
                 Ok(DynamicValue::from(sum.add(number)))
             }
@@ -126,6 +166,12 @@ impl ConcreteWindowAggregation {
             Self::CumulativeSum(_, sum) => {
                 sum.clear();
             }
+            Self::CumulativeMin(_, min) => {
+                *min = None;
+            }
+            Self::CumulativeMax(_, max) => {
+                *max = None;
+            }
             Self::RollingSum(_, sum) => {
                 sum.clear();
             }
@@ -138,7 +184,7 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "row_number" => FunctionArguments::nullary(),
         "lag" | "lead" => FunctionArguments::with_range(1..=2),
-        "cumsum" => FunctionArguments::unary(),
+        "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
         "rolling_sum" => FunctionArguments::binary(),
         _ => return None,
     })
@@ -200,12 +246,17 @@ fn concretize_window_aggregations(
 
                 concrete_aggs.push((agg.agg_name, concrete_agg));
             }
-            "cumsum" => {
+            "cumsum" | "cummin" | "cummax" => {
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
 
                 concrete_aggs.push((
                     agg.agg_name,
-                    ConcreteWindowAggregation::CumulativeSum(expr, Sum::new()),
+                    match func_name.as_str() {
+                        "cumsum" => ConcreteWindowAggregation::CumulativeSum(expr, Sum::new()),
+                        "cummin" => ConcreteWindowAggregation::CumulativeMin(expr, None),
+                        "cummax" => ConcreteWindowAggregation::CumulativeMax(expr, None),
+                        _ => unreachable!(),
+                    },
                 ))
             }
             "rolling_sum" => {

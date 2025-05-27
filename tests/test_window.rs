@@ -224,6 +224,36 @@ fn window_cumsum() {
 }
 
 #[test]
+fn window_cummin_cummax() {
+    let wrk = Workdir::new("window_cummin_cummax");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["n"],
+            svec!["1"],
+            svec!["2"],
+            svec!["3"],
+            svec!["0"],
+            svec!["5"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("cummin(n), cummax(n)").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "cummin(n)", "cummax(n)"],
+        svec!["1", "1", "1"],
+        svec!["2", "1", "2"],
+        svec!["3", "1", "3"],
+        svec!["0", "0", "3"],
+        svec!["5", "0", "5"],
+    ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn window_rolling_sum() {
     let wrk = Workdir::new("window_rolling_sum");
     wrk.create(
