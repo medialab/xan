@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use csv::ByteRecord;
 
-use super::aggregators::Sum;
+use super::aggregators::{Sum, Welford};
 use crate::moonblade::error::{ConcretizationError, SpecifiedEvaluationError};
 use crate::moonblade::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use crate::moonblade::parser::parse_aggregations;
@@ -49,6 +49,66 @@ impl RollingSum {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum WelfordStat {
+    Mean,
+    Var,
+    Stddev,
+}
+
+#[derive(Debug)]
+struct RollingWelford {
+    buffer: VecDeque<f64>,
+    window_size: usize,
+    welford: Welford,
+}
+
+impl RollingWelford {
+    fn with_window_size(window_size: usize) -> Self {
+        Self {
+            buffer: VecDeque::with_capacity(window_size),
+            window_size,
+            welford: Welford::new(),
+        }
+    }
+
+    fn get(&self, stat: WelfordStat) -> Option<f64> {
+        if self.buffer.len() < self.window_size {
+            return None;
+        }
+
+        match stat {
+            WelfordStat::Mean => self.welford.mean(),
+            WelfordStat::Var => self.welford.variance(),
+            WelfordStat::Stddev => self.welford.stdev(),
+        }
+    }
+
+    fn add(&mut self, new_value: f64, stat: WelfordStat) -> Option<f64> {
+        if self.buffer.len() == self.window_size {
+            self.welford
+                .roll(new_value, self.buffer.pop_front().unwrap());
+            self.buffer.push_back(new_value);
+
+            self.get(stat)
+        } else {
+            self.buffer.push_back(new_value);
+            self.welford.add(new_value);
+
+            if self.buffer.len() == self.window_size {
+                self.get(stat)
+            } else {
+                None
+            }
+        }
+    }
+
+    fn clear(&mut self) {
+        self.buffer.clear();
+        self.welford.clear();
+    }
+}
+
 #[derive(Debug)]
 enum ConcreteWindowAggregation {
     Lead(ConcreteExpr, usize),
@@ -59,6 +119,7 @@ enum ConcreteWindowAggregation {
     CumulativeMin(ConcreteExpr, Option<DynamicNumber>),
     CumulativeMax(ConcreteExpr, Option<DynamicNumber>),
     RollingSum(ConcreteExpr, RollingSum),
+    RollingWelford(ConcreteExpr, WelfordStat, RollingWelford),
 }
 
 fn eval_expression_to_number(
@@ -161,6 +222,12 @@ impl ConcreteWindowAggregation {
 
                 Ok(DynamicValue::from(sum.add(number)))
             }
+            Self::RollingWelford(expr, stat, welford) => {
+                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let float = value.try_as_f64().map_err(|err| err.anonymous())?;
+
+                Ok(DynamicValue::from(welford.add(float, *stat)))
+            }
         }
     }
 
@@ -181,6 +248,9 @@ impl ConcreteWindowAggregation {
             Self::RollingSum(_, sum) => {
                 sum.clear();
             }
+            Self::RollingWelford(_, _, welford) => {
+                welford.clear();
+            }
             Self::Lag(_, _) | Self::Lead(_, _) => (),
         };
     }
@@ -191,7 +261,9 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "lag" | "lead" => FunctionArguments::with_range(1..=2),
         "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
-        "rolling_sum" => FunctionArguments::binary(),
+        "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
+            FunctionArguments::binary()
+        }
         _ => return None,
     })
 }
@@ -268,7 +340,7 @@ fn concretize_window_aggregations(
                     },
                 ))
             }
-            "rolling_sum" => {
+            "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
                 let window_size = cast_as_usize(&concretize_expression(
                     agg.args.pop().unwrap(),
@@ -278,10 +350,30 @@ fn concretize_window_aggregations(
 
                 concrete_aggs.push((
                     agg.agg_name,
-                    ConcreteWindowAggregation::RollingSum(
-                        expr,
-                        RollingSum::with_window_size(window_size),
-                    ),
+                    match func_name.as_str() {
+                        "rolling_sum" => ConcreteWindowAggregation::RollingSum(
+                            expr,
+                            RollingSum::with_window_size(window_size),
+                        ),
+                        "rolling_mean" | "rolling_avg" => {
+                            ConcreteWindowAggregation::RollingWelford(
+                                expr,
+                                WelfordStat::Mean,
+                                RollingWelford::with_window_size(window_size),
+                            )
+                        }
+                        "rolling_var" => ConcreteWindowAggregation::RollingWelford(
+                            expr,
+                            WelfordStat::Var,
+                            RollingWelford::with_window_size(window_size),
+                        ),
+                        "rolling_stddev" => ConcreteWindowAggregation::RollingWelford(
+                            expr,
+                            WelfordStat::Stddev,
+                            RollingWelford::with_window_size(window_size),
+                        ),
+                        _ => unreachable!(),
+                    },
                 ));
             }
             _ => unreachable!(),

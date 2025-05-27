@@ -32,6 +32,23 @@ impl Welford {
         self.m2 = m2;
     }
 
+    pub fn roll(&mut self, new_value: f64, old_value: f64) {
+        let (count, mut mean, mut m2) = (self.count, self.mean, self.m2);
+
+        let diff = new_value - old_value;
+
+        let old_mean = mean;
+        mean += diff / count as f64;
+
+        // NOTE: supposedly better numerical stability
+        m2 += (new_value + old_value - old_mean - mean) * diff;
+        // m2 += (new_value - old_mean) * (new_value - mean)
+        //     - (old_value - old_mean) * (old_value - mean);
+
+        self.mean = mean;
+        self.m2 = m2;
+    }
+
     pub fn mean(&self) -> Option<f64> {
         if self.count == 0 {
             return None;
