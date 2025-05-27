@@ -8,7 +8,6 @@ use crate::moonblade::interpreter::{concretize_expression, eval_expression, Conc
 use crate::moonblade::parser::parse_aggregations;
 use crate::moonblade::types::{DynamicValue, FunctionArguments, HeadersIndex};
 
-// TODO: abstract cumulative, abstract rolling
 #[derive(Debug)]
 enum ConcreteWindowAggregation {
     Lead(ConcreteExpr, usize),
@@ -69,6 +68,18 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(sum.get()))
             }
         }
+    }
+
+    fn clear(&mut self) {
+        match self {
+            Self::RowNumber(counter) => {
+                *counter = 0;
+            }
+            Self::CumulativeSum(_, sum) => {
+                sum.clear();
+            }
+            _ => (),
+        };
     }
 }
 
@@ -265,7 +276,7 @@ impl WindowAggregationProgram {
         Ok(Some(output_record))
     }
 
-    pub fn flush(mut self) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
+    pub fn flush(&mut self) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
         if let Some((_, future_buffer)) = self.future_buffer.as_mut() {
             let padding = (0..self.output_buffer.len())
                 .map(|_| b"")
@@ -281,5 +292,23 @@ impl WindowAggregationProgram {
         }
 
         Ok(vec![])
+    }
+
+    pub fn flush_and_clear(&mut self) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
+        let records = self.flush()?;
+
+        if let Some((_, past_buffer)) = &mut self.past_buffer {
+            past_buffer.clear();
+        }
+
+        if let Some((_, future_buffer)) = &mut self.future_buffer {
+            future_buffer.clear();
+        }
+
+        for (_, agg) in &mut self.aggs {
+            agg.clear();
+        }
+
+        Ok(records)
     }
 }
