@@ -58,3 +58,4 @@ pub mod transform;
 pub mod transpose;
 pub mod view;
 pub mod vocab;
+pub mod window;

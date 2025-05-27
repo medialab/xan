@@ -10,7 +10,7 @@ mod special_functions;
 mod types;
 mod utils;
 
-pub use self::agg::{AggregationProgram, GroupAggregationProgram, Stats};
+pub use self::agg::{AggregationProgram, GroupAggregationProgram, Stats, WindowAggregationProgram};
 pub use self::choose::ChooseProgram;
 pub use self::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 pub use self::interpreter::{GlobalVariables, Program};

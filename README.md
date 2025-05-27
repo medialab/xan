@@ -531,6 +531,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**stats**](./docs/cmd/stats.md): Compute basic statistics
 - [**agg**](./docs/cmd/agg.md): Aggregate data from CSV file
 - [**bins**](./docs/cmd/bins.md): Dispatch numeric columns into bins
+- [**window**](./docs/cmd/window.md): Compute window aggregations (cumsum, rolling mean, lag etc.)
 
 *Combine multiple CSV files*
 

@@ -59,6 +59,7 @@ macro_rules! command_list {
     stats            Compute basic statistics
     agg              Aggregate data from CSV file
     bins             Dispatch numeric columns into bins
+    window           Compute window aggregations (cumsum, rolling mean, lag etc.)
 
 ## Combine multiple CSV files
     cat         Concatenate by row or column
@@ -306,6 +307,7 @@ enum Command {
     V,
     View,
     Vocab,
+    Window,
 }
 
 impl Command {
@@ -384,6 +386,7 @@ impl Command {
             Command::Transpose | Command::T => cmd::transpose::run(argv),
             Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
+            Command::Window => cmd::window::run(argv),
         }
     }
 }
