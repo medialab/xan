@@ -51,13 +51,13 @@ You can group on multiple columns (read `xan select -h` for more information abo
 
     $ xan groupby name,surname 'sum(count)' file.csv
 
+For a list of available aggregation functions, use `xan help aggs`
+instead.
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
 For a list of available functions, use `xan help functions`.
-
-For a list of available aggregation functions, use `xan help aggs`
-instead.
 
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created

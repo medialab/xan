@@ -43,6 +43,7 @@ The **parallel** update.
 * Adding `xan search -U/--unique-matches & --sep & --left`.
 * Adding parallelization through novel file segmentation of files compressed with `bgzip` when a `.gzi` index can be found.
 * Adding the `xan window` command for window aggregations like rolling averages, cumulative sums, lags etc.
+* Adding `xan help window`.
 
 *Fixes*
 

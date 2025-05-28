@@ -2,7 +2,32 @@
 # xan window
 
 ```txt
-TODO...
+Compute window aggregations such as cumulative sums, rolling means, leading and
+lagging values etc.
+
+This command is able to compute multiple aggregations in a single pass over the
+file, and never uses more memory that required to fit the largest desired window
+for rolling stats and leads/lags.
+
+Computing a cumulative sum:
+
+    $ xan window 'cumsum(n)' file.csv
+
+Computing a rolling mean & variance:
+
+    $ xan window 'rolling_mean(10, n) as mean, rolling_var(10, n) as var' file.csv
+
+Adding a lagged column:
+
+    $ xan window 'lag(n) as "n-1"' file.csv
+
+For a list of available window aggregation functions, use `xan help window`
+instead.
+
+For a quick review of the capabilities of the expression language,
+check out the `xan help cheatsheet` command.
+
+For a list of available functions, use `xan help functions`.
 
 Usage:
     xan window [options] <expression> [<input>]
