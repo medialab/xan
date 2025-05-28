@@ -573,7 +573,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**split**](./docs/cmd/split.md): Split CSV data into chunks
 - [**partition**](./docs/cmd/partition.md): Partition CSV data based on a column value
 
-*Parallel operation over multiple CSV files*
+*Parallelization*
 
 - [**parallel (p)**](./docs/cmd/parallel.md): Map-reduce-like parallel computation
 

@@ -97,7 +97,7 @@ macro_rules! command_list {
     split       Split CSV data into chunks
     partition   Partition CSV data based on a column value
 
-## Parallel operation over multiple CSV files
+## Parallelization
     parallel (p) Map-reduce-like parallel computation
 
 ## Generate CSV files
