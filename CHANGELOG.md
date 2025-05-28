@@ -70,6 +70,7 @@ The **parallel** update.
 *Performance*
 
 * Switching hashmaps to `ahash`.
+* Optimizing moonblade pipelines with more than a single underscore substitution.
 
 *Quality of Life*
 

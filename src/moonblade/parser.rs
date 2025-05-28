@@ -332,8 +332,17 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                         Some(_) => Expr::Func(FunctionCall::new(&name, vec![lhs?])),
                     },
                     mut rest => {
-                        rest.fill_underscore(&lhs?);
-                        rest
+                        let mut counter: usize = 0;
+                        rest.count_underscores(&mut counter);
+
+                        if counter == 0 {
+                            rest
+                        } else if counter == 1 {
+                            rest.fill_underscore(&lhs?);
+                            rest
+                        } else {
+                            Expr::Pipeline(vec![lhs?, rest])
+                        }
                     }
                 },
 
@@ -432,6 +441,7 @@ pub enum Slice<T> {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Func(FunctionCall),
+    Pipeline(Vec<Expr>),
     Lambda(Vec<String>, Box<Expr>),
     LambdaBinding(String),
     Int(i64),
@@ -503,6 +513,30 @@ impl Expr {
             }
             _ => (),
         };
+    }
+
+    fn count_underscores(&self, counter: &mut usize) {
+        match self {
+            Expr::Func(call) => {
+                for (_, arg) in call.args.iter() {
+                    arg.count_underscores(counter);
+                }
+            }
+            Expr::List(list) => {
+                for item in list.iter() {
+                    item.count_underscores(counter);
+                }
+            }
+            Expr::Map(map) => {
+                for (_, value) in map.iter() {
+                    value.count_underscores(counter);
+                }
+            }
+            Expr::Underscore => {
+                *counter += 1;
+            }
+            _ => (),
+        }
     }
 
     fn fill_underscore(&mut self, with: &Expr) {
@@ -1158,7 +1192,10 @@ mod tests {
         // Double underscore
         assert_eq!(
             parse_expression("count | add(_, _)"),
-            Ok(func("add", vec![id("count"), id("count")]))
+            Ok(Expr::Pipeline(vec![
+                id("count"),
+                func("add", vec![Expr::Underscore, Expr::Underscore])
+            ]))
         );
 
         // Nested underscores

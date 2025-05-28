@@ -29,7 +29,6 @@ pub enum ConcretizationError {
     UnknownArgumentName(String),
     InvalidCSSSelector(String),
     StaticEvaluationError(SpecifiedEvaluationError),
-    UnfillableUnderscore,
     NotStaticallyAnalyzable,
 }
 
@@ -47,10 +46,6 @@ impl Display for ConcretizationError {
             }
             Self::InvalidCSSSelector(css) => write!(f, "invalid css selector: {}", css),
             Self::StaticEvaluationError(error) => error.fmt(f),
-            Self::UnfillableUnderscore => write!(
-                f,
-                "some underscore `_` was not fillable because it is not downstream of a pipe"
-            ),
             Self::NotStaticallyAnalyzable => write!(f, "not statically analyzable"),
         }
     }
@@ -142,6 +137,7 @@ pub enum EvaluationError {
     GlobalVariableOutOfRange(usize),
     UnicodeDecodeError,
     JSONParseError,
+    UnfillableUnderscore,
 }
 
 impl EvaluationError {
@@ -219,6 +215,10 @@ impl Display for EvaluationError {
             }
             Self::UnicodeDecodeError => write!(f, "unicode decode error"),
             Self::JSONParseError => write!(f, "json parse error"),
+            Self::UnfillableUnderscore => write!(
+                f,
+                "some underscore `_` was not fillable because it is not downstream of a pipe"
+            ),
         }
     }
 }

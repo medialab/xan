@@ -61,9 +61,37 @@ pub struct EvaluationContext<'a> {
     pub headers_index: &'a HeadersIndex,
     pub globals: Option<&'a GlobalVariables>,
     pub lambda_variables: Option<&'a LambdaArguments>,
+    pub last_value: Option<DynamicValue>,
 }
 
 impl<'a> EvaluationContext<'a> {
+    pub fn new(
+        index: Option<usize>,
+        record: &'a ByteRecord,
+        headers_index: &'a HeadersIndex,
+    ) -> Self {
+        Self {
+            index,
+            record,
+            headers_index,
+            globals: None,
+            lambda_variables: None,
+            last_value: None,
+        }
+    }
+
+    pub fn new_with_globals(
+        index: Option<usize>,
+        record: &'a ByteRecord,
+        headers_index: &'a HeadersIndex,
+        globals: &'a GlobalVariables,
+    ) -> Self {
+        let mut context = Self::new(index, record, headers_index);
+        context.globals = Some(globals);
+
+        context
+    }
+
     fn dummy(record: &'a ByteRecord, headers_index: &'a HeadersIndex) -> Self {
         Self {
             index: None,
@@ -71,6 +99,7 @@ impl<'a> EvaluationContext<'a> {
             headers_index,
             globals: None,
             lambda_variables: None,
+            last_value: None,
         }
     }
 
@@ -81,6 +110,7 @@ impl<'a> EvaluationContext<'a> {
             headers_index: self.headers_index,
             globals: self.globals,
             lambda_variables: Some(variables),
+            last_value: self.last_value.clone(),
         }
     }
 
@@ -91,6 +121,7 @@ impl<'a> EvaluationContext<'a> {
             headers_index: self.headers_index,
             globals: Some(globals),
             lambda_variables: self.lambda_variables,
+            last_value: self.last_value.clone(),
         }
     }
 }
@@ -106,6 +137,8 @@ pub enum ConcreteExpr {
     Map(Vec<(String, ConcreteExpr)>),
     Call(ConcreteFunctionCall),
     SpecialCall(ConcreteSpecialFunctionCall),
+    Pipeline(Vec<ConcreteExpr>),
+    Underscore,
 }
 
 // NOTE: the bind/evaluate distinction is still useful to propagate the calling
@@ -183,11 +216,16 @@ impl ConcreteExpr {
                 .expect("lambda_variables MUST be set")
                 .get(name)
                 .clone(),
+            Self::Underscore => match context.last_value.as_ref() {
+                None => return Err(EvaluationError::UnfillableUnderscore),
+                Some(last_value) => last_value.clone(),
+            },
             Self::List(_)
             | Self::Map(_)
             | Self::Call(_)
             | Self::SpecialCall(_)
-            | Self::Lambda(_, _) => unreachable!(),
+            | Self::Lambda(_, _)
+            | Self::Pipeline(_) => unreachable!(),
         })
     }
 
@@ -212,6 +250,18 @@ impl ConcreteExpr {
                 }
 
                 Ok(DynamicValue::from(bound))
+            }
+            Self::Pipeline(pipeline) => {
+                debug_assert!(!pipeline.is_empty());
+
+                let mut pipeline_context = context.clone();
+
+                for expr in pipeline {
+                    let value = expr.evaluate(&pipeline_context)?;
+                    pipeline_context.last_value = Some(value);
+                }
+
+                Ok(pipeline_context.last_value.unwrap())
             }
             _ => self.bind(context).map_err(|err| err.anonymous()),
         }
@@ -505,9 +555,7 @@ pub fn concretize_expression(
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
-        Expr::Underscore => {
-            return Err(ConcretizationError::UnfillableUnderscore);
-        }
+        Expr::Underscore => ConcreteExpr::Underscore,
         Expr::Null => ConcreteExpr::Value(DynamicValue::None),
         Expr::Bool(v) => ConcreteExpr::Value(DynamicValue::Boolean(v)),
         Expr::Float(v) => ConcreteExpr::Value(DynamicValue::Float(v)),
@@ -548,6 +596,12 @@ pub fn concretize_expression(
             names,
             Box::new(concretize_expression(*expr, headers, globals)?),
         ),
+        Expr::Pipeline(pipeline) => ConcreteExpr::Pipeline(
+            pipeline
+                .into_iter()
+                .map(|expr| concretize_expression(expr, headers, globals))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
         Expr::LambdaBinding(name) => ConcreteExpr::LambdaBinding(name),
         Expr::Slice(_) | Expr::StarSlice(_) => unreachable!(),
     })
@@ -560,13 +614,7 @@ pub fn eval_expression_with_globals(
     headers_index: &HeadersIndex,
     globals: &GlobalVariables,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let context = EvaluationContext {
-        index,
-        record,
-        headers_index,
-        globals: Some(globals),
-        lambda_variables: None,
-    };
+    let context = EvaluationContext::new_with_globals(index, record, headers_index, globals);
 
     expr.evaluate(&context)
 }
@@ -577,13 +625,7 @@ pub fn eval_expression(
     record: &ByteRecord,
     headers_index: &HeadersIndex,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let context = EvaluationContext {
-        index,
-        record,
-        headers_index,
-        globals: None,
-        lambda_variables: None,
-    };
+    let context = EvaluationContext::new(index, record, headers_index);
 
     expr.evaluate(&context)
 }
