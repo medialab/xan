@@ -47,7 +47,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_explain {
         println!("{}", "concrete plan".cyan());
-        println!("{:?}\n", program.expr);
+        println!("{:#?}\n", program.expr);
     }
 
     let mut dummy_row = csv::ByteRecord::new();
