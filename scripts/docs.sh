@@ -29,3 +29,4 @@ $XAN help cheatsheet --md > docs/moonblade/cheatsheet.md
 $XAN help functions --md > docs/moonblade/functions.md
 $XAN help aggs --md > docs/moonblade/aggs.md
 $XAN help scraping --md > docs/moonblade/scraping.md
+$XAN help window --md > docs/moonblade/window.md

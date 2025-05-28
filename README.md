@@ -650,6 +650,7 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 - [Cheatsheet](./docs/moonblade/cheatsheet.md)
 - [Comprehensive list of functions & operators](./docs/moonblade/functions.md)
 - [Comprehensive list of aggregation functions](./docs/moonblade/aggs.md)
+- [Comprehensive list of window aggregation functions](./docs/moonblade/window.md)
 - [Scraping DSL](./docs/moonblade/scraping.md)
 
 ## Cookbook

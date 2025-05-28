@@ -42,6 +42,14 @@ fn get_scraping_functions_json_str() -> &'static str {
     include_str!("../moonblade/doc/scraping.json")
 }
 
+fn get_window_help_prelude_str() -> &'static str {
+    include_str!("../moonblade/doc/window_prelude.txt")
+}
+
+fn get_window_help_json_str() -> &'static str {
+    include_str!("../moonblade/doc/window.json")
+}
+
 fn escape_markdown_argument(string: &str) -> String {
     string
         .replace("*", "\\*")
@@ -483,18 +491,18 @@ impl FunctionHelp {
 }
 
 #[derive(Debug, Deserialize)]
-struct Aggs(Vec<FunctionHelp>);
+struct Aggs(&'static str, Vec<FunctionHelp>);
 
 impl Aggs {
     fn to_txt(&self) -> String {
         let mut string = String::new();
 
-        string.push_str(&colorize_functions_help(get_aggs_help_prelude_str()));
+        string.push_str(&colorize_functions_help(self.0));
         string.push('\n');
 
         string.push_str(
             &self
-                .0
+                .1
                 .iter()
                 .map(|help| indent(&help.to_txt(), "    "))
                 .collect::<Vec<_>>()
@@ -507,12 +515,12 @@ impl Aggs {
     fn to_md(&self) -> String {
         let mut string = String::new();
 
-        string.push_str(get_aggs_help_prelude_str());
+        string.push_str(self.0);
         string.push('\n');
 
         string.push_str(
             &self
-                .0
+                .1
                 .iter()
                 .map(|help| help.to_md())
                 .collect::<Vec<_>>()
@@ -703,7 +711,14 @@ fn parse_operators_help() -> OperatorHelpSections {
 
 fn parse_aggs_help() -> Aggs {
     let json_str = get_aggs_help_json_str();
-    Aggs(serde_json::from_str::<Vec<FunctionHelp>>(json_str).unwrap())
+    let help: Vec<FunctionHelp> = serde_json::from_str(json_str).unwrap();
+    Aggs(get_aggs_help_prelude_str(), help)
+}
+
+fn parse_window_help() -> Aggs {
+    let json_str = get_window_help_json_str();
+    let help: Vec<FunctionHelp> = serde_json::from_str(json_str).unwrap();
+    Aggs(get_window_help_prelude_str(), help)
 }
 
 fn parse_scraping_help() -> ScrapingHelp {
@@ -732,6 +747,11 @@ https://github.com/medialab/xan/blob/master/docs/moonblade/aggs.md
 by `xan scrape` and the related functions. It can also be found online here:
 https://github.com/medialab/xan/blob/master/docs/moonblade/scraping.md
 
+`xan help window` will print the reference of all of the language's
+window aggregation functions (as used in `xan window`).
+It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/window.md
+
 Use the -p/--pager flag to open desired documentation in a suitable
 pager.
 
@@ -743,6 +763,7 @@ Usage:
     xan help functions [options]
     xan help aggs [options]
     xan help scraping [options]
+    xan help window [options]
     xan help --help
 
 help options:
@@ -765,6 +786,7 @@ struct Args {
     cmd_functions: bool,
     cmd_aggs: bool,
     cmd_scraping: bool,
+    cmd_window: bool,
     flag_open: bool,
     flag_pager: bool,
     flag_section: Option<String>,
@@ -784,6 +806,8 @@ impl Args {
                 "aggs"
             } else if self.cmd_scraping {
                 "scraping"
+            } else if self.cmd_window {
+                "window"
             } else {
                 unreachable!()
             }
@@ -868,6 +892,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             args.setup_pager()?;
             print!("{}", parse_scraping_help().to_txt());
+        }
+    } else if args.cmd_window {
+        if args.flag_json {
+            println!("{}", get_window_help_json_str());
+        } else if args.flag_md {
+            print!("{}", parse_window_help().to_md());
+        } else {
+            args.setup_pager()?;
+            print!("{}", parse_window_help().to_txt());
         }
     }
 

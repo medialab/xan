@@ -22,6 +22,11 @@ https://github.com/medialab/xan/blob/master/docs/moonblade/aggs.md
 by `xan scrape` and the related functions. It can also be found online here:
 https://github.com/medialab/xan/blob/master/docs/moonblade/scraping.md
 
+`xan help window` will print the reference of all of the language's
+window aggregation functions (as used in `xan window`).
+It can also be found online here:
+https://github.com/medialab/xan/blob/master/docs/moonblade/window.md
+
 Use the -p/--pager flag to open desired documentation in a suitable
 pager.
 
@@ -33,6 +38,7 @@ Usage:
     xan help functions [options]
     xan help aggs [options]
     xan help scraping [options]
+    xan help window [options]
     xan help --help
 
 help options:

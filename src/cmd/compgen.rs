@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 57] = [
+static COMMANDS: [&str; 58] = [
     "agg",
     "behead",
     "bins",
@@ -62,9 +62,10 @@ static COMMANDS: [&str; 57] = [
     "transpose",
     "view",
     "vocab",
+    "window",
 ];
 
-static HELP_SUBCOMMANDS: [&str; 4] = ["cheatsheet", "functions", "aggs", "scraping"];
+static HELP_SUBCOMMANDS: [&str; 5] = ["cheatsheet", "functions", "aggs", "scraping", "window"];
 static CAT_SUBCOMMANDS: [&str; 2] = ["rows", "columns"];
 static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];

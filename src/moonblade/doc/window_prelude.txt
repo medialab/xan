@@ -1,0 +1,1 @@
+# Available window aggregation functions
