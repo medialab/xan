@@ -141,23 +141,23 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(Deserialize)]
-struct Args {
-    arg_input: Option<String>,
+#[derive(Deserialize, Default)]
+pub struct Args {
+    pub arg_input: Option<String>,
     flag_start: Option<usize>,
     flag_skip: Option<usize>,
     flag_end: Option<usize>,
-    flag_len: Option<usize>,
+    pub flag_len: Option<usize>,
     flag_index: Option<usize>,
     flag_indices: Option<String>,
-    flag_last: Option<usize>,
+    pub flag_last: Option<usize>,
     flag_start_condition: Option<String>,
     flag_end_condition: Option<String>,
     flag_byte_offset: Option<u64>,
     flag_end_byte: Option<u64>,
-    flag_output: Option<String>,
-    flag_no_headers: bool,
-    flag_delimiter: Option<Delimiter>,
+    pub flag_output: Option<String>,
+    pub flag_no_headers: bool,
+    pub flag_delimiter: Option<Delimiter>,
 }
 
 impl Args {
@@ -166,61 +166,60 @@ impl Args {
             self.flag_start = Some(skip);
         }
     }
-}
 
-pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
-    args.resolve();
+    pub fn run(mut self) -> CliResult<()> {
+        self.resolve();
 
-    if args.flag_last.is_some() {
-        return args.run_last();
-    }
-
-    if args.flag_indices.is_some() {
-        if args.flag_start_condition.is_some() || args.flag_end_condition.is_some() {
-            Err("-I/--indices does not work with -S/--start-condition nor -E/--end-condition!")?;
+        if self.flag_last.is_some() {
+            return self.run_last();
         }
 
-        return {
-            let rconf = args.rconfig();
-
-            if let Some(offset) = args.flag_byte_offset {
-                let inner = rconf.io_reader_for_random_access()?;
-                let mut rdr = rconf.csv_reader_from_reader(inner);
-
-                let mut pos = csv::Position::new();
-                pos.set_byte(offset);
-
-                rdr.seek_raw(SeekFrom::Start(offset), pos)?;
-
-                args.run_plural(rdr)
-            } else {
-                let rdr = rconf.reader()?;
-                args.run_plural(rdr)
+        if self.flag_indices.is_some() {
+            if self.flag_start_condition.is_some() || self.flag_end_condition.is_some() {
+                Err(
+                    "-I/--indices does not work with -S/--start-condition nor -E/--end-condition!",
+                )?;
             }
-        };
+
+            return {
+                let rconf = self.rconfig();
+
+                if let Some(offset) = self.flag_byte_offset {
+                    let inner = rconf.io_reader_for_random_access()?;
+                    let mut rdr = rconf.csv_reader_from_reader(inner);
+
+                    let mut pos = csv::Position::new();
+                    pos.set_byte(offset);
+
+                    rdr.seek_raw(SeekFrom::Start(offset), pos)?;
+
+                    self.run_plural(rdr)
+                } else {
+                    let rdr = rconf.reader()?;
+                    self.run_plural(rdr)
+                }
+            };
+        }
+
+        let rconf = self.rconfig();
+
+        if let Some(offset) = self.flag_byte_offset {
+            let inner = rconf.io_reader_for_random_access()?;
+            let mut rdr = rconf.csv_reader_from_reader(inner);
+
+            let mut pos = csv::Position::new();
+            pos.set_byte(offset);
+
+            rdr.seek_raw(SeekFrom::Start(offset), pos)?;
+
+            self.run_default(rdr)
+        } else {
+            let rdr = rconf.reader()?;
+            self.run_default(rdr)
+        }
     }
 
-    let rconf = args.rconfig();
-
-    if let Some(offset) = args.flag_byte_offset {
-        let inner = rconf.io_reader_for_random_access()?;
-        let mut rdr = rconf.csv_reader_from_reader(inner);
-
-        let mut pos = csv::Position::new();
-        pos.set_byte(offset);
-
-        rdr.seek_raw(SeekFrom::Start(offset), pos)?;
-
-        args.run(rdr)
-    } else {
-        let rdr = rconf.reader()?;
-        args.run(rdr)
-    }
-}
-
-impl Args {
-    fn run<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
+    fn run_default<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
         self.rconfig().write_headers(&mut rdr, &mut wtr)?;
 
@@ -391,4 +390,9 @@ impl Args {
             has_started: false,
         })
     }
+}
+
+pub fn run(argv: &[&str]) -> CliResult<()> {
+    let args: Args = util::get_args(USAGE, argv)?;
+    args.run()
 }

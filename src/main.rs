@@ -44,6 +44,8 @@ macro_rules! command_list {
 ## Search & filter
     search      Search for (or replace) patterns in CSV data
     filter      Only keep some CSV rows based on an evaluated expression
+    head        First rows of CSV file
+    tail        Last rows of CSV file
     slice       Slice rows of CSV file
     top         Find top rows of a CSV file according to some column
     sample      Randomly sample CSV data
@@ -270,6 +272,7 @@ enum Command {
     Groupby,
     Guillotine,
     H,
+    Head,
     Headers,
     Heatmap,
     Help,
@@ -298,6 +301,7 @@ enum Command {
     Sort,
     Split,
     Stats,
+    Tail,
     To,
     Tokenize,
     Top,
@@ -345,6 +349,7 @@ impl Command {
             Command::From => cmd::from::run(argv),
             Command::FuzzyJoin => cmd::fuzzy_join::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
+            Command::Head => cmd::head::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),
             Command::Heatmap => cmd::heatmap::run(argv),
             Command::Help => {
@@ -379,6 +384,7 @@ impl Command {
             Command::Sort => cmd::sort::run(argv),
             Command::Split => cmd::split::run(argv),
             Command::Stats => cmd::stats::run(argv),
+            Command::Tail => cmd::tail::run(argv),
             Command::To => cmd::to::run(argv),
             Command::Tokenize => cmd::tokenize::run(argv),
             Command::Top => cmd::top::run(argv),
