@@ -238,6 +238,7 @@ view options:
     -M, --hide-info         Hide information about number of displayed columns, rows etc.
     -g, --groupby <cols>    Isolate and emphasize groups of rows, represented by consecutive
                             rows with identical values in selected columns.
+    -r, --right <col>       Force right alignment of selected columns.
 
 Common options:
     -h, --help             Display this message
@@ -266,6 +267,7 @@ struct Args {
     flag_hide_headers: bool,
     flag_hide_info: bool,
     flag_groupby: Option<SelectColumns>,
+    flag_right: Option<SelectColumns>,
     flag_significance: Option<NonZeroUsize>,
 }
 
@@ -397,8 +399,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.headers()?.clone();
     let mut headers = sel.select(&headers).collect::<csv::StringRecord>();
 
+    let mut right_sel_opt = args
+        .flag_right
+        .as_ref()
+        .map(|s| s.selection(headers.as_byte_record(), !args.flag_no_headers))
+        .transpose()?;
+
     if !args.flag_hide_index {
         headers = headers.prepend(theme.index_column_header);
+
+        if let Some(right_sel) = &mut right_sel_opt {
+            right_sel.offset_by(1);
+        }
     }
 
     if rconfig.no_headers {
@@ -500,6 +512,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )
         })
         .collect();
+
+    // Alignment inferrence
+    // TODO: type tagging for values should happen on initial read
+    let right_sel_mask_opt = right_sel_opt.map(|sel| sel.mask(headers.len()));
+
+    let alignments = (0..headers.len())
+        .map(|i| {
+            if !args.flag_hide_index && i == 0 {
+                return false;
+            }
+
+            if let Some(right_sel_mask) = &right_sel_mask_opt {
+                if right_sel_mask[i] {
+                    return true;
+                }
+            }
+
+            records.iter().all(|r| {
+                let cell = &r[i];
+
+                cell.is_empty() || cell.parse::<i64>().is_ok()
+            })
+        })
+        .collect::<Vec<_>>();
 
     // Width inferrence
     let displayed_columns = infer_best_column_display(
@@ -788,7 +824,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     util::colorize(
                         &colorizer,
                         &util::unicode_aware_highlighted_pad_with_ellipsis(
-                            false,
+                            alignments[col.index],
                             cell,
                             col.allowed_width,
                             " ",
@@ -806,7 +842,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !all_records_buffered {
         let row: Vec<colored::ColoredString> = displayed_columns
             .iter()
-            .map(|col| util::unicode_aware_rpad_with_ellipsis("…", col.allowed_width, " ").dimmed())
+            .map(|col| {
+                util::unicode_aware_pad_with_ellipsis(
+                    alignments[col.index],
+                    "…",
+                    col.allowed_width,
+                    " ",
+                )
+                .dimmed()
+            })
             .collect();
 
         write_row(row, record_i % 2 == 0)?;

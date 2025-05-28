@@ -66,6 +66,7 @@ The **parallel** update.
 * Better default threads count heuristics.
 * Better `xan plot -T` date parsing.
 * Fixing `xan search` replacements when using the `-s/--select` flag with a non-full selection.
+* Adding the `xan view -r/--right` flag to force right alignment for a selection of columns.
 
 *Performance*
 
@@ -77,6 +78,7 @@ The **parallel** update.
 * Prepending xan subcommand to error messages.
 * Better error messages when moonblade expressions cannot be parsed.
 * Displaying number of threads actually used when using `xan parallel`.
+* `xan view` now automatically right-align columns containing only integers.
 
 ## 0.50.0
 
