@@ -461,6 +461,8 @@ To restrict the columns that will be searched you can use the -s, --select flag.
 All search modes (except -u/--url-prefix) can also be case-insensitive
 using -i, --ignore-case.
 
+# Searching multiple patterns at once
+
 This command is also able to search for multiple patterns at once.
 To do so, you must give a text file with one pattern per line to the --patterns
 flag, or a CSV file containing a column of to indicate using --pattern-column.
@@ -481,12 +483,16 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 
     $ xan slice -l 10 people.csv | xan search --patterns - --pattern-column name file.csv > matches.csv
 
+# Further than just filtering
+
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
       with -B/--breakdown.
+    - Reporting unique matches of multiple queries given through --patterns
+      using -U/--unique-matches.
 
 For instance:
 
@@ -507,8 +513,15 @@ Replacing color names to their French counterpart:
 
 Computing a breakdown of matches per query:
 
-    $ xan search -s headline --patterns queries.csv \\
+    $ xan search -B -s headline --patterns queries.csv \\
     $   --pattern-column query --name-column name file.csv > breakdown.csv
+
+Reporting unique matches per query in a new column:
+
+    $ xan search -U matches -s headline,text --patterns queries.csv \\
+    $   --pattern-column query --name-column name file.csv > matches.csv
+
+# Regarding parallelization
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
@@ -536,7 +549,7 @@ Usage:
     xan search [options] <pattern> [<input>]
     xan search --help
 
-search modes:
+search mode options:
     -e, --exact       Perform an exact match.
     -r, --regex       Use a regex to perform the match.
     -E, --empty       Search for empty cells, i.e. filter out
@@ -578,7 +591,7 @@ search options:
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
-search options for multiple patterns:
+multiple patterns options:
     -B, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
                                  one additional column per pattern. You might want to use

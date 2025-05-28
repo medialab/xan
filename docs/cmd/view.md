@@ -60,6 +60,7 @@ view options:
     -M, --hide-info         Hide information about number of displayed columns, rows etc.
     -g, --groupby <cols>    Isolate and emphasize groups of rows, represented by consecutive
                             rows with identical values in selected columns.
+    -r, --right <col>       Force right alignment of selected columns.
 
 Common options:
     -h, --help             Display this message

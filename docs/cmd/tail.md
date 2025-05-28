@@ -10,7 +10,7 @@ Usage:
     xan tail [options] [<input>]
 
 head options:
-    -n, --rows <n>  Number of rows to return. [default: 10]
+    --rows <n>  Number of rows to return. [default: 10]
 
 Common options:
     -h, --help             Display this message
