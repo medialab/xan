@@ -9,18 +9,14 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods      - OpenOffice spreadsheet
-    xls      - Excel spreasheet
-    xlsb     - Excel spreasheet
-    xlsx     - Excel spreasheet
-    json     - JSON array or object
-    ndjson   - Newline-delimited JSON
-    jsonl    - Newline-delimited JSON
-    txt      - text lines
-    npy      - Numpy array
-    tar      - Tarball archive
-    md       - Markdown table
-    markdown - Markdown table
+    - ods: OpenOffice spreadsheet
+    - xls, xlsb, xlsx: Excel spreadsheet
+    - json: JSON array or object
+    - ndjson, jsonl: newline-delimited JSON data
+    - txt: text lines
+    - npy: numpy array
+    - tar: tarball archive
+    - md, markdown: Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
@@ -38,7 +34,12 @@ from options:
                            work with.
 
 Excel/OpenOffice-related options:
-    -s, --sheet <name>     Name of the sheet to convert. [default: Sheet1]
+    --sheet-index <i>    0-based index of the sheet to convert. Defaults to converting
+                         the first sheet. Use -s/--sheet alternatively to select a
+                         sheet by name.
+                         [default: 0]
+    --sheet-name <name>  Name of the sheet to convert.
+    --list-sheets        Print sheet names instead of converting file.
 
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.

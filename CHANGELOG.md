@@ -16,6 +16,7 @@ The **parallel** update.
 * Adding `xan slice -I/--indices` taking care of `xan slice -i` polymorphism taking multiple indices before.
 * `xan parallel freq` now follows `xan freq` behavior regarding limits.
 * Dropping `xan url-join` & `xan regex-join`. Both commands have been merged into a new `xan fuzzy-join` command using the `-u/--url-prefix` & `-r/--regex` flags respectively.
+* `xan from --sheet` becomes `--sheet-name` and is no longer the default. `--sheet-index 0` becomes the default.
 
 *Features*
 
@@ -45,6 +46,7 @@ The **parallel** update.
 * Adding the `xan window` command for window aggregations like rolling averages, cumulative sums, lags etc.
 * Adding `xan help window`.
 * Adding `xan head` & `xan tail` as aliases over `xan slice -l` & `xan slice -L` respectively.
+* Adding `xan from --sheet-index & --list-sheets`.
 
 *Fixes*
 

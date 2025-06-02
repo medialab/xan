@@ -21,7 +21,7 @@ use crate::CliResult;
 enum SupportedFormat {
     Xls,
     NdJSON,
-    JSONArray,
+    Json,
     Text,
     Npy,
     Tar,
@@ -33,7 +33,7 @@ impl SupportedFormat {
         Some(match string {
             "xls" | "xlsx" | "xlsb" | "ods" => Self::Xls,
             "jsonl" | "ndjson" => Self::NdJSON,
-            "json" => Self::JSONArray,
+            "json" => Self::Json,
             "txt" | "text" | "lines" => Self::Text,
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
@@ -70,18 +70,14 @@ Usage:
     xan from --help
 
 Supported formats:
-    ods      - OpenOffice spreadsheet
-    xls      - Excel spreasheet
-    xlsb     - Excel spreasheet
-    xlsx     - Excel spreasheet
-    json     - JSON array or object
-    ndjson   - Newline-delimited JSON
-    jsonl    - Newline-delimited JSON
-    txt      - text lines
-    npy      - Numpy array
-    tar      - Tarball archive
-    md       - Markdown table
-    markdown - Markdown table
+    - ods: OpenOffice spreadsheet
+    - xls, xlsb, xlsx: Excel spreadsheet
+    - json: JSON array or object
+    - ndjson, jsonl: newline-delimited JSON data
+    - txt: text lines
+    - npy: numpy array
+    - tar: tarball archive
+    - md, markdown: Markdown table
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
@@ -99,7 +95,12 @@ from options:
                            work with.
 
 Excel/OpenOffice-related options:
-    -s, --sheet <name>     Name of the sheet to convert. [default: Sheet1]
+    --sheet-index <i>    0-based index of the sheet to convert. Defaults to converting
+                         the first sheet. Use -s/--sheet alternatively to select a
+                         sheet by name.
+                         [default: 0]
+    --sheet-name <name>  Name of the sheet to convert.
+    --list-sheets        Print sheet names instead of converting file.
 
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.
@@ -126,7 +127,9 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_sheet: String,
+    flag_sheet_index: usize,
+    flag_sheet_name: Option<String>,
+    flag_list_sheets: bool,
     flag_format: Option<SupportedFormat>,
     flag_output: Option<String>,
     flag_sample_size: NonZeroUsize,
@@ -155,23 +158,45 @@ impl Args {
             }
         });
 
-        let mut wtr = self.writer()?;
-
         let mut workbook = open_workbook_auto_from_rs(reader)?;
+
+        if self.flag_list_sheets {
+            let mut wtr = Config::new(&self.flag_output).io_writer()?;
+
+            for sheet_name in workbook.sheet_names() {
+                writeln!(&mut wtr, "{}", sheet_name)?;
+            }
+
+            return Ok(());
+        }
+
+        let mut wtr = self.writer()?;
         let mut record = csv::StringRecord::new();
 
-        let range = workbook.worksheet_range(&self.flag_sheet);
+        let range = match &self.flag_sheet_name {
+            Some(name) => Some(workbook.worksheet_range(name)),
+            None => workbook.worksheet_range_at(self.flag_sheet_index),
+        };
 
         match range {
-            Err(_) => {
+            None => {
+                let sheets = workbook.sheet_names().len();
+
+                Err(format!(
+                    "--sheet-index {} is out-of-bounds (number of sheets: {})!",
+                    self.flag_sheet_index, sheets
+                ))?;
+            }
+            Some(Err(_)) => {
                 let sheets = workbook.sheet_names().join(", ");
 
-                return Err(CliError::Other(format!(
+                Err(format!(
                     "could not find the \"{}\" sheet\nshould be one of: {}",
-                    &self.flag_sheet, sheets
-                )));
+                    self.flag_sheet_name.as_ref().unwrap(),
+                    sheets
+                ))?;
             }
-            Ok(range) => {
+            Some(Ok(range)) => {
                 for row in range.rows() {
                     record.clear();
 
@@ -217,7 +242,7 @@ impl Args {
         Ok(wtr.flush()?)
     }
 
-    fn convert_json_array(&self) -> CliResult<()> {
+    fn convert_json(&self) -> CliResult<()> {
         let mut rdr = Config::new(&self.arg_input).io_reader()?;
 
         let mut contents = String::new();
@@ -506,7 +531,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match target_format {
         SupportedFormat::Xls => args.convert_xls(),
         SupportedFormat::NdJSON => args.convert_ndjson(),
-        SupportedFormat::JSONArray => args.convert_json_array(),
+        SupportedFormat::Json => args.convert_json(),
         SupportedFormat::Text => args.convert_text_lines(),
         SupportedFormat::Npy => args.convert_npy(),
         SupportedFormat::Tar => args.convert_tar(),
