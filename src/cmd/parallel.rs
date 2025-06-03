@@ -964,7 +964,6 @@ impl Args {
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
                 let mut input_reader = self.reader(input, &progress_bar)?;
-                let name = input.name();
 
                 let mut record = csv::ByteRecord::new();
                 let mut count: usize = 0;
@@ -976,7 +975,7 @@ impl Args {
                 }
 
                 let mut output_record = csv::ByteRecord::new();
-                output_record.push_field(name.as_bytes());
+                output_record.push_field(input.path().as_bytes());
                 output_record.push_field(count.to_string().as_bytes());
 
                 writer_mutex
@@ -1058,7 +1057,7 @@ impl Args {
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.reader(input, &progress_bar)?;
-            let name = input.name();
+            let path = input.path();
 
             if let Some(source_column) = &self.flag_source_column {
                 input_reader.headers.push_field(source_column.as_bytes());
@@ -1080,7 +1079,7 @@ impl Args {
                 }
 
                 if self.flag_source_column.is_some() {
-                    record.push_field(name.as_bytes());
+                    record.push_field(path.as_bytes());
                 }
 
                 buffer.push(record.clone());
