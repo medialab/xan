@@ -189,7 +189,7 @@ pub fn read_byte_record_up_to<R: Read>(
     Ok(true)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NextRecordOffsetInferrence {
     Start,
     End,
@@ -267,19 +267,23 @@ fn next_record_info<R: Read>(
     Ok(info)
 }
 
-pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
+pub fn find_next_record_offset_from_random_position<F, R>(
     reader: &mut Reader<R>,
+    reader_builder: F,
     offset: u64,
     sample: &InitialRecordsSample,
     jump: u64,
-) -> Result<NextRecordOffsetInferrence, csv::Error> {
+) -> Result<NextRecordOffsetInferrence, csv::Error>
+where
+    F: Fn() -> ReaderBuilder,
+    R: Read + Seek,
+{
     // First we seek to given random position
     let mut pos = Position::new();
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
 
-    // TODO: other ReaderBuilder options must be known if different
-    let mut altered_reader = ReaderBuilder::new()
+    let mut altered_reader = reader_builder()
         .flexible(true)
         .has_headers(false)
         .from_reader(reader.get_mut());
@@ -297,8 +301,8 @@ pub fn find_next_record_offset_from_random_position<R: Read + Seek>(
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
 
-    // TODO: quote char & other ReaderBuilder options must be known if different
-    let mut altered_reader = ReaderBuilder::new()
+    // TODO: this would not work with custom quote char, beware
+    let mut altered_reader = reader_builder()
         .flexible(true)
         .has_headers(false)
         .from_reader(Cursor::new("\"").chain(reader.get_mut()));
@@ -377,10 +381,15 @@ impl SegmentationOptions {
     }
 }
 
-pub fn segment_csv_file<R: Read + Seek>(
+pub fn segment_csv_file<F, R>(
     reader: &mut Reader<R>,
+    reader_builder: F,
     mut options: SegmentationOptions,
-) -> Result<Option<Vec<(u64, u64)>>, csv::Error> {
+) -> Result<Option<Vec<(u64, u64)>>, csv::Error>
+where
+    F: Fn() -> ReaderBuilder,
+    R: Read + Seek,
+{
     let sample = match sample_initial_records(reader, options.init_sample_size)? {
         None => return Ok(None),
         Some(s) => s,
@@ -406,6 +415,7 @@ pub fn segment_csv_file<R: Read + Seek>(
             } else {
                 find_next_record_offset_from_random_position(
                     reader,
+                    &reader_builder,
                     offset,
                     &sample,
                     options.jump_sample_size,
@@ -413,6 +423,8 @@ pub fn segment_csv_file<R: Read + Seek>(
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
+
+    debug_assert!(segments[0] == NextRecordOffsetInferrence::Start);
 
     if segments.iter().any(NextRecordOffsetInferrence::failed) {
         return Ok(None);

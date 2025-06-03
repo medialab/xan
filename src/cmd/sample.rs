@@ -325,6 +325,7 @@ fn sample_cursed(
 
             if let Some((record, offset)) = find_next_record_offset_from_random_position(
                 &mut reader,
+                || config.csv_reader_builder(),
                 random_byte_offset,
                 &sample,
                 8,

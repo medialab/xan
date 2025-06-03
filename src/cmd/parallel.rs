@@ -684,6 +684,7 @@ impl Args {
 
             match segment_csv_file(
                 &mut reader,
+                || config.csv_reader_builder(),
                 SegmentationOptions::chunks(
                     self.flag_threads
                         .map(|t| t.get())

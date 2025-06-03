@@ -109,6 +109,7 @@ impl Args {
 
         let segments = segment_csv_file(
             &mut reader,
+            || rconfig.csv_reader_builder(),
             SegmentationOptions::chunks(self.flag_chunks.unwrap().get()),
         )?
         .ok_or("could not segment the file properly!")?;
@@ -139,6 +140,7 @@ impl Args {
 
         let segments = segment_csv_file(
             &mut reader,
+            || rconfig.csv_reader_builder(),
             SegmentationOptions::chunks(self.flag_chunks.unwrap().get()),
         )?
         .ok_or("could not segment the file properly!")?;

@@ -459,15 +459,22 @@ impl Config {
         Ok(Box::new(ReverseRead::new(reader, filesize, offset)))
     }
 
-    pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
-        csv::ReaderBuilder::new()
+    pub fn csv_reader_builder(&self) -> csv::ReaderBuilder {
+        let mut builder = csv::ReaderBuilder::new();
+
+        builder
             .flexible(self.flexible)
             .delimiter(self.delimiter)
             .has_headers(!self.no_headers)
             .quote(self.quote)
             .quoting(self.quoting)
-            .escape(self.escape)
-            .from_reader(rdr)
+            .escape(self.escape);
+
+        builder
+    }
+
+    pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
+        self.csv_reader_builder().from_reader(rdr)
     }
 
     fn io_writer_with_options(
