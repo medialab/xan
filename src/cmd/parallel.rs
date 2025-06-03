@@ -606,9 +606,9 @@ pub struct Args {
     pub flag_approx: bool,
     pub flag_nulls: bool,
     flag_compress: bool,
-    flag_output: Option<String>,
-    flag_no_headers: bool,
-    flag_delimiter: Option<Delimiter>,
+    pub flag_output: Option<String>,
+    pub flag_no_headers: bool,
+    pub flag_delimiter: Option<Delimiter>,
 }
 
 type BoxedReader = csv::Reader<Box<dyn io::Read + Send>>;

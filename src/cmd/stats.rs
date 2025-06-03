@@ -148,6 +148,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         parallel_args.flag_approx = args.flag_approx;
         parallel_args.flag_nulls = args.flag_nulls;
 
+        parallel_args.flag_no_headers = args.flag_no_headers;
+        parallel_args.flag_output = args.flag_output;
+        parallel_args.flag_delimiter = args.flag_delimiter;
+
         return parallel_args.run();
     }
 
