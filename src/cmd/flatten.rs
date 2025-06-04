@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
+use regex::{Captures, RegexBuilder};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -43,6 +44,9 @@ flatten options:
                            to be displayed as a list.
     --sep <sep>            Delimiter separating multiple values in cells splitted
                            by --plural. [default: |]
+    -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
+                           pattern. Will not work with -R/--rainbow.
+    -i, --ignore-case      If given, pattern given to -H/--highlight will be case-insensitive.
 
 Common options:
     -h, --help             Display this message
@@ -65,12 +69,23 @@ struct Args {
     flag_force_colors: bool,
     flag_split: Option<SelectColumns>,
     flag_sep: String,
+    flag_highlight: Option<String>,
+    flag_ignore_case: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_rainbow && args.flag_highlight.is_some() {
+        Err("-R/--rainbow does not work with -H/--highlight!")?;
+    }
+
+    if args.flag_wrap && args.flag_condense {
+        Err("-w/--wrap does not work with -c/--condense!")?;
+    }
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -86,6 +101,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 &sel.select(byte_headers).collect::<csv::ByteRecord>(),
                 !args.flag_no_headers,
             )
+        })
+        .transpose()?;
+
+    let highlight_pattern = args
+        .flag_highlight
+        .as_ref()
+        .map(|pattern| {
+            RegexBuilder::new(pattern)
+                .case_insensitive(args.flag_ignore_case)
+                .build()
         })
         .transpose()?;
 
@@ -124,7 +149,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let max_value_width = cols - max_header_width - 1;
 
-    let prepare_cell = |i: usize, cell: &str, offset: usize| -> colored::ColoredString {
+    let prepare_cell = |i: usize, cell: &str, offset: usize| -> String {
         let cell = match cell.trim() {
             "" => "<empty>",
             _ => cell,
@@ -154,7 +179,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             util::highlight_trimmable_whitespace(cell)
         };
 
-        util::colorize(&cell_colorizer, &cell)
+        let cell = util::colorize(&cell_colorizer, &cell);
+
+        match (cell_colorizer.is_green(), &highlight_pattern) {
+            (true, Some(pattern)) => pattern
+                .replace_all(&cell.to_string(), |caps: &Captures| {
+                    let mut r = String::from("\x1b[0;1;31m");
+                    r.push_str(&caps[0]);
+                    r.push_str("\x1b[0;32m");
+                    r
+                })
+                .into_owned(),
+            _ => cell.to_string(),
+        }
     };
 
     while rdr.read_record(&mut record)? {

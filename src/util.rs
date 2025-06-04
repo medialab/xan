@@ -366,6 +366,12 @@ pub enum ColorOrStyles {
     Styles(Styles),
 }
 
+impl ColorOrStyles {
+    pub fn is_green(&self) -> bool {
+        matches!(self, Self::Color(color) if color == &Color::Green)
+    }
+}
+
 pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
     match string {
         "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {

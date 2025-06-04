@@ -47,6 +47,7 @@ The **parallel** update.
 * Adding `xan help window`.
 * Adding `xan head` & `xan tail` as aliases over `xan slice -l` & `xan slice -L` respectively.
 * Adding `xan from --sheet-index & --list-sheets`.
+* Adding `xan flatten -H/--highlight & -i/--ignore-case`.
 
 *Fixes*
 
