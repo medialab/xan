@@ -16,10 +16,10 @@ This mode is particularly useful for viewing one record at a time.
 There is also a condensed view (-c or --condense) that will shorten the
 contents of each field to provide a summary view.
 
-Pipe into \"less -r\" if you need to page the result, and use \"-C, --force-colors\"
+Pipe into \"less -r\" if you need to page the result, and use -C/--force-colors
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -r
+    $ xan flatten -C file.csv | less -SR
 
 Usage:
     xan flatten [options] [<input>]
