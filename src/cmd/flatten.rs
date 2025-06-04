@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
@@ -19,7 +20,7 @@ contents of each field to provide a summary view.
 Pipe into \"less -r\" if you need to page the result, and use -C/--force-colors
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -SR
+    $ xan flatten -C file.csv | less -Sr
 
 Usage:
     xan flatten [options] [<input>]
@@ -85,6 +86,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_wrap && args.flag_condense {
         Err("-w/--wrap does not work with -c/--condense!")?;
     }
+
+    let output = io::stdout();
 
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -197,44 +200,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     while rdr.read_record(&mut record)? {
         let record = sel.select(&record).collect::<csv::StringRecord>();
         if record_index > 0 {
-            println!();
+            writeln!(&output)?;
         }
-        println!("{}", format!("Row n°{}", record_index).bold());
-        println!("{}", "─".repeat(cols).dimmed());
+        writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
+        writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
 
         for (i, (header, cell)) in headers.iter().zip(record.iter()).enumerate() {
             if matches!(&split_sel_opt, Some(split_sel) if !cell.is_empty() && split_sel.contains(i))
             {
                 let mut first: bool = true;
 
-                print!(
+                write!(
+                    &output,
                     "{}",
                     util::unicode_aware_rpad(header, max_header_width + 1, " ")
-                );
+                )?;
 
                 for sub_cell in cell.split(&args.flag_sep) {
                     let sub_cell = prepare_cell(i, sub_cell, 2);
 
                     if first {
                         first = false;
-                        println!("- {}", sub_cell);
+                        writeln!(&output, "- {}", sub_cell)?;
                     } else {
-                        println!("{}- {}", " ".repeat(max_header_width + 1), sub_cell);
+                        writeln!(
+                            &output,
+                            "{}- {}",
+                            " ".repeat(max_header_width + 1),
+                            sub_cell
+                        )?;
                     }
                 }
 
-                println!();
+                writeln!(&output)?;
 
                 continue;
             }
 
             let cell = prepare_cell(i, cell, 0);
 
-            println!(
+            writeln!(
+                &output,
                 "{}{}",
                 util::unicode_aware_rpad(header, max_header_width + 1, " "),
                 cell
-            );
+            )?;
         }
 
         record_index += 1;

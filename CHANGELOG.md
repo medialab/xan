@@ -70,6 +70,7 @@ The **parallel** update.
 * Better `xan plot -T` date parsing.
 * Fixing `xan search` replacements when using the `-s/--select` flag with a non-full selection.
 * Adding the `xan view -r/--right` flag to force right alignment for a selection of columns.
+* Fixing `xan flatten` broken pipe panics when piped.
 
 *Performance*
 
