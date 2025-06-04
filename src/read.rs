@@ -169,6 +169,8 @@ pub fn sample_initial_records<R: Read + Seek>(
 
 // BEWARE: this function assess whether the parsed record is too far AFTER the fact.
 // We do this because the given record might not have a position yet on first call.
+// Note also that this function might catastrophically overscan and should not be
+// used by `next_record_info`.
 pub fn read_byte_record_up_to<R: Read>(
     reader: &mut Reader<R>,
     record: &mut ByteRecord,
@@ -239,20 +241,19 @@ impl RecordInfo {
     }
 }
 
+// NOTE: reader MUST be clamped beforehand
 fn next_record_info<R: Read>(
     reader: &mut Reader<R>,
-    end_byte: u64,
     expected_field_count: usize,
 ) -> Result<Option<RecordInfo>, csv::Error> {
     let mut i: usize = 0;
     let mut info: Option<RecordInfo> = None;
     let mut record = ByteRecord::new();
+    let mut alignments: Vec<usize> = Vec::new();
 
-    while read_byte_record_up_to(reader, &mut record, Some(end_byte))? {
+    while reader.read_byte_record(&mut record)? {
         if i > 0 {
-            if record.len() != expected_field_count {
-                return Ok(None);
-            }
+            alignments.push(record.len());
 
             if i == 1 {
                 info = Some(RecordInfo {
@@ -262,6 +263,17 @@ fn next_record_info<R: Read>(
         }
 
         i += 1;
+    }
+
+    // NOTE: if we have less than 2 records beyond the first one, it will be hard to
+    // make a correct decision
+    // NOTE: last record might be unaligned since we artificially clamp the read buffer
+    if alignments.len() < 2
+        || alignments[..alignments.len() - 1]
+            .iter()
+            .any(|l| *l != expected_field_count)
+    {
+        return Ok(None);
     }
 
     Ok(info)
@@ -278,39 +290,37 @@ where
     F: Fn() -> ReaderBuilder,
     R: Read + Seek,
 {
+    debug_assert!(jump > 0);
+
     // First we seek to given random position
     let mut pos = Position::new();
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
 
+    let mut end_byte = sample.max_record_size * jump;
+
     let mut altered_reader = reader_builder()
         .flexible(true)
         .has_headers(false)
-        .from_reader(reader.get_mut());
-
-    debug_assert!(jump > 0);
-
-    let mut end_byte = sample.max_record_size * jump;
+        .from_reader(reader.get_mut().take(end_byte));
 
     // Reading as potentially unquoted
-    let unquoted_next_record_info =
-        next_record_info(&mut altered_reader, end_byte, sample.field_count())?;
+    let unquoted_next_record_info = next_record_info(&mut altered_reader, sample.field_count())?;
 
     // Reading as potentially quoted
     let mut pos = Position::new();
     pos.set_byte(offset);
     reader.seek_raw(SeekFrom::Start(offset), pos)?;
 
+    end_byte += 1;
+
     // TODO: this would not work with custom quote char, beware
     let mut altered_reader = reader_builder()
         .flexible(true)
         .has_headers(false)
-        .from_reader(Cursor::new("\"").chain(reader.get_mut()));
+        .from_reader(Cursor::new("\"").chain(reader.get_mut()).take(end_byte));
 
-    end_byte += 1;
-
-    let quoted_next_record_info =
-        next_record_info(&mut altered_reader, end_byte, sample.field_count())?;
+    let quoted_next_record_info = next_record_info(&mut altered_reader, sample.field_count())?;
 
     Ok(match (unquoted_next_record_info, quoted_next_record_info) {
         (None, None) => NextRecordOffsetInferrence::Fail,
