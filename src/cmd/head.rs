@@ -12,7 +12,7 @@ Usage:
     xan head [options] [<input>]
 
 head options:
-    --rows <n>  Number of rows to return. [default: 10]
+    -l, --limit <n>  Number of rows to return. [default: 10]
 
 Common options:
     -h, --help             Display this message
@@ -27,7 +27,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_rows: usize,
+    flag_limit: usize,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -38,7 +38,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut slice_args = SliceArgs::default();
     slice_args.arg_input = args.arg_input;
-    slice_args.flag_len = Some(args.flag_rows);
+    slice_args.flag_len = Some(args.flag_limit);
     slice_args.flag_output = args.flag_output;
     slice_args.flag_no_headers = args.flag_no_headers;
     slice_args.flag_delimiter = args.flag_delimiter;
