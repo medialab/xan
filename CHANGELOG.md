@@ -71,6 +71,7 @@ The **parallel** update.
 * Fixing `xan search` replacements when using the `-s/--select` flag with a non-full selection.
 * Adding the `xan view -r/--right` flag to force right alignment for a selection of columns.
 * Fixing `xan flatten` broken pipe panics when piped.
+* Fixing `xan plot -R/--regression-line` when linear function endpoints are out of bounds.
 
 *Performance*
 

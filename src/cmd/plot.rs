@@ -1292,8 +1292,10 @@ impl Series {
         self.regression_line().map(|(intercept, slope)| {
             let (min_x, max_x) = self.extent.unwrap().0;
 
-            let first_point = (0.0, scales.1.percent(intercept + slope * min_x));
-            let second_point = (1.0, scales.1.percent(intercept + slope * max_x));
+            let mut first_point = (0.0, scales.1.percent(intercept + slope * min_x));
+            let mut second_point = (1.0, scales.1.percent(intercept + slope * max_x));
+
+            clip(&mut first_point, &mut second_point, [0.0, 0.0, 1.0, 1.0]);
 
             [first_point, second_point]
         })
@@ -1415,4 +1417,80 @@ impl SeriesBuilder {
             Self::Categorical(inner) => inner.is_empty(),
         }
     }
+}
+
+fn clip_t(n: f64, d: f64, c: &mut (f64, f64)) -> bool {
+    let t_e = c.0;
+    let t_l = c.1;
+
+    if d.abs() < f64::EPSILON {
+        return n < 0.0;
+    }
+
+    let t = n / d;
+
+    if d > 0.0 {
+        if t > t_l {
+            return false;
+        }
+        if t > t_e {
+            c.0 = t;
+        }
+    } else {
+        if t < t_e {
+            return false;
+        }
+        if t < t_l {
+            c.1 = t;
+        }
+    }
+
+    true
+}
+
+// NOTE: this is an implementation of Liang-Barsky clipping
+// NOTE: true means inside
+// NOTE: bb is [xmin, ymin, xmax, ymax]
+fn clip(a: &mut (f64, f64), b: &mut (f64, f64), bb: [f64; 4]) -> bool {
+    let x1 = a.0;
+    let y1 = a.1;
+    let x2 = b.0;
+    let y2 = b.1;
+
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+
+    if dx.abs() < f64::EPSILON
+        && dy.abs() < f64::EPSILON
+        && x1 >= bb[0]
+        && x1 <= bb[2]
+        && y1 >= bb[1]
+        && y1 <= bb[3]
+    {
+        return true;
+    }
+
+    let mut c = (0.0, 1.0);
+
+    if clip_t(bb[0] - x1, dx, &mut c)
+        && clip_t(x1 - bb[2], -dx, &mut c)
+        && clip_t(bb[1] - y1, dy, &mut c)
+        && clip_t(y1 - bb[3], -dy, &mut c)
+    {
+        let t_e = c.0;
+        let t_l = c.1;
+
+        if t_l < 1.0 {
+            b.0 = x1 + t_l * dx;
+            b.1 = y1 + t_l * dy;
+        }
+        if t_e > 0.0 {
+            a.0 += t_e * dx;
+            a.1 += t_e * dy;
+        }
+
+        return true;
+    }
+
+    false
 }
