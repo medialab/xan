@@ -416,29 +416,30 @@ where
         .min((sample.file_len / (sample.max_record_size * options.jump_sample_size) - 1) as usize)
         .max(1);
 
-    let mut segments = segment_file(sample.file_len, options.chunks)
-        .iter()
-        .copied()
-        .map(|offset| {
-            if offset == 0 {
-                Ok(NextRecordOffsetInferrence::Start)
-            } else {
-                find_next_record_offset_from_random_position(
-                    reader,
-                    &reader_builder,
-                    offset,
-                    &sample,
-                    options.jump_sample_size,
-                )
+    let offsets = segment_file(sample.file_len, options.chunks);
+    let mut segments = Vec::with_capacity(offsets.len());
+
+    for offset in offsets {
+        if offset == 0 {
+            segments.push(NextRecordOffsetInferrence::Start);
+        } else {
+            let inferred = find_next_record_offset_from_random_position(
+                reader,
+                &reader_builder,
+                offset,
+                &sample,
+                options.jump_sample_size,
+            )?;
+
+            if inferred.failed() {
+                return Ok(None);
             }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+
+            segments.push(inferred);
+        }
+    }
 
     debug_assert!(segments[0] == NextRecordOffsetInferrence::Start);
-
-    if segments.iter().any(NextRecordOffsetInferrence::failed) {
-        return Ok(None);
-    }
 
     segments.push(NextRecordOffsetInferrence::End);
 
