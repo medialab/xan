@@ -34,7 +34,7 @@ The **parallel** update.
 * Adding `xan split -c/--chunks` & `xan split --segments`.
 * Adding `xan sample -§/--cursed`.
 * Adding `xan search -B/--breakdown` and the related `--name-column` flag.
-* Adding `xan parallel -F/--single-file`.
+* Adding CSV file chunking capabilities to `xan parallel`.
 * Adding `xan from md`.
 * Adding `xan parallel map`.
 * Adding `-p/--parallel` & `-t/--threads` to `count`, `freq`, `stats`, `search`, `agg` & `groupby` commands.

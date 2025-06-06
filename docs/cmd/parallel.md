@@ -4,16 +4,16 @@
 ```txt
 Parallel processing of CSV data.
 
-This command can either process a single CSV file by splitting it into one
-chunk per working thread, or a dataset comprised of multiple files on disk.
+This command usually parallelizes computation over multiple files, but is also
+able to automatically chunk CSV files and bgzipped CSV files (when a `.gzi` index
+can be found) when the number of available threads is greater than the number
+of files to read.
 
-When processing a single file, this command cannot work with streams (stdin)
-nor gzipped data, unless it was compressed with `bgzip -i` and a `.gzi` index
-file can be found beside the file.
+This means this command is quite capable of parallelizing over a single CSV file.
 
-To process a single CSV file in parallel, use the -F/--single-file flag:
+To process a single CSV file in parallel:
 
-    $ xan parallel count -F docs.csv
+    $ xan parallel count docs.csv
 
 To process multiple files at once, you must give their paths as multiple
 arguments to the command or give them through stdin with one path
@@ -28,8 +28,9 @@ per line or in a CSV column when using the --path-column flag:
     Paths from a CSV column through stdin:
     $ cat filelist.csv | xan parallel count --path-column path
 
-Note that you can use the `split` or `partition` command to preemptively
-split a large file into manageable chunks, if you can spare the disk space.
+Note that sometimes you might find useful to use the `split` or `partition`
+command to preemptively split a large file into manageable chunks, if you can
+spare the disk space.
 
 This command has multiple subcommands that each perform some typical
 parallel reduce operation:
@@ -48,8 +49,8 @@ parallel reduce operation:
     - `map`: writes the result of given preprocessing in a new
         file besides the original one. This subcommand takes a filename template
         where `{}` will be replaced by the name of each target file without any
-        extension (`.csv` or `.csv.gz` would be stripped for instance), or by
-        a chunk id, when using -F/--single-file.
+        extension (`.csv` or `.csv.gz` would be stripped for instance). This
+        command is unable to leverage CSV file chunking.
 
 For instance, the following command:
 
@@ -57,9 +58,6 @@ For instance, the following command:
 
 Will create a file suffixed "_freq.csv" for each CSV file in current directory
 containing its frequency table for the "Category" command.
-
-Note also that the `xan parallel map` subcommand, used with the -F/--single-file
-flag, is basically a parallel split.
 
 Finally, preprocessing on each file can be done using two different methods:
 
@@ -91,9 +89,6 @@ Usage:
     xan p --help
 
 parallel options:
-    -F, --single-file            Parallelize computation over a single uncompressed
-                                 CSV file on disk instead of processing multiple
-                                 files in parallel.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.

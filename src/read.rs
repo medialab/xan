@@ -407,7 +407,7 @@ where
 
     // File is way too short
     if sample.size < options.chunks as u64 {
-        return Ok(Some(vec![(0, sample.file_len)]));
+        return Ok(Some(vec![(sample.first_record_offset, sample.file_len)]));
     }
 
     // Limiting number of chunks when file is too short

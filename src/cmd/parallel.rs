@@ -46,12 +46,11 @@ struct Bars {
     multi: MultiProgress,
     bars: Mutex<Vec<(String, ProgressBar)>>,
     total: u64,
-    chunked: bool,
     unspecified: bool,
 }
 
 impl Bars {
-    fn new(total: usize, threads: usize, chunked: bool, unspecified: bool) -> Self {
+    fn new(total: usize, threads: usize, unspecified: bool) -> Self {
         let main = ProgressBar::new(total as u64);
 
         let multi = MultiProgress::new();
@@ -64,7 +63,6 @@ impl Bars {
             multi,
             bars: Mutex::new(Vec::new()),
             total: total as u64,
-            chunked,
             unspecified,
         };
 
@@ -78,7 +76,7 @@ impl Bars {
             Some(self.total),
             color,
             false,
-            if self.chunked { "chunks" } else { "files" },
+            "chunks/files",
         ));
         self.main.tick();
     }
@@ -147,9 +145,9 @@ impl ParallelProgressBar {
         Self { bars: None }
     }
 
-    fn new(total: usize, threads: usize, chunked: bool, unspecified: bool) -> Self {
+    fn new(total: usize, threads: usize, unspecified: bool) -> Self {
         Self {
-            bars: Some(Bars::new(total, threads, chunked, unspecified)),
+            bars: Some(Bars::new(total, threads, unspecified)),
         }
     }
 
@@ -424,16 +422,16 @@ impl CsvInputReader {
 static USAGE: &str = "
 Parallel processing of CSV data.
 
-This command can either process a single CSV file by splitting it into one
-chunk per working thread, or a dataset comprised of multiple files on disk.
+This command usually parallelizes computation over multiple files, but is also
+able to automatically chunk CSV files and bgzipped CSV files (when a `.gzi` index
+can be found) when the number of available threads is greater than the number
+of files to read.
 
-When processing a single file, this command cannot work with streams (stdin)
-nor gzipped data, unless it was compressed with `bgzip -i` and a `.gzi` index
-file can be found beside the file.
+This means this command is quite capable of parallelizing over a single CSV file.
 
-To process a single CSV file in parallel, use the -F/--single-file flag:
+To process a single CSV file in parallel:
 
-    $ xan parallel count -F docs.csv
+    $ xan parallel count docs.csv
 
 To process multiple files at once, you must give their paths as multiple
 arguments to the command or give them through stdin with one path
@@ -448,8 +446,9 @@ per line or in a CSV column when using the --path-column flag:
     Paths from a CSV column through stdin:
     $ cat filelist.csv | xan parallel count --path-column path
 
-Note that you can use the `split` or `partition` command to preemptively
-split a large file into manageable chunks, if you can spare the disk space.
+Note that sometimes you might find useful to use the `split` or `partition`
+command to preemptively split a large file into manageable chunks, if you can
+spare the disk space.
 
 This command has multiple subcommands that each perform some typical
 parallel reduce operation:
@@ -468,8 +467,8 @@ parallel reduce operation:
     - `map`: writes the result of given preprocessing in a new
         file besides the original one. This subcommand takes a filename template
         where `{}` will be replaced by the name of each target file without any
-        extension (`.csv` or `.csv.gz` would be stripped for instance), or by
-        a chunk id, when using -F/--single-file.
+        extension (`.csv` or `.csv.gz` would be stripped for instance). This
+        command is unable to leverage CSV file chunking.
 
 For instance, the following command:
 
@@ -477,9 +476,6 @@ For instance, the following command:
 
 Will create a file suffixed \"_freq.csv\" for each CSV file in current directory
 containing its frequency table for the \"Category\" command.
-
-Note also that the `xan parallel map` subcommand, used with the -F/--single-file
-flag, is basically a parallel split.
 
 Finally, preprocessing on each file can be done using two different methods:
 
@@ -511,9 +507,6 @@ Usage:
     xan p --help
 
 parallel options:
-    -F, --single-file            Parallelize computation over a single uncompressed
-                                 CSV file on disk instead of processing multiple
-                                 files in parallel.
     -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
@@ -588,7 +581,6 @@ pub struct Args {
     pub arg_expr: Option<String>,
     pub arg_group: Option<SelectColumns>,
     arg_template: Option<FilenameTemplate>,
-    flag_single_file: bool,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_progress: bool,
@@ -618,7 +610,6 @@ impl Args {
         match path {
             Some(p) => Ok(Self {
                 flag_threads: threads,
-                flag_single_file: true,
                 flag_buffer_size: 1024,
                 flag_limit: 10,
                 arg_inputs: vec![p.to_string()],
@@ -650,8 +641,8 @@ impl Args {
         stats
     }
 
-    fn inputs(&self) -> CliResult<(Vec<Input>, Option<usize>)> {
-        let inputs = if !self.arg_inputs.is_empty() {
+    fn inputs(&self) -> CliResult<(Vec<Input>, usize)> {
+        let mut inputs = if !self.arg_inputs.is_empty() {
             self.arg_inputs.clone()
         } else if io::stdin().is_terminal() {
             vec![]
@@ -665,57 +656,103 @@ impl Args {
             Err("no files to process!\nDid you forget stdin or arguments?")?;
         }
 
-        if self.flag_single_file {
-            if inputs.len() > 1 {
-                Err("-F/--single-file can only work with a single path as input!")?;
-            }
+        let threads = self
+            .flag_threads
+            .unwrap_or_else(|| NonZeroUsize::new(num_cpus::get()).unwrap())
+            .get();
 
-            let target = inputs.first().unwrap();
-            let config = Config::new(&Some(target.clone()))
+        // One thread per input or more inputs than threads
+        if inputs.len() >= threads {
+            return Ok((inputs.into_iter().map(Input::Path).collect(), threads));
+        }
+
+        fn is_chunkable(p: &str) -> bool {
+            let s = p.strip_suffix(".gz").unwrap_or(p);
+
+            if s.ends_with(".csv")
+                || s.ends_with(".tsv")
+                || s.ends_with(".ssv")
+                || s.ends_with(".psv")
+            {
+                if p.ends_with(".gz") {
+                    Config::new(&Some(p.to_string())).is_indexed_gzip()
+                } else {
+                    true
+                }
+            } else {
+                false
+            }
+        }
+
+        // If we are using `map` of if inputs are not all chunkable
+        if self.cmd_map || !inputs.iter().all(|p| is_chunkable(p)) {
+            let actual_threads = inputs.len();
+
+            return Ok((
+                inputs.into_iter().map(Input::Path).collect(),
+                actual_threads,
+            ));
+        }
+
+        // TODO: we could also weight the number of allocated threads by the size
+        // TODO: we could also artificially chunk more to distribute load more evenly
+        // in skewed contexts
+
+        // We sort input by size
+        // TODO: apply some factor on size when file is gzipped
+        inputs.sort_by_key(|p| Path::new(p).metadata().map(|m| m.len()).unwrap_or(0));
+        inputs.reverse();
+
+        let mut threads_per_input = vec![0; inputs.len()];
+
+        // Allocating threads
+        let mut t: usize = 0;
+
+        for _ in 0..threads {
+            threads_per_input[t] += 1;
+            t = (t + 1) % inputs.len();
+        }
+
+        let mut chunked_inputs = Vec::new();
+        let mut actual_threads: usize = 0;
+
+        for (p, t) in inputs.iter().zip(threads_per_input) {
+            let config = Config::new(&Some(p.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
-
-            if target.ends_with(".gz") && !config.is_indexed_gzip() {
-                Err("cannot parallelize over single gzipped file without .gzi index!")?;
-            }
 
             let mut reader = config.seekable_reader()?;
             let headers = reader.byte_headers()?.clone();
 
-            match segment_csv_file(
+            // NOTE: we could fallback to not chunking the file
+            let segments = segment_csv_file(
                 &mut reader,
                 || config.csv_reader_builder(),
-                SegmentationOptions::chunks(
-                    self.flag_threads
-                        .map(|t| t.get())
-                        .unwrap_or_else(num_cpus::get),
-                ),
-            )? {
-                None => Err("could not segment file correctly!")?,
-                Some(segments) => {
-                    let chunks_hint = Some(segments.len());
+                SegmentationOptions::chunks(t),
+            )?
+            .ok_or_else(|| format!("could not segment {}", p))?;
 
-                    return Ok((
-                        segments
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, (from, to))| {
-                                Input::FileChunk(FileChunk {
-                                    file_path: target.clone(),
-                                    from,
-                                    to,
-                                    position: i,
-                                    headers: headers.clone(),
-                                })
-                            })
-                            .collect(),
-                        chunks_hint,
-                    ));
-                }
+            actual_threads += segments.len();
+
+            // NOTE: if file was too short for segmentation, we fallback to
+            // a path input instead
+            if segments.len() == 1 {
+                chunked_inputs.push(Input::Path(p.clone()));
+                continue;
+            }
+
+            for (i, (from, to)) in segments.into_iter().enumerate() {
+                chunked_inputs.push(Input::FileChunk(FileChunk {
+                    file_path: p.clone(),
+                    from,
+                    to,
+                    position: i,
+                    headers: headers.clone(),
+                }));
             }
         }
 
-        Ok((inputs.into_iter().map(Input::Path).collect(), None))
+        Ok((chunked_inputs, actual_threads))
     }
 
     fn io_reader(
@@ -939,7 +976,6 @@ impl Args {
                 self.flag_threads
                     .expect("at that point, threads cannot be None")
                     .get(),
-                self.flag_single_file,
                 self.cmd_map,
             )
         } else {
@@ -1359,23 +1395,21 @@ impl Args {
         Ok(())
     }
 
-    fn map(mut self, inputs: Vec<Input>) -> CliResult<()> {
-        if !self.flag_single_file
-            && self.flag_preprocess.is_none()
-            && self.flag_shell_preprocess.is_none()
-        {
-            Err("`xan parallel map` without -F/--single-file and -P/--preprocess or -H/--shell-preprocess is pointless ;).")?;
+    fn map(self, inputs: Vec<Input>) -> CliResult<()> {
+        if self.flag_preprocess.is_none() && self.flag_shell_preprocess.is_none() {
+            Err("`xan parallel map` without -P/--preprocess or -H/--shell-preprocess is pointless ;).")?;
         }
 
+        // NOTE: xan p map on chunked file is basically a parallel xan split, but with some caveats
         // NOTE: this work only for CSV output, which has to be the case with -F/--single-file
         // If we don't do this, the output chunk do not have proper headers, and the chunking
         // is not done properly.
-        if self.flag_single_file
-            && self.flag_preprocess.is_none()
-            && self.flag_shell_preprocess.is_none()
-        {
-            self.flag_preprocess = Some("slice".to_string());
-        }
+        // if self.flag_single_file
+        //     && self.flag_preprocess.is_none()
+        //     && self.flag_shell_preprocess.is_none()
+        // {
+        //     self.flag_preprocess = Some("slice".to_string());
+        // }
 
         let progress_bar = self.progress_bar(inputs.len());
         let template = self.arg_template.clone().unwrap();
@@ -1427,36 +1461,14 @@ impl Args {
     }
 
     pub fn run(mut self) -> CliResult<()> {
-        let (inputs, chunks_hint) = self.inputs()?;
-
-        if inputs.len() == 1 && !self.flag_single_file {
-            eprintln!(
-                "{}",
-                "warning: processing a single file. Did you forget -F/--single-file!".yellow()
-            );
-        }
-
-        if self.flag_threads.is_none() {
-            self.flag_threads = Some(NonZeroUsize::new(num_cpus::get()).unwrap());
-        }
-
-        let mut threads = self.flag_threads.unwrap().get();
-
-        match chunks_hint {
-            Some(t) => {
-                threads = threads.min(t);
-            }
-            None => {
-                threads = threads.min(inputs.len());
-            }
-        };
+        let (inputs, actual_threads) = self.inputs()?;
 
         ThreadPoolBuilder::new()
-            .num_threads(threads)
+            .num_threads(actual_threads)
             .build_global()
             .expect("could not build thread pool!");
 
-        self.flag_threads = Some(NonZeroUsize::new(threads).unwrap());
+        self.flag_threads = Some(NonZeroUsize::new(actual_threads).unwrap());
 
         if self.cmd_count {
             self.count(inputs)?;

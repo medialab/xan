@@ -11,7 +11,7 @@ contents of each field to provide a summary view.
 Pipe into "less -r" if you need to page the result, and use -C/--force-colors
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -SR
+    $ xan flatten -C file.csv | less -Sr
 
 Usage:
     xan flatten [options] [<input>]
