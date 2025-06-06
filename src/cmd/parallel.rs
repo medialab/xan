@@ -656,6 +656,12 @@ impl Args {
             Err("no files to process!\nDid you forget stdin or arguments?")?;
         }
 
+        for p in inputs.iter() {
+            if !Path::new(p).is_file() {
+                Err(format!("{} does not exist!", p.cyan()))?;
+            }
+        }
+
         let threads = self
             .flag_threads
             .unwrap_or_else(|| NonZeroUsize::new(num_cpus::get()).unwrap())

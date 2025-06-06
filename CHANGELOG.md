@@ -72,6 +72,7 @@ The **parallel** update.
 * Adding the `xan view -r/--right` flag to force right alignment for a selection of columns.
 * Fixing `xan flatten` broken pipe panics when piped.
 * Fixing `xan plot -R/--regression-line` when linear function endpoints are out of bounds.
+* `xan parallel` early exits when a target file does not exist.
 
 *Performance*
 
