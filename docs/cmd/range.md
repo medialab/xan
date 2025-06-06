@@ -15,7 +15,7 @@ but can be included with -i, --inclusive.
 Example:
 
     Creating a range of urls files by piping `range` into `transform`:
-        $ xan range 100 | xan select -e '"https://somewebsite.com?id=".n as url'
+        $ xan range 100 | xan select -e '"somewebsite.com?id=" ++ n as url'
 
 Usage:
     xan range [options] <end> [<input>]
