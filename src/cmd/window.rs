@@ -24,6 +24,12 @@ Adding a lagged column:
 
     $ xan window 'lag(n) as \"n-1\"' file.csv
 
+This command is also able to reset the statistics each time a new contiguous group
+of rows is encountered using the -g/--groupby flag. This means, however, that
+the file must be sorted by columns representing group identities beforehand:
+
+    $ xan window -g country 'cumsum(n)' file.csv
+
 For a list of available window aggregation functions, use `xan help window`
 instead.
 
