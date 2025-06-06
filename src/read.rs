@@ -413,7 +413,10 @@ where
     // Limiting number of chunks when file is too short
     options.chunks = options
         .chunks
-        .min((sample.file_len / (sample.max_record_size * options.jump_sample_size) - 1) as usize)
+        .min(
+            (sample.file_len / (sample.max_record_size * options.jump_sample_size))
+                .saturating_sub(1) as usize,
+        )
         .max(1);
 
     let offsets = segment_file(sample.file_len, options.chunks);
