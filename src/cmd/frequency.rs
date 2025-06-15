@@ -118,6 +118,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         parallel_args.cmd_freq = true;
         parallel_args.flag_select = args.flag_select;
+        parallel_args.flag_sep = args.flag_sep;
         parallel_args.flag_all = args.flag_all;
         parallel_args.flag_limit = args.flag_limit;
         parallel_args.flag_approx = args.flag_approx;
