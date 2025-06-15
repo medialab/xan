@@ -1474,6 +1474,10 @@ impl Args {
     pub fn run(mut self) -> CliResult<()> {
         let (inputs, actual_threads) = self.inputs()?;
 
+        if inputs.len() == 1 {
+            eprintln!("{}", "nothing is actually parallelized!".yellow());
+        }
+
         ThreadPoolBuilder::new()
             .num_threads(actual_threads)
             .build_global()
