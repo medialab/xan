@@ -1,11 +1,12 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{self, IsTerminal};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bstr::ByteSlice;
@@ -993,23 +994,13 @@ impl Args {
         let progress_bar = self.progress_bar(inputs.len());
 
         if let Some(source_column_name) = &self.flag_source_column {
-            let writer_mutex = {
-                let mut writer = Config::new(&self.flag_output).writer()?;
-
-                let mut output_headers = csv::ByteRecord::new();
-                output_headers.push_field(source_column_name.as_bytes());
-                output_headers.push_field(b"count");
-
-                writer.write_byte_record(&output_headers)?;
-
-                Mutex::new(writer)
-            };
+            let counters_mutex = Mutex::new(BTreeMap::<String, u64>::new());
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
                 let mut input_reader = self.reader(input, &progress_bar)?;
 
                 let mut record = csv::ByteRecord::new();
-                let mut count: usize = 0;
+                let mut count: u64 = 0;
 
                 while input_reader.read_byte_record(&mut record)? {
                     count += 1;
@@ -1017,31 +1008,45 @@ impl Args {
                     input_reader.tick();
                 }
 
-                let mut output_record = csv::ByteRecord::new();
-                output_record.push_field(input.path().as_bytes());
-                output_record.push_field(count.to_string().as_bytes());
-
-                writer_mutex
+                counters_mutex
                     .lock()
                     .unwrap()
-                    .write_byte_record(&output_record)?;
+                    .entry(input.path().to_string())
+                    .and_modify(|c| *c += count)
+                    .or_insert(count);
 
                 progress_bar.stop(&input.name());
 
                 Ok(())
             })?;
 
-            progress_bar.succeed();
+            let mut writer = Config::new(&self.flag_output).writer()?;
 
-            writer_mutex.into_inner().unwrap().flush()?;
+            let mut output_record = csv::ByteRecord::new();
+            output_record.push_field(source_column_name.as_bytes());
+            output_record.push_field(b"count");
+
+            writer.write_byte_record(&output_record)?;
+
+            for (path, count) in counters_mutex.into_inner().unwrap().into_iter() {
+                output_record.clear();
+                output_record.push_field(path.as_bytes());
+                output_record.push_field(count.to_string().as_bytes());
+
+                writer.write_byte_record(&output_record)?;
+            }
+
+            writer.flush()?;
+
+            progress_bar.succeed();
         } else {
-            let total_count = AtomicUsize::new(0);
+            let total_count = AtomicU64::new(0);
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
                 let mut input_reader = self.reader(input, &progress_bar)?;
 
                 let mut record = csv::ByteRecord::new();
-                let mut count: usize = 0;
+                let mut count: u64 = 0;
 
                 while input_reader.read_byte_record(&mut record)? {
                     count += 1;
