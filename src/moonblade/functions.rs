@@ -710,6 +710,8 @@ fn slice(args: BoundArguments) -> FunctionResult {
                     lo = max(0, l as i64 + lo);
 
                     list[..lo as usize].to_vec()
+                } else if lo >= list.len() as i64 {
+                    Vec::new()
                 } else {
                     list[..lo as usize].to_vec()
                 }
@@ -717,7 +719,7 @@ fn slice(args: BoundArguments) -> FunctionResult {
             Some(hi_value) => {
                 let mut hi = hi_value.try_as_i64()?;
 
-                if lo < 0 {
+                if lo < 0 || lo >= list.len() as i64 {
                     Vec::new()
                 } else {
                     if hi < 0 {
@@ -725,7 +727,11 @@ fn slice(args: BoundArguments) -> FunctionResult {
                         hi = max(0, l as i64 + hi);
                     }
 
-                    list[lo as usize..(hi - lo) as usize].to_vec()
+                    if hi <= lo {
+                        Vec::new()
+                    } else {
+                        list[lo as usize..hi.min(list.len() as i64) as usize].to_vec()
+                    }
                 }
             }
         };
