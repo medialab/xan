@@ -950,6 +950,7 @@ fn search_patterns_breakdown() {
         vec![
             svec!["text"],
             svec!["le chien mange le fromage"],
+            svec!["no match"],
             svec!["le chien mange la souris"],
         ],
     );
@@ -979,6 +980,23 @@ fn search_patterns_breakdown() {
     let expected = vec![
         svec!["text", "LE", "LA"],
         svec!["le chien mange le fromage", "2", "0"],
+        svec!["le chien mange la souris", "1", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "article"])
+        .arg("-B")
+        .arg("--left")
+        .args(["--name-column", "name"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "LE", "LA"],
+        svec!["le chien mange le fromage", "2", "0"],
+        svec!["no match", "0", "0"],
         svec!["le chien mange la souris", "1", "1"],
     ];
     assert_eq!(got, expected);

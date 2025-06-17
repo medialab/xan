@@ -594,9 +594,12 @@ search options:
 multiple patterns options:
     -B, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
-                                 one additional column per pattern. You might want to use
-                                 it with --overlapping sometimes when your patterns are themselves
-                                 overlapping.
+                                 one additional column per pattern. Added column will be given
+                                 the pattern as name, unless you provide the --name-column flag.
+                                 Will not include rows that have no matches in the output, unless
+                                 the --left flag is used. You might want to use it with --overlapping
+                                 sometimes when your patterns are themselves overlapping or you might
+                                 be surprised by the tallies.
     -U, --unique-matches <name>  When used with --patterns, will add a column containing a list of
                                  unique matched patterns for each row, separated by the --sep character.
                                  Will not include rows that have no matches in the output unless
@@ -933,6 +936,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             matcher.breakdown(cell, args.flag_overlapping, &mut counts);
                         }
 
+                        if !args.flag_left && counts.iter().all(|count| *count == 0) {
+                            return Ok(vec![]);
+                        }
+
                         for count in counts.into_iter() {
                             record.push_field(count.to_string().as_bytes());
                         }
@@ -1048,6 +1055,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for cell in sel.select(&record) {
                 matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+            }
+
+            if !args.flag_left && counts.iter().all(|count| *count == 0) {
+                continue;
             }
 
             for count in counts.into_iter() {
