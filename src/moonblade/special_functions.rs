@@ -83,6 +83,9 @@ pub fn get_special_function(
         // NOTE: try is special because you need to suppress the error if any
         "try" => (None, Some(runtime_try), FunctionArguments::unary()),
 
+        // NOTE: warn must know row index
+        "warn" => (None, Some(runtime_warn), FunctionArguments::unary()),
+
         // NOTE: lambda evaluation need to be a special function because, like
         // if and unless, they cannot work in DFS fashion unless you
         // bind some values ahead of time.
@@ -258,6 +261,18 @@ fn runtime_try(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
     let result = args.first().unwrap().evaluate(context);
 
     Ok(result.unwrap_or(DynamicValue::None))
+}
+
+fn runtime_warn(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
+    let msg_arg = args.first().unwrap().evaluate(context)?;
+    let msg = msg_arg.try_as_str().map_err(|err| err.specify("warn"))?;
+
+    match context.index {
+        Some(i) => eprintln!("Row index {}: {}", i, msg),
+        None => eprintln!("{}", msg),
+    };
+
+    Ok(DynamicValue::None)
 }
 
 #[derive(Clone, Copy)]

@@ -342,7 +342,8 @@ impl ConcreteSpecialFunctionCall {
     fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         // NOTE: other special function are not suitable for late
         // statical evaluation.
-        if ["col", "cols", "headers", "index", "if", "unless"].contains(&self.name.as_str()) {
+        if ["col", "cols", "headers", "index", "if", "unless", "warn"].contains(&self.name.as_str())
+        {
             return false;
         }
 
