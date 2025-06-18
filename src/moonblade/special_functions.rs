@@ -129,6 +129,12 @@ fn comptime_cols_headers<F>(
 where
     F: Fn(usize) -> ConcreteExpr,
 {
+    if call.args.is_empty() {
+        return Ok(Some(ConcreteExpr::List(
+            (0..headers.len()).map(map).collect(),
+        )));
+    }
+
     match ColumIndexationBy::from_argument(&call.args[0].1) {
         None => Err(ConcretizationError::NotStaticallyAnalyzable),
         Some(first_column_indexation) => match first_column_indexation
@@ -165,6 +171,61 @@ where
             None => Err(ConcretizationError::ColumnNotFound(first_column_indexation)),
         },
     }
+}
+
+fn runtime_cols_headers<F>(
+    context: &EvaluationContext,
+    args: &[ConcreteExpr],
+    map: F,
+) -> ComptimeFunctionResult
+where
+    F: Fn(usize) -> DynamicValue,
+{
+    match args.len() {
+        0 => {
+            todo!()
+        }
+        1 => todo!(),
+        2 => todo!(),
+        _ => unreachable!(),
+    }
+
+    // match ColumIndexationBy::from_argument(&call.args[0].1) {
+    //     None => Err(ConcretizationError::NotStaticallyAnalyzable),
+    //     Some(first_column_indexation) => match first_column_indexation
+    //         .find_column_index(headers, headers.len())
+    //     {
+    //         Some(first_index) => {
+    //             if call.args.len() < 2 {
+    //                 Ok(Some(ConcreteExpr::List(
+    //                     (first_index..headers.len()).map(map).collect(),
+    //                 )))
+    //             } else {
+    //                 match ColumIndexationBy::from_argument(&call.args[1].1) {
+    //                     None => Err(ConcretizationError::NotStaticallyAnalyzable),
+    //                     Some(second_column_indexation) => {
+    //                         match second_column_indexation.find_column_index(headers, headers.len())
+    //                         {
+    //                             Some(second_index) => {
+    //                                 let range: Vec<_> = if first_index > second_index {
+    //                                     (second_index..=first_index).map(map).rev().collect()
+    //                                 } else {
+    //                                     (first_index..=second_index).map(map).collect()
+    //                                 };
+
+    //                                 Ok(Some(ConcreteExpr::List(range)))
+    //                             }
+    //                             None => Err(ConcretizationError::ColumnNotFound(
+    //                                 second_column_indexation,
+    //                             )),
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         None => Err(ConcretizationError::ColumnNotFound(first_column_indexation)),
+    //     },
+    // }
 }
 
 fn runtime_if(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {

@@ -76,6 +76,7 @@ The **parallel** update.
 * Fixing `xan plot -R/--regression-line` when linear function endpoints are out of bounds.
 * `xan parallel` early exits when a target file does not exist.
 * Fixing `moonblade` list slicing.
+* Fixing `cols()` & `headers()` moonblade functions without arguments.
 
 *Performance*
 
