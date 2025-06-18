@@ -212,7 +212,9 @@ impl Matcher {
         }
     }
 
-    fn breakdown(&self, cell: &[u8], overlapping: bool, counts: &mut [usize]) {
+    fn breakdown(&self, cell: &[u8], overlapping: bool, counts: &mut [usize]) -> bool {
+        let mut is_match = false;
+
         match self {
             Self::Empty
             | Self::NonEmpty
@@ -226,21 +228,25 @@ impl Matcher {
                 (true, false) => {
                     for m in pattern.find_iter(&cell.to_lowercase()) {
                         counts[m.pattern().as_usize()] += 1;
+                        is_match = true;
                     }
                 }
                 (false, false) => {
                     for m in pattern.find_iter(cell) {
                         counts[m.pattern().as_usize()] += 1;
+                        is_match = true;
                     }
                 }
                 (true, true) => {
                     for m in pattern.find_overlapping_iter(&cell.to_lowercase()) {
                         counts[m.pattern().as_usize()] += 1;
+                        is_match = true;
                     }
                 }
                 (false, true) => {
                     for m in pattern.find_overlapping_iter(cell) {
                         counts[m.pattern().as_usize()] += 1;
+                        is_match = true;
                     }
                 }
             },
@@ -251,30 +257,37 @@ impl Matcher {
 
                 for m in set.find_iter(cell) {
                     counts[m.pattern().as_usize()] += 1;
+                    is_match = true;
                 }
             }
             Self::Regexes(patterns) => {
                 for (i, pattern) in patterns.iter().enumerate() {
                     counts[i] += count_overlapping_matches(pattern, cell);
+                    is_match = true;
                 }
             }
             Self::HashMap(patterns, case_insensitive) => {
                 if *case_insensitive {
                     if let Some(id) = patterns.get(&cell.to_lowercase()) {
                         counts[*id] += 1;
+                        is_match = true;
                     }
                 } else if let Some(id) = patterns.get(cell) {
                     counts[*id] += 1;
+                    is_match = true;
                 }
             }
             Self::UrlTrie(trie) => {
                 if let Ok(url) = from_utf8(cell) {
                     if let Ok(Some(id)) = trie.longest_matching_prefix_value(url) {
                         counts[*id] += 1;
+                        is_match = true;
                     }
                 }
             }
         }
+
+        is_match
     }
 
     fn unique_matches(&self, cell: &[u8], overlapping: bool, matches: &mut BTreeSet<usize>) {
@@ -1054,18 +1067,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut counts = vec![0; patterns_len];
 
             for cell in sel.select(&record) {
-                matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                is_match = matcher.breakdown(cell, args.flag_overlapping, &mut counts);
             }
 
-            if !args.flag_left && counts.iter().all(|count| *count == 0) {
-                continue;
-            }
+            if is_match || args.flag_left {
+                for count in counts.into_iter() {
+                    record.push_field(count.to_string().as_bytes());
+                }
 
-            for count in counts.into_iter() {
-                record.push_field(count.to_string().as_bytes());
+                wtr.write_byte_record(&record)?;
             }
-
-            wtr.write_byte_record(&record)?;
         }
         // Unique matches
         else if args.flag_unique_matches.is_some() {
@@ -1075,7 +1086,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
             }
 
-            if matches.is_empty() {
+            is_match = !matches.is_empty();
+
+            if !is_match {
                 if args.flag_left {
                     record.push_field(b"");
                     wtr.write_byte_record(&record)?;
