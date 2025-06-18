@@ -1232,3 +1232,94 @@ impl GroupAggregationProgram {
             })
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct GroupPivotAggregationProgram {
+    planner: ConcreteAggregationPlanner,
+    cols: usize,
+    groups: ClusteredInsertHashmap<GroupKey, Vec<Vec<CompositeAggregator>>>,
+    headers_index: HeadersIndex,
+    buffer: ByteRecord,
+}
+
+impl GroupPivotAggregationProgram {
+    pub fn parse(code: &str, cols: usize) -> Result<Self, ConcretizationError> {
+        let mut headers = ByteRecord::new();
+        headers.push_field(b"cell");
+
+        let concrete_aggregations = prepare(code, &headers)?;
+
+        if concrete_aggregations.len() != 1 {
+            return Err(ConcretizationError::Custom(format!(
+                "expected a single aggregation clause, but got {}",
+                concrete_aggregations.len()
+            )));
+        }
+
+        let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
+
+        Ok(Self {
+            planner,
+            cols,
+            groups: ClusteredInsertHashmap::new(),
+            headers_index: HeadersIndex::from_headers(&headers),
+            buffer: ByteRecord::new(),
+        })
+    }
+
+    pub fn run_with_cells<'a>(
+        &mut self,
+        group: GroupKey,
+        index: usize,
+        cells: impl Iterator<Item = &'a [u8]>,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        let planner = &self.planner;
+
+        let aggregators_per_cell = self.groups.insert_with(group, || {
+            (0..self.cols)
+                .map(|_| planner.instantiate_aggregators())
+                .collect()
+        });
+
+        for (cell, aggregators) in cells.zip(aggregators_per_cell) {
+            self.buffer.clear();
+            self.buffer.push_field(cell);
+
+            run_with_record_on_aggregators(
+                &self.planner,
+                aggregators,
+                index,
+                &self.buffer,
+                &self.headers_index,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn into_byte_records(
+        self,
+        parallel: bool,
+    ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), SpecifiedEvaluationError>> {
+        let planner = self.planner;
+        let headers_index = self.headers_index;
+
+        self.groups
+            .into_iter()
+            .map(move |(group, mut aggregators_per_cell)| {
+                for aggregators in aggregators_per_cell.iter_mut() {
+                    aggregators[0].finalize(parallel);
+                }
+
+                let mut record = ByteRecord::new();
+
+                for aggregators in aggregators_per_cell.iter() {
+                    for value in planner.results(aggregators, &headers_index) {
+                        record.push_field(&value?.serialize_as_bytes());
+                    }
+                }
+
+                Ok((group, record))
+            })
+    }
+}

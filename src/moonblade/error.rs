@@ -29,6 +29,7 @@ pub enum ConcretizationError {
     UnknownArgumentName(String),
     InvalidCSSSelector(String),
     StaticEvaluationError(SpecifiedEvaluationError),
+    Custom(String),
     NotStaticallyAnalyzable,
 }
 
@@ -46,6 +47,7 @@ impl Display for ConcretizationError {
             }
             Self::InvalidCSSSelector(css) => write!(f, "invalid css selector: {}", css),
             Self::StaticEvaluationError(error) => error.fmt(f),
+            Self::Custom(msg) => write!(f, "{}", msg),
             Self::NotStaticallyAnalyzable => write!(f, "not statically analyzable"),
         }
     }

@@ -4,8 +4,7 @@ use std::num::NonZeroUsize;
 use crate::cmd::moonblade::MoonbladeErrorPolicy;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
-use crate::moonblade::AggregationProgram;
-use crate::moonblade::GroupAggregationProgram;
+use crate::moonblade::{AggregationProgram, GroupAggregationProgram, GroupPivotAggregationProgram};
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
@@ -51,6 +50,33 @@ You can group on multiple columns (read `xan select -h` for more information abo
 
     $ xan groupby name,surname 'sum(count)' file.csv
 
+---
+
+This command is also able to compute a single aggregation over \"pivoted\" columns
+that can be selected through the --pivot <cols> flag. In which case, the aggregation
+clause will recognize a single variable named \"cell\", representing the value contained
+in currently processed column.
+
+For instance, given the following file:
+
+user,count1,count2
+marcy,4,5
+john,0,1
+marcy,6,8
+john,4,6
+
+Using the following command:
+
+    $ xan groupby user --pivot count1,count2 'sum(cell)' file.csv
+
+Will produce the following result:
+
+user,count1,count2
+marcy,10,13
+john,4,7
+
+---
+
 For a list of available aggregation functions, use `xan help aggs`
 instead.
 
@@ -62,7 +88,7 @@ For a list of available functions, use `xan help functions`.
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
-with the -S/--sorted nor -E/--errors options.
+with the -S/--sorted nor -E/--errors nor --pivot flags.
 
 Usage:
     xan groupby [options] <column> <expression> [<input>]
@@ -72,6 +98,10 @@ groupby options:
     --keep <cols>            Keep this selection of columns, in addition to
                              the ones representing groups, in the output. Only
                              values from the first seen row per group will be kept.
+    --pivot <cols>           Perform a single aggregation over all of selected columns
+                             where current column value will be named \"cell\" in given
+                             expression and create a column per group with the result in
+                             the output.
     -S, --sorted             Use this flag to indicate that the file is already sorted on the
                              group columns, in which case the command will be able to considerably
                              optimize memory usage.
@@ -105,6 +135,7 @@ struct Args {
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_keep: Option<SelectColumns>,
+    flag_pivot: Option<SelectColumns>,
     flag_sorted: bool,
     flag_errors: String,
     flag_parallel: bool,
@@ -115,6 +146,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
+        if args.flag_pivot.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with --pivot!")?;
+        }
+
         if args.flag_sorted {
             Err("-p/--parallel or -t/--threads cannot be used with --sorted!")?;
         }
@@ -149,7 +184,49 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let sel = rconf.selection(headers)?;
 
-    // Lol, what a hack...
+    // --pivot
+    if let Some(selection) = args.flag_pivot.take() {
+        if args.flag_sorted || args.flag_keep.is_some() {
+            Err("--pivot does not work with -S/--sorted nor --keep!")?;
+        }
+
+        let mut pivot_sel = selection.selection(headers, !args.flag_no_headers)?;
+        pivot_sel.sort_and_dedup();
+
+        let mut program =
+            GroupPivotAggregationProgram::parse(&args.arg_expression, pivot_sel.len())?;
+
+        if !args.flag_no_headers {
+            let mut output_headers = sel.select(headers).collect::<csv::ByteRecord>();
+
+            for name in pivot_sel.select(headers) {
+                output_headers.push_field(name);
+            }
+
+            wtr.write_byte_record(&output_headers)?;
+        }
+
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            let group = sel.collect(&record);
+
+            program.run_with_cells(group, index, pivot_sel.select(&record))?;
+
+            index += 1;
+        }
+
+        for result in program.into_byte_records(false) {
+            let (group, group_record) = error_policy.handle_error(result)?;
+
+            write_group(&mut wtr, &group, &group_record)?;
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // --keep, lol...
     if let Some(selection) = args.flag_keep.take() {
         let mut keep_sel = selection.selection(headers, !args.flag_no_headers)?;
         keep_sel.sort_and_dedup();

@@ -316,3 +316,32 @@ fn groupby_complex_keep() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn groupby_pivot() {
+    let wrk = Workdir::new("groupby_pivot");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["user", "count1", "count2"],
+            svec!["mary", "4", "5"],
+            svec!["john", "0", "1"],
+            svec!["mary", "6", "8"],
+            svec!["john", "4", "6"],
+        ],
+    );
+
+    let mut cmd = wrk.command("groupby");
+    cmd.arg("user")
+        .arg("sum(cell)")
+        .args(["--pivot", "count1,count2"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["user", "count1", "count2"],
+        svec!["mary", "10", "13"],
+        svec!["john", "4", "7"],
+    ];
+    assert_eq!(got, expected);
+}
