@@ -64,9 +64,6 @@ But this cannot work on streams or gzipped files, unless a `.gzi` index (as crea
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
 with the -S/--sorted nor -E/--errors options.
 
-Note that when using parallelization, groups may appear in different order in the
-output with each run.
-
 Usage:
     xan groupby [options] <column> <expression> [<input>]
     xan groupby --help
