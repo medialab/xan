@@ -103,10 +103,6 @@ macro_rules! command_list {
 ## Generate CSV files
     range       Create a CSV file from a numerical range
 
-## Perform side-effects
-    eval        Evaluate/debug a single expression
-    foreach     Loop over a CSV file to perform side effects
-
 ## Lexicometry & fuzzy matching
     tokenize    Tokenize a text column
     vocab       Build a vocabulary over tokenized documents
@@ -115,6 +111,9 @@ macro_rules! command_list {
 ## Matrix & network-related commands
     matrix      Convert CSV data to matrix data
     network     Convert CSV data to network data
+
+## Debug
+    eval  Evaluate/debug a single expression
 "
     };
 }
@@ -256,7 +255,6 @@ enum Command {
     Enum,
     Eval,
     Explode,
-    ForEach,
     F,
     Fill,
     Filter,
@@ -344,7 +342,6 @@ impl Command {
             Command::Flatmap => cmd::flatmap::run(argv),
             Command::Flatten | Command::F => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
-            Command::ForEach => cmd::foreach::run(argv),
             Command::Freq | Command::Frequency => cmd::frequency::run(argv),
             Command::From => cmd::from::run(argv),
             Command::FuzzyJoin => cmd::fuzzy_join::run(argv),

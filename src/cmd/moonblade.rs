@@ -92,7 +92,6 @@ impl MoonbladeOutputValue {
 pub enum MoonbladeMode {
     #[default]
     Map,
-    Foreach,
     Filter(bool),
     Transform,
     Flatmap,
@@ -111,12 +110,8 @@ impl MoonbladeMode {
         matches!(self, Self::Transform)
     }
 
-    fn should_not_emit_headers(&self) -> bool {
-        matches!(self, Self::Foreach)
-    }
-
     fn cannot_report(&self) -> bool {
-        matches!(self, Self::Filter(_) | Self::Flatmap | Self::Foreach)
+        matches!(self, Self::Filter(_) | Self::Flatmap)
     }
 }
 
@@ -246,7 +241,6 @@ fn handle_moonblade_output<W: Write>(
                 writer.write_byte_record(record)?;
                 written_count += 1;
             }
-            MoonbladeMode::Foreach => {}
             MoonbladeMode::Transform => {
                 let mut record = record.replace_at(replace.unwrap(), &value.unwrap());
 
@@ -357,7 +351,7 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         modified_headers = headers.clone();
 
         if !headers.is_empty() {
-            must_write_headers = !args.mode.should_not_emit_headers();
+            must_write_headers = true;
 
             if args.mode.is_map() {
                 if let Some(target_column) = &args.target_column {
