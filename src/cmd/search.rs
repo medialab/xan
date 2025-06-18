@@ -936,28 +936,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         rdr.into_byte_records()
             .parallel_map_custom(
                 |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-                move |result| -> CliResult<Vec<csv::ByteRecord>> {
+                move |result| -> CliResult<Option<csv::ByteRecord>> {
                     let mut record = result?;
 
-                    let mut records_to_write = Vec::new();
+                    let mut record_to_write_opt = None;
 
                     // Breakdown
                     if args.flag_breakdown {
                         let mut counts = vec![0; patterns_len];
+                        let mut is_match = false;
 
                         for cell in sel.select(&record) {
-                            matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                            is_match = matcher.breakdown(cell, args.flag_overlapping, &mut counts);
                         }
 
-                        if !args.flag_left && counts.iter().all(|count| *count == 0) {
-                            return Ok(vec![]);
-                        }
+                        if is_match || args.flag_left {
+                            for count in counts.into_iter() {
+                                record.push_field(count.to_string().as_bytes());
+                            }
 
-                        for count in counts.into_iter() {
-                            record.push_field(count.to_string().as_bytes());
+                            record_to_write_opt.replace(record);
                         }
-
-                        records_to_write.push(record);
                     }
                     // Unique matches
                     else if args.flag_unique_matches.is_some() {
@@ -970,7 +969,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         if matches.is_empty() {
                             if args.flag_left {
                                 record.push_field(b"");
-                                records_to_write.push(record);
+                                record_to_write_opt.replace(record);
                             }
                         } else {
                             let mut matches_field: Vec<u8> = vec![];
@@ -990,7 +989,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             }
 
                             record.push_field(&matches_field);
-                            records_to_write.push(record);
+                            record_to_write_opt.replace(record);
                         }
                     }
                     // Replace
@@ -1007,7 +1006,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             }
                         }
 
-                        records_to_write.push(replaced_record);
+                        record_to_write_opt.replace(record);
                     }
                     // Count
                     else if args.flag_count.is_some() {
@@ -1018,7 +1017,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         record.push_field(count.to_string().as_bytes());
 
-                        records_to_write.push(record);
+                        record_to_write_opt.replace(record);
                     }
                     // Filter
                     else {
@@ -1033,17 +1032,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         if is_match {
-                            records_to_write.push(record);
+                            record_to_write_opt.replace(record);
                         }
                     }
 
-                    Ok(records_to_write)
+                    Ok(record_to_write_opt)
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
-                let records_to_write = result?;
+                let records_to_write_opt = result?;
 
-                for record in records_to_write {
+                if let Some(record) = records_to_write_opt {
                     wtr.write_byte_record(&record)?;
                 }
 
