@@ -127,20 +127,25 @@ impl ColumIndexationBy {
 
 #[derive(Debug, Clone, Default)]
 pub struct HeadersIndex {
+    headers: Vec<Vec<u8>>,
     mapping: BTreeMap<String, Vec<usize>>,
 }
 
 impl HeadersIndex {
     pub fn new() -> Self {
-        HeadersIndex {
-            mapping: BTreeMap::new(),
-        }
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.headers.len()
     }
 
     pub fn from_headers<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
         let mut index = Self::new();
 
         for (i, header) in headers.into_iter().enumerate() {
+            index.headers.push(header.to_vec());
+
             let key = std::str::from_utf8(header).unwrap().to_string();
 
             match index.mapping.entry(key) {
@@ -155,6 +160,10 @@ impl HeadersIndex {
         }
 
         index
+    }
+
+    pub fn get_at(&self, index: usize) -> &[u8] {
+        &self.headers[index]
     }
 
     pub fn get(&self, indexation: &ColumIndexationBy) -> Option<usize> {

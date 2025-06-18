@@ -77,6 +77,7 @@ The **parallel** update.
 * `xan parallel` early exits when a target file does not exist.
 * Fixing `moonblade` list slicing.
 * Fixing `cols()` & `headers()` moonblade functions without arguments.
+* Fixing `cols()` & `headers()` not working with dynamic arguments.
 
 *Performance*
 

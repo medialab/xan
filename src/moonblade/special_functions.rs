@@ -53,7 +53,9 @@ pub fn get_special_function(
             Some(|call: &FunctionCall, headers: &ByteRecord| {
                 comptime_cols_headers(call, headers, ConcreteExpr::Column)
             }),
-            None,
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                runtime_cols_headers(context, args, |i| DynamicValue::from(&context.record[i]))
+            }),
             FunctionArguments::with_range(0..=2),
         ),
         "headers" => (
@@ -62,7 +64,12 @@ pub fn get_special_function(
                     ConcreteExpr::Value(DynamicValue::from(&headers[i]))
                 })
             }),
-            None,
+            // TODO: must improve headers index for this...
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                runtime_cols_headers(context, args, |i| {
+                    DynamicValue::from(context.headers_index.get_at(i))
+                })
+            }),
             FunctionArguments::with_range(0..=2),
         ),
         // NOTE: index needs to be a special function because it relies on external
@@ -136,7 +143,7 @@ where
     }
 
     match ColumIndexationBy::from_argument(&call.args[0].1) {
-        None => Err(ConcretizationError::NotStaticallyAnalyzable),
+        None => Ok(None),
         Some(first_column_indexation) => match first_column_indexation
             .find_column_index(headers, headers.len())
         {
@@ -147,7 +154,7 @@ where
                     )))
                 } else {
                     match ColumIndexationBy::from_argument(&call.args[1].1) {
-                        None => Err(ConcretizationError::NotStaticallyAnalyzable),
+                        None => Ok(None),
                         Some(second_column_indexation) => {
                             match second_column_indexation.find_column_index(headers, headers.len())
                             {
@@ -171,61 +178,6 @@ where
             None => Err(ConcretizationError::ColumnNotFound(first_column_indexation)),
         },
     }
-}
-
-fn runtime_cols_headers<F>(
-    context: &EvaluationContext,
-    args: &[ConcreteExpr],
-    map: F,
-) -> ComptimeFunctionResult
-where
-    F: Fn(usize) -> DynamicValue,
-{
-    match args.len() {
-        0 => {
-            todo!()
-        }
-        1 => todo!(),
-        2 => todo!(),
-        _ => unreachable!(),
-    }
-
-    // match ColumIndexationBy::from_argument(&call.args[0].1) {
-    //     None => Err(ConcretizationError::NotStaticallyAnalyzable),
-    //     Some(first_column_indexation) => match first_column_indexation
-    //         .find_column_index(headers, headers.len())
-    //     {
-    //         Some(first_index) => {
-    //             if call.args.len() < 2 {
-    //                 Ok(Some(ConcreteExpr::List(
-    //                     (first_index..headers.len()).map(map).collect(),
-    //                 )))
-    //             } else {
-    //                 match ColumIndexationBy::from_argument(&call.args[1].1) {
-    //                     None => Err(ConcretizationError::NotStaticallyAnalyzable),
-    //                     Some(second_column_indexation) => {
-    //                         match second_column_indexation.find_column_index(headers, headers.len())
-    //                         {
-    //                             Some(second_index) => {
-    //                                 let range: Vec<_> = if first_index > second_index {
-    //                                     (second_index..=first_index).map(map).rev().collect()
-    //                                 } else {
-    //                                     (first_index..=second_index).map(map).collect()
-    //                                 };
-
-    //                                 Ok(Some(ConcreteExpr::List(range)))
-    //                             }
-    //                             None => Err(ConcretizationError::ColumnNotFound(
-    //                                 second_column_indexation,
-    //                             )),
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         None => Err(ConcretizationError::ColumnNotFound(first_column_indexation)),
-    //     },
-    // }
 }
 
 fn runtime_if(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
@@ -315,6 +267,84 @@ fn runtime_unsure_col(context: &EvaluationContext, args: &[ConcreteExpr]) -> Eva
             None => Ok(DynamicValue::None),
             Some(index) => Ok(DynamicValue::from(&context.record[index])),
         },
+    }
+}
+
+fn runtime_cols_headers<F>(
+    context: &EvaluationContext,
+    args: &[ConcreteExpr],
+    map: F,
+) -> EvaluationResult
+where
+    F: Fn(usize) -> DynamicValue,
+{
+    // NOTE: 0 is not reachable because it can be resolved at comptime by definition
+    match args.len() {
+        1 => {
+            let start_index_arg = args.first().unwrap().evaluate(context)?;
+
+            match ColumIndexationBy::from_bound_arguments(start_index_arg, None) {
+                None => Err(SpecifiedEvaluationError::new(
+                    "col",
+                    EvaluationError::Custom("invalid arguments".to_string()),
+                )),
+                Some(indexation) => match context.headers_index.get(&indexation) {
+                    None => Err(SpecifiedEvaluationError::new(
+                        "col",
+                        EvaluationError::ColumnNotFound(indexation),
+                    )),
+                    Some(index) => Ok(DynamicValue::from(
+                        (index..context.headers_index.len())
+                            .map(map)
+                            .collect::<Vec<_>>(),
+                    )),
+                },
+            }
+        }
+        2 => {
+            let start_index_arg = args.first().unwrap().evaluate(context)?;
+
+            match ColumIndexationBy::from_bound_arguments(start_index_arg, None) {
+                None => Err(SpecifiedEvaluationError::new(
+                    "col",
+                    EvaluationError::Custom("invalid arguments".to_string()),
+                )),
+                Some(start_indexation) => match context.headers_index.get(&start_indexation) {
+                    None => Err(SpecifiedEvaluationError::new(
+                        "col",
+                        EvaluationError::ColumnNotFound(start_indexation),
+                    )),
+                    Some(start_index) => {
+                        let end_index_arg = args.last().unwrap().evaluate(context)?;
+
+                        match ColumIndexationBy::from_bound_arguments(end_index_arg, None) {
+                            None => Err(SpecifiedEvaluationError::new(
+                                "col",
+                                EvaluationError::Custom("invalid arguments".to_string()),
+                            )),
+                            Some(end_indexation) => {
+                                match context.headers_index.get(&end_indexation) {
+                                    None => Err(SpecifiedEvaluationError::new(
+                                        "col",
+                                        EvaluationError::ColumnNotFound(end_indexation),
+                                    )),
+                                    Some(end_index) => {
+                                        let range: Vec<_> = if start_index > end_index {
+                                            (end_index..=start_index).map(map).rev().collect()
+                                        } else {
+                                            (start_index..=end_index).map(map).collect()
+                                        };
+
+                                        Ok(DynamicValue::from(range))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+            }
+        }
+        _ => unreachable!(),
     }
 }
 
