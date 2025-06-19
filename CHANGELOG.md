@@ -82,6 +82,7 @@ The **parallel** update.
 * Fixing `cols()` & `headers()` not working with dynamic arguments.
 * Fixing moonblade indexing parsing.
 * Fixing aggregation arity validation.
+* Fixing `xan agg` & `xan groupby` behavior wrt `-n/--no-headers`.
 
 *Performance*
 

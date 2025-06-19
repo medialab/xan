@@ -256,11 +256,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
         let mut current: Option<Vec<Vec<u8>>> = None;
 
-        write_group(
-            &mut wtr,
-            &sel.collect(headers),
-            &program.headers().collect(),
-        )?;
+        if !args.flag_no_headers {
+            write_group(
+                &mut wtr,
+                &sel.collect(headers),
+                &program.headers().collect(),
+            )?;
+        }
 
         let mut index: usize = 0;
 
@@ -302,11 +304,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
 
-        write_group(
-            &mut wtr,
-            &sel.collect(headers),
-            &program.headers().collect(),
-        )?;
+        if !args.flag_no_headers {
+            write_group(
+                &mut wtr,
+                &sel.collect(headers),
+                &program.headers().collect(),
+            )?;
+        }
 
         let mut index: usize = 0;
 

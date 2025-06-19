@@ -155,7 +155,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut program = AggregationProgram::parse(&args.arg_expression, &working_record)?;
 
-        wtr.write_record(headers.iter().chain(program.headers()))?;
+        if !args.flag_no_headers {
+            wtr.write_record(headers.iter().chain(program.headers()))?;
+        }
 
         let mut record = csv::ByteRecord::new();
         let mut index: usize = 0;
@@ -185,6 +187,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     else {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
 
+        // NOTE: we always write headers, because we basically emit a new file
         wtr.write_record(program.headers())?;
 
         let mut record = csv::ByteRecord::new();
