@@ -95,6 +95,7 @@ The **parallel** update.
 * Better error messages when moonblade expressions cannot be parsed.
 * Displaying number of threads actually used when using `xan parallel`.
 * `xan view` now automatically right-align columns containing only integers.
+* Better moonblade casting errors.
 
 ## 0.50.0
 

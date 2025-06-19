@@ -115,8 +115,13 @@ impl Display for SpecifiedEvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "error when calling function \"{}\": {}",
-            self.function_name, self.reason
+            "{} {}",
+            if self.function_name.starts_with('<') {
+                self.function_name.clone()
+            } else {
+                format!("{}()", self.function_name)
+            },
+            self.reason
         )
     }
 }
@@ -129,7 +134,10 @@ pub enum EvaluationError {
     NotImplemented(String),
     IO(String),
     DateTime(String),
-    Cast(String, String),
+    Cast {
+        from_value: DynamicValue,
+        to_type: String,
+    },
     Custom(String),
     UnsupportedEncoding(String),
     UnsupportedDecoderTrap(String),
@@ -144,7 +152,10 @@ pub enum EvaluationError {
 
 impl EvaluationError {
     pub fn from_cast(from_value: &DynamicValue, expected: &str) -> Self {
-        Self::Cast(from_value.type_of().to_string(), expected.to_string())
+        Self::Cast {
+            from_value: from_value.clone(),
+            to_type: expected.to_string(),
+        }
     }
 
     pub fn from_zoned_parse_error(
@@ -193,10 +204,15 @@ impl Display for EvaluationError {
             Self::IO(msg) => write!(f, "{}", msg),
             Self::DateTime(msg) => write!(f, "{}", msg),
             Self::Custom(msg) => write!(f, "{}", msg),
-            Self::Cast(from_type, to_type) => write!(
+            Self::Cast {
+                from_value,
+                to_type,
+            } => write!(
                 f,
-                "cannot safely cast from type \"{}\" to type \"{}\"",
-                from_type, to_type
+                "cannot safely cast {:?} from type \"{}\" to type \"{}\"",
+                from_value,
+                from_value.type_of(),
+                to_type
             ),
             Self::NotImplemented(t) => {
                 write!(f, "not implemented for values of type \"{}\" as of yet", t)
