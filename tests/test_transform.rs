@@ -104,7 +104,11 @@ fn transform_errors_report() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["a", "b", "error"],
-        svec!["1", "", "error when calling function \"add\": cannot safely cast from type \"bytes\" to type \"number\""],
+        svec![
+            "1",
+            "",
+            "add() cannot safely cast Bytes(\"test\") from type \"bytes\" to type \"number\""
+        ],
         svec!["2", "5", ""],
     ];
     assert_eq!(got, expected);

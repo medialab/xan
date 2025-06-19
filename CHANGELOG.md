@@ -83,6 +83,7 @@ The **parallel** update.
 * Fixing moonblade indexing parsing.
 * Fixing aggregation arity validation.
 * Fixing `xan agg` & `xan groupby` behavior wrt `-n/--no-headers`.
+* Fixing shortcircuiting of `and` and `or` moonblade functions.
 
 *Performance*
 

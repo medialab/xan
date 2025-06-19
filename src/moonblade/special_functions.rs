@@ -86,6 +86,8 @@ pub fn get_special_function(
             Some(runtime_unless),
             FunctionArguments::with_range(2..=3),
         ),
+        "and" => (None, Some(runtime_and), FunctionArguments::variadic(2)),
+        "or" => (None, Some(runtime_or), FunctionArguments::variadic(2)),
 
         // NOTE: try is special because you need to suppress the error if any
         "try" => (None, Some(runtime_try), FunctionArguments::unary()),
@@ -218,6 +220,42 @@ fn runtime_unless(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluat
         None => Ok(DynamicValue::None),
         Some(arg) => arg.evaluate(context),
     }
+}
+
+fn runtime_or(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
+    debug_assert!(args.len() >= 2);
+
+    let mut last: Option<DynamicValue> = None;
+
+    for arg in args {
+        let value = arg.evaluate(context)?;
+
+        if value.is_truthy() {
+            return Ok(value);
+        }
+
+        last.replace(value);
+    }
+
+    Ok(last.unwrap())
+}
+
+fn runtime_and(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
+    debug_assert!(args.len() >= 2);
+
+    let mut last: Option<DynamicValue> = None;
+
+    for arg in args {
+        let value = arg.evaluate(context)?;
+
+        if value.is_falsey() {
+            return Ok(value);
+        }
+
+        last.replace(value);
+    }
+
+    Ok(last.unwrap())
 }
 
 fn runtime_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {

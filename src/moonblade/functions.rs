@@ -69,7 +69,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| variadic_arithmetic_op(args, Add::add),
             FunctionArguments::variadic(2),
         ),
-        "and" => (and, FunctionArguments::variadic(2)),
         "argmax" => (
             |args| argcompare(args, Ordering::is_gt),
             FunctionArguments::with_range(1..=2),
@@ -174,7 +173,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "not" => (not, FunctionArguments::unary()),
-        "or" => (or, FunctionArguments::variadic(2)),
         "pad" => (
             |args| pad(pad::Alignment::Middle, args),
             FunctionArguments::with_range(2..=3),
@@ -1086,43 +1084,6 @@ where
 fn not(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(!args.pop1_bool()))
 }
-
-fn and(args: BoundArguments) -> FunctionResult {
-    let mut last: Option<DynamicValue> = None;
-
-    for arg in args {
-        if arg.is_falsey() {
-            return Ok(arg);
-        }
-
-        last = Some(arg);
-    }
-
-    Ok(last.unwrap())
-}
-
-fn or(args: BoundArguments) -> FunctionResult {
-    let mut last: Option<DynamicValue> = None;
-
-    for arg in args {
-        if arg.is_truthy() {
-            return Ok(arg);
-        }
-
-        last = Some(arg);
-    }
-
-    Ok(last.unwrap())
-}
-
-// TODO: rewrap those to take lists instead, since the variadic usage is mostly moot
-// fn all(args: BoundArguments) -> FunctionResult {
-//     Ok(DynamicValue::from(args.into_iter().all(|v| v.is_truthy())))
-// }
-
-// fn any(args: BoundArguments) -> FunctionResult {
-//     Ok(DynamicValue::from(args.into_iter().any(|v| v.is_truthy())))
-// }
 
 // Comparison
 fn abstract_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
