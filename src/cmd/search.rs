@@ -849,10 +849,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    if args.flag_limit.is_some() && parallelization.is_some() {
-        Err("-l/--limit does not work with -p/--parallel nor -t/--threads!")?;
-    }
-
     let pairs = args
         .flag_patterns
         .as_ref()
@@ -927,127 +923,145 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(&headers)?;
     }
 
+    let mut matches_count: usize = 0;
+
     // Parallel path
     if let Some(threads) = parallelization {
         wtr.flush()?;
 
         let matcher = Arc::new(matcher);
 
-        rdr.into_byte_records()
-            .parallel_map_custom(
-                |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-                move |result| -> CliResult<Option<csv::ByteRecord>> {
-                    let mut record = result?;
+        for result in rdr.into_byte_records().parallel_map_custom(
+            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            move |result| -> CliResult<(bool, Option<csv::ByteRecord>)> {
+                let mut record = result?;
 
-                    let mut record_to_write_opt = None;
+                let mut record_to_write_opt = None;
+                let mut is_match = false;
 
-                    // Breakdown
-                    if args.flag_breakdown {
-                        let mut counts = vec![0; patterns_len];
-                        let mut is_match = false;
+                // Breakdown
+                if args.flag_breakdown {
+                    let mut counts = vec![0; patterns_len];
 
-                        for cell in sel.select(&record) {
-                            is_match = matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                    for cell in sel.select(&record) {
+                        is_match = matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                    }
+
+                    if is_match || args.flag_left {
+                        for count in counts.into_iter() {
+                            record.push_field(count.to_string().as_bytes());
                         }
 
-                        if is_match || args.flag_left {
-                            for count in counts.into_iter() {
-                                record.push_field(count.to_string().as_bytes());
-                            }
+                        record_to_write_opt.replace(record);
+                    }
+                }
+                // Unique matches
+                else if args.flag_unique_matches.is_some() {
+                    let mut matches = BTreeSet::<usize>::new();
 
+                    for cell in sel.select(&record) {
+                        matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
+                    }
+
+                    is_match = !matches.is_empty();
+
+                    if !is_match {
+                        if args.flag_left {
+                            record.push_field(b"");
                             record_to_write_opt.replace(record);
                         }
-                    }
-                    // Unique matches
-                    else if args.flag_unique_matches.is_some() {
-                        let mut matches = BTreeSet::<usize>::new();
+                    } else {
+                        let mut matches_field: Vec<u8> = vec![];
 
-                        for cell in sel.select(&record) {
-                            matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
-                        }
-
-                        if matches.is_empty() {
-                            if args.flag_left {
-                                record.push_field(b"");
-                                record_to_write_opt.replace(record);
-                            }
-                        } else {
-                            let mut matches_field: Vec<u8> = vec![];
-
-                            for (i, m) in matches.iter().copied().enumerate() {
-                                if let Some(names) = &associated {
-                                    matches_field.push_str(&names[m]);
-                                } else if let Some(p) = &patterns {
-                                    matches_field.push_str(&p[m]);
-                                } else {
-                                    matches_field.push_str(args.arg_pattern.as_ref().unwrap());
-                                }
-
-                                if i < matches.len() - 1 {
-                                    matches_field.push_str(&args.flag_sep);
-                                }
-                            }
-
-                            record.push_field(&matches_field);
-                            record_to_write_opt.replace(record);
-                        }
-                    }
-                    // Replace
-                    else if let Some(replacements) = &associated {
-                        let mut replaced_record =
-                            csv::ByteRecord::with_capacity(record.as_slice().len(), record.len());
-
-                        for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
-                            if should_replace {
-                                let replaced_cell = matcher.replace(cell, replacements);
-                                replaced_record.push_field(&replaced_cell);
+                        for (i, m) in matches.iter().copied().enumerate() {
+                            if let Some(names) = &associated {
+                                matches_field.push_str(&names[m]);
+                            } else if let Some(p) = &patterns {
+                                matches_field.push_str(&p[m]);
                             } else {
-                                replaced_record.push_field(cell);
+                                matches_field.push_str(args.arg_pattern.as_ref().unwrap());
+                            }
+
+                            if i < matches.len() - 1 {
+                                matches_field.push_str(&args.flag_sep);
                             }
                         }
 
+                        record.push_field(&matches_field);
                         record_to_write_opt.replace(record);
                     }
-                    // Count
-                    else if args.flag_count.is_some() {
-                        let count: usize = sel
-                            .select(&record)
-                            .map(|cell| matcher.count(cell, args.flag_overlapping))
-                            .sum();
+                }
+                // Replace
+                else if let Some(replacements) = &associated {
+                    let mut replaced_record =
+                        csv::ByteRecord::with_capacity(record.as_slice().len(), record.len());
 
-                        record.push_field(count.to_string().as_bytes());
+                    for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
+                        if should_replace {
+                            let replaced_cell = matcher.replace(cell, replacements);
+                            replaced_record.push_field(&replaced_cell);
 
-                        record_to_write_opt.replace(record);
-                    }
-                    // Filter
-                    else {
-                        let mut is_match = if args.flag_all {
-                            sel.select(&record).all(|cell| matcher.is_match(cell))
+                            if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
+                                is_match = true;
+                            }
                         } else {
-                            sel.select(&record).any(|cell| matcher.is_match(cell))
-                        };
-
-                        if args.flag_invert_match {
-                            is_match = !is_match;
-                        }
-
-                        if is_match {
-                            record_to_write_opt.replace(record);
+                            replaced_record.push_field(cell);
                         }
                     }
 
-                    Ok(record_to_write_opt)
-                },
-            )
-            .try_for_each(|result| -> CliResult<()> {
-                let records_to_write_opt = result?;
+                    record_to_write_opt.replace(record);
+                }
+                // Count
+                else if args.flag_count.is_some() {
+                    let count: usize = sel
+                        .select(&record)
+                        .map(|cell| matcher.count(cell, args.flag_overlapping))
+                        .sum();
 
-                if let Some(record) = records_to_write_opt {
-                    wtr.write_byte_record(&record)?;
+                    if count > 0 {
+                        is_match = true;
+                    }
+
+                    record.push_field(count.to_string().as_bytes());
+
+                    record_to_write_opt.replace(record);
+                }
+                // Filter
+                else {
+                    is_match = if args.flag_all {
+                        sel.select(&record).all(|cell| matcher.is_match(cell))
+                    } else {
+                        sel.select(&record).any(|cell| matcher.is_match(cell))
+                    };
+
+                    if args.flag_invert_match {
+                        is_match = !is_match;
+                    }
+
+                    if is_match {
+                        record_to_write_opt.replace(record);
+                    }
                 }
 
-                Ok(())
-            })?;
+                Ok((is_match, record_to_write_opt))
+            },
+        ) {
+            let (is_match, record_to_write_opt) = result?;
+
+            if let Some(record) = record_to_write_opt {
+                wtr.write_byte_record(&record)?;
+            }
+
+            if let Some(limit) = args.flag_limit {
+                if is_match {
+                    matches_count += 1;
+                }
+
+                if matches_count >= limit.get() {
+                    break;
+                }
+            }
+        }
 
         return Ok(());
     }
@@ -1056,7 +1070,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = csv::ByteRecord::new();
     let mut replaced_record = csv::ByteRecord::new();
     let mut matches = BTreeSet::<usize>::new();
-    let mut i: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
@@ -1165,10 +1178,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if let Some(limit) = args.flag_limit {
             if is_match {
-                i += 1;
+                matches_count += 1;
             }
 
-            if i >= limit.get() {
+            if matches_count >= limit.get() {
                 break;
             }
         }

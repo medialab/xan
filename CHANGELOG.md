@@ -50,6 +50,7 @@ The **parallel** update.
 * Adding `xan from --sheet-index & --list-sheets`.
 * Adding `xan flatten -H/--highlight & -i/--ignore-case`.
 * Adding `xan groupby --pivot`.
+* Adding support for `xan search -l -p -t`.
 
 *Fixes*
 
