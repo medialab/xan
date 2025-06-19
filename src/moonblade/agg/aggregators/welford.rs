@@ -104,6 +104,31 @@ impl Welford {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RMSWelford(Welford);
+
+impl RMSWelford {
+    pub fn new() -> Self {
+        Self(Welford::new())
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn add(&mut self, value: f64) {
+        self.0.add(value.powi(2));
+    }
+
+    pub fn rms(&self) -> Option<f64> {
+        self.0.mean().map(|m| m.sqrt())
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.0.merge(other.0);
+    }
+}
+
 // NOTE: https://stackoverflow.com/questions/45773857/merging-covariance-from-two-sets-to-create-new-covariance
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CovarianceWelford {

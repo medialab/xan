@@ -51,6 +51,7 @@ The **parallel** update.
 * Adding `xan flatten -H/--highlight & -i/--ignore-case`.
 * Adding `xan groupby --pivot`.
 * Adding support for `xan search -l -p -t`.
+* Adding `rms` moonblade aggregation function.
 
 *Fixes*
 
@@ -80,6 +81,7 @@ The **parallel** update.
 * Fixing `cols()` & `headers()` moonblade functions without arguments.
 * Fixing `cols()` & `headers()` not working with dynamic arguments.
 * Fixing moonblade indexing parsing.
+* Fixing aggregation arity validation.
 
 *Performance*
 

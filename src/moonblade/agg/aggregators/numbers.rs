@@ -2,8 +2,6 @@ use rayon::prelude::*;
 
 use crate::moonblade::types::DynamicNumber;
 
-static SPARKLINE_BLOCKS: [char; 8] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇']; // '█'
-
 #[derive(Debug, Clone)]
 pub enum MedianType {
     Interpolation,
@@ -137,45 +135,6 @@ impl Numbers {
                 }
             }
         }
-    }
-
-    pub fn sparkline(&self, bins: usize) -> String {
-        if self.numbers.is_empty() {
-            return " ".repeat(bins);
-        }
-
-        if self.numbers.len() == 1 {
-            return "▇".to_string() + &" ".repeat(bins.saturating_sub(1));
-        }
-
-        let min = *self.numbers.first().unwrap();
-        let max = *self.numbers.last().unwrap();
-        let width = max - min;
-        let cell_width = width.as_float() / bins as f64;
-
-        let mut cells = vec![0usize; bins];
-
-        for number in self.numbers.iter().copied() {
-            let mut cell_index = ((number - min).as_float() / cell_width).floor() as usize;
-
-            if cell_index == bins {
-                cell_index -= 1;
-            }
-
-            debug_assert!(cell_index < bins);
-
-            cells[cell_index] += 1;
-        }
-
-        let mut line = String::with_capacity(bins);
-        let n = self.numbers.len() as f64;
-
-        for cell in cells {
-            let sparkline_block_index = (cell as f64 / n * 7.0).ceil() as usize;
-            line.push(SPARKLINE_BLOCKS[sparkline_block_index]);
-        }
-
-        line
     }
 
     pub fn merge(&mut self, other: Self) {

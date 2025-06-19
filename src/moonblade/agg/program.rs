@@ -5,8 +5,8 @@ use jiff::{civil::DateTime, Unit};
 
 use super::aggregators::{
     AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
-    Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, Sum, Types, Values,
-    Welford, ZonedExtent,
+    Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, RMSWelford, Sum,
+    Types, Values, Welford, ZonedExtent,
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
@@ -31,6 +31,7 @@ enum Aggregator {
     LexicographicExtent(LexicographicExtent),
     Frequencies(Frequencies),
     Numbers(Numbers),
+    RMSWelford(RMSWelford),
     Sum(Sum),
     Types(Types),
     Welford(Welford),
@@ -56,6 +57,7 @@ impl Aggregator {
             LexicographicExtent(inner) => inner.clear(),
             Frequencies(inner) => inner.clear(),
             Numbers(inner) => inner.clear(),
+            RMSWelford(inner) => inner.clear(),
             Sum(inner) => inner.clear(),
             Types(inner) => inner.clear(),
             Welford(inner) => inner.clear(),
@@ -83,6 +85,7 @@ impl Aggregator {
             }
             (Frequencies(inner), Frequencies(other_inner)) => inner.merge(other_inner),
             (Numbers(inner), Numbers(other_inner)) => inner.merge(other_inner),
+            (RMSWelford(inner), RMSWelford(other_inner)) => inner.merge(other_inner),
             (Sum(inner), Sum(other_inner)) => inner.merge(other_inner),
             (Types(inner), Types(other_inner)) => inner.merge(other_inner),
             (Welford(inner), Welford(other_inner)) => inner.merge(other_inner),
@@ -263,8 +266,8 @@ impl Aggregator {
                 ConcreteAggregationMethod::MostCommonValues(k, separator),
                 Self::Frequencies(inner),
             ) => DynamicValue::from(inner.most_common(*k).join(separator)),
-            (ConcreteAggregationMethod::Sparkline(bins), Self::Numbers(inner)) => {
-                DynamicValue::from(inner.sparkline(*bins))
+            (ConcreteAggregationMethod::Rms, Self::RMSWelford(inner)) => {
+                DynamicValue::from(inner.rms())
             }
             (ConcreteAggregationMethod::Sum, Self::Sum(inner)) => DynamicValue::from(inner.get()),
             (ConcreteAggregationMethod::VarPop, Self::Welford(inner)) => {
@@ -463,8 +466,7 @@ impl CompositeAggregator {
             }
             ConcreteAggregationMethod::Median(_)
             | ConcreteAggregationMethod::Quantile(_)
-            | ConcreteAggregationMethod::Quartile(_)
-            | ConcreteAggregationMethod::Sparkline(_) => {
+            | ConcreteAggregationMethod::Quartile(_) => {
                 upsert_aggregator!(Numbers)
             }
             ConcreteAggregationMethod::Mode
@@ -474,6 +476,9 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::MostCommonCounts(_, _)
             | ConcreteAggregationMethod::MostCommonValues(_, _) => {
                 upsert_aggregator!(Frequencies)
+            }
+            ConcreteAggregationMethod::Rms => {
+                upsert_aggregator!(RMSWelford)
             }
             ConcreteAggregationMethod::Sum => {
                 upsert_aggregator!(Sum)
@@ -563,6 +568,11 @@ impl CompositeAggregator {
                     Aggregator::Numbers(numbers) => {
                         if !value.is_nullish() {
                             numbers.add(value.try_as_number()?);
+                        }
+                    }
+                    Aggregator::RMSWelford(inner) => {
+                        if !value.is_nullish() {
+                            inner.add(value.try_as_f64()?);
                         }
                     }
                     Aggregator::Sum(sum) => {
@@ -708,14 +718,14 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
             ))
         }),
         "cardinality" => (FunctionArguments::unary(), |_| Ok(Cardinality)),
-        "correlation" => (FunctionArguments::unary(), |_| Ok(Correlation)),
-        "count" => (FunctionArguments::unary(), |_| Ok(Count)),
+        "correlation" => (FunctionArguments::binary(), |_| Ok(Correlation)),
+        "count" => (FunctionArguments::with_range(0..=1), |_| Ok(Count)),
         "count_seconds" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Second))),
         "count_hours" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Hour))),
         "count_days" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Day))),
         "count_years" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Year))),
-        "covariance" | "covariance_pop" => (FunctionArguments::unary(), |_| Ok(CovariancePop)),
-        "covariance_sample" => (FunctionArguments::unary(), |_| Ok(CovarianceSample)),
+        "covariance" | "covariance_pop" => (FunctionArguments::binary(), |_| Ok(CovariancePop)),
+        "covariance_sample" => (FunctionArguments::binary(), |_| Ok(CovarianceSample)),
         "distinct_values" => (FunctionArguments::with_range(1..=2), |args| {
             Ok(DistinctValues(cast_as_separator(args.first())?))
         }),
@@ -765,12 +775,7 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "var" | "var_pop" => (FunctionArguments::unary(), |_| Ok(VarPop)),
         "var_sample" => (FunctionArguments::unary(), |_| Ok(VarSample)),
         "ratio" => (FunctionArguments::unary(), |_| Ok(Ratio)),
-        "sparkline" => (FunctionArguments::with_range(1..=2), |args| {
-            Ok(Sparkline(match args.first() {
-                Some(arg) => cast_as_static_value(arg, DynamicValue::try_as_usize)?,
-                None => 10,
-            }))
-        }),
+        "rms" => (FunctionArguments::unary(), |_| Ok(Rms)),
         "stddev" | "stddev_pop" => (FunctionArguments::unary(), |_| Ok(StddevPop)),
         "stddev_sample" => (FunctionArguments::unary(), |_| Ok(StddevSample)),
         "sum" => (FunctionArguments::unary(), |_| Ok(Sum)),
@@ -820,7 +825,7 @@ enum ConcreteAggregationMethod {
     Quartile(usize),
     Quantile(f64),
     Ratio,
-    Sparkline(usize),
+    Rms,
     Sum,
     Values(String),
     VarPop,
@@ -833,12 +838,16 @@ enum ConcreteAggregationMethod {
 }
 
 impl ConcreteAggregationMethod {
-    fn parse(name: &str, args: &[ConcreteExpr]) -> Result<Self, ConcretizationError> {
+    fn parse(
+        name: &str,
+        args_count: usize,
+        args: &[ConcreteExpr],
+    ) -> Result<Self, ConcretizationError> {
         match get_function_arguments_parser(name) {
             None => Err(ConcretizationError::UnknownFunction(name.to_string())),
             Some((function_arguments, parser)) => {
                 function_arguments
-                    .validate_arity(args.len() + 1)
+                    .validate_arity(args_count)
                     .map_err(|invalid_arity| {
                         ConcretizationError::InvalidArity(name.to_string(), invalid_arity)
                     })?;
@@ -905,13 +914,15 @@ fn concretize_aggregations(
             None
         };
 
+        let args_count = aggregation.args.len();
+
         let mut args: Vec<ConcreteExpr> = Vec::new();
 
         for arg in aggregation.args.into_iter().skip(skip) {
             args.push(concretize_expression(arg, headers, None)?);
         }
 
-        let method = ConcreteAggregationMethod::parse(&aggregation.func_name, &args)?;
+        let method = ConcreteAggregationMethod::parse(&aggregation.func_name, args_count, &args)?;
 
         let concrete_aggregation = ConcreteAggregation {
             agg_name: aggregation.agg_name,

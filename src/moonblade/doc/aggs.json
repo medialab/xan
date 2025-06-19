@@ -240,6 +240,12 @@
     "help": "Return the ratio of truthy values returned by expression."
   },
   {
+    "name": "rms",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Return the Root Mean Square of numerical values."
+  },
+  {
     "name": "stddev",
     "arguments": ["<expr>"],
     "returns": "number",

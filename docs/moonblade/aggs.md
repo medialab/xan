@@ -54,6 +54,7 @@ the number of nodes in a graph represented by a CSV edge list.
 - **q2**(*\<expr\>*) -> `number`: Return the second quartile of numerical values.
 - **q3**(*\<expr\>*) -> `number`: Return the third quartile of numerical values.
 - **ratio**(*\<expr\>*) -> `number`: Return the ratio of truthy values returned by expression.
+- **rms**(*\<expr\>*) -> `number`: Return the Root Mean Square of numerical values.
 - **stddev**(*\<expr\>*) -> `number`: Population standard deviation. Same as `stddev_pop`.
 - **stddev_pop**(*\<expr\>*) -> `number`: Population standard deviation. Same as `stddev`.
 - **stddev_sample**(*\<expr\>*) -> `number`: Sample standard deviation (i.e. using Bessel's correction).
