@@ -126,7 +126,7 @@ full_slice  =  { slice_term ~ ":" ~ slice_term }
 start_slice =  { slice_term ~ ":" }
 end_slice   =  { ":" ~ slice_term }
 slice       = _{ full_slice | start_slice | end_slice }
-expr        =  { unary_operator* ~ term ~ (binary_operator ~ unary_operator* ~ term | open_indexing ~ (slice | unary_operator* ~ term) ~ "]")* }
+expr        =  { unary_operator* ~ term ~ (binary_operator ~ unary_operator* ~ term | open_indexing ~ (slice | expr) ~ "]")* }
 term        = _{
     func
   | lambda

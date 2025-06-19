@@ -79,6 +79,7 @@ The **parallel** update.
 * Fixing `moonblade` list slicing.
 * Fixing `cols()` & `headers()` moonblade functions without arguments.
 * Fixing `cols()` & `headers()` not working with dynamic arguments.
+* Fixing moonblade indexing parsing.
 
 *Performance*
 
