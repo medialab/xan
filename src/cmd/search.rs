@@ -545,7 +545,7 @@ definitely would.
 
 Also, you might want to try `xan parallel cat` instead because it could be
 faster in some scenarios at the cost of an increase in memory usage (and it
-won't work on streams and gzipped data).
+won't work on streams and unindexed gzipped data).
 
 For instance, the following `search` command:
 
