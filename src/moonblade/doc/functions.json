@@ -341,7 +341,7 @@
           ["string", "regex", "replacement"]
         ],
         "returns": "string",
-        "help": "Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches."
+        "help": "Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches.\n\nSee regex replacement string syntax documentation here:\nhttps://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax"
       },
       {
         "name": "split",

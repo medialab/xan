@@ -158,6 +158,8 @@ search options:
     -R, --replace <with>     If given, the command will not filter rows but will instead
                              replace matches with the given replacement.
                              Does not work with --replacement-column.
+                             Regex replacement string syntax can be found here:
+                             https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
@@ -194,6 +196,8 @@ multiple patterns options:
     --replacement-column <name>  When given with both --patterns & --pattern-column, indicates the
                                  column containing a replacement when a match occurs. Does not
                                  work with -R/--replace.
+                                 Regex replacement string syntax can be found here:
+                                 https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
     --name-column <name>         When given with -B/--breakdown, --patterns & --pattern-column,
                                  indicates the column containing a pattern's name that will be used
                                  as column name in the appended breakdown.
