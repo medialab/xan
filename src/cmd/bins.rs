@@ -372,6 +372,10 @@ impl Series {
             let scale = LinearScale::nice((min, max), (0.0, 1.0), count);
             let ticks = scale.ticks(count);
 
+            if ticks.is_empty() {
+                return Some(vec![]);
+            }
+
             let mut bins: Vec<Bin> = Vec::with_capacity(ticks.len());
 
             for i in 0..(ticks.len() - 1) {
