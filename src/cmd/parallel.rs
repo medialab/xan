@@ -730,11 +730,10 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let mut reader = config.seekable_reader()?;
-            let headers = reader.byte_headers()?.clone();
+            let mut reader = config.io_reader_for_random_access()?;
 
             // NOTE: we could fallback to not chunking the file
-            let segments = segment_csv_file(
+            let (segments, sample) = segment_csv_file(
                 &mut reader,
                 || config.csv_reader_builder(),
                 SegmentationOptions::chunks(t),
@@ -756,7 +755,7 @@ impl Args {
                     from,
                     to,
                     position: i,
-                    headers: headers.clone(),
+                    headers: sample.headers.clone(),
                 }));
             }
         }

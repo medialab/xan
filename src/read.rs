@@ -55,6 +55,7 @@ impl<R: Seek + Read> ReverseRead<R> {
 
 #[derive(Debug)]
 pub struct InitialRecordsSample {
+    pub headers: ByteRecord,
     pub size: u64,
     pub max_record_size: u64,
     pub mean_record_size: f64,
@@ -107,7 +108,9 @@ pub fn sample_initial_records<R: Read + Seek>(
 ) -> Result<Option<InitialRecordsSample>, csv::Error> {
     // NOTE: it is important to make sure headers have been read
     // so that the first record size does not include header bytes.
-    let field_count = reader.byte_headers()?.len();
+    let global_file_offset = reader.get_mut().stream_position()?;
+    let headers = reader.byte_headers()?.clone();
+    let field_count = headers.len();
 
     let mut record = ByteRecord::new();
 
@@ -157,10 +160,11 @@ pub fn sample_initial_records<R: Read + Seek>(
     let file_len = reader.get_mut().seek(SeekFrom::End(0))?;
 
     Ok(Some(InitialRecordsSample {
+        headers,
         size: i,
         max_record_size: max_record_size.unwrap(),
         mean_record_size: welford.mean().unwrap(),
-        first_record_offset,
+        first_record_offset: first_record_offset + global_file_offset,
         profile,
         file_len,
         eof,
@@ -391,23 +395,30 @@ impl SegmentationOptions {
     }
 }
 
+type SegmentCsvInfo = (Vec<(u64, u64)>, InitialRecordsSample);
+
 pub fn segment_csv_file<F, R>(
-    reader: &mut Reader<R>,
+    reader: &mut R,
     reader_builder: F,
     mut options: SegmentationOptions,
-) -> Result<Option<Vec<(u64, u64)>>, csv::Error>
+) -> Result<Option<SegmentCsvInfo>, csv::Error>
 where
     F: Fn() -> ReaderBuilder,
     R: Read + Seek,
 {
-    let sample = match sample_initial_records(reader, options.init_sample_size)? {
+    let mut csv_reader = reader_builder().from_reader(reader);
+
+    let sample = match sample_initial_records(&mut csv_reader, options.init_sample_size)? {
         None => return Ok(None),
         Some(s) => s,
     };
 
     // File is way too short
     if sample.size < options.chunks as u64 {
-        return Ok(Some(vec![(sample.first_record_offset, sample.file_len)]));
+        return Ok(Some((
+            vec![(sample.first_record_offset, sample.file_len)],
+            sample,
+        )));
     }
 
     // Limiting number of chunks when file is too short
@@ -427,7 +438,7 @@ where
             segments.push(NextRecordOffsetInferrence::Start);
         } else {
             let inferred = find_next_record_offset_from_random_position(
-                reader,
+                &mut csv_reader,
                 &reader_builder,
                 offset,
                 &sample,
@@ -459,7 +470,7 @@ where
         })
         .collect::<Vec<_>>();
 
-    Ok(Some(offsets))
+    Ok(Some((offsets, sample)))
 }
 
 pub fn consume_cdx_header<R: Read>(reader: &mut R) -> io::Result<bool> {

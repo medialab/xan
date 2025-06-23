@@ -105,9 +105,9 @@ impl Args {
         }
 
         let rconfig = self.rconfig();
-        let mut reader = rconfig.seekable_reader()?;
+        let mut reader = rconfig.io_reader_for_random_access()?;
 
-        let segments = segment_csv_file(
+        let (segments, _) = segment_csv_file(
             &mut reader,
             || rconfig.csv_reader_builder(),
             SegmentationOptions::chunks(self.flag_chunks.unwrap().get()),
@@ -136,9 +136,9 @@ impl Args {
 
     fn segments(&self) -> CliResult<()> {
         let rconfig = self.rconfig();
-        let mut reader = rconfig.seekable_reader()?;
+        let mut reader = rconfig.io_reader_for_random_access()?;
 
-        let segments = segment_csv_file(
+        let (segments, _) = segment_csv_file(
             &mut reader,
             || rconfig.csv_reader_builder(),
             SegmentationOptions::chunks(self.flag_chunks.unwrap().get()),
