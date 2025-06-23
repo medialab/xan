@@ -62,14 +62,10 @@ impl TryFrom<String> for Delimiter {
     }
 }
 
-fn read_typical_headers<R: Read>(reader: &mut R, path: &str) -> CliResult<()> {
-    let path = path.strip_suffix(".gz").unwrap_or(path);
-
-    if path.ends_with(".cdx") && !read::consume_cdx_header(reader)? {
-        Err("invalid CDX header!")?;
-    }
-
-    Ok(())
+#[derive(Debug)]
+enum TabularDataKind {
+    RegularCsv,
+    Cdx,
 }
 
 pub trait SeekRead: Seek + Read {}
@@ -90,15 +86,18 @@ pub struct Config {
     double_quote: bool,
     escape: Option<u8>,
     quoting: bool,
+    compressed: bool, // TODO: can become a compression type if we need to support more schemes than gz
+    tabular_data_kind: TabularDataKind,
 }
 
 impl Config {
     pub fn new(path: &Option<String>) -> Config {
-        let (path, delim) = match *path {
-            None => (None, b','),
-            Some(ref s) if s.deref() == "-" => (None, b','),
+        let (path, delim, compressed, tabular_data_kind) = match *path {
+            None => (None, b',', false, TabularDataKind::RegularCsv),
+            Some(ref s) if s.deref() == "-" => (None, b',', false, TabularDataKind::RegularCsv),
             Some(ref s) => {
                 let raw_s = s.strip_suffix(".gz").unwrap_or(s);
+                let mut kind = TabularDataKind::RegularCsv;
 
                 let delim = if raw_s.ends_with(".tsv") || raw_s.ends_with(".tab") {
                     b'\t'
@@ -107,14 +106,16 @@ impl Config {
                 } else if raw_s.ends_with(".psv") {
                     b'|'
                 } else if raw_s.ends_with(".cdx") {
+                    kind = TabularDataKind::Cdx;
                     b' '
                 } else {
                     b','
                 };
 
-                (Some(PathBuf::from(s)), delim)
+                (Some(PathBuf::from(s)), delim, s.ends_with(".gz"), kind)
             }
         };
+
         Config {
             path,
             select_columns: None,
@@ -127,6 +128,8 @@ impl Config {
             double_quote: true,
             escape: None,
             quoting: true,
+            compressed,
+            tabular_data_kind,
         }
     }
 
@@ -245,6 +248,20 @@ impl Config {
         Ok(self.csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
+    #[allow(clippy::single_match)]
+    fn read_typical_headers<R: Read>(&self, reader: &mut R) -> CliResult<()> {
+        match self.tabular_data_kind {
+            TabularDataKind::Cdx => {
+                if !read::consume_cdx_header(reader)? {
+                    Err("invalid CDX header!")?;
+                }
+            }
+            _ => (),
+        };
+
+        Ok(())
+    }
+
     pub fn reader(&self) -> CliResult<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
@@ -264,15 +281,13 @@ impl Config {
             }
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
-                    let raw_s = p.to_string_lossy();
-
-                    let mut reader: Box<dyn Read + Send + 'static> = if raw_s.ends_with(".gz") {
+                    let mut reader: Box<dyn Read + Send + 'static> = if self.compressed {
                         Box::new(MultiGzDecoder::new(x))
                     } else {
                         Box::new(x)
                     };
 
-                    read_typical_headers(&mut reader, &raw_s)?;
+                    self.read_typical_headers(&mut reader)?;
 
                     reader
                 }
@@ -378,7 +393,7 @@ impl Config {
         match self.path {
             None => false,
             Some(ref p) => {
-                if p.to_string_lossy().ends_with(".gz") {
+                if self.compressed {
                     let index_path_str = p.to_string_lossy() + ".gzi";
                     let index_path = Path::new(index_path_str.as_ref());
 
@@ -397,9 +412,7 @@ impl Config {
             None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
             Some(ref p) => match fs::File::open(p) {
                 Ok(mut x) => {
-                    let raw_s = p.to_string_lossy();
-
-                    if raw_s.ends_with(".gz") {
+                    if self.compressed {
                         let index_path_str = p.to_string_lossy() + ".gzi";
                         let index_path = Path::new(index_path_str.as_ref());
 
@@ -408,12 +421,12 @@ impl Config {
                             let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
                             let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
 
-                            read_typical_headers(&mut indexed_reader, &raw_s)?;
+                            self.read_typical_headers(&mut indexed_reader)?;
 
                             return Ok(Box::new(indexed_reader));
                         }
                     } else {
-                        read_typical_headers(&mut x, &raw_s)?;
+                        self.read_typical_headers(&mut x)?;
                     }
 
                     match x.borrow().stream_position() {
