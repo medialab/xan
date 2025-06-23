@@ -678,6 +678,7 @@ impl Args {
 
             if s.ends_with(".csv")
                 || s.ends_with(".tsv")
+                || s.ends_with(".tab")
                 || s.ends_with(".ssv")
                 || s.ends_with(".psv")
             {
