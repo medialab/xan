@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::{
     fs,
-    io::{self, BufRead, Cursor, Read},
+    io::{self, BufRead, BufReader, Cursor, Read},
     path::Path,
 };
 
@@ -226,7 +226,7 @@ impl Args {
 
     fn convert_ndjson(&self) -> CliResult<()> {
         let mut wtr = self.writer()?;
-        let rdr = Config::new(&self.arg_input).io_buf_reader()?;
+        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
 
         for_each_json_value_as_csv_record(
             rdr.lines().map(|line| -> Result<Value, CliError> {
@@ -286,7 +286,7 @@ impl Args {
     }
 
     fn convert_text_lines(&self) -> CliResult<()> {
-        let rdr = Config::new(&self.arg_input).io_buf_reader()?;
+        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
         let mut wtr = self.writer()?;
         wtr.write_record([&self.flag_column])?;
 

@@ -273,31 +273,6 @@ impl Config {
         })
     }
 
-    pub fn io_buf_reader(&self) -> io::Result<Box<dyn io::BufRead + Send + 'static>> {
-        Ok(match self.path {
-            None => {
-                if io::stdin().is_terminal() {
-                    return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"));
-                } else {
-                    Box::new(BufReader::new(io::stdin()))
-                }
-            }
-            Some(ref p) => match fs::File::open(p) {
-                Ok(x) => {
-                    if p.to_string_lossy().ends_with(".gz") {
-                        Box::new(BufReader::new(MultiGzDecoder::new(x)))
-                    } else {
-                        Box::new(BufReader::new(x))
-                    }
-                }
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    return Err(io::Error::new(io::ErrorKind::NotFound, msg));
-                }
-            },
-        })
-    }
-
     pub fn lines(
         &self,
         select: &Option<SelectColumns>,
@@ -320,7 +295,7 @@ impl Config {
             )));
         }
 
-        let lines_reader = self.io_buf_reader()?;
+        let lines_reader = BufReader::new(self.io_reader()?);
 
         Ok(Box::new(lines_reader.lines().filter_map(
             |result| match result {
@@ -370,7 +345,7 @@ impl Config {
             )));
         }
 
-        let lines_reader = self.io_buf_reader()?;
+        let lines_reader = BufReader::new(self.io_reader()?);
 
         Ok(Box::new(lines_reader.lines().filter_map(
             |result| match result {
