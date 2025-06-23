@@ -12,7 +12,7 @@ use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
 
-use crate::read::ReverseRead;
+use crate::read::{self, ReverseRead};
 use crate::select::{SelectColumns, Selection};
 use crate::{CliError, CliResult};
 
@@ -62,6 +62,16 @@ impl TryFrom<String> for Delimiter {
     }
 }
 
+fn read_typical_headers<R: Read>(reader: &mut R, path: &str) -> CliResult<()> {
+    let path = path.strip_suffix(".gz").unwrap_or(path);
+
+    if path.ends_with(".cdx") && !read::consume_cdx_header(reader)? {
+        Err("invalid CDX header!")?;
+    }
+
+    Ok(())
+}
+
 pub trait SeekRead: Seek + Read {}
 impl<T: Seek + Read> SeekRead for T {}
 
@@ -96,6 +106,8 @@ impl Config {
                     b';'
                 } else if raw_s.ends_with(".psv") {
                     b'|'
+                } else if raw_s.ends_with(".cdx") {
+                    b' '
                 } else {
                     b','
                 };
@@ -233,41 +245,40 @@ impl Config {
         Ok(self.csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
-    pub fn reader(&self) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
+    pub fn reader(&self) -> CliResult<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
-
-    // pub fn reader_at_position(
-    //     &self,
-    //     position: u64,
-    // ) -> io::Result<csv::Reader<Box<dyn io::Read + Send + 'static>>> {
-    //     Ok(self.csv_reader_from_reader(self.io_reader_at_position(position)?))
-    // }
 
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
     }
 
-    pub fn io_reader(&self) -> io::Result<Box<dyn io::Read + Send + 'static>> {
+    pub fn io_reader(&self) -> CliResult<Box<dyn io::Read + Send + 'static>> {
         Ok(match self.path {
             None => {
                 if io::stdin().is_terminal() {
-                    return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"));
+                    return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"))?;
                 } else {
                     Box::new(io::stdin())
                 }
             }
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
-                    if p.to_string_lossy().ends_with(".gz") {
+                    let raw_s = p.to_string_lossy();
+
+                    let mut reader: Box<dyn Read + Send + 'static> = if raw_s.ends_with(".gz") {
                         Box::new(MultiGzDecoder::new(x))
                     } else {
                         Box::new(x)
-                    }
+                    };
+
+                    read_typical_headers(&mut reader, &raw_s)?;
+
+                    reader
                 }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
-                    return Err(io::Error::new(io::ErrorKind::NotFound, msg));
+                    return Err(io::Error::new(io::ErrorKind::NotFound, msg))?;
                 }
             },
         })
@@ -385,17 +396,24 @@ impl Config {
         match self.path {
             None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
             Some(ref p) => match fs::File::open(p) {
-                Ok(x) => {
-                    if p.to_string_lossy().ends_with(".gz") {
+                Ok(mut x) => {
+                    let raw_s = p.to_string_lossy();
+
+                    if raw_s.ends_with(".gz") {
                         let index_path_str = p.to_string_lossy() + ".gzi";
                         let index_path = Path::new(index_path_str.as_ref());
 
                         if index_path.is_file() {
                             let reader = BGZFReader::new(x)?;
                             let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
+                            let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
 
-                            return Ok(Box::new(IndexedBGZFReader::new(reader, index)?));
+                            read_typical_headers(&mut indexed_reader, &raw_s)?;
+
+                            return Ok(Box::new(indexed_reader));
                         }
+                    } else {
+                        read_typical_headers(&mut x, &raw_s)?;
                     }
 
                     match x.borrow().stream_position() {

@@ -461,3 +461,11 @@ where
 
     Ok(Some(offsets))
 }
+
+pub fn consume_cdx_header<R: Read>(reader: &mut R) -> io::Result<bool> {
+    let mut buf = [0u8; 5];
+
+    reader.read_exact(&mut buf)?;
+
+    Ok(&buf == b" CDX ")
+}

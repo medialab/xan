@@ -681,6 +681,7 @@ impl Args {
                 || s.ends_with(".tab")
                 || s.ends_with(".ssv")
                 || s.ends_with(".psv")
+                || s.ends_with(".cdx")
             {
                 if p.ends_with(".gz") {
                     Config::new(&Some(p.to_string())).is_indexed_gzip()
