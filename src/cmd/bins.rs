@@ -370,10 +370,15 @@ impl Series {
 
         let bins = if nice {
             let scale = LinearScale::nice((min, max), (0.0, 1.0), count);
-            let ticks = scale.ticks(count);
+            let mut ticks = scale.ticks(count);
 
             if ticks.is_empty() {
                 return Some(vec![]);
+            }
+
+            if ticks.len() >= 2 {
+                ticks[0] = min;
+                *ticks.last_mut().unwrap() = max;
             }
 
             let mut bins: Vec<Bin> = Vec::with_capacity(ticks.len());
@@ -393,7 +398,8 @@ impl Series {
                         Ordering::Equal => Ordering::Less,
                         ord => ord,
                     })
-                    .unwrap_err();
+                    .unwrap_err()
+                    .min(bins.len().saturating_sub(1));
 
                 bins[bin_index].count += 1;
             }
