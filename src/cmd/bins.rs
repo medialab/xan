@@ -390,7 +390,7 @@ impl Series {
                 // NOTE: using `binary_search_by` as lower_bound
                 let bin_index = bins
                     .binary_search_by(|bin| match bin.upper_bound.partial_cmp(n).unwrap() {
-                        Ordering::Equal => Ordering::Greater,
+                        Ordering::Equal => Ordering::Less,
                         ord => ord,
                     })
                     .unwrap_err();

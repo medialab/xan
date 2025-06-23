@@ -85,6 +85,7 @@ The **parallel** update.
 * Fixing `xan agg` & `xan groupby` behavior wrt `-n/--no-headers`.
 * Fixing shortcircuiting of `and` and `or` moonblade functions.
 * Fixing issue with degenerate cases in `xan bins --nice`.
+* Fixing bin allocation in `xan bins --nice`.
 
 *Performance*
 
