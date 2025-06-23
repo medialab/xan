@@ -108,6 +108,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ) {
             None => continue,
             Some(bins) => {
+                let max_lower_bound_width = bins
+                    .iter()
+                    .map(|bin| util::format_number(bin.lower_bound).len())
+                    .max()
+                    .unwrap();
+                let max_upper_bound_width = bins
+                    .iter()
+                    .map(|bin| util::format_number(bin.upper_bound).len())
+                    .max()
+                    .unwrap();
+
                 let mut bins_iter = bins.iter().peekable();
 
                 while let Some(bin) = bins_iter.next() {
@@ -124,8 +135,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     } else {
                         match args.flag_label.as_str() {
                             "full" => match bins_iter.peek() {
-                                None => format!(">= {} <= {}", lower_bound, upper_bound),
-                                Some(_) => format!(">= {} < {}", lower_bound, upper_bound),
+                                None => format!(
+                                    ">= {:lower_width$} <= {:upper_width$}",
+                                    lower_bound,
+                                    upper_bound,
+                                    lower_width = max_lower_bound_width,
+                                    upper_width = max_upper_bound_width
+                                ),
+                                Some(_) => format!(
+                                    ">= {:lower_width$} <  {:upper_width$}",
+                                    lower_bound,
+                                    upper_bound,
+                                    lower_width = max_lower_bound_width,
+                                    upper_width = max_upper_bound_width
+                                ),
                             },
                             "upper" => upper_bound,
                             "lower" => lower_bound,

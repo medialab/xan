@@ -100,6 +100,7 @@ The **parallel** update.
 * Displaying number of threads actually used when using `xan parallel`.
 * `xan view` now automatically right-align columns containing only integers.
 * Better moonblade casting errors.
+* `xan bins` formatted bound will now be padded for better readability.
 
 ## 0.50.0
 
