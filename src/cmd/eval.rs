@@ -71,7 +71,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         println!("{}   {}", "type".cyan(), value.type_of());
     } else {
         println!("{} ", "result".cyan());
-        println!("{:?}", value);
+        println!("{:#?}", value);
     }
 
     Ok(())
