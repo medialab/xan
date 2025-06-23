@@ -263,13 +263,17 @@ impl Args {
         let n = self.flag_last.unwrap();
 
         let headers = rdr.byte_headers()?.clone();
-        let headers_size = rdr.position().byte();
+        let headers_offset = if self.flag_no_headers {
+            0
+        } else {
+            rdr.position().byte()
+        };
 
         if !self.flag_no_headers {
             wtr.write_byte_record(&headers)?;
         }
 
-        match rconf.io_reader_for_reverse_reading(headers_size) {
+        match rconf.io_reader_for_reverse_reading(headers_offset) {
             Ok(reverse_reader) => {
                 let mut reverse_csv_reader = rconf.csv_reader_from_reader(reverse_reader);
 

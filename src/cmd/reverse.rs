@@ -60,14 +60,14 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
     rconfig.no_headers = true;
 
     let mut config_csv_reader = rconfig.reader()?;
-    let headers_size = if args.flag_no_headers {
+    let headers_offset = if args.flag_no_headers {
         0
     } else {
         config_csv_reader.byte_headers()?;
         config_csv_reader.position().byte()
     };
 
-    let reverse_reader = rconfig.io_reader_for_reverse_reading(headers_size);
+    let reverse_reader = rconfig.io_reader_for_reverse_reading(headers_offset);
 
     match reverse_reader {
         Err(_) => Err(
@@ -77,7 +77,7 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
             let mut wtr = Config::new(&args.flag_output).writer()?;
             let mut reverse_csv_reader = rconfig.csv_reader_from_reader(rr);
 
-            if !args.flag_no_headers && headers_size > 0 {
+            if !args.flag_no_headers && headers_offset > 0 {
                 let headers = config_csv_reader.byte_headers()?;
                 wtr.write_byte_record(headers)?;
             }

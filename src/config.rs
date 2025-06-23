@@ -453,6 +453,30 @@ impl Config {
         Ok(Box::new(reader))
     }
 
+    // pub fn reverse_reader(
+    //     &self,
+    // ) -> CliResult<(
+    //     csv::ByteRecord,
+    //     csv::Reader<Box<dyn io::Read + Send + 'static>>,
+    // )> {
+    //     let io_reader = self.io_reader_for_random_access()?;
+
+    //     let mut forward_reader = self.csv_reader_from_reader(io_reader);
+    //     let headers = forward_reader.byte_headers()?.clone();
+
+    //     let offset = forward_reader.get_mut().stream_position()?;
+    //     let filesize = forward_reader.get_mut().seek(SeekFrom::End(0))?;
+
+    //     dbg!(offset, filesize);
+
+    //     let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
+
+    //     Ok((
+    //         headers,
+    //         self.csv_reader_from_reader(Box::new(reverse_reader)),
+    //     ))
+    // }
+
     pub fn io_reader_for_reverse_reading(
         &self,
         offset: u64,
@@ -460,7 +484,6 @@ impl Config {
         let mut reader = self.io_reader_for_random_access()?;
 
         let filesize = reader.seek(SeekFrom::End(0))?;
-        reader.rewind()?;
 
         Ok(Box::new(ReverseRead::new(reader, filesize, offset)))
     }
