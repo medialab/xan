@@ -109,6 +109,7 @@ scrape options:
     -I, --input-dir <path>      If given, target column will be understood
                                 as relative path to read from this input
                                 directory instead.
+    -E, --encoding <name>       Encoding of HTML to read on disk. Will default utf-8.
     -k, --keep <column>         Selection of columns from the input to keep in
                                 the output. Default is to keep all columns from input.
     -p, --parallel              Whether to use parallelization to speed up computations.

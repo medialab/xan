@@ -52,6 +52,7 @@ The **parallel** update.
 * Adding `xan groupby --pivot`.
 * Adding support for `xan search -l -p -t`.
 * Adding `rms` moonblade aggregation function.
+* Adding `xan scrape -E/--encoding`.
 
 *Fixes*
 

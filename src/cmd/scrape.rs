@@ -6,6 +6,7 @@ use std::str::from_utf8;
 
 use bstr::ByteSlice;
 use colored::Colorize;
+use encoding::{label::encoding_from_whatwg_label, DecoderTrap, EncodingRef};
 use flate2::read::MultiGzDecoder;
 use lazy_static::lazy_static;
 use pariter::IteratorExt;
@@ -35,12 +36,24 @@ fn open(input_dir: &str, filename: &str) -> io::Result<Box<dyn Read>> {
     })
 }
 
-fn read_string(input_dir: &str, filename: &str) -> io::Result<String> {
-    let mut string = String::new();
+fn read_string(
+    input_dir: &str,
+    filename: &str,
+    encoding: Option<EncodingRef>,
+) -> io::Result<String> {
+    if let Some(encoding_ref) = encoding {
+        let bytes = read_bytes(input_dir, filename)?;
 
-    open(input_dir, filename)?.read_to_string(&mut string)?;
+        Ok(encoding_ref
+            .decode(&bytes, DecoderTrap::Replace)
+            .expect("could not decode"))
+    } else {
+        let mut string = String::new();
 
-    Ok(string)
+        open(input_dir, filename)?.read_to_string(&mut string)?;
+
+        Ok(string)
+    }
 }
 
 fn read_bytes(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
@@ -84,14 +97,36 @@ fn read_up_to_head(input_dir: &str, filename: &str) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn read_html(input_dir: &str, filename: &str) -> io::Result<Html> {
-    read_string(input_dir, filename).map(|string| Html::parse_document(&string))
+fn read_html(input_dir: &str, filename: &str, encoding: Option<EncodingRef>) -> io::Result<Html> {
+    read_string(input_dir, filename, encoding).map(|string| Html::parse_document(&string))
 }
 
-#[derive(Debug)]
 enum ScraperTarget<'a> {
     HtmlCell(&'a [u8]),
-    HtmlFile(&'a str, &'a str),
+    HtmlFile {
+        input_dir: &'a str,
+        filename: &'a str,
+        encoding: Option<EncodingRef>,
+    },
+}
+
+impl<'a> ScraperTarget<'a> {
+    fn decode<'b>(&self, bytes: &'b [u8]) -> Cow<'b, str> {
+        match self {
+            Self::HtmlCell(_) => Cow::Borrowed(from_utf8(bytes).expect("could not decode")),
+            Self::HtmlFile { encoding, .. } => {
+                if let Some(encoding_ref) = encoding {
+                    Cow::Owned(
+                        encoding_ref
+                            .decode(bytes, DecoderTrap::Replace)
+                            .expect("could not decode"),
+                    )
+                } else {
+                    Cow::Borrowed(from_utf8(bytes).expect("could not decode"))
+                }
+            }
+        }
+    }
 }
 
 fn guard_invalid_html_cell(cell: &[u8]) -> CliResult<()> {
@@ -117,9 +152,11 @@ impl ScraperTarget<'_> {
                     None => Cow::Borrowed(cell),
                 })
             }
-            Self::HtmlFile(input_dir, filename) => {
-                Ok(Cow::Owned(read_up_to_head(input_dir, filename)?))
-            }
+            Self::HtmlFile {
+                input_dir,
+                filename,
+                ..
+            } => Ok(Cow::Owned(read_up_to_head(input_dir, filename)?)),
         }
     }
 
@@ -130,7 +167,11 @@ impl ScraperTarget<'_> {
 
                 Ok(Cow::Borrowed(cell))
             }
-            Self::HtmlFile(input_dir, filename) => Ok(Cow::Owned(read_bytes(input_dir, filename)?)),
+            Self::HtmlFile {
+                input_dir,
+                filename,
+                ..
+            } => Ok(Cow::Owned(read_bytes(input_dir, filename)?)),
         }
     }
 
@@ -143,7 +184,11 @@ impl ScraperTarget<'_> {
                     from_utf8(cell).expect("invalid utf-8"),
                 ))
             }
-            Self::HtmlFile(input_dir, filename) => Ok(read_html(input_dir, filename)?),
+            Self::HtmlFile {
+                input_dir,
+                filename,
+                encoding,
+            } => Ok(read_html(input_dir, filename, *encoding)?),
         }
     }
 }
@@ -266,7 +311,7 @@ impl Scraper {
 
     fn scrape_head(&self, target: &ScraperTarget) -> CliResult<Vec<DynamicValue>> {
         let bytes = target.prebuffer_up_to_head()?;
-        let html = Html::parse_document(from_utf8(&bytes).unwrap());
+        let html = Html::parse_document(&target.decode(&bytes));
 
         Ok(html
             .select(&HEAD_SELECTOR)
@@ -313,7 +358,7 @@ impl Scraper {
             };
 
             if let Some(base_url) = &base_url_opt {
-                if let Ok(joined_url) = base_url.join(from_utf8(url).unwrap()) {
+                if let Ok(joined_url) = base_url.join(&target.decode(&bytes)) {
                     // TODO: canonicalize
                     urls.push(DynamicValue::from(joined_url.to_string()));
                 }
@@ -564,8 +609,8 @@ impl Scraper {
                 "Row index {}{}\n{}",
                 index,
                 match target {
-                    ScraperTarget::HtmlFile(_, path) => {
-                        format!(", in path {}", path.cyan())
+                    ScraperTarget::HtmlFile { filename, .. } => {
+                        format!(", in path {}", filename.cyan())
                     }
                     _ => "".to_string(),
                 },
@@ -683,6 +728,7 @@ scrape options:
     -I, --input-dir <path>      If given, target column will be understood
                                 as relative path to read from this input
                                 directory instead.
+    -E, --encoding <name>       Encoding of HTML to read on disk. Will default utf-8.
     -k, --keep <column>         Selection of columns from the input to keep in
                                 the output. Default is to keep all columns from input.
     -p, --parallel              Whether to use parallelization to speed up computations.
@@ -725,6 +771,7 @@ struct Args {
     flag_evaluate: Option<String>,
     flag_evaluate_file: Option<String>,
     flag_foreach: Option<String>,
+    flag_encoding: Option<String>,
     flag_url_column: Option<SelectColumns>,
     flag_input_dir: Option<String>,
     flag_keep: Option<SelectColumns>,
@@ -755,6 +802,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .select(args.arg_column)
         .no_headers(args.flag_no_headers);
+
+    let encoding = args
+        .flag_encoding
+        .as_ref()
+        .map(|name| {
+            encoding_from_whatwg_label(name).ok_or_else(|| format!("unknown {} encoding!", name))
+        })
+        .transpose()?;
 
     let mut reader = conf.reader()?;
     let headers = reader.byte_headers()?.clone();
@@ -864,7 +919,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     let target = if let Some(input_dir) = &args.flag_input_dir {
-                        ScraperTarget::HtmlFile(input_dir, from_utf8(cell).expect("invalid utf-8"))
+                        ScraperTarget::HtmlFile {
+                            input_dir,
+                            filename: from_utf8(cell).expect("invalid utf-8"),
+                            encoding,
+                        }
                     } else {
                         ScraperTarget::HtmlCell(cell)
                     };
@@ -911,7 +970,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 } else {
                     let target = if let Some(input_dir) = &args.flag_input_dir {
-                        ScraperTarget::HtmlFile(input_dir, from_utf8(cell).expect("invalid utf-8"))
+                        ScraperTarget::HtmlFile {
+                            input_dir,
+                            filename: from_utf8(cell).expect("invalid utf-8"),
+                            encoding,
+                        }
                     } else {
                         ScraperTarget::HtmlCell(cell)
                     };
