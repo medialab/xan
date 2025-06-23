@@ -390,7 +390,7 @@ impl SegmentationOptions {
         Self {
             chunks: count,
             init_sample_size: 128,
-            jump_sample_size: 8,
+            jump_sample_size: 32,
         }
     }
 }
@@ -430,6 +430,8 @@ where
         )
         .max(1);
 
+    // TODO: it might become important to remove the pre-csv header from
+    // the offset segmentation.
     let offsets = segment_file(sample.file_len, options.chunks);
     let mut segments = Vec::with_capacity(offsets.len());
 
