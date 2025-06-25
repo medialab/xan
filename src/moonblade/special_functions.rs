@@ -41,19 +41,37 @@ pub fn get_special_function(
         // is not available to normal functions.
         "col" => (
             Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(false, call, headers)
+                abstract_comptime_col(false, false, call, headers)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(false, context, args)
+                abstract_runtime_col(false, false, context, args)
+            }),
+            FunctionArguments::with_range(1..=2),
+        ),
+        "col_index" => (
+            Some(|call: &FunctionCall, headers: &ByteRecord| {
+                abstract_comptime_col(false, true, call, headers)
+            }),
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                abstract_runtime_col(false, true, context, args)
             }),
             FunctionArguments::with_range(1..=2),
         ),
         "col?" => (
             Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(true, call, headers)
+                abstract_comptime_col(true, false, call, headers)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(true, context, args)
+                abstract_runtime_col(true, false, context, args)
+            }),
+            FunctionArguments::with_range(1..=2),
+        ),
+        "col_index?" => (
+            Some(|call: &FunctionCall, headers: &ByteRecord| {
+                abstract_comptime_col(true, true, call, headers)
+            }),
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                abstract_runtime_col(true, true, context, args)
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -115,12 +133,19 @@ pub fn get_special_function(
 
 fn abstract_comptime_col(
     unsure: bool,
+    return_index: bool,
     call: &FunctionCall,
     headers: &ByteRecord,
 ) -> ComptimeFunctionResult {
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
         match column_indexation.find_column_index(headers, headers.len()) {
-            Some(index) => return Ok(Some(ConcreteExpr::Column(index))),
+            Some(index) => {
+                return Ok(Some(if return_index {
+                    ConcreteExpr::Value(DynamicValue::from(index))
+                } else {
+                    ConcreteExpr::Column(index)
+                }))
+            }
             None => {
                 return if unsure {
                     Ok(Some(ConcreteExpr::Value(DynamicValue::None)))
@@ -271,6 +296,7 @@ fn runtime_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> Evaluat
 
 fn abstract_runtime_col(
     unsure: bool,
+    return_index: bool,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
 ) -> EvaluationResult {
@@ -297,7 +323,11 @@ fn abstract_runtime_col(
                     ))
                 }
             }
-            Some(index) => Ok(DynamicValue::from(&context.record[index])),
+            Some(index) => Ok(if return_index {
+                DynamicValue::from(index)
+            } else {
+                DynamicValue::from(&context.record[index])
+            }),
         },
     }
 }

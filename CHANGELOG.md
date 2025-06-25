@@ -56,6 +56,7 @@ The **parallel** update.
 * Adding `xan scrape -E/--encoding`.
 * Adding CDX files support.
 * Adding `regex` moonblade function.
+* Adding `col_index` & `col_index?` moonblade function.
 
 *Fixes*
 
