@@ -881,6 +881,8 @@ fn concretize_aggregations(
     let mut concrete_aggregations = ConcreteAggregations::new();
 
     for mut aggregation in aggregations {
+        let args_count = aggregation.args.len();
+
         if ["most_common", "most_common_counts", "top", "argtop"]
             .contains(&aggregation.func_name.as_str())
         {
@@ -893,8 +895,6 @@ fn concretize_aggregations(
             .map(|arg| concretize_expression(arg.clone(), headers, None))
             .transpose()?;
 
-        let mut skip: usize = 1;
-
         let pair_expr = if aggregation.args.len() > 1
             && [
                 "covariance",
@@ -904,9 +904,8 @@ fn concretize_aggregations(
             ]
             .contains(&aggregation.func_name.as_str())
         {
-            skip = 2;
             Some(concretize_expression(
-                aggregation.args.get(1).unwrap().clone(),
+                aggregation.args.pop().unwrap().clone(),
                 headers,
                 None,
             )?)
@@ -914,11 +913,9 @@ fn concretize_aggregations(
             None
         };
 
-        let args_count = aggregation.args.len();
-
         let mut args: Vec<ConcreteExpr> = Vec::new();
 
-        for arg in aggregation.args.into_iter().skip(skip) {
+        for arg in aggregation.args.into_iter().skip(1) {
             args.push(concretize_expression(arg, headers, None)?);
         }
 
