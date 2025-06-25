@@ -597,7 +597,7 @@ pub fn concretize_expression(
 
             let indexation = ColumIndexationBy::Name(name);
 
-            match indexation.find_column_index(headers, headers.len()) {
+            match indexation.find_column_index(headers) {
                 Some(index) => ConcreteExpr::Column(index),
                 None => {
                     if unsure {

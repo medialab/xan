@@ -138,7 +138,7 @@ fn abstract_comptime_col(
     headers: &ByteRecord,
 ) -> ComptimeFunctionResult {
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
-        match column_indexation.find_column_index(headers, headers.len()) {
+        match column_indexation.find_column_index(headers) {
             Some(index) => {
                 return Ok(Some(if return_index {
                     ConcreteExpr::Value(DynamicValue::from(index))
@@ -175,9 +175,7 @@ where
 
     match ColumIndexationBy::from_argument(&call.args[0].1) {
         None => Ok(None),
-        Some(first_column_indexation) => match first_column_indexation
-            .find_column_index(headers, headers.len())
-        {
+        Some(first_column_indexation) => match first_column_indexation.find_column_index(headers) {
             Some(first_index) => {
                 if call.args.len() < 2 {
                     Ok(Some(ConcreteExpr::List(
@@ -187,8 +185,7 @@ where
                     match ColumIndexationBy::from_argument(&call.args[1].1) {
                         None => Ok(None),
                         Some(second_column_indexation) => {
-                            match second_column_indexation.find_column_index(headers, headers.len())
-                            {
+                            match second_column_indexation.find_column_index(headers) {
                                 Some(second_index) => {
                                     let range: Vec<_> = if first_index > second_index {
                                         (second_index..=first_index).map(map).rev().collect()

@@ -7,7 +7,7 @@ use super::DynamicValue;
 #[derive(Debug, PartialEq, Clone)]
 pub enum ColumIndexationBy {
     Name(String),
-    NameAndNth(String, usize),
+    NameAndNth(String, isize),
     Pos(isize),
 }
 
@@ -26,7 +26,7 @@ impl ColumIndexationBy {
                     let second_arg = arguments.get(1).unwrap();
 
                     second_arg
-                        .try_to_usize()
+                        .try_to_isize()
                         .map(|column_index| Self::NameAndNth(column_name.to_string(), column_index))
                 }
                 _ => None,
@@ -45,11 +45,11 @@ impl ColumIndexationBy {
         pos: Option<DynamicValue>,
     ) -> Option<Self> {
         if let Some(pos_value) = pos {
-            match pos_value.try_as_usize() {
+            match pos_value.try_as_i64() {
                 Err(_) => None,
                 Ok(i) => match name_or_pos.try_as_str() {
                     Err(_) => None,
-                    Ok(name) => Some(Self::NameAndNth(name.into_owned(), i)),
+                    Ok(name) => Some(Self::NameAndNth(name.into_owned(), i as isize)),
                 },
             }
         } else {
@@ -63,11 +63,9 @@ impl ColumIndexationBy {
         }
     }
 
-    pub fn find_column_index<'a>(
-        &self,
-        headers: impl IntoIterator<Item = &'a [u8]>,
-        len: usize,
-    ) -> Option<usize> {
+    pub fn find_column_index(&self, headers: &csv::ByteRecord) -> Option<usize> {
+        let len = headers.len();
+
         match self {
             Self::Pos(i) => {
                 if *i < 0 {
@@ -92,7 +90,7 @@ impl ColumIndexationBy {
             Self::Name(name) => {
                 let name_bytes = name.as_bytes();
 
-                for (i, cell) in headers.into_iter().enumerate() {
+                for (i, cell) in headers.iter().enumerate() {
                     if cell == name_bytes {
                         return Some(i);
                     }
@@ -101,16 +99,29 @@ impl ColumIndexationBy {
                 None
             }
             Self::NameAndNth(name, pos) => {
-                let mut c = *pos;
-
                 let name_bytes = name.as_bytes();
 
-                for (i, cell) in headers.into_iter().enumerate() {
-                    if cell == name_bytes {
-                        if c == 0 {
-                            return Some(i);
+                if *pos < 0 {
+                    let mut c = pos.unsigned_abs() - 1;
+
+                    for (i, cell) in headers.iter().rev().enumerate() {
+                        if cell == name_bytes {
+                            if c == 0 {
+                                return Some(len - i - 1);
+                            }
+                            c -= 1;
                         }
-                        c -= 1;
+                    }
+                } else {
+                    let mut c = *pos as usize;
+
+                    for (i, cell) in headers.iter().enumerate() {
+                        if cell == name_bytes {
+                            if c == 0 {
+                                return Some(i);
+                            }
+                            c -= 1;
+                        }
                     }
                 }
 
@@ -191,7 +202,20 @@ impl HeadersIndex {
             ColumIndexationBy::NameAndNth(name, pos) => self
                 .mapping
                 .get(name)
-                .and_then(|positions| positions.get(*pos))
+                .and_then(|positions| {
+                    if *pos < 0 {
+                        let pos = pos.unsigned_abs();
+                        let len = positions.len();
+
+                        if pos > len {
+                            None
+                        } else {
+                            positions.get(len - pos)
+                        }
+                    } else {
+                        positions.get(*pos as usize)
+                    }
+                })
                 .copied(),
         }
     }

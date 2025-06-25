@@ -92,6 +92,7 @@ The **parallel** update.
 * Fixing issue with degenerate cases in `xan bins --nice`.
 * Fixing bin allocation in `xan bins --nice`.
 * Fixing `xan bins --nice` first and last bound to stick to min & max.
+* Fixing negative indexing with `col*(name, pos)` moonblade functions.
 
 *Performance*
 
