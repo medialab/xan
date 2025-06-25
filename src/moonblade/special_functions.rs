@@ -40,13 +40,21 @@ pub fn get_special_function(
         // is not an option for them. What's more they rely on the headers index which
         // is not available to normal functions.
         "col" => (
-            Some(comptime_col),
-            Some(runtime_col),
+            Some(|call: &FunctionCall, headers: &ByteRecord| {
+                abstract_comptime_col(false, call, headers)
+            }),
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                abstract_runtime_col(false, context, args)
+            }),
             FunctionArguments::with_range(1..=2),
         ),
         "col?" => (
-            Some(comptime_unsure_col),
-            Some(runtime_unsure_col),
+            Some(|call: &FunctionCall, headers: &ByteRecord| {
+                abstract_comptime_col(true, call, headers)
+            }),
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                abstract_runtime_col(true, context, args)
+            }),
             FunctionArguments::with_range(1..=2),
         ),
         "cols" => (
@@ -105,24 +113,21 @@ pub fn get_special_function(
     })
 }
 
-fn comptime_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionResult {
-    // Statically analyzable col() function call
+fn abstract_comptime_col(
+    unsure: bool,
+    call: &FunctionCall,
+    headers: &ByteRecord,
+) -> ComptimeFunctionResult {
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
         match column_indexation.find_column_index(headers, headers.len()) {
             Some(index) => return Ok(Some(ConcreteExpr::Column(index))),
-            None => return Err(ConcretizationError::ColumnNotFound(column_indexation)),
-        };
-    }
-
-    Ok(None)
-}
-
-fn comptime_unsure_col(call: &FunctionCall, headers: &ByteRecord) -> ComptimeFunctionResult {
-    // Statically analyzable col?() function call
-    if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
-        match column_indexation.find_column_index(headers, headers.len()) {
-            Some(index) => return Ok(Some(ConcreteExpr::Column(index))),
-            None => return Ok(Some(ConcreteExpr::Value(DynamicValue::None))),
+            None => {
+                return if unsure {
+                    Ok(Some(ConcreteExpr::Value(DynamicValue::None)))
+                } else {
+                    Err(ConcretizationError::ColumnNotFound(column_indexation))
+                }
+            }
         };
     }
 
@@ -264,7 +269,11 @@ fn runtime_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> Evaluat
     })
 }
 
-fn runtime_col(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
+fn abstract_runtime_col(
+    unsure: bool,
+    context: &EvaluationContext,
+    args: &[ConcreteExpr],
+) -> EvaluationResult {
     let name_or_pos = args.first().unwrap().evaluate(context)?;
 
     let pos = match args.get(1) {
@@ -278,30 +287,16 @@ fn runtime_col(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
             EvaluationError::Custom("invalid arguments".to_string()),
         )),
         Some(indexation) => match context.headers_index.get(&indexation) {
-            None => Err(SpecifiedEvaluationError::new(
-                "col",
-                EvaluationError::ColumnNotFound(indexation),
-            )),
-            Some(index) => Ok(DynamicValue::from(&context.record[index])),
-        },
-    }
-}
-
-fn runtime_unsure_col(context: &EvaluationContext, args: &[ConcreteExpr]) -> EvaluationResult {
-    let name_or_pos = args.first().unwrap().evaluate(context)?;
-
-    let pos = match args.get(1) {
-        Some(p) => Some(p.evaluate(context)?),
-        None => None,
-    };
-
-    match ColumIndexationBy::from_bound_arguments(name_or_pos, pos) {
-        None => Err(SpecifiedEvaluationError::new(
-            "col",
-            EvaluationError::Custom("invalid arguments".to_string()),
-        )),
-        Some(indexation) => match context.headers_index.get(&indexation) {
-            None => Ok(DynamicValue::None),
+            None => {
+                if unsure {
+                    Ok(DynamicValue::None)
+                } else {
+                    Err(SpecifiedEvaluationError::new(
+                        "col",
+                        EvaluationError::ColumnNotFound(indexation),
+                    ))
+                }
+            }
             Some(index) => Ok(DynamicValue::from(&context.record[index])),
         },
     }
