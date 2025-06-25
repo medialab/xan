@@ -54,7 +54,7 @@ For a list of available functions, use `xan help functions`.
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
-with the --cols nor -E/--errors options.
+with the --cols options.
 
 Usage:
     xan agg [options] <expression> [<input>]
