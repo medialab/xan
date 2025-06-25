@@ -256,28 +256,18 @@ impl Args {
     }
 
     fn run_last(&self) -> CliResult<()> {
-        let rconf = self.rconfig().no_headers(true);
-        let mut rdr = rconf.reader()?;
+        let rconf = self.rconfig();
         let mut wtr = self.wconfig().writer()?;
 
         let n = self.flag_last.unwrap();
 
-        let headers = rdr.byte_headers()?.clone();
-        let headers_offset = if self.flag_no_headers {
-            0
-        } else {
-            rdr.position().byte()
-        };
+        match rconf.reverse_reader() {
+            Ok((headers, mut reverse_reader)) => {
+                if !self.flag_no_headers {
+                    wtr.write_byte_record(&headers)?;
+                }
 
-        if !self.flag_no_headers {
-            wtr.write_byte_record(&headers)?;
-        }
-
-        match rconf.io_reader_for_reverse_reading(headers_offset) {
-            Ok(reverse_reader) => {
-                let mut reverse_csv_reader = rconf.csv_reader_from_reader(reverse_reader);
-
-                let records = reverse_csv_reader
+                let records = reverse_reader
                     .byte_records()
                     .take(n)
                     .collect::<Result<Vec<_>, _>>()?;
@@ -292,12 +282,19 @@ impl Args {
                 }
             }
             Err(_) => {
+                let mut rdr = rconf.reader()?;
+
+                let n = self.flag_last.unwrap();
+
+                let headers = rdr.byte_headers()?.clone();
+
+                if !self.flag_no_headers {
+                    wtr.write_byte_record(&headers)?;
+                }
+
                 let mut buffer: VecDeque<csv::ByteRecord> = VecDeque::with_capacity(n);
 
-                for result in rdr
-                    .byte_records()
-                    .skip(if self.flag_no_headers { 0 } else { 1 })
-                {
+                for result in rdr.byte_records() {
                     if buffer.len() >= n {
                         buffer.pop_front();
                     }
