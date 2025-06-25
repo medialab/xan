@@ -152,6 +152,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(escape) = args.flag_escape {
         rconfig = rconfig.escape(Some(escape.as_byte())).double_quote(false);
     }
+
     if args.flag_no_quoting {
         rconfig = rconfig.quoting(false);
     }

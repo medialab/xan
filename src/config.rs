@@ -68,6 +68,12 @@ enum TabularDataKind {
     Cdx,
 }
 
+impl TabularDataKind {
+    fn is_cdx(&self) -> bool {
+        matches!(self, Self::Cdx)
+    }
+}
+
 pub trait SeekRead: Seek + Read {}
 impl<T: Seek + Read> SeekRead for T {}
 
@@ -116,7 +122,7 @@ impl Config {
             }
         };
 
-        Config {
+        let mut config = Config {
             path,
             select_columns: None,
             delimiter: delim,
@@ -130,7 +136,13 @@ impl Config {
             quoting: true,
             compressed,
             tabular_data_kind,
+        };
+
+        if config.tabular_data_kind.is_cdx() {
+            config.quoting = false;
         }
+
+        config
     }
 
     pub fn stdin() -> Config {
