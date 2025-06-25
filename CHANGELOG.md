@@ -55,6 +55,7 @@ The **parallel** update.
 * Adding `rms` moonblade aggregation function.
 * Adding `xan scrape -E/--encoding`.
 * Adding CDX files support.
+* Adding `regex` moonblade function.
 
 *Fixes*
 

@@ -657,6 +657,12 @@
         "help": "Return the row's index, if applicable."
       },
       {
+        "name": "regex",
+        "arguments": ["string"],
+        "returns": "regex",
+        "help": "Parse given string as regex. Useful when your patterns are dynamic, e.g. built from a CSV cell. Else prefer using regex literals e.g. \"/test/\"."
+      },
+      {
         "name": "typeof",
         "arguments": ["value"],
         "returns": "string",

@@ -255,6 +255,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **err**(*msg*) -> `error`: Make the expression return a custom error.
 - **headers**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[string]`: Return list of header names from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers.
 - **index**() -> `int?`: Return the row's index, if applicable.
+- **regex**(*string*) -> `regex`: Parse given string as regex. Useful when your patterns are dynamic, e.g. built from a CSV cell. Else prefer using regex literals e.g. "/test/".
 - **typeof**(*value*) -> `string`: Return type of value.
 
 ## IO & path wrangling

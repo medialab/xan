@@ -20,6 +20,7 @@ use paltoquet::{
     tokenizers::FingerprintTokenizer,
 };
 use rand::Rng;
+use regex::Regex;
 use unidecode::unidecode;
 use uuid::Uuid;
 
@@ -204,6 +205,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "read_csv" => (read_csv, FunctionArguments::unary()),
         "read_json" => (read_json, FunctionArguments::unary()),
+        "regex" => (parse_regex, FunctionArguments::unary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
             |args| unary_arithmetic_op(args, DynamicNumber::round),
@@ -1631,4 +1633,12 @@ fn html_unescape(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(html_escape::decode_html_entities(
         &string,
     )))
+}
+
+fn parse_regex(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    Ok(DynamicValue::from(Regex::new(&string).map_err(|_| {
+        EvaluationError::Custom(format!("could not parse \"{}\" as regex", string))
+    })?))
 }
