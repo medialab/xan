@@ -488,22 +488,11 @@ impl Config {
         let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
         let mut reader_builder = self.csv_reader_builder();
         reader_builder.has_headers(false);
-
+        dbg!(offset, filesize);
         Ok((
             headers,
             reader_builder.from_reader(Box::new(reverse_reader)),
         ))
-    }
-
-    pub fn io_reader_for_reverse_reading(
-        &self,
-        offset: u64,
-    ) -> CliResult<Box<dyn io::Read + 'static>> {
-        let mut reader = self.io_reader_for_random_access()?;
-
-        let filesize = reader.seek(SeekFrom::End(0))?;
-
-        Ok(Box::new(ReverseRead::new(reader, filesize, offset)))
     }
 
     pub fn csv_reader_builder(&self) -> csv::ReaderBuilder {

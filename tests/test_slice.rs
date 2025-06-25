@@ -207,3 +207,41 @@ fn slice_conditions() {
     let expected = vec![svec!["n"], svec!["2"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn slice_last() {
+    let wrk = Workdir::new("slice_last");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["n"],
+            svec!["zero"],
+            svec!["one"],
+            svec!["two"],
+            svec!["three"],
+            svec!["four"],
+            svec!["five"],
+        ],
+    );
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-L", "3"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["three"], svec!["four"], svec!["five"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-L", "300"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n"],
+        svec!["zero"],
+        svec!["one"],
+        svec!["two"],
+        svec!["three"],
+        svec!["four"],
+        svec!["five"],
+    ];
+    assert_eq!(got, expected);
+}

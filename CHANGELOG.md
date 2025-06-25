@@ -53,6 +53,7 @@ The **parallel** update.
 * Adding support for `xan search -l -p -t`.
 * Adding `rms` moonblade aggregation function.
 * Adding `xan scrape -E/--encoding`.
+* Adding CDX files support.
 
 *Fixes*
 
@@ -93,6 +94,7 @@ The **parallel** update.
 
 * Switching hashmaps to `ahash`.
 * Optimizing moonblade pipelines with more than a single underscore substitution.
+* Improving `xan reverse` performance.
 
 *Quality of Life*
 
