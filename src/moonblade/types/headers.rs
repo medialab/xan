@@ -7,9 +7,8 @@ use super::DynamicValue;
 #[derive(Debug, PartialEq, Clone)]
 pub enum ColumIndexationBy {
     Name(String),
-    NameAndNth((String, usize)),
-    Pos(usize),
-    ReversePos(usize),
+    NameAndNth(String, usize),
+    Pos(isize),
 }
 
 impl ColumIndexationBy {
@@ -18,13 +17,7 @@ impl ColumIndexationBy {
             let first_arg = arguments.first().unwrap();
             match first_arg {
                 Expr::Str(column_name) => Some(Self::Name(column_name.clone())),
-                Expr::Float(_) | Expr::Int(_) => first_arg.try_to_isize().map(|i| {
-                    if i >= 0 {
-                        Self::Pos(i as usize)
-                    } else {
-                        Self::ReversePos(i.unsigned_abs())
-                    }
-                }),
+                Expr::Float(_) | Expr::Int(_) => first_arg.try_to_isize().map(Self::Pos),
                 _ => None,
             }
         } else if arguments.len() == 2 {
@@ -32,9 +25,9 @@ impl ColumIndexationBy {
                 Expr::Str(column_name) => {
                     let second_arg = arguments.get(1).unwrap();
 
-                    second_arg.try_to_usize().map(|column_index| {
-                        Self::NameAndNth((column_name.to_string(), column_index))
-                    })
+                    second_arg
+                        .try_to_usize()
+                        .map(|column_index| Self::NameAndNth(column_name.to_string(), column_index))
                 }
                 _ => None,
             }
@@ -56,7 +49,7 @@ impl ColumIndexationBy {
                 Err(_) => None,
                 Ok(i) => match name_or_pos.try_as_str() {
                     Err(_) => None,
-                    Ok(name) => Some(Self::NameAndNth((name.into_owned(), i))),
+                    Ok(name) => Some(Self::NameAndNth(name.into_owned(), i)),
                 },
             }
         } else {
@@ -65,11 +58,7 @@ impl ColumIndexationBy {
                     Err(_) => None,
                     Ok(name) => Some(Self::Name(name.into_owned())),
                 },
-                Ok(i) => Some(if i < 0 {
-                    Self::ReversePos(i.unsigned_abs() as usize)
-                } else {
-                    Self::Pos(i as usize)
-                }),
+                Ok(i) => Some(Self::Pos(i as isize)),
             }
         }
     }
@@ -81,17 +70,23 @@ impl ColumIndexationBy {
     ) -> Option<usize> {
         match self {
             Self::Pos(i) => {
-                if i >= &len {
-                    None
+                if *i < 0 {
+                    // Negative indexing
+                    let i = i.unsigned_abs();
+
+                    if i > len {
+                        None
+                    } else {
+                        Some(len - i)
+                    }
                 } else {
-                    Some(*i)
-                }
-            }
-            Self::ReversePos(i) => {
-                if *i > len {
-                    None
-                } else {
-                    Some(len - i)
+                    let i = *i as usize;
+
+                    if i >= len {
+                        None
+                    } else {
+                        Some(i)
+                    }
                 }
             }
             Self::Name(name) => {
@@ -105,7 +100,7 @@ impl ColumIndexationBy {
 
                 None
             }
-            Self::NameAndNth((name, pos)) => {
+            Self::NameAndNth(name, pos) => {
                 let mut c = *pos;
 
                 let name_bytes = name.as_bytes();
@@ -174,20 +169,26 @@ impl HeadersIndex {
                 .and_then(|positions| positions.first())
                 .copied(),
             ColumIndexationBy::Pos(pos) => {
-                if *pos >= self.mapping.len() {
-                    None
+                if *pos < 0 {
+                    // Negative indexing
+                    let pos = pos.unsigned_abs();
+
+                    if pos > self.mapping.len() {
+                        None
+                    } else {
+                        Some(self.mapping.len() - pos)
+                    }
                 } else {
-                    Some(*pos)
+                    let pos = *pos as usize;
+
+                    if pos >= self.mapping.len() {
+                        None
+                    } else {
+                        Some(pos)
+                    }
                 }
             }
-            ColumIndexationBy::ReversePos(pos) => {
-                if *pos > self.mapping.len() {
-                    None
-                } else {
-                    Some(self.mapping.len() - pos)
-                }
-            }
-            ColumIndexationBy::NameAndNth((name, pos)) => self
+            ColumIndexationBy::NameAndNth(name, pos) => self
                 .mapping
                 .get(name)
                 .and_then(|positions| positions.get(*pos))

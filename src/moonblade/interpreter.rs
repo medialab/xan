@@ -1107,7 +1107,7 @@ mod tests {
         assert_eq!(
             eval_code("col('surname', 1)"),
             Err(RunError::Prepare(ConcretizationError::ColumnNotFound(
-                ColumIndexationBy::NameAndNth(("surname".to_string(), 1))
+                ColumIndexationBy::NameAndNth("surname".to_string(), 1)
             )))
         );
         assert_eq!(eval_code("col(concat('sur', 'name'))"), Ok(b("SMITH")));
