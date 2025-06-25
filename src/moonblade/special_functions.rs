@@ -64,7 +64,6 @@ pub fn get_special_function(
                     ConcreteExpr::Value(DynamicValue::from(&headers[i]))
                 })
             }),
-            // TODO: must improve headers index for this...
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 runtime_cols_headers(context, args, |i| {
                     DynamicValue::from(context.headers_index.get_at(i))
