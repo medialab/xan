@@ -83,11 +83,6 @@ groupby options:
     -S, --sorted             Use this flag to indicate that the file is already sorted on the
                              group columns, in which case the command will be able to considerably
                              optimize memory usage.
-    -e, --errors <policy>    What to do with evaluation errors. One of:
-                               - "panic": exit on first error
-                               - "ignore": ignore row altogether
-                               - "log": print error to stderr
-                             [default: panic].
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to

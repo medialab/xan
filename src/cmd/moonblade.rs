@@ -143,22 +143,6 @@ impl MoonbladeErrorPolicy {
         matches!(self, Self::Report)
     }
 
-    pub fn handle_row_error(
-        &self,
-        index: usize,
-        error: SpecifiedEvaluationError,
-    ) -> Result<(), SpecifiedEvaluationError> {
-        match self {
-            MoonbladeErrorPolicy::Panic => Err(error)?,
-            MoonbladeErrorPolicy::Ignore => Ok(()),
-            MoonbladeErrorPolicy::Log => {
-                eprintln!("Row n°{}: {}", index, error);
-                Ok(())
-            }
-            _ => unreachable!(),
-        }
-    }
-
     pub fn handle_error<T: Default>(
         &self,
         result: Result<T, SpecifiedEvaluationError>,

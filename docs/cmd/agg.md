@@ -61,11 +61,6 @@ Usage:
     xan agg --help
 
 agg options:
-    -E, --errors <policy>    What to do with evaluation errors. One of:
-                               - "panic": exit on first error
-                               - "ignore": ignore row altogether
-                               - "log": print error to stderr
-                             [default: panic].
     --cols <columns>         Aggregate a selection of columns per row
                              instead of the whole file. A special `cell`
                              variable will represent the value of a

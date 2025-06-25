@@ -1,7 +1,6 @@
 use std::io::Write;
 use std::num::NonZeroUsize;
 
-use crate::cmd::moonblade::MoonbladeErrorPolicy;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, GroupPivotAggregationProgram};
@@ -105,11 +104,6 @@ groupby options:
     -S, --sorted             Use this flag to indicate that the file is already sorted on the
                              group columns, in which case the command will be able to considerably
                              optimize memory usage.
-    -e, --errors <policy>    What to do with evaluation errors. One of:
-                               - \"panic\": exit on first error
-                               - \"ignore\": ignore row altogether
-                               - \"log\": print error to stderr
-                             [default: panic].
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
@@ -137,7 +131,6 @@ struct Args {
     flag_keep: Option<SelectColumns>,
     flag_pivot: Option<SelectColumns>,
     flag_sorted: bool,
-    flag_errors: String,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
 }
@@ -154,10 +147,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-p/--parallel or -t/--threads cannot be used with --sorted!")?;
         }
 
-        if args.flag_errors != "panic" {
-            Err("-p/--parallel or -t/--threads cannot be used with -E/--errors!")?;
-        }
-
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
 
         parallel_args.cmd_groupby = true;
@@ -170,8 +159,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         return parallel_args.run();
     }
-
-    let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -218,7 +205,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for result in program.into_byte_records(false) {
-            let (group, group_record) = error_policy.handle_error(result)?;
+            let (group, group_record) = result?;
 
             write_group(&mut wtr, &group, &group_record)?;
         }
@@ -275,31 +262,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 Some(current_group) => {
                     if current_group != &group {
-                        write_group(
-                            &mut wtr,
-                            current_group,
-                            &error_policy.handle_error(program.finalize(false))?,
-                        )?;
+                        write_group(&mut wtr, current_group, &program.finalize(false)?)?;
                         program.clear();
                         current = Some(group);
                     }
                 }
             };
 
-            program
-                .run_with_record(index, &record)
-                .or_else(|error| error_policy.handle_row_error(index, error))?;
+            program.run_with_record(index, &record)?;
 
             index += 1;
         }
 
         // Flushing final group
         if let Some(current_group) = current {
-            write_group(
-                &mut wtr,
-                &current_group,
-                &error_policy.handle_error(program.finalize(false))?,
-            )?;
+            write_group(&mut wtr, &current_group, &program.finalize(false)?)?;
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
@@ -317,15 +294,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_byte_record(&mut record)? {
             let group = sel.collect(&record);
 
-            program
-                .run_with_record(group, index, &record)
-                .or_else(|error| error_policy.handle_row_error(index, error))?;
+            program.run_with_record(group, index, &record)?;
 
             index += 1;
         }
 
         for result in program.into_byte_records(false) {
-            let (group, group_record) = error_policy.handle_error(result)?;
+            let (group, group_record) = result?;
 
             write_group(&mut wtr, &group, &group_record)?;
         }

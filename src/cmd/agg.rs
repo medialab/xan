@@ -1,6 +1,5 @@
 use std::num::NonZeroUsize;
 
-use crate::cmd::moonblade::MoonbladeErrorPolicy;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::AggregationProgram;
@@ -74,11 +73,6 @@ Usage:
     xan agg --help
 
 agg options:
-    -E, --errors <policy>    What to do with evaluation errors. One of:
-                               - \"panic\": exit on first error
-                               - \"ignore\": ignore row altogether
-                               - \"log\": print error to stderr
-                             [default: panic].
     --cols <columns>         Aggregate a selection of columns per row
                              instead of the whole file. A special `cell`
                              variable will represent the value of a
@@ -106,7 +100,6 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
-    flag_errors: String,
     flag_cols: Option<SelectColumns>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
@@ -120,10 +113,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-p/--parallel or -t/--threads cannot be used with --cols!")?;
         }
 
-        if args.flag_errors != "panic" {
-            Err("-p/--parallel or -t/--threads cannot be used with -E/--errors!")?;
-        }
-
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
 
         parallel_args.cmd_agg = true;
@@ -135,8 +124,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         return parallel_args.run();
     }
-
-    let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -169,16 +156,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 working_record.clear();
                 working_record.push_field(cell);
 
-                program
-                    .run_with_record(index, &working_record)
-                    .or_else(|error| error_policy.handle_row_error(index, error))?;
+                program.run_with_record(index, &working_record)?;
             }
 
-            wtr.write_record(
-                record
-                    .iter()
-                    .chain(error_policy.handle_error(program.finalize(false))?.iter()),
-            )?;
+            record.extend(program.finalize(false)?.into_iter());
+
+            wtr.write_record(&record)?;
 
             index += 1;
         }
@@ -194,14 +177,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            program
-                .run_with_record(index, &record)
-                .or_else(|error| error_policy.handle_row_error(index, error))?;
+            program.run_with_record(index, &record)?;
 
             index += 1;
         }
 
-        wtr.write_byte_record(&error_policy.handle_error(program.finalize(false))?)?;
+        wtr.write_byte_record(&program.finalize(false)?)?;
     }
     Ok(wtr.flush()?)
 }
