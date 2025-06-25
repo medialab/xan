@@ -50,7 +50,7 @@ bgzip = { version = "0.3.1", features = ["rust_backend"]}
 bstr = "1.11.3"
 btoi = "0.4.3"
 bytesize = "2.0.1"
-calamine = "0.26.1"
+calamine = "0.28.0"
 colored = "2.0.0"
 colorgrad = { version = "0.7.0", default-features = false, features = ["preset"] }
 console = "0.15.8"
@@ -94,7 +94,7 @@ ratatui = { version = "0.29.0", default-features = false }
 rayon = "1.10.0"
 regex = "1"
 regex-automata = "0.4.9"
-rust_xlsxwriter = "0.84.1"
+rust_xlsxwriter = "0.88.0"
 scraper = "0.23.1"
 serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
@@ -112,10 +112,6 @@ unicode-segmentation = "1.12.0"
 unicode-width = "0.2.0"
 url = "2.5.4"
 uuid = { version = "1.16.0", features = ["v4"] }
-
-# NOTE: this is necessary until the `zip` crate fix their semver violation
-# or until both `calamine` and `rust_xlsxwriter` pin their dependency.
-zip = "=2.4.2"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
