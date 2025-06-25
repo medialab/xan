@@ -486,10 +486,12 @@ impl Config {
         let filesize = forward_reader.get_mut().seek(SeekFrom::End(0))?;
 
         let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
+        let mut reader_builder = self.csv_reader_builder();
+        reader_builder.has_headers(false);
 
         Ok((
             headers,
-            self.csv_reader_from_reader(Box::new(reverse_reader)),
+            reader_builder.from_reader(Box::new(reverse_reader)),
         ))
     }
 
