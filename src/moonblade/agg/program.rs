@@ -20,7 +20,7 @@ enum Aggregator {
     AllAny(AllAny),
     ApproxCardinality(Box<ApproxCardinality>),
     ApproxQuantiles(Box<ApproxQuantiles>),
-    ArgExtent(ArgExtent),
+    ArgExtent(Box<ArgExtent>),
     ArgTop(ArgTop),
     Count(Count),
     CovarianceWelford(CovarianceWelford),
@@ -29,7 +29,7 @@ enum Aggregator {
     Last(Last),
     Values(Values),
     LexicographicExtent(LexicographicExtent),
-    Frequencies(Frequencies),
+    Frequencies(Box<Frequencies>),
     Numbers(Numbers),
     RMSWelford(RMSWelford),
     Sum(Sum),
@@ -72,7 +72,7 @@ impl Aggregator {
             (AllAny(inner), AllAny(other_inner)) => inner.merge(other_inner),
             (ApproxCardinality(inner), ApproxCardinality(other_inner)) => inner.merge(*other_inner),
             (ApproxQuantiles(inner), ApproxQuantiles(other_inner)) => inner.merge(*other_inner),
-            (ArgExtent(inner), ArgExtent(other_inner)) => inner.merge(other_inner),
+            (ArgExtent(inner), ArgExtent(other_inner)) => inner.merge(*other_inner),
             (ArgTop(inner), ArgTop(other_inner)) => inner.merge(other_inner),
             (Count(inner), Count(other_inner)) => inner.merge(other_inner),
             (CovarianceWelford(inner), CovarianceWelford(other_inner)) => inner.merge(other_inner),
@@ -83,7 +83,7 @@ impl Aggregator {
             (LexicographicExtent(inner), LexicographicExtent(other_inner)) => {
                 inner.merge(other_inner)
             }
-            (Frequencies(inner), Frequencies(other_inner)) => inner.merge(other_inner),
+            (Frequencies(inner), Frequencies(other_inner)) => inner.merge(*other_inner),
             (Numbers(inner), Numbers(other_inner)) => inner.merge(other_inner),
             (RMSWelford(inner), RMSWelford(other_inner)) => inner.merge(other_inner),
             (Sum(inner), Sum(other_inner)) => inner.merge(other_inner),
@@ -114,6 +114,8 @@ impl Aggregator {
         method: &ConcreteAggregationMethod,
         headers_index: &HeadersIndex,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
+        debug_assert!(std::mem::size_of::<Self>() <= 64);
+
         Ok(match (method, self) {
             (ConcreteAggregationMethod::All, Self::AllAny(inner)) => {
                 DynamicValue::from(inner.all())
@@ -431,9 +433,9 @@ impl CompositeAggregator {
                     .iter()
                     .position(|item| matches!(item, Aggregator::NumericExtent(_)))
                 {
-                    None => upsert_aggregator!(ArgExtent),
+                    None => upsert_boxed_aggregator!(ArgExtent),
                     Some(idx) => {
-                        self.methods[idx] = Aggregator::ArgExtent(ArgExtent::new());
+                        self.methods[idx] = Aggregator::ArgExtent(Box::new(ArgExtent::new()));
                         idx
                     }
                 }
@@ -475,7 +477,7 @@ impl CompositeAggregator {
             | ConcreteAggregationMethod::DistinctValues(_)
             | ConcreteAggregationMethod::MostCommonCounts(_, _)
             | ConcreteAggregationMethod::MostCommonValues(_, _) => {
-                upsert_aggregator!(Frequencies)
+                upsert_boxed_aggregator!(Frequencies)
             }
             ConcreteAggregationMethod::Rms => {
                 upsert_aggregator!(RMSWelford)

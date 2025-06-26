@@ -99,6 +99,7 @@ The **parallel** update.
 * Switching hashmaps to `ahash`.
 * Optimizing moonblade pipelines with more than a single underscore substitution.
 * Improving `xan reverse` performance.
+* Reducing memory footprint of aggregators.
 
 *Quality of Life*
 
