@@ -468,6 +468,8 @@ impl DynamicValue {
     pub fn set_bytes(&mut self, new_bytes: &[u8]) {
         match self {
             Self::Bytes(bytes) => {
+                // NOTE: I cannot really prove this is faster to avoid allocation here...
+                // It certainly seems a little bit faster but not by a large margin.
                 match Arc::get_mut(bytes) {
                     Some(inner) => {
                         inner.clear();
