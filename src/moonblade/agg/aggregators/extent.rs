@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 
 use csv::ByteRecord;
 
@@ -25,9 +25,7 @@ impl<T: Copy + PartialOrd> Extent<T> {
             Some((min, max)) => {
                 if value < *min {
                     *min = value;
-                }
-
-                if value > *max {
+                } else if value > *max {
                     *max = value;
                 }
             }
@@ -85,15 +83,29 @@ impl ArgExtent {
                 self.extent = Some(((value, (index, arg.clone())), (value, (index, arg.clone()))))
             }
             Some(((min, min_arg), (max, max_arg))) => {
-                if value < *min {
-                    *min = value;
-                    *min_arg = (index, arg.clone());
-                }
-
-                if value > *max {
-                    *max = value;
-                    *max_arg = (index, arg.clone());
-                }
+                match value.partial_cmp(min).unwrap() {
+                    Ordering::Equal => {
+                        if min_arg.0 > index {
+                            *min_arg = (index, arg.clone());
+                        }
+                    }
+                    Ordering::Less => {
+                        *min = value;
+                        *min_arg = (index, arg.clone());
+                    }
+                    Ordering::Greater => match value.partial_cmp(max).unwrap() {
+                        Ordering::Equal => {
+                            if min_arg.0 > index {
+                                *min_arg = (index, arg.clone());
+                            }
+                        }
+                        Ordering::Greater => {
+                            *max = value;
+                            *max_arg = (index, arg.clone());
+                        }
+                        _ => (),
+                    },
+                };
             }
         }
     }
@@ -115,23 +127,9 @@ impl ArgExtent {
     }
 
     pub fn merge(&mut self, other: Self) {
-        match self.extent.as_mut() {
-            None => {
-                self.extent = other.extent;
-            }
-            Some(((min, arg_min), (max, arg_max))) => {
-                if let Some(((other_min, arg_other_min), (other_max, arg_other_max))) = other.extent
-                {
-                    if other_min < *min {
-                        *min = other_min;
-                        *arg_min = arg_other_min;
-                    }
-                    if other_max > *max {
-                        *max = other_max;
-                        *arg_max = arg_other_max;
-                    }
-                }
-            }
+        if let Some(((min, arg_min), (max, arg_max))) = other.extent {
+            self.add(arg_min.0, min, &arg_min.1);
+            self.add(arg_max.0, max, &arg_max.1);
         }
     }
 }
@@ -205,9 +203,7 @@ impl LexicographicExtent {
             Some((min, max)) => {
                 if value < min.as_str() {
                     min.replace_range(.., value);
-                }
-
-                if value > max.as_str() {
+                } else if value > max.as_str() {
                     max.replace_range(.., value);
                 }
             }
