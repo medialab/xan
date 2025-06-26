@@ -645,6 +645,19 @@ pub fn eval_expression_with_globals(
     expr.evaluate(&context)
 }
 
+pub fn eval_expression_with_optional_last_value(
+    expr: &ConcreteExpr,
+    index: Option<usize>,
+    record: &ByteRecord,
+    headers_index: &HeadersIndex,
+    last_value: Option<DynamicValue>,
+) -> Result<DynamicValue, SpecifiedEvaluationError> {
+    let mut context = EvaluationContext::new(index, record, headers_index);
+    context.last_value = last_value;
+
+    expr.evaluate(&context)
+}
+
 pub fn eval_expression(
     expr: &ConcreteExpr,
     index: Option<usize>,

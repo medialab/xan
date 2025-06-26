@@ -531,8 +531,8 @@ fn agg_correlation() {
 }
 
 #[test]
-fn agg_cols() {
-    let wrk = Workdir::new("agg_cols");
+fn agg_along_rows() {
+    let wrk = Workdir::new("agg_along_rows");
     wrk.create(
         "data.csv",
         vec![
@@ -543,8 +543,8 @@ fn agg_cols() {
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("mean(cell) as mean")
-        .args(["--cols", "a,b"])
+    cmd.arg("mean(_) as mean")
+        .args(["--along-rows", "a,b"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

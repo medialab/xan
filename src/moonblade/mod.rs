@@ -11,7 +11,7 @@ mod types;
 mod utils;
 
 pub use self::agg::{
-    AggregationProgram, GroupAggregationProgram, GroupPivotAggregationProgram, Stats,
+    AggregationProgram, GroupAggregationProgram, GroupBroadcastAggregationProgram, Stats,
     WindowAggregationProgram,
 };
 pub use self::choose::ChooseProgram;

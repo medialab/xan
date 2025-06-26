@@ -35,9 +35,13 @@ You can rename the output columns using the 'as' syntax:
     $ xan agg 'sum(n) as sum, max(replies_count) as \"Max Replies\"' file.csv
 
 This command can also be used to aggregate a selection of columns per row,
-instead of aggregating the whole file, when using the --cols flag. In which
-case the expression will take a single variable named `cell`, representing
-the value of the column currently processed.
+instead of aggregating the whole file, when using the --along-rows flag. In
+which case aggregation functions will accept the anonymous `_` placeholder value
+representing the currently processed column's value.
+
+Note that when using --along-rows, the `index()` function will return the
+index of currently processed column, not the row index. This can be useful
+when used with `argmin/argmax` etc.
 
 For instance, given the following CSV file:
 
@@ -45,9 +49,9 @@ name,count1,count2
 john,3,6
 lucy,10,7
 
-Running the following command (notice the `cell` variable in expression):
+Running the following command (notice the `_` in expression):
 
-    $ xan agg --cols count1,count2 'sum(cell) as sum'
+    $ xan agg --along-rows count1,count2 'sum(_) as sum'
 
 Will produce the following output:
 
@@ -66,23 +70,21 @@ For a list of available functions, use `xan help functions`.
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
-with the --cols options.
+with the --along-rows options.
 
 Usage:
     xan agg [options] <expression> [<input>]
     xan agg --help
 
 agg options:
-    --cols <columns>         Aggregate a selection of columns per row
-                             instead of the whole file. A special `cell`
-                             variable will represent the value of a
-                             selected column in the aggregation expression.
-    -p, --parallel           Whether to use parallelization to speed up computation.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+    -R, --along-rows <columns>  Aggregate a selection of columns for each row
+                                instead of the whole file.
+    -p, --parallel              Whether to use parallelization to speed up computation.
+                                Will automatically select a suitable number of threads to use
+                                based on your number of cores. Use -t, --threads if you want to
+                                indicate the number of threads yourself.
+    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
+                                if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message
@@ -100,7 +102,7 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
-    flag_cols: Option<SelectColumns>,
+    flag_along_rows: Option<SelectColumns>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
 }
@@ -109,8 +111,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_parallel || args.flag_threads.is_some() {
-        if args.flag_cols.is_some() {
-            Err("-p/--parallel or -t/--threads cannot be used with --cols!")?;
+        if args.flag_along_rows.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with --along-cols!")?;
         }
 
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
@@ -133,37 +135,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).writer()?;
     let headers = rdr.byte_headers()?;
 
-    // --cols
-    if let Some(cols) = &args.flag_cols {
+    // --along-rows
+    if let Some(cols) = &args.flag_along_rows {
         let sel = cols.selection(headers, !args.flag_no_headers)?;
 
-        let mut working_record = csv::ByteRecord::new();
-        working_record.push_field(b"cell");
-
-        let mut program = AggregationProgram::parse(&args.arg_expression, &working_record)?;
+        let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
 
         if !args.flag_no_headers {
             wtr.write_record(headers.iter().chain(program.headers()))?;
         }
 
         let mut record = csv::ByteRecord::new();
-        let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             program.clear();
 
-            for cell in sel.select(&record) {
-                working_record.clear();
-                working_record.push_field(cell);
-
-                program.run_with_record(index, &working_record)?;
+            for (cell, index) in sel.select(&record).zip(sel.iter().copied()) {
+                program.run_with_cell(index, &record, cell)?;
             }
 
             record.extend(program.finalize(false)?.into_iter());
 
             wtr.write_record(&record)?;
-
-            index += 1;
         }
     }
     // Regular

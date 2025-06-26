@@ -183,6 +183,10 @@ impl DynamicValue {
         Self::Bytes(Arc::new(BString::from(bytes)))
     }
 
+    pub fn empty_bytes() -> Self {
+        Self::from_owned_bytes(b"".to_vec())
+    }
+
     pub fn type_of(&self) -> &str {
         match self {
             Self::List(_) => "list",
@@ -459,6 +463,17 @@ impl DynamicValue {
 
     pub fn flat_iter(&self) -> DynamicValueFlatIter {
         DynamicValueFlatIter::new(self)
+    }
+
+    pub fn set_bytes(&mut self, new_bytes: &[u8]) {
+        match self {
+            Self::Bytes(bytes) => {
+                let inner = Arc::get_mut(bytes).unwrap();
+                inner.clear();
+                inner.extend(new_bytes);
+            }
+            _ => panic!("DynamicValue is not Bytes!"),
+        }
     }
 }
 

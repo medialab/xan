@@ -633,6 +633,18 @@
         "help": "Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null."
       },
       {
+        "name": "header",
+        "arguments": ["name_or_pos", "nth?"],
+        "returns": "bytes",
+        "help": "Return header name for given column, by name, by position or by name & nth, in case of duplicate header names."
+      },
+      {
+        "name": "header?",
+        "arguments": ["name_or_pos", "nth?"],
+        "returns": "bytes",
+        "help": "Return header namefor given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null."
+      },
+      {
         "name": "col_index",
         "arguments": ["name_or_pos", "nth?"],
         "returns": "bytes",

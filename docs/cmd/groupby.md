@@ -30,10 +30,9 @@ You can group on multiple columns (read `xan select -h` for more information abo
 
 ---
 
-This command is also able to compute a single aggregation over "pivoted" columns
-that can be selected through the --pivot <cols> flag. In which case, the aggregation
-clause will recognize a single variable named "cell", representing the value contained
-in currently processed column.
+This command is also able to aggregate along columns that you can select using
+the --along-cols <cols> flag. In which case, the aggregation functions will accept
+the anonymous `_` placeholder representing currently processed column's value.
 
 For instance, given the following file:
 
@@ -45,7 +44,7 @@ john,4,6
 
 Using the following command:
 
-    $ xan groupby user --pivot count1,count2 'sum(cell)' file.csv
+    $ xan groupby user --along-cols count1,count2 'sum(cell)' file.csv
 
 Will produce the following result:
 
@@ -66,7 +65,7 @@ For a list of available functions, use `xan help functions`.
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
-with the -S/--sorted nor --pivot flags.
+with the -S/--sorted nor -C/--along-cols flags.
 
 Usage:
     xan groupby [options] <column> <expression> [<input>]
@@ -76,10 +75,8 @@ groupby options:
     --keep <cols>            Keep this selection of columns, in addition to
                              the ones representing groups, in the output. Only
                              values from the first seen row per group will be kept.
-    --pivot <cols>           Perform a single aggregation over all of selected columns
-                             where current column value will be named "cell" in given
-                             expression and create a column per group with the result in
-                             the output.
+    -C, --along-cols <cols>  Perform a single aggregation over all of selected columns
+                             and create a column per group with the result in the output.
     -S, --sorted             Use this flag to indicate that the file is already sorted on the
                              group columns, in which case the command will be able to considerably
                              optimize memory usage.

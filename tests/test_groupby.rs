@@ -318,8 +318,8 @@ fn groupby_complex_keep() {
 }
 
 #[test]
-fn groupby_pivot() {
-    let wrk = Workdir::new("groupby_pivot");
+fn groupby_along_cols() {
+    let wrk = Workdir::new("groupby_along_cols");
     wrk.create(
         "data.csv",
         vec![
@@ -333,8 +333,8 @@ fn groupby_pivot() {
 
     let mut cmd = wrk.command("groupby");
     cmd.arg("user")
-        .arg("sum(cell)")
-        .args(["--pivot", "count1,count2"])
+        .arg("sum(_)")
+        .args(["--along-cols", "count1,count2"])
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

@@ -10,7 +10,9 @@ use super::aggregators::{
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use crate::moonblade::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
+use crate::moonblade::interpreter::{
+    concretize_expression, eval_expression_with_optional_last_value, ConcreteExpr,
+};
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
@@ -139,8 +141,14 @@ impl Aggregator {
                     Some(expr) => {
                         let mut strings = Vec::new();
 
-                        for (index, record) in inner.top_records() {
-                            let value = eval_expression(expr, Some(index), &record, headers_index)?;
+                        for (index, record, last_value) in inner.top_records() {
+                            let value = eval_expression_with_optional_last_value(
+                                expr,
+                                Some(index),
+                                &record,
+                                headers_index,
+                                last_value,
+                            )?;
 
                             strings.push(
                                 value
@@ -206,11 +214,17 @@ impl Aggregator {
                 DynamicValue::from(inner.min())
             }
             (ConcreteAggregationMethod::ArgMin(expr_opt), Self::ArgExtent(inner)) => {
-                if let Some((index, record)) = inner.argmin() {
+                if let Some((index, record, last_value)) = inner.argmin() {
                     match expr_opt {
                         None => DynamicValue::from(*index),
                         Some(expr) => {
-                            return eval_expression(expr, Some(*index), record, headers_index)
+                            return eval_expression_with_optional_last_value(
+                                expr,
+                                Some(*index),
+                                record,
+                                headers_index,
+                                last_value.clone(),
+                            )
                         }
                     }
                 } else {
@@ -236,11 +250,17 @@ impl Aggregator {
                 DynamicValue::from(inner.max())
             }
             (ConcreteAggregationMethod::ArgMax(expr_opt), Self::ArgExtent(inner)) => {
-                if let Some((index, record)) = inner.argmax() {
+                if let Some((index, record, last_value)) = inner.argmax() {
                     match expr_opt {
                         None => DynamicValue::from(*index),
                         Some(expr) => {
-                            return eval_expression(expr, Some(*index), record, headers_index)
+                            return eval_expression_with_optional_last_value(
+                                expr,
+                                Some(*index),
+                                record,
+                                headers_index,
+                                last_value.clone(),
+                            )
                         }
                     }
                 } else {
@@ -534,12 +554,12 @@ impl CompositeAggregator {
                     }
                     Aggregator::ArgExtent(extent) => {
                         if !value.is_nullish() {
-                            extent.add(index, value.try_as_number()?, record);
+                            extent.add(index, value.try_as_number()?, record, &None);
                         }
                     }
                     Aggregator::ArgTop(top) => {
                         if !value.is_nullish() {
-                            top.add(index, value.try_as_number()?, record);
+                            top.add(index, value.try_as_number()?, record, &None);
                         }
                     }
                     Aggregator::First(first) => {
@@ -1058,15 +1078,28 @@ fn run_with_record_on_aggregators(
     index: usize,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
+    last_value: Option<DynamicValue>,
 ) -> Result<(), SpecifiedEvaluationError> {
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(eval_expression(expr, Some(index), record, headers_index)?),
+            Some(expr) => Some(eval_expression_with_optional_last_value(
+                expr,
+                Some(index),
+                record,
+                headers_index,
+                last_value.clone(),
+            )?),
         };
 
         if let Some(pair_expr) = &unit.pair_expr {
-            let second_value = eval_expression(pair_expr, Some(index), record, headers_index)?;
+            let second_value = eval_expression_with_optional_last_value(
+                pair_expr,
+                Some(index),
+                record,
+                headers_index,
+                last_value,
+            )?;
 
             return aggregator
                 .process_pair(index, value.unwrap(), second_value)
@@ -1094,6 +1127,7 @@ pub struct AggregationProgram {
     aggregators: Vec<CompositeAggregator>,
     planner: ConcreteAggregationPlanner,
     headers_index: HeadersIndex,
+    last_value: DynamicValue,
 }
 
 impl AggregationProgram {
@@ -1106,6 +1140,7 @@ impl AggregationProgram {
             planner,
             aggregators,
             headers_index: HeadersIndex::from_headers(headers),
+            last_value: DynamicValue::empty_bytes(),
         })
     }
 
@@ -1134,6 +1169,25 @@ impl AggregationProgram {
             index,
             record,
             &self.headers_index,
+            None,
+        )
+    }
+
+    pub fn run_with_cell(
+        &mut self,
+        index: usize,
+        record: &ByteRecord,
+        cell: &[u8],
+    ) -> Result<(), SpecifiedEvaluationError> {
+        self.last_value.set_bytes(cell);
+
+        run_with_record_on_aggregators(
+            &self.planner,
+            &mut self.aggregators,
+            index,
+            record,
+            &self.headers_index,
+            Some(self.last_value.clone()),
         )
     }
 
@@ -1211,6 +1265,7 @@ impl GroupAggregationProgram {
             index,
             record,
             &self.headers_index,
+            None,
         )
     }
 
@@ -1244,20 +1299,21 @@ impl GroupAggregationProgram {
 }
 
 #[derive(Debug, Clone)]
-pub struct GroupPivotAggregationProgram {
+pub struct GroupBroadcastAggregationProgram {
     planner: ConcreteAggregationPlanner,
     cols: usize,
     groups: ClusteredInsertHashmap<GroupKey, Vec<Vec<CompositeAggregator>>>,
     headers_index: HeadersIndex,
-    buffer: ByteRecord,
+    last_value: DynamicValue,
 }
 
-impl GroupPivotAggregationProgram {
-    pub fn parse(code: &str, cols: usize) -> Result<Self, ConcretizationError> {
-        let mut headers = ByteRecord::new();
-        headers.push_field(b"cell");
-
-        let concrete_aggregations = prepare(code, &headers)?;
+impl GroupBroadcastAggregationProgram {
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        cols: usize,
+    ) -> Result<Self, ConcretizationError> {
+        let concrete_aggregations = prepare(code, headers)?;
 
         if concrete_aggregations.len() != 1 {
             return Err(ConcretizationError::Custom(format!(
@@ -1272,8 +1328,8 @@ impl GroupPivotAggregationProgram {
             planner,
             cols,
             groups: ClusteredInsertHashmap::new(),
-            headers_index: HeadersIndex::from_headers(&headers),
-            buffer: ByteRecord::new(),
+            headers_index: HeadersIndex::from_headers(headers),
+            last_value: DynamicValue::empty_bytes(),
         })
     }
 
@@ -1281,6 +1337,7 @@ impl GroupPivotAggregationProgram {
         &mut self,
         group: GroupKey,
         index: usize,
+        record: &ByteRecord,
         cells: impl Iterator<Item = &'a [u8]>,
     ) -> Result<(), SpecifiedEvaluationError> {
         let planner = &self.planner;
@@ -1292,15 +1349,15 @@ impl GroupPivotAggregationProgram {
         });
 
         for (cell, aggregators) in cells.zip(aggregators_per_cell) {
-            self.buffer.clear();
-            self.buffer.push_field(cell);
+            self.last_value.set_bytes(cell);
 
             run_with_record_on_aggregators(
                 &self.planner,
                 aggregators,
                 index,
-                &self.buffer,
+                record,
                 &self.headers_index,
+                Some(self.last_value.clone()),
             )?;
         }
 

@@ -23,9 +23,13 @@ You can rename the output columns using the 'as' syntax:
     $ xan agg 'sum(n) as sum, max(replies_count) as "Max Replies"' file.csv
 
 This command can also be used to aggregate a selection of columns per row,
-instead of aggregating the whole file, when using the --cols flag. In which
-case the expression will take a single variable named `cell`, representing
-the value of the column currently processed.
+instead of aggregating the whole file, when using the --along-rows flag. In
+which case aggregation functions will accept the anonymous `_` placeholder value
+representing the currently processed column's value.
+
+Note that when using --along-rows, the `index()` function will return the
+index of currently processed column, not the row index. This can be useful
+when used with `argmin/argmax` etc.
 
 For instance, given the following CSV file:
 
@@ -33,9 +37,9 @@ name,count1,count2
 john,3,6
 lucy,10,7
 
-Running the following command (notice the `cell` variable in expression):
+Running the following command (notice the `_` in expression):
 
-    $ xan agg --cols count1,count2 'sum(cell) as sum'
+    $ xan agg --along-rows count1,count2 'sum(_) as sum'
 
 Will produce the following output:
 
@@ -54,23 +58,21 @@ For a list of available functions, use `xan help functions`.
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
-with the --cols options.
+with the --along-rows options.
 
 Usage:
     xan agg [options] <expression> [<input>]
     xan agg --help
 
 agg options:
-    --cols <columns>         Aggregate a selection of columns per row
-                             instead of the whole file. A special `cell`
-                             variable will represent the value of a
-                             selected column in the aggregation expression.
-    -p, --parallel           Whether to use parallelization to speed up computation.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+    -R, --along-rows <columns>  Aggregate a selection of columns for each row
+                                instead of the whole file.
+    -p, --parallel              Whether to use parallelization to speed up computation.
+                                Will automatically select a suitable number of threads to use
+                                based on your number of cores. Use -t, --threads if you want to
+                                indicate the number of threads yourself.
+    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
+                                if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message

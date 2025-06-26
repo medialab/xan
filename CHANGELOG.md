@@ -19,6 +19,8 @@ The **parallel** update.
 * `xan from --sheet` becomes `--sheet-name` and is no longer the default. `--sheet-index 0` becomes the default.
 * Dropping `xan foreach`. It is not distinctive enough as you can use `xan map` for the same purpose and get useful information about the results of evaluated side effects or write to `/dev/null`.
 * Dropping `xan agg -E/--errors` & `xan groupby -E/--errors`. You can rely on the `try` & `warn` moonblade functions instead.
+* Renaming `xan agg --cols` to `xan agg --along-rows`.
+* Changing `cell` placeholder to anonymous `_` value in `xan agg -R/--along-rows`.
 
 *Features*
 
@@ -50,7 +52,7 @@ The **parallel** update.
 * Adding `xan head` & `xan tail` as aliases over `xan slice -l` & `xan slice -L` respectively.
 * Adding `xan from --sheet-index & --list-sheets`.
 * Adding `xan flatten -H/--highlight & -i/--ignore-case`.
-* Adding `xan groupby --pivot`.
+* Adding `xan groupby -C/--along-cols`.
 * Adding support for `xan search -l -p -t`.
 * Adding `rms` moonblade aggregation function.
 * Adding `xan scrape -E/--encoding`.
