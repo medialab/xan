@@ -2,27 +2,57 @@
 # xan agg
 
 ```txt
-Aggregate CSV data using a custom aggregation expression. The result of running
-the command will be a single row of CSV containing the result of aggregating
-the whole file.
+Aggregate CSV data using custom aggregation expressions.
 
-You can, for instance, compute the sum of a column:
+For typical statistics, check out the `xan stats` command that is usually
+simpler to use.
+
+For grouped aggregation, check out the `xan groupby` command instead.
+
+# Custom aggregation
+
+When running a custom aggregation, the result will be a single row of CSV
+containing the result of aggregating the whole file.
+
+For instance, given the following CSV file:
+
+| name | count1 | count2 |
+| ---- | ------ | ------ |
+| john | 3      | 6      |
+| lucy | 10     | 7      |
+
+Running the following command:
+
+    $ xan agg 'sum(count1) as sum1, sum(count2) as sum2'
+
+Will produce the following output:
+
+| sum1 | sum2 |
+| ---- | ---- |
+| 13   | 13   |
+
+Check out the following example to learn how to compose your expressions. Note
+that a complete list of aggregation functions can be found using `xan help aggs`.
+
+Computing the sum of a column:
 
     $ xan agg 'sum(retweet_count)' file.csv
 
-You can use dynamic expressions to mangle the data before aggregating it:
+Using dynamic expressions to mangle the data before aggregation:
 
     $ xan agg 'sum(retweet_count + replies_count)' file.csv
 
-You can perform multiple aggregations at once:
+Multiple aggregations at once:
 
     $ xan agg 'sum(retweet_count), mean(retweet_count), max(replies_count)' file.csv
 
-You can rename the output columns using the 'as' syntax:
+Renaming the output columns using the 'as' syntax:
 
     $ xan agg 'sum(n) as sum, max(replies_count) as "Max Replies"' file.csv
 
-This command can also be used to aggregate a selection of columns per row,
+# Aggregating along rows
+
+This command can be used to aggregate a selection of columns per row,
 instead of aggregating the whole file, when using the --along-rows flag. In
 which case aggregation functions will accept the anonymous `_` placeholder value
 representing the currently processed column's value.
@@ -33,9 +63,10 @@ when used with `argmin/argmax` etc.
 
 For instance, given the following CSV file:
 
-name,count1,count2
-john,3,6
-lucy,10,7
+| name | count1 | count2 |
+| ---- | ------ | ------ |
+| john | 3      | 6      |
+| lucy | 10     | 7      |
 
 Running the following command (notice the `_` in expression):
 
@@ -43,15 +74,64 @@ Running the following command (notice the `_` in expression):
 
 Will produce the following output:
 
-name,count1,count2,sum
-john,3,6,9
-lucy,10,7,17
+| name | count1 | count2 | sum |
+| ---- | ------ | ------ | --- |
+| john | 3      | 6      | 9   |
+| lucy | 10     | 7      | 17  |
 
-For a list of available aggregation functions, use `xan help aggs`
-instead.
+# Aggregating along columns
+
+This command can also be used to run a same aggregation over a selection of commands
+using the -C/--along-columns flag. In which case aggregation functions will accept
+the anonymous `_` placeholder value representing the currently processed column's value.
+
+For instance, given the following file:
+
+| name | count1 | count2 |
+| ---- | ------ | ------ |
+| john | 3      | 6      |
+| lucy | 10     | 7      |
+
+Running the following command (notice the `_` in expression):
+
+    $ xan agg --along-cols count1,count2 'sum(_)'
+
+Will produce the following output:
+
+| count1 | count2 |
+| ------ | ------ |
+| 13     | 13     |
+
+# Aggregating along matrix
+
+This command can also be used to run a custom aggregation over all values of
+a selection of columns thus representing a 2-dimensional matrix, using
+the -M/--along-matrix flag. In which case aggregation functions will accept
+the anonymous `_` placeholder value representing the currently processed column's value.
+
+For instance, given the following file:
+
+| name | count1 | count2 |
+| ---- | ------ | ------ |
+| john | 3      | 6      |
+| lucy | 10     | 7      |
+
+Running the following command (notice the `_` in expression):
+
+    $ xan agg --along-matrix count1,count2 'sum(_) as total'
+
+Will produce the following output:
+
+| total |
+| ----- |
+| 26    |
+
+---
 
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
+
+For a list of available aggregation functions use `xan help aggs`.
 
 For a list of available functions, use `xan help functions`.
 

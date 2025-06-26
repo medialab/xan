@@ -5,6 +5,8 @@
 Group a CSV file by values contained in a column selection then aggregate data per
 group using a custom aggregation expression.
 
+For ungrouped aggregation, check the `xan agg` command instead.
+
 The result of running the command will be a CSV file containing the grouped
 columns and additional columns for each computed aggregation.
 
@@ -54,11 +56,10 @@ john,4,7
 
 ---
 
-For a list of available aggregation functions, use `xan help aggs`
-instead.
-
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
+
+For a list of available aggregation functions, use `xan help aggs`.
 
 For a list of available functions, use `xan help functions`.
 
