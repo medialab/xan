@@ -218,7 +218,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // --keep, lol...
     if let Some(selection) = args.flag_keep.take() {
         let mut keep_sel = selection.selection(headers, !args.flag_no_headers)?;
-        keep_sel.sort_and_dedup();
+        keep_sel.dedup();
 
         let addendum = keep_sel
             .iter()

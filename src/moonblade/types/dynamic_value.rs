@@ -468,9 +468,13 @@ impl DynamicValue {
     pub fn set_bytes(&mut self, new_bytes: &[u8]) {
         match self {
             Self::Bytes(bytes) => {
-                let inner = Arc::get_mut(bytes).unwrap();
-                inner.clear();
-                inner.extend(new_bytes);
+                match Arc::get_mut(bytes) {
+                    Some(inner) => {
+                        inner.clear();
+                        inner.extend(new_bytes);
+                    }
+                    None => *bytes = Arc::new(BString::new(new_bytes.to_vec())),
+                };
             }
             _ => panic!("DynamicValue is not Bytes!"),
         }

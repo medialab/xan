@@ -1125,6 +1125,7 @@ fn run_with_record_on_aggregators(
 #[derive(Debug, Clone)]
 pub struct AggregationProgram {
     aggregators: Vec<CompositeAggregator>,
+    len: usize,
     planner: ConcreteAggregationPlanner,
     headers_index: HeadersIndex,
     last_value: DynamicValue,
@@ -1133,15 +1134,21 @@ pub struct AggregationProgram {
 impl AggregationProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
+        let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
         let aggregators = planner.instantiate_aggregators();
 
         Ok(Self {
             planner,
             aggregators,
+            len,
             headers_index: HeadersIndex::from_headers(headers),
             last_value: DynamicValue::empty_bytes(),
         })
+    }
+
+    pub fn has_single_expr(&self) -> bool {
+        self.len == 1
     }
 
     pub fn clear(&mut self) {

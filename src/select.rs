@@ -593,6 +593,19 @@ impl Selection {
         self.select(row).map(|f| f.into()).collect()
     }
 
+    pub fn dedup(&mut self) {
+        let mut new = Vec::new();
+        let mut seen = HashSet::new();
+
+        for i in self.0.iter().copied() {
+            if seen.insert(i) {
+                new.push(i);
+            }
+        }
+
+        self.0 = new;
+    }
+
     pub fn sort_and_dedup(&mut self) {
         self.0.sort();
         self.0.dedup();

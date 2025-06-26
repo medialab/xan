@@ -555,3 +555,25 @@ fn agg_along_rows() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn agg_along_cols() {
+    let wrk = Workdir::new("agg_along_cols");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "a", "b"],
+            svec!["john", "3", "5"],
+            svec!["lucy", "6", "1"],
+        ],
+    );
+
+    let mut cmd = wrk.command("agg");
+    cmd.arg("sum(_)")
+        .args(["--along-cols", "a,b"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["a", "b"], svec!["9", "6"]];
+    assert_eq!(got, expected);
+}

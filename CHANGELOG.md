@@ -52,6 +52,7 @@ The **parallel** update.
 * Adding `xan head` & `xan tail` as aliases over `xan slice -l` & `xan slice -L` respectively.
 * Adding `xan from --sheet-index & --list-sheets`.
 * Adding `xan flatten -H/--highlight & -i/--ignore-case`.
+* Adding `xan agg -C/--along-cols`.
 * Adding `xan groupby -C/--along-cols`.
 * Adding support for `xan search -l -p -t`.
 * Adding `rms` moonblade aggregation function.
