@@ -58,24 +58,26 @@ For a list of available functions, use `xan help functions`.
 Aggregations can be computed in parallel using the -p/--parallel or -t/--threads flags.
 But this cannot work on streams or gzipped files, unless a `.gzi` index (as created
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
-with the -R/--along-rows nor -C/--along-cols options.
+with the -R/--along-rows, -M/--along-matrix nor -C/--along-cols options.
 
 Usage:
     xan agg [options] <expression> [<input>]
     xan agg --help
 
 agg options:
-    -R, --along-rows <columns>  Aggregate a selection of columns for each row
-                                instead of the whole file.
-    -C, --along-cols <columns>  Aggregate a selection of columns the same way and
-                                return an aggregated column with same name in the
-                                output.
-    -p, --parallel              Whether to use parallelization to speed up computation.
-                                Will automatically select a suitable number of threads to use
-                                based on your number of cores. Use -t, --threads if you want to
-                                indicate the number of threads yourself.
-    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
-                                if you want the number of threads to be automatically chosen instead.
+    -R, --along-rows <cols>    Aggregate a selection of columns for each row
+                               instead of the whole file.
+    -C, --along-cols <cols>    Aggregate a selection of columns the same way and
+                               return an aggregated column with same name in the
+                               output.
+    -M, --along-matrix <cols>  Aggregate all values found in the given selection
+                               of columns.
+    -p, --parallel             Whether to use parallelization to speed up computation.
+                               Will automatically select a suitable number of threads to use
+                               based on your number of cores. Use -t, --threads if you want to
+                               indicate the number of threads yourself.
+    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
+                               if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message
