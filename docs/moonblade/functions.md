@@ -207,7 +207,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 - **compact**(*list*) -> `list`: Drop all falsey values from given list.
 - **filter**(*list*, *lambda*) -> `list`: Return a list containing only elements for which given lambda returned true.<br>For instance: `filter(names, name => name.startswith('A'))`
-- **index_by**(*list*, *key*) -> `map`: Create a map from item key to collection item.
+- **index_by**(*list*, *key*) -> `map`: Take a list of maps and a key name and return an indexed map from selected keys to the original maps.
 - **join**(*list*, *sep*) -> `string`: Join sequence by separator.
 - **map**(*list*, *lambda*) -> `list`: Return a list with elements transformed by given lambda.<br>For instance: `map(numbers, n => n + 3)`
 - **mean**(*numbers*) -> `number?`: Return the mean of the given numbers.
@@ -251,6 +251,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 - **col**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names.
 - **col?**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
+- **col_index**(*name_or_pos*, *nth?*) -> `bytes`: Return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names.
+- **col_index?**(*name_or_pos*, *nth?*) -> `bytes`: Return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
 - **cols**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[bytes]`: Return list of cell values from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns.
 - **err**(*msg*) -> `error`: Make the expression return a custom error.
 - **headers**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[string]`: Return list of header names from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers.

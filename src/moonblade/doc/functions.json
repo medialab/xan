@@ -435,7 +435,7 @@
         "name": "index_by",
         "arguments": ["list", "key"],
         "returns": "map",
-        "help": "Create a map from item key to collection item."
+        "help": "Take a list of maps and a key name and return an indexed map from selected keys to the original maps."
       },
       {
         "name": "join",
