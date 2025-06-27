@@ -1,6 +1,9 @@
-use crate::cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeMode};
-use crate::config::Delimiter;
-use crate::util;
+use pariter::IteratorExt;
+
+use crate::config::{Config, Delimiter};
+use crate::moonblade::Program;
+use crate::select::SelectColumns;
+use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
 static USAGE: &str = r#"
@@ -61,7 +64,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: String,
+    arg_column: SelectColumns,
     arg_expression: String,
     arg_input: Option<String>,
     flag_rename: Option<String>,
@@ -73,7 +76,11 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    let rconf = Config::new(&args.arg_input)
+        .no_headers(args.flag_no_headers)
+        .delimiter(args.flag_delimiter)
+        .select(args.arg_column);
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
         (true, None) => Some(None),
@@ -81,18 +88,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let moonblade_args = MoonbladeCmdArgs {
-        target_column: Some(args.arg_column),
-        rename_column: args.flag_rename,
-        map_expr: args.arg_expression,
-        input: args.arg_input,
-        output: args.flag_output,
-        no_headers: args.flag_no_headers,
-        delimiter: args.flag_delimiter,
-        parallelization,
-        mode: MoonbladeMode::Transform,
-        ..Default::default()
-    };
+    let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    run_moonblade_cmd(moonblade_args)
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?.clone();
+
+    let transformed_index = rconf.single_selection(&headers)?;
+
+    args.arg_expression = format!("col({}) | {}", transformed_index, &args.arg_expression);
+
+    let program = Program::parse(&args.arg_expression, &headers)?;
+
+    if !args.flag_no_headers {
+        let output_headers = if let Some(new_name) = &args.flag_rename {
+            headers.replace_at(transformed_index, new_name.as_bytes())
+        } else {
+            headers.clone()
+        };
+
+        wtr.write_record(&output_headers)?;
+    }
+
+    if let Some(threads) = parallelization {
+        for result in rdr.into_byte_records().enumerate().parallel_map_custom(
+            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            move |(index, record)| -> CliResult<csv::ByteRecord> {
+                let record = record?;
+
+                let value = program.run_with_record(index, &record)?;
+
+                let record = record.replace_at(transformed_index, &value.serialize_as_bytes());
+
+                Ok(record)
+            },
+        ) {
+            wtr.write_byte_record(&result?)?;
+        }
+    } else {
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            let value = program.run_with_record(index, &record)?;
+
+            wtr.write_byte_record(
+                &record.replace_at(transformed_index, &value.serialize_as_bytes()),
+            )?;
+
+            index += 1;
+        }
+    }
+
+    Ok(wtr.flush()?)
 }

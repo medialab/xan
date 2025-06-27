@@ -33,7 +33,6 @@ pub mod join;
 pub mod map;
 pub mod matrix;
 pub mod merge;
-mod moonblade;
 pub mod network;
 pub mod parallel;
 pub mod partition;
