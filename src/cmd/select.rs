@@ -88,12 +88,7 @@ Examples:
 Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
 commands, you can wrangle the rows and perform a custom selection.
 
-  $ xan select -e 'name, prenom as surname, count1 + count2 as total'
-
-You can also use the -A/--append flag to perform something akin to
-multiple `xan map` commands piped together:
-
-  $ xan select -Ae 'a + b as c, len(name) as name_len'
+  $ xan select -e 'id, name as surname, count1 + count2 as total'
 
 If your expression becomes too complicated, you can write it in a file and
 use the -f/--evaluate-file flag instead:
@@ -112,8 +107,6 @@ Usage:
     xan select --help
 
 select options:
-    -A, --append                Append the selection to the rows instead of
-                                replacing them.
     -e, --evaluate <expr>       Toggle expression evaluation rather than using the
                                 shorthand notation.
     -f, --evaluate-file <path>  If given, evaluate the selection expression found
@@ -133,7 +126,6 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_selection: SelectColumns,
-    flag_append: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -172,22 +164,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(expr) = &args.flag_evaluate {
         let program = SelectionProgram::parse(expr, &headers)?;
 
-        if args.flag_append {
-            wtr.write_record(headers.iter().chain(program.headers()))?;
-        } else {
-            wtr.write_record(program.headers())?;
-        }
+        wtr.write_record(program.headers())?;
 
         let index: usize = 0;
+        let mut output_record = csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
-            let output_record = program.run_with_record(index, &record)?;
+            output_record.clear();
+            program.extend(index, &record, &mut output_record)?;
 
-            if args.flag_append {
-                wtr.write_record(record.iter().chain(output_record.iter()))?;
-            } else {
-                wtr.write_byte_record(&output_record)?;
-            }
+            wtr.write_byte_record(&output_record)?;
         }
     } else {
         rconfig = rconfig.select(args.arg_selection);
@@ -197,19 +183,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !rconfig.no_headers {
             let headers_to_write = sel.select(&headers);
 
-            if args.flag_append {
-                wtr.write_record(headers.iter().chain(headers_to_write))?;
-            } else {
-                wtr.write_record(headers_to_write)?;
-            }
+            wtr.write_record(headers_to_write)?;
         }
 
         while rdr.read_byte_record(&mut record)? {
-            if args.flag_append {
-                wtr.write_record(record.iter().chain(sel.select(&record)))?;
-            } else {
-                wtr.write_record(sel.select(&record))?;
-            }
+            wtr.write_record(sel.select(&record))?;
         }
     }
 

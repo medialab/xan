@@ -31,18 +31,17 @@ impl SelectionProgram {
         self.exprs.iter().map(|(_, name)| name.as_bytes())
     }
 
-    pub fn run_with_record(
+    pub fn extend(
         &self,
         index: usize,
         record: &ByteRecord,
-    ) -> Result<ByteRecord, SpecifiedEvaluationError> {
-        let mut output_record = csv::ByteRecord::new();
-
+        output_record: &mut ByteRecord,
+    ) -> Result<(), SpecifiedEvaluationError> {
         for (expr, _) in self.exprs.iter() {
             let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
             output_record.push_field(&value.serialize_as_bytes());
         }
 
-        Ok(output_record)
+        Ok(())
     }
 }

@@ -22,6 +22,7 @@ The **parallel** update.
 * Renaming `xan agg --cols` to `xan agg --along-rows`.
 * Changing `cell` placeholder to anonymous `_` value in `xan agg -R/--along-rows`.
 * Dropping `-E/--errors report` & `--error-column` support in `xan map` & `xan transform`.
+* Dropping `xan select -A/--append`. Latest `xan map` is now actually equivalent to `xan select -eA`.
 
 *Features*
 
@@ -108,6 +109,7 @@ The **parallel** update.
 * Optimizing moonblade pipelines with more than a single underscore substitution.
 * Improving `xan reverse` performance.
 * Reducing memory footprint of aggregators.
+* Optimizing `xan select -e` allocations.
 
 *Quality of Life*
 
