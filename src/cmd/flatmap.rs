@@ -1,6 +1,9 @@
-use crate::cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeMode};
-use crate::config::Delimiter;
-use crate::util;
+use pariter::IteratorExt;
+
+use crate::config::{Config, Delimiter};
+use crate::moonblade::Program;
+use crate::select::SelectColumns;
+use crate::util::{self, ImmutableRecordHelpers};
 use crate::CliResult;
 
 static USAGE: &str = r#"
@@ -100,11 +103,14 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
-    flag_replace: Option<String>,
+    flag_replace: Option<SelectColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    let rconf = Config::new(&args.arg_input)
+        .no_headers(args.flag_no_headers)
+        .delimiter(args.flag_delimiter);
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
         (true, None) => Some(None),
@@ -112,18 +118,88 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let moonblade_args = MoonbladeCmdArgs {
-        target_column: Some(args.arg_column),
-        rename_column: args.flag_replace,
-        map_expr: args.arg_expression,
-        input: args.arg_input,
-        output: args.flag_output,
-        no_headers: args.flag_no_headers,
-        delimiter: args.flag_delimiter,
-        parallelization,
-        mode: MoonbladeMode::Flatmap,
-        ..Default::default()
-    };
+    let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    run_moonblade_cmd(moonblade_args)
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?.clone();
+
+    let replaced_index_opt = args
+        .flag_replace
+        .as_ref()
+        .map(|s| s.single_selection(&headers, !args.flag_no_headers))
+        .transpose()?;
+
+    if let Some(i) = replaced_index_opt {
+        args.arg_expression = format!("col({}) | {}", i, &args.arg_expression);
+    }
+
+    let program = Program::parse(&args.arg_expression, &headers)?;
+
+    if !args.flag_no_headers {
+        let output_headers = if let Some(i) = replaced_index_opt {
+            headers.replace_at(i, args.arg_column.as_bytes())
+        } else {
+            let mut h = headers.clone();
+            h.push_field(args.arg_column.as_bytes());
+            h
+        };
+
+        wtr.write_record(&output_headers)?;
+    }
+
+    if let Some(threads) = parallelization {
+        for records in rdr.into_byte_records().enumerate().parallel_map_custom(
+            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            move |(index, record)| -> CliResult<Vec<csv::ByteRecord>> {
+                let record = record?;
+
+                let mut output = Vec::new();
+
+                let values = program.run_with_record(index, &record)?;
+
+                for value in values.flat_iter() {
+                    if value.is_falsey() {
+                        continue;
+                    }
+
+                    output.push(if let Some(i) = replaced_index_opt {
+                        record.replace_at(i, &value.serialize_as_bytes())
+                    } else {
+                        record.append(&value.serialize_as_bytes())
+                    });
+                }
+
+                Ok(output)
+            },
+        ) {
+            for record in records? {
+                wtr.write_byte_record(&record)?;
+            }
+        }
+    } else {
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            let values = program.run_with_record(index, &record)?;
+
+            for value in values.flat_iter() {
+                if value.is_falsey() {
+                    continue;
+                }
+
+                let output_record = if let Some(i) = replaced_index_opt {
+                    record.replace_at(i, &value.serialize_as_bytes())
+                } else {
+                    record.append(&value.serialize_as_bytes())
+                };
+
+                wtr.write_byte_record(&output_record)?;
+            }
+
+            index += 1;
+        }
+    }
+
+    Ok(wtr.flush()?)
 }

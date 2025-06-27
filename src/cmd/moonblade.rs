@@ -30,14 +30,6 @@ impl MoonbladeOutputValue {
         }
     }
 
-    fn into_iter(self) -> Box<dyn Iterator<Item = Vec<u8>>> {
-        match self {
-            Self::None => Box::new(std::iter::empty()),
-            Self::Some(bytes) => Box::new(std::iter::once(bytes)),
-            Self::Multiple(list) => Box::new(list.into_iter()),
-        }
-    }
-
     fn push(&mut self, value: &DynamicValue) {
         let bytes = value.serialize_as_bytes().into_owned();
 
@@ -55,39 +47,18 @@ impl MoonbladeOutputValue {
         };
     }
 
-    fn process(&mut self, mode: &MoonbladeMode, value: &DynamicValue) {
-        match mode {
-            MoonbladeMode::Flatmap => {
-                if value.is_truthy() {
-                    for subvalue in value.flat_iter() {
-                        self.push(subvalue);
-                    }
-                }
-            }
-            _ => {
-                self.push(value);
-            }
-        }
+    fn process(&mut self, _mode: &MoonbladeMode, value: &DynamicValue) {
+        self.push(value);
     }
 }
 
 #[derive(Default, Clone, Copy, Debug)]
 pub enum MoonbladeMode {
     #[default]
-    Map,
     Transform,
-    Flatmap,
 }
 
 impl MoonbladeMode {
-    fn is_map(&self) -> bool {
-        matches!(self, Self::Map)
-    }
-
-    fn is_flatmap(&self) -> bool {
-        matches!(self, Self::Flatmap)
-    }
-
     fn is_transform(&self) -> bool {
         matches!(self, Self::Transform)
     }
@@ -119,29 +90,11 @@ fn handle_moonblade_output<W: Write>(
 
     match eval_result {
         Ok(value) => match args.mode {
-            MoonbladeMode::Map => {
-                record.push_field(&value.unwrap());
-
-                writer.write_byte_record(record)?;
-                written_count += 1;
-            }
             MoonbladeMode::Transform => {
                 let record = record.replace_at(replace.unwrap(), &value.unwrap());
 
                 writer.write_byte_record(&record)?;
                 written_count += 1;
-            }
-            MoonbladeMode::Flatmap => {
-                for cell in value.into_iter() {
-                    let new_record = if let Some(idx) = replace {
-                        record.replace_at(idx, &cell)
-                    } else {
-                        record.append(&cell)
-                    };
-
-                    writer.write_byte_record(&new_record)?;
-                    written_count += 1;
-                }
             }
         },
         Err(err) => {
@@ -173,15 +126,6 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         // NOTE: binding implicit last value to target column value
         map_expr = format!("col({}) | {}", idx, map_expr);
         column_to_replace = Some(idx);
-    } else if args.mode.is_flatmap() {
-        if let Some(replaced) = &args.rename_column {
-            rconfig = rconfig.select(SelectColumns::parse(replaced)?);
-            let idx = rconfig.single_selection(&headers)?;
-
-            // NOTE: binding implicit last value to target column value
-            map_expr = format!("col({}) | {}", idx, map_expr);
-            column_to_replace = Some(idx);
-        }
     }
 
     if !args.no_headers {
@@ -190,23 +134,10 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
         if !headers.is_empty() {
             must_write_headers = true;
 
-            if args.mode.is_map() {
-                if let Some(target_column) = &args.target_column {
-                    modified_headers.push_field(target_column.as_bytes());
-                }
-            } else if args.mode.is_transform() {
+            if args.mode.is_transform() {
                 if let Some(renamed) = &args.rename_column {
                     modified_headers =
                         modified_headers.replace_at(column_to_replace.unwrap(), renamed.as_bytes());
-                }
-            } else if args.mode.is_flatmap() {
-                if args.rename_column.is_some() {
-                    if let Some(renamed) = &args.target_column {
-                        modified_headers = modified_headers
-                            .replace_at(column_to_replace.unwrap(), renamed.as_bytes());
-                    }
-                } else if let Some(target_column) = &args.target_column {
-                    modified_headers.push_field(target_column.as_bytes());
                 }
             }
         }

@@ -263,9 +263,9 @@ To debug and/or experiment with the expression static analysis, check out the
 
 ## Named expressions
 
-Some commands, typically `xan agg`, `xan groupby` and `xan select -e` let their
-user provide a series of named expression, separated by comma, rather than a
-single expression.
+Some commands, typically `xan map`, `xan agg`, `xan groupby` and `xan select -e`
+let their user provide a series of named expression, separated by comma, rather
+than a single expression.
 
 Here is how they work:
 

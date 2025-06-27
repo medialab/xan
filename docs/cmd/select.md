@@ -82,12 +82,7 @@ Examples:
 Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
 commands, you can wrangle the rows and perform a custom selection.
 
-  $ xan select -e 'name, prenom as surname, count1 + count2 as total'
-
-You can also use the -A/--append flag to perform something akin to
-multiple `xan map` commands piped together:
-
-  $ xan select -Ae 'a + b as c, len(name) as name_len'
+  $ xan select -e 'id, name as surname, count1 + count2 as total'
 
 If your expression becomes too complicated, you can write it in a file and
 use the -f/--evaluate-file flag instead:
@@ -106,17 +101,10 @@ Usage:
     xan select --help
 
 select options:
-    -A, --append                Append the selection to the rows instead of
-                                replacing them.
     -e, --evaluate <expr>       Toggle expression evaluation rather than using the
                                 shorthand notation.
     -f, --evaluate-file <path>  If given, evaluate the selection expression found
                                 in file at <path>.
-    -E, --errors <policy>       What to do with evaluation errors. One of:
-                                  - "panic": exit on first error
-                                  - "ignore": ignore row altogether
-                                  - "log": print error to stderr
-                                [default: panic].
 
 Common options:
     -h, --help             Display this message

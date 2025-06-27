@@ -43,11 +43,6 @@ filter options:
                                buffering some times (e.g. when searching for very few
                                rows in a big file before piping to `view` or `flatten`).
                                Does not work when parallelizing.
-    -E, --errors <policy>      What to do with evaluation errors. One of:
-                                 - "panic": exit on first error
-                                 - "ignore": coerce result for row to null
-                                 - "log": print error to stderr
-                               [default: panic].
 
 Common options:
     -h, --help               Display this message
