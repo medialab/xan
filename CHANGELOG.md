@@ -97,6 +97,7 @@ The **parallel** update.
 * Fixing `xan bins --nice` first and last bound to stick to min & max.
 * Fixing negative indexing with `col*(name, pos)` moonblade functions.
 * Fixing `argmin` & `argmax` parallel stability.
+* Fixing panic with `xan plot` when using log scales and min/max are <= 0.
 
 *Performance*
 

@@ -278,6 +278,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
     let (flag_y_min, flag_y_max) = (args.flag_y_min, args.flag_y_max);
 
+    if args.flag_x_scale.is_logarithmic()
+        && (matches!(flag_x_min, Some(v) if v <= 0.0) || matches!(flag_x_max, Some(v) if v <= 0.0))
+    {
+        Err("--x-min or --x-max cannot be <= 0 with --x-scale log!")?;
+    }
+
+    if args.flag_y_scale.is_logarithmic()
+        && (matches!(flag_y_min, Some(v) if v <= 0.0) || matches!(flag_y_max, Some(v) if v <= 0.0))
+    {
+        Err("--y-min or --y-max cannot be <= 0 with --y-scale log!")?;
+    }
+
     if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
         Err("-c, --category cannot work with -Y, --add-series!")?;
     }
