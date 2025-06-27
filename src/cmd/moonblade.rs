@@ -93,10 +93,6 @@ impl MoonbladeMode {
     fn is_transform(&self) -> bool {
         matches!(self, Self::Transform)
     }
-
-    fn cannot_report(&self) -> bool {
-        matches!(self, Self::Flatmap)
-    }
 }
 
 #[derive(Default, Debug, Deserialize, Clone, Copy)]
@@ -130,7 +126,6 @@ impl TryFrom<String> for MoonbladeErrorPolicy {
 pub enum LegacyMoonbladeErrorPolicy {
     #[default]
     Panic,
-    Report,
     Ignore,
     Log,
 }
@@ -149,28 +144,6 @@ impl LegacyMoonbladeErrorPolicy {
             }
         })
     }
-
-    fn will_report(&self) -> bool {
-        matches!(self, Self::Report)
-    }
-
-    pub fn handle_error<T: Default>(
-        &self,
-        result: Result<T, SpecifiedEvaluationError>,
-    ) -> Result<T, SpecifiedEvaluationError> {
-        match result {
-            Ok(value) => Ok(value),
-            Err(err) => match self {
-                LegacyMoonbladeErrorPolicy::Panic => Err(err)?,
-                LegacyMoonbladeErrorPolicy::Ignore => Ok(T::default()),
-                LegacyMoonbladeErrorPolicy::Log => {
-                    eprintln!("{}", err);
-                    Ok(T::default())
-                }
-                _ => unreachable!(),
-            },
-        }
-    }
 }
 
 impl TryFrom<String> for LegacyMoonbladeErrorPolicy {
@@ -179,7 +152,6 @@ impl TryFrom<String> for LegacyMoonbladeErrorPolicy {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(match value.as_str() {
             "panic" => Self::Panic,
-            "report" => Self::Report,
             "ignore" => Self::Ignore,
             "log" => Self::Log,
             _ => {
@@ -203,7 +175,6 @@ pub struct MoonbladeCmdArgs {
     pub delimiter: Option<Delimiter>,
     pub parallelization: Option<Option<usize>>,
     pub error_policy: LegacyMoonbladeErrorPolicy,
-    pub error_column_name: Option<String>,
     pub mode: MoonbladeMode,
     pub limit: Option<usize>,
 }
@@ -223,19 +194,11 @@ fn handle_moonblade_output<W: Write>(
             MoonbladeMode::Map => {
                 record.push_field(&value.unwrap());
 
-                if args.error_policy.will_report() {
-                    record.push_field(b"");
-                }
-
                 writer.write_byte_record(record)?;
                 written_count += 1;
             }
             MoonbladeMode::Transform => {
-                let mut record = record.replace_at(replace.unwrap(), &value.unwrap());
-
-                if args.error_policy.will_report() {
-                    record.push_field(b"");
-                }
+                let record = record.replace_at(replace.unwrap(), &value.unwrap());
 
                 writer.write_byte_record(&record)?;
                 written_count += 1;
@@ -261,23 +224,6 @@ fn handle_moonblade_output<W: Write>(
                     written_count += 1;
                 } else if args.mode.is_transform() {
                     let record = record.replace_at(replace.unwrap(), b"");
-                    writer.write_byte_record(&record)?;
-                    written_count += 1;
-                }
-            }
-            LegacyMoonbladeErrorPolicy::Report => {
-                if args.mode.cannot_report() {
-                    unreachable!();
-                }
-
-                if args.mode.is_map() {
-                    record.push_field(b"");
-                    record.push_field(err.to_string().as_bytes());
-                    writer.write_byte_record(record)?;
-                    written_count += 1;
-                } else if args.mode.is_transform() {
-                    let mut record = record.replace_at(replace.unwrap(), b"");
-                    record.push_field(err.to_string().as_bytes());
                     writer.write_byte_record(&record)?;
                     written_count += 1;
                 }
@@ -359,12 +305,6 @@ pub fn run_moonblade_cmd(args: MoonbladeCmdArgs) -> CliResult<()> {
                     }
                 } else if let Some(target_column) = &args.target_column {
                     modified_headers.push_field(target_column.as_bytes());
-                }
-            }
-
-            if args.error_policy.will_report() {
-                if let Some(error_column_name) = &args.error_column_name {
-                    modified_headers.push_field(error_column_name.as_bytes());
                 }
             }
         }

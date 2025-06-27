@@ -87,34 +87,6 @@ fn map_errors_panic() {
 }
 
 #[test]
-fn map_errors_report() {
-    let wrk = Workdir::new("map_errors_report");
-    wrk.create(
-        "data.csv",
-        vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
-    );
-    let mut cmd = wrk.command("map");
-    cmd.arg("add(a, b)")
-        .arg("c")
-        .args(&["-E", "report"])
-        .args(&["--error-column", "error"])
-        .arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["a", "b", "c", "error"],
-        svec![
-            "1",
-            "test",
-            "",
-            "add() cannot safely cast Bytes(\"test\") from type \"bytes\" to type \"number\""
-        ],
-        svec!["2", "3", "5", ""],
-    ];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn map_errors_ignore() {
     let wrk = Workdir::new("map_errors_ignore");
     wrk.create(

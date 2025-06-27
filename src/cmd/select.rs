@@ -7,8 +7,6 @@ use crate::CliResult;
 
 use crate::moonblade::SelectionProgram;
 
-use crate::cmd::moonblade::LegacyMoonbladeErrorPolicy;
-
 static USAGE: &str = "
 Select columns from CSV data using a shorthand notation or by evaluating an expression
 on each row (using the -e/--evaluate or -f/--evaluate-file flag).
@@ -120,11 +118,6 @@ select options:
                                 shorthand notation.
     -f, --evaluate-file <path>  If given, evaluate the selection expression found
                                 in file at <path>.
-    -E, --errors <policy>       What to do with evaluation errors. One of:
-                                  - \"panic\": exit on first error
-                                  - \"ignore\": ignore row altogether
-                                  - \"log\": print error to stderr
-                                [default: panic].
 
 Common options:
     -h, --help             Display this message
@@ -146,7 +139,6 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_evaluate: Option<String>,
     flag_evaluate_file: Option<String>,
-    flag_errors: String,
 }
 
 impl Args {
@@ -178,8 +170,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     if let Some(expr) = &args.flag_evaluate {
-        let error_policy = LegacyMoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
-
         let program = SelectionProgram::parse(expr, &headers)?;
 
         if args.flag_append {
@@ -191,8 +181,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            let output_record =
-                error_policy.handle_error(program.run_with_record(index, &record))?;
+            let output_record = program.run_with_record(index, &record)?;
 
             if args.flag_append {
                 wtr.write_record(record.iter().chain(output_record.iter()))?;

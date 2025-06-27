@@ -18,9 +18,10 @@ The **parallel** update.
 * Dropping `xan url-join` & `xan regex-join`. Both commands have been merged into a new `xan fuzzy-join` command using the `-u/--url-prefix` & `-r/--regex` flags respectively.
 * `xan from --sheet` becomes `--sheet-name` and is no longer the default. `--sheet-index 0` becomes the default.
 * Dropping `xan foreach`. It is not distinctive enough as you can use `xan map` for the same purpose and get useful information about the results of evaluated side effects or write to `/dev/null`.
-* Dropping `xan agg -E/--errors` & `xan groupby -E/--errors`. You can rely on the `try` & `warn` moonblade functions instead.
+* Dropping `xan select -e -E/--errors`, `xan agg -E/--errors` & `xan groupby -E/--errors`. You can rely on the `try` & `warn` moonblade functions instead.
 * Renaming `xan agg --cols` to `xan agg --along-rows`.
 * Changing `cell` placeholder to anonymous `_` value in `xan agg -R/--along-rows`.
+* Dropping `-E/--errors report` & `--error-column` support in `xan map` & `xan transform`.
 
 *Features*
 

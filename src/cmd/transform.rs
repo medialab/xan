@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::cmd::moonblade::{
-    run_moonblade_cmd, MoonbladeCmdArgs, LegacyMoonbladeErrorPolicy, MoonbladeMode,
+    run_moonblade_cmd, LegacyMoonbladeErrorPolicy, MoonbladeCmdArgs, MoonbladeMode,
 };
 use crate::config::Delimiter;
 use crate::util;
@@ -55,13 +55,9 @@ transform options:
                                if you want the number of threads to be automatically chosen instead.
     -E, --errors <policy>      What to do with evaluation errors. One of:
                                  - "panic": exit on first error
-                                 - "report": add a column containing error
                                  - "ignore": coerce result for row to null
                                  - "log": print error to stderr
                                [default: panic].
-    --error-column <name>      Name of the column containing errors if
-                               "-E/--errors" is set to "report".
-                               [default: xan_error].
 
 Common options:
     -h, --help               Display this message
@@ -84,7 +80,6 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_errors: String,
-    flag_error_column: String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -106,7 +101,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         delimiter: args.flag_delimiter,
         parallelization,
         error_policy: LegacyMoonbladeErrorPolicy::try_from(args.flag_errors)?,
-        error_column_name: Some(args.flag_error_column),
         mode: MoonbladeMode::Transform,
         ..Default::default()
     };
