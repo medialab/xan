@@ -25,10 +25,6 @@ impl MoonbladeOutputValue {
         output_value
     }
 
-    fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
     fn unwrap(self) -> Vec<u8> {
         match self {
             Self::Some(bytes) => bytes,
@@ -63,17 +59,6 @@ impl MoonbladeOutputValue {
 
     fn process(&mut self, mode: &MoonbladeMode, value: &DynamicValue) {
         match mode {
-            MoonbladeMode::Filter(invert) => {
-                let should_keep = if *invert {
-                    value.is_falsey()
-                } else {
-                    value.is_truthy()
-                };
-
-                if should_keep {
-                    self.push(value);
-                }
-            }
             MoonbladeMode::Flatmap => {
                 if value.is_truthy() {
                     for subvalue in value.flat_iter() {
@@ -92,7 +77,6 @@ impl MoonbladeOutputValue {
 pub enum MoonbladeMode {
     #[default]
     Map,
-    Filter(bool),
     Transform,
     Flatmap,
 }
@@ -111,12 +95,39 @@ impl MoonbladeMode {
     }
 
     fn cannot_report(&self) -> bool {
-        matches!(self, Self::Filter(_) | Self::Flatmap)
+        matches!(self, Self::Flatmap)
+    }
+}
+
+#[derive(Default, Debug, Deserialize, Clone, Copy)]
+#[serde(try_from = "String")]
+pub enum MoonbladeErrorPolicy {
+    #[default]
+    Panic,
+    Ignore,
+    Log,
+}
+
+impl TryFrom<String> for MoonbladeErrorPolicy {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "panic" => Self::Panic,
+            "ignore" => Self::Ignore,
+            "log" => Self::Log,
+            _ => {
+                return Err(format!(
+                    "unknown moonblade error policy given to -E/--errors \"{}\"!",
+                    value
+                ))
+            }
+        })
     }
 }
 
 #[derive(Default, Debug)]
-pub enum MoonbladeErrorPolicy {
+pub enum LegacyMoonbladeErrorPolicy {
     #[default]
     Panic,
     Report,
@@ -124,7 +135,7 @@ pub enum MoonbladeErrorPolicy {
     Log,
 }
 
-impl MoonbladeErrorPolicy {
+impl LegacyMoonbladeErrorPolicy {
     pub fn try_from_restricted(value: &str) -> Result<Self, CliError> {
         Ok(match value {
             "panic" => Self::Panic,
@@ -150,9 +161,9 @@ impl MoonbladeErrorPolicy {
         match result {
             Ok(value) => Ok(value),
             Err(err) => match self {
-                MoonbladeErrorPolicy::Panic => Err(err)?,
-                MoonbladeErrorPolicy::Ignore => Ok(T::default()),
-                MoonbladeErrorPolicy::Log => {
+                LegacyMoonbladeErrorPolicy::Panic => Err(err)?,
+                LegacyMoonbladeErrorPolicy::Ignore => Ok(T::default()),
+                LegacyMoonbladeErrorPolicy::Log => {
                     eprintln!("{}", err);
                     Ok(T::default())
                 }
@@ -162,7 +173,7 @@ impl MoonbladeErrorPolicy {
     }
 }
 
-impl TryFrom<String> for MoonbladeErrorPolicy {
+impl TryFrom<String> for LegacyMoonbladeErrorPolicy {
     type Error = CliError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -191,7 +202,7 @@ pub struct MoonbladeCmdArgs {
     pub no_headers: bool,
     pub delimiter: Option<Delimiter>,
     pub parallelization: Option<Option<usize>>,
-    pub error_policy: MoonbladeErrorPolicy,
+    pub error_policy: LegacyMoonbladeErrorPolicy,
     pub error_column_name: Option<String>,
     pub mode: MoonbladeMode,
     pub limit: Option<usize>,
@@ -209,12 +220,6 @@ fn handle_moonblade_output<W: Write>(
 
     match eval_result {
         Ok(value) => match args.mode {
-            MoonbladeMode::Filter(_) => {
-                if !value.is_none() {
-                    writer.write_byte_record(record)?;
-                    written_count += 1;
-                }
-            }
             MoonbladeMode::Map => {
                 record.push_field(&value.unwrap());
 
@@ -249,7 +254,7 @@ fn handle_moonblade_output<W: Write>(
             }
         },
         Err(err) => match args.error_policy {
-            MoonbladeErrorPolicy::Ignore => {
+            LegacyMoonbladeErrorPolicy::Ignore => {
                 if args.mode.is_map() {
                     record.push_field(b"");
                     writer.write_byte_record(record)?;
@@ -260,7 +265,7 @@ fn handle_moonblade_output<W: Write>(
                     written_count += 1;
                 }
             }
-            MoonbladeErrorPolicy::Report => {
+            LegacyMoonbladeErrorPolicy::Report => {
                 if args.mode.cannot_report() {
                     unreachable!();
                 }
@@ -277,7 +282,7 @@ fn handle_moonblade_output<W: Write>(
                     written_count += 1;
                 }
             }
-            MoonbladeErrorPolicy::Log => {
+            LegacyMoonbladeErrorPolicy::Log => {
                 eprintln!("Row n°{}: {}", index + 1, err);
 
                 if args.mode.is_map() {
@@ -290,7 +295,7 @@ fn handle_moonblade_output<W: Write>(
                     written_count += 1;
                 }
             }
-            MoonbladeErrorPolicy::Panic => {
+            LegacyMoonbladeErrorPolicy::Panic => {
                 Err(format!("Row n°{}: {}", index + 1, err))?;
             }
         },

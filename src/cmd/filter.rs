@@ -1,7 +1,8 @@
-use crate::cmd::moonblade::{
-    run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode,
-};
-use crate::config::Delimiter;
+use pariter::IteratorExt;
+
+use crate::cmd::moonblade::MoonbladeErrorPolicy;
+use crate::config::{Config, Delimiter};
+use crate::moonblade::{DynamicValue, Program};
 use crate::util;
 use crate::CliResult;
 
@@ -72,12 +73,15 @@ struct Args {
     flag_parallel: bool,
     flag_limit: Option<usize>,
     flag_threads: Option<usize>,
-    flag_errors: String,
+    flag_errors: MoonbladeErrorPolicy,
     flag_invert_match: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    let rconf = Config::new(&args.arg_input)
+        .no_headers(args.flag_no_headers)
+        .delimiter(args.flag_delimiter);
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
         (true, None) => Some(None),
@@ -85,22 +89,95 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    if args.flag_limit.is_some() && parallelization.is_some() {
-        Err("-l, --limit does not work when parallelizing!")?;
+    let mut wtr = Config::new(&args.flag_output).writer()?;
+
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?.clone();
+
+    rconf.write_headers(&mut rdr, &mut wtr)?;
+
+    let program = Program::parse(&args.arg_expression, &headers)?;
+    let mut matches: usize = 0;
+
+    if let Some(threads) = parallelization {
+        for result in rdr.into_byte_records().enumerate().parallel_map_custom(
+            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            move |(index, record)| -> CliResult<Option<csv::ByteRecord>> {
+                let record = record?;
+
+                let result = program.run_with_record(index, &record);
+
+                let value = match args.flag_errors {
+                    MoonbladeErrorPolicy::Panic => result?,
+                    MoonbladeErrorPolicy::Ignore => result.unwrap_or(DynamicValue::None),
+                    MoonbladeErrorPolicy::Log => match result {
+                        Err(err) => {
+                            eprintln!("Row index {}: {}", index, err);
+                            DynamicValue::None
+                        }
+                        Ok(v) => v,
+                    },
+                };
+
+                let mut is_match = value.is_truthy();
+
+                if args.flag_invert_match {
+                    is_match = !is_match;
+                }
+
+                Ok(is_match.then_some(record))
+            },
+        ) {
+            if let Some(record) = result? {
+                matches += 1;
+                wtr.write_byte_record(&record)?;
+            }
+
+            if let Some(limit) = args.flag_limit {
+                if matches >= limit {
+                    break;
+                }
+            }
+        }
+    } else {
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            let result = program.run_with_record(index, &record);
+
+            let value = match args.flag_errors {
+                MoonbladeErrorPolicy::Panic => result?,
+                MoonbladeErrorPolicy::Ignore => result.unwrap_or(DynamicValue::None),
+                MoonbladeErrorPolicy::Log => match result {
+                    Err(err) => {
+                        eprintln!("Row index {}: {}", index, err);
+                        DynamicValue::None
+                    }
+                    Ok(v) => v,
+                },
+            };
+
+            let mut is_match = value.is_truthy();
+
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
+
+            if is_match {
+                matches += 1;
+                wtr.write_byte_record(&record)?;
+            }
+
+            if let Some(limit) = args.flag_limit {
+                if matches >= limit {
+                    break;
+                }
+            }
+
+            index += 1;
+        }
     }
 
-    let moonblade_args = MoonbladeCmdArgs {
-        map_expr: args.arg_expression,
-        input: args.arg_input,
-        output: args.flag_output,
-        no_headers: args.flag_no_headers,
-        delimiter: args.flag_delimiter,
-        parallelization,
-        error_policy: MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
-        mode: MoonbladeMode::Filter(args.flag_invert_match),
-        limit: args.flag_limit,
-        ..Default::default()
-    };
-
-    run_moonblade_cmd(moonblade_args)
+    Ok(wtr.flush()?)
 }

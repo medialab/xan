@@ -7,7 +7,7 @@ use crate::CliResult;
 
 use crate::moonblade::SelectionProgram;
 
-use crate::cmd::moonblade::MoonbladeErrorPolicy;
+use crate::cmd::moonblade::LegacyMoonbladeErrorPolicy;
 
 static USAGE: &str = "
 Select columns from CSV data using a shorthand notation or by evaluating an expression
@@ -178,7 +178,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     if let Some(expr) = &args.flag_evaluate {
-        let error_policy = MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
+        let error_policy = LegacyMoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?;
 
         let program = SelectionProgram::parse(expr, &headers)?;
 

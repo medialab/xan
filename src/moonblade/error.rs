@@ -115,7 +115,7 @@ impl Display for SpecifiedEvaluationError {
         write!(
             f,
             "{} {}",
-            if self.function_name.starts_with('<') {
+            if self.function_name.starts_with('<') || self.function_name.starts_with('>') {
                 self.function_name.clone()
             } else {
                 format!("{}()", self.function_name)

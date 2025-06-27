@@ -61,6 +61,7 @@ The **parallel** update.
 * Adding `regex` moonblade function.
 * Adding `header`, `col_index` & `col_index?` moonblade functions.
 * Adding `find` & `find_index` moonblade functions.
+* Adding `-l/--limit` support to `xan search -p` & `xan filter -p`.
 
 *Fixes*
 

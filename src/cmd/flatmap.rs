@@ -1,5 +1,5 @@
 use crate::cmd::moonblade::{
-    run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeErrorPolicy, MoonbladeMode,
+    run_moonblade_cmd, MoonbladeCmdArgs, LegacyMoonbladeErrorPolicy, MoonbladeMode,
 };
 use crate::config::Delimiter;
 use crate::util;
@@ -129,7 +129,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         no_headers: args.flag_no_headers,
         delimiter: args.flag_delimiter,
         parallelization,
-        error_policy: MoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
+        error_policy: LegacyMoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
         mode: MoonbladeMode::Flatmap,
         ..Default::default()
     };
