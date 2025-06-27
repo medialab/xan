@@ -1,8 +1,7 @@
 use pariter::IteratorExt;
 
-use crate::cmd::moonblade::MoonbladeErrorPolicy;
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{DynamicValue, Program};
+use crate::moonblade::Program;
 use crate::util;
 use crate::CliResult;
 
@@ -48,11 +47,6 @@ filter options:
                                buffering some times (e.g. when searching for very few
                                rows in a big file before piping to `view` or `flatten`).
                                Does not work when parallelizing.
-    -E, --errors <policy>      What to do with evaluation errors. One of:
-                                 - "panic": exit on first error
-                                 - "ignore": coerce result for row to null
-                                 - "log": print error to stderr
-                               [default: panic].
 
 Common options:
     -h, --help               Display this message
@@ -73,7 +67,6 @@ struct Args {
     flag_parallel: bool,
     flag_limit: Option<usize>,
     flag_threads: Option<usize>,
-    flag_errors: MoonbladeErrorPolicy,
     flag_invert_match: bool,
 }
 
@@ -105,19 +98,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             move |(index, record)| -> CliResult<Option<csv::ByteRecord>> {
                 let record = record?;
 
-                let result = program.run_with_record(index, &record);
-
-                let value = match args.flag_errors {
-                    MoonbladeErrorPolicy::Panic => result?,
-                    MoonbladeErrorPolicy::Ignore => result.unwrap_or(DynamicValue::None),
-                    MoonbladeErrorPolicy::Log => match result {
-                        Err(err) => {
-                            eprintln!("Row index {}: {}", index, err);
-                            DynamicValue::None
-                        }
-                        Ok(v) => v,
-                    },
-                };
+                let value = program.run_with_record(index, &record)?;
 
                 let mut is_match = value.is_truthy();
 
@@ -144,19 +125,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            let result = program.run_with_record(index, &record);
-
-            let value = match args.flag_errors {
-                MoonbladeErrorPolicy::Panic => result?,
-                MoonbladeErrorPolicy::Ignore => result.unwrap_or(DynamicValue::None),
-                MoonbladeErrorPolicy::Log => match result {
-                    Err(err) => {
-                        eprintln!("Row index {}: {}", index, err);
-                        DynamicValue::None
-                    }
-                    Ok(v) => v,
-                },
-            };
+            let value = program.run_with_record(index, &record)?;
 
             let mut is_match = value.is_truthy();
 

@@ -1,15 +1,13 @@
-use std::convert::TryFrom;
+use pariter::IteratorExt;
 
-use crate::cmd::moonblade::{
-    run_moonblade_cmd, LegacyMoonbladeErrorPolicy, MoonbladeCmdArgs, MoonbladeMode,
-};
-use crate::config::Delimiter;
+use crate::config::{Config, Delimiter};
+use crate::moonblade::SelectionProgram;
 use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"
 The map command evaluates an expression for each row of the given CSV file and
-output the row with an added column containing the result of beforementioned
+output the same row with added columns containing the results of beforementioned
 expression.
 
 For instance, given the following CSV file:
@@ -20,13 +18,23 @@ a,b
 
 The following command:
 
-    $ xan map 'a + b' c file.csv > result.csv
+    $ xan map 'a + b as c' file.csv > result.csv
 
 Will produce the following result:
 
 a,b,c
 1,4,5
 5,2,7
+
+You can also create multiple columns at once:
+
+    $ xan map 'a + b as c, a * b as d' file.csv > result.csv
+
+Will produce the following result:
+
+a,b,c,d
+1,4,5,4
+5,2,7,10
 
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
@@ -40,14 +48,14 @@ Miscellaneous tricks:
 
 1. Copying a column:
 
-    $ xan map 'column_name' copy_name file.csv > result.csv
+    $ xan map 'column_name as copy_name' file.csv > result.csv
 
 2. Create a column containing a constant value:
 
-    $ xan map '"john"' from file.csv > result.csv
+    $ xan map '"john" as from' file.csv > result.csv
 
 Usage:
-    xan map [options] <expression> <column> [<input>]
+    xan map [options] <expression> [<input>]
     xan map --help
 
 map options:
@@ -57,11 +65,6 @@ map options:
                                indicate the number of threads yourself.
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
-    -E, --errors <policy>      What to do with evaluation errors. One of:
-                                 - "panic": exit on first error
-                                 - "ignore": coerce result for row to null
-                                 - "log": print error to stderr
-                               [default: panic].
 
 Common options:
     -h, --help               Display this message
@@ -74,7 +77,6 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: String,
     arg_expression: String,
     arg_input: Option<String>,
     flag_output: Option<String>,
@@ -82,11 +84,13 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
-    flag_errors: String,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    let rconf = Config::new(&args.arg_input)
+        .no_headers(args.flag_no_headers)
+        .delimiter(args.flag_delimiter);
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
         (true, None) => Some(None),
@@ -94,18 +98,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let moonblade_args = MoonbladeCmdArgs {
-        target_column: Some(args.arg_column),
-        map_expr: args.arg_expression,
-        input: args.arg_input,
-        output: args.flag_output,
-        no_headers: args.flag_no_headers,
-        delimiter: args.flag_delimiter,
-        parallelization,
-        error_policy: LegacyMoonbladeErrorPolicy::try_from(args.flag_errors)?,
-        mode: MoonbladeMode::Map,
-        ..Default::default()
-    };
+    let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    run_moonblade_cmd(moonblade_args)
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?.clone();
+
+    let program = SelectionProgram::parse(&args.arg_expression, &headers)?;
+
+    if !args.flag_no_headers {
+        wtr.write_record(headers.iter().chain(program.headers()))?;
+    }
+
+    if let Some(threads) = parallelization {
+        for result in rdr.into_byte_records().enumerate().parallel_map_custom(
+            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            move |(index, record)| -> CliResult<csv::ByteRecord> {
+                let mut record = record?;
+
+                program.mutate_record(index, &mut record)?;
+
+                Ok(record)
+            },
+        ) {
+            wtr.write_byte_record(&result?)?;
+        }
+    } else {
+        let mut record = csv::ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            program.mutate_record(index, &mut record)?;
+
+            wtr.write_byte_record(&record)?;
+
+            index += 1;
+        }
+    }
+
+    Ok(wtr.flush()?)
 }

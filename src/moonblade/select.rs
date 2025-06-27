@@ -31,7 +31,7 @@ impl SelectionProgram {
         self.exprs.iter().map(|(_, name)| name.as_bytes())
     }
 
-    pub fn extend(
+    pub fn run_with_record_and_extend(
         &self,
         index: usize,
         record: &ByteRecord,
@@ -40,6 +40,19 @@ impl SelectionProgram {
         for (expr, _) in self.exprs.iter() {
             let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
             output_record.push_field(&value.serialize_as_bytes());
+        }
+
+        Ok(())
+    }
+
+    pub fn mutate_record(
+        &self,
+        index: usize,
+        record: &mut ByteRecord,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        for (expr, _) in self.exprs.iter() {
+            let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+            record.push_field(&value.serialize_as_bytes());
         }
 
         Ok(())

@@ -171,7 +171,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         while rdr.read_byte_record(&mut record)? {
             output_record.clear();
-            program.extend(index, &record, &mut output_record)?;
+            program.run_with_record_and_extend(index, &record, &mut output_record)?;
 
             wtr.write_byte_record(&output_record)?;
         }

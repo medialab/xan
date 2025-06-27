@@ -1,6 +1,4 @@
-use crate::cmd::moonblade::{
-    run_moonblade_cmd, MoonbladeCmdArgs, LegacyMoonbladeErrorPolicy, MoonbladeMode,
-};
+use crate::cmd::moonblade::{run_moonblade_cmd, MoonbladeCmdArgs, MoonbladeMode};
 use crate::config::Delimiter;
 use crate::util;
 use crate::CliResult;
@@ -82,11 +80,6 @@ flatmap options:
                                indicate the number of threads yourself.
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
-    -E, --errors <policy>      What to do with evaluation errors. One of:
-                                 - "panic": exit on first error
-                                 - "ignore": coerce result for row to null
-                                 - "log": print error to stderr
-                               [default: panic].
 
 Common options:
     -h, --help               Display this message
@@ -107,7 +100,6 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
-    flag_errors: String,
     flag_replace: Option<String>,
 }
 
@@ -129,7 +121,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         no_headers: args.flag_no_headers,
         delimiter: args.flag_delimiter,
         parallelization,
-        error_policy: LegacyMoonbladeErrorPolicy::try_from_restricted(&args.flag_errors)?,
         mode: MoonbladeMode::Flatmap,
         ..Default::default()
     };

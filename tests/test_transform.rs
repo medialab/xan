@@ -86,39 +86,3 @@ fn transform_errors_panic() {
 
     wrk.assert_err(&mut cmd);
 }
-
-#[test]
-fn transform_errors_ignore() {
-    let wrk = Workdir::new("transform_errors_ignore");
-    wrk.create(
-        "data.csv",
-        vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
-    );
-    let mut cmd = wrk.command("transform");
-    cmd.arg("b")
-        .arg("add(a, b)")
-        .args(&["-E", "ignore"])
-        .arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["a", "b"], svec!["1", ""], svec!["2", "5"]];
-    assert_eq!(got, expected);
-}
-
-#[test]
-fn transform_errors_log() {
-    let wrk = Workdir::new("transform_errors_log");
-    wrk.create(
-        "data.csv",
-        vec![svec!["a", "b"], svec!["1", "test"], svec!["2", "3"]],
-    );
-    let mut cmd = wrk.command("transform");
-    cmd.arg("b")
-        .arg("add(a, b)")
-        .args(&["-E", "log"])
-        .arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["a", "b",], svec!["1", "",], svec!["2", "5",]];
-    assert_eq!(got, expected);
-}

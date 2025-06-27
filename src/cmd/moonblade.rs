@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::io::Write;
 
 use pariter::IteratorExt;
@@ -7,7 +6,6 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, Program, SpecifiedEvaluationError};
 use crate::select::SelectColumns;
 use crate::util::ImmutableRecordHelpers;
-use crate::CliError;
 use crate::CliResult;
 
 #[derive(Default)]
@@ -95,75 +93,6 @@ impl MoonbladeMode {
     }
 }
 
-#[derive(Default, Debug, Deserialize, Clone, Copy)]
-#[serde(try_from = "String")]
-pub enum MoonbladeErrorPolicy {
-    #[default]
-    Panic,
-    Ignore,
-    Log,
-}
-
-impl TryFrom<String> for MoonbladeErrorPolicy {
-    type Error = String;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(match value.as_str() {
-            "panic" => Self::Panic,
-            "ignore" => Self::Ignore,
-            "log" => Self::Log,
-            _ => {
-                return Err(format!(
-                    "unknown moonblade error policy given to -E/--errors \"{}\"!",
-                    value
-                ))
-            }
-        })
-    }
-}
-
-#[derive(Default, Debug)]
-pub enum LegacyMoonbladeErrorPolicy {
-    #[default]
-    Panic,
-    Ignore,
-    Log,
-}
-
-impl LegacyMoonbladeErrorPolicy {
-    pub fn try_from_restricted(value: &str) -> Result<Self, CliError> {
-        Ok(match value {
-            "panic" => Self::Panic,
-            "ignore" => Self::Ignore,
-            "log" => Self::Log,
-            _ => {
-                return Err(CliError::Other(format!(
-                    "unknown error policy \"{}\"",
-                    value
-                )))
-            }
-        })
-    }
-}
-
-impl TryFrom<String> for LegacyMoonbladeErrorPolicy {
-    type Error = CliError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(match value.as_str() {
-            "panic" => Self::Panic,
-            "ignore" => Self::Ignore,
-            "log" => Self::Log,
-            _ => {
-                return Err(CliError::Other(format!(
-                    "unknown error policy \"{}\"",
-                    value
-                )))
-            }
-        })
-    }
-}
-
 #[derive(Default, Debug)]
 pub struct MoonbladeCmdArgs {
     pub target_column: Option<String>,
@@ -174,7 +103,6 @@ pub struct MoonbladeCmdArgs {
     pub no_headers: bool,
     pub delimiter: Option<Delimiter>,
     pub parallelization: Option<Option<usize>>,
-    pub error_policy: LegacyMoonbladeErrorPolicy,
     pub mode: MoonbladeMode,
     pub limit: Option<usize>,
 }
@@ -216,35 +144,9 @@ fn handle_moonblade_output<W: Write>(
                 }
             }
         },
-        Err(err) => match args.error_policy {
-            LegacyMoonbladeErrorPolicy::Ignore => {
-                if args.mode.is_map() {
-                    record.push_field(b"");
-                    writer.write_byte_record(record)?;
-                    written_count += 1;
-                } else if args.mode.is_transform() {
-                    let record = record.replace_at(replace.unwrap(), b"");
-                    writer.write_byte_record(&record)?;
-                    written_count += 1;
-                }
-            }
-            LegacyMoonbladeErrorPolicy::Log => {
-                eprintln!("Row n°{}: {}", index + 1, err);
-
-                if args.mode.is_map() {
-                    record.push_field(b"");
-                    writer.write_byte_record(record)?;
-                    written_count += 1;
-                } else if args.mode.is_transform() {
-                    let record = record.replace_at(replace.unwrap(), b"");
-                    writer.write_byte_record(&record)?;
-                    written_count += 1;
-                }
-            }
-            LegacyMoonbladeErrorPolicy::Panic => {
-                Err(format!("Row n°{}: {}", index + 1, err))?;
-            }
-        },
+        Err(err) => {
+            Err(format!("Row n°{}: {}", index + 1, err))?;
+        }
     };
 
     Ok(written_count)
