@@ -432,6 +432,18 @@
         "help": "Return a list containing only elements for which given lambda returned true.\nFor instance: `filter(names, name => name.startswith('A'))`"
       },
       {
+        "name": "find",
+        "arguments": ["list", "lambda"],
+        "returns": "any?",
+        "help": "Return the first item of a list for which given lambda returned true.\nFor instance: `find(names, name => name.startswith('A'))`"
+      },
+      {
+        "name": "find_index",
+        "arguments": ["list", "lambda"],
+        "returns": "int?",
+        "help": "Return the index of the first item of a list for which given lambda returned true.\nFor instance: `find_index(names, name => name.startswith('A'))`"
+      },
+      {
         "name": "index_by",
         "arguments": ["list", "key"],
         "returns": "map",

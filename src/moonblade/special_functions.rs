@@ -151,6 +151,8 @@ pub fn get_special_function(
         // NOTE: higher-order functions work fine with static evaluation
         "map" => higher_order_fn!("map", Map),
         "filter" => higher_order_fn!("filter", Filter),
+        "find" => higher_order_fn!("find", Find),
+        "find_index" => higher_order_fn!("find_index", FindIndex),
 
         _ => return None,
     })
@@ -458,6 +460,8 @@ fn runtime_warn(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluatio
 enum HigherOrderOperation {
     Filter,
     Map,
+    Find,
+    FindIndex,
 }
 
 fn runtime_higher_order(
@@ -532,6 +536,32 @@ fn runtime_higher_order(
             }
 
             Ok(DynamicValue::from(new_list))
+        }
+        HigherOrderOperation::Find => {
+            for item in list.iter() {
+                variables.set(item_arg_index, item.clone());
+
+                let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
+
+                if result.is_truthy() {
+                    return Ok(item.clone());
+                }
+            }
+
+            Ok(DynamicValue::None)
+        }
+        HigherOrderOperation::FindIndex => {
+            for (i, item) in list.iter().enumerate() {
+                variables.set(item_arg_index, item.clone());
+
+                let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
+
+                if result.is_truthy() {
+                    return Ok(DynamicValue::from(i));
+                }
+            }
+
+            Ok(DynamicValue::None)
         }
     }
 }
