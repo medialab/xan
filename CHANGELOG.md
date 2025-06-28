@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.51.0 (provisional)
+## 0.51.0
 
 The **parallel** update.
 
