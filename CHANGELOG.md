@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.52.0 (provisional)
+
+*Features*
+
+* `xan transform` is now able to work on a selection of columns, rather than on a single column.
+
 ## 0.51.0
 
 The **parallel** update.

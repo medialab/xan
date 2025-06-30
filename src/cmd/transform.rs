@@ -1,14 +1,14 @@
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::Program;
+use crate::moonblade::{DynamicValue, Program};
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"
-The transform command evaluates an expression for each row of the given CSV file
-and use the result to edit a target column that can optionally be renamed.
+The transform command can be used to edit a selection of columns for each row
+of a CSV file using a custom expression.
 
 For instance, given the following CSV file:
 
@@ -16,9 +16,10 @@ name,surname
 john,davis
 mary,sue
 
-The following command:
+The following command (notice how `_` is used as a reference to the currently
+edited column):
 
-    $ xan transform surname 'upper(surname)'
+    $ xan transform surname 'upper(_)'
 
 Will produce the following result:
 
@@ -26,14 +27,14 @@ name,surname
 john,DAVIS
 mary,SUE
 
-Note that the given expression will be given the target column as its implicit
-value, which means that the latter command can also be written as:
-
-    $ xan transform surname 'upper(_)'
-
-Or even shorter:
+When using unary functions, the above command can be written even shorter:
 
     $ xan transfrom surname upper
+
+The above example work on a single column but the command is perfectly able to
+transform multiple columns at once using a selection:
+
+    $ xan transform name,surname,fullname upper
 
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
@@ -76,7 +77,7 @@ struct Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
+    let args: Args = util::get_args(USAGE, argv)?;
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter)
@@ -93,15 +94,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let transformed_index = rconf.single_selection(&headers)?;
+    let mut sel = rconf.selection(&headers)?;
+    sel.dedup();
 
-    args.arg_expression = format!("col({}) | {}", transformed_index, &args.arg_expression);
+    let mask = sel.indexed_mask(headers.len());
 
-    let program = Program::parse(&args.arg_expression, &headers)?;
+    let programs = sel
+        .iter()
+        .map(|i| Program::parse(&format!("col({}) | {}", i, &args.arg_expression), &headers))
+        .collect::<Result<Vec<_>, _>>()?;
 
     if !args.flag_no_headers {
-        let output_headers = if let Some(new_name) = &args.flag_rename {
-            headers.replace_at(transformed_index, new_name.as_bytes())
+        let output_headers = if let Some(new_names) = &args.flag_rename {
+            let renamed = util::str_to_csv_byte_record(new_names);
+
+            if renamed.len() != sel.len() {
+                Err(format!(
+                    "Renamed columns alignement error. Expected {} names and got {}.",
+                    sel.len(),
+                    renamed.len(),
+                ))?;
+            }
+
+            mask.iter()
+                .zip(headers.iter())
+                .map(|(o, h)| if let Some(i) = o { &renamed[*i] } else { h })
+                .collect()
         } else {
             headers.clone()
         };
@@ -115,25 +133,56 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             move |(index, record)| -> CliResult<csv::ByteRecord> {
                 let record = record?;
 
-                let value = program.run_with_record(index, &record)?;
+                let mut output_record = csv::ByteRecord::new();
+                let mut last_value = DynamicValue::empty_bytes();
 
-                let record = record.replace_at(transformed_index, &value.serialize_as_bytes());
+                for (m, cell) in mask.iter().copied().zip(record.iter()) {
+                    if let Some(i) = m {
+                        last_value.set_bytes(cell);
 
-                Ok(record)
+                        let value = programs[i].run_with_record_and_last_value(
+                            index,
+                            &record,
+                            last_value.clone(),
+                        )?;
+
+                        output_record.push_field(&value.serialize_as_bytes());
+                    } else {
+                        output_record.push_field(cell);
+                    }
+                }
+
+                Ok(output_record)
             },
         ) {
             wtr.write_byte_record(&result?)?;
         }
     } else {
         let mut record = csv::ByteRecord::new();
+        let mut output_record = csv::ByteRecord::new();
+        let mut last_value = DynamicValue::empty_bytes();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            let value = program.run_with_record(index, &record)?;
+            output_record.clear();
 
-            wtr.write_byte_record(
-                &record.replace_at(transformed_index, &value.serialize_as_bytes()),
-            )?;
+            for (m, cell) in mask.iter().copied().zip(record.iter()) {
+                if let Some(i) = m {
+                    last_value.set_bytes(cell);
+
+                    let value = programs[i].run_with_record_and_last_value(
+                        index,
+                        &record,
+                        last_value.clone(),
+                    )?;
+
+                    output_record.push_field(&value.serialize_as_bytes());
+                } else {
+                    output_record.push_field(cell);
+                }
+            }
+
+            wtr.write_byte_record(&output_record)?;
 
             index += 1;
         }

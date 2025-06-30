@@ -49,6 +49,32 @@ fn transform_rename() {
 }
 
 #[test]
+fn transform_multi() {
+    let wrk = Workdir::new("transform_multi");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b", "c"],
+            svec!["1", "2", "5"],
+            svec!["2", "3", "8"],
+        ],
+    );
+    let mut cmd = wrk.command("transform");
+    cmd.arg("b,c")
+        .arg("_ * 10")
+        .args(["-r", "B,C"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "B", "C"],
+        svec!["1", "20", "50"],
+        svec!["2", "30", "80"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn transform_implicit() {
     let wrk = Workdir::new("transform_implicit");
     wrk.create(

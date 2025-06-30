@@ -712,6 +712,21 @@ impl Program {
         eval_expression(&self.expr, Some(index), record, &self.headers_index)
     }
 
+    pub fn run_with_record_and_last_value(
+        &self,
+        index: usize,
+        record: &ByteRecord,
+        last_value: DynamicValue,
+    ) -> Result<DynamicValue, SpecifiedEvaluationError> {
+        eval_expression_with_optional_last_value(
+            &self.expr,
+            Some(index),
+            record,
+            &self.headers_index,
+            Some(last_value),
+        )
+    }
+
     pub fn run_with_record_and_globals(
         &self,
         index: usize,
