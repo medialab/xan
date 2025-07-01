@@ -5,6 +5,7 @@
 *Features*
 
 * `xan transform` is now able to work on a selection of columns, rather than on a single column.
+* Adding the `xan unpivot` command.
 
 ## 0.51.0
 

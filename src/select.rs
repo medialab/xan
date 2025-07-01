@@ -652,6 +652,20 @@ impl Selection {
     pub fn subtract(&mut self, other: &Self) {
         self.0.retain(|i| !other.contains(*i));
     }
+
+    pub fn inverse(&self, alignment: usize) -> Self {
+        let mask = self.mask(alignment);
+
+        let mut indices = Vec::new();
+
+        for (i, is_selected) in mask.into_iter().enumerate() {
+            if !is_selected {
+                indices.push(i);
+            }
+        }
+
+        Self(indices)
+    }
 }
 
 impl ops::Deref for Selection {

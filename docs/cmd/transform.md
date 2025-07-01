@@ -2,8 +2,8 @@
 # xan transform
 
 ```txt
-The transform command evaluates an expression for each row of the given CSV file
-and use the result to edit a target column that can optionally be renamed.
+The transform command can be used to edit a selection of columns for each row
+of a CSV file using a custom expression.
 
 For instance, given the following CSV file:
 
@@ -11,9 +11,10 @@ name,surname
 john,davis
 mary,sue
 
-The following command:
+The following command (notice how `_` is used as a reference to the currently
+edited column):
 
-    $ xan transform surname 'upper(surname)'
+    $ xan transform surname 'upper(_)'
 
 Will produce the following result:
 
@@ -21,14 +22,14 @@ name,surname
 john,DAVIS
 mary,SUE
 
-Note that the given expression will be given the target column as its implicit
-value, which means that the latter command can also be written as:
-
-    $ xan transform surname 'upper(_)'
-
-Or even shorter:
+When using unary functions, the above command can be written even shorter:
 
     $ xan transfrom surname upper
+
+The above example work on a single column but the command is perfectly able to
+transform multiple columns at once using a selection:
+
+    $ xan transform name,surname,fullname upper
 
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.

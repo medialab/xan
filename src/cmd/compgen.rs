@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use glob::glob;
 
-static COMMANDS: [&str; 58] = [
+static COMMANDS: [&str; 60] = [
     "agg",
     "behead",
     "bins",
@@ -42,6 +42,7 @@ static COMMANDS: [&str; 58] = [
     "network",
     "parallel",
     "partition",
+    "pivot",
     "plot",
     "progress",
     "range",
@@ -60,6 +61,7 @@ static COMMANDS: [&str; 58] = [
     "top",
     "transform",
     "transpose",
+    "unpivot",
     "view",
     "vocab",
     "window",

@@ -52,6 +52,7 @@ mod test_to;
 mod test_tokenize;
 mod test_top;
 mod test_transform;
+mod test_unpivot;
 mod test_vocab;
 mod test_window;
 
