@@ -6,8 +6,11 @@ static USAGE: &str = r#"
 TODO...
 
 Usage:
-    xan pivot [options] <columns> <name> <value> [<input>]
+    xan pivot [-p...] [options] [<input>]
     xan pivot --help
+
+pivot options:
+    -p, --pivot  Use at least six times for greater effect!
 
 Common options:
     -h, --help               Display this message
@@ -18,9 +21,10 @@ Common options:
                              Must be a single character.
 "#;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
+    flag_pivot: usize,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -28,6 +32,12 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_pivot >= 6 {
+        println!("{}", include_str!("../moonblade/doc/pivot.txt"));
+        return Ok(());
+    }
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter);
