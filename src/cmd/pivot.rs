@@ -1,12 +1,18 @@
 use crate::config::{Config, Delimiter};
+use crate::moonblade::AggregationProgram;
+use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
+use ahash::RandomState;
+use indexmap::{map::Entry, IndexMap};
+
+// TODO: IN, groupby, multiselect
 
 static USAGE: &str = r#"
 TODO...
 
 Usage:
-    xan pivot [-p...] [options] [<input>]
+    xan pivot [-p...] [options] <column> <expr> [<input>]
     xan pivot --help
 
 pivot options:
@@ -24,6 +30,8 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
+    arg_column: SelectColumns,
+    arg_expr: String,
     flag_pivot: usize,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -40,11 +48,65 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
-        .delimiter(args.flag_delimiter);
+        .delimiter(args.flag_delimiter)
+        .select(args.arg_column);
 
-    let _ = rconf.reader()?;
+    let mut rdr = rconf.reader()?;
+    let headers = rdr.byte_headers()?.clone();
+    let pivot_col_index = rconf.single_selection(&headers)?;
+    let program = AggregationProgram::parse(&args.arg_expr, &headers)?;
+
+    if !program.has_single_expr() {
+        Err("expected a single aggregation clause!")?;
+    }
+
+    let column_indices_used_in_aggregation = program.used_column_indices();
+
+    if column_indices_used_in_aggregation.contains(&pivot_col_index) {
+        Err("aggregation cannot work on the pivot column!")?;
+    }
+
+    // TODO: we might want to rely on a BTreemap here to have sorted columns
+    // and since the number of values is supposedly very low
+    let mut pivot_map: IndexMap<Vec<u8>, Vec<csv::ByteRecord>, RandomState> =
+        IndexMap::with_hasher(RandomState::new());
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
+
+    for result in rdr.byte_records() {
+        let record = result?;
+
+        let key = record[pivot_col_index].to_vec();
+
+        match pivot_map.entry(key) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().push(record);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(vec![record]);
+            }
+        };
+    }
+
+    if !rconf.no_headers {
+        let mut output_headers = headers
+            .iter()
+            .enumerate()
+            .filter_map(|(i, h)| {
+                if i != pivot_col_index && !column_indices_used_in_aggregation.contains(&i) {
+                    Some(h)
+                } else {
+                    None
+                }
+            })
+            .collect::<csv::ByteRecord>();
+
+        for key in pivot_map.keys() {
+            output_headers.push_field(key);
+        }
+
+        wtr.write_byte_record(&output_headers)?;
+    }
 
     Ok(wtr.flush()?)
 }

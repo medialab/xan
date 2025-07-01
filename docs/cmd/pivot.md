@@ -5,8 +5,11 @@
 TODO...
 
 Usage:
-    xan pivot [options] <columns> <name> <value> [<input>]
+    xan pivot [-p...] [options] <column> <expr> [<input>]
     xan pivot --help
+
+pivot options:
+    -p, --pivot  Use at least six times for greater effect!
 
 Common options:
     -h, --help               Display this message

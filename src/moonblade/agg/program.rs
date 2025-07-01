@@ -976,6 +976,16 @@ impl PlannerExecutionUnit {
     fn key(&self) -> (&Option<ConcreteExpr>, &Option<ConcreteExpr>) {
         (&self.expr, &self.pair_expr)
     }
+
+    fn used_column_indices(&self, scratch: &mut Vec<usize>) {
+        if let Some(expr) = &self.expr {
+            expr.used_column_indices(scratch);
+        }
+
+        if let Some(expr) = &self.pair_expr {
+            expr.used_column_indices(scratch);
+        }
+    }
 }
 
 // NOTE: output unit are aligned with the list of concrete aggregations and
@@ -1149,6 +1159,16 @@ impl AggregationProgram {
 
     pub fn has_single_expr(&self) -> bool {
         self.len == 1
+    }
+
+    pub fn used_column_indices(&self) -> Vec<usize> {
+        let mut indices = Vec::new();
+
+        for unit in self.planner.execution_plan.iter() {
+            unit.used_column_indices(&mut indices);
+        }
+
+        indices
     }
 
     pub fn clear(&mut self) {

@@ -148,6 +148,43 @@ impl ConcreteExpr {
         matches!(self, Self::Value(_))
     }
 
+    pub fn used_column_indices(&self, scratch: &mut Vec<usize>) {
+        match self {
+            Self::Column(i) => {
+                scratch.push(*i);
+            }
+            Self::Lambda(_, inner) => {
+                inner.used_column_indices(scratch);
+            }
+            Self::List(values) => {
+                for value in values {
+                    value.used_column_indices(scratch);
+                }
+            }
+            Self::Map(map) => {
+                for (_, value) in map {
+                    value.used_column_indices(scratch);
+                }
+            }
+            Self::Call(call) => {
+                for arg in call.args.iter() {
+                    arg.used_column_indices(scratch);
+                }
+            }
+            Self::SpecialCall(call) => {
+                for arg in call.args.iter() {
+                    arg.used_column_indices(scratch);
+                }
+            }
+            Self::Pipeline(exprs) => {
+                for expr in exprs {
+                    expr.used_column_indices(scratch);
+                }
+            }
+            _ => (),
+        };
+    }
+
     // NOTE: here we are not abiding by the DFS
     fn is_deeply_statically_evaluable(&self, bound: &Vec<String>) -> bool {
         match self {
