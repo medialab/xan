@@ -8,6 +8,10 @@
 * Adding the `xan unpivot` command.
 * Adding `xan join --semi` & `xan join --anti` commands.
 
+*Fixes*
+
+* Loosening `xan partition` sanitizer to allow hyphens, dashes and points.
+
 ## 0.51.0
 
 The **parallel** update.

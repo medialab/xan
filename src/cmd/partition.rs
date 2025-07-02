@@ -200,7 +200,7 @@ impl WriterGenerator {
             template,
             counter: 1,
             used: HashSet::new(),
-            non_word_char: Regex::new(r"\W").unwrap(),
+            non_word_char: Regex::new(r"[^\w_.\-]").unwrap(),
         }
     }
 
