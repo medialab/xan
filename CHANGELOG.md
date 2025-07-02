@@ -11,6 +11,7 @@
 *Fixes*
 
 * Loosening `xan partition` sanitizer to allow hyphens, dashes and points.
+* Fixing `xan parallel --progress` display.
 
 ## 0.51.0
 

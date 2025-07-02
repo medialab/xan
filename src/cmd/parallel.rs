@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use bstr::ByteSlice;
 use colored::{ColoredString, Colorize};
@@ -69,6 +70,8 @@ impl Bars {
 
         bars.set_color("blue");
 
+        bars.main.enable_steady_tick(Duration::from_millis(200));
+
         bars
     }
 
@@ -79,7 +82,6 @@ impl Bars {
             false,
             "chunks/files",
         ));
-        self.main.tick();
     }
 
     fn start(&self, name: &str) -> ProgressBar {
@@ -91,7 +93,9 @@ impl Bars {
             self.multi.insert_before(&self.main, bar.clone()),
         ));
 
-        self.main.tick();
+        // NOTE: bar must be inserted into the multibar before first
+        // tick, or weirdness will ensue.
+        bar.enable_steady_tick(Duration::from_millis(200));
 
         bar
     }
