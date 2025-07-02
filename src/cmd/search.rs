@@ -948,7 +948,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut counts = vec![0; patterns_len];
 
                     for cell in sel.select(&record) {
-                        is_match = matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                        is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts);
                     }
 
                     if is_match || args.flag_left {
@@ -1083,7 +1083,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut counts = vec![0; patterns_len];
 
             for cell in sel.select(&record) {
-                is_match = matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts);
             }
 
             if is_match || args.flag_left {
