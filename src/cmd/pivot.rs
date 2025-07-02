@@ -1,12 +1,14 @@
+use std::collections::{btree_map::Entry, BTreeMap};
+
 use crate::config::{Config, Delimiter};
 use crate::moonblade::AggregationProgram;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-use ahash::RandomState;
-use indexmap::{map::Entry, IndexMap};
 
 // TODO: IN, groupby, multiselect
+// TODO: create a PivotAggregationProgram, mapping group key (that can be refined through --groupby)
+// to BTreeMaps of aggregators.
 
 static USAGE: &str = r#"
 TODO...
@@ -67,10 +69,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("aggregation cannot work on the pivot column!")?;
     }
 
-    // TODO: we might want to rely on a BTreemap here to have sorted columns
-    // and since the number of values is supposedly very low
-    let mut pivot_map: IndexMap<Vec<u8>, Vec<csv::ByteRecord>, RandomState> =
-        IndexMap::with_hasher(RandomState::new());
+    let mut pivot_map: BTreeMap<Vec<u8>, Vec<csv::ByteRecord>> = BTreeMap::new();
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
