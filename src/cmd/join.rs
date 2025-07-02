@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use bstr::ByteSlice;
 use csv::ByteRecord;
 
-use crate::collections::{hash_map::Entry, HashMap};
+use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
 use crate::util;
@@ -195,8 +195,8 @@ Join two sets of CSV data on the specified columns.
 The default join operation is an \"inner\" join. This corresponds to the
 intersection of rows on the keys specified. The command is also able to
 perform a left outer join with --left, a right outer join with --right,
-a full outer join with --full and finally a cartesian product/cross join
-with --cross.
+a full outer join with --full, a semi join with --semi, an antin join with --anti
+and finally a cartesian product/cross join with --cross.
 
 By default, joins are done case sensitively, but this can be disabled using
 the -i, --ignore-case flag.
@@ -208,9 +208,6 @@ must return a same number of columns, for the join keys to be properly aligned.
 Note that this command is able to consume streams such as stdin (in which case
 the file name must be \"-\" to indicate which file will be read from stdin) and
 gzipped files out of the box.
-
-Finally, if what you want is to perform a semi join or anti join, check out
-the `xan search --patterns` command instead.
 
 # Memory considerations
 
@@ -226,6 +223,10 @@ the `xan search --patterns` command instead.
                     always indexes the left file, while the right
                     file is streamed. Prefer placing the smaller file
                     on the left.
+    - `semi join`:  the command always indexes the right file and streams the
+                    left file.
+    - `anti join`:  the command always indexes the right file and streams the
+                    left file.
     - `cross join`: the command does not try to be clever and
                     always indexes the left file, while the right
                     file is streamed. Prefer placing the smaller file
@@ -251,6 +252,8 @@ join options:
                                  both data sets with matching records joined. If
                                  there is no match, the missing side will be padded
                                  out with empty fields.
+    --semi                       Only keep rows of left file matching a row in right file.
+    --anti                       Only keep rows of left file not matching a row in right file.
     --cross                      This returns the cartesian product of the given CSV
                                  files. The number of rows emitted will be equal to N * M,
                                  where N and M correspond to the number of rows in the given
@@ -283,6 +286,8 @@ struct Args {
     flag_left: bool,
     flag_right: bool,
     flag_full: bool,
+    flag_semi: bool,
+    flag_anti: bool,
     flag_cross: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -478,6 +483,48 @@ impl Args {
         Ok(writer.flush()?)
     }
 
+    fn semi_join(self, anti: bool) -> CliResult<()> {
+        let ((mut left_reader, left_sel), (mut right_reader, right_sel)) =
+            self.readers_and_selections()?;
+
+        let mut writer = self.wconf().writer()?;
+
+        if !self.flag_no_headers {
+            writer.write_byte_record(left_reader.byte_headers()?)?;
+        }
+
+        let mut index: HashSet<IndexKey> = HashSet::new();
+
+        let mut right_record = csv::ByteRecord::new();
+
+        while right_reader.read_byte_record(&mut right_record)? {
+            let key = get_row_key(&right_sel, &right_record, self.flag_ignore_case);
+
+            if !self.flag_nulls && key.iter().all(|c| c.is_empty()) {
+                continue;
+            }
+
+            index.insert(key);
+        }
+
+        let mut left_record = csv::ByteRecord::new();
+
+        while left_reader.read_byte_record(&mut left_record)? {
+            let key = get_row_key(&left_sel, &left_record, self.flag_ignore_case);
+            let mut is_match = index.contains(&key);
+
+            if anti {
+                is_match = !is_match;
+            }
+
+            if is_match {
+                writer.write_byte_record(&left_record)?;
+            }
+        }
+
+        Ok(writer.flush()?)
+    }
+
     fn cross_join(self) -> CliResult<()> {
         let ((mut left_reader, _), (mut right_reader, _)) = self.readers_and_selections()?;
 
@@ -512,6 +559,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_left,
         args.flag_right,
         args.flag_full,
+        args.flag_semi,
+        args.flag_anti,
         args.flag_cross,
     ]
     .iter()
@@ -530,6 +579,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.full_outer_join()
     } else if args.flag_cross {
         args.cross_join()
+    } else if args.flag_semi {
+        args.semi_join(false)
+    } else if args.flag_anti {
+        args.semi_join(true)
     } else {
         args.inner_join()
     }

@@ -7,8 +7,8 @@ Join two sets of CSV data on the specified columns.
 The default join operation is an "inner" join. This corresponds to the
 intersection of rows on the keys specified. The command is also able to
 perform a left outer join with --left, a right outer join with --right,
-a full outer join with --full and finally a cartesian product/cross join
-with --cross.
+a full outer join with --full, a semi join with --semi, an antin join with --anti
+and finally a cartesian product/cross join with --cross.
 
 By default, joins are done case sensitively, but this can be disabled using
 the -i, --ignore-case flag.
@@ -20,9 +20,6 @@ must return a same number of columns, for the join keys to be properly aligned.
 Note that this command is able to consume streams such as stdin (in which case
 the file name must be "-" to indicate which file will be read from stdin) and
 gzipped files out of the box.
-
-Finally, if what you want is to perform a semi join or anti join, check out
-the `xan search --patterns` command instead.
 
 # Memory considerations
 
@@ -38,6 +35,10 @@ the `xan search --patterns` command instead.
                     always indexes the left file, while the right
                     file is streamed. Prefer placing the smaller file
                     on the left.
+    - `semi join`:  the command always indexes the right file and streams the
+                    left file.
+    - `anti join`:  the command always indexes the right file and streams the
+                    left file.
     - `cross join`: the command does not try to be clever and
                     always indexes the left file, while the right
                     file is streamed. Prefer placing the smaller file
@@ -63,6 +64,8 @@ join options:
                                  both data sets with matching records joined. If
                                  there is no match, the missing side will be padded
                                  out with empty fields.
+    --semi                       Only keep rows of left file matching a row in right file.
+    --anti                       Only keep rows of left file not matching a row in right file.
     --cross                      This returns the cartesian product of the given CSV
                                  files. The number of rows emitted will be equal to N * M,
                                  where N and M correspond to the number of rows in the given

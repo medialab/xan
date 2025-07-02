@@ -238,3 +238,63 @@ fn join_prefix() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn join_semi() {
+    let wrk = Workdir::new("join_semi");
+    wrk.create(
+        "fruits.csv",
+        vec![
+            svec!["id", "fruit"],
+            svec!["1", "mango"],
+            svec!["2", "orange"],
+            svec!["3", "apple"],
+            svec!["4", "cherry"],
+        ],
+    );
+    wrk.create(
+        "index.csv",
+        vec![svec!["fruit"], svec!["mango"], svec!["cherry"]],
+    );
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("--semi")
+        .args(["fruit", "fruits.csv", "fruit", "index.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "fruit"],
+        svec!["1", "mango"],
+        svec!["4", "cherry"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn join_anti() {
+    let wrk = Workdir::new("join_anti");
+    wrk.create(
+        "fruits.csv",
+        vec![
+            svec!["id", "fruit"],
+            svec!["1", "mango"],
+            svec!["2", "orange"],
+            svec!["3", "apple"],
+            svec!["4", "cherry"],
+        ],
+    );
+    wrk.create(
+        "index.csv",
+        vec![svec!["fruit"], svec!["mango"], svec!["cherry"]],
+    );
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("--anti")
+        .args(["fruit", "fruits.csv", "fruit", "index.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "fruit"],
+        svec!["2", "orange"],
+        svec!["3", "apple"],
+    ];
+    assert_eq!(got, expected);
+}

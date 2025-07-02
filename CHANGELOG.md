@@ -6,6 +6,7 @@
 
 * `xan transform` is now able to work on a selection of columns, rather than on a single column.
 * Adding the `xan unpivot` command.
+* Adding `xan join --semi` & `xan join --anti` commands.
 
 ## 0.51.0
 
