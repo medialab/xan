@@ -13,7 +13,10 @@ fn unpivot() {
         ],
     );
     let mut cmd = wrk.command("unpivot");
-    cmd.arg("jan:").arg("month").arg("count").arg("data.csv");
+    cmd.arg("jan:")
+        .args(["-N", "month"])
+        .args(["-V", "count"])
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![

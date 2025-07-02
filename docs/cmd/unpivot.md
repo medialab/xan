@@ -13,7 +13,7 @@ cars,100,200,300
 
 The following command:
 
-    $ xan pivot jan: month sales file.csv
+    $ xan pivot jan: -N month -V sales file.csv
 
 Will produce the following result:
 
@@ -29,8 +29,14 @@ cars,feb,200
 cars,mar,300
 
 Usage:
-    xan unpivot [options] <columns> <name> <value> [<input>]
+    xan unpivot [options] <columns> [<input>]
     xan unpivot --help
+
+unpivot options:
+    -N, --name-column <name>   Name for the column that will contain unpivoted column
+                               names. [default: name]
+    -V, --value-column <name>  Name for the column that will contain unpivoted column
+                               values. [default: value]
 
 Common options:
     -h, --help               Display this message

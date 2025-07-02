@@ -15,7 +15,7 @@ cars,100,200,300
 
 The following command:
 
-    $ xan pivot jan: month sales file.csv
+    $ xan pivot jan: -N month -V sales file.csv
 
 Will produce the following result:
 
@@ -31,8 +31,14 @@ cars,feb,200
 cars,mar,300
 
 Usage:
-    xan unpivot [options] <columns> <name> <value> [<input>]
+    xan unpivot [options] <columns> [<input>]
     xan unpivot --help
+
+unpivot options:
+    -N, --name-column <name>   Name for the column that will contain unpivoted column
+                               names. [default: name]
+    -V, --value-column <name>  Name for the column that will contain unpivoted column
+                               values. [default: value]
 
 Common options:
     -h, --help               Display this message
@@ -47,8 +53,8 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_columns: SelectColumns,
-    arg_name: String,
-    arg_value: String,
+    flag_name_column: String,
+    flag_value_column: String,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -75,8 +81,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             output_headers.push_field(h);
         }
 
-        output_headers.push_field(args.arg_name.as_bytes());
-        output_headers.push_field(args.arg_value.as_bytes());
+        output_headers.push_field(args.flag_name_column.as_bytes());
+        output_headers.push_field(args.flag_value_column.as_bytes());
 
         wtr.write_byte_record(&output_headers)?;
     }

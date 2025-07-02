@@ -12,11 +12,11 @@ static USAGE: &str = r#"
 TODO...
 
 Usage:
-    xan pivot [-p...] [options] <column> <expr> [<input>]
+    xan pivot [-P...] [options] <column> <expr> [<input>]
     xan pivot --help
 
 pivot options:
-    -p, --pivot  Use at least six times for greater effect!
+    -P  Use at least three times for greater effect!
 
 Common options:
     -h, --help               Display this message
@@ -32,7 +32,8 @@ struct Args {
     arg_input: Option<String>,
     arg_column: SelectColumns,
     arg_expr: String,
-    flag_pivot: usize,
+    #[serde(rename = "flag_P")]
+    flag_p: usize,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -41,7 +42,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_pivot >= 6 {
+    if args.flag_p >= 3 {
         println!("{}", include_str!("../moonblade/doc/pivot.txt"));
         return Ok(());
     }
