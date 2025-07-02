@@ -36,6 +36,7 @@ mod test_map;
 mod test_merge;
 mod test_parallel;
 mod test_partition;
+mod test_pivot;
 mod test_range;
 mod test_rename;
 mod test_reverse;

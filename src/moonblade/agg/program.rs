@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::iter::once;
 use std::sync::Arc;
 
@@ -1365,32 +1365,77 @@ impl PivotAggregationProgram {
         indices
     }
 
-    // pub fn run_with_record(&mut self, group: GroupKey, index: usize, record: &ByteRecord) {
-    //     let planner = &self.planner;
+    pub fn run_with_record(
+        &mut self,
+        group: GroupKey,
+        pivot: Vec<u8>,
+        index: usize,
+        record: &ByteRecord,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        let planner = &self.planner;
 
-    //     let aggregator
+        let pivot_map = self.groups.entry(group).or_default();
 
-    //     let aggregators_per_cell = self.groups.insert_with(group, || {
-    //         (0..self.cols)
-    //             .map(|_| planner.instantiate_aggregators())
-    //             .collect()
-    //     });
+        let aggregator = pivot_map
+            .entry(pivot)
+            .or_insert_with(|| planner.instantiate_single_aggregator());
 
-    //     for (cell, aggregators) in cells.zip(aggregators_per_cell) {
-    //         self.last_value.set_bytes(cell);
+        run_with_record_on_aggregators(
+            planner,
+            once(aggregator),
+            index,
+            record,
+            &self.headers_index,
+            None,
+        )
+    }
 
-    //         run_with_record_on_aggregators(
-    //             &self.planner,
-    //             aggregators,
-    //             index,
-    //             record,
-    //             &self.headers_index,
-    //             Some(self.last_value.clone()),
-    //         )?;
-    //     }
+    pub fn pivoted_column_names(&self) -> Vec<Vec<u8>> {
+        let mut set: BTreeSet<&Vec<u8>> = BTreeSet::new();
 
-    //     Ok(())
-    // }
+        for pivot_map in self.groups.values() {
+            for name in pivot_map.keys() {
+                set.insert(name);
+            }
+        }
+
+        set.into_iter().map(|name| name.to_vec()).collect()
+    }
+
+    pub fn flush<F, E>(self, names: &Vec<Vec<u8>>, mut callback: F) -> Result<(), E>
+    where
+        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        let mut record = csv::ByteRecord::new();
+
+        for (group, mut pivot_map) in self.groups.into_iter() {
+            record.clear();
+
+            for cell in group {
+                record.push_field(&cell);
+            }
+
+            for name in names {
+                if let Some(aggregator) = pivot_map.get_mut(name) {
+                    aggregator.finalize(false);
+
+                    for value in self
+                        .planner
+                        .results(std::slice::from_ref(aggregator), &self.headers_index)
+                    {
+                        record.push_field(&value?.serialize_as_bytes());
+                    }
+                } else {
+                    record.push_field(b"");
+                }
+            }
+
+            callback(&record)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
