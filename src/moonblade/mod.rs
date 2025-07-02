@@ -11,8 +11,8 @@ mod types;
 mod utils;
 
 pub use self::agg::{
-    AggregationProgram, GroupAggregationProgram, GroupBroadcastAggregationProgram, Stats,
-    WindowAggregationProgram,
+    AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
+    PivotAggregationProgram, Stats, WindowAggregationProgram,
 };
 pub use self::choose::ChooseProgram;
 pub use self::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};

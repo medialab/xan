@@ -1,6 +1,10 @@
+use std::collections::BTreeMap;
+use std::iter::once;
 use std::sync::Arc;
 
+use ahash::RandomState;
 use csv::ByteRecord;
+use indexmap::IndexMap;
 use jiff::{civil::DateTime, Unit};
 
 use super::aggregators::{
@@ -1060,6 +1064,12 @@ impl ConcreteAggregationPlanner {
             .collect()
     }
 
+    fn instantiate_single_aggregator(&self) -> CompositeAggregator {
+        debug_assert!(self.execution_plan.len() == 1);
+
+        self.execution_plan[0].aggregator_blueprint.clone()
+    }
+
     fn headers(&self) -> impl Iterator<Item = &[u8]> {
         self.output_plan.iter().map(|unit| unit.agg_name.as_bytes())
     }
@@ -1082,9 +1092,9 @@ impl ConcreteAggregationPlanner {
 // NOTE: parallelizing "horizontally" the planner's execution units does not
 // seem to yield any performance increase. I guess the overhead is greater than
 // the inner computation time.
-fn run_with_record_on_aggregators(
+fn run_with_record_on_aggregators<'a>(
     planner: &ConcreteAggregationPlanner,
-    aggregators: &mut Vec<CompositeAggregator>,
+    aggregators: impl Iterator<Item = &'a mut CompositeAggregator>,
     index: usize,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
@@ -1161,16 +1171,6 @@ impl AggregationProgram {
         self.len == 1
     }
 
-    pub fn used_column_indices(&self) -> Vec<usize> {
-        let mut indices = Vec::new();
-
-        for unit in self.planner.execution_plan.iter() {
-            unit.used_column_indices(&mut indices);
-        }
-
-        indices
-    }
-
     pub fn clear(&mut self) {
         for aggregator in self.aggregators.iter_mut() {
             aggregator.clear()
@@ -1192,7 +1192,7 @@ impl AggregationProgram {
     ) -> Result<(), SpecifiedEvaluationError> {
         run_with_record_on_aggregators(
             &self.planner,
-            &mut self.aggregators,
+            self.aggregators.iter_mut(),
             index,
             record,
             &self.headers_index,
@@ -1210,7 +1210,7 @@ impl AggregationProgram {
 
         run_with_record_on_aggregators(
             &self.planner,
-            &mut self.aggregators,
+            self.aggregators.iter_mut(),
             index,
             record,
             &self.headers_index,
@@ -1288,7 +1288,7 @@ impl GroupAggregationProgram {
 
         run_with_record_on_aggregators(
             &self.planner,
-            aggregators,
+            aggregators.iter_mut(),
             index,
             record,
             &self.headers_index,
@@ -1326,15 +1326,83 @@ impl GroupAggregationProgram {
 }
 
 #[derive(Debug, Clone)]
-pub struct GroupBroadcastAggregationProgram {
+pub struct PivotAggregationProgram {
+    planner: ConcreteAggregationPlanner,
+    groups: IndexMap<GroupKey, BTreeMap<Vec<u8>, CompositeAggregator>, RandomState>,
+    headers_index: HeadersIndex,
+}
+
+impl PivotAggregationProgram {
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
+        let concrete_aggregations = prepare(code, headers)?;
+
+        if concrete_aggregations.len() != 1 {
+            return Err(ConcretizationError::Custom(format!(
+                "expected a single aggregation clause, but got {}",
+                concrete_aggregations.len()
+            )));
+        }
+
+        let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
+
+        Ok(Self {
+            planner,
+            groups: IndexMap::with_hasher(RandomState::new()),
+            headers_index: HeadersIndex::from_headers(headers),
+        })
+    }
+
+    pub fn used_column_indices(&self) -> Vec<usize> {
+        let mut indices = Vec::new();
+
+        for unit in self.planner.execution_plan.iter() {
+            unit.used_column_indices(&mut indices);
+        }
+
+        indices.sort();
+        indices.dedup();
+
+        indices
+    }
+
+    // pub fn run_with_record(&mut self, group: GroupKey, index: usize, record: &ByteRecord) {
+    //     let planner = &self.planner;
+
+    //     let aggregator
+
+    //     let aggregators_per_cell = self.groups.insert_with(group, || {
+    //         (0..self.cols)
+    //             .map(|_| planner.instantiate_aggregators())
+    //             .collect()
+    //     });
+
+    //     for (cell, aggregators) in cells.zip(aggregators_per_cell) {
+    //         self.last_value.set_bytes(cell);
+
+    //         run_with_record_on_aggregators(
+    //             &self.planner,
+    //             aggregators,
+    //             index,
+    //             record,
+    //             &self.headers_index,
+    //             Some(self.last_value.clone()),
+    //         )?;
+    //     }
+
+    //     Ok(())
+    // }
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupAlongColumnsAggregationProgram {
     planner: ConcreteAggregationPlanner,
     cols: usize,
-    groups: ClusteredInsertHashmap<GroupKey, Vec<Vec<CompositeAggregator>>>,
+    groups: ClusteredInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
     last_value: DynamicValue,
 }
 
-impl GroupBroadcastAggregationProgram {
+impl GroupAlongColumnsAggregationProgram {
     pub fn parse(
         code: &str,
         headers: &ByteRecord,
@@ -1371,16 +1439,16 @@ impl GroupBroadcastAggregationProgram {
 
         let aggregators_per_cell = self.groups.insert_with(group, || {
             (0..self.cols)
-                .map(|_| planner.instantiate_aggregators())
+                .map(|_| planner.instantiate_single_aggregator())
                 .collect()
         });
 
-        for (cell, aggregators) in cells.zip(aggregators_per_cell) {
+        for (cell, aggregator) in cells.zip(aggregators_per_cell) {
             self.last_value.set_bytes(cell);
 
             run_with_record_on_aggregators(
                 &self.planner,
-                aggregators,
+                once(aggregator),
                 index,
                 record,
                 &self.headers_index,
@@ -1400,15 +1468,15 @@ impl GroupBroadcastAggregationProgram {
 
         self.groups
             .into_iter()
-            .map(move |(group, mut aggregators_per_cell)| {
-                for aggregators in aggregators_per_cell.iter_mut() {
-                    aggregators[0].finalize(parallel);
+            .map(move |(group, mut aggregator_per_cell)| {
+                for aggregator in aggregator_per_cell.iter_mut() {
+                    aggregator.finalize(parallel);
                 }
 
                 let mut record = ByteRecord::new();
 
-                for aggregators in aggregators_per_cell.iter() {
-                    for value in planner.results(aggregators, &headers_index) {
+                for aggregator in aggregator_per_cell.iter() {
+                    for value in planner.results(std::slice::from_ref(aggregator), &headers_index) {
                         record.push_field(&value?.serialize_as_bytes());
                     }
                 }

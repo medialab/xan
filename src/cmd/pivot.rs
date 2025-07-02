@@ -1,8 +1,8 @@
 use std::collections::{btree_map::Entry, BTreeMap};
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::AggregationProgram;
-use crate::select::SelectColumns;
+use crate::moonblade::PivotAggregationProgram;
+use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -57,11 +57,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
     let pivot_col_index = rconf.single_selection(&headers)?;
-    let program = AggregationProgram::parse(&args.arg_expr, &headers)?;
-
-    if !program.has_single_expr() {
-        Err("expected a single aggregation clause!")?;
-    }
+    let program = PivotAggregationProgram::parse(&args.arg_expr, &headers)?;
 
     let column_indices_used_in_aggregation = program.used_column_indices();
 
@@ -69,44 +65,41 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("aggregation cannot work on the pivot column!")?;
     }
 
-    let mut pivot_map: BTreeMap<Vec<u8>, Vec<csv::ByteRecord>> = BTreeMap::new();
+    let mut column_indices_not_in_sel = vec![pivot_col_index];
+    column_indices_not_in_sel.extend(column_indices_used_in_aggregation);
+
+    let mut sel = Selection::without_indices(headers.len(), &column_indices_not_in_sel);
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    for result in rdr.byte_records() {
-        let record = result?;
+    let mut index: usize = 0;
+    let mut record = csv::ByteRecord::new();
 
-        let key = record[pivot_col_index].to_vec();
+    while rdr.read_byte_record(&mut record)? {
+        let group_key = sel.collect(&record);
 
-        match pivot_map.entry(key) {
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().push(record);
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(vec![record]);
-            }
-        };
+        index += 1;
     }
 
-    if !rconf.no_headers {
-        let mut output_headers = headers
-            .iter()
-            .enumerate()
-            .filter_map(|(i, h)| {
-                if i != pivot_col_index && !column_indices_used_in_aggregation.contains(&i) {
-                    Some(h)
-                } else {
-                    None
-                }
-            })
-            .collect::<csv::ByteRecord>();
+    // if !rconf.no_headers {
+    //     let mut output_headers = headers
+    //         .iter()
+    //         .enumerate()
+    //         .filter_map(|(i, h)| {
+    //             if i != pivot_col_index && !column_indices_used_in_aggregation.contains(&i) {
+    //                 Some(h)
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect::<csv::ByteRecord>();
 
-        for key in pivot_map.keys() {
-            output_headers.push_field(key);
-        }
+    //     for key in pivot_map.keys() {
+    //         output_headers.push_field(key);
+    //     }
 
-        wtr.write_byte_record(&output_headers)?;
-    }
+    //     wtr.write_byte_record(&output_headers)?;
+    // }
 
     Ok(wtr.flush()?)
 }

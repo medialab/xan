@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{
-    AggregationProgram, GroupAggregationProgram, GroupBroadcastAggregationProgram,
+    AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
 };
 use crate::select::SelectColumns;
 use crate::util;
@@ -180,7 +180,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut pivot_sel = selection.selection(headers, !args.flag_no_headers)?;
         pivot_sel.sort_and_dedup();
 
-        let mut program = GroupBroadcastAggregationProgram::parse(
+        let mut program = GroupAlongColumnsAggregationProgram::parse(
             &args.arg_expression,
             headers,
             pivot_sel.len(),
