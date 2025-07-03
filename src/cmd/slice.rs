@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::io::{Read, SeekFrom};
+use std::io::{copy, Read, SeekFrom};
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
@@ -130,6 +130,8 @@ slice options to use with byte offets:
     --end-byte <b>         Only read up to provided position in byte, exclusive.
                            This requires the input to be seekable (stdin or gzipped
                            files not supported).
+    --raw                  Raw slicing that forego parsing CSV data for better
+                           performance. Only use if you know what you are doing.
 
 Common options:
     -h, --help             Display this message
@@ -155,6 +157,7 @@ pub struct Args {
     flag_end_condition: Option<String>,
     flag_byte_offset: Option<u64>,
     flag_end_byte: Option<u64>,
+    flag_raw: bool,
     pub flag_output: Option<String>,
     pub flag_no_headers: bool,
     pub flag_delimiter: Option<Delimiter>,
@@ -169,6 +172,36 @@ impl Args {
 
     pub fn run(mut self) -> CliResult<()> {
         self.resolve();
+
+        if self.flag_raw {
+            if self.flag_byte_offset.is_none() || self.flag_end_byte.is_none() {
+                Err("--raw requires both -B/--byte-offset & --end-byte!")?;
+            }
+
+            let rconf = self.rconfig();
+            let wconf = self.wconfig();
+
+            let mut wtr = wconf.io_writer()?;
+
+            let mut rdr = rconf.io_reader_for_random_access()?;
+
+            if !rconf.no_headers {
+                let mut csv_rdr = rconf.csv_reader_from_reader(&mut rdr);
+                let headers = csv_rdr.byte_headers()?;
+
+                let mut csv_wtr = wconf.csv_writer_from_writer(&mut wtr);
+                csv_wtr.write_byte_record(&headers)?;
+            }
+
+            let start = self.flag_byte_offset.unwrap();
+            let end = self.flag_end_byte.unwrap();
+            let limit = end.saturating_sub(start);
+
+            rdr.seek(SeekFrom::Start(start))?;
+            copy(&mut rdr.take(limit), &mut wtr)?;
+
+            return Ok(());
+        }
 
         if self.flag_last.is_some() {
             return self.run_last();

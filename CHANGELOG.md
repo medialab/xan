@@ -12,6 +12,7 @@
 * Adding the `xan unpivot` command.
 * Adding the `xan pivot` command.
 * Adding `xan join --semi` & `xan join --anti` commands.
+* Adding `xan slice --raw`.
 
 *Fixes*
 
