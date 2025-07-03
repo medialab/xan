@@ -21,6 +21,10 @@
 * Fixing logic error in `xan search -B` when using without `--left`.
 * Fixing `xan parallel cat` when working on file chunks with `-P` or `-H`.
 
+*Performance*
+
+* Improving performance of `xan parallel` when working on file chunks.
+
 ## 0.51.0
 
 The **parallel** update.

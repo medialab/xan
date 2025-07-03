@@ -799,6 +799,7 @@ impl Args {
                     .arg(file_chunk.from.to_string())
                     .arg("--end-byte")
                     .arg(file_chunk.to.to_string())
+                    .arg("--raw")
                     .arg(&file_chunk.file_path)
                     .spawn()
                     .expect("could not spawn \"xan slice\""),
@@ -867,6 +868,7 @@ impl Args {
                         .arg(file_chunk.from.to_string())
                         .arg("--end-byte")
                         .arg(file_chunk.to.to_string())
+                        .arg("--raw")
                         .arg(&file_chunk.file_path)
                         .spawn()
                         .expect("could not spawn \"xan slice\""),
