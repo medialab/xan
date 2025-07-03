@@ -14,6 +14,7 @@
 * Loosening `xan partition` sanitizer to allow hyphens, dashes and points.
 * Fixing `xan parallel --progress` display.
 * Fixing logic error in `xan search -B` when using without `--left`.
+* Fixing `xan parallel cat` when working on file chunks with `-P` or `-H`.
 
 ## 0.51.0
 

@@ -368,13 +368,6 @@ impl Input {
             Self::FileChunk(chunk) => &chunk.file_path,
         }
     }
-
-    fn headers(&self) -> Option<csv::ByteRecord> {
-        match self {
-            Self::FileChunk(chunk) => Some(chunk.headers.clone()),
-            _ => None,
-        }
-    }
 }
 
 struct InputReader {
@@ -389,6 +382,7 @@ struct InputReader {
 impl InputReader {
     fn into_csv_reader(self) -> CliResult<CsvInputReader> {
         let mut csv_reader = self.config.csv_reader_from_reader(self.reader);
+
         let headers = match self.headers {
             None => csv_reader.byte_headers()?.clone(),
             Some(h) => h,
@@ -825,7 +819,7 @@ impl Args {
             Ok(InputReader {
                 config,
                 reader,
-                headers: input.headers(),
+                headers: None,
                 _children,
                 up_to: None,
                 bar,
@@ -924,7 +918,7 @@ impl Args {
                         .take()
                         .expect("cannot read child stdout"),
                 ),
-                headers: input.headers(),
+                headers: None,
                 _children: Some(Children::from(children)),
                 up_to: None,
                 bar,
