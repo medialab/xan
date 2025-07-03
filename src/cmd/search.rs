@@ -583,10 +583,9 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
-    -c, --count <column>     If given, the command will not filter rows but will instead
-                             count the total number of non-overlapping pattern matches per
-                             row and report it in a new column with given name.
-                             Does not work with -v/--invert-match.
+    -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
+                             given name. Will still filter out rows with 0 matches, unless --left
+                             is used. Does not work with -v/--invert-match.
     --overlapping            When used with -c/--count or -B/--breakdown, return the count of
                              overlapping matches. Note that this can sometimes be one order of
                              magnitude slower that counting non-overlapping matches.
@@ -599,6 +598,8 @@ search options:
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
                              Does not work with -p/--parallel nor -t/--threads.
+    --left                   Rows without any matches will be kept in the output when
+                             using -U/--unique-matches, or -B/--breakdown, or -c/--count.
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
@@ -622,8 +623,6 @@ multiple patterns options:
                                  the --name-column flag.
     --sep <char>                 Character to use to join pattern matches when using -U/--unique-matches.
                                  [default: |]
-    --left                       Rows without any matches will be kept in the output when
-                                 using -U/--unique-matches.
     --patterns <path>            Path to a text file (use \"-\" for stdin), containing multiple
                                  patterns, one per line, to search at once.
     --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
@@ -1024,6 +1023,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     if count > 0 {
                         is_match = true;
+                    } else if !args.flag_left {
+                        return Ok((false, record_to_write_opt));
                     }
 
                     record.push_field(count.to_string().as_bytes());
@@ -1158,6 +1159,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if count > 0 {
                 is_match = true;
+            } else if !args.flag_left {
+                continue;
             }
 
             record.push_field(count.to_string().as_bytes());

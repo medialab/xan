@@ -2,6 +2,10 @@
 
 ## 0.52.0 (provisional)
 
+*Breaking*
+
+* `xan search --count` will not emit rows with 0 matches anymore unless `--left` is used.
+
 *Features*
 
 * `xan transform` is now able to work on a selection of columns, rather than on a single column.

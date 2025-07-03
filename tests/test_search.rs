@@ -141,9 +141,24 @@ fn search_invert_match_no_headers() {
 fn search_count() {
     let wrk = Workdir::new("search_count");
     wrk.create("data.csv", data(false));
+
     let mut cmd = wrk.command("search");
     cmd.arg("-r")
         .arg("foo")
+        .arg("data.csv")
+        .args(["--count", "matches"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["foobar", "barfoo", "matches"],
+        svec!["barfoo", "foobar", "2"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-r")
+        .arg("foo")
+        .arg("--left")
         .arg("data.csv")
         .args(["--count", "matches"]);
 
@@ -494,6 +509,24 @@ fn search_count_patterns_regex() {
     let mut cmd = wrk.command("search");
     cmd.arg("-r")
         .arg("-i")
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "pattern"])
+        .args(["--count", "matches"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "matches"],
+        svec!["Lucy went to school with John.", "2"],
+        svec!["john is dead. poor john", "2"],
+        svec!["Lucy in the sky with diamonds", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-r")
+        .arg("-i")
+        .arg("--left")
         .args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "pattern"])
         .args(["--count", "matches"])
