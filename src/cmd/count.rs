@@ -35,6 +35,7 @@ count options:
     -z, --zero-copy
     -m, --mmap
     -r, --regex
+    -s, --slice
 
 Common options:
     -h, --help             Display this message
@@ -58,6 +59,7 @@ struct Args {
     flag_zero_copy: bool,
     flag_mmap: bool,
     flag_regex: bool,
+    flag_slice: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -73,6 +75,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // let mut ends = vec![0usize; 1024 * (1 << 10)];
 
         let mut count: u64 = 0;
+
+        // NOTE: mmap search is very fast, zero-copy can be good, zero-copy over memmap is not really better
+        // xan sift could use mmap if possible or fallback to zero-copy (and use zero-copy to count in any case)
+
+        // TODO: optimize zero-copy reader even further
 
         // mmap
         if args.flag_mmap || args.flag_regex {
@@ -128,6 +135,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let input = reader.fill_buf()?;
             let (result, nin, _) = csv_reader.read_record(input);
 
+            if args.flag_slice {
+                print!("{}", std::str::from_utf8(&input[..nin]).unwrap());
+            }
+
             reader.consume(nin);
 
             match result {
@@ -140,7 +151,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        println!("{}", count);
+        if !args.flag_slice {
+            println!("{}", count);
+        }
 
         return Ok(());
     }
