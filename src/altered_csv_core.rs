@@ -617,11 +617,11 @@ impl Reader {
     ///
     /// This CSV reader can never return an error. Instead, it prefers *a*
     /// parse over *no* parse.
-    pub fn read_record(&mut self, input: &[u8]) -> (ReadRecordResult, usize, usize) {
+    pub fn read_record(&mut self, input: &[u8]) -> (ReadRecordResult, usize) {
         let (input, bom_nin) = self.strip_utf8_bom(input);
-        let (res, nin, nend) = self.read_record_dfa(input);
+        let (res, nin) = self.read_record_dfa(input);
         self.has_read = true;
-        (res, nin + bom_nin, nend)
+        (res, nin + bom_nin)
     }
 
     /// Strip off a possible UTF-8 BOM at the start of a file. Quick note that
@@ -638,30 +638,15 @@ impl Reader {
     }
 
     #[inline(always)]
-    fn read_record_dfa(&mut self, input: &[u8]) -> (ReadRecordResult, usize, usize) {
+    fn read_record_dfa(&mut self, input: &[u8]) -> (ReadRecordResult, usize) {
         if input.is_empty() {
             let s = self.transition_final_dfa(self.dfa_state);
             let res = self.dfa.new_read_record_result(s, true);
-            // This part is a little tricky. When reading the final record,
-            // the last result the caller will get is an InputEmpty, and while
-            // they'll have everything they need in `output`, they'll be
-            // missing the final end position of the final field in `ends`.
-            // We insert that here, but we must take care to handle the case
-            // where `ends` doesn't have enough space. If it doesn't have
-            // enough space, then we also can't transition to the next state.
-            return match res {
-                ReadRecordResult::Record => {
-                    self.dfa_state = s;
-                    (res, 0, 1)
-                }
-                _ => {
-                    self.dfa_state = s;
-                    (res, 0, 0)
-                }
-            };
+            self.dfa_state = s;
+            return (res, 0);
         }
 
-        let (mut nin, mut nend) = (0, 0);
+        let mut nin = 0;
         let mut state = self.dfa_state;
         while nin < input.len() {
             let s = self.dfa.get_simple_output(state, input[nin]);
@@ -669,20 +654,19 @@ impl Reader {
             state = s;
 
             nin += 1;
-            if state >= self.dfa.final_field {
-                nend += 1;
-                if state > self.dfa.final_field {
-                    break;
-                }
+
+            if state > self.dfa.final_field {
+                break;
             }
+
             if state == self.dfa.in_field || state == self.dfa.in_quoted {
-                self.dfa.classes.scan_and_copy(input, &mut nin);
+                self.dfa.classes.scan(input, &mut nin);
             }
         }
         let res = self.dfa.new_read_record_result(state, false);
         self.dfa_state = state;
 
-        (res, nin, nend)
+        (res, nin)
     }
 
     // #[inline(always)]
@@ -1214,7 +1198,7 @@ impl DfaClasses {
     /// outside the first equivalence class, we quit and should fall back to
     /// the main DFA loop.
     #[inline(always)]
-    fn scan_and_copy(&self, input: &[u8], nin: &mut usize) {
+    fn scan(&self, input: &[u8], nin: &mut usize) {
         while *nin < input.len() && self.classes[input[*nin] as usize] == 0 {
             *nin += 1;
         }

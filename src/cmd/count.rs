@@ -78,6 +78,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // NOTE: mmap search is very fast, zero-copy can be good, zero-copy over memmap is not really better
         // xan sift could use mmap if possible or fallback to zero-copy (and use zero-copy to count in any case)
+        // xan sift parallel?
+        // NOTE: mmap on macos is bad
 
         // TODO: optimize zero-copy reader even further
 
@@ -105,7 +107,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             loop {
                 let input = &map[i..];
 
-                let (result, nin, _) = csv_reader.read_record(input);
+                let (result, nin) = csv_reader.read_record(input);
 
                 i += nin;
 
@@ -133,7 +135,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         loop {
             let input = reader.fill_buf()?;
-            let (result, nin, _) = csv_reader.read_record(input);
+            let (result, nin) = csv_reader.read_record(input);
 
             if args.flag_slice {
                 print!("{}", std::str::from_utf8(&input[..nin]).unwrap());
