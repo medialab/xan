@@ -34,6 +34,7 @@ count options:
                              [default: 512]
     -z, --zero-copy
     -m, --mmap
+    -r, --regex
 
 Common options:
     -h, --help             Display this message
@@ -56,12 +57,13 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_zero_copy: bool,
     flag_mmap: bool,
+    flag_regex: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_zero_copy || args.flag_mmap {
+    if args.flag_zero_copy || args.flag_mmap || args.flag_regex {
         use crate::altered_csv_core::ReadRecordResult;
         use memmap2::Mmap;
         use std::io::{BufRead, BufReader};
@@ -73,10 +75,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut count: u64 = 0;
 
         // mmap
-        if args.flag_mmap {
+        if args.flag_mmap || args.flag_regex {
             dbg!("mmap");
             let file = std::fs::File::open(&args.arg_input.unwrap())?;
             let map = unsafe { Mmap::map(&file).unwrap() };
+
+            if args.flag_regex {
+                dbg!("regex");
+                let regex = regex::bytes::Regex::new("test").unwrap();
+
+                for _ in regex.find_iter(&map) {
+                    count += 1;
+                }
+
+                println!("{}", count);
+
+                return Ok(());
+            }
 
             let mut i: usize = 0;
 
