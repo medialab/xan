@@ -102,15 +102,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             return Ok(());
         }
 
-        dbg!("zero-copy");
-
         // zero-copy
-        loop {
-            let mut reader = BufReader::with_capacity(
-                1024 * (1 << 10),
-                Config::new(&args.arg_input.clone()).io_reader()?,
-            );
+        dbg!("zero-copy");
+        let mut reader = BufReader::with_capacity(
+            1024 * (1 << 10),
+            Config::new(&args.arg_input.clone()).io_reader()?,
+        );
 
+        loop {
             let input = reader.fill_buf()?;
             let (result, nin, _) = csv_reader.read_record(input);
 
