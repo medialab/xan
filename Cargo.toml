@@ -112,6 +112,7 @@ unicode-segmentation = "1.12.0"
 unicode-width = "0.2.0"
 url = "2.5.4"
 uuid = { version = "1.16.0", features = ["v4"] }
+memmap2 = "0.9.5"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]

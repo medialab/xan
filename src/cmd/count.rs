@@ -32,6 +32,8 @@ count options:
                              work on a stream fed through stdin nor with gzipped data.
     --sample-size <n>        Number of rows to sample when using -a, --approx.
                              [default: 512]
+    -z, --zero-copy
+    -m, --mmap
 
 Common options:
     -h, --help             Display this message
@@ -52,10 +54,84 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
+    flag_zero_copy: bool,
+    flag_mmap: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_zero_copy || args.flag_mmap {
+        use crate::altered_csv_core::ReadRecordResult;
+        use memmap2::Mmap;
+        use std::io::{BufRead, BufReader};
+
+        let mut csv_reader = crate::altered_csv_core::ReaderBuilder::new().build();
+        // let mut out_buffer = vec![0; 1024 * (1 << 10)];
+        // let mut ends = vec![0usize; 1024 * (1 << 10)];
+
+        let mut count: u64 = 0;
+
+        // mmap
+        if args.flag_mmap {
+            dbg!("mmap");
+            let file = std::fs::File::open(&args.arg_input.unwrap())?;
+            let map = unsafe { Mmap::map(&file).unwrap() };
+
+            let mut i: usize = 0;
+
+            loop {
+                let input = &map[i..];
+
+                let (result, nin, _) = csv_reader.read_record(input);
+
+                i += nin;
+
+                match result {
+                    ReadRecordResult::End => break,
+                    ReadRecordResult::InputEmpty => continue,
+                    ReadRecordResult::OutputEndsFull | ReadRecordResult::OutputFull => todo!(),
+                    ReadRecordResult::Record => {
+                        count += 1;
+                    }
+                }
+            }
+
+            println!("{}", count);
+
+            return Ok(());
+        }
+
+        dbg!("zero-copy");
+
+        // zero-copy
+        loop {
+            let mut reader = BufReader::with_capacity(
+                1024 * (1 << 10),
+                Config::new(&args.arg_input.clone()).io_reader()?,
+            );
+
+            let input = reader.fill_buf()?;
+            let (result, nin, _) = csv_reader.read_record(input);
+
+            reader.consume(nin);
+
+            match result {
+                ReadRecordResult::End => break,
+                ReadRecordResult::InputEmpty => continue,
+                ReadRecordResult::OutputEndsFull | ReadRecordResult::OutputFull => todo!(),
+                ReadRecordResult::Record => {
+                    count += 1;
+                }
+            }
+        }
+
+        println!("{}", count);
+
+        return Ok(());
+    }
+
+    dbg!("regular");
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_approx {

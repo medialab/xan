@@ -1353,6 +1353,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "memmap2"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3f7eed9d3848f8b98834af67102b720745c4ec028fcd0aa0239277e7de374f"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "mime2ext"
 version = "0.1.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2360,7 +2369,7 @@ dependencies = [
  "binary-layout",
  "bincode",
  "linked-hash-map",
- "memmap2",
+ "memmap2 0.5.10",
  "num-integer",
  "serde",
  "serde_derive",
@@ -2727,6 +2736,7 @@ dependencies = [
  "jiff",
  "lazy_static",
  "md5",
+ "memmap2 0.9.5",
  "mime2ext",
  "namedlock",
  "npyz",

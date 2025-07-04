@@ -10,6 +10,7 @@ use std::process;
 use colored::Colorize;
 use docopt::Docopt;
 
+mod altered_csv_core;
 mod cmd;
 mod collections;
 mod config;
