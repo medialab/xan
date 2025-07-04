@@ -659,8 +659,26 @@ impl Reader {
                 break;
             }
 
-            if state == self.dfa.in_field || state == self.dfa.in_quoted {
-                self.dfa.classes.scan(input, &mut nin);
+            use memchr::{memchr, memchr2};
+
+            // NOTE: experiment replacing `scan`
+            if state == self.dfa.in_field {
+                // TODO: clrf, memchr
+                if let Some(o) = memchr2(b',', b'\n', &input[nin..]) {
+                    nin += o;
+                }
+
+                // while nin < input.len() && input[nin] != b',' && input[nin] != b'\n' {
+                //     nin += 1;
+                // }
+            } else if state == self.dfa.in_quoted {
+                if let Some(o) = memchr(b'"', &input[nin..]) {
+                    nin += o;
+                }
+
+                // while nin < input.len() && input[nin] != b'"' {
+                //     nin += 1;
+                // }
             }
         }
         let res = self.dfa.new_read_record_result(state, false);

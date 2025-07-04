@@ -80,6 +80,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // xan sift could use mmap if possible or fallback to zero-copy (and use zero-copy to count in any case)
         // xan sift parallel?
         // NOTE: mmap on macos is bad
+        // NOTE: memchr is very good when the record are long, but it seems better in all cases?
+        // NOTE: xan cat rows and p cat rows could work using zero-copy sometimes
+
+        // NOTE: I could hand-write my own zero-copy csv parser in fact
 
         // TODO: optimize zero-copy reader even further
 
