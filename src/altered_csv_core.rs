@@ -561,20 +561,20 @@ impl Reader {
     ///
     /// This CSV reader can never return an error. Instead, it prefers *a*
     /// parse over *no* parse.
-    pub fn read_field(
-        &mut self,
-        input: &[u8],
-        output: &mut [u8],
-    ) -> (ReadFieldResult, usize, usize) {
-        let (input, bom_nin) = self.strip_utf8_bom(input);
-        let (res, nin, nout) = if self.use_nfa {
-            self.read_field_nfa(input, output)
-        } else {
-            self.read_field_dfa(input, output)
-        };
-        self.has_read = true;
-        (res, nin + bom_nin, nout)
-    }
+    // pub fn read_field(
+    //     &mut self,
+    //     input: &[u8],
+    //     output: &mut [u8],
+    // ) -> (ReadFieldResult, usize, usize) {
+    //     let (input, bom_nin) = self.strip_utf8_bom(input);
+    //     let (res, nin, nout) = if self.use_nfa {
+    //         self.read_field_nfa(input, output)
+    //     } else {
+    //         self.read_field_dfa(input, output)
+    //     };
+    //     self.has_read = true;
+    //     (res, nin + bom_nin, nout)
+    // }
 
     /// Parse a single CSV record in `input` and copy each field contiguously
     /// to `output`, with the end position of each field written to `ends`.
@@ -641,9 +641,7 @@ impl Reader {
     fn read_record_dfa(&mut self, input: &[u8]) -> (ReadRecordResult, usize, usize) {
         if input.is_empty() {
             let s = self.transition_final_dfa(self.dfa_state);
-            let res = self
-                .dfa
-                .new_read_record_result(s, true, false, false, false);
+            let res = self.dfa.new_read_record_result(s, true);
             // This part is a little tricky. When reading the final record,
             // the last result the caller will get is an InputEmpty, and while
             // they'll have everything they need in `output`, they'll be
@@ -681,52 +679,50 @@ impl Reader {
                 self.dfa.classes.scan_and_copy(input, &mut nin);
             }
         }
-        let res = self
-            .dfa
-            .new_read_record_result(state, false, nin >= input.len(), false, false);
+        let res = self.dfa.new_read_record_result(state, false);
         self.dfa_state = state;
 
         (res, nin, nend)
     }
 
-    #[inline(always)]
-    fn read_field_dfa(
-        &mut self,
-        input: &[u8],
-        output: &mut [u8],
-    ) -> (ReadFieldResult, usize, usize) {
-        if input.is_empty() {
-            self.dfa_state = self.transition_final_dfa(self.dfa_state);
-            let res = self
-                .dfa
-                .new_read_field_result(self.dfa_state, true, false, false);
-            return (res, 0, 0);
-        }
-        if output.is_empty() {
-            return (ReadFieldResult::OutputFull, 0, 0);
-        }
-        let (mut nin, mut nout) = (0, 0);
-        let mut state = self.dfa_state;
-        while nin < input.len() && nout < output.len() {
-            let b = input[nin];
-            self.line += (b == b'\n') as u64;
-            let (s, has_out) = self.dfa.get_output(state, b);
-            state = s;
-            if has_out {
-                output[nout] = b;
-                nout += 1;
-            }
-            nin += 1;
-            if state >= self.dfa.final_field {
-                break;
-            }
-        }
-        let res =
-            self.dfa
-                .new_read_field_result(state, false, nin >= input.len(), nout >= output.len());
-        self.dfa_state = state;
-        (res, nin, nout)
-    }
+    // #[inline(always)]
+    // fn read_field_dfa(
+    //     &mut self,
+    //     input: &[u8],
+    //     output: &mut [u8],
+    // ) -> (ReadFieldResult, usize, usize) {
+    //     if input.is_empty() {
+    //         self.dfa_state = self.transition_final_dfa(self.dfa_state);
+    //         let res = self
+    //             .dfa
+    //             .new_read_field_result(self.dfa_state, true, false, false);
+    //         return (res, 0, 0);
+    //     }
+    //     if output.is_empty() {
+    //         return (ReadFieldResult::OutputFull, 0, 0);
+    //     }
+    //     let (mut nin, mut nout) = (0, 0);
+    //     let mut state = self.dfa_state;
+    //     while nin < input.len() && nout < output.len() {
+    //         let b = input[nin];
+    //         self.line += (b == b'\n') as u64;
+    //         let (s, has_out) = self.dfa.get_output(state, b);
+    //         state = s;
+    //         if has_out {
+    //             output[nout] = b;
+    //             nout += 1;
+    //         }
+    //         nin += 1;
+    //         if state >= self.dfa.final_field {
+    //             break;
+    //         }
+    //     }
+    //     let res =
+    //         self.dfa
+    //             .new_read_field_result(state, false, nin >= input.len(), nout >= output.len());
+    //     self.dfa_state = state;
+    //     (res, nin, nout)
+    // }
 
     /// Perform the final state transition, i.e., when the caller indicates
     /// that the input has been exhausted.
@@ -1075,7 +1071,7 @@ struct Dfa {
     /// A table with the same layout as `trans`, except its values indicate
     /// whether a particular `(state, equivalence class)` pair should emit an
     /// output byte.
-    has_output: [bool; TRANS_SIZE],
+    // has_output: [bool; TRANS_SIZE],
     /// A map from input byte to equivalence class.
     ///
     /// This is responsible for reducing the effective alphabet size from
@@ -1097,7 +1093,7 @@ impl Dfa {
     fn new() -> Dfa {
         Dfa {
             trans: [DfaState(0); TRANS_SIZE],
-            has_output: [false; TRANS_SIZE],
+            // has_output: [false; TRANS_SIZE],
             classes: DfaClasses::new(),
             in_field: DfaState(0),
             in_quoted: DfaState(0),
@@ -1126,17 +1122,17 @@ impl Dfa {
         self.trans[idx]
     }
 
-    fn get_output(&self, state: DfaState, c: u8) -> (DfaState, bool) {
-        let cls = self.classes.classes[c as usize];
-        let idx = state.0 as usize + cls as usize;
-        (self.trans[idx], self.has_output[idx])
-    }
+    // fn get_output(&self, state: DfaState, c: u8) -> (DfaState, bool) {
+    //     let cls = self.classes.classes[c as usize];
+    //     let idx = state.0 as usize + cls as usize;
+    //     (self.trans[idx], self.has_output[idx])
+    // }
 
     fn set(&mut self, from: DfaState, c: u8, to: DfaState, output: bool) {
         let cls = self.classes.classes[c as usize];
         let idx = from.0 as usize + cls as usize;
         self.trans[idx] = to;
-        self.has_output[idx] = output;
+        // self.has_output[idx] = output;
     }
 
     fn finish(&mut self) {
@@ -1169,27 +1165,14 @@ impl Dfa {
         }
     }
 
-    fn new_read_record_result(
-        &self,
-        state: DfaState,
-        is_final_trans: bool,
-        inpdone: bool,
-        outdone: bool,
-        endsdone: bool,
-    ) -> ReadRecordResult {
+    fn new_read_record_result(&self, state: DfaState, is_final_trans: bool) -> ReadRecordResult {
         if state >= self.final_record {
             ReadRecordResult::Record
         } else if is_final_trans && state.is_start() {
             ReadRecordResult::End
         } else {
             debug_assert!(state < self.final_record);
-            if !inpdone && outdone {
-                ReadRecordResult::OutputFull
-            } else if !inpdone && endsdone {
-                ReadRecordResult::OutputEndsFull
-            } else {
-                ReadRecordResult::InputEmpty
-            }
+            ReadRecordResult::InputEmpty
         }
     }
 }
