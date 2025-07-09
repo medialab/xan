@@ -167,8 +167,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    if !single_input && name_counts.values().all(|c| *c == configs.len()) {
-        println!("{}", "\nAll files have the same headers!".green());
+    if !single_input {
+        let same_headers_everywhere = name_counts.values().all(|c| *c == configs.len());
+
+        if same_headers_everywhere {
+            println!("{}", "\nAll files have the same headers!".green());
+        } else {
+            println!("{}", "\nAll files don't have the same headers!".yellow());
+
+            let diverging_headers = name_counts
+                .iter()
+                .filter_map(|(name, count)| {
+                    if *count < configs.len() {
+                        Some(name.dimmed().to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            println!("{} {}", "Diverging headers:".yellow(), diverging_headers);
+        }
     }
 
     Ok(())

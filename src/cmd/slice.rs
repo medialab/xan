@@ -190,7 +190,7 @@ impl Args {
                 let headers = csv_rdr.byte_headers()?;
 
                 let mut csv_wtr = wconf.csv_writer_from_writer(&mut wtr);
-                csv_wtr.write_byte_record(&headers)?;
+                csv_wtr.write_byte_record(headers)?;
             }
 
             let start = self.flag_byte_offset.unwrap();

@@ -25,6 +25,10 @@
 
 * Improving performance of `xan parallel` when working on file chunks.
 
+*Quality of Life*
+
+* `xan headers` now report more useful information when files have diverging headers.
+
 ## 0.51.0
 
 The **parallel** update.
