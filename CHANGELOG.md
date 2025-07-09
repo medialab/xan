@@ -20,6 +20,7 @@
 * Fixing `xan parallel --progress` display.
 * Fixing logic error in `xan search -B` when using without `--left`.
 * Fixing `xan parallel cat` when working on file chunks with `-P` or `-H`.
+* Fixing moonblade list/string slicing with some combinations of negatives indices.
 
 *Performance*
 
