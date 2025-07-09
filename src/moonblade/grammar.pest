@@ -32,13 +32,13 @@ single_quoted_string       = _{ "'" ~ (raw_single_quoted_string | escape)* ~ "'"
 double_quoted_string       = _{ "\"" ~ (raw_double_quoted_string | escape)* ~ "\"" }
 backtick_quoted_string     = _{ "`" ~ (raw_backtick_quoted_string | escape)* ~ "`" }
 string                     = ${ single_quoted_string | double_quoted_string | backtick_quoted_string }
-binary_string              = ${ ("b" ~ (single_quoted_string | double_quoted_string | backtick_quoted_string)) }
+binary_string              = ${ "b" ~ (single_quoted_string | double_quoted_string | backtick_quoted_string) }
 
 // Regexes
 raw_regex_string = { (!("\\" | "/") ~ ANY)+ }
 escape_regex     = { "\\" ~ ANY }
 regex_flag       = { "i" }
-regex            = { "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ (regex_flag)* }
+regex            = { "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ regex_flag* }
 
 // Identifiers
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
