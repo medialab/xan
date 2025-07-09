@@ -102,7 +102,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let new_group = sel.collect(&record);
 
                     if group != &new_group {
-                        for output_record in program.flush_and_clear()? {
+                        for output_record in program.flush_and_clear(index)? {
                             writer.write_byte_record(&output_record)?;
                         }
 
@@ -119,7 +119,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index += 1;
     }
 
-    for output_record in program.flush()? {
+    for output_record in program.flush(index)? {
         writer.write_byte_record(&output_record)?;
     }
 

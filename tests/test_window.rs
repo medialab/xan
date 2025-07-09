@@ -177,17 +177,17 @@ fn window_lag_and_lead() {
 
     // n-1 & n-3 & n+1 & n+3
     let mut cmd = wrk.command("window");
-    cmd.arg("lag(n) as 'n-1', lag(n, 3) as 'n-3', lead(n) as 'n+1', lead(n, 3) as 'n+3'")
+    cmd.arg("lag(n) as 'n-1', lag(n, 3, -1) as 'n-3', lead(n) as 'n+1', lead(n, 3, -2) as 'n+3'")
         .arg("numbers.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["n", "n-1", "n-3", "n+1", "n+3"],
-        svec!["1", "", "", "2", "4"],
-        svec!["2", "1", "", "3", "5"],
-        svec!["3", "2", "", "4", ""],
-        svec!["4", "3", "1", "5", ""],
-        svec!["5", "4", "2", "", ""],
+        svec!["1", "", "-1", "2", "4"],
+        svec!["2", "1", "-1", "3", "5"],
+        svec!["3", "2", "-1", "4", "-2"],
+        svec!["4", "3", "1", "5", "-2"],
+        svec!["5", "4", "2", "", "-2"],
     ];
 
     assert_eq!(got, expected);

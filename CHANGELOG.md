@@ -13,6 +13,7 @@
 * Adding the `xan pivot` command.
 * Adding `xan join --semi` & `xan join --anti` commands.
 * Adding `xan slice --raw`.
+* Adding default expression argument to `lead` & `lag` window functions.
 
 *Fixes*
 
@@ -23,6 +24,7 @@
 * Fixing moonblade list/string slicing with some combinations of negatives indices.
 * Fixing moonblade `split` function not using regex patterns properly.
 * Fixing moonblade parsing wrt regex patterns and comments (using a regex pattern containing `#` was not possible).
+* Fixing `lead` window aggregation function when working on any column that is not the first one.
 
 *Performance*
 

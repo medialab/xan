@@ -8,6 +8,10 @@ use crate::moonblade::interpreter::{concretize_expression, eval_expression, Conc
 use crate::moonblade::parser::parse_aggregations;
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
+// NOTE: this is mostly a hack. I ain't proud of it but it does the job.
+// The alternative would be to store a `is_padding` bool in the future buffer.
+static PADDING_SENTINEL: &[u8] = b"%%IS_PADDING%%";
+
 #[derive(Debug)]
 struct RollingSum {
     buffer: VecDeque<DynamicNumber>,
@@ -111,8 +115,8 @@ impl RollingWelford {
 
 #[derive(Debug)]
 enum ConcreteWindowAggregation {
-    Lead(ConcreteExpr, usize),
-    Lag(ConcreteExpr, usize),
+    Lead(ConcreteExpr, usize, ConcreteExpr),
+    Lag(ConcreteExpr, usize, ConcreteExpr),
     RowNumber(usize),
     RowIndex(usize),
     CumulativeSum(ConcreteExpr, Sum),
@@ -136,8 +140,8 @@ fn eval_expression_to_number(
 impl ConcreteWindowAggregation {
     fn extent(&self) -> (usize, usize) {
         match self {
-            Self::Lead(_, n) => (0, *n),
-            Self::Lag(_, n) => (*n, 0),
+            Self::Lead(_, n, _) => (0, *n),
+            Self::Lag(_, n, _) => (*n, 0),
             _ => (0, 0),
         }
     }
@@ -151,11 +155,16 @@ impl ConcreteWindowAggregation {
         future_buffer: Option<&Buffer>,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         match self {
-            Self::Lag(expr, n) => {
+            Self::Lag(expr, n, default) => {
                 let past_buffer = past_buffer.unwrap();
 
                 match past_buffer.get(*n - 1) {
-                    None => Ok(DynamicValue::None),
+                    None => Ok(eval_expression(
+                        default,
+                        Some(index),
+                        record,
+                        headers_index,
+                    )?),
                     Some((past_index, past_record)) => {
                         let value =
                             eval_expression(expr, Some(*past_index), past_record, headers_index)?;
@@ -164,15 +173,21 @@ impl ConcreteWindowAggregation {
                     }
                 }
             }
-            Self::Lead(expr, n) => match future_buffer.unwrap().get(*n) {
-                None => Ok(DynamicValue::None),
-                Some((future_index, future_record)) => {
-                    let value =
-                        eval_expression(expr, Some(*future_index), future_record, headers_index)?;
+            Self::Lead(expr, n, default) => {
+                let (future_index, future_record) = future_buffer.unwrap().get(*n).unwrap();
+                let l = future_record.len();
 
-                    Ok(value)
-                }
-            },
+                let expr = if l > 0 && &future_record[l - 1] == PADDING_SENTINEL {
+                    default
+                } else {
+                    expr
+                };
+
+                let value =
+                    eval_expression(expr, Some(*future_index), future_record, headers_index)?;
+
+                Ok(value)
+            }
             Self::RowNumber(counter) => {
                 *counter += 1;
                 Ok(DynamicValue::from(*counter))
@@ -251,7 +266,7 @@ impl ConcreteWindowAggregation {
             Self::RollingWelford(_, _, welford) => {
                 welford.clear();
             }
-            Self::Lag(_, _) | Self::Lead(_, _) => (),
+            Self::Lag(_, _, _) | Self::Lead(_, _, _) => (),
         };
     }
 }
@@ -259,7 +274,7 @@ impl ConcreteWindowAggregation {
 fn get_function(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "row_number" | "row_index" => FunctionArguments::nullary(),
-        "lag" | "lead" => FunctionArguments::with_range(1..=2),
+        "lag" | "lead" => FunctionArguments::with_range(1..=3),
         "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
             FunctionArguments::binary()
@@ -307,22 +322,36 @@ fn concretize_window_aggregations(
                 concrete_aggs.push((agg.agg_name, ConcreteWindowAggregation::RowIndex(0)));
             }
             "lead" | "lag" => {
-                let n = if agg.args.len() == 1 {
-                    1
+                let (n, default) = if agg.args.len() == 1 {
+                    (1, ConcreteExpr::Value(DynamicValue::None))
+                } else if agg.args.len() == 2 {
+                    (
+                        cast_as_usize(&concretize_expression(
+                            agg.args.pop().unwrap(),
+                            headers,
+                            None,
+                        )?)?,
+                        ConcreteExpr::Value(DynamicValue::None),
+                    )
                 } else {
-                    cast_as_usize(&concretize_expression(
-                        agg.args.pop().unwrap(),
-                        headers,
-                        None,
-                    )?)?
+                    let default = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+
+                    (
+                        cast_as_usize(&concretize_expression(
+                            agg.args.pop().unwrap(),
+                            headers,
+                            None,
+                        )?)?,
+                        default,
+                    )
                 };
 
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
 
                 let concrete_agg = if func_name == "lead" {
-                    ConcreteWindowAggregation::Lead(expr, n)
+                    ConcreteWindowAggregation::Lead(expr, n, default)
                 } else {
-                    ConcreteWindowAggregation::Lag(expr, n)
+                    ConcreteWindowAggregation::Lag(expr, n, default)
                 };
 
                 concrete_aggs.push((agg.agg_name, concrete_agg));
@@ -497,16 +526,22 @@ impl WindowAggregationProgram {
         Ok(Some(output_record))
     }
 
-    pub fn flush(&mut self) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
+    pub fn flush(
+        &mut self,
+        mut from_index: usize,
+    ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
         if let Some((_, future_buffer)) = self.future_buffer.as_mut() {
-            let padding = (0..self.output_buffer.len())
+            let mut padding = (0..self.headers_index.len())
                 .map(|_| b"")
                 .collect::<csv::ByteRecord>();
+
+            padding.push_field(PADDING_SENTINEL);
 
             let mut output = Vec::new();
 
             for _ in 0..future_buffer.len() {
-                output.push(self.run_with_record(0, &padding)?.unwrap());
+                from_index += 1;
+                output.push(self.run_with_record(from_index, &padding)?.unwrap());
             }
 
             return Ok(output);
@@ -515,8 +550,11 @@ impl WindowAggregationProgram {
         Ok(vec![])
     }
 
-    pub fn flush_and_clear(&mut self) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
-        let records = self.flush()?;
+    pub fn flush_and_clear(
+        &mut self,
+        from_index: usize,
+    ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
+        let records = self.flush(from_index)?;
 
         if let Some((_, past_buffer)) = &mut self.past_buffer {
             past_buffer.clear();

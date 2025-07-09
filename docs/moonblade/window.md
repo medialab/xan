@@ -3,8 +3,8 @@
 - **cummax**(*\<expr\>*) -> `number`: Returns the cumulative maximum of the numbers yielded by given expression.
 - **cummin**(*\<expr\>*) -> `number`: Returns the cumulative minimum of the numbers yielded by given expression.
 - **cumsum**(*\<expr\>*) -> `number`: Returns the cumulative sum of the numbers yielded by given expression.
-- **lag**(*\<expr\>*, *steps?*) -> `any`: Returns a value yielded by given expression, lagged by n steps or 1 step by default.
-- **lead**(*\<expr\>*, *steps?*) -> `any`: Returns a value yielded by given expression, leading by n steps or 1 step by default.
+- **lag**(*\<expr\>*, *steps?*, *\<expr\>?*) -> `any`: Returns a value yielded by given expression, lagged by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come before first lagged value.
+- **lead**(*\<expr\>*, *steps?*, *\<expr\>?*) -> `any`: Returns a value yielded by given expression, leading by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come after last lead value.
 - **rolling_avg**(*window_size*, *\<expr\>*) -> `number`: Returns the rolling average in given window size of numbers yielded by given expression. Same as `rolling_mean`.
 - **rolling_mean**(*window_size*, *\<expr\>*) -> `number`: Returns the rolling mean in given window size of numbers yielded by given expression. Same as `rolling_avg`.
 - **rolling_stddev**(*window_size*, *\<expr\>*) -> `number`: Returns the rolling population standard deviation in given window size of numbers yielded by given expression.

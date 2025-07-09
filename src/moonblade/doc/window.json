@@ -19,15 +19,15 @@
   },
   {
     "name": "lag",
-    "arguments": ["<expr>", "steps?"],
+    "arguments": ["<expr>", "steps?", "<expr>?"],
     "returns": "any",
-    "help": "Returns a value yielded by given expression, lagged by n steps or 1 step by default."
+    "help": "Returns a value yielded by given expression, lagged by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come before first lagged value."
   },
   {
     "name": "lead",
-    "arguments": ["<expr>", "steps?"],
+    "arguments": ["<expr>", "steps?", "<expr>?"],
     "returns": "any",
-    "help": "Returns a value yielded by given expression, leading by n steps or 1 step by default."
+    "help": "Returns a value yielded by given expression, leading by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come after last lead value."
   },
   {
     "name": "rolling_avg",
