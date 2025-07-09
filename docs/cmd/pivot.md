@@ -52,7 +52,7 @@ pivot options:
                              aggregation.
 
 pivotal options:
-    -P  Use at least three times for greater effect!
+    -P  Use at least three times to get help from your friends!
 
 Common options:
     -h, --help               Display this message
