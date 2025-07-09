@@ -22,6 +22,7 @@
 * Fixing `xan parallel cat` when working on file chunks with `-P` or `-H`.
 * Fixing moonblade list/string slicing with some combinations of negatives indices.
 * Fixing moonblade `split` function not using regex patterns properly.
+* Fixing moonblade parsing wrt regex patterns and comments (using a regex pattern containing `#` was not possible).
 
 *Performance*
 

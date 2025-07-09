@@ -35,10 +35,10 @@ string                     = ${ single_quoted_string | double_quoted_string | ba
 binary_string              = ${ "b" ~ (single_quoted_string | double_quoted_string | backtick_quoted_string) }
 
 // Regexes
-raw_regex_string = { (!("\\" | "/") ~ ANY)+ }
-escape_regex     = { "\\" ~ ANY }
-regex_flag       = { "i" }
-regex            = { "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ regex_flag* }
+raw_regex_string =  { (!("\\" | "/") ~ ANY)+ }
+escape_regex     =  { "\\" ~ ANY }
+regex_flag       =  { "i" }
+regex            = ${ "/" ~ (raw_regex_string | escape_regex)* ~ "/" ~ regex_flag* }
 
 // Identifiers
 ident_char = _{ 'a'..'z' | 'A'..'Z' | '0'..'9' | "_" }
