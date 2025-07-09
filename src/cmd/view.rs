@@ -367,15 +367,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.flag_select.clone());
 
     let mut rdr = rconfig.reader()?;
-    let byte_headers = rdr.byte_headers()?;
-    let mut sel = rconfig.selection(byte_headers)?;
+    let byte_headers = rdr.byte_headers()?.clone();
+    let mut sel = rconfig.selection(&byte_headers)?;
 
     // NOTE: the groupby selection logic is a bit complex because it must work
     // in conjunction with --select correctly.
     let mut groupby_sel_opt = args
         .flag_groupby
         .clone()
-        .map(|cols| cols.selection(byte_headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&byte_headers, !args.flag_no_headers))
         .transpose()?;
 
     if let Some(groupby_sel) = &groupby_sel_opt {
@@ -389,7 +389,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     groupby_sel_opt = args
         .flag_groupby
         .clone()
-        .map(|cols| cols.selection(&sel.select(byte_headers).collect(), !args.flag_no_headers))
+        .map(|cols| cols.selection(&sel.select(&byte_headers).collect(), !args.flag_no_headers))
         .transpose()?;
 
     if let (Some(groupby_sel), false) = (&mut groupby_sel_opt, args.flag_hide_index) {
@@ -489,6 +489,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         records
     };
+
+    if records.is_empty() && byte_headers.is_empty() {
+        Err("either input is completely empty or piped process errored upstream!")?;
+    }
 
     let need_to_repeat_headers = match rows {
         None => true,
