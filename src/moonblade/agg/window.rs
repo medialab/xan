@@ -8,10 +8,6 @@ use crate::moonblade::interpreter::{concretize_expression, eval_expression, Conc
 use crate::moonblade::parser::parse_aggregations;
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
-// NOTE: this is mostly a hack. I ain't proud of it but it does the job.
-// The alternative would be to store a `is_padding` bool in the future buffer.
-static PADDING_SENTINEL: &[u8] = b"%%IS_PADDING%%";
-
 #[derive(Debug)]
 struct RollingSum {
     buffer: VecDeque<DynamicNumber>,
@@ -151,8 +147,8 @@ impl ConcreteWindowAggregation {
         index: usize,
         record: &ByteRecord,
         headers_index: &HeadersIndex,
-        past_buffer: Option<&Buffer>,
-        future_buffer: Option<&Buffer>,
+        past_buffer: Option<&PastBuffer>,
+        future_buffer: Option<&FutureBuffer>,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
         match self {
             Self::Lag(expr, n, default) => {
@@ -174,14 +170,10 @@ impl ConcreteWindowAggregation {
                 }
             }
             Self::Lead(expr, n, default) => {
-                let (future_index, future_record) = future_buffer.unwrap().get(*n).unwrap();
-                let l = future_record.len();
+                let (future_index, future_record, is_padding) =
+                    future_buffer.unwrap().get(*n).unwrap();
 
-                let expr = if l > 0 && &future_record[l - 1] == PADDING_SENTINEL {
-                    default
-                } else {
-                    expr
-                };
+                let expr = if *is_padding { default } else { expr };
 
                 let value =
                     eval_expression(expr, Some(*future_index), future_record, headers_index)?;
@@ -430,14 +422,15 @@ fn find_buffer_extent(aggs: &ConcreteWindowAggregations) -> (usize, usize) {
     extent
 }
 
-type Buffer = VecDeque<(usize, ByteRecord)>;
+type PastBuffer = VecDeque<(usize, ByteRecord)>;
+type FutureBuffer = VecDeque<(usize, ByteRecord, bool)>;
 
 #[derive(Debug)]
 pub struct WindowAggregationProgram {
     aggs: ConcreteWindowAggregations,
     headers_index: HeadersIndex,
-    past_buffer: Option<(usize, Buffer)>,
-    future_buffer: Option<(usize, Buffer)>,
+    past_buffer: Option<(usize, PastBuffer)>,
+    future_buffer: Option<(usize, FutureBuffer)>,
     output_buffer: Vec<DynamicValue>,
 }
 
@@ -464,14 +457,15 @@ impl WindowAggregationProgram {
         self.aggs.iter().map(|(name, _)| name.as_bytes())
     }
 
-    pub fn run_with_record(
+    fn run_with_record_impl(
         &mut self,
         index: usize,
         record: &ByteRecord,
+        is_padding: bool,
     ) -> Result<Option<ByteRecord>, SpecifiedEvaluationError> {
         if let Some((future_capacity, future_buffer)) = &mut self.future_buffer {
             if future_buffer.len() < *future_capacity {
-                future_buffer.push_back((index, record.clone()));
+                future_buffer.push_back((index, record.clone(), is_padding));
 
                 return Ok(None);
             }
@@ -485,7 +479,7 @@ impl WindowAggregationProgram {
         for (_, agg) in self.aggs.iter_mut() {
             let (working_index, working_record) =
                 if let Some((_, future_buffer)) = &self.future_buffer {
-                    let (i, r) = future_buffer.front().unwrap();
+                    let (i, r, _) = future_buffer.front().unwrap();
 
                     (*i, r)
                 } else {
@@ -503,7 +497,7 @@ impl WindowAggregationProgram {
 
         let record_to_emit = if let Some((_, future_buffer)) = &mut self.future_buffer {
             let r = future_buffer.pop_front();
-            future_buffer.push_back((index, record.clone()));
+            future_buffer.push_back((index, record.clone(), is_padding));
             &r.unwrap().1
         } else {
             record
@@ -526,22 +520,31 @@ impl WindowAggregationProgram {
         Ok(Some(output_record))
     }
 
+    pub fn run_with_record(
+        &mut self,
+        index: usize,
+        record: &ByteRecord,
+    ) -> Result<Option<ByteRecord>, SpecifiedEvaluationError> {
+        self.run_with_record_impl(index, record, false)
+    }
+
     pub fn flush(
         &mut self,
         mut from_index: usize,
     ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
         if let Some((_, future_buffer)) = self.future_buffer.as_mut() {
-            let mut padding = (0..self.headers_index.len())
+            let padding = (0..self.headers_index.len())
                 .map(|_| b"")
                 .collect::<csv::ByteRecord>();
-
-            padding.push_field(PADDING_SENTINEL);
 
             let mut output = Vec::new();
 
             for _ in 0..future_buffer.len() {
                 from_index += 1;
-                output.push(self.run_with_record(from_index, &padding)?.unwrap());
+                output.push(
+                    self.run_with_record_impl(from_index, &padding, true)?
+                        .unwrap(),
+                );
             }
 
             return Ok(output);
