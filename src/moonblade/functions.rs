@@ -364,16 +364,29 @@ fn md5(args: BoundArguments) -> FunctionResult {
 
 fn split(args: BoundArguments) -> FunctionResult {
     let to_split = args.get(0).unwrap().try_as_str()?;
-    let pattern = args.get(1).unwrap().try_as_str()?;
+    let pattern_arg = args.get(1).unwrap();
     let count = args.get(2);
 
-    let splitted: Vec<DynamicValue> = if let Some(c) = count {
-        to_split
-            .splitn(c.try_as_usize()? + 1, pattern.as_ref())
-            .map(DynamicValue::from)
-            .collect()
+    let splitted: Vec<DynamicValue> = if let DynamicValue::Regex(pattern) = pattern_arg {
+        if let Some(c) = count {
+            pattern
+                .splitn(&to_split, c.try_as_usize()? + 1)
+                .map(DynamicValue::from)
+                .collect()
+        } else {
+            pattern.split(&to_split).map(DynamicValue::from).collect()
+        }
     } else {
-        to_split.split(&*pattern).map(DynamicValue::from).collect()
+        let pattern = pattern_arg.try_as_str()?;
+
+        if let Some(c) = count {
+            to_split
+                .splitn(c.try_as_usize()? + 1, pattern.as_ref())
+                .map(DynamicValue::from)
+                .collect()
+        } else {
+            to_split.split(&*pattern).map(DynamicValue::from).collect()
+        }
     };
 
     Ok(DynamicValue::from(splitted))

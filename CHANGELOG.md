@@ -21,6 +21,7 @@
 * Fixing logic error in `xan search -B` when using without `--left`.
 * Fixing `xan parallel cat` when working on file chunks with `-P` or `-H`.
 * Fixing moonblade list/string slicing with some combinations of negatives indices.
+* Fixing moonblade `split` function not using regex patterns properly.
 
 *Performance*
 

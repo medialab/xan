@@ -52,6 +52,9 @@ h2
 
 in2.csv
 h2
-h3";
+h3
+
+All files don't have the same headers!
+Diverging headers: h1, h3";
     assert_eq!(got, expected.to_string());
 }

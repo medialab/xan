@@ -86,6 +86,8 @@ slice options to use with byte offets:
     --end-byte <b>         Only read up to provided position in byte, exclusive.
                            This requires the input to be seekable (stdin or gzipped
                            files not supported).
+    --raw                  Raw slicing that forego parsing CSV data for better
+                           performance. Only use if you know what you are doing.
 
 Common options:
     -h, --help             Display this message
