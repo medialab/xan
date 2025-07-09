@@ -101,16 +101,13 @@ check out the `xan help cheatsheet` command.
 For a list of available functions, use `xan help functions`.
 
 Usage:
-    xan select -e <expr> [options] [<input>]
-    xan select -f <path> [options] [<input>]
     xan select [options] [--] <selection> [<input>]
     xan select --help
 
 select options:
-    -e, --evaluate <expr>       Toggle expression evaluation rather than using the
-                                shorthand notation.
-    -f, --evaluate-file <path>  If given, evaluate the selection expression found
-                                in file at <path>.
+    -e, --evaluate       Toggle expression evaluation rather than using the
+                         shorthand selection notation.
+    -f, --evaluate-file  Read evaluation expression from a file instead.
 
 Common options:
     -h, --help             Display this message
@@ -125,22 +122,22 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_selection: SelectColumns,
+    arg_selection: String,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_evaluate: Option<String>,
-    flag_evaluate_file: Option<String>,
+    flag_evaluate: bool,
+    flag_evaluate_file: bool,
 }
 
 impl Args {
     fn resolve(&mut self) -> CliResult<()> {
-        if self.flag_evaluate.is_some() && self.flag_evaluate_file.is_some() {
+        if self.flag_evaluate && self.flag_evaluate_file {
             Err("cannot use both -e/--evaluate & -f/--evaluate-file!")?;
         }
 
-        if let Some(path) = &self.flag_evaluate_file {
-            self.flag_evaluate = Some(fs::read_to_string(path)?);
+        if self.flag_evaluate_file {
+            self.arg_selection = fs::read_to_string(&self.arg_selection)?;
         }
 
         Ok(())
@@ -161,8 +158,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let headers = rdr.byte_headers()?.clone();
 
-    if let Some(expr) = &args.flag_evaluate {
-        let program = SelectionProgram::parse(expr, &headers)?;
+    if args.flag_evaluate || args.flag_evaluate_file {
+        let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
 
         wtr.write_record(program.headers())?;
 
@@ -176,7 +173,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&output_record)?;
         }
     } else {
-        rconfig = rconfig.select(args.arg_selection);
+        rconfig = rconfig.select(SelectColumns::parse(&args.arg_selection)?);
 
         let sel = rconfig.selection(&headers)?;
 

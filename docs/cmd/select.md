@@ -95,16 +95,13 @@ check out the `xan help cheatsheet` command.
 For a list of available functions, use `xan help functions`.
 
 Usage:
-    xan select -e <expr> [options] [<input>]
-    xan select -f <path> [options] [<input>]
     xan select [options] [--] <selection> [<input>]
     xan select --help
 
 select options:
-    -e, --evaluate <expr>       Toggle expression evaluation rather than using the
-                                shorthand notation.
-    -f, --evaluate-file <path>  If given, evaluate the selection expression found
-                                in file at <path>.
+    -e, --evaluate       Toggle expression evaluation rather than using the
+                         shorthand selection notation.
+    -f, --evaluate-file  Read evaluation expression from a file instead.
 
 Common options:
     -h, --help             Display this message

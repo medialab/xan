@@ -35,6 +35,7 @@
 * `xan headers` now report more useful information when files have diverging headers.
 * Better error messages for `read_json` and `parse_json` moonblade functions.
 * `xan view -p` will not engage pager when input errored or is empty.
+* `xan select -e & -f` become boolean flags instead of error-inducing invocation variants.
 
 ## 0.51.0
 
