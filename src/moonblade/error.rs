@@ -145,7 +145,7 @@ pub enum EvaluationError {
     ColumnOutOfRange(usize),
     GlobalVariableOutOfRange(usize),
     UnicodeDecodeError,
-    JSONParseError,
+    JSONParseError(String),
     UnfillableUnderscore,
 }
 
@@ -231,7 +231,7 @@ impl Display for EvaluationError {
                 write!(f, "global variable index={} is out of range", idx)
             }
             Self::UnicodeDecodeError => write!(f, "unicode decode error"),
-            Self::JSONParseError => write!(f, "json parse error"),
+            Self::JSONParseError(msg) => write!(f, "cannot parse {} as json", msg),
             Self::UnfillableUnderscore => write!(
                 f,
                 "some underscore `_` was not fillable because it is not downstream of a pipe"

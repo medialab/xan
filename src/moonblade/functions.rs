@@ -1298,7 +1298,8 @@ fn read(args: BoundArguments) -> FunctionResult {
 
 fn read_json(args: BoundArguments) -> FunctionResult {
     let contents = abstract_read(args.get1(), None, None)?;
-    serde_json::from_str(&contents).map_err(|_| EvaluationError::JSONParseError)
+    serde_json::from_str(&contents)
+        .map_err(|_| EvaluationError::JSONParseError(format!("{:?}", contents)))
 }
 
 fn read_csv(args: BoundArguments) -> FunctionResult {
@@ -1621,7 +1622,8 @@ fn err(args: BoundArguments) -> FunctionResult {
 fn parse_json(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
 
-    serde_json::from_str(arg.as_ref()).map_err(|_| EvaluationError::JSONParseError)
+    serde_json::from_str(arg.as_ref())
+        .map_err(|_| EvaluationError::JSONParseError(format!("{:?}", args.get1())))
 }
 
 fn parse_dataurl(args: BoundArguments) -> FunctionResult {

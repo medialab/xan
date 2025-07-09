@@ -31,6 +31,7 @@
 *Quality of Life*
 
 * `xan headers` now report more useful information when files have diverging headers.
+* Better error messages for `read_json` and `parse_json` moonblade functions.
 
 ## 0.51.0
 
