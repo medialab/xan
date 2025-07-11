@@ -5,6 +5,8 @@ use memchr::{memchr, memchr2};
 #[derive(Debug)]
 enum SplitRecordResult {
     InputEmpty,
+    Cr,
+    Lf,
     Record,
     End,
 }
@@ -44,6 +46,14 @@ impl RecordSplitter {
             return (SplitRecordResult::End, 0);
         }
 
+        if self.record_was_read {
+            if input[0] == b'\n' {
+                return (SplitRecordResult::Lf, 1);
+            } else if input[0] == b'\r' {
+                return (SplitRecordResult::Cr, 1);
+            }
+        }
+
         self.record_was_read = false;
 
         let mut pos: usize = 0;
@@ -51,13 +61,6 @@ impl RecordSplitter {
         while pos < input.len() {
             match self.state {
                 Unquoted => {
-                    // Skipping empty lines
-                    if input[pos] == b'\n' {
-                        pos += 1;
-                        self.record_was_read = true;
-                        continue;
-                    }
-
                     // Here we are moving to next quote or end of line
                     if let Some(offset) = memchr2(b'\n', self.quote, &input[pos..]) {
                         pos += offset;
@@ -71,7 +74,7 @@ impl RecordSplitter {
                             return (SplitRecordResult::Record, pos);
                         }
 
-                        // Here, c is guaranteed to be a quote
+                        // Here, `byte` is guaranteed to be a quote
                         self.state = Quoted;
                     } else {
                         break;
@@ -116,11 +119,13 @@ pub fn count_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u
 
         let (result, pos) = splitter.split_record(&input);
 
+        // dbg!((&result, bstr::BStr::new(&input[..pos])));
+
         bufreader.consume(pos);
 
         match result {
             End => break,
-            InputEmpty => continue,
+            InputEmpty | Cr | Lf => continue,
             Record => {
                 count += 1;
             }
@@ -153,11 +158,14 @@ mod tests {
             "name\njohn\nlucy\n",
             "name\n\njohn\r\nlucy\n",
             "name\n\njohn\r\nlucy\n\n",
+            "name\n\n\njohn\r\n\r\nlucy\n\n\n",
             "\nname\njohn\nlucy",
+            "\n\nname\njohn\nlucy",
+            "\r\n\r\nname\njohn\nlucy",
         ];
 
-        for test in tests {
-            for capacity in [32usize, 2, 1] {
+        for capacity in [32usize, 4, 3, 2, 1] {
+            for test in tests.iter() {
                 let mut reader = Cursor::new(test);
 
                 assert_eq!(
@@ -175,7 +183,14 @@ mod tests {
         assert_eq!(count_records(&mut reader, 1024, b'"').unwrap(), 3);
 
         // Quoting
-        let mut reader = Cursor::new("name,surname,age\n\"john\",\"landy, the \"\"everlasting\"\" bastard\",45\nlucy,rose,67");
-        assert_eq!(count_records(&mut reader, 1024, b'"').unwrap(), 3);
+        for capacity in [1024usize, 32usize, 4, 3, 2, 1] {
+            let mut reader = Cursor::new("name,surname,age\n\"john\",\"landy, the \"\"everlasting\"\" bastard\",45\nlucy,rose,67");
+            assert_eq!(
+                count_records(&mut reader, capacity, b'"').unwrap(),
+                3,
+                "capacity={}",
+                capacity
+            );
+        }
     }
 }
