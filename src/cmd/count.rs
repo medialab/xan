@@ -3,7 +3,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::read::sample_initial_records;
-use crate::splitter::BufferedRecordSplitter;
+use crate::splitter::{BufferedRecordSplitter, MmapRecordSplitter};
 use crate::util;
 use crate::CliResult;
 
@@ -69,6 +69,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_split {
+        if args.flag_mmap {
+            dbg!("split mmap");
+
+            let mut splitter = MmapRecordSplitter::new(&args.arg_input.unwrap(), b'"')?;
+
+            println!("{}", splitter.count_records());
+
+            return Ok(());
+        }
+
         let mut rdr = Config::new(&args.arg_input.clone()).io_reader()?;
 
         let mut splitter = BufferedRecordSplitter::with_capacity(&mut rdr, 1024 * (1 << 10), b'"');

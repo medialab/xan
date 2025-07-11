@@ -1,6 +1,9 @@
+use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Result};
+use std::path::Path;
 
 use memchr::{memchr, memchr2};
+use memmap2::Mmap;
 
 #[derive(Debug)]
 enum SplitRecordResult {
@@ -181,6 +184,51 @@ impl<R: Read> BufferedRecordSplitter<R> {
         Ok(true)
     }
 }
+
+pub struct MmapRecordSplitter {
+    // file: File,
+    map: Mmap,
+    splitter: RecordSplitter,
+}
+
+impl MmapRecordSplitter {
+    pub fn new<P: AsRef<Path>>(path: P, quote: u8) -> Result<Self> {
+        let file = File::open(path)?;
+
+        let map = unsafe { Mmap::map(&file)? };
+
+        Ok(Self {
+            // file,
+            map,
+            splitter: RecordSplitter::new(quote),
+        })
+    }
+
+    pub fn count_records(&mut self) -> u64 {
+        use SplitRecordResult::*;
+
+        let mut i: usize = 0;
+        let mut count: u64 = 0;
+
+        loop {
+            let (result, pos) = self.splitter.split_record(&self.map[i..]);
+
+            i += pos;
+
+            match result {
+                End => break,
+                InputEmpty | Cr | Lf => continue,
+                Record => {
+                    count += 1;
+                }
+            };
+        }
+
+        count
+    }
+}
+
+// TODO: mmap split_record and test with regex match
 
 // TEST: empty fields, empty lines, empty input, clrf, invalid quoted parse, test stopping parser right on quote,
 // don't count empty lines (need to trim)
