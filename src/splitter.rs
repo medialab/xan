@@ -104,12 +104,11 @@ impl RecordSplitter {
     }
 }
 
-// TODO: capacity
-pub fn count_records<R: Read>(reader: R, quote: u8) -> Result<u64> {
+pub fn count_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u64> {
     use SplitRecordResult::*;
 
     let mut count: u64 = 0;
-    let mut bufreader = BufReader::new(reader);
+    let mut bufreader = BufReader::with_capacity(capacity, reader);
     let mut splitter = RecordSplitter::new(quote);
 
     loop {
@@ -146,7 +145,7 @@ mod tests {
     #[test]
     fn test_count() {
         // Empty
-        assert_eq!(count_records(&mut Cursor::new(""), b'"').unwrap(), 0);
+        assert_eq!(count_records(&mut Cursor::new(""), 1024, b'"').unwrap(), 0);
 
         // Single cells with various empty lines
         let tests = vec![
@@ -158,17 +157,25 @@ mod tests {
         ];
 
         for test in tests {
-            let mut reader = Cursor::new(test);
+            for capacity in [32usize, 2, 1] {
+                let mut reader = Cursor::new(test);
 
-            assert_eq!(count_records(&mut reader, b'"').unwrap(), 3, "{:?}", test);
+                assert_eq!(
+                    count_records(&mut reader, capacity, b'"').unwrap(),
+                    3,
+                    "capacity={} string={:?}",
+                    capacity,
+                    test
+                );
+            }
         }
 
         // Multiple cells
         let mut reader = Cursor::new("name,surname,age\njohn,landy,45\nlucy,rose,67");
-        assert_eq!(count_records(&mut reader, b'"').unwrap(), 3);
+        assert_eq!(count_records(&mut reader, 1024, b'"').unwrap(), 3);
 
         // Quoting
         let mut reader = Cursor::new("name,surname,age\n\"john\",\"landy, the \"\"everlasting\"\" bastard\",45\nlucy,rose,67");
-        assert_eq!(count_records(&mut reader, b'"').unwrap(), 3);
+        assert_eq!(count_records(&mut reader, 1024, b'"').unwrap(), 3);
     }
 }

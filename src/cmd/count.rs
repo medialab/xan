@@ -73,7 +73,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut rdr = Config::new(&args.arg_input.clone()).io_reader()?;
 
-        let count = count_records(&mut rdr, b'"')?;
+        let count = count_records(&mut rdr, 1024 * (1 << 10), b'"')?;
 
         println!("{}", count);
 
