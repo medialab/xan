@@ -94,6 +94,10 @@ impl RecordSplitter {
 
                     if byte == self.quote {
                         self.state = Quoted;
+                    } else if byte == b'\n' {
+                        self.record_was_read = true;
+                        self.state = Unquoted;
+                        return (SplitRecordResult::Record, pos);
                     } else {
                         self.state = Unquoted;
                     }
@@ -119,8 +123,6 @@ pub fn count_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u
 
         let (result, pos) = splitter.split_record(&input);
 
-        // dbg!((&result, bstr::BStr::new(&input[..pos])));
-
         bufreader.consume(pos);
 
         match result {
@@ -130,6 +132,50 @@ pub fn count_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u
                 count += 1;
             }
         };
+    }
+
+    Ok(count)
+}
+
+pub fn yield_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u64> {
+    use SplitRecordResult::*;
+
+    let mut count: u64 = 0;
+    let mut bufreader = BufReader::with_capacity(capacity, reader);
+    let mut splitter = RecordSplitter::new(quote);
+    let mut record = Vec::<u8>::with_capacity(capacity);
+    let mut first = true;
+
+    loop {
+        let input = bufreader.fill_buf()?;
+
+        let (result, pos) = splitter.split_record(&input);
+
+        dbg!((&result, bstr::BStr::new(&input[..pos])));
+
+        match result {
+            End => break,
+            Cr | Lf => {}
+            InputEmpty => {
+                record.extend(&input[..pos]);
+            }
+            Record => {
+                count += 1;
+                record.extend(&input[..pos]);
+
+                if first {
+                    first = false;
+                } else {
+                    println!(
+                        "{}",
+                        bstr::BStr::new(&record[..record.iter().position(|c| *c == b',').unwrap()])
+                    );
+                }
+                record.clear();
+            }
+        };
+
+        bufreader.consume(pos);
     }
 
     Ok(count)
@@ -184,10 +230,11 @@ mod tests {
 
         // Quoting
         for capacity in [1024usize, 32usize, 4, 3, 2, 1] {
-            let mut reader = Cursor::new("name,surname,age\n\"john\",\"landy, the \"\"everlasting\"\" bastard\",45\nlucy,rose,67");
+            let mut reader = Cursor::new("name,surname,age\n\"john\",\"landy, the \"\"everlasting\"\" bastard\",45\nlucy,rose,\"67\"\njermaine,jackson,\"89\"\n\nkarine,loucan,\"52\"\r\n");
+
             assert_eq!(
                 count_records(&mut reader, capacity, b'"').unwrap(),
-                3,
+                5,
                 "capacity={}",
                 capacity
             );
