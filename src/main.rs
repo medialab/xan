@@ -22,6 +22,7 @@ mod ratatui;
 mod read;
 mod scales;
 mod select;
+mod splitter;
 mod urls;
 mod util;
 mod xml;

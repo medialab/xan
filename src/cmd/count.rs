@@ -3,6 +3,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::read::sample_initial_records;
+use crate::splitter::count_records;
 use crate::util;
 use crate::CliResult;
 
@@ -36,6 +37,7 @@ count options:
     -m, --mmap
     -r, --regex
     -s, --slice
+    -S, --split
 
 Common options:
     -h, --help             Display this message
@@ -60,10 +62,23 @@ struct Args {
     flag_mmap: bool,
     flag_regex: bool,
     flag_slice: bool,
+    flag_split: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_split {
+        dbg!("split");
+
+        let mut rdr = Config::new(&args.arg_input.clone()).io_reader()?;
+
+        let count = count_records(&mut rdr, b'"')?;
+
+        println!("{}", count);
+
+        return Ok(());
+    }
 
     if args.flag_zero_copy || args.flag_mmap || args.flag_regex {
         use crate::altered_csv_core::ReadRecordResult;
