@@ -3,7 +3,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::read::sample_initial_records;
-use crate::splitter::count_records;
+use crate::splitter::BufferedRecordSplitter;
 use crate::util;
 use crate::CliResult;
 
@@ -69,11 +69,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_split {
-        dbg!("split");
-
         let mut rdr = Config::new(&args.arg_input.clone()).io_reader()?;
 
-        let count = count_records(&mut rdr, 1024 * (1 << 10), b'"')?;
+        let mut splitter = BufferedRecordSplitter::with_capacity(&mut rdr, 1024 * (1 << 10), b'"');
+
+        if args.flag_regex {
+            dbg!("split regex");
+
+            let regex = regex::bytes::Regex::new("test").unwrap();
+
+            let mut record = Vec::new();
+            let mut count = 0;
+
+            while splitter.split_record(&mut record)? {
+                if regex.is_match(&record) {
+                    count += 1;
+                }
+            }
+
+            println!("{}", count);
+
+            return Ok(());
+        }
+
+        dbg!("split");
+
+        let count = splitter.count_records()?;
 
         println!("{}", count);
 

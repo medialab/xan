@@ -111,74 +111,75 @@ impl RecordSplitter {
     }
 }
 
-pub fn count_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u64> {
-    use SplitRecordResult::*;
-
-    let mut count: u64 = 0;
-    let mut bufreader = BufReader::with_capacity(capacity, reader);
-    let mut splitter = RecordSplitter::new(quote);
-
-    loop {
-        let input = bufreader.fill_buf()?;
-
-        let (result, pos) = splitter.split_record(&input);
-
-        bufreader.consume(pos);
-
-        match result {
-            End => break,
-            InputEmpty | Cr | Lf => continue,
-            Record => {
-                count += 1;
-            }
-        };
-    }
-
-    Ok(count)
+pub struct BufferedRecordSplitter<R> {
+    buffer: BufReader<R>,
+    splitter: RecordSplitter,
 }
 
-pub fn yield_records<R: Read>(reader: R, capacity: usize, quote: u8) -> Result<u64> {
-    use SplitRecordResult::*;
-
-    let mut count: u64 = 0;
-    let mut bufreader = BufReader::with_capacity(capacity, reader);
-    let mut splitter = RecordSplitter::new(quote);
-    let mut record = Vec::<u8>::with_capacity(capacity);
-    let mut first = true;
-
-    loop {
-        let input = bufreader.fill_buf()?;
-
-        let (result, pos) = splitter.split_record(&input);
-
-        dbg!((&result, bstr::BStr::new(&input[..pos])));
-
-        match result {
-            End => break,
-            Cr | Lf => {}
-            InputEmpty => {
-                record.extend(&input[..pos]);
-            }
-            Record => {
-                count += 1;
-                record.extend(&input[..pos]);
-
-                if first {
-                    first = false;
-                } else {
-                    println!(
-                        "{}",
-                        bstr::BStr::new(&record[..record.iter().position(|c| *c == b',').unwrap()])
-                    );
-                }
-                record.clear();
-            }
-        };
-
-        bufreader.consume(pos);
+impl<R: Read> BufferedRecordSplitter<R> {
+    pub fn with_capacity(reader: R, capacity: usize, quote: u8) -> Self {
+        Self {
+            buffer: BufReader::with_capacity(capacity, reader),
+            splitter: RecordSplitter::new(quote),
+        }
     }
 
-    Ok(count)
+    pub fn count_records(&mut self) -> Result<u64> {
+        use SplitRecordResult::*;
+
+        let mut count: u64 = 0;
+
+        loop {
+            let input = self.buffer.fill_buf()?;
+
+            let (result, pos) = self.splitter.split_record(&input);
+
+            self.buffer.consume(pos);
+
+            match result {
+                End => break,
+                InputEmpty | Cr | Lf => continue,
+                Record => {
+                    count += 1;
+                }
+            };
+        }
+
+        Ok(count)
+    }
+
+    pub fn split_record(&mut self, record: &mut Vec<u8>) -> Result<bool> {
+        use SplitRecordResult::*;
+
+        record.clear();
+
+        loop {
+            let input = self.buffer.fill_buf()?;
+
+            let (result, pos) = self.splitter.split_record(&input);
+
+            match result {
+                End => {
+                    self.buffer.consume(pos);
+                    return Ok(false);
+                }
+                Cr | Lf => {
+                    self.buffer.consume(pos);
+                }
+                InputEmpty => {
+                    record.extend(&input[..pos]);
+                    self.buffer.consume(pos);
+                }
+                Record => {
+                    record.extend(&input[..pos]);
+                    self.buffer.consume(pos);
+                    break;
+                }
+            };
+        }
+
+        Ok(true)
+    }
 }
 
 // TEST: empty fields, empty lines, empty input, clrf, invalid quoted parse, test stopping parser right on quote,
@@ -193,10 +194,15 @@ mod tests {
 
     use super::*;
 
+    fn count_records<R: Read>(rdr: R, capacity: usize) -> u64 {
+        let mut splitter = BufferedRecordSplitter::with_capacity(rdr, capacity, b'"');
+        splitter.count_records().unwrap()
+    }
+
     #[test]
     fn test_count() {
         // Empty
-        assert_eq!(count_records(&mut Cursor::new(""), 1024, b'"').unwrap(), 0);
+        assert_eq!(count_records(&mut Cursor::new(""), 1024), 0);
 
         // Single cells with various empty lines
         let tests = vec![
@@ -215,7 +221,7 @@ mod tests {
                 let mut reader = Cursor::new(test);
 
                 assert_eq!(
-                    count_records(&mut reader, capacity, b'"').unwrap(),
+                    count_records(&mut reader, capacity),
                     3,
                     "capacity={} string={:?}",
                     capacity,
@@ -226,14 +232,14 @@ mod tests {
 
         // Multiple cells
         let mut reader = Cursor::new("name,surname,age\njohn,landy,45\nlucy,rose,67");
-        assert_eq!(count_records(&mut reader, 1024, b'"').unwrap(), 3);
+        assert_eq!(count_records(&mut reader, 1024), 3);
 
         // Quoting
         for capacity in [1024usize, 32usize, 4, 3, 2, 1] {
             let mut reader = Cursor::new("name,surname,age\n\"john\",\"landy, the \"\"everlasting\"\" bastard\",45\nlucy,rose,\"67\"\njermaine,jackson,\"89\"\n\nkarine,loucan,\"52\"\r\n");
 
             assert_eq!(
-                count_records(&mut reader, capacity, b'"').unwrap(),
+                count_records(&mut reader, capacity),
                 5,
                 "capacity={}",
                 capacity
