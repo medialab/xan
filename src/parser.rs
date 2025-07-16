@@ -194,6 +194,7 @@ impl<R: Read> BufferedRecordReader<R> {
 }
 
 // TODO: test empty seps, also in splitter, test empty rows with ""
+// TODO: decoding a field means trimming quotes left & right and finding doubled quotes to escape
 
 #[cfg(test)]
 mod tests {

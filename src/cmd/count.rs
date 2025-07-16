@@ -2,6 +2,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
+use crate::parser::BufferedRecordReader;
 use crate::read::sample_initial_records;
 use crate::splitter::{BufferedRecordSplitter, MmapRecordSplitter};
 use crate::util;
@@ -38,6 +39,7 @@ count options:
     -r, --regex
     -s, --slice
     -S, --split
+    -R, --reader
 
 Common options:
     -h, --help             Display this message
@@ -63,10 +65,32 @@ struct Args {
     flag_regex: bool,
     flag_slice: bool,
     flag_split: bool,
+    flag_reader: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_reader {
+        dbg!("novel reader");
+
+        let mut reader = BufferedRecordReader::with_capacity(
+            Config::new(&args.arg_input.clone()).io_reader()?,
+            1024 * (1 << 10),
+            b'"',
+            b',',
+        );
+
+        let mut count: u64 = 0;
+
+        while let Some(_) = reader.read_record()? {
+            count += 1;
+        }
+
+        println!("{}", count);
+
+        return Ok(());
+    }
 
     if args.flag_split {
         if args.flag_mmap {
