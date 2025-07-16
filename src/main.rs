@@ -18,6 +18,7 @@ mod dates;
 mod graph;
 mod json;
 mod moonblade;
+mod parser;
 mod ratatui;
 mod read;
 mod scales;

@@ -95,6 +95,8 @@ impl RecordSplitter {
                 Quote => {
                     let byte = input[pos];
 
+                    pos += 1;
+
                     if byte == self.quote {
                         self.state = Quoted;
                     } else if byte == b'\n' {
@@ -104,8 +106,6 @@ impl RecordSplitter {
                     } else {
                         self.state = Unquoted;
                     }
-
-                    pos += 1;
                 }
             }
         }
