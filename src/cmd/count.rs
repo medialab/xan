@@ -88,11 +88,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let regex = regex::bytes::Regex::new("test").unwrap();
 
-            let mut record = Vec::new();
+            // let mut record = Vec::new();
             let mut count = 0;
 
-            while splitter.split_record(&mut record)? {
-                if regex.is_match(&record) {
+            while let Some(record) = splitter.split_record()? {
+                if regex.is_match(record) {
                     count += 1;
                 }
             }

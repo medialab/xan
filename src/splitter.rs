@@ -117,6 +117,8 @@ impl RecordSplitter {
 pub struct BufferedRecordSplitter<R> {
     buffer: BufReader<R>,
     splitter: RecordSplitter,
+    record: Vec<u8>,
+    actual_buffer_position: Option<usize>,
 }
 
 impl<R: Read> BufferedRecordSplitter<R> {
@@ -124,6 +126,8 @@ impl<R: Read> BufferedRecordSplitter<R> {
         Self {
             buffer: BufReader::with_capacity(capacity, reader),
             splitter: RecordSplitter::new(quote),
+            record: Vec::with_capacity(capacity),
+            actual_buffer_position: None,
         }
     }
 
@@ -151,10 +155,14 @@ impl<R: Read> BufferedRecordSplitter<R> {
         Ok(count)
     }
 
-    pub fn split_record(&mut self, record: &mut Vec<u8>) -> Result<bool> {
+    pub fn split_record(&mut self) -> Result<Option<&[u8]>> {
         use SplitRecordResult::*;
 
-        record.clear();
+        self.record.clear();
+
+        if let Some(last_pos) = self.actual_buffer_position.take() {
+            self.buffer.consume(last_pos);
+        }
 
         loop {
             let input = self.buffer.fill_buf()?;
@@ -164,24 +172,28 @@ impl<R: Read> BufferedRecordSplitter<R> {
             match result {
                 End => {
                     self.buffer.consume(pos);
-                    return Ok(false);
+                    return Ok(None);
                 }
                 Cr | Lf => {
                     self.buffer.consume(pos);
                 }
                 InputEmpty => {
-                    record.extend(&input[..pos]);
+                    self.record.extend(&input[..pos]);
                     self.buffer.consume(pos);
                 }
                 Record => {
-                    record.extend(&input[..pos]);
-                    self.buffer.consume(pos);
-                    break;
+                    if self.record.is_empty() {
+                        self.actual_buffer_position = Some(pos);
+                        return Ok(Some(&self.buffer.buffer()[..pos]));
+                    } else {
+                        self.record.extend(&input[..pos]);
+                        self.buffer.consume(pos);
+
+                        return Ok(Some(&self.record));
+                    }
                 }
             };
         }
-
-        Ok(true)
     }
 }
 
