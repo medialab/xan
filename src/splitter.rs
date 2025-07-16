@@ -262,6 +262,8 @@ mod tests {
             "\nname\njohn\nlucy",
             "\n\nname\njohn\nlucy",
             "\r\n\r\nname\njohn\nlucy",
+            "name\njohn\nlucy\r\n",
+            "name\njohn\nlucy\r\n\r\n",
         ];
 
         for capacity in [32usize, 4, 3, 2, 1] {
@@ -293,5 +295,9 @@ mod tests {
                 capacity
             );
         }
+
+        // Different separator
+        let mut reader = Cursor::new("name\tsurname\tage\njohn\tlandy\t45\nlucy\trose\t67");
+        assert_eq!(count_records(&mut reader, 1024), 3);
     }
 }
