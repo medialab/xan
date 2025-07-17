@@ -4,6 +4,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
 
 use base64::prelude::*;
@@ -84,6 +85,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::ceil),
             FunctionArguments::unary(),
         ),
+        "cmd" => (cmd, FunctionArguments::binary()),
         "compact" => (compact, FunctionArguments::unary()),
         "concat" => (concat, FunctionArguments::variadic(2)),
         "contains" => (contains, FunctionArguments::binary()),
@@ -211,6 +213,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::round),
             FunctionArguments::unary(),
         ),
+        "shlex_split" => (shlex_split, FunctionArguments::unary()),
         "slice" => (slice, FunctionArguments::with_range(2..=3)),
         "split" => (split, FunctionArguments::with_range(2..=3)),
         "sqrt" => (
@@ -1681,4 +1684,53 @@ fn parse_regex(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(Regex::new(&string).map_err(|_| {
         EvaluationError::Custom(format!("could not parse \"{}\" as regex", string))
     })?))
+}
+
+fn shlex_split(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    if let Some(splitted) = shlex::split(&string) {
+        Ok(DynamicValue::from(
+            splitted
+                .into_iter()
+                .map(DynamicValue::from)
+                .collect::<Vec<_>>(),
+        ))
+    } else {
+        Err(EvaluationError::Custom(format!(
+            "could not split {:?}",
+            args.get1()
+        )))
+    }
+}
+
+fn cmd(mut args: BoundArguments) -> FunctionResult {
+    let (command_name_arg, command_args) = args.pop2();
+
+    let command_name = command_name_arg.try_as_str()?;
+
+    let mut command = Command::new(command_name.as_ref());
+
+    for command_arg in command_args.try_as_list()? {
+        command.arg(command_arg.try_as_str()?.as_ref());
+    }
+
+    if let Ok(mut output) = command.output() {
+        if output.status.success() {
+            let result = &mut output.stdout;
+            result.truncate(result.trim_ascii_end().len());
+
+            Ok(DynamicValue::from_owned_bytes(output.stdout))
+        } else {
+            Err(EvaluationError::Custom(format!(
+                "\"{}\" failed!",
+                command_name
+            )))
+        }
+    } else {
+        Err(EvaluationError::Custom(format!(
+            "error while spawning \"{}\"",
+            command_name
+        )))
+    }
 }
