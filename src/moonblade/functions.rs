@@ -213,6 +213,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::round),
             FunctionArguments::unary(),
         ),
+        "shell" => (shell, FunctionArguments::unary()),
         "shlex_split" => (shlex_split, FunctionArguments::unary()),
         "slice" => (slice, FunctionArguments::with_range(2..=3)),
         "split" => (split, FunctionArguments::with_range(2..=3)),
@@ -1731,6 +1732,39 @@ fn cmd(mut args: BoundArguments) -> FunctionResult {
         Err(EvaluationError::Custom(format!(
             "error while spawning \"{}\"",
             command_name
+        )))
+    }
+}
+
+fn shell(args: BoundArguments) -> FunctionResult {
+    let pipeline = args.get1_str()?;
+
+    let mut command = if cfg!(target_os = "windows") {
+        let mut command = Command::new("cmd");
+        command.args(["/C", pipeline.as_ref()]);
+        command
+    } else {
+        let mut command = Command::new(std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string()));
+        command.args(["-c", pipeline.as_ref()]);
+        command
+    };
+
+    if let Ok(mut output) = command.output() {
+        if output.status.success() {
+            let result = &mut output.stdout;
+            result.truncate(result.trim_ascii_end().len());
+
+            Ok(DynamicValue::from_owned_bytes(output.stdout))
+        } else {
+            Err(EvaluationError::Custom(format!(
+                "shell pipeline \"{}\" failed!",
+                pipeline
+            )))
+        }
+    } else {
+        Err(EvaluationError::Custom(format!(
+            "error while running shell pipeline \"{}\"",
+            pipeline
         )))
     }
 }
