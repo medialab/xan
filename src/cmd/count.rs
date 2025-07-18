@@ -84,24 +84,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         let mut count: u64 = 0;
-        let mut record: Vec<u8> = Vec::new();
 
-        while let Some((bytes, seps)) = reader.read_record()? {
-            if args.flag_allocate {
-                record.clear();
-
-                let mut offset = 0;
-
-                for i in seps.iter().copied() {
-                    let field = &bytes[offset..i];
-                    record.extend_from_slice(field);
-                    offset = i + 1;
-                }
-
-                record.extend_from_slice(&bytes[offset..]);
+        if args.flag_allocate {
+            while let Some(record) = reader.copy_record()? {
+                // dbg!(bstr::BStr::new(record));
+                count += 1;
             }
-
-            count += 1;
+        } else {
+            while let Some(_) = reader.read_record()? {
+                count += 1;
+            }
         }
 
         println!("{}", count);

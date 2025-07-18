@@ -153,6 +153,101 @@ impl RecordReader {
 
         (ReadRecordResult::InputEmpty, input.len())
     }
+
+    fn copy_record(&mut self, input: &[u8], record: &mut Vec<u8>) -> (ReadRecordResult, usize) {
+        use RecordReaderState::*;
+
+        if input.is_empty() {
+            if !self.record_was_read {
+                self.record_was_read = true;
+                return (ReadRecordResult::Record, 0);
+            }
+
+            return (ReadRecordResult::End, 0);
+        }
+
+        if self.record_was_read {
+            if input[0] == b'\n' {
+                return (ReadRecordResult::Lf, 1);
+            } else if input[0] == b'\r' {
+                return (ReadRecordResult::Cr, 1);
+            }
+        }
+
+        self.record_was_read = false;
+
+        let mut pos: usize = 0;
+
+        while pos < input.len() {
+            match self.state {
+                Unquoted => {
+                    // Here we are moving to next quote or end of line
+                    let mut last_offset: Option<usize> = None;
+
+                    for offset in self.splitter.split(&input[pos..]) {
+                        if let Some(o) = last_offset {
+                            record.extend_from_slice(&input[pos + o + 1..pos + offset]);
+                        } else {
+                            record.extend_from_slice(&input[pos..pos + offset]);
+                        }
+
+                        last_offset = Some(offset);
+
+                        let byte = input[pos + offset];
+
+                        if byte == self.delimiter {
+                            continue;
+                        }
+
+                        if byte == b'\n' {
+                            self.record_was_read = true;
+                            return (ReadRecordResult::Record, pos + offset + 1);
+                        }
+
+                        // Here, `byte` is guaranteed to be a quote
+                        self.state = Quoted;
+                        break;
+                    }
+
+                    if let Some(offset) = last_offset {
+                        pos += offset + 1;
+                    } else {
+                        break;
+                    }
+                }
+                Quoted => {
+                    // Here we moving to next quote
+                    if let Some(offset) = memchr(self.quote, &input[pos..]) {
+                        record.extend_from_slice(&input[pos..pos + offset]);
+                        pos += offset + 1;
+                        self.state = Quote;
+                    } else {
+                        break;
+                    }
+                }
+                Quote => {
+                    let byte = input[pos];
+
+                    pos += 1;
+
+                    if byte == self.quote {
+                        self.state = Quoted;
+                        record.push(self.quote);
+                    } else if byte == self.delimiter {
+                        self.state = Unquoted;
+                    } else if byte == b'\n' {
+                        self.record_was_read = true;
+                        self.state = Unquoted;
+                        return (ReadRecordResult::Record, pos);
+                    } else {
+                        self.state = Unquoted;
+                    }
+                }
+            }
+        }
+
+        (ReadRecordResult::InputEmpty, input.len())
+    }
 }
 
 pub struct BufferedRecordReader<R> {
@@ -217,6 +312,36 @@ impl<R: Read> BufferedRecordReader<R> {
             };
         }
     }
+
+    pub fn copy_record(&mut self) -> Result<Option<&[u8]>> {
+        use ReadRecordResult::*;
+
+        self.record.clear();
+
+        if let Some(last_pos) = self.actual_buffer_position.take() {
+            self.buffer.consume(last_pos);
+        }
+
+        loop {
+            let input = self.buffer.fill_buf()?;
+
+            let (result, pos) = self.reader.copy_record(&input, &mut self.record);
+
+            self.buffer.consume(pos);
+
+            match result {
+                End => {
+                    return Ok(None);
+                }
+                Cr | Lf | InputEmpty => {
+                    continue;
+                }
+                Record => {
+                    return Ok(Some(&self.record));
+                }
+            };
+        }
+    }
 }
 
 // TODO: test empty seps, also in splitter, test empty rows with ""
@@ -251,6 +376,12 @@ mod tests {
             dbg!(bstr::BStr::new(&record[offset..]));
 
             dbg!();
+        }
+
+        let mut reader = BufferedRecordReader::with_capacity(Cursor::new(csv), 32, b'"', b',');
+
+        while let Some(record) = reader.copy_record().unwrap() {
+            dbg!(bstr::BStr::new(record));
         }
     }
 }
