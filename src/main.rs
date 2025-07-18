@@ -26,6 +26,7 @@ mod select;
 mod splitter;
 mod urls;
 mod util;
+mod wide_split;
 mod xml;
 
 macro_rules! command_list {

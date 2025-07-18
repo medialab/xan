@@ -2,6 +2,8 @@ use std::io::{BufRead, BufReader, Read, Result};
 
 use memchr::{memchr, memchr3};
 
+use crate::wide_split::SimdSplitter;
+
 const LAZY_THRESHOLD: usize = 8;
 
 #[inline(always)]
@@ -43,6 +45,7 @@ struct RecordReader {
     delimiter: u8,
     state: RecordReaderState,
     record_was_read: bool,
+    splitter: SimdSplitter,
 }
 
 impl RecordReader {
@@ -53,6 +56,7 @@ impl RecordReader {
             state: RecordReaderState::Unquoted,
             // Must be true at the beginning to avoid counting one record for empty input
             record_was_read: true,
+            splitter: SimdSplitter::new(quote, delimiter, b'\n'),
         }
     }
 
@@ -88,30 +92,31 @@ impl RecordReader {
         while pos < input.len() {
             match self.state {
                 Unquoted => {
-                    // TODO: switch to memch3_iter for best perf?
-
                     // Here we are moving to next quote or end of line
-                    if let Some(offset) =
-                        lazy_memchr3(b'\n', self.quote, self.delimiter, &input[pos..])
-                    {
-                        pos += offset;
+                    let mut last_offset: Option<usize> = None;
 
-                        let byte = input[pos];
+                    for offset in self.splitter.split(&input[pos..]) {
+                        last_offset = Some(offset);
 
-                        pos += 1;
+                        let byte = input[pos + offset];
 
                         if byte == self.delimiter {
-                            seps.push(seps_offset + pos - 1);
+                            seps.push(seps_offset + pos + offset);
                             continue;
                         }
 
                         if byte == b'\n' {
                             self.record_was_read = true;
-                            return (ReadRecordResult::Record, pos);
+                            return (ReadRecordResult::Record, pos + offset + 1);
                         }
 
                         // Here, `byte` is guaranteed to be a quote
                         self.state = Quoted;
+                        break;
+                    }
+
+                    if let Some(offset) = last_offset {
+                        pos += offset + 1;
                     } else {
                         break;
                     }

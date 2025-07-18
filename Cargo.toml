@@ -114,6 +114,7 @@ url = "2.5.4"
 uuid = { version = "1.16.0", features = ["v4"] }
 memmap2 = "0.9.5"
 memchr = "2.7.5"
+wide = "0.7.33"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
