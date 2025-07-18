@@ -2,6 +2,26 @@ use std::io::{BufRead, BufReader, Read, Result};
 
 use memchr::{memchr, memchr3};
 
+const LAZY_THRESHOLD: usize = 8;
+
+#[inline(always)]
+fn lazy_memchr3(n1: u8, n2: u8, n3: u8, haystack: &[u8]) -> Option<usize> {
+    // NOTE: haystack will usually not be empty
+    if let Some(i) = haystack[..LAZY_THRESHOLD.min(haystack.len())]
+        .iter()
+        .copied()
+        .position(|b| b == n1 || b == n2 || b == n3)
+    {
+        return Some(i);
+    }
+
+    if haystack.len() > LAZY_THRESHOLD {
+        return memchr3(n1, n2, n3, &haystack[LAZY_THRESHOLD..]).map(|i| i + LAZY_THRESHOLD);
+    }
+
+    None
+}
+
 #[derive(Debug)]
 enum ReadRecordResult {
     InputEmpty,
@@ -71,7 +91,8 @@ impl RecordReader {
                     // TODO: switch to memch3_iter for best perf?
 
                     // Here we are moving to next quote or end of line
-                    if let Some(offset) = memchr3(b'\n', self.quote, self.delimiter, &input[pos..])
+                    if let Some(offset) =
+                        lazy_memchr3(b'\n', self.quote, self.delimiter, &input[pos..])
                     {
                         pos += offset;
 
