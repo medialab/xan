@@ -40,6 +40,7 @@ count options:
     -s, --slice
     -S, --split
     -R, --reader
+    -A, --allocate
 
 Common options:
     -h, --help             Display this message
@@ -66,6 +67,7 @@ struct Args {
     flag_slice: bool,
     flag_split: bool,
     flag_reader: bool,
+    flag_allocate: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -82,8 +84,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         let mut count: u64 = 0;
+        let mut record: Vec<u8> = Vec::new();
 
-        while let Some(_) = reader.read_record()? {
+        while let Some((bytes, seps)) = reader.read_record()? {
+            if args.flag_allocate {
+                record.clear();
+
+                let mut offset = 0;
+
+                for i in seps.iter().copied() {
+                    let field = &bytes[offset..i];
+                    record.extend_from_slice(field);
+                    offset = i + 1;
+                }
+
+                record.extend_from_slice(&bytes[offset..]);
+            }
+
             count += 1;
         }
 
