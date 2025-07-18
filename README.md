@@ -38,6 +38,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Homebrew (macOS)](#homebrew-macos)
   * [Arch Linux](#arch-linux)
   * [Nix](#nix)
+  * [Pixi](#pixi-linux-macos-windows)
   * [Pre-built binaries](#pre-built-binaries)
   * [Installing completions](#installing-completions)
 * [Quick tour](#quick-tour)
@@ -104,6 +105,14 @@ use `nix-shell` to enter an ephemeral shell.
 
 ```bash
 nix-shell -p xan
+```
+
+### Pixi (Linux, macOS, Windows)
+
+`xan` can be installed in Linux, macOS, and Windows using the [Pixi](https://pixi.sh/latest/) package manager:
+
+```bash
+pixi global install xan
 ```
 
 ### Pre-built binaries
