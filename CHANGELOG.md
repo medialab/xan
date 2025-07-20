@@ -14,6 +14,7 @@
 * Adding `xan join --semi` & `xan join --anti` commands.
 * Adding `xan slice --raw`.
 * Adding default expression argument to `lead` & `lag` window functions.
+* Adding `shlex_split`, `cmd` and `shell` moonblade functions.
 
 *Fixes*
 

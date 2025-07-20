@@ -267,6 +267,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 ## IO & path wrangling
 
 - **abspath**(*string*) -> `string`: Return absolute & canonicalized path.
+- **cmd**(*string*, *list[string]*) -> `bytes`: Run a command using the provided list of arguments as a subprocess and return the resulting bytes trimmed of trailing whitespace.
 - **copy**(*source_path*, *target_path*) -> `string`: Copy a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
 - **ext**(*path*) -> `string?`: Return the path's extension, if any.
 - **filesize**(*string*) -> `int`: Return the size of given file in bytes.
@@ -277,6 +278,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **read**(*path*, *encoding=?*, *errors=?*) -> `string`: Read file at path. Default encoding is "utf-8". Default error handling policy is "replace", and can be one of "replace", "ignore" or "strict".
 - **read_csv**(*path*) -> `list[map]`: Read and parse CSV file at path, returning its rows as a list of maps with headers as keys.
 - **read_json**(*path*) -> `any`: Read and parse JSON file at path.
+- **shell**(*string*) -> `bytes`: Convenience function running `cmd("$SHELL -c <command>") ` on unix-like systems and `cmd("cmd \C <command>")` on Windows.
+- **shlex_split**(*string*) -> `list[string]`: Split a string of command line arguments into a proper list that can be given to e.g. the `cmd` function.
 - **write**(*string*, *path*) -> `string`: Write string to path as utf-8 text. Will create necessary directories recursively before actually writing the file. Return the path that was written.
 
 ## Randomness & hashing

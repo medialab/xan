@@ -716,6 +716,12 @@
         "help": "Return absolute & canonicalized path."
       },
       {
+        "name": "cmd",
+        "arguments": ["string", "list[string]"],
+        "returns": "bytes",
+        "help": "Run a command using the provided list of arguments as a subprocess and return the resulting bytes trimmed of trailing whitespace."
+      },
+      {
         "name": "copy",
         "arguments": ["source_path", "target_path"],
         "returns": "string",
@@ -775,6 +781,18 @@
         "arguments": ["path"],
         "returns": "any",
         "help": "Read and parse JSON file at path."
+      },
+      {
+        "name": "shell",
+        "arguments": ["string"],
+        "returns": "bytes",
+        "help": "Convenience function running `cmd(\"$SHELL -c <command>\") ` on unix-like systems and `cmd(\"cmd \\C <command>\")` on Windows."
+      },
+      {
+        "name": "shlex_split",
+        "arguments": ["string"],
+        "returns": "list[string]",
+        "help": "Split a string of command line arguments into a proper list that can be given to e.g. the `cmd` function."
       },
       {
         "name": "write",
