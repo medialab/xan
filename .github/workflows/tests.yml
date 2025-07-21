@@ -10,6 +10,7 @@ jobs:
           - os: ubuntu-latest
           - os: windows-latest
           - os: macos-latest
+          - os: ubuntu-24.04-arm
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
