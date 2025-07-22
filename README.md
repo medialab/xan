@@ -126,6 +126,9 @@ Currently supported targets include:
 - `x86_64-unknown-linux-musl`
 - `x86_64-pc-windows-msvc`
 
+- `aarch64-apple-darwin`
+- `aarch64-unknown-linux-gnu`
+
 Feel free to open a PR to improve the CI by adding relevant targets.
 
 ### Installing completions

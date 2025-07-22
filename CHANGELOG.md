@@ -15,6 +15,7 @@
 * Adding `xan slice --raw`.
 * Adding default expression argument to `lead` & `lag` window functions.
 * Adding `shlex_split`, `cmd` and `shell` moonblade functions.
+* Adding `aarch64-apple-darwin` and `aarch64-unknown-linux-gnu` to CI builds.
 
 *Fixes*
 
