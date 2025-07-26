@@ -37,6 +37,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Scoop (Windows)](#scoop-windows)
   * [Homebrew (macOS)](#homebrew-macos)
   * [Arch Linux](#arch-linux)
+  * [NetBSD](#netbsd)
   * [Nix](#nix)
   * [Pixi](#pixi-linux-macos-windows)
   * [Pre-built binaries](#pre-built-binaries)
@@ -95,6 +96,14 @@ You can install `xan` from the [extra repository](https://archlinux.org/packages
 
 ```bash
 sudo pacman -S xan
+```
+
+### NetBSD
+
+A package is available from the official repositories. To install `xan` simply run:
+
+```
+pkgin install xan
 ```
 
 ### Nix
