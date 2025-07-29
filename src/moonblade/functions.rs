@@ -262,6 +262,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "timestamp" => (timestamp, FunctionArguments::unary()),
         "timestamp_ms" => (timestamp_ms, FunctionArguments::unary()),
+        "to_fixed" => (to_fixed, FunctionArguments::binary()),
         "to_timezone" => (to_timezone, FunctionArguments::nary(3)),
         "to_local_timezone" => (to_local_timezone, FunctionArguments::binary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
@@ -586,6 +587,17 @@ fn printf(args: BoundArguments) -> FunctionResult {
             "printf formatting error".to_string(),
         )),
     }
+}
+
+fn to_fixed(mut args: BoundArguments) -> FunctionResult {
+    let (arg1, arg2) = args.pop2();
+
+    let n = arg1.try_as_f64()?;
+    let p = arg2.try_as_usize()?;
+
+    let formatted = format!("{:.precision$}", n, precision = p);
+
+    Ok(DynamicValue::from(formatted))
 }
 
 // Lists & Sequences

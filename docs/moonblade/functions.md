@@ -172,6 +172,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments.
 - **numfmt**(*number*) -> `string`: Format a number with thousands separator and proper significance.
 - **trim**(*string*, *chars?*) -> `string`: Trim string of leading & trailing whitespace or provided characters.
+- **to_fixed**(*number*, *precision*) -> `string`: Format given number using fixed point notation with speficied number of decimal places.
 - **ltrim**(*string*, *chars?*) -> `string`: Trim string of leading whitespace or provided characters.
 - **rtrim**(*string*, *chars?*) -> `string`: Trim string of trailing whitespace or provided characters.
 - **upper**(*string*) -> `string`: Uppercase string.

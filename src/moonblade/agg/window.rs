@@ -584,6 +584,7 @@ impl WindowAggregationProgram {
 
     // TODO: use a callback to avoid vec allocation
     // TODO: avoid double expression evaluation (beware of unalignement when a value cannot hold)
+    // TODO: precision option
     pub fn flush(
         &mut self,
         mut from_index: usize,

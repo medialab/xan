@@ -291,6 +291,12 @@
         "help": "Trim string of leading & trailing whitespace or provided characters."
       },
       {
+        "name": "to_fixed",
+        "arguments": ["number", "precision"],
+        "returns": "string",
+        "help": "Format given number using fixed point notation with speficied number of decimal places."
+      },
+      {
         "name": "ltrim",
         "arguments": ["string", "chars?"],
         "returns": "string",
