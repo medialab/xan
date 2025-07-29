@@ -87,10 +87,10 @@ fn pivot_missing() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["country", "name", "2000", "2010", "2020"],
-        svec!["NL", "Amsterdam", "", "1065", "1158"],
-        svec!["US", "Seattle", "564", "", "738"],
-        svec!["US", "New York City", "8015", "8175", ""],
+        svec!["country", "name", "2010", "2020", "2000"],
+        svec!["NL", "Amsterdam", "1065", "1158", ""],
+        svec!["US", "Seattle", "", "738", "564"],
+        svec!["US", "New York City", "8175", "", "8015"],
     ];
     assert_eq!(got, expected);
 }

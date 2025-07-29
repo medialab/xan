@@ -138,19 +138,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index += 1;
     }
 
-    let pivoted_column_names = program.pivoted_column_names();
-
     if !rconf.no_headers {
         let mut output_headers = groupby_sel.select(&headers).collect::<csv::ByteRecord>();
 
-        for name in pivoted_column_names.iter() {
+        for name in program.pivoted_column_names() {
             output_headers.push_field(name);
         }
 
         wtr.write_byte_record(&output_headers)?;
     }
 
-    program.flush(&pivoted_column_names, |output_record| -> CliResult<()> {
+    program.flush(|output_record| -> CliResult<()> {
         wtr.write_byte_record(output_record)?;
 
         Ok(())

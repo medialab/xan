@@ -1325,11 +1325,27 @@ impl GroupAggregationProgram {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct PivotedColumnNamesIndex {
+    names: Vec<Vec<u8>>,
+    seen: BTreeSet<Vec<u8>>,
+}
+
+impl PivotedColumnNamesIndex {
+    fn add(&mut self, name: &[u8]) {
+        if !self.seen.contains(name) {
+            self.seen.insert(name.to_vec());
+            self.names.push(name.to_vec());
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PivotAggregationProgram {
     planner: ConcreteAggregationPlanner,
     groups: IndexMap<GroupKey, BTreeMap<Vec<u8>, CompositeAggregator>, RandomState>,
     headers_index: HeadersIndex,
+    pivoted_column_names_index: PivotedColumnNamesIndex,
 }
 
 impl PivotAggregationProgram {
@@ -1349,6 +1365,7 @@ impl PivotAggregationProgram {
             planner,
             groups: IndexMap::with_hasher(RandomState::new()),
             headers_index: HeadersIndex::from_headers(headers),
+            pivoted_column_names_index: PivotedColumnNamesIndex::default(),
         })
     }
 
@@ -1372,6 +1389,8 @@ impl PivotAggregationProgram {
         index: usize,
         record: &ByteRecord,
     ) -> Result<(), SpecifiedEvaluationError> {
+        self.pivoted_column_names_index.add(&pivot);
+
         let planner = &self.planner;
 
         let pivot_map = self.groups.entry(group).or_default();
@@ -1390,24 +1409,17 @@ impl PivotAggregationProgram {
         )
     }
 
-    pub fn pivoted_column_names(&self) -> Vec<Vec<u8>> {
-        let mut set: BTreeSet<&Vec<u8>> = BTreeSet::new();
-
-        for pivot_map in self.groups.values() {
-            for name in pivot_map.keys() {
-                set.insert(name);
-            }
-        }
-
-        set.into_iter().map(|name| name.to_vec()).collect()
+    pub fn pivoted_column_names(&self) -> &[Vec<u8>] {
+        &self.pivoted_column_names_index.names
     }
 
-    pub fn flush<F, E>(self, names: &Vec<Vec<u8>>, mut callback: F) -> Result<(), E>
+    pub fn flush<F, E>(self, mut callback: F) -> Result<(), E>
     where
         F: FnMut(&csv::ByteRecord) -> Result<(), E>,
         E: From<SpecifiedEvaluationError>,
     {
         let mut record = csv::ByteRecord::new();
+        let names = self.pivoted_column_names_index.names;
 
         for (group, mut pivot_map) in self.groups.into_iter() {
             record.clear();
@@ -1416,7 +1428,7 @@ impl PivotAggregationProgram {
                 record.push_field(&cell);
             }
 
-            for name in names {
+            for name in names.iter() {
                 if let Some(aggregator) = pivot_map.get_mut(name) {
                     aggregator.finalize(false);
 
