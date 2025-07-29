@@ -120,6 +120,7 @@ enum ConcreteWindowAggregation {
     CumulativeMax(ConcreteExpr, Option<DynamicNumber>),
     RollingSum(ConcreteExpr, RollingSum),
     RollingWelford(ConcreteExpr, WelfordStat, RollingWelford),
+    Frac(ConcreteExpr, Sum),
 }
 
 fn eval_expression_to_number(
@@ -140,6 +141,27 @@ impl ConcreteWindowAggregation {
             Self::Lag(_, n, _) => (*n, 0),
             _ => (0, 0),
         }
+    }
+
+    fn requires_total_buffer(&self) -> bool {
+        matches!(self, Self::Frac(_, _))
+    }
+
+    fn aggregate_total(
+        &mut self,
+        index: usize,
+        record: &ByteRecord,
+        headers_index: &HeadersIndex,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        match self {
+            Self::Frac(expr, sum) => {
+                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
+            }
+            _ => (),
+        };
+
+        Ok(())
     }
 
     fn run(
@@ -235,6 +257,12 @@ impl ConcreteWindowAggregation {
 
                 Ok(DynamicValue::from(welford.add(float, *stat)))
             }
+            Self::Frac(expr, sum) => {
+                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let number = value.try_as_number().map_err(|err| err.specify("frac"))?;
+
+                Ok(DynamicValue::from(sum.get().map(|s| number / s)))
+            }
         }
     }
 
@@ -259,6 +287,9 @@ impl ConcreteWindowAggregation {
                 welford.clear();
             }
             Self::Lag(_, _, _) | Self::Lead(_, _, _) => (),
+            Self::Frac(_, sum) => {
+                sum.clear();
+            }
         };
     }
 }
@@ -267,7 +298,7 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
+        "cumsum" | "cummin" | "cummax" | "frac" => FunctionArguments::unary(),
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
             FunctionArguments::binary()
         }
@@ -397,6 +428,14 @@ fn concretize_window_aggregations(
                     },
                 ));
             }
+            "frac" => {
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+
+                concrete_aggs.push((
+                    agg.agg_name,
+                    ConcreteWindowAggregation::Frac(expr, Sum::new()),
+                ));
+            }
             _ => unreachable!(),
         };
     }
@@ -424,6 +463,7 @@ fn find_buffer_extent(aggs: &ConcreteWindowAggregations) -> (usize, usize) {
 
 type PastBuffer = VecDeque<(usize, ByteRecord)>;
 type FutureBuffer = VecDeque<(usize, ByteRecord, bool)>;
+type TotalBuffer = Vec<(usize, ByteRecord)>;
 
 #[derive(Debug)]
 pub struct WindowAggregationProgram {
@@ -431,6 +471,7 @@ pub struct WindowAggregationProgram {
     headers_index: HeadersIndex,
     past_buffer: Option<(usize, PastBuffer)>,
     future_buffer: Option<(usize, FutureBuffer)>,
+    total_buffer: Option<TotalBuffer>,
     output_buffer: Vec<DynamicValue>,
 }
 
@@ -441,8 +482,14 @@ impl WindowAggregationProgram {
         let (max_past, max_future) = find_buffer_extent(&aggs);
 
         let past_buffer = (max_past > 0).then(|| (max_past, VecDeque::with_capacity(max_past)));
+
         let future_buffer =
             (max_future > 0).then(|| (max_future + 1, VecDeque::with_capacity(max_future + 1)));
+
+        let total_buffer = aggs
+            .iter()
+            .any(|(_, agg)| agg.requires_total_buffer())
+            .then(Vec::new);
 
         Ok(Self {
             aggs,
@@ -450,6 +497,7 @@ impl WindowAggregationProgram {
             headers_index: HeadersIndex::from_headers(headers),
             past_buffer,
             future_buffer,
+            total_buffer,
         })
     }
 
@@ -463,6 +511,12 @@ impl WindowAggregationProgram {
         record: &ByteRecord,
         is_padding: bool,
     ) -> Result<Option<ByteRecord>, SpecifiedEvaluationError> {
+        if let Some(total_buffer) = &mut self.total_buffer {
+            total_buffer.push((index, record.clone()));
+
+            return Ok(None);
+        }
+
         if let Some((future_capacity, future_buffer)) = &mut self.future_buffer {
             if future_buffer.len() < *future_capacity {
                 future_buffer.push_back((index, record.clone(), is_padding));
@@ -528,16 +582,32 @@ impl WindowAggregationProgram {
         self.run_with_record_impl(index, record, false)
     }
 
+    // TODO: use a callback to avoid vec allocation
+    // TODO: avoid double expression evaluation (beware of unalignement when a value cannot hold)
     pub fn flush(
         &mut self,
         mut from_index: usize,
     ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
+        let mut output = Vec::new();
+
+        if let Some(total_buffer) = self.total_buffer.take() {
+            for (index, record) in total_buffer.iter() {
+                for (_, agg) in self.aggs.iter_mut() {
+                    agg.aggregate_total(*index, record, &self.headers_index)?;
+                }
+            }
+
+            for (index, record) in total_buffer.iter() {
+                if let Some(output_record) = self.run_with_record(*index, record)? {
+                    output.push(output_record);
+                }
+            }
+        }
+
         if let Some((_, future_buffer)) = self.future_buffer.as_mut() {
             let padding = (0..self.headers_index.len())
                 .map(|_| b"")
                 .collect::<csv::ByteRecord>();
-
-            let mut output = Vec::new();
 
             for _ in 0..future_buffer.len() {
                 from_index += 1;
@@ -546,11 +616,9 @@ impl WindowAggregationProgram {
                         .unwrap(),
                 );
             }
-
-            return Ok(output);
         }
 
-        Ok(vec![])
+        Ok(output)
     }
 
     pub fn flush_and_clear(
@@ -558,6 +626,10 @@ impl WindowAggregationProgram {
         from_index: usize,
     ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
         let records = self.flush(from_index)?;
+
+        if self.aggs.iter().any(|(_, agg)| agg.requires_total_buffer()) {
+            self.total_buffer = Some(Vec::new());
+        }
 
         if let Some((_, past_buffer)) = &mut self.past_buffer {
             past_buffer.clear();
