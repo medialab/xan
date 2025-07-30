@@ -582,15 +582,13 @@ impl WindowAggregationProgram {
         self.run_with_record_impl(index, record, false)
     }
 
-    // TODO: use a callback to avoid vec allocation
     // TODO: avoid double expression evaluation (beware of unalignement when a value cannot hold)
     // TODO: precision option
-    pub fn flush(
-        &mut self,
-        mut from_index: usize,
-    ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
-        let mut output = Vec::new();
-
+    pub fn flush<F, E>(&mut self, mut from_index: usize, mut callback: F) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
         if let Some(total_buffer) = self.total_buffer.take() {
             for (index, record) in total_buffer.iter() {
                 for (_, agg) in self.aggs.iter_mut() {
@@ -600,7 +598,7 @@ impl WindowAggregationProgram {
 
             for (index, record) in total_buffer.iter() {
                 if let Some(output_record) = self.run_with_record(*index, record)? {
-                    output.push(output_record);
+                    callback(output_record)?;
                 }
             }
         }
@@ -612,21 +610,22 @@ impl WindowAggregationProgram {
 
             for _ in 0..future_buffer.len() {
                 from_index += 1;
-                output.push(
+                callback(
                     self.run_with_record_impl(from_index, &padding, true)?
                         .unwrap(),
-                );
+                )?;
             }
         }
 
-        Ok(output)
+        Ok(())
     }
 
-    pub fn flush_and_clear(
-        &mut self,
-        from_index: usize,
-    ) -> Result<Vec<ByteRecord>, SpecifiedEvaluationError> {
-        let records = self.flush(from_index)?;
+    pub fn flush_and_clear<F, E>(&mut self, from_index: usize, callback: F) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        let records = self.flush(from_index, callback)?;
 
         if self.aggs.iter().any(|(_, agg)| agg.requires_total_buffer()) {
             self.total_buffer = Some(Vec::new());
