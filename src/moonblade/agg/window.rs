@@ -120,7 +120,7 @@ enum ConcreteWindowAggregation {
     CumulativeMax(ConcreteExpr, Option<DynamicNumber>),
     RollingSum(ConcreteExpr, RollingSum),
     RollingWelford(ConcreteExpr, WelfordStat, RollingWelford),
-    Frac(ConcreteExpr, Sum),
+    Frac(ConcreteExpr, Sum, Option<usize>),
 }
 
 fn eval_expression_to_number(
@@ -144,7 +144,7 @@ impl ConcreteWindowAggregation {
     }
 
     fn requires_total_buffer(&self) -> bool {
-        matches!(self, Self::Frac(_, _))
+        matches!(self, Self::Frac(_, _, _))
     }
 
     fn aggregate_total(
@@ -154,7 +154,7 @@ impl ConcreteWindowAggregation {
         headers_index: &HeadersIndex,
     ) -> Result<(), SpecifiedEvaluationError> {
         match self {
-            Self::Frac(expr, sum) => {
+            Self::Frac(expr, sum, _) => {
                 let value = eval_expression(expr, Some(index), record, headers_index)?;
                 sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
             }
@@ -257,11 +257,15 @@ impl ConcreteWindowAggregation {
 
                 Ok(DynamicValue::from(welford.add(float, *stat)))
             }
-            Self::Frac(expr, sum) => {
+            Self::Frac(expr, sum, decimals) => {
                 let value = eval_expression(expr, Some(index), record, headers_index)?;
                 let number = value.try_as_number().map_err(|err| err.specify("frac"))?;
+                let frac = sum.get().map(|s| number / s);
 
-                Ok(DynamicValue::from(sum.get().map(|s| number / s)))
+                Ok(match decimals {
+                    None => DynamicValue::from(frac),
+                    Some(d) => DynamicValue::from(frac.map(|f| format!("{:.p$}", f, p = d))),
+                })
             }
         }
     }
@@ -287,7 +291,7 @@ impl ConcreteWindowAggregation {
                 welford.clear();
             }
             Self::Lag(_, _, _) | Self::Lead(_, _, _) => (),
-            Self::Frac(_, sum) => {
+            Self::Frac(_, sum, _) => {
                 sum.clear();
             }
         };
@@ -297,8 +301,9 @@ impl ConcreteWindowAggregation {
 fn get_function(name: &str) -> Option<FunctionArguments> {
     Some(match name {
         "row_number" | "row_index" => FunctionArguments::nullary(),
+        "frac" => FunctionArguments::with_range(1..=2),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" | "frac" => FunctionArguments::unary(),
+        "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
             FunctionArguments::binary()
         }
@@ -429,11 +434,21 @@ fn concretize_window_aggregations(
                 ));
             }
             "frac" => {
+                let decimals = if agg.args.len() == 2 {
+                    Some(cast_as_usize(&concretize_expression(
+                        agg.args.pop().unwrap(),
+                        headers,
+                        None,
+                    )?)?)
+                } else {
+                    None
+                };
+
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
 
                 concrete_aggs.push((
                     agg.agg_name,
-                    ConcreteWindowAggregation::Frac(expr, Sum::new()),
+                    ConcreteWindowAggregation::Frac(expr, Sum::new(), decimals),
                 ));
             }
             _ => unreachable!(),
@@ -582,8 +597,8 @@ impl WindowAggregationProgram {
         self.run_with_record_impl(index, record, false)
     }
 
+    // TODO: beware alignement issues, frac should work with holes, for instance
     // TODO: avoid double expression evaluation (beware of unalignement when a value cannot hold)
-    // TODO: precision option
     pub fn flush<F, E>(&mut self, mut from_index: usize, mut callback: F) -> Result<(), E>
     where
         F: FnMut(ByteRecord) -> Result<(), E>,
