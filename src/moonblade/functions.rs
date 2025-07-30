@@ -593,7 +593,7 @@ fn to_fixed(mut args: BoundArguments) -> FunctionResult {
     let (arg1, arg2) = args.pop2();
 
     let n = arg1.try_as_f64()?;
-    let p = arg2.try_as_usize()?;
+    let p = arg2.try_as_usize()?.min(16);
 
     let formatted = format!("{:.precision$}", n, precision = p);
 

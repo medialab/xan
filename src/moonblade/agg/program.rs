@@ -181,11 +181,12 @@ impl Aggregator {
             (ConcreteAggregationMethod::CovarianceSample, Self::CovarianceWelford(inner)) => {
                 DynamicValue::from(inner.sample_covariance())
             }
-            (ConcreteAggregationMethod::Ratio, Self::Count(inner)) => {
-                DynamicValue::from(inner.ratio())
-            }
-            (ConcreteAggregationMethod::Percentage, Self::Count(inner)) => {
-                DynamicValue::from(inner.percentage())
+            (ConcreteAggregationMethod::Ratio(decimals), Self::Count(inner)) => match decimals {
+                None => DynamicValue::from(inner.ratio()),
+                Some(p) => DynamicValue::from(format!("{:.p$}", inner.ratio(), p = p)),
+            },
+            (ConcreteAggregationMethod::Percentage(decimals), Self::Count(inner)) => {
+                DynamicValue::from(inner.percentage(*decimals))
             }
             (ConcreteAggregationMethod::DistinctValues(separator), Self::Frequencies(inner)) => {
                 DynamicValue::from(inner.join(separator))
@@ -430,8 +431,8 @@ impl CompositeAggregator {
                 upsert_boxed_aggregator!(ApproxQuantiles)
             }
             ConcreteAggregationMethod::Count
-            | ConcreteAggregationMethod::Ratio
-            | ConcreteAggregationMethod::Percentage => {
+            | ConcreteAggregationMethod::Ratio(_)
+            | ConcreteAggregationMethod::Percentage(_) => {
                 upsert_aggregator!(Count)
             }
             ConcreteAggregationMethod::CovariancePop
@@ -785,7 +786,17 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
                 cast_as_separator(args.get(1))?,
             ))
         }),
-        "percentage" => (FunctionArguments::unary(), |_| Ok(Percentage)),
+        "percentage" => (FunctionArguments::with_range(1..=2), |args| {
+            let decimals = if !args.is_empty() {
+                let value =
+                    cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?;
+                Some(value.min(16))
+            } else {
+                None
+            };
+
+            Ok(Percentage(decimals))
+        }),
         "quantile" => (FunctionArguments::binary(), |args| {
             Ok(Quantile(cast_as_static_value(
                 args.first().unwrap(),
@@ -800,7 +811,17 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         }),
         "var" | "var_pop" => (FunctionArguments::unary(), |_| Ok(VarPop)),
         "var_sample" => (FunctionArguments::unary(), |_| Ok(VarSample)),
-        "ratio" => (FunctionArguments::unary(), |_| Ok(Ratio)),
+        "ratio" => (FunctionArguments::with_range(1..=2), |args| {
+            let decimals = if !args.is_empty() {
+                let value =
+                    cast_as_static_value(args.first().unwrap(), DynamicValue::try_as_usize)?;
+                Some(value.min(16))
+            } else {
+                None
+            };
+
+            Ok(Ratio(decimals))
+        }),
         "rms" => (FunctionArguments::unary(), |_| Ok(Rms)),
         "stddev" | "stddev_pop" => (FunctionArguments::unary(), |_| Ok(StddevPop)),
         "stddev_sample" => (FunctionArguments::unary(), |_| Ok(StddevSample)),
@@ -847,10 +868,10 @@ enum ConcreteAggregationMethod {
     Modes(String),
     MostCommonValues(usize, String),
     MostCommonCounts(usize, String),
-    Percentage,
+    Percentage(Option<usize>),
     Quartile(usize),
     Quantile(f64),
-    Ratio,
+    Ratio(Option<usize>),
     Rms,
     Sum,
     Values(String),

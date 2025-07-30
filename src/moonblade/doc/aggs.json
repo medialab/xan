@@ -205,9 +205,9 @@
   },
   {
     "name": "percentage",
-    "arguments": ["<expr>"],
+    "arguments": ["<expr>", "decimals?"],
     "returns": "string",
-    "help": "Return the percentage of truthy values returned by expression."
+    "help": "Return the percentage of truthy values returned by expression, up to an optional number of decimal places."
   },
   {
     "name": "quantile",
@@ -235,9 +235,9 @@
   },
   {
     "name": "ratio",
-    "arguments": ["<expr>"],
+    "arguments": ["<expr>", "decimals?"],
     "returns": "number",
-    "help": "Return the ratio of truthy values returned by expression."
+    "help": "Return the ratio of truthy values returned by expression, up to an optional number of decimal places."
   },
   {
     "name": "rms",

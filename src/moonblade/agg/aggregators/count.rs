@@ -49,8 +49,11 @@ impl Count {
         self.truthy as f64 / self.get_total() as f64
     }
 
-    pub fn percentage(&self) -> String {
-        format!("{}%", ((self.ratio() * 100.0) as usize))
+    pub fn percentage(&self, decimals: Option<usize>) -> String {
+        match decimals {
+            Some(d) => format!("{:.p$}%", (self.ratio() * 100.0), p = d),
+            None => format!("{}%", (self.ratio() * 100.0) as usize),
+        }
     }
 
     pub fn merge(&mut self, other: Self) {
