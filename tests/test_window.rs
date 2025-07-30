@@ -398,6 +398,7 @@ fn window_frac() {
             svec!["1"],
             svec!["2"],
             svec!["3"],
+            svec![""],
             svec!["4"],
             svec!["5"],
         ],
@@ -411,6 +412,7 @@ fn window_frac() {
         svec!["1", "0.07"],
         svec!["2", "0.13"],
         svec!["3", "0.20"],
+        svec!["", ""],
         svec!["4", "0.27"],
         svec!["5", "0.33"],
     ];

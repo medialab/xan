@@ -156,7 +156,10 @@ impl ConcreteWindowAggregation {
         match self {
             Self::Frac(expr, sum, _) => {
                 let value = eval_expression(expr, Some(index), record, headers_index)?;
-                sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
+
+                if !value.is_nullish() {
+                    sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
+                }
             }
             _ => (),
         };
@@ -258,7 +261,14 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(welford.add(float, *stat)))
             }
             Self::Frac(expr, sum, decimals) => {
+                // NOTE: we are evaluation the expression twice, because it seems less costly
+                // than allocating a cache for every record.
                 let value = eval_expression(expr, Some(index), record, headers_index)?;
+
+                if value.is_nullish() {
+                    return Ok(DynamicValue::None);
+                }
+
                 let number = value.try_as_number().map_err(|err| err.specify("frac"))?;
                 let frac = sum.get().map(|s| number / s);
 
