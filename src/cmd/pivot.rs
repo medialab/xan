@@ -49,8 +49,15 @@ country,2000,2010,2020
 NL,1005,1065,1158
 US,564,608,738
 
+The command can also be called without <column> nor <expr> as a convenient
+shorthand where they will stand for "name" and "first(value)" respectively so
+you can easily call `xan pivot` downstream of `xan unpivot`:
+
+    $ xan unpivot january: monthly.csv | <processing> | xan pivot
+
 Usage:
     xan pivot [-P...] [options] <column> <expr> [<input>]
+    xan pivot [-P...] [options] [<input>]
     xan pivot --help
 
 pivot options:
@@ -73,8 +80,8 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
-    arg_column: SelectColumns,
-    arg_expr: String,
+    arg_column: Option<SelectColumns>,
+    arg_expr: Option<String>,
     flag_groupby: Option<SelectColumns>,
     #[serde(rename = "flag_P")]
     flag_p: usize,
@@ -91,15 +98,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
+    // Handling defaults
+    let arg_column = args
+        .arg_column
+        .unwrap_or_else(|| SelectColumns::parse("name").unwrap());
+
+    let arg_expr = args.arg_expr.unwrap_or_else(|| "first(value)".to_string());
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter)
-        .select(args.arg_column);
+        .select(arg_column);
 
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
     let pivot_col_index = rconf.single_selection(&headers)?;
-    let mut program = PivotAggregationProgram::parse(&args.arg_expr, &headers)?;
+    let mut program = PivotAggregationProgram::parse(&arg_expr, &headers)?;
 
     let column_indices_used_in_aggregation = program.used_column_indices();
 

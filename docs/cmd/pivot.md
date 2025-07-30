@@ -42,8 +42,15 @@ country,2000,2010,2020
 NL,1005,1065,1158
 US,564,608,738
 
+The command can also be called without <column> nor <expr> as a convenient
+shorthand where they will stand for "name" and "first(value)" respectively so
+you can easily call `xan pivot` downstream of `xan unpivot`:
+
+    $ xan unpivot january: monthly.csv | <processing> | xan pivot
+
 Usage:
     xan pivot [-P...] [options] <column> <expr> [<input>]
+    xan pivot [-P...] [options] [<input>]
     xan pivot --help
 
 pivot options:

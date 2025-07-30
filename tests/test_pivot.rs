@@ -94,3 +94,29 @@ fn pivot_missing() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn pivot_default() {
+    let wrk = Workdir::new("pivot_default");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["dept", "name", "value"],
+            svec!["electronics", "Jan", "1"],
+            svec!["electronics", "Feb", "2"],
+            svec!["cars", "Jan", "1"],
+            svec!["cars", "Feb", "2"],
+        ],
+    );
+
+    let mut cmd = wrk.command("pivot");
+    cmd.arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["dept", "Jan", "Feb"],
+        svec!["electronics", "1", "2"],
+        svec!["cars", "1", "2"],
+    ];
+    assert_eq!(got, expected);
+}
