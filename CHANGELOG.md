@@ -28,6 +28,7 @@
 * Fixing moonblade `split` function not using regex patterns properly.
 * Fixing moonblade parsing wrt regex patterns and comments (using a regex pattern containing `#` was not possible).
 * Fixing `lead` window aggregation function when working on any column that is not the first one.
+* Fixing `xan view -S/--significance` being overzealous, especially wrt integers.
 
 *Performance*
 

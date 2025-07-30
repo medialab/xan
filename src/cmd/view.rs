@@ -434,7 +434,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut number_formatter = args.flag_significance.map(|s| {
         Formatter::new()
             .precision(Precision::Significance(s.get() as u8))
-            .separator(',')
+            .separator(None)
             .unwrap()
     });
 
