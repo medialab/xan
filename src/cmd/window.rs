@@ -6,11 +6,15 @@ use crate::CliResult;
 
 static USAGE: &str = "
 Compute window aggregations such as cumulative sums, rolling means, leading and
-lagging values etc.
+lagging values, rankings etc.
 
 This command is able to compute multiple aggregations in a single pass over the
 file, and never uses more memory that required to fit the largest desired window
 for rolling stats and leads/lags.
+
+Ranking aggregations however (such as `frac` or `dense_rank`), still require to
+buffer the whole file in memory (or at least whole groups when using -g/--groupby),
+since they cannot be computed otherwise.
 
 Computing a cumulative sum:
 
@@ -23,6 +27,14 @@ Computing a rolling mean & variance:
 Adding a lagged column:
 
     $ xan window 'lag(n) as \"n-1\"' file.csv
+
+Ranking numerical values:
+
+    $ xan window 'dense_rank(n) as rank' file.csv
+
+Computing fraction of cell wrt total sum of target column:
+
+    $ xan window 'frac(n) as frac' file.csv
 
 This command is also able to reset the statistics each time a new contiguous group
 of rows is encountered using the -g/--groupby flag. This means, however, that

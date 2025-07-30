@@ -18,6 +18,7 @@
 * Adding `aarch64-apple-darwin` and `aarch64-unknown-linux-gnu` to CI builds.
 * Adding `to_fixed` moonblade function.
 * Adding decimal places optional argument to `ratio` & `percentage` aggregation functions.
+* Adding `frac` & `dense_rank` aggregation functions to `xan window`.
 
 *Fixes*
 

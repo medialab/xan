@@ -121,6 +121,7 @@ enum ConcreteWindowAggregation {
     RollingSum(ConcreteExpr, RollingSum),
     RollingWelford(ConcreteExpr, WelfordStat, RollingWelford),
     Frac(ConcreteExpr, Sum, Option<usize>),
+    DenseRank(ConcreteExpr, Vec<(DynamicNumber, usize)>, VecDeque<usize>),
 }
 
 fn eval_expression_to_number(
@@ -144,7 +145,7 @@ impl ConcreteWindowAggregation {
     }
 
     fn requires_total_buffer(&self) -> bool {
-        matches!(self, Self::Frac(_, _, _))
+        matches!(self, Self::Frac(_, _, _) | Self::DenseRank(_, _, _))
     }
 
     fn aggregate_total(
@@ -161,10 +162,44 @@ impl ConcreteWindowAggregation {
                     sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
                 }
             }
+            Self::DenseRank(expr, numbers, _) => {
+                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let number = value
+                    .try_as_number()
+                    .map_err(|err| err.specify("dense_rank"))?;
+
+                numbers.push((number, numbers.len()));
+            }
             _ => (),
         };
 
         Ok(())
+    }
+
+    fn finalize_total(&mut self) {
+        if let Self::DenseRank(_, numbers, ranks) = self {
+            numbers.sort();
+            ranks.resize(numbers.len(), 0);
+
+            let mut rank: usize = 0;
+            let mut last_number: Option<DynamicNumber> = None;
+
+            for (n, i) in numbers.iter() {
+                match last_number {
+                    None => {
+                        last_number = Some(*n);
+                        rank += 1;
+                    }
+                    Some(l) if l != *n => {
+                        last_number = Some(*n);
+                        rank += 1;
+                    }
+                    _ => {}
+                };
+
+                ranks[*i] = rank;
+            }
+        }
     }
 
     fn run(
@@ -277,6 +312,7 @@ impl ConcreteWindowAggregation {
                     Some(d) => DynamicValue::from(frac.map(|f| format!("{:.p$}", f, p = d))),
                 })
             }
+            Self::DenseRank(_, _, ranks) => Ok(DynamicValue::from(ranks.pop_front().unwrap())),
         }
     }
 
@@ -304,6 +340,10 @@ impl ConcreteWindowAggregation {
             Self::Frac(_, sum, _) => {
                 sum.clear();
             }
+            Self::DenseRank(_, numbers, ranks) => {
+                numbers.clear();
+                ranks.clear();
+            }
         };
     }
 }
@@ -313,7 +353,7 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "frac" => FunctionArguments::with_range(1..=2),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" => FunctionArguments::unary(),
+        "cumsum" | "cummin" | "cummax" | "dense_rank" => FunctionArguments::unary(),
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
             FunctionArguments::binary()
         }
@@ -459,6 +499,14 @@ fn concretize_window_aggregations(
                 concrete_aggs.push((
                     agg.agg_name,
                     ConcreteWindowAggregation::Frac(expr, Sum::new(), decimals),
+                ));
+            }
+            "dense_rank" => {
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+
+                concrete_aggs.push((
+                    agg.agg_name,
+                    ConcreteWindowAggregation::DenseRank(expr, Vec::new(), VecDeque::new()),
                 ));
             }
             _ => unreachable!(),
@@ -607,8 +655,6 @@ impl WindowAggregationProgram {
         self.run_with_record_impl(index, record, false)
     }
 
-    // TODO: beware alignement issues, frac should work with holes, for instance
-    // TODO: avoid double expression evaluation (beware of unalignement when a value cannot hold)
     pub fn flush<F, E>(&mut self, mut from_index: usize, mut callback: F) -> Result<(), E>
     where
         F: FnMut(ByteRecord) -> Result<(), E>,
@@ -619,6 +665,10 @@ impl WindowAggregationProgram {
                 for (_, agg) in self.aggs.iter_mut() {
                     agg.aggregate_total(*index, record, &self.headers_index)?;
                 }
+            }
+
+            for (_, agg) in self.aggs.iter_mut() {
+                agg.finalize_total();
             }
 
             for (index, record) in total_buffer.iter() {
@@ -650,7 +700,7 @@ impl WindowAggregationProgram {
         F: FnMut(ByteRecord) -> Result<(), E>,
         E: From<SpecifiedEvaluationError>,
     {
-        let records = self.flush(from_index, callback)?;
+        self.flush(from_index, callback)?;
 
         if self.aggs.iter().any(|(_, agg)| agg.requires_total_buffer()) {
             self.total_buffer = Some(Vec::new());
@@ -668,6 +718,6 @@ impl WindowAggregationProgram {
             agg.clear();
         }
 
-        Ok(records)
+        Ok(())
     }
 }

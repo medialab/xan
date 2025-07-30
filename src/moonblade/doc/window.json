@@ -18,6 +18,18 @@
     "help": "Returns the cumulative sum of the numbers yielded by given expression."
   },
   {
+    "name": "dense_rank",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Returns the dense rank (there will be no gaps, but ties remain possible for a same rank) of numbers yielded by given expression. Beware, as this requires buffering whole file or group."
+  },
+  {
+    "name": "frac",
+    "arguments": ["<expr>", "decimals?"],
+    "returns": "number",
+    "help": "Returns the fraction represented by numbers yielded by given expression over the total sum of them. Beware, as this requires buffering whole file or group."
+  },
+  {
     "name": "lag",
     "arguments": ["<expr>", "steps?", "<expr>?"],
     "returns": "any",

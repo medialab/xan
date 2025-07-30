@@ -419,3 +419,37 @@ fn window_frac() {
 
     assert_eq!(got, expected);
 }
+
+#[test]
+fn window_dense_rank() {
+    let wrk = Workdir::new("window_dense_rank");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["n"],
+            svec!["20"],
+            svec!["10"],
+            svec!["30"],
+            svec!["10"],
+            svec!["20"],
+            svec!["20"],
+            svec!["20"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("dense_rank(n) as rank").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "rank"],
+        svec!["20", "2"],
+        svec!["10", "1"],
+        svec!["30", "3"],
+        svec!["10", "1"],
+        svec!["20", "2"],
+        svec!["20", "2"],
+        svec!["20", "2"],
+    ];
+
+    assert_eq!(got, expected);
+}

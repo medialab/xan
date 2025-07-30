@@ -48,12 +48,12 @@ the number of nodes in a graph represented by a CSV edge list.
 - **mode**(*\<expr\>*) -> `string`: Value appearing the most, breaking ties arbitrarily in favor of the first value in lexicographical order.
 - **most_common**(*k*, *\<expr\>*, *separator?*) -> `string`: List of top k most common values returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order.
 - **most_common_counts**(*k*, *\<expr\>*, *separator?*) -> `string`: List of top k most common counts returned by expression joined by a pipe character ('|') or by the provided separator. Ties will be broken by lexicographical order.
-- **percentage**(*\<expr\>*) -> `string`: Return the percentage of truthy values returned by expression.
+- **percentage**(*\<expr\>*, *decimals?*) -> `string`: Return the percentage of truthy values returned by expression, up to an optional number of decimal places.
 - **quantile**(*\<expr\>*, *q*) -> `number`: Return the desired quantile of numerical values.
 - **q1**(*\<expr\>*) -> `number`: Return the first quartile of numerical values.
 - **q2**(*\<expr\>*) -> `number`: Return the second quartile of numerical values.
 - **q3**(*\<expr\>*) -> `number`: Return the third quartile of numerical values.
-- **ratio**(*\<expr\>*) -> `number`: Return the ratio of truthy values returned by expression.
+- **ratio**(*\<expr\>*, *decimals?*) -> `number`: Return the ratio of truthy values returned by expression, up to an optional number of decimal places.
 - **rms**(*\<expr\>*) -> `number`: Return the Root Mean Square of numerical values.
 - **stddev**(*\<expr\>*) -> `number`: Population standard deviation. Same as `stddev_pop`.
 - **stddev_pop**(*\<expr\>*) -> `number`: Population standard deviation. Same as `stddev`.

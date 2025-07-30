@@ -3,6 +3,8 @@
 - **cummax**(*\<expr\>*) -> `number`: Returns the cumulative maximum of the numbers yielded by given expression.
 - **cummin**(*\<expr\>*) -> `number`: Returns the cumulative minimum of the numbers yielded by given expression.
 - **cumsum**(*\<expr\>*) -> `number`: Returns the cumulative sum of the numbers yielded by given expression.
+- **dense_rank**(*\<expr\>*) -> `number`: Returns the dense rank (there will be no gaps, but ties remain possible for a same rank) of numbers yielded by given expression. Beware, as this requires buffering whole file or group.
+- **frac**(*\<expr\>*, *decimals?*) -> `number`: Returns the fraction represented by numbers yielded by given expression over the total sum of them. Beware, as this requires buffering whole file or group.
 - **lag**(*\<expr\>*, *steps?*, *\<expr\>?*) -> `any`: Returns a value yielded by given expression, lagged by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come before first lagged value.
 - **lead**(*\<expr\>*, *steps?*, *\<expr\>?*) -> `any`: Returns a value yielded by given expression, leading by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come after last lead value.
 - **rolling_avg**(*window_size*, *\<expr\>*) -> `number`: Returns the rolling average in given window size of numbers yielded by given expression. Same as `rolling_mean`.
