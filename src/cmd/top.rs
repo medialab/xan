@@ -44,7 +44,7 @@ Common options:
                              Must be a single character.
 ";
 
-#[derive(PartialEq, PartialOrd, Ord, Eq)]
+#[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
 struct Forward<T>(T);
 
 #[derive(Deserialize)]

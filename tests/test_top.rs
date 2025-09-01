@@ -179,7 +179,7 @@ fn top_groubpy_rank() {
 fn top_ties() {
     let wrk = Workdir::new("top_ties");
     wrk.create(
-        "data.csv",
+        "data1.csv",
         vec![
             svec!["name", "score"],
             svec!["Sven", "10"],
@@ -192,7 +192,10 @@ fn top_ties() {
     );
 
     let mut cmd = wrk.command("top");
-    cmd.arg("score").args(["-l", "3"]).arg("-T").arg("data.csv");
+    cmd.arg("score")
+        .args(["-l", "3"])
+        .arg("-T")
+        .arg("data1.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -202,6 +205,30 @@ fn top_ties() {
         svec!["Mary", "5"],
         svec!["Elsa", "5"],
         svec!["John", "5"],
+    ];
+    assert_eq!(got, expected);
+
+    // Issue 771
+    wrk.create(
+        "data2.csv",
+        vec![
+            svec!["n", "name"],
+            svec!["1", "one"],
+            svec!["2", "two"],
+            svec!["2", "three"],
+            svec!["3", "four"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("n").args(["-l", "2"]).arg("-T").arg("data2.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "name"],
+        svec!["3", "four"],
+        svec!["2", "two"],
+        svec!["2", "three"],
     ];
     assert_eq!(got, expected);
 }

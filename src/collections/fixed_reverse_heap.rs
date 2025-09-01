@@ -208,9 +208,18 @@ impl<T: Ord, V> FixedReverseHeapMapWithTies<T, V> {
 
             match item.cmp(&worst_item.0 .0) {
                 Ordering::Greater => {
-                    heap.pop();
+                    let mut worst_item_popped = heap.pop().unwrap();
+
                     heap.push((Reverse(item), Arbitrary(callback())));
+
                     self.ties.clear();
+
+                    if worst_item_popped.0 .0 == heap.peek().unwrap().0 .0 {
+                        std::mem::swap(&mut heap.peek_mut().unwrap().1, &mut worst_item_popped.1);
+                        self.ties
+                            .push((worst_item_popped.0 .0, worst_item_popped.1 .0));
+                    }
+
                     return true;
                 }
                 Ordering::Equal => {
@@ -315,6 +324,20 @@ mod tests {
         assert_eq!(
             heap.clone().into_sorted_vec(),
             vec![(3, "three"), (2, "two"), (2, "four"), (2, "five")]
+        );
+    }
+
+    #[test]
+    fn test_map_with_ties_special_order() {
+        let mut heap = FixedReverseHeapMapWithTies::with_capacity(2);
+        heap.push_with(1, || "one");
+        heap.push_with(2, || "two");
+        heap.push_with(2, || "three");
+        heap.push_with(3, || "four");
+
+        assert_eq!(
+            heap.clone().into_sorted_vec(),
+            vec![(3, "four"), (2, "two"), (2, "three")]
         );
     }
 }
