@@ -31,7 +31,11 @@ fn partition() {
     wrk.create("in.csv", data(true));
 
     let mut cmd = wrk.command("partition");
-    cmd.arg("state").arg("-O").arg(&wrk.path(".")).arg("in.csv");
+    cmd.arg("state")
+        .arg("-C")
+        .arg("-O")
+        .arg(&wrk.path("."))
+        .arg("in.csv");
     wrk.run(&mut cmd);
 
     part_eq!(
@@ -63,6 +67,43 @@ TX,Fort Worth
 }
 
 #[test]
+fn partition_case_insensitive() {
+    let wrk = Workdir::new("partition_case_insensitive");
+    wrk.create("in.csv", data(true));
+
+    let mut cmd = wrk.command("partition");
+    cmd.arg("state").arg("-O").arg(&wrk.path(".")).arg("in.csv");
+    wrk.run(&mut cmd);
+
+    part_eq!(
+        wrk,
+        "ca.csv",
+        "\
+state,city
+CA,San Francisco
+"
+    );
+    part_eq!(
+        wrk,
+        "ny.csv",
+        "\
+state,city
+NY,Manhattan
+NY,Buffalo
+"
+    );
+    part_eq!(
+        wrk,
+        "tx.csv",
+        "\
+state,city
+TX,Dallas
+TX,Fort Worth
+"
+    );
+}
+
+#[test]
 fn partition_drop() {
     let wrk = Workdir::new("partition_drop");
     wrk.create("in.csv", data(true));
@@ -70,6 +111,7 @@ fn partition_drop() {
     let mut cmd = wrk.command("partition");
     cmd.arg("--drop")
         .arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -111,6 +153,7 @@ fn partition_without_headers() {
     let mut cmd = wrk.command("partition");
     cmd.arg("--no-headers")
         .arg("0")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -150,6 +193,7 @@ fn partition_drop_without_headers() {
     cmd.arg("--drop")
         .arg("--no-headers")
         .arg("0")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -187,6 +231,7 @@ fn partition_into_new_directory() {
 
     let mut cmd = wrk.command("partition");
     cmd.arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("out"))
         .arg("in.csv");
@@ -203,6 +248,7 @@ fn partition_custom_filename() {
     let mut cmd = wrk.command("partition");
     cmd.args(["--filename", "state-{}-partition.csv"])
         .arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -219,6 +265,7 @@ fn partition_custom_filename_with_directory() {
     let mut cmd = wrk.command("partition");
     cmd.args(["--filename", "{}/cities.csv"])
         .arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -236,6 +283,7 @@ fn partition_invalid_filename() {
     let mut cmd = wrk.command("partition");
     cmd.args(["--filename", "foo.csv"])
         .arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -244,6 +292,7 @@ fn partition_invalid_filename() {
     let mut cmd = wrk.command("partition");
     cmd.args(["--filename", "{}{}.csv"])
         .arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -270,7 +319,11 @@ fn partition_with_tricky_key_values() {
     wrk.create("in.csv", tricky_data());
 
     let mut cmd = wrk.command("partition");
-    cmd.arg("key").arg("-O").arg(&wrk.path(".")).arg("in.csv");
+    cmd.arg("key")
+        .arg("-C")
+        .arg("-O")
+        .arg(&wrk.path("."))
+        .arg("in.csv");
     wrk.run(&mut cmd);
 
     part_eq!(
@@ -352,6 +405,7 @@ fn partition_with_prefix_length() {
     let mut cmd = wrk.command("partition");
     cmd.args(["--prefix-length", "1"])
         .arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("in.csv");
@@ -399,6 +453,7 @@ fn partition_sorted() {
 
     let mut cmd = wrk.command("partition");
     cmd.arg("state")
+        .arg("-C")
         .arg("-O")
         .arg(&wrk.path("."))
         .arg("-S")

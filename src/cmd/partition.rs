@@ -11,10 +11,15 @@ use crate::util::{self, FilenameTemplate, ImmutableRecordHelpers};
 use crate::CliResult;
 
 static USAGE: &str = "
-Partitions the given CSV data into chunks based on the value of a column
+Partition the given CSV data into chunks based on the values of a column.
 
 The files are written to the output directory with filenames based on the
 values in the partition column and the `--filename` flag.
+
+By default, values used to create filenames are normalized to lowercase so that
+the command works properly on case-insensitive filesystems (e.g. on macOS). If
+you know your filesystem is case-sensitive and want filenames better aligned
+on original values, use the -C/--case-sensitive flag.
 
 Note that most operating systems avoid opening more than 1024 files at once,
 so if you know the cardinality of the paritioned column is very high, please
@@ -40,6 +45,9 @@ partition options:
                                can run faster and with less memory and resources
                                opened.
     --drop                     Drop the partition column from results.
+    -C, --case-sensitive       Don't normalize values to lowercase to produce filename.
+                               Only use on case-sensitive filesystems or this can have
+                               adverse effects!
 
 Common options:
     -h, --help             Display this message
@@ -61,6 +69,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_sorted: bool,
+    flag_case_sensitive: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -102,7 +111,8 @@ impl Args {
         let mut rdr = rconfig.reader()?;
         let mut headers = rdr.byte_headers()?.clone();
         let key_col = self.key_column(&rconfig, &headers)?;
-        let mut generator = WriterGenerator::new(self.flag_filename.clone());
+        let mut generator =
+            WriterGenerator::new(self.flag_filename.clone(), self.flag_case_sensitive);
         let out_dir = match &self.flag_out_dir {
             Some(dir) => Path::new(dir),
             None => Path::new(""),
@@ -192,15 +202,17 @@ struct WriterGenerator {
     counter: usize,
     used: HashSet<String>,
     non_word_char: Regex,
+    case_sensitive: bool,
 }
 
 impl WriterGenerator {
-    fn new(template: FilenameTemplate) -> WriterGenerator {
+    fn new(template: FilenameTemplate, case_sensitive: bool) -> WriterGenerator {
         WriterGenerator {
             template,
             counter: 1,
             used: HashSet::new(),
             non_word_char: Regex::new(r"[^\w_.\-]").unwrap(),
+            case_sensitive,
         }
     }
 
@@ -220,11 +232,15 @@ impl WriterGenerator {
         // Sanitize our key.
         let utf8 = String::from_utf8_lossy(key);
         let safe = self.non_word_char.replace_all(&utf8, "").into_owned();
-        let base = if safe.is_empty() {
+        let mut base = if safe.is_empty() {
             "empty".to_owned()
         } else {
             safe
         };
+
+        if !self.case_sensitive {
+            base = base.to_lowercase();
+        }
 
         // Now check for collisions.
         if !self.used.contains(&base) {

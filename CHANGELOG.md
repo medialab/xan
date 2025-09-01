@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.53.0 (provisional)
+
+*Breaking*
+
+* `xan partition` now normalizes filenames to lowercase to correctly deal with case-insensitive filesystems. `xan partition` also gets a related `-C/--case-sensitive` flag.
+
 ## 0.52.0
 
 *Breaking*
