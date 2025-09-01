@@ -47,37 +47,37 @@
         "name": "eq",
         "arguments": ["s1", "s2"],
         "returns": "bool",
-        "help": "Test string or sequence equality."
+        "help": "Test string or list equality."
       },
       {
         "name": "ne",
         "arguments": ["s1", "s2"],
         "returns": "bool",
-        "help": "Test string or sequence inequality."
+        "help": "Test string or list inequality."
       },
       {
         "name": "gt",
         "arguments": ["s1", "s2"],
         "returns": "bool",
-        "help": "Test string or sequence s1 > s2."
+        "help": "Test string or list s1 > s2."
       },
       {
         "name": "ge",
         "arguments": ["s1", "s2"],
         "returns": "bool",
-        "help": "Test string or sequence s1 >= s2."
+        "help": "Test string or list s1 >= s2."
       },
       {
         "name": "lt",
         "arguments": ["s1", "s2"],
         "returns": "bool",
-        "help": "Test string or sequence s1 < s2."
+        "help": "Test string or list s1 < s2."
       },
       {
         "name": "le",
         "arguments": ["s1", "s2"],
         "returns": "bool",
-        "help": "Test string or sequence s1 <= s2."
+        "help": "Test string or list s1 <= s2."
       }
     ]
   },
@@ -390,19 +390,19 @@
         "name": "first",
         "arguments": ["seq"],
         "returns": "T",
-        "help": "Get first element of sequence."
+        "help": "Get first char of string or first item of list."
       },
       {
         "name": "last",
         "arguments": ["seq"],
         "returns": "T",
-        "help": "Get last element of sequence."
+        "help": "Get last char of string or first item of list."
       },
       {
         "name": "len",
         "arguments": ["seq"],
         "returns": "int",
-        "help": "Get length of sequence."
+        "help": "Get number of chars in string or number of items in list."
       },
       {
         "name": "get",
@@ -418,7 +418,7 @@
         "name": "slice",
         "arguments": ["seq", "start", "end?"],
         "returns": "seq",
-        "help": "Return slice of sequence."
+        "help": "Return slice of string or list."
       }
     ]
   },
@@ -459,7 +459,7 @@
         "name": "join",
         "arguments": ["list", "sep"],
         "returns": "string",
-        "help": "Join sequence by separator."
+        "help": "Join list by separator."
       },
       {
         "name": "map",

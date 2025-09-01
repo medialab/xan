@@ -124,12 +124,12 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Comparison
 
-- **eq**(*s1*, *s2*) -> `bool`: Test string or sequence equality.
-- **ne**(*s1*, *s2*) -> `bool`: Test string or sequence inequality.
-- **gt**(*s1*, *s2*) -> `bool`: Test string or sequence s1 > s2.
-- **ge**(*s1*, *s2*) -> `bool`: Test string or sequence s1 >= s2.
-- **lt**(*s1*, *s2*) -> `bool`: Test string or sequence s1 < s2.
-- **le**(*s1*, *s2*) -> `bool`: Test string or sequence s1 <= s2.
+- **eq**(*s1*, *s2*) -> `bool`: Test string or list equality.
+- **ne**(*s1*, *s2*) -> `bool`: Test string or list inequality.
+- **gt**(*s1*, *s2*) -> `bool`: Test string or list s1 > s2.
+- **ge**(*s1*, *s2*) -> `bool`: Test string or list s1 >= s2.
+- **lt**(*s1*, *s2*) -> `bool`: Test string or list s1 < s2.
+- **le**(*s1*, *s2*) -> `bool`: Test string or list s1 <= s2.
 
 ## Arithmetics
 
@@ -196,13 +196,13 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **contains**(*string*, *regex*) -> `bool`: If target is a string: return whether substring can be found in it or return whether given regular expression matched.<br>If target is a list, returns whether given item was found in it.<br>If target is a map, returns whether given key was found in it.
 - **contains**(*list*, *item*) -> `bool`: If target is a string: return whether substring can be found in it or return whether given regular expression matched.<br>If target is a list, returns whether given item was found in it.<br>If target is a map, returns whether given key was found in it.
 - **contains**(*map*, *key*) -> `bool`: If target is a string: return whether substring can be found in it or return whether given regular expression matched.<br>If target is a list, returns whether given item was found in it.<br>If target is a map, returns whether given key was found in it.
-- **first**(*seq*) -> `T`: Get first element of sequence.
-- **last**(*seq*) -> `T`: Get last element of sequence.
-- **len**(*seq*) -> `int`: Get length of sequence.
+- **first**(*seq*) -> `T`: Get first char of string or first item of list.
+- **last**(*seq*) -> `T`: Get last char of string or first item of list.
+- **len**(*seq*) -> `int`: Get number of chars in string or number of items in list.
 - **get**(*string*, *index*, *default?*) -> `any`: If target is a string, return the nth unicode char. If target is a list, return the nth item. Indices are zero-based and can be negative to access items in reverse. If target is a map, return the value associated with given key. All variants can also take a default value when desired item is not found.
 - **get**(*list*, *index*, *default?*) -> `any`: If target is a string, return the nth unicode char. If target is a list, return the nth item. Indices are zero-based and can be negative to access items in reverse. If target is a map, return the value associated with given key. All variants can also take a default value when desired item is not found.
 - **get**(*map*, *key*, *default?*) -> `any`: If target is a string, return the nth unicode char. If target is a list, return the nth item. Indices are zero-based and can be negative to access items in reverse. If target is a map, return the value associated with given key. All variants can also take a default value when desired item is not found.
-- **slice**(*seq*, *start*, *end?*) -> `seq`: Return slice of sequence.
+- **slice**(*seq*, *start*, *end?*) -> `seq`: Return slice of string or list.
 
 ## Lists
 
@@ -211,7 +211,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **find**(*list*, *lambda*) -> `any?`: Return the first item of a list for which given lambda returned true.<br>For instance: `find(names, name => name.startswith('A'))`
 - **find_index**(*list*, *lambda*) -> `int?`: Return the index of the first item of a list for which given lambda returned true.<br>For instance: `find_index(names, name => name.startswith('A'))`
 - **index_by**(*list*, *key*) -> `map`: Take a list of maps and a key name and return an indexed map from selected keys to the original maps.
-- **join**(*list*, *sep*) -> `string`: Join sequence by separator.
+- **join**(*list*, *sep*) -> `string`: Join list by separator.
 - **map**(*list*, *lambda*) -> `list`: Return a list with elements transformed by given lambda.<br>For instance: `map(numbers, n => n + 3)`
 - **mean**(*numbers*) -> `number?`: Return the mean of the given numbers.
 - **sum**(*numbers*) -> `number?`: Return the sum of the given numbers, or nothing if the sum overflowed.
