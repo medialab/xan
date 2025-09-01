@@ -11,7 +11,6 @@ use pest::{
 use pest_derive::Parser;
 
 use super::functions::get_function;
-use super::types::DynamicValue;
 use super::utils::downgrade_float;
 
 #[derive(Parser)]
@@ -210,7 +209,6 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                     Expr::Map(map)
                 }
                 Rule::int => Expr::Int(parse_int(primary)?),
-                Rule::star_slice_int => Expr::Int(parse_int(primary)?),
                 Rule::float => {
                     let n = primary
                         .as_str()
@@ -430,7 +428,6 @@ pub enum Expr {
     Map(Vec<(String, Expr)>),
     Regex(String, bool),
     Slice(Slice<Box<Expr>>),
-    StarSlice(Slice<DynamicValue>),
     Bool(bool),
     Underscore,
     Null,
@@ -631,53 +628,7 @@ pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, Parse
     pairs
         .filter(|p| !matches!(p.as_rule(), Rule::EOI))
         .map(|p| {
-            let (name, p) = if p.as_rule() == Rule::star_slice {
-                let mut inner = p.into_inner();
-                let dummy_name = "".to_string();
-
-                if inner.len() == 0 {
-                    return Ok((Expr::StarSlice(Slice::Full), dummy_name));
-                } else if inner.len() == 1 {
-                    let slice = inner.next().unwrap();
-                    let start = slice.as_rule() == Rule::start_star_slice;
-
-                    let expr = pratt_parse(Pairs::single(slice.into_inner().next().unwrap()))?;
-                    let value = match expr {
-                        Expr::Int(i) => DynamicValue::Integer(i),
-                        Expr::Str(s) => DynamicValue::from(s),
-                        _ => unreachable!(),
-                    };
-
-                    if start {
-                        return Ok((Expr::StarSlice(Slice::From(value)), dummy_name));
-                    }
-
-                    return Ok((Expr::StarSlice(Slice::To(value)), dummy_name));
-                } else {
-                    let start = inner.next().unwrap();
-                    let end = inner.next().unwrap();
-
-                    let start_expr =
-                        pratt_parse(Pairs::single(start.into_inner().next().unwrap()))?;
-                    let end_expr = pratt_parse(Pairs::single(end.into_inner().next().unwrap()))?;
-
-                    let start_value = match start_expr {
-                        Expr::Int(i) => DynamicValue::Integer(i),
-                        Expr::Str(s) => DynamicValue::from(s),
-                        _ => unreachable!(),
-                    };
-                    let end_value = match end_expr {
-                        Expr::Int(i) => DynamicValue::Integer(i),
-                        Expr::Str(s) => DynamicValue::from(s),
-                        _ => unreachable!(),
-                    };
-
-                    return Ok((
-                        Expr::StarSlice(Slice::Closed(start_value, end_value)),
-                        dummy_name,
-                    ));
-                }
-            } else {
+            let (name, p) = {
                 match p.as_rule() {
                     Rule::expr => (p.as_span().as_str().to_string(), p),
                     Rule::named_expr => {

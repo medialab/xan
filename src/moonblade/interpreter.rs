@@ -666,7 +666,7 @@ pub fn concretize_expression(
                 .collect::<Result<Vec<_>, _>>()?,
         ),
         Expr::LambdaBinding(name) => ConcreteExpr::LambdaBinding(name),
-        Expr::Slice(_) | Expr::StarSlice(_) => unreachable!(),
+        Expr::Slice(_) => unreachable!(),
     })
 }
 
