@@ -116,3 +116,7 @@ uuid = { version = "1.16.0", features = ["v4"] }
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]
 pager = "0.16.1"
+
+# NOTE: musl's default allocator seems to be very slow
+[target.'cfg(all(target_env = "musl", target_pointer_width = "64"))'.dependencies]
+jemallocator = "0.5.4"

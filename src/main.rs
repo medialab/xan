@@ -25,6 +25,10 @@ mod urls;
 mod util;
 mod xml;
 
+#[cfg(all(target_env = "musl", target_pointer_width = "64"))]
+#[global_allocator]
+static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 macro_rules! command_list {
     () => {
         "
