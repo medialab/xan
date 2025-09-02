@@ -1,3 +1,5 @@
+use std::fs;
+
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
@@ -36,6 +38,10 @@ transform multiple columns at once using a selection:
 
     $ xan transform name,surname,fullname upper
 
+The expression can optionally be read from a file using the -f/--evaluate-file flag:
+
+    $ xan transform name -f expr.moonblade file.csv > result.csv
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -46,6 +52,7 @@ Usage:
     xan transform --help
 
 transform options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     -r, --rename <name>        New name for the transformed column.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
@@ -74,10 +81,23 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
+    flag_evaluate_file: bool,
+}
+
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate_file {
+            self.arg_expression = fs::read_to_string(&self.arg_expression)?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve()?;
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter)

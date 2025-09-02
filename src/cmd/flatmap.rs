@@ -1,3 +1,5 @@
+use std::fs;
+
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
@@ -66,6 +68,10 @@ Will produce the following result:
 name,age,surname
 Mary Sue,45,Sue
 
+The expression can optionally be read from a file using the -f/--evaluate-file flag:
+
+    $ xan flatmap -f expr.moonblade surname file.csv > result.csv
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -76,6 +82,7 @@ Usage:
     xan flatmap --help
 
 flatmap options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     -r, --replace <column>     Name of the column that will be replaced by the mapped values.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
@@ -104,10 +111,23 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_replace: Option<SelectColumns>,
+    flag_evaluate_file: bool,
+}
+
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate_file {
+            self.arg_expression = fs::read_to_string(&self.arg_expression)?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve()?;
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter);

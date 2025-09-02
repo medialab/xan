@@ -61,6 +61,10 @@ Will produce the following result:
 name,age,surname
 Mary Sue,45,Sue
 
+The expression can optionally be read from a file using the -f/--evaluate-file flag:
+
+    $ xan flatmap -f expr.moonblade surname file.csv > result.csv
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -71,6 +75,7 @@ Usage:
     xan flatmap --help
 
 flatmap options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     -r, --replace <column>     Name of the column that will be replaced by the mapped values.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use

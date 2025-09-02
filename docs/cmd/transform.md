@@ -31,6 +31,10 @@ transform multiple columns at once using a selection:
 
     $ xan transform name,surname,fullname upper
 
+The expression can optionally be read from a file using the -f/--evaluate-file flag:
+
+    $ xan transform name -f expr.moonblade file.csv > result.csv
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -41,6 +45,7 @@ Usage:
     xan transform --help
 
 transform options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     -r, --rename <name>        New name for the transformed column.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use

@@ -1,3 +1,5 @@
+use std::fs;
+
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
@@ -26,6 +28,10 @@ a
 2
 3
 
+The expression can optionally be read from a file using the -f/--evaluate-file flag:
+
+    $ xan filter -f expr.moonblade file.csv > result.csv
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -36,17 +42,18 @@ Usage:
     xan filter --help
 
 filter options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
+    -v, --invert-match         If set, will invert the evaluated value.
+    -l, --limit <n>            Maximum number of rows to return. Useful to avoid downstream
+                               buffering some times (e.g. when searching for very few
+                               rows in a big file before piping to `view` or `flatten`).
+                               Does not work when parallelizing.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to
                                indicate the number of threads yourself.
     -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
                                if you want the number of threads to be automatically chosen instead.
-    -v, --invert-match         If set, will invert the evaluated value.
-    -l, --limit <n>            Maximum number of rows to return. Useful to avoid downstream
-                               buffering some times (e.g. when searching for very few
-                               rows in a big file before piping to `view` or `flatten`).
-                               Does not work when parallelizing.
 
 Common options:
     -h, --help               Display this message
@@ -68,10 +75,23 @@ struct Args {
     flag_limit: Option<usize>,
     flag_threads: Option<usize>,
     flag_invert_match: bool,
+    flag_evaluate_file: bool,
+}
+
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_evaluate_file {
+            self.arg_expression = fs::read_to_string(&self.arg_expression)?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve()?;
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter);

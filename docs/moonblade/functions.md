@@ -169,7 +169,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **pad**(*string*, *width*, *char?*) -> `string`: Pad given string with spaces or given character so that it is least given width.
 - **lpad**(*string*, *width*, *char?*) -> `string`: Left pad given string with spaces or given character so that it is least given width.
 - **rpad**(*string*, *width*, *char?*) -> `string`: Right pad given string with spaces or given character so that it is least given width.
-- **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments.
+- **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments. Arguments can also be provided as a list.<br>For instance: `split('John Landy') | printf('first: %s, last: %s', _)`
 - **numfmt**(*number*) -> `string`: Format a number with thousands separator and proper significance.
 - **trim**(*string*, *chars?*) -> `string`: Trim string of leading & trailing whitespace or provided characters.
 - **to_fixed**(*number*, *precision*) -> `string`: Format given number using fixed point notation with speficied number of decimal places.
@@ -206,6 +206,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Lists
 
+- **all**(*list*, *lambda*) -> `bool`: Returns whether the given lambda returned true for all elements of the list.<br>For instance: `all(names, name.startswith('A'))`
+- **any**(*list*, *lambda*) -> `bool`: Returns whether the given lambda returned true for any element of the list.<br>For instance: `any(names, name.startswith('A'))`
 - **compact**(*list*) -> `list`: Drop all falsey values from given list.
 - **filter**(*list*, *lambda*) -> `list`: Return a list containing only elements for which given lambda returned true.<br>For instance: `filter(names, name => name.startswith('A'))`
 - **find**(*list*, *lambda*) -> `any?`: Return the first item of a list for which given lambda returned true.<br>For instance: `find(names, name => name.startswith('A'))`

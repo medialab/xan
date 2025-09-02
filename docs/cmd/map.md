@@ -32,6 +32,10 @@ a,b,c,d
 1,4,5,4
 5,2,7,10
 
+The expression can optionally be read from a file using the -f/--evaluate-file flag:
+
+    $ xan map -f expr.moonblade file.csv > result.csv
+
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
@@ -52,6 +56,7 @@ Usage:
     xan map --help
 
 map options:
+    -f, --evaluate-file        Read evaluation expression from a file instead.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to
