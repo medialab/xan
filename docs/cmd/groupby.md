@@ -46,7 +46,7 @@ john,4,6
 
 Using the following command:
 
-    $ xan groupby user --along-cols count1,count2 'sum(cell)' file.csv
+    $ xan groupby user --along-cols count1,count2 'sum(_)' file.csv
 
 Will produce the following result:
 
