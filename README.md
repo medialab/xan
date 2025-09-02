@@ -438,7 +438,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 ### Evaluating an expression to create a new column based on other ones
 
 ```bash
-xan map 'fmt("{} ({})", name, foundation_year)' key medias.csv | xan select key | xan slice -l 10
+xan map 'fmt("{} ({})", name, foundation_year) as key' medias.csv | xan select key | xan slice -l 10
 ```
 
 ```
