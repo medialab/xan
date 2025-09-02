@@ -426,6 +426,18 @@
     "title": "Lists",
     "functions": [
       {
+        "name": "all",
+        "arguments": ["list", "lambda"],
+        "returns": "bool",
+        "help": "Returns whether the given lambda returned true for all elements of the list.\nFor instance: `all(names, name.startswith('A'))`"
+      },
+      {
+        "name": "any",
+        "arguments": ["list", "lambda"],
+        "returns": "bool",
+        "help": "Returns whether the given lambda returned true for any element of the list.\nFor instance: `any(names, name.startswith('A'))`"
+      },
+      {
         "name": "compact",
         "arguments": ["list"],
         "returns": "list",

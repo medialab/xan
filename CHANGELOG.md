@@ -6,13 +6,17 @@
 
 * `xan partition` now normalizes filenames to lowercase to correctly deal with case-insensitive filesystems. `xan partition` also gets a related `-C/--case-sensitive` flag.
 
-*Performance*
+*Features*
 
-* Using `jemallocator` for musl builds.
+* Adding `all` and `any` moonblade higher-order functions.
 
 *Fixes*
 
 * Fixing `xan top -T/--ties` edge case.
+
+*Performance*
+
+* Using `jemallocator` for musl builds.
 
 ## 0.52.0
 

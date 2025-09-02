@@ -153,6 +153,8 @@ pub fn get_special_function(
         "filter" => higher_order_fn!("filter", Filter),
         "find" => higher_order_fn!("find", Find),
         "find_index" => higher_order_fn!("find_index", FindIndex),
+        "all" => higher_order_fn!("all", All),
+        "any" => higher_order_fn!("any", Any),
 
         _ => return None,
     })
@@ -462,6 +464,8 @@ enum HigherOrderOperation {
     Map,
     Find,
     FindIndex,
+    All,
+    Any,
 }
 
 fn runtime_higher_order(
@@ -562,6 +566,32 @@ fn runtime_higher_order(
             }
 
             Ok(DynamicValue::None)
+        }
+        HigherOrderOperation::All => {
+            for item in list.iter() {
+                variables.set(item_arg_index, item.clone());
+
+                let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
+
+                if result.is_falsey() {
+                    return Ok(DynamicValue::Boolean(false));
+                }
+            }
+
+            Ok(DynamicValue::Boolean(true))
+        }
+        HigherOrderOperation::Any => {
+            for item in list.iter() {
+                variables.set(item_arg_index, item.clone());
+
+                let result = lambda.evaluate(&context.with_lambda_variables(&variables))?;
+
+                if result.is_truthy() {
+                    return Ok(DynamicValue::Boolean(true));
+                }
+            }
+
+            Ok(DynamicValue::Boolean(false))
         }
     }
 }
