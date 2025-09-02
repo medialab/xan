@@ -276,7 +276,7 @@
         "name": "printf",
         "arguments": ["format", "*arguments"],
         "returns": "string",
-        "help": "Apply printf formatting with given format and arguments."
+        "help": "Apply printf formatting with given format and arguments. Arguments can also be provided as a list.\nFor instance: `split('John Landy') | printf('first: %s, last: %s', _)`"
       },
       {
         "name": "numfmt",

@@ -9,6 +9,7 @@
 *Features*
 
 * Adding `all` and `any` moonblade higher-order functions.
+* Allowing moonblade `printf` function to be called with lists.
 
 *Fixes*
 
@@ -17,6 +18,10 @@
 *Performance*
 
 * Using `jemallocator` for musl builds.
+
+*Quality of Life*
+
+* Better moonblade `printf` function error messages.
 
 ## 0.52.0
 

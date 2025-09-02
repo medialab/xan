@@ -571,21 +571,29 @@ fn printf(args: BoundArguments) -> FunctionResult {
 
     let mut fmt_args: Vec<Box<dyn sprintf::Printf>> = Vec::with_capacity(l);
 
+    fn arg_to_printf(arg: &DynamicValue) -> Result<Box<dyn sprintf::Printf>, EvaluationError> {
+        Ok(match arg {
+            DynamicValue::Integer(i) => Box::new(*i),
+            DynamicValue::Float(f) => Box::new(*f),
+            _ => Box::new(arg.try_as_str()?.into_owned()),
+        })
+    }
+
     for arg in args_iter {
-        match arg {
-            DynamicValue::Integer(i) => fmt_args.push(Box::new(i)),
-            DynamicValue::Float(f) => fmt_args.push(Box::new(f)),
-            _ => fmt_args.push(Box::new(arg.try_as_str()?.into_owned())),
-        };
+        if let DynamicValue::List(list) = arg {
+            for sub_arg in list.iter() {
+                fmt_args.push(arg_to_printf(sub_arg)?);
+            }
+        } else {
+            fmt_args.push(arg_to_printf(&arg)?);
+        }
     }
 
     let fmt_args_refs = fmt_args.iter().map(|b| b.as_ref()).collect::<Vec<_>>();
 
     match sprintf::vsprintf(&fmt, &fmt_args_refs) {
         Ok(string) => Ok(DynamicValue::from(string)),
-        Err(_) => Err(EvaluationError::Custom(
-            "printf formatting error".to_string(),
-        )),
+        Err(error) => Err(EvaluationError::Custom(error.to_string())),
     }
 }
 
