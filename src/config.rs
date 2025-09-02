@@ -488,7 +488,7 @@ impl Config {
         let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
         let mut reader_builder = self.csv_reader_builder();
         reader_builder.has_headers(false);
-        dbg!(offset, filesize);
+
         Ok((
             headers,
             reader_builder.from_reader(Box::new(reverse_reader)),
