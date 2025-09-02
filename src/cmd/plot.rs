@@ -2,6 +2,7 @@
 //  - https://github.com/ratatui/ratatui/issues/334
 //  - https://github.com/ratatui/ratatui/issues/1391
 use std::convert::TryFrom;
+use std::io::{stderr, stdout, Write};
 use std::num::NonZeroUsize;
 
 use ahash::RandomState;
@@ -472,7 +473,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if series_builder.is_empty() {
-        println!("Nothing to display!");
+        writeln!(&mut stderr(), "Nothing to display!")?;
         return Ok(());
     }
 
@@ -660,7 +661,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if first_grid_col {
                     first_grid_col = false;
                 } else {
-                    println!();
+                    writeln!(&mut stdout())?;
                 }
 
                 print_ratatui_frame_to_stdout(cols, rows, |frame| {

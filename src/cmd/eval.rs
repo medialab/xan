@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, stdout, Write};
 
 use colored::Colorize;
 
@@ -35,6 +35,8 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    let mut out = stdout();
+
     let mut dummy_headers = csv::ByteRecord::new();
 
     if let Some(headers) = &args.flag_headers {
@@ -46,8 +48,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let program = Program::parse(&args.arg_expr, &dummy_headers)?;
 
     if args.flag_explain {
-        println!("{}", "concrete plan".cyan());
-        println!("{:#?}\n", program.expr);
+        writeln!(&mut out, "{}", "concrete plan".cyan())?;
+        writeln!(&mut out, "{:#?}\n", program.expr)?;
     }
 
     let mut dummy_row = csv::ByteRecord::new();
@@ -67,11 +69,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_serialize {
         print!("{} ", "result".cyan());
         io::stdout().write_all(&value.serialize_as_bytes())?;
-        println!();
-        println!("{}   {}", "type".cyan(), value.type_of());
+        writeln!(&mut out)?;
+        writeln!(&mut out, "{}   {}", "type".cyan(), value.type_of())?;
     } else {
-        println!("{} ", "result".cyan());
-        println!("{:#?}", value);
+        writeln!(&mut out, "{} ", "result".cyan())?;
+        writeln!(&mut out, "{:#?}", value)?;
     }
 
     Ok(())

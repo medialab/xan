@@ -103,6 +103,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
+    let mut out = Config::new(&args.flag_output).io_writer()?;
+
     let mut name_counts = BTreeMap::<String, usize>::new();
 
     for headers in headers_per_input.iter() {
@@ -126,31 +128,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .enumerate()
     {
         if !single_input {
-            println!(
+            writeln!(
+                &mut out,
                 "{}",
                 conf.path
                     .as_ref()
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_else(|| "<stdin>".to_string())
                     .cyan()
-            );
+            )?;
         }
 
         let duplicates = find_duplicates(&headers);
 
         for (j, header) in headers.into_iter().enumerate() {
             if !args.flag_just_names {
-                print!(
+                write!(
+                    &mut out,
                     "{}",
                     util::unicode_aware_rpad(
                         &(args.flag_start + j).to_string(),
                         left_column_size,
                         " "
                     )
-                );
+                )?;
             }
 
-            println!(
+            writeln!(
+                &mut out,
                 "{}",
                 if duplicates.contains(&header) {
                     header.red()
@@ -159,11 +164,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 } else {
                     header.normal()
                 }
-            );
+            )?;
         }
 
         if i < configs.len() - 1 {
-            println!();
+            writeln!(&mut out)?;
         }
     }
 
@@ -171,9 +176,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let same_headers_everywhere = name_counts.values().all(|c| *c == configs.len());
 
         if same_headers_everywhere {
-            println!("{}", "\nAll files have the same headers!".green());
+            writeln!(&mut out, "{}", "\nAll files have the same headers!".green())?;
         } else {
-            println!("{}", "\nAll files don't have the same headers!".yellow());
+            writeln!(
+                &mut out,
+                "{}",
+                "\nAll files don't have the same headers!".yellow()
+            )?;
 
             let diverging_headers = name_counts
                 .iter()
@@ -187,7 +196,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            println!("{} {}", "Diverging headers:".yellow(), diverging_headers);
+            writeln!(
+                &mut out,
+                "{} {}",
+                "Diverging headers:".yellow(),
+                diverging_headers
+            )?;
         }
     }
 

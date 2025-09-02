@@ -1,3 +1,5 @@
+use std::io::{stdout, Write};
+
 use crate::config::{Config, Delimiter};
 use crate::moonblade::PivotAggregationProgram;
 use crate::select::{SelectColumns, Selection};
@@ -94,7 +96,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_p >= 3 {
-        println!("{}", include_str!("../moonblade/doc/pivot.txt"));
+        writeln!(
+            &mut stdout(),
+            "{}",
+            include_str!("../moonblade/doc/pivot.txt")
+        )?;
         return Ok(());
     }
 

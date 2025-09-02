@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::io::{stdout, Write};
 
 use ahash::RandomState;
 use colored::Colorize;
@@ -107,6 +108,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-c, --category cannot work with -R, --rainbow")?;
     }
 
+    let mut out = stdout();
+
     let mut rdr = conf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
@@ -209,7 +212,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-m/--domain-max should be >= 0!")?;
         }
 
-        println!(
+        writeln!(
+            &mut out,
             "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}):\n",
             histogram.field.green(),
             util::format_number(histogram.len()).cyan(),
@@ -217,7 +221,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             unit.cyan(),
             util::format_number(histogram.max().unwrap()).cyan(),
             unit.cyan(),
-        );
+        )?;
 
         let pct_cols: usize = if args.flag_hide_percent { 0 } else { 8 };
 
@@ -256,7 +260,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
         {
             if bar_opt.is_none() {
-                println!("...");
+                writeln!(&mut out, "...")?;
                 continue;
             }
 
@@ -301,7 +305,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 _ => label.normal(),
             };
 
-            println!(
+            writeln!(
+                &mut out,
                 "{} |{}{}{}|{}|",
                 label,
                 util::unicode_aware_lpad_with_ellipsis(
@@ -317,7 +322,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     format!(" {:>6.2}%", bar.value / sum * 100.0).purple()
                 },
                 bar_as_chars
-            );
+            )?;
         }
 
         // Printing the categorical legend
@@ -325,17 +330,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let category_column_name =
                 std::str::from_utf8(&headers[category_col]).expect("could not decode header");
 
-            println!("\nColors by {}:", category_column_name.green());
+            writeln!(&mut out, "\nColors by {}:", category_column_name.green())?;
 
             for (category, color_index) in &category_colors {
-                println!(
+                writeln!(
+                    &mut out,
                     " {}  {}",
                     util::colorize(&util::colorizer_by_rainbow(*color_index, "■"), "■"),
                     util::colorize(
                         &util::colorizer_by_rainbow(*color_index, category),
                         category
                     ),
-                );
+                )?;
             }
 
             if !categories_overflow.is_empty() {
@@ -345,12 +351,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                println!(" {}  {}", "■".dimmed(), &others);
+                writeln!(&mut out, " {}  {}", "■".dimmed(), &others)?;
             }
         }
     }
 
-    println!();
+    writeln!(&mut out)?;
 
     Ok(())
 }

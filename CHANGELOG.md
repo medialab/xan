@@ -14,6 +14,7 @@
 *Fixes*
 
 * Fixing `xan top -T/--ties` edge case.
+* Fixing broken pipe panics for some commands.
 
 *Performance*
 

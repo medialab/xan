@@ -1,3 +1,5 @@
+use std::io::{stdout, Write};
+
 use colored::Colorize;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
@@ -852,55 +854,62 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-S/--section <query> only works with the `functions` subcommand!")?;
     }
 
+    let mut out = stdout();
+
     if args.cmd_cheatsheet {
         if args.flag_json {
             Err("cheatsheet does not support --json!")?;
         }
 
         if args.flag_md {
-            println!("{}", get_cheatsheet_str());
+            writeln!(&mut out, "{}", get_cheatsheet_str())?;
         } else {
             args.setup_pager()?;
-            println!("{}", get_colorized_cheatsheet());
+            writeln!(&mut out, "{}", get_colorized_cheatsheet())?;
         }
     } else if args.cmd_functions {
         if args.flag_json {
-            println!("{}", get_functions_help_json_str());
+            writeln!(&mut out, "{}", get_functions_help_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_functions_help().to_md(&parse_operators_help()));
+            write!(
+                &mut out,
+                "{}",
+                parse_functions_help().to_md(&parse_operators_help())
+            )?;
         } else {
             args.setup_pager()?;
-            print!(
+            write!(
+                &mut out,
                 "{}",
                 parse_functions_help().to_txt(&parse_operators_help(), &args.flag_section)
-            );
+            )?;
         }
     } else if args.cmd_aggs {
         if args.flag_json {
-            println!("{}", get_aggs_help_json_str());
+            writeln!(&mut out, "{}", get_aggs_help_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_aggs_help().to_md());
+            write!(&mut out, "{}", parse_aggs_help().to_md())?;
         } else {
             args.setup_pager()?;
-            print!("{}", parse_aggs_help().to_txt());
+            write!(&mut out, "{}", parse_aggs_help().to_txt())?;
         }
     } else if args.cmd_scraping {
         if args.flag_json {
-            println!("{}", get_scraping_functions_json_str());
+            writeln!(&mut out, "{}", get_scraping_functions_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_scraping_help().to_md());
+            write!(&mut out, "{}", parse_scraping_help().to_md())?;
         } else {
             args.setup_pager()?;
-            print!("{}", parse_scraping_help().to_txt());
+            write!(&mut out, "{}", parse_scraping_help().to_txt())?;
         }
     } else if args.cmd_window {
         if args.flag_json {
-            println!("{}", get_window_help_json_str());
+            writeln!(&mut out, "{}", get_window_help_json_str())?;
         } else if args.flag_md {
-            print!("{}", parse_window_help().to_md());
+            write!(&mut out, "{}", parse_window_help().to_md())?;
         } else {
             args.setup_pager()?;
-            print!("{}", parse_window_help().to_txt());
+            write!(&mut out, "{}", parse_window_help().to_txt())?;
         }
     }
 

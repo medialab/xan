@@ -1,3 +1,5 @@
+use std::io::{stdout, Write};
+
 use ahash::RandomState;
 use dlv_list::{Index, VecList};
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
@@ -155,7 +157,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        println!("selection is unique!");
+        writeln!(&mut stdout(), "selection is unique!")?;
 
         return Ok(());
     }

@@ -1,4 +1,5 @@
 use std::cmp;
+use std::io::{stdout, Write};
 use std::path::Path;
 
 use bytesize::MB;
@@ -170,7 +171,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
         }
 
-        println!("file is correctly sorted!");
+        writeln!(&mut stdout(), "file is correctly sorted!")?;
 
         return Ok(());
     }

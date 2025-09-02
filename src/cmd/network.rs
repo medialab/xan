@@ -1,3 +1,5 @@
+use std::io::{stderr, Write};
+
 use colored::Colorize;
 
 use crate::collections::IncrementalId;
@@ -290,12 +292,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let stats = graph.compute_stats();
 
-        eprintln!(
+        let mut out = stderr();
+
+        writeln!(
+            &mut out,
             "{} {}",
             "type       ".cyan(),
             graph.options.graph_type.as_str()
-        );
-        eprintln!(
+        )?;
+        writeln!(
+            &mut out,
             "{} {}",
             "self-loops?".cyan(),
             if graph.options.allow_self_loops {
@@ -303,23 +309,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 "no"
             }
-        );
-        eprintln!(
+        )?;
+        writeln!(
+            &mut out,
             "{} {}",
             "multi?     ".cyan(),
             if graph.options.multi { "yes" } else { "no" }
-        );
-        eprintln!(
+        )?;
+        writeln!(
+            &mut out,
             "{} {}",
             "nodes      ".cyan(),
             util::format_number(stats.nodes)
-        );
-        eprintln!(
+        )?;
+        writeln!(
+            &mut out,
             "{} {}",
             "edges      ".cyan(),
             util::format_number(stats.edges)
-        );
-        eprintln!("{} {}", "density    ".cyan(), stats.density);
+        )?;
+        writeln!(&mut out, "{} {}", "density    ".cyan(), stats.density)?;
     }
 
     match args.flag_format.as_str() {

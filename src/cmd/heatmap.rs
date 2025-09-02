@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
@@ -208,28 +209,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
-    if args.flag_show_gradients {
-        println!("{}", "Sequential scales".bold());
-        println!();
-        for gradient_name in GradientName::sequential_iter() {
-            println!("{}", gradient_name.as_str());
-            println!("{}", gradient_name.sample());
-        }
-        println!("\n");
+    let mut out = stdout();
 
-        println!("{}", "Diverging scales".bold());
-        println!();
-        for gradient_name in GradientName::diverging_iter() {
-            println!("{}", gradient_name.as_str());
-            println!("{}", gradient_name.sample());
+    if args.flag_show_gradients {
+        writeln!(&mut out, "{}", "Sequential scales".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::sequential_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
         }
-        println!();
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Diverging scales".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::diverging_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out)?;
 
         return Ok(());
     }
 
     if args.flag_green_hills {
-        print_green_hills();
+        print_green_hills()?;
         return Ok(());
     }
 
@@ -309,15 +312,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .join(" ");
 
     if !args.flag_cram {
-        println!(
+        writeln!(
+            &mut out,
             "{}{}",
             left_padding,
             util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
-        );
-        println!();
+        )?;
+        writeln!(&mut out)?;
     }
 
-    print!("{}", left_padding);
+    write!(&mut out, "{}", left_padding)?;
     for (i, col_label) in matrix.column_labels.iter().enumerate() {
         let label = if !args.flag_cram {
             (i + 1).to_string()
@@ -325,12 +329,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             col_label.to_string()
         };
 
-        print!(
+        write!(
+            &mut out,
             "{}",
             util::unicode_aware_rpad_with_ellipsis(&label, 2 * size, " "),
-        );
+        )?;
     }
-    println!();
+    writeln!(&mut out)?;
 
     // Printing rows
     let midpoint = size / 2;
@@ -351,21 +356,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         for i in 0..size {
             if i == 0 {
-                print!(
+                write!(
+                    &mut out,
                     "{} ",
                     util::unicode_aware_rpad_with_ellipsis(
                         row_label,
                         label_cols.saturating_sub(1),
                         " "
                     )
-                );
+                )?;
             } else {
-                print!("{}", left_padding);
+                write!(&mut out, "{}", left_padding)?;
             }
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => print!("{}", "  ".repeat(size)),
+                    None => write!(&mut out, "{}", "  ".repeat(size))?,
                     Some(f) => {
                         let scale_opt = row_scale.clone().unwrap_or_else(|| {
                             col_scales
@@ -401,22 +407,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             _ => " ".repeat(size * 2),
                         };
 
-                        print!(
+                        write!(
+                            &mut out,
                             "{}",
                             if let Some(color) = color_opt {
                                 body.on_truecolor(color[0], color[1], color[2])
                             } else {
                                 body.normal()
                             }
-                        );
+                        )?;
                     }
                 }
             }
-            println!();
+            writeln!(&mut out)?;
         }
     }
 
-    println!();
+    writeln!(&mut out)?;
 
     Ok(())
 }
@@ -460,8 +467,10 @@ fn resolve_green_hill_code(code: u8, string: &str) -> ColoredString {
     }
 }
 
-fn print_green_hills() {
+fn print_green_hills() -> CliResult<()> {
     use bstr::ByteSlice;
+
+    let mut out = stdout();
 
     for row in GREEN_HILLS
         .trim()
@@ -472,10 +481,12 @@ fn print_green_hills() {
         .chunks(GREEN_HILLS_COLS as usize)
     {
         for code in row.trim() {
-            print!("{}", resolve_green_hill_code(*code, " "));
+            write!(&mut out, "{}", resolve_green_hill_code(*code, " "))?;
         }
-        println!();
+        writeln!(&mut out)?;
     }
 
-    println!();
+    writeln!(&mut out)?;
+
+    Ok(())
 }

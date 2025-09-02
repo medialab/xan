@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
-use std::io::{self, IsTerminal};
+use std::io::{self, stderr, stdout, IsTerminal, Write};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -1064,7 +1064,7 @@ impl Args {
 
             progress_bar.succeed();
 
-            println!("{}", total_count.into_inner());
+            writeln!(&mut stdout(), "{}", total_count.into_inner())?;
         }
 
         Ok(())
@@ -1476,7 +1476,11 @@ impl Args {
         let (inputs, actual_threads) = self.inputs()?;
 
         if inputs.len() == 1 {
-            eprintln!("{}", "nothing is actually parallelized!".yellow());
+            writeln!(
+                &mut stderr(),
+                "{}",
+                "nothing is actually parallelized!".yellow()
+            )?;
         }
 
         ThreadPoolBuilder::new()
