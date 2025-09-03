@@ -32,6 +32,16 @@ a,b,c,d
 1,4,5,4
 5,2,7,10
 
+You can also use the -O/--overwrite flag to overwrite already existing columns:
+
+    $ xan map -O 'b * 10 as b, a * b as c' file.csv > result.csv
+
+Will produce:
+
+a,b,c
+1,40,4
+5,20,10
+
 The expression can optionally be read from a file using the -f/--evaluate-file flag:
 
     $ xan map -f expr.moonblade file.csv > result.csv
@@ -57,6 +67,11 @@ Usage:
 
 map options:
     -f, --evaluate-file        Read evaluation expression from a file instead.
+    -O, --overwrite            If set, expressions named with a column already existing
+                               in the file will be overwritten with the result of the
+                               expression instead of adding a new column at the end.
+                               This means you can both transform and add columns at the
+                               same time.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to

@@ -146,6 +146,10 @@ impl HeadersIndex {
         self.headers.len()
     }
 
+    pub fn get_first_by_name(&self, name: &str) -> Option<usize> {
+        self.mapping.get(name).map(|indices| indices[0])
+    }
+
     pub fn from_headers<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
         let mut index = Self::new();
 

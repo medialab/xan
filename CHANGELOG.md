@@ -11,6 +11,7 @@
 * Adding `all` and `any` moonblade higher-order functions.
 * Allowing moonblade `printf` function to be called with lists.
 * Adding `-f/--evaluate-file` flag to `map`, `filter`, `flatmap` & `transform` commands.
+* Adding `xan map -O/--overwrite`.
 
 *Fixes*
 

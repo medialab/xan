@@ -88,3 +88,22 @@ fn map_threads() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn map_overwrite() {
+    let wrk = Workdir::new("map_overwrite");
+    wrk.create(
+        "data.csv",
+        vec![svec!["a", "b"], svec!["1", "4"], svec!["5", "2"]],
+    );
+    let mut cmd = wrk.command("map");
+    cmd.arg("-O").arg("b * 10 as b, a * b as c").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "b", "c"],
+        svec!["1", "40", "4"],
+        svec!["5", "20", "10"],
+    ];
+    assert_eq!(got, expected);
+}

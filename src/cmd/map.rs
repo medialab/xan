@@ -38,6 +38,16 @@ a,b,c,d
 1,4,5,4
 5,2,7,10
 
+You can also use the -O/--overwrite flag to overwrite already existing columns:
+
+    $ xan map -O 'b * 10 as b, a * b as c' file.csv > result.csv
+
+Will produce:
+
+a,b,c
+1,40,4
+5,20,10
+
 The expression can optionally be read from a file using the -f/--evaluate-file flag:
 
     $ xan map -f expr.moonblade file.csv > result.csv
@@ -63,6 +73,11 @@ Usage:
 
 map options:
     -f, --evaluate-file        Read evaluation expression from a file instead.
+    -O, --overwrite            If set, expressions named with a column already existing
+                               in the file will be overwritten with the result of the
+                               expression instead of adding a new column at the end.
+                               This means you can both transform and add columns at the
+                               same time.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to
@@ -89,6 +104,7 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_evaluate_file: bool,
+    flag_overwrite: bool,
 }
 
 impl Args {
@@ -122,8 +138,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let program = SelectionProgram::parse(&args.arg_expression, &headers)?;
 
+    let actually_overwriting = args.flag_overwrite && program.has_something_to_overwrite();
+
     if !args.flag_no_headers {
-        wtr.write_record(headers.iter().chain(program.headers()))?;
+        if actually_overwriting {
+            wtr.write_record(headers.iter().chain(program.new_headers()))?;
+        } else {
+            wtr.write_record(headers.iter().chain(program.headers()))?;
+        }
     }
 
     if let Some(threads) = parallelization {
@@ -132,7 +154,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             move |(index, record)| -> CliResult<csv::ByteRecord> {
                 let mut record = record?;
 
-                program.mutate_record(index, &mut record)?;
+                if actually_overwriting {
+                    record = program.overwrite(index, &mut record)?;
+                } else {
+                    program.extend(index, &mut record)?;
+                }
 
                 Ok(record)
             },
@@ -144,7 +170,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            program.mutate_record(index, &mut record)?;
+            if actually_overwriting {
+                record = program.overwrite(index, &mut record)?;
+            } else {
+                program.extend(index, &mut record)?;
+            }
 
             wtr.write_byte_record(&record)?;
 
