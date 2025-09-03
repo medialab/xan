@@ -158,9 +158,8 @@ checksum = "a3c8f83209414aacf0eeae3cf730b18d6981697fba62f200fcfb92b9f082acba"
 
 [[package]]
 name = "calamine"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15e02a18e79de779a78b0a6ec84a3deed1ff0607dd970a11369f993263f99f1a"
+version = "0.30.0"
+source = "git+https://github.com/tafia/calamine?rev=3b26f3a#3b26f3aaf80da27916545a52360359d657f23d69"
 dependencies = [
  "atoi_simd",
  "byteorder",

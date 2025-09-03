@@ -50,7 +50,7 @@ bgzip = { version = "0.3.1", features = ["rust_backend"]}
 bstr = "1.11.3"
 btoi = "0.4.3"
 bytesize = "2.0.1"
-calamine = "0.28.0"
+calamine = { git = "https://github.com/tafia/calamine", rev = "3b26f3a" }
 colored = "2.0.0"
 colorgrad = { version = "0.7.0", default-features = false, features = ["preset"] }
 console = "0.15.8"

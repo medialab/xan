@@ -8,6 +8,7 @@ use std::{
 
 use calamine::{open_workbook_auto_from_rs, Data, Reader};
 use flate2::read::MultiGzDecoder;
+use jiff::civil::{DateTime, Time};
 use serde_json::{Map, Value};
 
 use crate::config::Config;
@@ -210,7 +211,26 @@ impl Args {
                             }
                             Data::Int(value) => record.push_field(&value.to_string()),
                             Data::Float(value) => record.push_field(&value.to_string()),
-                            Data::DateTime(value) => record.push_field(&value.to_string()),
+                            Data::DateTime(value) => {
+                                let (y, month, d, h, minute, s, milli) = value.to_ymd_hms_milli();
+
+                                let datetime = DateTime::new(
+                                    y as i16,
+                                    month as i8,
+                                    d as i8,
+                                    h as i8,
+                                    minute as i8,
+                                    s as i8,
+                                    milli as i32 * 1_000_000,
+                                )
+                                .unwrap();
+
+                                if datetime.time() == Time::MIN {
+                                    record.push_field(&datetime.date().to_string());
+                                } else {
+                                    record.push_field(&datetime.to_string());
+                                }
+                            }
                             Data::Error(err) => record.push_field(&err.to_string()),
                             Data::Empty => record.push_field(""),
                         }
