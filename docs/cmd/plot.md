@@ -13,7 +13,7 @@ plot options:
     -L, --line                 Whether to draw a line plot instead of the default scatter plot.
     -B, --bars                 Whether to draw bars instead of the default scatter plot.
                                WARNING: currently does not work if y range does not include 0.
-                               (https://github.com/ratatui/ratatui/issues/1391)
+                               https://github.com/ratatui/ratatui/issues/1391
     -T, --time                 Use to indicate that the x axis is temporal. The axis will be
                                discretized according to some inferred temporal granularity and
                                y values will be summed wrt the newly discretized x axis.
