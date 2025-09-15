@@ -121,6 +121,64 @@ VT,Fort Worth
 }
 
 #[test]
+fn partition_case_insensitive_sorted() {
+    let wrk = Workdir::new("partition_case_insensitive");
+    wrk.create(
+        "in.csv",
+        vec![
+            svec!["state", "city"],
+            svec!["Co", "Manhattan"],
+            svec!["Co", "Dallas"],
+            svec!["co", "San Francisco"],
+            svec!["CO", "Buffalo"],
+            svec!["VT", "Fort Worth"],
+        ],
+    );
+
+    let mut cmd = wrk.command("partition");
+    cmd.arg("state")
+        .arg("-O")
+        .arg(&wrk.path("."))
+        .arg("--sorted")
+        .arg("in.csv");
+    wrk.run(&mut cmd);
+
+    part_eq!(
+        wrk,
+        "Co.csv",
+        "\
+state,city
+Co,Manhattan
+Co,Dallas
+"
+    );
+    part_eq!(
+        wrk,
+        "co_1.csv",
+        "\
+state,city
+co,San Francisco
+"
+    );
+    part_eq!(
+        wrk,
+        "CO_2.csv",
+        "\
+state,city
+CO,Buffalo
+"
+    );
+    part_eq!(
+        wrk,
+        "VT.csv",
+        "\
+state,city
+VT,Fort Worth
+"
+    );
+}
+
+#[test]
 fn partition_drop() {
     let wrk = Workdir::new("partition_drop");
     wrk.create("in.csv", data(true));
