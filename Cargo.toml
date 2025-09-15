@@ -41,6 +41,11 @@ doctest = false
 [[test]]
 name = "tests"
 
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
+
 [dependencies]
 ahash = "0.8.12"
 aho-corasick = "1.1.3"
