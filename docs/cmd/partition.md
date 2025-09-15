@@ -7,10 +7,10 @@ Partition the given CSV data into chunks based on the values of a column.
 The files are written to the output directory with filenames based on the
 values in the partition column and the `--filename` flag.
 
-By default, values used to create filenames are normalized to lowercase so that
-the command works properly on case-insensitive filesystems (e.g. on macOS). If
-you know your filesystem is case-sensitive and want filenames better aligned
-on original values, use the -C/--case-sensitive flag.
+By default, this command will consider it works in a case-insensitive filesystem
+(e.g. on macOS). This can have an impact on the names of the create files. If you
+know beforehand that your filesystem is case-sensitive and want filenames to be
+better aligned with the original values use the -C/--case-sensitive flag.
 
 Note that most operating systems avoid opening more than 1024 files at once,
 so if you know the cardinality of the paritioned column is very high, please
@@ -36,7 +36,8 @@ partition options:
                                can run faster and with less memory and resources
                                opened.
     --drop                     Drop the partition column from results.
-    -C, --case-sensitive       Don't normalize values to lowercase to produce filename.
+    -C, --case-sensitive       Don't perform case normalization to assess whether a
+                               new file has to be created when seeing a new value.
                                Only use on case-sensitive filesystems or this can have
                                adverse effects!
 

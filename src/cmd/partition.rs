@@ -16,10 +16,10 @@ Partition the given CSV data into chunks based on the values of a column.
 The files are written to the output directory with filenames based on the
 values in the partition column and the `--filename` flag.
 
-By default, values used to create filenames are normalized to lowercase so that
-the command works properly on case-insensitive filesystems (e.g. on macOS). If
-you know your filesystem is case-sensitive and want filenames better aligned
-on original values, use the -C/--case-sensitive flag.
+By default, this command will consider it works in a case-insensitive filesystem
+(e.g. on macOS). This can have an impact on the names of the create files. If you
+know beforehand that your filesystem is case-sensitive and want filenames to be
+better aligned with the original values use the -C/--case-sensitive flag.
 
 Note that most operating systems avoid opening more than 1024 files at once,
 so if you know the cardinality of the paritioned column is very high, please
@@ -45,7 +45,8 @@ partition options:
                                can run faster and with less memory and resources
                                opened.
     --drop                     Drop the partition column from results.
-    -C, --case-sensitive       Don't normalize values to lowercase to produce filename.
+    -C, --case-sensitive       Don't perform case normalization to assess whether a
+                               new file has to be created when seeing a new value.
                                Only use on case-sensitive filesystems or this can have
                                adverse effects!
 
@@ -231,12 +232,14 @@ impl WriterGenerator {
     fn unique_value(&mut self, key: &[u8]) -> String {
         // Sanitize our key.
         let utf8 = String::from_utf8_lossy(key);
-        let safe = self.non_word_char.replace_all(&utf8, "").into_owned();
-        let mut base = if safe.is_empty() {
+        let mut safe = self.non_word_char.replace_all(&utf8, "").into_owned();
+        safe = if safe.is_empty() {
             "empty".to_owned()
         } else {
             safe
         };
+
+        let mut base = safe.clone();
 
         if !self.case_sensitive {
             base = base.to_lowercase();
@@ -245,10 +248,10 @@ impl WriterGenerator {
         // Now check for collisions.
         if !self.used.contains(&base) {
             self.used.insert(base.clone());
-            base
+            safe
         } else {
             loop {
-                let candidate = format!("{}_{}", &base, self.counter);
+                let candidate = format!("{}_{}", &safe, self.counter);
                 self.counter = self.counter.checked_add(1).unwrap_or_else(|| {
                     // We'll run out of other things long before we ever
                     // reach this, but we'll check just for correctness and
