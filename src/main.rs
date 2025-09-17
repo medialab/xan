@@ -186,6 +186,10 @@ fn main() {
                     );
                     process::exit(1);
                 }
+                docopt::Error::WithProgramUsage(_, usage) => {
+                    println!("{}", util::colorize_help(&util::colorize_main_help(&usage)));
+                    process::exit(0);
+                }
                 _ => {
                     e.exit();
                 }
@@ -359,7 +363,7 @@ impl Command {
             Command::Heatmap => cmd::heatmap::run(argv),
             Command::Help => {
                 if argv.len() < 3 {
-                    println!("{}", util::colorize_main_help(USAGE));
+                    println!("{}", util::colorize_help(&util::colorize_main_help(USAGE)));
                     Ok(())
                 } else {
                     cmd::help::run(argv)
@@ -440,9 +444,9 @@ impl From<docopt::Error> for CliError {
                     _ => CliError::Help(
                         format!(
                             "{}\n\n{} Use the {} flag for more information.",
-                            util::colorize_help(&usage),
+                            usage,
                             "Invalid command!".red(),
-                            "-h,--help".cyan()
+                            "-h/--help".cyan()
                         ),
                         1,
                     ),
