@@ -52,7 +52,7 @@ impl<'i, 's> Iterator for SimdSplit<'i, 's> {
             loop {
                 if self.offset + STEP <= len {
                     let chunk = unsafe {
-                        u8x32::new(ptr::read(
+                        u8x32::new(ptr::read_unaligned(
                             self.input[self.offset..].as_ptr() as *const [u8; 32]
                         ))
                     };
