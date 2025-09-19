@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.53.0-rc.1"
+version = "0.53.0"
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
