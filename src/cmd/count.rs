@@ -32,6 +32,7 @@ count options:
                              work on a stream fed through stdin nor with gzipped data.
     --sample-size <n>        Number of rows to sample when using -a, --approx.
                              [default: 512]
+    --simd
 
 Common options:
     -h, --help             Display this message
@@ -49,6 +50,7 @@ struct Args {
     flag_threads: Option<NonZeroUsize>,
     flag_approx: bool,
     flag_sample_size: NonZeroU64,
+    flag_simd: bool,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -86,6 +88,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             None => 0,
             Some(sample) => sample.exact_or_approx_count(),
         }
+    } else if args.flag_simd {
+        let mut rdr = conf.simd_reader()?;
+        let mut count = rdr.count_records()?;
+
+        if !args.flag_no_headers {
+            count = count.saturating_sub(1);
+        }
+
+        count
     } else {
         let mut rdr = conf.reader()?;
         let mut count = 0u64;

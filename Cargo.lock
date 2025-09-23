@@ -1359,9 +1359,9 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
-version = "2.7.4"
+version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "memmap2"
@@ -2092,6 +2092,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
 
 [[package]]
+name = "simd-csv"
+version = "0.1.0"
+source = "git+https://github.com/medialab/simd-csv?rev=87f3f879#87f3f879118d635c5cb7caf1ffa1d8b7ab59a7b0"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "siphasher"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2775,6 +2783,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "shlex",
+ "simd-csv",
  "sprintf",
  "tar",
  "tdigest",

@@ -278,6 +278,12 @@ impl Config {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
+    pub fn simd_reader(
+        &self,
+    ) -> CliResult<simd_csv::BufferedReader<Box<dyn io::Read + Send + 'static>>> {
+        Ok(self.simd_csv_reader_from_reader(self.io_reader()?))
+    }
+
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
     }
@@ -507,6 +513,10 @@ impl Config {
             .escape(self.escape);
 
         builder
+    }
+
+    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::BufferedReader<R> {
+        simd_csv::BufferedReader::with_capacity(rdr, 1024 * (1 << 10), self.delimiter, self.quote)
     }
 
     pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
