@@ -253,6 +253,10 @@ impl Config {
         Ok(self.csv_writer_from_writer(self.io_writer()?))
     }
 
+    pub fn simd_writer(&self) -> io::Result<simd_csv::Writer<Box<dyn io::Write + Send + 'static>>> {
+        Ok(self.simd_csv_writer_from_writer(self.io_writer()?))
+    }
+
     pub fn writer_with_options(
         &self,
         options: &fs::OpenOptions,
@@ -281,7 +285,11 @@ impl Config {
     pub fn simd_reader(
         &self,
     ) -> CliResult<simd_csv::BufferedReader<Box<dyn io::Read + Send + 'static>>> {
-        Ok(self.simd_csv_reader_from_reader(self.io_reader()?))
+        let mut reader = self.simd_csv_reader_from_reader(self.io_reader()?);
+
+        reader.strip_bom()?;
+
+        Ok(reader)
     }
 
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
@@ -551,5 +559,9 @@ impl Config {
             .escape(self.escape.unwrap_or(b'\\'))
             .buffer_capacity(32 * (1 << 10))
             .from_writer(wtr)
+    }
+
+    pub fn simd_csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> simd_csv::Writer<W> {
+        simd_csv::Writer::with_capacity(wtr, 32 * (1 << 10), self.delimiter, self.quote)
     }
 }
