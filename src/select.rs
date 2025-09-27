@@ -1,3 +1,4 @@
+use std::borrow::ToOwned;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
@@ -6,6 +7,29 @@ use std::ops;
 use std::str::FromStr;
 
 use crate::collections::HashSet;
+
+pub trait Record {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+    fn iter(&self) -> impl Iterator<Item = &[u8]>;
+}
+
+impl Record for csv::ByteRecord {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline(always)]
+    fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.iter()
+    }
+}
 
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]
@@ -36,9 +60,9 @@ impl SelectColumns {
         self.invert = !self.invert;
     }
 
-    pub fn selection(
+    pub fn selection<R: Record>(
         &self,
-        first_record: &csv::ByteRecord,
+        first_record: &R,
         use_names: bool,
     ) -> Result<Selection, String> {
         if self.selectors.is_empty() {
@@ -68,9 +92,9 @@ impl SelectColumns {
         Ok(Selection(map))
     }
 
-    pub fn single_selection(
+    pub fn single_selection<R: Record>(
         &self,
-        first_record: &csv::ByteRecord,
+        first_record: &R,
         use_names: bool,
     ) -> Result<usize, String> {
         let selection = self.selection(first_record, use_names)?;
@@ -82,7 +106,7 @@ impl SelectColumns {
         Ok(selection[0])
     }
 
-    pub fn retain_known(&mut self, headers: &csv::ByteRecord) -> Vec<usize> {
+    pub fn retain_known<R: Record>(&mut self, headers: &R) -> Vec<usize> {
         let mut dropped: Vec<usize> = Vec::new();
 
         for (i, selector) in self.selectors.iter().enumerate() {
@@ -344,11 +368,7 @@ enum OneSelector {
 }
 
 impl Selector {
-    fn indices(
-        &self,
-        first_record: &csv::ByteRecord,
-        use_names: bool,
-    ) -> Result<Vec<usize>, String> {
+    fn indices<R: Record>(&self, first_record: &R, use_names: bool) -> Result<Vec<usize>, String> {
         match *self {
             Selector::All => Ok((0..first_record.len()).collect()),
             Selector::One(ref sel) => sel.index(first_record, use_names).map(|i| vec![i]),
@@ -428,7 +448,7 @@ impl Selector {
 }
 
 impl OneSelector {
-    fn index(&self, first_record: &csv::ByteRecord, use_names: bool) -> Result<usize, String> {
+    fn index<R: Record>(&self, first_record: &R, use_names: bool) -> Result<usize, String> {
         match *self {
             OneSelector::Start => Ok(0),
             OneSelector::End => Ok(if first_record.is_empty() {
@@ -477,7 +497,10 @@ impl OneSelector {
                 let mut num_found = 0;
 
                 if sidx < 0 {
-                    for (i, field) in first_record.iter().enumerate().rev() {
+                    let mut reverse_first_record = first_record.iter().collect::<Vec<_>>();
+                    reverse_first_record.reverse();
+
+                    for (i, field) in reverse_first_record.into_iter().enumerate().rev() {
                         if field == s.as_bytes() {
                             if num_found == sidx.abs() - 1 {
                                 return Ok(i);
@@ -589,8 +612,12 @@ impl Selection {
         self.iter().map(|i| &row[*i])
     }
 
-    pub fn collect(&self, row: &csv::ByteRecord) -> Vec<Vec<u8>> {
-        self.select(row).map(|f| f.into()).collect()
+    pub fn collect<'a, 'b, T, O>(&'a self, row: &'b impl ops::Index<usize, Output = T>) -> Vec<O>
+    where
+        'a: 'b,
+        T: 'b + ?Sized + ToOwned<Owned = O>,
+    {
+        self.select(row).map(|f| f.to_owned()).collect()
     }
 
     pub fn dedup(&mut self) {
