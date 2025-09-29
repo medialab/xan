@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
-use csv::{self, ByteRecord};
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, Counter};
@@ -154,10 +153,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let headers = rdr.byte_headers()?.clone();
+    let headers = rdr.first_byte_record(!args.flag_no_headers)?;
     let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby
@@ -203,7 +202,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         > = ClusteredInsertHashmap::new();
 
         let output_headers = {
-            let mut r = ByteRecord::new();
+            let mut r = simd_csv::ByteRecord::new();
             r.push_field(b"field");
 
             for col_name in groupby_sel.select(&headers) {
@@ -217,7 +216,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&output_headers)?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
@@ -309,7 +308,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             (0..sel.len()).map(|_| Counter::new(approx_k)).collect();
 
         let output_headers = {
-            let mut r = ByteRecord::new();
+            let mut r = simd_csv::ByteRecord::new();
             r.push_field(b"field");
             r.push_field(b"value");
             r.push_field(b"count");
@@ -318,7 +317,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&output_headers)?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
