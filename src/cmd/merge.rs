@@ -137,7 +137,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let selections = confs
         .iter()
         .zip(headers.iter())
-        .map(|(c, h)| c.selection(h))
+        .map(|(c, h)| c.selection(*h))
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut record_iterators = readers

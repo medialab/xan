@@ -13,7 +13,7 @@ use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
 
 use crate::read::{self, ReverseRead};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectColumns, Selectable, Selection};
 use crate::{CliError, CliResult};
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -217,7 +217,7 @@ impl Config {
         self.path.is_none()
     }
 
-    pub fn selection(&self, first_record: &csv::ByteRecord) -> Result<Selection, String> {
+    pub fn selection<S: Selectable>(&self, first_record: &S) -> Result<Selection, String> {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"

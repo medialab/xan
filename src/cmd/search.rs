@@ -899,10 +899,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
 
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconfig.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut headers = rdr.byte_headers()?.clone();
+    let mut headers = rdr.first_byte_record(!args.flag_no_headers)?;
     let sel = rconfig.selection(&headers)?;
     let sel_mask = sel.mask(headers.len());
 
@@ -923,7 +923,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if !rconfig.no_headers {
-        wtr.write_record(&headers)?;
+        wtr.write_byte_record(&headers)?;
     }
 
     let mut matches_count: usize = 0;
@@ -936,7 +936,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         for result in rdr.into_byte_records().parallel_map_custom(
             |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-            move |result| -> CliResult<(bool, Option<csv::ByteRecord>)> {
+            move |result| -> CliResult<(bool, Option<simd_csv::ByteRecord>)> {
                 let mut record = result?;
 
                 let mut record_to_write_opt = None;
@@ -1072,8 +1072,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Single-threaded path
-    let mut record = csv::ByteRecord::new();
-    let mut replaced_record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
+    let mut replaced_record = simd_csv::ByteRecord::new();
     let mut matches = BTreeSet::<usize>::new();
 
     while rdr.read_byte_record(&mut record)? {

@@ -8,13 +8,30 @@ use std::str::FromStr;
 
 use crate::collections::HashSet;
 
-pub trait Record {
+pub trait Selectable {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
     fn iter(&self) -> impl Iterator<Item = &[u8]>;
 }
 
-impl Record for csv::ByteRecord {
+impl Selectable for csv::ByteRecord {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline(always)]
+    fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.iter()
+    }
+}
+
+impl Selectable for simd_csv::ByteRecord {
     #[inline(always)]
     fn len(&self) -> usize {
         self.len()
@@ -60,9 +77,9 @@ impl SelectColumns {
         self.invert = !self.invert;
     }
 
-    pub fn selection<R: Record>(
+    pub fn selection<S: Selectable>(
         &self,
-        first_record: &R,
+        first_record: &S,
         use_names: bool,
     ) -> Result<Selection, String> {
         if self.selectors.is_empty() {
@@ -92,9 +109,9 @@ impl SelectColumns {
         Ok(Selection(map))
     }
 
-    pub fn single_selection<R: Record>(
+    pub fn single_selection<S: Selectable>(
         &self,
-        first_record: &R,
+        first_record: &S,
         use_names: bool,
     ) -> Result<usize, String> {
         let selection = self.selection(first_record, use_names)?;
@@ -106,7 +123,7 @@ impl SelectColumns {
         Ok(selection[0])
     }
 
-    pub fn retain_known<R: Record>(&mut self, headers: &R) -> Vec<usize> {
+    pub fn retain_known<S: Selectable>(&mut self, headers: &S) -> Vec<usize> {
         let mut dropped: Vec<usize> = Vec::new();
 
         for (i, selector) in self.selectors.iter().enumerate() {
@@ -368,7 +385,11 @@ enum OneSelector {
 }
 
 impl Selector {
-    fn indices<R: Record>(&self, first_record: &R, use_names: bool) -> Result<Vec<usize>, String> {
+    fn indices<S: Selectable>(
+        &self,
+        first_record: &S,
+        use_names: bool,
+    ) -> Result<Vec<usize>, String> {
         match *self {
             Selector::All => Ok((0..first_record.len()).collect()),
             Selector::One(ref sel) => sel.index(first_record, use_names).map(|i| vec![i]),
@@ -448,7 +469,7 @@ impl Selector {
 }
 
 impl OneSelector {
-    fn index<R: Record>(&self, first_record: &R, use_names: bool) -> Result<usize, String> {
+    fn index<S: Selectable>(&self, first_record: &S, use_names: bool) -> Result<usize, String> {
         match *self {
             OneSelector::Start => Ok(0),
             OneSelector::End => Ok(if first_record.is_empty() {
