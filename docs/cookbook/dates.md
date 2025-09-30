@@ -70,7 +70,7 @@ or with the `xan transform` command, to directly transform the column.
 Here is an example where we created a new column called `formatted_time` containing the year and month from `local_time` with `xan map`:
 
 ```bash
-xan map 'local_time.ym()' formatted_time dates.csv | xan view
+xan map 'local_time.ym() as formatted_time' dates.csv | xan view
 ```
 
 | local_time          | formatted_time |
@@ -98,7 +98,7 @@ xan help functions --section dates
 Now that you now how to format dates, you can use `xan freq` to count the number of lines per day in you dataset:
 
 ```bash
-xan map 'local_time.ymd()' year_month_day dates.csv | xan freq -s year_month_day | xan view
+xan map 'local_time.ymd() as year_month_day' dates.csv | xan freq -s year_month_day | xan view
 ```
 
 | field          | value      | count |
@@ -124,7 +124,7 @@ flag will have the histogram sorted by date and add empty bars for missing days.
 Don't forget to add `-A` (or `--all`) in `xan freq` in order to plot all days.
 
 ```bash
-xan map 'local_time.ymd()' year_month_day dates.csv | xan freq -s year_month_day -A | xan hist -D
+xan map 'local_time.ymd() as year_month_day' dates.csv | xan freq -s year_month_day -A | xan hist -D
 ```
 
 This way, you immediatly notice the fact that there is no line in your dataset on March 18 and 19.
@@ -177,7 +177,7 @@ The conversion specifications (i.e. how to tell `datetime()` the format you have
 and as second argument the desired format (we will see the third argument in the [Dealing with timezones](#dealing-with-timezones) section).
 
 ```bash
-xan map 'initial_date.datetime("%d/%m/%y")' parsed_date strange_dates.csv | xan v
+xan map 'initial_date.datetime("%d/%m/%y") as parsed_date' strange_dates.csv | xan v
 ```
 
 | initial_date     | parsed_date              |
@@ -195,7 +195,7 @@ xan map 'initial_date.datetime("%d/%m/%y")' parsed_date strange_dates.csv | xan 
  Below an example with `month_day()`:
 
 ```bash
-xan map 'initial_date.datetime("%d/%m/%y").month_day()' formatted_date strange_dates.csv | xan v
+xan map 'initial_date.datetime("%d/%m/%y").month_day() as formatted_date' strange_dates.csv | xan v
 ```
 
 | initial_date | formatted_date |
@@ -214,7 +214,7 @@ xan map 'initial_date.datetime("%d/%m/%y").month_day()' formatted_date strange_d
 You can also specify your custom output format using the `strftime()` formatting function:
 
 ```bash
-xan map 'initial_date.datetime("%d/%m/%y").strftime("%A")' day_of_week strange_dates.csv | xan v
+xan map 'initial_date.datetime("%d/%m/%y").strftime("%A") as day_of_week' strange_dates.csv | xan v
 ```
 
 | initial_date | day_of_week |
@@ -231,7 +231,7 @@ xan map 'initial_date.datetime("%d/%m/%y").strftime("%A")' day_of_week strange_d
 `strftime()` can also be used without `datetime()` if the date expression is in [ISO 8601 format](https://en.wikipedia.org/wiki/ISO_8601):
 
 ```bash
-xan map 'local_time.strftime("%A")' day_of_week dates.csv | xan v
+xan map 'local_time.strftime("%A") as day_of_week' dates.csv | xan v
 ```
 
 | local_time          | day_of_week |
@@ -254,7 +254,7 @@ When using xan's `datetime()` function, the tool assumes by default that dates a
 So you probably get the following result, with dates in CDT (Central Daylight Time):
 
 ```bash
-xan map 'local_time.datetime()' parsed_time july_data.csv | xan v
+xan map 'local_time.datetime() as parsed_time' july_data.csv | xan v
 ```
 
 | local_time          | parsed_time              |
@@ -339,7 +339,7 @@ convert them to UTC dates, unlike `datetime()`, `ymd()`, etc., which use your co
 If the file your colleague sent contained Unix timestamps instead of dates, you could convert them like this:
 
 ```
-xan map 'timestamp_utc.timestamp().to_local_timezone("UTC")' mexico_time july_data.csv | xan v
+xan map 'timestamp_utc.timestamp().to_local_timezone("UTC") as mexico_time' july_data.csv | xan v
 ```
 
 | timestamp_utc | mexico_time         |
