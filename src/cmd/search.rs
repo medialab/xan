@@ -71,7 +71,7 @@ fn regex_set_replace_all<'a>(
     Cow::Owned(bytes)
 }
 
-enum Matcher {
+pub enum Matcher {
     Empty,
     NonEmpty,
     Substring(AhoCorasick, bool),
@@ -85,7 +85,7 @@ enum Matcher {
 }
 
 impl Matcher {
-    fn is_match(&self, cell: &[u8]) -> bool {
+    pub fn is_match(&self, cell: &[u8]) -> bool {
         match self {
             Self::Empty => cell.is_empty(),
             Self::NonEmpty => !cell.is_empty(),

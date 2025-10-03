@@ -285,6 +285,7 @@ enum Command {
     From,
     #[serde(rename = "fuzzy-join")]
     FuzzyJoin,
+    Grep,
     Groupby,
     Guillotine,
     H,
@@ -365,6 +366,7 @@ impl Command {
             Command::Freq | Command::Frequency => cmd::frequency::run(argv),
             Command::From => cmd::from::run(argv),
             Command::FuzzyJoin => cmd::fuzzy_join::run(argv),
+            Command::Grep => cmd::grep::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
             Command::Head => cmd::head::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),

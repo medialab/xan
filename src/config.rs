@@ -4,7 +4,7 @@ use std::borrow::{Borrow, ToOwned};
 use std::convert::TryFrom;
 use std::env;
 use std::fs;
-use std::io::{self, prelude::*, BufReader, IsTerminal, Read, SeekFrom};
+use std::io::{self, prelude::*, BufReader, BufWriter, IsTerminal, Read, SeekFrom};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
@@ -546,6 +546,10 @@ impl Config {
             None => Box::new(io::stdout()),
             Some(ref p) => Box::new(fs::File::create(p)?),
         })
+    }
+
+    pub fn buf_io_writer(&self) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
+        Ok(BufWriter::with_capacity(32 * (1 << 10), self.io_writer()?))
     }
 
     pub fn csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> csv::Writer<W> {
