@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.54.0 (provisional)
+
+*Performance*
+
+* Wildly improving performance of the `count`, `search` and `freq`, commands by leveraging a novel SIMD CSV parser/writer.
+
 ## 0.53.0
 
 *Breaking*

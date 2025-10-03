@@ -524,7 +524,7 @@ impl Config {
     }
 
     pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::BufferedReader<R> {
-        simd_csv::BufferedReader::with_capacity(rdr, 1024 * (1 << 10), self.delimiter, self.quote)
+        simd_csv::BufferedReader::new(rdr, self.delimiter, self.quote)
     }
 
     pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
@@ -562,6 +562,6 @@ impl Config {
     }
 
     pub fn simd_csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> simd_csv::Writer<W> {
-        simd_csv::Writer::with_capacity(wtr, 32 * (1 << 10), self.delimiter, self.quote)
+        simd_csv::Writer::with_capacity(32 * (1 << 10), wtr, self.delimiter, self.quote)
     }
 }

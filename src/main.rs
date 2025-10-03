@@ -221,6 +221,14 @@ Please choose one of the following commands/flags:\n{}",
                 );
                 process::exit(1);
             }
+            Err(CliError::SimdCsv(err)) => {
+                eprintln!(
+                    "xan {}: {}",
+                    env::args().nth(1).unwrap_or("".to_string()),
+                    err
+                );
+                process::exit(1);
+            }
             Err(CliError::Io(ref err)) if err.kind() == io::ErrorKind::BrokenPipe => {
                 process::exit(0);
             }
@@ -414,6 +422,7 @@ pub type CliResult<T> = Result<T, CliError>;
 pub enum CliError {
     Flag(docopt::Error),
     Csv(csv::Error),
+    SimdCsv(simd_csv::Error),
     Io(io::Error),
     Other(String),
     Help(String, i32),
@@ -424,6 +433,7 @@ impl fmt::Display for CliError {
         match *self {
             CliError::Flag(ref e) => e.fmt(f),
             CliError::Csv(ref e) => e.fmt(f),
+            CliError::SimdCsv(ref e) => e.fmt(f),
             CliError::Io(ref e) => e.fmt(f),
             CliError::Other(ref s) => f.write_str(s),
             CliError::Help(ref s, _) => f.write_str(s),
@@ -464,6 +474,18 @@ impl From<csv::Error> for CliError {
         }
         match err.into_kind() {
             csv::ErrorKind::Io(v) => From::from(v),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<simd_csv::Error> for CliError {
+    fn from(err: simd_csv::Error) -> Self {
+        if !err.is_io_error() {
+            return CliError::SimdCsv(err);
+        }
+        match err.into_kind() {
+            simd_csv::ErrorKind::Io(v) => From::from(v),
             _ => unreachable!(),
         }
     }
