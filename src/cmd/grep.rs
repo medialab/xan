@@ -48,28 +48,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .then(|| wconf.buf_io_writer())
         .transpose()?;
 
-    let mut has_written_header = args.flag_no_headers;
-
     let matcher = Matcher::Substring(AhoCorasick::new([&args.arg_pattern])?, false);
 
-    let mut reader = rconf.simd_reader()?;
+    let mut splitter = rconf.simd_splitter()?;
     let mut count: u64 = 0;
 
-    while let Some(record) = reader.split_record()? {
-        if !has_written_header {
-            has_written_header = true;
-
+    if !args.flag_no_headers {
+        if let Some(header) = splitter.split_record()? {
             if let Some(writer) = writer_opt.as_mut() {
-                writer.write_all(record)?;
+                writer.write_all(header)?;
+                writer.write_all(b"\n")?;
             }
         }
+    }
 
+    while let Some(record) = splitter.split_record()? {
         if !matcher.is_match(record) {
             continue;
         }
 
         if let Some(writer) = writer_opt.as_mut() {
             writer.write_all(record)?;
+            writer.write_all(b"\n")?;
         } else {
             count += 1;
         }

@@ -282,14 +282,22 @@ impl Config {
         Ok(self.csv_reader_from_reader(self.io_reader()?))
     }
 
-    pub fn simd_reader(
-        &self,
-    ) -> CliResult<simd_csv::BufferedReader<Box<dyn io::Read + Send + 'static>>> {
+    pub fn simd_reader(&self) -> CliResult<simd_csv::Reader<Box<dyn io::Read + Send + 'static>>> {
         let mut reader = self.simd_csv_reader_from_reader(self.io_reader()?);
 
         reader.strip_bom()?;
 
         Ok(reader)
+    }
+
+    pub fn simd_splitter(
+        &self,
+    ) -> CliResult<simd_csv::Splitter<Box<dyn io::Read + Send + 'static>>> {
+        let mut splitter = self.simd_csv_splitter_from_reader(self.io_reader()?);
+
+        splitter.strip_bom()?;
+
+        Ok(splitter)
     }
 
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
@@ -523,8 +531,18 @@ impl Config {
         builder
     }
 
-    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::BufferedReader<R> {
-        simd_csv::BufferedReader::new(rdr, self.delimiter, self.quote)
+    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Reader<R> {
+        simd_csv::ReaderBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .from_reader(rdr)
+    }
+
+    pub fn simd_csv_splitter_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Splitter<R> {
+        simd_csv::SplitterBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .from_reader(rdr)
     }
 
     pub fn csv_reader_from_reader<R: Read>(&self, rdr: R) -> csv::Reader<R> {
@@ -566,6 +584,9 @@ impl Config {
     }
 
     pub fn simd_csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> simd_csv::Writer<W> {
-        simd_csv::Writer::with_capacity(32 * (1 << 10), wtr, self.delimiter, self.quote)
+        simd_csv::WriterBuilder::with_capacity(32 * (1 << 10))
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .from_writer(wtr)
     }
 }

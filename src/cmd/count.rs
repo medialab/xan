@@ -87,7 +87,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(sample) => sample.exact_or_approx_count(),
         }
     } else {
-        conf.simd_reader()?
+        conf.simd_splitter()?
             .count_records()?
             .saturating_sub(if args.flag_no_headers { 0 } else { 1 })
     };
