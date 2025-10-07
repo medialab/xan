@@ -902,7 +902,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconfig.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut headers = rdr.first_byte_record(!args.flag_no_headers)?;
+    let mut headers = rdr.peek_byte_record(!args.flag_no_headers)?;
     let sel = rconfig.selection(&headers)?;
     let sel_mask = sel.mask(headers.len());
 
