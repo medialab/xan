@@ -3,7 +3,6 @@ use std::io::{copy, Read, SeekFrom};
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
-use crate::read::read_byte_record_up_to;
 use crate::util;
 use crate::CliResult;
 
@@ -173,6 +172,12 @@ impl Args {
     pub fn run(mut self) -> CliResult<()> {
         self.resolve();
 
+        if let (Some(start_byte), Some(end_byte)) = (self.flag_byte_offset, self.flag_end_byte) {
+            if end_byte <= start_byte {
+                Err("--B/--byte-offset must be less than --end-byte!")?;
+            }
+        }
+
         if self.flag_raw {
             if self.flag_byte_offset.is_none() || self.flag_end_byte.is_none() {
                 Err("--raw requires both -B/--byte-offset & --end-byte!")?;
@@ -215,55 +220,77 @@ impl Args {
             }
 
             return {
-                let rconf = self.rconfig();
+                let mut rconf = self.rconfig();
 
                 if let Some(offset) = self.flag_byte_offset {
-                    let inner = rconf.io_reader_for_random_access()?;
-                    let mut rdr = rconf.csv_reader_from_reader(inner);
+                    rconf = rconf.no_headers(true);
+                    let mut rdr =
+                        rconf.csv_reader_from_reader(rconf.io_reader_for_random_access()?);
+                    let headers = rdr.byte_headers()?.clone();
+                    let mut inner = rdr.into_inner();
 
-                    let mut pos = csv::Position::new();
-                    pos.set_byte(offset);
+                    inner.seek(SeekFrom::Start(offset))?;
 
-                    rdr.seek_raw(SeekFrom::Start(offset), pos)?;
-
-                    self.run_plural(rdr)
+                    if let Some(end_offset) = self.flag_end_byte {
+                        self.run_plural(
+                            rconf.csv_reader_from_reader(inner.take(end_offset - offset)),
+                            headers,
+                        )
+                    } else {
+                        self.run_plural(rconf.csv_reader_from_reader(inner), headers)
+                    }
                 } else {
-                    let rdr = rconf.reader()?;
-                    self.run_plural(rdr)
+                    let mut rdr = rconf.reader()?;
+                    let headers = rdr.byte_headers()?.clone();
+                    self.run_plural(rdr, headers)
                 }
             };
         }
 
-        let rconf = self.rconfig();
+        let mut rconf = self.rconfig();
 
         if let Some(offset) = self.flag_byte_offset {
-            let inner = rconf.io_reader_for_random_access()?;
-            let mut rdr = rconf.csv_reader_from_reader(inner);
+            rconf = rconf.no_headers(true);
+            let mut rdr = rconf.csv_reader_from_reader(rconf.io_reader_for_random_access()?);
+            let headers = rdr.byte_headers()?.clone();
+            let mut inner = rdr.into_inner();
 
-            let mut pos = csv::Position::new();
-            pos.set_byte(offset);
+            inner.seek(SeekFrom::Start(offset))?;
 
-            rdr.seek_raw(SeekFrom::Start(offset), pos)?;
-
-            self.run_default(rdr)
+            if let Some(end_offset) = self.flag_end_byte {
+                self.run_default(
+                    rconf.csv_reader_from_reader(inner.take(end_offset - offset)),
+                    headers,
+                )
+            } else {
+                self.run_default(rconf.csv_reader_from_reader(inner), headers)
+            }
         } else {
-            let rdr = rconf.reader()?;
-            self.run_default(rdr)
+            let mut rdr = rconf.reader()?;
+            let headers = rdr.byte_headers()?.clone();
+            self.run_default(rdr, headers)
         }
     }
 
-    fn run_default<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
+    fn run_default<R: Read>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        headers: csv::ByteRecord,
+    ) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
-        self.rconfig().write_headers(&mut rdr, &mut wtr)?;
+
+        if !self.flag_no_headers {
+            wtr.write_byte_record(&headers)?;
+        }
 
         let mut record = csv::ByteRecord::new();
-        let mut conditions = self.conditions(rdr.byte_headers()?)?;
+        let mut conditions = self.conditions(&headers)?;
 
         let (start, end) = self.range()?;
         let mut record_index: usize = 0;
         let mut i: usize = 0;
 
-        while read_byte_record_up_to(&mut rdr, &mut record, self.flag_end_byte)? {
+        while rdr.read_byte_record(&mut record)? {
             match conditions.process(record_index, &record)? {
                 ControlFlow::Break => break,
                 ControlFlow::Continue => continue,
@@ -344,16 +371,23 @@ impl Args {
         Ok(wtr.flush()?)
     }
 
-    fn run_plural<R: Read>(&self, mut rdr: csv::Reader<R>) -> CliResult<()> {
+    fn run_plural<R: Read>(
+        &self,
+        mut rdr: csv::Reader<R>,
+        headers: csv::ByteRecord,
+    ) -> CliResult<()> {
         let mut wtr = self.wconfig().writer()?;
-        self.rconfig().write_headers(&mut rdr, &mut wtr)?;
+
+        if !self.flag_no_headers {
+            wtr.write_byte_record(&headers)?;
+        }
 
         let indices = self.plural_indices()?;
 
         let mut record = csv::ByteRecord::new();
         let mut i: usize = 0;
 
-        while read_byte_record_up_to(&mut rdr, &mut record, self.flag_end_byte)? {
+        while rdr.read_byte_record(&mut record)? {
             if indices.contains(&i) {
                 wtr.write_byte_record(&record)?;
             }

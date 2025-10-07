@@ -153,11 +153,21 @@ fn slice_byte_offset() {
             svec!["five"],
         ],
     );
+
     let mut cmd = wrk.command("slice");
     cmd.args(["-B", "10"]).args(["-l", "1"]).arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n"], svec!["two"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("slice");
+    cmd.args(["-B", "10"])
+        .args(["--end-byte", "18"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n"], svec!["two"], svec!["thr"]];
     assert_eq!(got, expected);
 }
 
