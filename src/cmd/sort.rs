@@ -1,8 +1,10 @@
 use std::cmp;
 use std::io::{stdout, Write};
 use std::path::Path;
+use std::str;
 
 use bytesize::MB;
+use colored::Colorize;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
 
@@ -136,6 +138,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut last: Option<Vec<Vec<u8>>> = None;
 
+        let mut count = 0;
+
         while rdr.read_byte_record(&mut record)? {
             let current_sel = sel
                 .select(&record)
@@ -162,13 +166,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     match ordering {
                         cmp::Ordering::Less => {
-                            Err("file is NOT sorted!")?;
+                            let msg = format!(
+                                "file is NOT sorted!\n\t\t\t\t{}\nPrevious record (index {}): \t{}\nDiverging record (index {}): \t{}",
+                                headers
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(i, h)| {
+                                        if sel.indexed_mask(headers.len())[i].is_some() {
+                                            str::from_utf8(h).ok()
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                                count - 1,
+                                last_sel
+                                    .iter()
+                                    .map(|cell| str::from_utf8(cell).unwrap())
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                                count,
+                                current_sel
+                                    .iter()
+                                    .zip(last_sel)
+                                    .map(|(c,l)| if (match (args.flag_reverse, args.flag_numeric) {
+                                        (false, false) => iter_cmp(std::iter::once(c), std::iter::once(l)),
+                                        (true, false) => iter_cmp(std::iter::once(l), std::iter::once(c)),
+                                        (false, true) => iter_cmp_num(std::iter::once(c.as_slice()), std::iter::once(l.as_slice())),
+                                        (true, true) => iter_cmp_num(std::iter::once(l.as_slice()), std::iter::once(c.as_slice())),
+                                    }) == cmp::Ordering::Less {
+                                        str::from_utf8(c).unwrap().red().bold().to_string()
+                                    } else {
+                                        str::from_utf8(c).unwrap().green().to_string()
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                            );
+                            Err(msg)?;
                         }
                         cmp::Ordering::Equal => continue,
                         _ => last = Some(current_sel),
                     }
                 }
             };
+            count += 1;
         }
 
         writeln!(&mut stdout(), "file is correctly sorted!")?;
