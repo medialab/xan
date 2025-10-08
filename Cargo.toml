@@ -42,8 +42,20 @@ doctest = false
 name = "tests"
 
 [profile.release]
+codegen-units = 1
 lto = true
 strip = true
+
+[profile.release-fast]
+codegen-units = 16
+inherits = "release"
+lto = false
+
+[profile.release-debug]
+inherits = "release"
+strip = false
+debug = true
+lto = false
 
 [dependencies]
 ahash = "0.8.12"
