@@ -339,9 +339,9 @@ impl Config {
         select: &Option<SelectColumns>,
     ) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
         if let Some(sel) = select {
-            let mut csv_reader = self.reader()?;
-            let headers = csv_reader.byte_headers()?;
-            let column_index = sel.single_selection(headers, !self.no_headers)?;
+            let mut csv_reader = self.simd_reader()?;
+            let headers = csv_reader.peek_byte_record(true)?;
+            let column_index = sel.single_selection(&headers, !self.no_headers)?;
 
             return Ok(Box::new(csv_reader.into_byte_records().map(
                 move |result| match result {
@@ -379,13 +379,13 @@ impl Config {
         select: (&Option<SelectColumns>, &Option<SelectColumns>),
     ) -> CliResult<Box<dyn Iterator<Item = PairResult>>> {
         if let Some(first_sel) = &select.0 {
-            let mut csv_reader = self.reader()?;
-            let headers = csv_reader.byte_headers()?;
-            let first_column_index = first_sel.single_selection(headers, !self.no_headers)?;
+            let mut csv_reader = self.simd_reader()?;
+            let headers = csv_reader.peek_byte_record(true)?;
+            let first_column_index = first_sel.single_selection(&headers, !self.no_headers)?;
             let second_column_index_opt = select
                 .1
                 .as_ref()
-                .map(|sel| sel.single_selection(headers, !self.no_headers))
+                .map(|sel| sel.single_selection(&headers, !self.no_headers))
                 .transpose()?;
 
             return Ok(Box::new(csv_reader.into_byte_records().map(
