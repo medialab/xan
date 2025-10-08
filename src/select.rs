@@ -7,41 +7,7 @@ use std::ops;
 use std::str::FromStr;
 
 use crate::collections::HashSet;
-
-pub trait Selectable {
-    fn len(&self) -> usize;
-
-    #[inline(always)]
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &[u8]>;
-}
-
-impl Selectable for csv::ByteRecord {
-    #[inline(always)]
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    #[inline(always)]
-    fn iter(&self) -> impl Iterator<Item = &[u8]> {
-        self.iter()
-    }
-}
-
-impl Selectable for simd_csv::ByteRecord {
-    #[inline(always)]
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    #[inline(always)]
-    fn iter(&self) -> impl Iterator<Item = &[u8]> {
-        self.iter()
-    }
-}
+use crate::record::Record;
 
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]
@@ -72,9 +38,9 @@ impl SelectColumns {
         self.invert = !self.invert;
     }
 
-    pub fn selection<S: Selectable>(
+    pub fn selection<R: Record>(
         &self,
-        first_record: &S,
+        first_record: &R,
         use_names: bool,
     ) -> Result<Selection, String> {
         if self.selectors.is_empty() {
@@ -104,9 +70,9 @@ impl SelectColumns {
         Ok(Selection(map))
     }
 
-    pub fn single_selection<S: Selectable>(
+    pub fn single_selection<R: Record>(
         &self,
-        first_record: &S,
+        first_record: &R,
         use_names: bool,
     ) -> Result<usize, String> {
         let selection = self.selection(first_record, use_names)?;
@@ -118,7 +84,7 @@ impl SelectColumns {
         Ok(selection[0])
     }
 
-    pub fn retain_known<S: Selectable>(&mut self, headers: &S) -> Vec<usize> {
+    pub fn retain_known<R: Record>(&mut self, headers: &R) -> Vec<usize> {
         let mut dropped: Vec<usize> = Vec::new();
 
         for (i, selector) in self.selectors.iter().enumerate() {
@@ -380,11 +346,7 @@ enum OneSelector {
 }
 
 impl Selector {
-    fn indices<S: Selectable>(
-        &self,
-        first_record: &S,
-        use_names: bool,
-    ) -> Result<Vec<usize>, String> {
+    fn indices<R: Record>(&self, first_record: &R, use_names: bool) -> Result<Vec<usize>, String> {
         match *self {
             Selector::All => Ok((0..first_record.len()).collect()),
             Selector::One(ref sel) => sel.index(first_record, use_names).map(|i| vec![i]),
@@ -464,7 +426,7 @@ impl Selector {
 }
 
 impl OneSelector {
-    fn index<S: Selectable>(&self, first_record: &S, use_names: bool) -> Result<usize, String> {
+    fn index<R: Record>(&self, first_record: &R, use_names: bool) -> Result<usize, String> {
         match *self {
             OneSelector::Start => Ok(0),
             OneSelector::End => Ok(if first_record.is_empty() {
@@ -513,10 +475,7 @@ impl OneSelector {
                 let mut num_found = 0;
 
                 if sidx < 0 {
-                    let mut reverse_first_record = first_record.iter().collect::<Vec<_>>();
-                    reverse_first_record.reverse();
-
-                    for (i, field) in reverse_first_record.into_iter().enumerate().rev() {
+                    for (i, field) in first_record.iter().enumerate().rev() {
                         if field == s.as_bytes() {
                             if num_found == sidx.abs() - 1 {
                                 return Ok(i);
