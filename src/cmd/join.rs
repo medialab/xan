@@ -2,7 +2,7 @@ use std::io;
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
@@ -97,7 +97,7 @@ impl Index {
     }
 
     fn from_csv_reader<R: io::Read>(
-        reader: &mut csv::Reader<R>,
+        reader: &mut simd_csv::Reader<R>,
         sel: &Selection,
         case_insensitive: bool,
         nulls: bool,
@@ -298,12 +298,11 @@ struct Args {
     flag_prefix_right: Option<String>,
 }
 
-type BoxedReader = csv::Reader<Box<dyn io::Read + Send>>;
+type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
+type ReaderHandle = (BoxedReader, ByteRecord, Selection);
 
 impl Args {
-    fn readers_and_selections(
-        &self,
-    ) -> CliResult<((BoxedReader, Selection), (BoxedReader, Selection))> {
+    fn readers(&self) -> CliResult<(ReaderHandle, ReaderHandle)> {
         let left = Config::new(&Some(self.arg_input1.clone()))
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -314,17 +313,23 @@ impl Args {
             .no_headers(self.flag_no_headers)
             .select(self.arg_columns2.clone());
 
-        let mut left_reader = left.reader()?;
-        let mut right_reader = right.reader()?;
+        let mut left_reader = left.simd_reader()?;
+        let mut right_reader = right.simd_reader()?;
 
-        let left_sel = left.selection(left_reader.byte_headers()?)?;
-        let right_sel = right.selection(right_reader.byte_headers()?)?;
+        let left_headers = left_reader.peek_byte_record(!self.flag_no_headers)?;
+        let right_headers = right_reader.peek_byte_record(!self.flag_no_headers)?;
+
+        let left_sel = left.selection(&left_headers)?;
+        let right_sel = right.selection(&right_headers)?;
 
         if !self.flag_cross && left_sel.len() != right_sel.len() {
             Err("not the same number of columns selected on left & right!")?;
         }
 
-        Ok(((left_reader, left_sel), (right_reader, right_sel)))
+        Ok((
+            (left_reader, left_headers, left_sel),
+            (right_reader, right_headers, right_sel),
+        ))
     }
 
     fn wconf(&self) -> Config {
@@ -337,7 +342,7 @@ impl Args {
 
     fn write_headers<W: io::Write>(
         &self,
-        writer: &mut csv::Writer<W>,
+        writer: &mut simd_csv::Writer<W>,
         left_headers: &ByteRecord,
         right_headers: &ByteRecord,
     ) -> CliResult<()> {
@@ -354,20 +359,18 @@ impl Args {
     }
 
     fn inner_join(self) -> CliResult<()> {
-        let ((mut left_reader, left_sel), (mut right_reader, right_sel)) =
-            self.readers_and_selections()?;
+        let (
+            (mut left_reader, left_headers, left_sel),
+            (mut right_reader, right_headers, right_sel),
+        ) = self.readers()?;
 
-        let mut writer = self.wconf().writer()?;
+        let mut writer = self.wconf().simd_writer()?;
 
-        self.write_headers(
-            &mut writer,
-            left_reader.byte_headers()?,
-            right_reader.byte_headers()?,
-        )?;
+        self.write_headers(&mut writer, &left_headers, &right_headers)?;
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
-        let mut right_record = csv::ByteRecord::new();
+        let mut right_record = simd_csv::ByteRecord::new();
 
         while right_reader.read_byte_record(&mut right_record)? {
             index.for_each_record(&right_sel, &right_record, |left_record| {
@@ -379,13 +382,12 @@ impl Args {
     }
 
     fn full_outer_join(self) -> CliResult<()> {
-        let ((mut left_reader, left_sel), (mut right_reader, right_sel)) =
-            self.readers_and_selections()?;
+        let (
+            (mut left_reader, left_headers, left_sel),
+            (mut right_reader, right_headers, right_sel),
+        ) = self.readers()?;
 
-        let mut writer = self.wconf().writer()?;
-
-        let left_headers = left_reader.byte_headers()?.clone();
-        let right_headers = right_reader.byte_headers()?.clone();
+        let mut writer = self.wconf().simd_writer()?;
 
         let left_padding = get_padding(&left_headers);
         let right_padding = get_padding(&right_headers);
@@ -394,7 +396,7 @@ impl Args {
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
-        let mut right_record = csv::ByteRecord::new();
+        let mut right_record = simd_csv::ByteRecord::new();
 
         while right_reader.read_byte_record(&mut right_record)? {
             let mut something_was_written: bool = false;
@@ -418,13 +420,12 @@ impl Args {
     }
 
     fn left_join(self) -> CliResult<()> {
-        let ((mut left_reader, left_sel), (mut right_reader, right_sel)) =
-            self.readers_and_selections()?;
+        let (
+            (mut left_reader, left_headers, left_sel),
+            (mut right_reader, right_headers, right_sel),
+        ) = self.readers()?;
 
-        let mut writer = self.wconf().writer()?;
-
-        let left_headers = left_reader.byte_headers()?.clone();
-        let right_headers = right_reader.byte_headers()?.clone();
+        let mut writer = self.wconf().simd_writer()?;
 
         let right_padding = get_padding(&right_headers);
 
@@ -432,7 +433,7 @@ impl Args {
 
         let mut index = self.index(&mut right_reader, &right_sel)?;
 
-        let mut left_record = csv::ByteRecord::new();
+        let mut left_record = simd_csv::ByteRecord::new();
 
         while left_reader.read_byte_record(&mut left_record)? {
             let mut something_was_written: bool = false;
@@ -451,13 +452,12 @@ impl Args {
     }
 
     fn right_join(self) -> CliResult<()> {
-        let ((mut left_reader, left_sel), (mut right_reader, right_sel)) =
-            self.readers_and_selections()?;
+        let (
+            (mut left_reader, left_headers, left_sel),
+            (mut right_reader, right_headers, right_sel),
+        ) = self.readers()?;
 
-        let mut writer = self.wconf().writer()?;
-
-        let left_headers = left_reader.byte_headers()?.clone();
-        let right_headers = right_reader.byte_headers()?.clone();
+        let mut writer = self.wconf().simd_writer()?;
 
         let left_padding = get_padding(&left_headers);
 
@@ -465,7 +465,7 @@ impl Args {
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
-        let mut right_record = csv::ByteRecord::new();
+        let mut right_record = simd_csv::ByteRecord::new();
 
         while right_reader.read_byte_record(&mut right_record)? {
             let mut something_was_written: bool = false;
@@ -484,18 +484,18 @@ impl Args {
     }
 
     fn semi_join(self, anti: bool) -> CliResult<()> {
-        let ((mut left_reader, left_sel), (mut right_reader, right_sel)) =
-            self.readers_and_selections()?;
+        let ((mut left_reader, left_headers, left_sel), (mut right_reader, _, right_sel)) =
+            self.readers()?;
 
-        let mut writer = self.wconf().writer()?;
+        let mut writer = self.wconf().simd_writer()?;
 
         if !self.flag_no_headers {
-            writer.write_byte_record(left_reader.byte_headers()?)?;
+            writer.write_byte_record(&left_headers)?;
         }
 
         let mut index: HashSet<IndexKey> = HashSet::new();
 
-        let mut right_record = csv::ByteRecord::new();
+        let mut right_record = simd_csv::ByteRecord::new();
 
         while right_reader.read_byte_record(&mut right_record)? {
             let key = get_row_key(&right_sel, &right_record, self.flag_ignore_case);
@@ -507,7 +507,7 @@ impl Args {
             index.insert(key);
         }
 
-        let mut left_record = csv::ByteRecord::new();
+        let mut left_record = simd_csv::ByteRecord::new();
 
         while left_reader.read_byte_record(&mut left_record)? {
             let key = get_row_key(&left_sel, &left_record, self.flag_ignore_case);
@@ -526,21 +526,18 @@ impl Args {
     }
 
     fn cross_join(self) -> CliResult<()> {
-        let ((mut left_reader, _), (mut right_reader, _)) = self.readers_and_selections()?;
+        let ((mut left_reader, left_headers, _), (right_reader, right_headers, _)) =
+            self.readers()?;
 
-        let mut writer = self.wconf().writer()?;
+        let mut writer = self.wconf().simd_writer()?;
 
-        self.write_headers(
-            &mut writer,
-            left_reader.byte_headers()?,
-            right_reader.byte_headers()?,
-        )?;
+        self.write_headers(&mut writer, &left_headers, &right_headers)?;
 
         let index = right_reader
             .into_byte_records()
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut left_record = csv::ByteRecord::new();
+        let mut left_record = simd_csv::ByteRecord::new();
 
         while left_reader.read_byte_record(&mut left_record)? {
             for right_record in index.iter() {

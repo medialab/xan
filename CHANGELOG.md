@@ -8,7 +8,7 @@
 
 *Performance*
 
-* Wildly improving performance of the `count`, `search` and `freq`, commands by leveraging a novel SIMD CSV parser/writer.
+* Wildly improving performance of the `count`, `freq`, `join` & `search` commands by leveraging a novel SIMD CSV parser/writer.
 
 ## 0.53.0
 
