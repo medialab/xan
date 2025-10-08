@@ -20,7 +20,7 @@ use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
-use crate::read::{read_byte_record_up_to, segment_csv_file, SegmentationOptions};
+use crate::read::{segment_csv_file, SegmentationOptions};
 use crate::select::SelectColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
@@ -375,7 +375,6 @@ struct InputReader {
     reader: Box<dyn io::Read + Send>,
     headers: Option<csv::ByteRecord>,
     _children: Option<Children>,
-    up_to: Option<u64>,
     bar: Option<ProgressBar>,
 }
 
@@ -392,7 +391,6 @@ impl InputReader {
             csv_reader,
             headers,
             _children: self._children,
-            up_to: self.up_to,
             bar: self.bar,
         })
     }
@@ -402,15 +400,16 @@ struct CsvInputReader {
     csv_reader: BoxedReader,
     headers: csv::ByteRecord,
     _children: Option<Children>,
-    up_to: Option<u64>,
     bar: Option<ProgressBar>,
 }
 
 impl CsvInputReader {
+    #[inline(always)]
     fn read_byte_record(&mut self, record: &mut csv::ByteRecord) -> Result<bool, csv::Error> {
-        read_byte_record_up_to(&mut self.csv_reader, record, self.up_to)
+        self.csv_reader.read_byte_record(record)
     }
 
+    #[inline(always)]
     fn tick(&self) {
         if let Some(bar) = &self.bar {
             bar.inc(1);
@@ -822,7 +821,6 @@ impl Args {
                 reader,
                 headers: None,
                 _children,
-                up_to: None,
                 bar,
             })
         }
@@ -922,7 +920,6 @@ impl Args {
                 ),
                 headers: None,
                 _children: Some(Children::from(children)),
-                up_to: None,
                 bar,
             })
         }
@@ -941,7 +938,6 @@ impl Args {
                         reader,
                         headers: None,
                         _children: None,
-                        up_to: None,
                         bar,
                     })
                 }
@@ -950,14 +946,16 @@ impl Args {
                         .delimiter(self.flag_delimiter)
                         .no_headers(true);
 
-                    let reader = config.io_reader_at_position(file_chunk.from)?;
+                    let reader = config.io_reader_at_position_with_limit(
+                        file_chunk.from,
+                        file_chunk.to - file_chunk.from,
+                    )?;
 
                     Ok(InputReader {
                         config,
                         reader,
                         headers: Some(file_chunk.headers.clone()),
                         _children: None,
-                        up_to: Some(file_chunk.to - file_chunk.from),
                         bar,
                     })
                 }

@@ -171,30 +171,6 @@ pub fn sample_initial_records<R: Read + Seek>(
     }))
 }
 
-// BEWARE: this function assess whether the parsed record is too far AFTER the fact.
-// We do this because the given record might not have a position yet on first call.
-// Note also that this function might catastrophically overscan and should not be
-// used by `next_record_info`.
-pub fn read_byte_record_up_to<R: Read>(
-    reader: &mut Reader<R>,
-    record: &mut ByteRecord,
-    up_to: Option<u64>,
-) -> Result<bool, csv::Error> {
-    let was_read = reader.read_byte_record(record)?;
-
-    if !was_read {
-        return Ok(false);
-    }
-
-    if let Some(byte) = up_to {
-        if record.position().unwrap().byte() >= byte {
-            return Ok(false);
-        }
-    }
-
-    Ok(true)
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum NextRecordOffsetInferrence {
     Start,

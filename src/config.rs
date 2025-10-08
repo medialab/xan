@@ -476,15 +476,16 @@ impl Config {
         }
     }
 
-    pub fn io_reader_at_position(
+    pub fn io_reader_at_position_with_limit(
         &self,
         position: u64,
+        limit: u64,
     ) -> CliResult<Box<dyn Read + Send + 'static>> {
         let mut reader = self.io_reader_for_random_access()?;
 
         reader.seek(SeekFrom::Start(position))?;
 
-        Ok(Box::new(reader))
+        Ok(Box::new(reader.take(limit)))
     }
 
     pub fn reverse_reader(
