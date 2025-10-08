@@ -171,7 +171,7 @@ impl Args {
         }
 
         let mut wtr = self.writer()?;
-        let mut record = csv::StringRecord::new();
+        let mut record = csv::ByteRecord::new();
 
         let range = match &self.flag_sheet_name {
             Some(name) => Some(workbook.worksheet_range(name)),
@@ -202,17 +202,19 @@ impl Args {
 
                     for cell in row {
                         match cell {
-                            Data::String(value) => record.push_field(value),
-                            Data::DateTimeIso(value) => record.push_field(value),
-                            Data::DurationIso(value) => record.push_field(value),
+                            Data::String(value) => record.push_field(value.as_bytes()),
+                            Data::DateTimeIso(value) => record.push_field(value.as_bytes()),
+                            Data::DurationIso(value) => record.push_field(value.as_bytes()),
                             Data::Bool(value) => {
-                                record.push_field(if *value { "true" } else { "false" })
+                                record.push_field(if *value { b"true" } else { b"false" })
                             }
-                            Data::Int(value) => record.push_field(&value.to_string()),
-                            Data::Float(value) => record.push_field(&value.to_string()),
-                            Data::DateTime(value) => record.push_field(&value.to_string()),
-                            Data::Error(err) => record.push_field(&err.to_string()),
-                            Data::Empty => record.push_field(""),
+                            Data::Int(value) => record.push_field(value.to_string().as_bytes()),
+                            Data::Float(value) => record.push_field(value.to_string().as_bytes()),
+                            Data::DateTime(value) => {
+                                record.push_field(value.to_string().as_bytes())
+                            }
+                            Data::Error(err) => record.push_field(err.to_string().as_bytes()),
+                            Data::Empty => record.push_field(b""),
                         }
                     }
 
