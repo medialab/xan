@@ -143,17 +143,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconf.selection(&headers)?;
 
     if args.flag_check {
+        let mut already_seen = HashSet::<DeduplicationKey>::new();
         let mut record = csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
-            let mut already_seen = HashSet::<DeduplicationKey>::new();
+            let key = sel.collect(&record);
 
-            while rdr.read_byte_record(&mut record)? {
-                let key = sel.collect(&record);
-
-                if !already_seen.insert(key) {
-                    Err("selection is NOT unique!")?;
-                }
+            if !already_seen.insert(key) {
+                Err("selection is NOT unique!")?;
             }
         }
 

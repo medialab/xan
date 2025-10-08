@@ -2,6 +2,10 @@
 
 ## 0.54.0 (provisional)
 
+*Fixes*
+
+* Fixing `xan dedup --check` bug where the first record was ignored.
+
 *Performance*
 
 * Wildly improving performance of the `count`, `search` and `freq`, commands by leveraging a novel SIMD CSV parser/writer.
