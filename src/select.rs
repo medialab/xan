@@ -10,7 +10,12 @@ use crate::collections::HashSet;
 
 pub trait Selectable {
     fn len(&self) -> usize;
-    fn is_empty(&self) -> bool;
+
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn iter(&self) -> impl Iterator<Item = &[u8]>;
 }
 
@@ -18,11 +23,6 @@ impl Selectable for csv::ByteRecord {
     #[inline(always)]
     fn len(&self) -> usize {
         self.len()
-    }
-
-    #[inline(always)]
-    fn is_empty(&self) -> bool {
-        self.is_empty()
     }
 
     #[inline(always)]
@@ -35,11 +35,6 @@ impl Selectable for simd_csv::ByteRecord {
     #[inline(always)]
     fn len(&self) -> usize {
         self.len()
-    }
-
-    #[inline(always)]
-    fn is_empty(&self) -> bool {
-        self.is_empty()
     }
 
     #[inline(always)]
