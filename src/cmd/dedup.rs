@@ -1,6 +1,8 @@
 use std::io::{stdout, Write};
+use std::str;
 
 use ahash::RandomState;
+use colored::Colorize;
 use dlv_list::{Index, VecList};
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use transient_btree_index::{BtreeConfig, BtreeIndex};
@@ -146,12 +148,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut already_seen = HashSet::<DeduplicationKey>::new();
         let mut record = csv::ByteRecord::new();
 
+        let mut count: usize = 0;
+
         while rdr.read_byte_record(&mut record)? {
             let key = sel.collect(&record);
 
             if !already_seen.insert(key) {
-                Err("selection is NOT unique!")?;
+                let msg = format!(
+                        "selection is NOT unique!\n\t\t\t\t\t{}\nFirst duplicate record (index {}): \t{}",
+                        headers
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, h)| {
+                                if sel.indexed_mask(headers.len())[i].is_some() {
+                                    str::from_utf8(h).ok()
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        count,
+                        // str::from_utf8(sel.collect(&record)[0].as_slice()).unwrap()
+                        sel.collect(&record)
+                            .iter()
+                            .map(|cell| str::from_utf8(cell).unwrap())
+                            .collect::<Vec<_>>()
+                            .join(", ").red().bold()
+                    );
+                    Err(msg)?;
             }
+            count += 1;
         }
 
         writeln!(&mut stdout(), "selection is unique!")?;

@@ -10,3 +10,4 @@ target
 builds
 .vscode
 *.npy
+*.code-workspace
