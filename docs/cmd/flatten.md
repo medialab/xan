@@ -25,6 +25,9 @@ flatten options:
     -c, --condense         Don't wrap cell values on new lines but truncate them
                            with ellipsis instead.
     -w, --wrap             Wrap cell values all while minding the header's indent.
+    -F, --flatter          Even flatter representation alternating column name and content
+                           on different lines in the output. Useful to display cells containing
+                           large chunks of text.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).

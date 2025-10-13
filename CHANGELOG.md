@@ -2,6 +2,10 @@
 
 ## 0.54.0 (provisional)
 
+*Features*
+
+* Adding `xan flatten -F/--flatter`.
+
 *Fixes*
 
 * Fixing `xan dedup --check` bug where the first record was ignored.

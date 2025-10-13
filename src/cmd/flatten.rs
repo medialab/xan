@@ -34,6 +34,9 @@ flatten options:
     -c, --condense         Don't wrap cell values on new lines but truncate them
                            with ellipsis instead.
     -w, --wrap             Wrap cell values all while minding the header's indent.
+    -F, --flatter          Even flatter representation alternating column name and content
+                           on different lines in the output. Useful to display cells containing
+                           large chunks of text.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
@@ -65,6 +68,7 @@ struct Args {
     flag_limit: Option<NonZeroUsize>,
     flag_condense: bool,
     flag_wrap: bool,
+    flag_flatter: bool,
     flag_cols: Option<String>,
     flag_rainbow: bool,
     flag_force_colors: bool,
@@ -83,8 +87,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-R/--rainbow does not work with -H/--highlight!")?;
     }
 
-    if args.flag_wrap && args.flag_condense {
-        Err("-w/--wrap does not work with -c/--condense!")?;
+    let modalities = args.flag_wrap as u8 + args.flag_condense as u8 + args.flag_flatter as u8;
+
+    if modalities > 1 {
+        Err("must choose only one of -w/--wrap, -c/--condense or -F/--flatter!")?;
     }
 
     let output = io::stdout();
@@ -239,12 +245,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let cell = prepare_cell(i, cell, 0);
 
-            writeln!(
-                &output,
-                "{}{}",
-                util::unicode_aware_rpad(header, max_header_width + 1, " "),
-                cell
-            )?;
+            if args.flag_flatter {
+                writeln!(&output, "{}", header)?;
+                writeln!(&output, "{}\n", cell)?;
+            } else {
+                writeln!(
+                    &output,
+                    "{}{}",
+                    util::unicode_aware_rpad(header, max_header_width + 1, " "),
+                    cell
+                )?;
+            }
         }
 
         record_index += 1;
