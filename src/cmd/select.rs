@@ -152,13 +152,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
-    let mut record = csv::ByteRecord::new();
-
-    let headers = rdr.byte_headers()?.clone();
-
     if args.flag_evaluate || args.flag_evaluate_file {
+        let mut rdr = rconfig.reader()?;
+        let mut wtr = Config::new(&args.flag_output).writer()?;
+        let mut record = csv::ByteRecord::new();
+
+        let headers = rdr.byte_headers()?.clone();
+
         let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
 
         wtr.write_record(program.headers())?;
@@ -172,7 +172,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             wtr.write_byte_record(&output_record)?;
         }
+
+        Ok(wtr.flush()?)
     } else {
+        let mut rdr = rconfig.simd_reader()?;
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+        let mut record = simd_csv::ByteRecord::new();
+
+        let headers = rdr.peek_byte_record(!args.flag_no_headers)?;
+
         rconfig = rconfig.select(SelectColumns::parse(&args.arg_selection)?);
 
         let sel = rconfig.selection(&headers)?;
@@ -186,7 +194,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_byte_record(&mut record)? {
             wtr.write_record(sel.select(&record))?;
         }
-    }
 
-    Ok(wtr.flush()?)
+        Ok(wtr.flush()?)
+    }
 }
