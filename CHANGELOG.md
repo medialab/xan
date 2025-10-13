@@ -15,6 +15,10 @@
 
 * Wildly improving performance of the `count`, `freq`, `join` & `search` commands by leveraging a novel SIMD CSV parser/writer.
 
+*Quality of Life*
+
+* `xan parallel cat` now flushing more consistently.
+
 ## 0.53.0
 
 *Breaking*

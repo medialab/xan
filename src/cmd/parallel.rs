@@ -1099,6 +1099,8 @@ impl Args {
                 guard.1.write_byte_record(record)?;
             }
 
+            guard.1.flush()?;
+
             Ok(())
         };
 
