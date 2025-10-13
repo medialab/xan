@@ -9,6 +9,7 @@
 *Fixes*
 
 * Fixing `xan dedup --check` bug where the first record was ignored.
+* Fixing `xan hist -D` when a same date is found multiple times.
 
 *Performance*
 

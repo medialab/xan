@@ -522,6 +522,12 @@ impl Histogram {
                     previous_date_opt = Some(date);
                 }
                 Some(mut previous_date) => {
+                    if date == previous_date {
+                        self.bars.last_mut().unwrap().value += bar.value;
+
+                        continue;
+                    }
+
                     loop {
                         let expected_date = dates::next_partial_date(unit, &previous_date);
 
