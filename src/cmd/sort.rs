@@ -7,6 +7,7 @@ use bytesize::MB;
 use colored::Colorize;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
+use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
@@ -166,42 +167,48 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     match ordering {
                         cmp::Ordering::Less => {
+                            let max_len_of_head_sel = sel.select(&headers).map(|h| str::from_utf8(h).ok().unwrap().width()).max().unwrap();
+                            let max_len_of_last_sel = last_sel.iter().map(|c| str::from_utf8(c).ok().unwrap().width()).max().unwrap();
+
                             let msg = format!(
-                                "file is NOT sorted!\n\t\t\t\t{}\nPrevious record (index {}): \t{}\nDiverging record (index {}): \t{}",
+                                "file is NOT sorted!\n{}Previous record (index {}) Diverging record (index {})\n{}",
+                                " ".repeat(max_len_of_head_sel+1),
+                                count - 1,
+                                count,
                                 headers
                                     .iter()
                                     .enumerate()
                                     .filter_map(|(i, h)| {
-                                        if sel.indexed_mask(headers.len())[i].is_some() {
-                                            str::from_utf8(h).ok()
+                                        if sel.contains(i) {
+                                            let head_to_print = str::from_utf8(h).ok().unwrap();
+                                            Some(format!("{}{}", head_to_print, " ".repeat(max_len_of_head_sel - head_to_print.width())))
                                         } else {
                                             None
                                         }
                                     })
+                                    .zip(
+                                        last_sel
+                                            .iter()
+                                            .map(|cell| format!("{}{}", str::from_utf8(cell).unwrap(), " ".repeat(max_len_of_last_sel - str::from_utf8(cell).unwrap().width())))
+                                            .zip(
+                                                current_sel
+                                                    .iter()
+                                                    .zip(last_sel)
+                                                    .map(|(c,l)| if (match (args.flag_reverse, args.flag_numeric) {
+                                                        (false, false) => iter_cmp(std::iter::once(c), std::iter::once(l)),
+                                                        (true, false) => iter_cmp(std::iter::once(l), std::iter::once(c)),
+                                                        (false, true) => iter_cmp_num(std::iter::once(c.as_slice()), std::iter::once(l.as_slice())),
+                                                        (true, true) => iter_cmp_num(std::iter::once(l.as_slice()), std::iter::once(c.as_slice())),
+                                                    }) == cmp::Ordering::Less {
+                                                        str::from_utf8(c).unwrap().red().bold().to_string()
+                                                    } else {
+                                                        str::from_utf8(c).unwrap().green().to_string()
+                                                    })
+                                            )
+                                    )
+                                    .map(|(h, (l, c))| format!("{} {} {}", h, l, c))
                                     .collect::<Vec<_>>()
-                                    .join(", "),
-                                count - 1,
-                                last_sel
-                                    .iter()
-                                    .map(|cell| str::from_utf8(cell).unwrap())
-                                    .collect::<Vec<_>>()
-                                    .join(", "),
-                                count,
-                                current_sel
-                                    .iter()
-                                    .zip(last_sel)
-                                    .map(|(c,l)| if (match (args.flag_reverse, args.flag_numeric) {
-                                        (false, false) => iter_cmp(std::iter::once(c), std::iter::once(l)),
-                                        (true, false) => iter_cmp(std::iter::once(l), std::iter::once(c)),
-                                        (false, true) => iter_cmp_num(std::iter::once(c.as_slice()), std::iter::once(l.as_slice())),
-                                        (true, true) => iter_cmp_num(std::iter::once(l.as_slice()), std::iter::once(c.as_slice())),
-                                    }) == cmp::Ordering::Less {
-                                        str::from_utf8(c).unwrap().red().bold().to_string()
-                                    } else {
-                                        str::from_utf8(c).unwrap().green().to_string()
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(", "),
+                                    .join("\n")
                             );
                             Err(msg)?;
                         }

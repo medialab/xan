@@ -6,6 +6,7 @@ use colored::Colorize;
 use dlv_list::{Index, VecList};
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use transient_btree_index::{BtreeConfig, BtreeIndex};
+use unicode_width::UnicodeWidthStr;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
@@ -154,27 +155,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let key = sel.collect(&record);
 
             if !already_seen.insert(key) {
+                let max_len_of_head_sel = sel.select(&headers).map(|h| str::from_utf8(h).ok().unwrap().width()).max().unwrap();
                 let msg = format!(
-                        "selection is NOT unique!\n\t\t\t\t\t{}\nFirst duplicate record (index {}): \t{}",
+                        "selection is NOT unique! First duplicate record (index {}):\n{}",
+                        count,
                         headers
                             .iter()
                             .enumerate()
                             .filter_map(|(i, h)| {
-                                if sel.indexed_mask(headers.len())[i].is_some() {
-                                    str::from_utf8(h).ok()
+                                if sel.contains(i) {
+                                    let head_to_print = str::from_utf8(h).ok().unwrap();
+                                    Some(format!("{}{}", head_to_print, " ".repeat(max_len_of_head_sel - head_to_print.width())))
                                 } else {
                                     None
                                 }
                             })
+                            .zip(
+                                sel.collect(&record)
+                                    .iter()
+                                    .map(|cell| str::from_utf8(cell).unwrap().red().bold())
+                            )
+                            .map(|(h, v)| format!("{} {}", h, v))
                             .collect::<Vec<_>>()
-                            .join(", "),
-                        count,
-                        // str::from_utf8(sel.collect(&record)[0].as_slice()).unwrap()
-                        sel.collect(&record)
-                            .iter()
-                            .map(|cell| str::from_utf8(cell).unwrap())
-                            .collect::<Vec<_>>()
-                            .join(", ").red().bold()
+                            .join("\n")
                     );
                     Err(msg)?;
             }
