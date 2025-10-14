@@ -139,8 +139,7 @@ Options:
 Common options:
     -n, --no-headers       Typically used to indicate that input file has no headers.
     -d, --delimiter <arg>  Typically used to indicate a custom delimiter.
-
-Commands:",
+",
     command_list!()
 );
 
