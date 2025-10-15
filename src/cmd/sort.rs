@@ -1,10 +1,14 @@
 use std::cmp;
 use std::io::{stdout, Write};
+use std::iter::once;
 use std::path::Path;
+use std::str;
 
 use bytesize::MB;
+use colored::Colorize;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
+use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
@@ -136,6 +140,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut last: Option<Vec<Vec<u8>>> = None;
 
+        let mut count: u64 = 0;
+
         while rdr.read_byte_record(&mut record)? {
             let current_sel = sel
                 .select(&record)
@@ -162,13 +168,55 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     match ordering {
                         cmp::Ordering::Less => {
-                            Err("file is NOT sorted!")?;
+                            let max_len_of_head_sel = sel
+                                .select(&headers)
+                                .map(|h| str::from_utf8(h).unwrap().width())
+                                .max()
+                                .unwrap();
+
+                            let max_len_of_last_sel = last_sel
+                                .iter()
+                                .map(|c| str::from_utf8(c).unwrap().width())
+                                .max()
+                                .unwrap();
+
+                            let msg = format!(
+                                "file is NOT sorted!\n{}Previous record (index {}) Diverging record (index {})\n{}",
+                                " ".repeat(max_len_of_head_sel+1),
+                                count - 1,
+                                count,
+                                sel.select(&headers).map(|h| {
+                                    let head_to_print = str::from_utf8(h).unwrap();
+                                    format!("{}{}", head_to_print, " ".repeat(max_len_of_head_sel - head_to_print.width()))
+                                })
+                                .zip(last_sel
+                                        .iter()
+                                        .map(|cell| format!("{}{}", str::from_utf8(cell).unwrap(), " ".repeat(max_len_of_last_sel - str::from_utf8(cell).unwrap().width())))
+                                        .zip(current_sel
+                                                .iter()
+                                                .zip(last_sel)
+                                                .map(|(c,l)| if (match (args.flag_reverse, args.flag_numeric) {
+                                                    (false, false) => iter_cmp(once(c), once(l)),
+                                                    (true, false) => iter_cmp(once(l), once(c)),
+                                                    (false, true) => iter_cmp_num(once(c.as_slice()), once(l.as_slice())),
+                                                    (true, true) => iter_cmp_num(once(l.as_slice()), once(c.as_slice())),
+                                                }) == cmp::Ordering::Less {
+                                                    str::from_utf8(c).unwrap().red().bold().to_string()
+                                                } else {
+                                                    str::from_utf8(c).unwrap().green().to_string()
+                                                })
+                                        )).map(|(h, (l, c))| format!("{} {} {}", h, l, c))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                            );
+                            Err(msg)?;
                         }
                         cmp::Ordering::Equal => continue,
                         _ => last = Some(current_sel),
                     }
                 }
             };
+            count += 1;
         }
 
         writeln!(&mut stdout(), "file is correctly sorted!")?;
