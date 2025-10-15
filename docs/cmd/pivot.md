@@ -49,7 +49,7 @@ you can easily call `xan pivot` downstream of `xan unpivot`:
     $ xan unpivot january: monthly.csv | <processing> | xan pivot
 
 Usage:
-    xan pivot [-P...] [options] <column> <expr> [<input>]
+    xan pivot [-P...] [options] <columns> <expr> [<input>]
     xan pivot [-P...] [options] [<input>]
     xan pivot --help
 
@@ -57,6 +57,8 @@ pivot options:
     -g, --groupby <columns>  Group results by given selection of columns instead
                              of grouping by columns not used to pivot nor in
                              aggregation.
+    --column-sep <sep>       Separator used to join column names when pivoting
+                             on multiple columns. [default: _]
 
 pivotal options:
     -P  Use at least three times to get help from your friends!

@@ -58,7 +58,7 @@ you can easily call `xan pivot` downstream of `xan unpivot`:
     $ xan unpivot january: monthly.csv | <processing> | xan pivot
 
 Usage:
-    xan pivot [-P...] [options] <column> <expr> [<input>]
+    xan pivot [-P...] [options] <columns> <expr> [<input>]
     xan pivot [-P...] [options] [<input>]
     xan pivot --help
 
@@ -66,6 +66,8 @@ pivot options:
     -g, --groupby <columns>  Group results by given selection of columns instead
                              of grouping by columns not used to pivot nor in
                              aggregation.
+    --column-sep <sep>       Separator used to join column names when pivoting
+                             on multiple columns. [default: _]
 
 pivotal options:
     -P  Use at least three times to get help from your friends!
@@ -82,9 +84,10 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
-    arg_column: Option<SelectColumns>,
+    arg_columns: Option<SelectColumns>,
     arg_expr: Option<String>,
     flag_groupby: Option<SelectColumns>,
+    flag_column_sep: String,
     #[serde(rename = "flag_P")]
     flag_p: usize,
     flag_output: Option<String>,
@@ -106,7 +109,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Handling defaults
     let arg_column = args
-        .arg_column
+        .arg_columns
         .unwrap_or_else(|| SelectColumns::parse("name").unwrap());
 
     let arg_expr = args.arg_expr.unwrap_or_else(|| "first(value)".to_string());
@@ -118,16 +121,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
-    let pivot_col_index = rconf.single_selection(&headers)?;
+    let pivot_sel = rconf.selection(&headers)?;
     let mut program = PivotAggregationProgram::parse(&arg_expr, &headers)?;
 
     let column_indices_used_in_aggregation = program.used_column_indices();
 
-    if column_indices_used_in_aggregation.contains(&pivot_col_index) {
+    if column_indices_used_in_aggregation
+        .iter()
+        .any(|i| pivot_sel.contains(*i))
+    {
         Err("aggregation cannot work on the pivot column!")?;
     }
 
-    let mut disappearing_columns = vec![pivot_col_index];
+    let mut disappearing_columns = pivot_sel.to_vec();
     disappearing_columns.extend(column_indices_used_in_aggregation);
 
     let groupby_sel = if let Some(cols) = args.flag_groupby.as_ref() {
@@ -151,7 +157,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_byte_record(&mut record)? {
         let group = groupby_sel.collect(&record);
-        let pivot = record[pivot_col_index].to_vec();
+        let pivot = bstr::join(&args.flag_column_sep, pivot_sel.collect(&record));
 
         program.run_with_record(group, pivot, index, &record)?;
 

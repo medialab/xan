@@ -5,6 +5,7 @@
 *Features*
 
 * Adding `xan flatten -F/--flatter`.
+* `xan pivot` can now target multiple columns.
 
 *Fixes*
 

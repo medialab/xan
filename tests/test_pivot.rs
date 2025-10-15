@@ -120,3 +120,37 @@ fn pivot_default() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn pivot_multiple_selection() {
+    let wrk = Workdir::new("pivot_multiple_selection");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["country", "name", "year", "population"],
+            svec!["NL", "Amsterdam", "2000", "1005"],
+            svec!["NL", "Amsterdam", "2010", "1065"],
+            svec!["NL", "Amsterdam", "2020", "1158"],
+            svec!["US", "Seattle", "2000", "564"],
+            svec!["US", "Seattle", "2010", "608"],
+            svec!["US", "Seattle", "2020", "738"],
+            svec!["US", "New York City", "2000", "8015"],
+            svec!["US", "New York City", "2010", "8175"],
+            svec!["US", "New York City", "2020", "8772"],
+        ],
+    );
+
+    let mut cmd = wrk.command("pivot");
+    cmd.arg("country,year")
+        .arg("first(population)")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "NL_2000", "NL_2010", "NL_2020", "US_2000", "US_2010", "US_2020"],
+        svec!["Amsterdam", "1005", "1065", "1158", "", "", ""],
+        svec!["Seattle", "", "", "", "564", "608", "738"],
+        svec!["New York City", "", "", "", "8015", "8175", "8772"],
+    ];
+    assert_eq!(got, expected);
+}
