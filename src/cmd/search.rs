@@ -804,8 +804,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--overlapping only works with -c/--count, -U/--unique-matches or -B/--breakdown!")?;
     }
 
-    if (args.flag_count.is_some() || args.flag_replace.is_some()) && args.flag_invert_match {
-        Err("-c/--count & -R/--replace do not work with -v/--invert-match!")?;
+    if (args.flag_count.is_some()
+        || args.flag_replace.is_some()
+        || args.flag_breakdown
+        || args.flag_unique_matches.is_some())
+        && args.flag_invert_match
+    {
+        Err("-c/--count, -R/--replace, -B/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
     }
 
     if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
