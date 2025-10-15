@@ -190,12 +190,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let cell = util::colorize(&cell_colorizer, &cell);
 
-        match (cell_colorizer.is_green(), &highlight_pattern) {
-            (true, Some(pattern)) => pattern
+        match (cell_colorizer.highlightable_color(), &highlight_pattern) {
+            (Some(fg), Some(pattern)) => pattern
                 .replace_all(&cell.to_string(), |caps: &Captures| {
                     let mut r = String::from("\x1b[0;1;31m");
                     r.push_str(&caps[0]);
-                    r.push_str("\x1b[0;32m");
+                    r.push_str("\x1b[0;");
+                    r.push_str(&fg);
+                    r.push('m');
                     r
                 })
                 .into_owned(),

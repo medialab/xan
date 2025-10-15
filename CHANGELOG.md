@@ -38,6 +38,7 @@
 * Fixing `xan top -T/--ties` edge case.
 * Fixing broken pipe panics for some commands.
 * Dropping remnant `dbg!` macro when reading files in reverse.
+* `xan flatten -H` now correctly working on more data types.
 
 *Performance*
 

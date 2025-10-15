@@ -368,8 +368,17 @@ pub enum ColorOrStyles {
 }
 
 impl ColorOrStyles {
-    pub fn is_green(&self) -> bool {
-        matches!(self, Self::Color(color) if color == &Color::Green)
+    pub fn highlightable_color(&self) -> Option<Cow<'static, str>> {
+        match self {
+            Self::Color(color) => {
+                if color != &Color::Red {
+                    Some(color.to_fg_str())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 }
 
