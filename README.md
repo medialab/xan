@@ -589,8 +589,8 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**scrape**](./docs/cmd/scrape.md): Scrape HTML into CSV data
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
 - [**transpose (t)**](./docs/cmd/transpose.md): Transpose CSV file
-- [**pivot**](./docs/cmd/pivot.cmd): Stack multiple columns into fewer columns
-- [**unpivot**](./docs/cmd/unpivot.cmd): Split distinct values of a column into their own columns
+- [**pivot**](./docs/cmd/pivot.md): Stack multiple columns into fewer columns
+- [**unpivot**](./docs/cmd/unpivot.md): Split distinct values of a column into their own columns
 
 *Split a CSV file into multiple*
 
