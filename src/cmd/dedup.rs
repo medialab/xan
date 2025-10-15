@@ -149,38 +149,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut already_seen = HashSet::<DeduplicationKey>::new();
         let mut record = csv::ByteRecord::new();
 
-        let mut count: usize = 0;
+        let mut count: u64 = 0;
 
         while rdr.read_byte_record(&mut record)? {
             let key = sel.collect(&record);
 
             if !already_seen.insert(key) {
-                let max_len_of_head_sel = sel.select(&headers).map(|h| str::from_utf8(h).ok().unwrap().width()).max().unwrap();
+                let max_len_of_head_sel = sel
+                    .select(&headers)
+                    .map(|h| str::from_utf8(h).unwrap().width())
+                    .max()
+                    .unwrap();
+
                 let msg = format!(
-                        "selection is NOT unique! First duplicate record (index {}):\n{}",
-                        count,
-                        headers
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(i, h)| {
-                                if sel.contains(i) {
-                                    let head_to_print = str::from_utf8(h).ok().unwrap();
-                                    Some(format!("{}{}", head_to_print, " ".repeat(max_len_of_head_sel - head_to_print.width())))
-                                } else {
-                                    None
-                                }
-                            })
-                            .zip(
-                                sel.collect(&record)
-                                    .iter()
-                                    .map(|cell| str::from_utf8(cell).unwrap().red().bold())
+                    "selection is NOT unique!\nFirst duplicate record found at index {}:\n\n{}",
+                    count,
+                    sel.select(&headers)
+                        .map(|h| {
+                            let head_to_print = str::from_utf8(h).unwrap();
+                            format!(
+                                "{}{}",
+                                head_to_print,
+                                " ".repeat(max_len_of_head_sel - head_to_print.width())
                             )
-                            .map(|(h, v)| format!("{} {}", h, v))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    );
-                    Err(msg)?;
+                        })
+                        .zip(
+                            sel.select(&record)
+                                .map(|cell| { str::from_utf8(cell).unwrap().red().bold() })
+                        )
+                        .map(|(h, v)| format!("{} {}", h, v))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                );
+
+                Err(msg)?;
             }
+
             count += 1;
         }
 
