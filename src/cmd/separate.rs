@@ -28,7 +28,7 @@ Examples:
     $ xan separate 1 '\d+' data.csv -r -m
 
   Extract year, month and day from column named 'date' using capture groups:
-    $ xan separate date '(\d{4})-(\d{2})-(\d{2})' data.csv -r -c
+    $ xan separate date '(\d{4})-(\d{2})-(\d{2})' data.csv -r -c --into year,month,day
 
 Usage:
     xan separate [options] <columns> <separator> [<input>]
@@ -37,6 +37,10 @@ Usage:
 separate options:
     --max-splits <n>         Limit the number of splits per cell to at most <n>.
                              By default, all possible splits are made.
+    --into <col1,col2,...>   Specify names for the new columns created by the splits.
+                             If not provided, new columns will be named untitled1, 
+                             untitled2, etc. If used with --max-splits, the number
+                             of names provided must be equal or lower than <n>.
     -r, --regex              Split cells using a regex pattern instead of the
                              <separator> substring.
     -m, --match              When using --regex, only output the parts of the 
@@ -64,6 +68,7 @@ struct Args {
     flag_match: bool,
     flag_capture_groups: bool,
     flag_max_splits: Option<usize>,
+    flag_into: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -134,6 +139,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
+    if args.flag_into.is_some() && args.flag_max_splits.is_some() {
+        if args.flag_into.as_ref().unwrap().split(',').count() + 1 > args.flag_max_splits.unwrap() {
+            return Err("--into cannot specify more column names than --max-splits")?;
+        }
+    }
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .select(args.arg_columns)
@@ -187,7 +198,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut new_headers = ByteRecord::from(headers.clone());
-    for i in 1..=max_splits {
+    let mut number_of_new_columns = max_splits;
+    if let Some(into) = &args.flag_into {
+        let new_headers_names: Vec<&str> = into.split(',').collect();
+        for name in new_headers_names {
+            new_headers.push_field(name.as_bytes());
+            number_of_new_columns -= 1;
+        }
+    }
+
+    for i in 1..=number_of_new_columns {
         let header_name = format!("untitled{}", i);
         new_headers.push_field(header_name.as_bytes());
     }

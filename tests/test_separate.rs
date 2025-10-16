@@ -140,7 +140,7 @@ fn separate_regex_match() {
 }
 
 #[test]
-fn separate_regex_known_max_splits() {
+fn separate_regex_named_and_known_max_splits() {
     let wrk = Workdir::new("separate_regex_known_max_splits");
     wrk.create(
         "data.csv",
@@ -158,10 +158,12 @@ fn separate_regex_known_max_splits() {
         .arg("-r")
         .arg("-c")
         .arg("--max-splits")
-        .arg("4");
+        .arg("4")
+        .arg("--into")
+        .arg("year,month");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["date", "untitled1", "untitled2", "untitled3", "untitled4"],
+        svec!["date", "year", "month", "untitled1", "untitled2"],
         svec!["2023-01-15", "2023", "01", "15", ""],
         svec!["1999-12-31", "1999", "12", "31", ""],
         svec!["2024-07-04", "2024", "07", "04", ""],
