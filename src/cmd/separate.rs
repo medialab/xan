@@ -35,6 +35,8 @@ Usage:
     xan separate --help
 
 separate options:
+    --max-splits <n>         Limit the number of splits per cell to at most <n>.
+                             By default, all possible splits are made.
     -r, --regex              Split cells using a regex pattern instead of the
                              <separator> substring.
     -m, --match              When using --regex, only output the parts of the 
@@ -61,15 +63,67 @@ struct Args {
     flag_regex: bool,
     flag_match: bool,
     flag_capture_groups: bool,
+    flag_max_splits: Option<usize>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
+fn output_splits(
+    record: &ByteRecord,
+    max_splits: usize,
+    separator: &str,
+    regex: bool,
+    match_only: bool,
+    capture_groups: bool,
+) -> ByteRecord {
+    let mut output_record: ByteRecord = record.clone();
+    let mut split_record: Vec<Vec<u8>> = vec![];
+    if regex {
+        if match_only {
+            split_record = bytes::Regex::new(separator)
+                .unwrap()
+                .find_iter(record.as_slice())
+                .map(|mat| mat.as_bytes().to_vec())
+                .collect();
+        } else if capture_groups {
+            for mat in bytes::Regex::new(separator)
+                .unwrap()
+                .captures_iter(record.as_slice())
+            {
+                split_record.append(
+                    &mut mat
+                        .iter()
+                        .skip(1)
+                        .map(|m| m.unwrap().as_bytes().to_vec())
+                        .collect(),
+                );
+            }
+        } else {
+            split_record = bytes::Regex::new(separator)
+                .unwrap()
+                .split(record.as_slice())
+                .map(|s| s.to_vec())
+                .collect();
+        }
+    } else {
+        split_record = record
+            .as_slice()
+            .split_str(separator)
+            .map(|s| s.to_vec())
+            .collect();
+    }
+    for cell in split_record.iter() {
+        output_record.push_field(&cell);
+    }
+    while output_record.len() <= max_splits {
+        output_record.push_field(b"");
+    }
+    output_record
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-
-    dbg!(&args);
 
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
@@ -91,37 +145,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     let mut records: Vec<ByteRecord> = Vec::new();
-    let mut max_splits = 0;
+    let mut max_splits: usize = 0;
 
-    if args.flag_regex {
-        let re = bytes::Regex::new(&args.arg_separator)?;
-        for result in rdr.byte_records() {
-            let record = result?;
-            let mut numsplits = 0;
-            if args.flag_match {
-                numsplits = re.find_iter(record.as_slice()).count();
-            } else if args.flag_capture_groups {
-                for mat in re.captures_iter(record.as_slice()) {
-                    numsplits += mat.len() - 1; // mat[0] is the full match
-                }
-            } else {
-                // Default behavior: split on the regex matches, acting as a separator
-                numsplits = re.find_iter(record.as_slice()).count() + 1;
-            }
-            if numsplits > max_splits {
-                max_splits = numsplits;
-            }
-            records.push(record);
-        }
+    // When we need to determine the maximum number of splits across all rows
+    // (to know how many new columns to create), we have to first read all records
+    // and store them in memory.
+    if let Some(_max_splits) = args.flag_max_splits {
+        max_splits = _max_splits;
     } else {
-        for result in rdr.byte_records() {
-            let record = result?;
-            let numsplits = record.as_slice().find_iter(b" ").count() + 1;
-            if numsplits > max_splits {
-                max_splits = numsplits;
+        if args.flag_regex {
+            let re = bytes::Regex::new(&args.arg_separator)?;
+            for result in rdr.byte_records() {
+                let record = result?;
+                let mut numsplits = 0;
+                if args.flag_match {
+                    numsplits = re.find_iter(record.as_slice()).count();
+                } else if args.flag_capture_groups {
+                    for mat in re.captures_iter(record.as_slice()) {
+                        numsplits += mat.len() - 1; // mat[0] is the full match
+                    }
+                } else {
+                    // Default behavior: split on the regex matches, acting as a separator
+                    numsplits = re.find_iter(record.as_slice()).count() + 1;
+                }
+                if numsplits > max_splits {
+                    max_splits = numsplits;
+                }
+                records.push(record);
             }
+        } else {
+            for result in rdr.byte_records() {
+                let record = result?;
+                let numsplits = record.as_slice().find_iter(b" ").count() + 1;
+                if numsplits > max_splits {
+                    max_splits = numsplits;
+                }
 
-            records.push(record);
+                records.push(record);
+            }
         }
     }
 
@@ -132,47 +193,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     wtr.write_byte_record(&new_headers)?;
 
-    for record in records {
-        let mut output_record = record.clone();
-        let mut split_record: Vec<Vec<u8>> = vec![];
-        if args.flag_regex {
-            if args.flag_match {
-                split_record = bytes::Regex::new(&args.arg_separator)?
-                    .find_iter(record.as_slice())
-                    .map(|mat| mat.as_bytes().to_vec())
-                    .collect();
-            } else if args.flag_capture_groups {
-                for mat in bytes::Regex::new(&args.arg_separator)?.captures_iter(record.as_slice())
-                {
-                    split_record.append(
-                        &mut mat
-                            .iter()
-                            .skip(1)
-                            .map(|m| m.unwrap().as_bytes().to_vec())
-                            .collect(),
-                    );
-                }
-            } else {
-                split_record = bytes::Regex::new(&args.arg_separator)?
-                    .split(record.as_slice())
-                    .map(|s| s.to_vec())
-                    .collect();
-            }
-        } else {
-            split_record = record
-                .as_slice()
-                .split_str(&args.arg_separator)
-                .map(|s| s.to_vec())
-                .collect();
+    if let Some(_) = args.flag_max_splits {
+        for result in rdr.byte_records() {
+            let record = result?;
+            let output_record = output_splits(
+                &record,
+                max_splits,
+                &args.arg_separator,
+                args.flag_regex,
+                args.flag_match,
+                args.flag_capture_groups,
+            );
+            wtr.write_byte_record(&output_record)?;
         }
-        for cell in split_record.iter() {
-            output_record.push_field(&cell);
+    } else {
+        for record in records {
+            let output_record = output_splits(
+                &record,
+                max_splits,
+                &args.arg_separator,
+                args.flag_regex,
+                args.flag_match,
+                args.flag_capture_groups,
+            );
+            wtr.write_byte_record(&output_record)?;
         }
-        while output_record.len() <= max_splits {
-            output_record.push_field(b"");
-        }
-        wtr.write_byte_record(&output_record)?;
     }
-
     Ok(wtr.flush()?)
 }

@@ -109,30 +109,6 @@ fn separate_regex_capture_groups() {
         ],
     ];
     assert_eq!(got, expected);
-
-    wrk.create(
-        "data2.csv",
-        vec![
-            svec!["date"],
-            svec!["2023-01-15"],
-            svec!["1999-12-31"],
-            svec!["2024-07-04"],
-        ],
-    );
-    let mut cmd = wrk.command("separate");
-    cmd.arg("date")
-        .arg(r"(\d{4})-(\d{2})-(\d{2})$")
-        .arg("data2.csv")
-        .arg("-r")
-        .arg("-c");
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["date", "untitled1", "untitled2", "untitled3"],
-        svec!["2023-01-15", "2023", "01", "15"],
-        svec!["1999-12-31", "1999", "12", "31"],
-        svec!["2024-07-04", "2024", "07", "04"],
-    ];
-    assert_eq!(got, expected);
 }
 
 #[test]
@@ -159,6 +135,36 @@ fn separate_regex_match() {
         svec!["abc123def456ghi", "123", "456"],
         svec!["test", "", ""],
         svec!["789xyz", "789", ""],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn separate_regex_known_max_splits() {
+    let wrk = Workdir::new("separate_regex_known_max_splits");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["date"],
+            svec!["2023-01-15"],
+            svec!["1999-12-31"],
+            svec!["2024-07-04"],
+        ],
+    );
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg(r"(\d{4})-(\d{2})-(\d{2})$")
+        .arg("data.csv")
+        .arg("-r")
+        .arg("-c")
+        .arg("--max-splits")
+        .arg("4");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["date", "untitled1", "untitled2", "untitled3", "untitled4"],
+        svec!["2023-01-15", "2023", "01", "15", ""],
+        svec!["1999-12-31", "1999", "12", "31", ""],
+        svec!["2024-07-04", "2024", "07", "04", ""],
     ];
     assert_eq!(got, expected);
 }
