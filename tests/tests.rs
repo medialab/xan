@@ -44,6 +44,7 @@ mod test_sample;
 mod test_scrape;
 mod test_search;
 mod test_select;
+mod test_separate;
 mod test_shuffle;
 mod test_slice;
 mod test_sort;
