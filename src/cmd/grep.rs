@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use aho_corasick::AhoCorasick;
+use regex::bytes::RegexBuilder;
 
 use crate::config::{Config, Delimiter};
 use crate::util;
@@ -56,6 +57,9 @@ struct Args {
     arg_pattern: String,
     arg_input: Option<String>,
     flag_count: bool,
+    flag_regex: bool,
+    flag_ignore_case: bool,
+    flag_invert_match: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -72,7 +76,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .then(|| wconf.buf_io_writer())
         .transpose()?;
 
-    let matcher = Matcher::Substring(AhoCorasick::new([&args.arg_pattern])?, false);
+    let matcher = if args.flag_regex {
+        Matcher::Regex(
+            RegexBuilder::new(&args.arg_pattern)
+                .case_insensitive(args.flag_ignore_case)
+                .build()?,
+        )
+    } else {
+        let pattern = if args.flag_ignore_case {
+            args.arg_pattern.to_lowercase()
+        } else {
+            args.arg_pattern.clone()
+        };
+
+        Matcher::Substring(AhoCorasick::new([&pattern])?, args.flag_ignore_case)
+    };
 
     let mut splitter = rconf.simd_splitter()?;
     let mut count: u64 = 0;
@@ -87,7 +105,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     while let Some(record) = splitter.split_record()? {
-        if !matcher.is_match(record) {
+        let mut is_match = matcher.is_match(record);
+
+        if args.flag_invert_match {
+            is_match = !is_match;
+        }
+
+        if !is_match {
             continue;
         }
 

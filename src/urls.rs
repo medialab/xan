@@ -70,6 +70,7 @@ pub struct LRUStem {
     kind: LRUStemKind,
 }
 
+#[derive(Debug)]
 pub struct LRUStems(Vec<LRUStem>);
 
 impl LRUStems {

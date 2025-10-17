@@ -71,6 +71,7 @@ fn regex_set_replace_all<'a>(
     Cow::Owned(bytes)
 }
 
+#[derive(Debug)]
 pub enum Matcher {
     Empty,
     NonEmpty,

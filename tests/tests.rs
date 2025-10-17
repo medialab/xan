@@ -28,6 +28,7 @@ mod test_flatmap;
 mod test_fmt;
 mod test_frequency;
 mod test_fuzzy_join;
+mod test_grep;
 mod test_groupby;
 mod test_headers;
 mod test_implode;
