@@ -172,6 +172,41 @@ fn search_count() {
 }
 
 #[test]
+fn search_flag() {
+    let wrk = Workdir::new("search_flag");
+    wrk.create("data.csv", data(false));
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-r")
+        .arg("foo")
+        .arg("data.csv")
+        .args(["--flag", "is_match"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["foobar", "barfoo", "is_match"],
+        svec!["a", "b", "false"],
+        svec!["barfoo", "foobar", "true"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-r")
+        .arg("foo")
+        .arg("-p")
+        .arg("data.csv")
+        .args(["--flag", "is_match"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["foobar", "barfoo", "is_match"],
+        svec!["a", "b", "false"],
+        svec!["barfoo", "foobar", "true"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn search_substring() {
     let wrk = Workdir::new("search_substring");
     wrk.create(

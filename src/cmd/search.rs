@@ -503,6 +503,7 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
+    - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
       with -B/--breakdown.
@@ -510,6 +511,10 @@ Now this command is also able to perform search-adjacent operations:
       using -U/--unique-matches.
 
 For instance:
+
+Reporting whether a match was found (instead of filtering):
+
+    $ xan search -s headline -i france -f france_match file.csv
 
 Reporting number of matches:
 
@@ -585,6 +590,8 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
+    -f, --flag <column>      Instead of filtering rows, add a new column indicating if any match
+                             was found.
     -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
                              given name. Will still filter out rows with 0 matches, unless --left
                              is used. Does not work with -v/--invert-match.
@@ -665,6 +672,7 @@ struct Args {
     flag_exact: bool,
     flag_regex: bool,
     flag_url_prefix: bool,
+    flag_flag: Option<String>,
     flag_count: Option<String>,
     flag_replace: Option<String>,
     flag_limit: Option<NonZeroUsize>,
@@ -807,12 +815,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if (args.flag_count.is_some()
+        || args.flag_flag.is_some()
         || args.flag_replace.is_some()
         || args.flag_breakdown
         || args.flag_unique_matches.is_some())
         && args.flag_invert_match
     {
-        Err("-c/--count, -R/--replace, -B/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
+        Err("-c/--count, -f,--flag, -R/--replace, -B/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
     }
 
     if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
@@ -839,10 +848,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_replace.is_some() as u8
         + args.flag_breakdown as u8
         + args.flag_replacement_column.is_some() as u8
-        + args.flag_unique_matches.is_some() as u8;
+        + args.flag_unique_matches.is_some() as u8
+        + args.flag_flag.is_some() as u8;
 
     if actions_count > 1 {
-        Err("must use only one of -R/--replace, --replacement-column, -B/--breakdown, -c/--count, -U/--unique-matches!")?;
+        Err("must use only one of -R/--replace, --replacement-column, -B/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!")?;
     }
 
     if args.flag_all && actions_count > 0 {
@@ -913,7 +923,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconfig.selection(&headers)?;
     let sel_mask = sel.mask(headers.len());
 
-    if let Some(column_name) = &args.flag_count {
+    if let Some(column_name) = args.flag_count.as_ref().or(args.flag_flag.as_ref()) {
         headers.push_field(column_name.as_bytes());
     } else if args.flag_breakdown {
         if let Some(column_names) = &associated {
@@ -1050,7 +1060,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         is_match = !is_match;
                     }
 
-                    if is_match {
+                    if args.flag_flag.is_some() {
+                        record.push_field(if is_match { b"true" } else { b"false" });
+                        record_to_write_opt.replace(record);
+                    } else if is_match {
                         record_to_write_opt.replace(record);
                     }
                 }
@@ -1185,7 +1198,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match = !is_match;
             }
 
-            if is_match {
+            if args.flag_flag.is_some() {
+                record.push_field(if is_match { b"true" } else { b"false" });
+                wtr.write_byte_record(&record)?;
+            } else if is_match {
                 wtr.write_byte_record(&record)?;
             }
         }

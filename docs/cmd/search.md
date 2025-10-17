@@ -67,6 +67,7 @@ Feeding CSV column as patterns through stdin (using "-"):
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
+    - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
       with -B/--breakdown.
@@ -74,6 +75,10 @@ Now this command is also able to perform search-adjacent operations:
       using -U/--unique-matches.
 
 For instance:
+
+Reporting whether a match was found (instead of filtering):
+
+    $ xan search -s headline -i france -f france_match file.csv
 
 Reporting number of matches:
 
@@ -149,6 +154,8 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
+    -f, --flag <column>      Instead of filtering rows, add a new column indicating if any match
+                             was found.
     -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
                              given name. Will still filter out rows with 0 matches, unless --left
                              is used. Does not work with -v/--invert-match.
