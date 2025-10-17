@@ -388,6 +388,11 @@ impl InputReader {
             .simd_csv_reader_from_reader(self.reader.take().unwrap())
     }
 
+    fn take_simd_csv_splitter(&mut self) -> BoxedSplitter {
+        self.config
+            .simd_csv_splitter_from_reader(self.reader.take().unwrap())
+    }
+
     fn headers(&self, fallback: &simd_csv::ByteRecord) -> simd_csv::ByteRecord {
         if let Some(h) = &self.headers {
             let mut new_h = simd_csv::ByteRecord::new();
@@ -399,10 +404,15 @@ impl InputReader {
     }
 
     #[inline(always)]
-    fn tick(&self) {
+    fn inc(&self, delta: u64) {
         if let Some(bar) = &self.bar {
-            bar.inc(1);
+            bar.inc(delta)
         }
+    }
+
+    #[inline(always)]
+    fn tick(&self) {
+        self.inc(1)
     }
 }
 
@@ -591,6 +601,7 @@ pub struct Args {
 }
 
 type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
+type BoxedSplitter = simd_csv::Splitter<Box<dyn io::Read + Send>>;
 
 impl Args {
     pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
@@ -977,16 +988,13 @@ impl Args {
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
                 let mut input_reader = self.io_reader(input, &progress_bar)?;
-                let mut csv_reader = input_reader.take_simd_csv_reader();
+                let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let mut record = simd_csv::ByteRecord::new();
-                let mut count: u64 = 0;
+                let count = csv_splitter
+                    .count_records()?
+                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
 
-                while csv_reader.read_byte_record(&mut record)? {
-                    count += 1;
-
-                    input_reader.tick();
-                }
+                input_reader.inc(count);
 
                 counters_mutex
                     .lock()
@@ -1024,18 +1032,15 @@ impl Args {
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
                 let mut input_reader = self.io_reader(input, &progress_bar)?;
-                let mut csv_reader = input_reader.take_simd_csv_reader();
+                let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let mut record = simd_csv::ByteRecord::new();
-                let mut count: u64 = 0;
-
-                while csv_reader.read_byte_record(&mut record)? {
-                    count += 1;
-
-                    input_reader.tick();
-                }
+                let count = csv_splitter
+                    .count_records()?
+                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
 
                 total_count.fetch_add(count, Ordering::Relaxed);
+
+                input_reader.inc(count);
 
                 progress_bar.stop(&input.name());
 
