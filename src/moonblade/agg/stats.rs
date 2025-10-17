@@ -1,4 +1,4 @@
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use super::aggregators::{
     ApproxCardinality, ApproxQuantiles, Count, Extent, Frequencies, LexicographicExtent, Numbers,

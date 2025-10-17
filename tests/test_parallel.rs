@@ -217,7 +217,6 @@ fn parallel_cat_source_column() {
     assert_eq!(got, expected);
 }
 
-#[ignore]
 #[test]
 fn parallel_agg() {
     let wrk = Workdir::new("parallel_agg");
@@ -236,7 +235,6 @@ fn parallel_agg() {
     assert_eq!(got, expected);
 }
 
-#[ignore]
 #[test]
 fn parallel_groupby() {
     let wrk = Workdir::new("parallel_groupby");

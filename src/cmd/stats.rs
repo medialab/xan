@@ -160,8 +160,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select.clone());
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = rdr.byte_headers()?.clone();
     let mut sel = rconf.selection(&headers)?;
@@ -191,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Grouping
     if let Some(gsel) = groupby_sel_opt {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         for h in gsel.select(&headers) {
             record.push_field(h);
@@ -248,7 +248,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&fields[0].headers())?;
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
