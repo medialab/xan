@@ -316,8 +316,8 @@ impl Args {
         let mut left_reader = left.simd_reader()?;
         let mut right_reader = right.simd_reader()?;
 
-        let left_headers = left_reader.peek_byte_record(!self.flag_no_headers)?;
-        let right_headers = right_reader.peek_byte_record(!self.flag_no_headers)?;
+        let left_headers = left_reader.byte_headers()?.clone();
+        let right_headers = right_reader.byte_headers()?.clone();
 
         let left_sel = left.selection(&left_headers)?;
         let right_sel = right.selection(&right_headers)?;

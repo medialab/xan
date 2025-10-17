@@ -284,21 +284,13 @@ impl Config {
     }
 
     pub fn simd_reader(&self) -> CliResult<simd_csv::Reader<Box<dyn io::Read + Send + 'static>>> {
-        let mut reader = self.simd_csv_reader_from_reader(self.io_reader()?);
-
-        reader.strip_bom()?;
-
-        Ok(reader)
+        Ok(self.simd_csv_reader_from_reader(self.io_reader()?))
     }
 
     pub fn simd_splitter(
         &self,
     ) -> CliResult<simd_csv::Splitter<Box<dyn io::Read + Send + 'static>>> {
-        let mut splitter = self.simd_csv_splitter_from_reader(self.io_reader()?);
-
-        splitter.strip_bom()?;
-
-        Ok(splitter)
+        Ok(self.simd_csv_splitter_from_reader(self.io_reader()?))
     }
 
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
@@ -340,8 +332,8 @@ impl Config {
     ) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
         if let Some(sel) = select {
             let mut csv_reader = self.simd_reader()?;
-            let headers = csv_reader.peek_byte_record(true)?;
-            let column_index = sel.single_selection(&headers, !self.no_headers)?;
+            let headers = csv_reader.byte_headers()?;
+            let column_index = sel.single_selection(headers, !self.no_headers)?;
 
             return Ok(Box::new(csv_reader.into_byte_records().map(
                 move |result| match result {
@@ -380,12 +372,12 @@ impl Config {
     ) -> CliResult<Box<dyn Iterator<Item = PairResult>>> {
         if let Some(first_sel) = &select.0 {
             let mut csv_reader = self.simd_reader()?;
-            let headers = csv_reader.peek_byte_record(true)?;
-            let first_column_index = first_sel.single_selection(&headers, !self.no_headers)?;
+            let headers = csv_reader.byte_headers()?;
+            let first_column_index = first_sel.single_selection(headers, !self.no_headers)?;
             let second_column_index_opt = select
                 .1
                 .as_ref()
-                .map(|sel| sel.single_selection(&headers, !self.no_headers))
+                .map(|sel| sel.single_selection(headers, !self.no_headers))
                 .transpose()?;
 
             return Ok(Box::new(csv_reader.into_byte_records().map(
@@ -537,6 +529,7 @@ impl Config {
         simd_csv::ReaderBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
+            .has_headers(!self.no_headers)
             .from_reader(rdr)
     }
 

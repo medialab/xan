@@ -179,7 +179,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut wtr = Config::new(&args.flag_output).simd_writer()?;
         let mut record = simd_csv::ByteRecord::new();
 
-        let headers = rdr.peek_byte_record(!args.flag_no_headers)?;
+        let headers = rdr.byte_headers()?.clone();
 
         rconfig = rconfig.select(SelectColumns::parse(&args.arg_selection)?);
 
