@@ -107,3 +107,28 @@ fn map_overwrite() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn map_filter() {
+    let wrk = Workdir::new("map_filter");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["full_name"],
+            svec!["john landis"],
+            svec!["béatrice babka"],
+        ],
+    );
+    let mut cmd = wrk.command("map");
+
+    cmd.arg("if(full_name.startswith('j'), full_name.split(' ')[0]) as first_name")
+        .arg("--filter")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["full_name", "first_name"],
+        svec!["john landis", "john"],
+    ];
+    assert_eq!(got, expected);
+}

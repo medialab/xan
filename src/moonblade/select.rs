@@ -49,6 +49,10 @@ impl SelectionProgram {
         })
     }
 
+    pub fn len(&self) -> usize {
+        self.exprs.len()
+    }
+
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
         self.exprs.iter().map(|(_, name, _)| name.as_bytes())
     }
@@ -81,27 +85,32 @@ impl SelectionProgram {
         &self,
         index: usize,
         record: &mut ByteRecord,
-    ) -> Result<(), SpecifiedEvaluationError> {
+    ) -> Result<bool, SpecifiedEvaluationError> {
+        let mut truthy = true;
+
         for (expr, _, _) in self.exprs.iter() {
             let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+            truthy &= value.is_truthy();
             record.push_field(&value.serialize_as_bytes());
         }
 
-        Ok(())
+        Ok(truthy)
     }
 
     pub fn overwrite(
         &self,
         index: usize,
         record: &mut ByteRecord,
-    ) -> Result<ByteRecord, SpecifiedEvaluationError> {
+    ) -> Result<(bool, ByteRecord), SpecifiedEvaluationError> {
         let mut new_record = ByteRecord::new();
+        let mut truthy = true;
 
         for (expr_i_opt, cell) in self.mask.iter().copied().zip(record.iter()) {
             if let Some(expr_i) = expr_i_opt {
                 let expr = &self.exprs[expr_i].0;
 
                 let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+                truthy &= value.is_truthy();
                 new_record.push_field(&value.serialize_as_bytes());
             } else {
                 new_record.push_field(cell);
@@ -112,9 +121,10 @@ impl SelectionProgram {
             let expr = &self.exprs[expr_i].0;
 
             let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+            truthy &= value.is_truthy();
             new_record.push_field(&value.serialize_as_bytes());
         }
 
-        Ok(new_record)
+        Ok((truthy, new_record))
     }
 }
