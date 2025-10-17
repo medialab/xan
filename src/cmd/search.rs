@@ -437,7 +437,8 @@ impl Matcher {
 // early termination when piping to `xan slice` because flush won't get a broken
 // pipe when writing nothing.
 static USAGE: &str = "
-Search for (or replace) patterns in CSV data.
+Search for (or replace) patterns in CSV data (be sure to check out `xan grep` for
+a faster but coarser equivalent).
 
 This command has several flags to select the way to perform a match:
 

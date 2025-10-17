@@ -6,6 +6,7 @@
 
 * Adding `xan flatten -F/--flatter`.
 * `xan pivot` can now target multiple columns.
+* Adding the `xan grep` command for fast but coarse filtering.
 
 *Fixes*
 

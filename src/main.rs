@@ -48,6 +48,7 @@ macro_rules! command_list {
 
 ## Search & filter
     search      Search for (or replace) patterns in CSV data
+    grep        Coarse but fast filtering of CSV data
     filter      Only keep some CSV rows based on an evaluated expression
     head        First rows of CSV file
     tail        Last rows of CSV file

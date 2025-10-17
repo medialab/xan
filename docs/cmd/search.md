@@ -2,7 +2,8 @@
 # xan search
 
 ```txt
-Search for (or replace) patterns in CSV data.
+Search for (or replace) patterns in CSV data (be sure to check out `xan grep` for
+a faster but coarser equivalent).
 
 This command has several flags to select the way to perform a match:
 
