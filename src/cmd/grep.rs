@@ -60,6 +60,7 @@ struct Args {
     flag_regex: bool,
     flag_ignore_case: bool,
     flag_invert_match: bool,
+    flag_mmap: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -92,34 +93,72 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Matcher::Substring(AhoCorasick::new([&pattern])?, args.flag_ignore_case)
     };
 
-    let mut splitter = rconf.simd_splitter()?;
     let mut count: u64 = 0;
 
-    if !args.flag_no_headers {
-        if let Some(header) = splitter.split_record()? {
-            if let Some(writer) = writer_opt.as_mut() {
-                writer.write_all(header)?;
-                writer.write_all(b"\n")?;
+    if args.flag_mmap {
+        let map = rconf.mmap()?.ok_or("Cannot use --mmap on target!")?;
+
+        let mut reader = simd_csv::TotalReaderBuilder::new()
+            .delimiter(rconf.delimiter)
+            .has_headers(false)
+            .from_bytes(&map);
+
+        if !args.flag_no_headers {
+            if let Some(header) = reader.split_record() {
+                if let Some(writer) = writer_opt.as_mut() {
+                    writer.write_all(header)?;
+                    writer.write_all(b"\n")?;
+                }
             }
         }
-    }
 
-    while let Some(record) = splitter.split_record()? {
-        let mut is_match = matcher.is_match(record);
+        while let Some(record) = reader.split_record() {
+            let mut is_match = matcher.is_match(record);
 
-        if args.flag_invert_match {
-            is_match = !is_match;
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
+
+            if !is_match {
+                continue;
+            }
+
+            if let Some(writer) = writer_opt.as_mut() {
+                writer.write_all(record)?;
+                writer.write_all(b"\n")?;
+            } else {
+                count += 1;
+            }
+        }
+    } else {
+        let mut splitter = rconf.simd_splitter()?;
+
+        if !args.flag_no_headers {
+            if let Some(header) = splitter.split_record()? {
+                if let Some(writer) = writer_opt.as_mut() {
+                    writer.write_all(header)?;
+                    writer.write_all(b"\n")?;
+                }
+            }
         }
 
-        if !is_match {
-            continue;
-        }
+        while let Some(record) = splitter.split_record()? {
+            let mut is_match = matcher.is_match(record);
 
-        if let Some(writer) = writer_opt.as_mut() {
-            writer.write_all(record)?;
-            writer.write_all(b"\n")?;
-        } else {
-            count += 1;
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
+
+            if !is_match {
+                continue;
+            }
+
+            if let Some(writer) = writer_opt.as_mut() {
+                writer.write_all(record)?;
+                writer.write_all(b"\n")?;
+            } else {
+                count += 1;
+            }
         }
     }
 

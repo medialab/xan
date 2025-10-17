@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
+use memmap2::{Advice, Mmap};
 
 use crate::read::{self, ReverseRead};
 use crate::record::Record;
@@ -84,7 +85,7 @@ type PairResult = CliResult<(String, Option<String>)>;
 pub struct Config {
     pub path: Option<PathBuf>, // None implies <stdin>
     select_columns: Option<SelectColumns>,
-    delimiter: u8,
+    pub delimiter: u8,
     pub no_headers: bool,
     flexible: bool,
     terminator: csv::Terminator,
@@ -216,6 +217,24 @@ impl Config {
 
     pub fn is_std(&self) -> bool {
         self.path.is_none()
+    }
+
+    pub fn mmap(&self) -> io::Result<Option<Mmap>> {
+        if self.is_std() || self.compressed {
+            return Ok(None);
+        }
+
+        let file = fs::File::open(self.path.as_ref().unwrap())?;
+
+        let map = unsafe { Mmap::map(&file)? };
+
+        #[cfg(unix)]
+        {
+            map.advise(Advice::Sequential)?;
+            map.advise(Advice::WillNeed)?;
+        }
+
+        Ok(Some(map))
     }
 
     pub fn selection<R: Record>(&self, first_record: &R) -> Result<Selection, String> {
