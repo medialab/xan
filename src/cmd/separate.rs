@@ -4,16 +4,19 @@ use regex::bytes;
 use std::iter::Iterator;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"
-Separate one column into multiple columns by splitting cell values on a separator or regex.
+Separate columns into multiple columns by splitting cell values on a separator or regex.
+By default, all possible splits are made, but you can limit the number of splits
+using the --max-splits option.
+Note that by default, the original columns are removed from the output.
 
-This command takes the specified column and splits each cell in those columns using either
-a substring separator or a regex pattern. The resulting parts are output as new columns. 
-You can choose to split by a simple substring or use a regex for more complex splitting. 
+This command takes the specified columns and splits each cell in those columns using either
+a substring separator or a regex pattern. The resulting parts are output as new columns.
+You can choose to split by a simple substring or use a regex for more complex splitting.
 Additional options allow you to extract only matching parts, or capture groups from the regex.
 
 Examples:
@@ -35,6 +38,7 @@ Usage:
     xan separate --help
 
 separate options:
+    --keep-column            Keep the original column after splitting.
     --max-splits <n>         Limit the number of splits per cell to at most <n>.
                              By default, all possible splits are made.
     --into <col1,col2,...>   Specify names for the new columns created by the splits.
@@ -67,6 +71,7 @@ struct Args {
     flag_regex: bool,
     flag_match: bool,
     flag_capture_groups: bool,
+    flag_keep_column: bool,
     flag_max_splits: Option<usize>,
     flag_into: Option<String>,
     flag_output: Option<String>,
@@ -74,54 +79,53 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
+enum Splitter {
+    String(Vec<u8>),
+    Regex(bytes::Regex),
+}
+
 fn output_splits(
     record: &ByteRecord,
     max_splits: usize,
-    separator: &str,
-    regex: bool,
+    keep_column: bool,
+    splitter: &Splitter,
+    sel: Selection,
     match_only: bool,
     capture_groups: bool,
 ) -> ByteRecord {
-    let mut output_record: ByteRecord = record.clone();
-    let mut split_record: Vec<Vec<u8>> = vec![];
-    if regex {
-        if match_only {
-            split_record = bytes::Regex::new(separator)
-                .unwrap()
-                .find_iter(record.as_slice())
-                .map(|mat| mat.as_bytes().to_vec())
-                .collect();
-        } else if capture_groups {
-            for mat in bytes::Regex::new(separator)
-                .unwrap()
-                .captures_iter(record.as_slice())
-            {
-                split_record.append(
-                    &mut mat
-                        .iter()
-                        .skip(1)
-                        .map(|m| m.unwrap().as_bytes().to_vec())
-                        .collect(),
-                );
-            }
-        } else {
-            split_record = bytes::Regex::new(separator)
-                .unwrap()
-                .split(record.as_slice())
-                .map(|s| s.to_vec())
-                .collect();
-        }
+    let mut output_record: ByteRecord = ByteRecord::new();
+    if keep_column {
+        output_record = record.clone();
     } else {
-        split_record = record
-            .as_slice()
-            .split_str(separator)
-            .map(|s| s.to_vec())
-            .collect();
+        for i in 0..record.len() {
+            if !sel.contains(i) {
+                output_record.push_field(record.get(i).unwrap());
+            }
+        }
     }
-    for cell in split_record.iter() {
-        output_record.push_field(&cell);
+    let expected_num_fields = max_splits + output_record.len();
+
+    for cell in sel.select(record) {
+        match &splitter {
+            Splitter::Regex(re) => {
+                if match_only {
+                    output_record.extend(re.find_iter(cell).map(|mat| mat.as_bytes().to_vec()));
+                } else if capture_groups {
+                    for mat in re.captures_iter(cell) {
+                        output_record.extend(
+                            &mut mat.iter().skip(1).map(|m| m.unwrap().as_bytes().to_vec()),
+                        );
+                    }
+                } else {
+                    output_record.extend(re.split(cell).map(|s| s.to_vec()));
+                }
+            }
+            Splitter::String(separator) => {
+                output_record.extend(cell.split_str(separator).map(|s| s.to_vec()));
+            }
+        }
     }
-    while output_record.len() <= max_splits {
+    while output_record.len() < expected_num_fields {
         output_record.push_field(b"");
     }
     output_record
@@ -132,16 +136,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
-            return Err("--capture-groups and --match can only be used with --regex")?;
+            Err("--capture-groups and --match can only be used with --regex")?;
         }
         if args.flag_capture_groups && args.flag_match {
-            return Err("--capture-groups and --match cannot be used together")?;
+            Err("--capture-groups and --match cannot be used together")?;
         }
     }
 
     if args.flag_into.is_some() && args.flag_max_splits.is_some() {
-        if args.flag_into.as_ref().unwrap().split(',').count() + 1 > args.flag_max_splits.unwrap() {
-            return Err("--into cannot specify more column names than --max-splits")?;
+        if args.flag_into.as_ref().unwrap().split(',').count() > args.flag_max_splits.unwrap() {
+            Err("--into cannot specify more column names than --max-splits")?;
         }
     }
 
@@ -155,8 +159,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
+    let sel = rconf.selection(&headers)?;
+
     let mut records: Vec<ByteRecord> = Vec::new();
     let mut max_splits: usize = 0;
+
+    let splitter: Splitter = match args.flag_regex {
+        true => Splitter::Regex(bytes::Regex::new(&args.arg_separator)?),
+        false => Splitter::String(args.arg_separator.as_bytes().to_vec()),
+    };
 
     // When we need to determine the maximum number of splits across all rows
     // (to know how many new columns to create), we have to first read all records
@@ -164,40 +175,51 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(_max_splits) = args.flag_max_splits {
         max_splits = _max_splits;
     } else {
-        if args.flag_regex {
-            let re = bytes::Regex::new(&args.arg_separator)?;
-            for result in rdr.byte_records() {
-                let record = result?;
-                let mut numsplits = 0;
-                if args.flag_match {
-                    numsplits = re.find_iter(record.as_slice()).count();
-                } else if args.flag_capture_groups {
-                    for mat in re.captures_iter(record.as_slice()) {
-                        numsplits += mat.len() - 1; // mat[0] is the full match
-                    }
-                } else {
-                    // Default behavior: split on the regex matches, acting as a separator
-                    numsplits = re.find_iter(record.as_slice()).count() + 1;
-                }
-                if numsplits > max_splits {
-                    max_splits = numsplits;
-                }
-                records.push(record);
-            }
-        } else {
-            for result in rdr.byte_records() {
-                let record = result?;
-                let numsplits = record.as_slice().find_iter(b" ").count() + 1;
-                if numsplits > max_splits {
-                    max_splits = numsplits;
-                }
+        for result in rdr.byte_records() {
+            let record = result?;
 
-                records.push(record);
+            let mut numsplits = 0;
+            for cell in sel.select(&record) {
+                // dbg!(std::str::from_utf8(cell).ok());
+                match &splitter {
+                    Splitter::Regex(re) => {
+                        if args.flag_match {
+                            numsplits += re.find_iter(cell).count();
+                        } else if args.flag_capture_groups {
+                            for mat in re.captures_iter(cell) {
+                                numsplits += mat.len() - 1; // mat[0] is the full match
+                            }
+                        } else {
+                            // Default behavior: split on the regex matches, acting as a separator
+                            numsplits += re.find_iter(cell).count() + 1;
+                        }
+                        if numsplits > max_splits {
+                            max_splits = numsplits;
+                        }
+                        // dbg!(numsplits);
+                    }
+                    Splitter::String(sep) => {
+                        numsplits += cell.find_iter(sep).count() + 1;
+                        if numsplits > max_splits {
+                            max_splits = numsplits;
+                        }
+                    }
+                };
             }
+            records.push(record);
         }
     }
 
-    let mut new_headers = ByteRecord::from(headers.clone());
+    let mut new_headers: ByteRecord = ByteRecord::new();
+    if args.flag_keep_column {
+        new_headers = headers.clone();
+    } else {
+        for i in 0..headers.len() {
+            if !sel.contains(i) {
+                new_headers.push_field(headers.get(i).unwrap());
+            }
+        }
+    }
     let mut number_of_new_columns = max_splits;
     if let Some(into) = &args.flag_into {
         let new_headers_names: Vec<&str> = into.split(',').collect();
@@ -219,8 +241,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let output_record = output_splits(
                 &record,
                 max_splits,
-                &args.arg_separator,
-                args.flag_regex,
+                args.flag_keep_column,
+                &splitter,
+                sel.clone(),
                 args.flag_match,
                 args.flag_capture_groups,
             );
@@ -231,8 +254,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let output_record = output_splits(
                 &record,
                 max_splits,
-                &args.arg_separator,
-                args.flag_regex,
+                args.flag_keep_column,
+                &splitter,
+                sel.clone(),
                 args.flag_match,
                 args.flag_capture_groups,
             );
