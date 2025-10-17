@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
-use memmap2::{Advice, Mmap};
+use memmap2::Mmap;
 
 use crate::read::{self, ReverseRead};
 use crate::record::Record;
@@ -230,8 +230,8 @@ impl Config {
 
         #[cfg(unix)]
         {
-            map.advise(Advice::Sequential)?;
-            map.advise(Advice::WillNeed)?;
+            map.advise(memmap2::Advice::Sequential)?;
+            map.advise(memmap2::Advice::WillNeed)?;
         }
 
         Ok(Some(map))
