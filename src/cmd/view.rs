@@ -9,8 +9,16 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::util;
 use crate::CliResult;
+
+fn prepend(record: &csv::StringRecord, cell_value: &str) -> csv::StringRecord {
+    let mut new_record = csv::StringRecord::new();
+    new_record.push_field(cell_value);
+    new_record.extend(record);
+
+    new_record
+}
 
 const HEADERS_ROWS: usize = 8;
 
@@ -411,7 +419,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .transpose()?;
 
     if !args.flag_hide_index {
-        headers = headers.prepend(theme.index_column_header);
+        headers = prepend(&headers, theme.index_column_header);
 
         if let Some(right_sel) = &mut right_sel_opt {
             right_sel.offset_by(1);
@@ -476,7 +484,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .collect::<csv::StringRecord>();
 
                     if !args.flag_hide_index {
-                        record = record.prepend(&i.to_string());
+                        record = prepend(&record, &i.to_string());
                     }
 
                     records.push(record);

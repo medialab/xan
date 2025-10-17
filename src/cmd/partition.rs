@@ -6,8 +6,9 @@ use regex::Regex;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
+use crate::record::Record;
 use crate::select::SelectColumns;
-use crate::util::{self, FilenameTemplate, ImmutableRecordHelpers};
+use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
 static USAGE: &str = "

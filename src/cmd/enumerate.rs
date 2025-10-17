@@ -1,5 +1,6 @@
 use crate::config::{Config, Delimiter};
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::record::Record;
+use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = "

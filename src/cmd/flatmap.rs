@@ -4,8 +4,9 @@ use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
+use crate::record::Record;
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"

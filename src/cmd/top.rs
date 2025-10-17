@@ -7,8 +7,9 @@ use crate::collections::{
     ClusteredInsertHashmap, FixedReverseHeapMap, FixedReverseHeapMapWithTies,
 };
 use crate::config::{Config, Delimiter};
+use crate::record::Record;
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers};
+use crate::util;
 use crate::CliResult;
 
 type GroupKey = Vec<Vec<u8>>;

@@ -13,8 +13,9 @@ use regex::Regex;
 use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
+use crate::record::Record;
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers, JoinIteratorExt};
+use crate::util::{self, JoinIteratorExt};
 use crate::CliResult;
 
 fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
