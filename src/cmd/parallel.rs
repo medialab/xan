@@ -15,6 +15,7 @@ use colored::{ColoredString, Colorize};
 use flate2::{write::GzEncoder, Compression};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
+use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
@@ -384,18 +385,18 @@ impl InputReader {
     }
 
     fn take_simd_csv_reader(&mut self) -> BoxedReader {
-        self.config
-            .simd_csv_reader_from_reader(self.reader.take().unwrap())
+        let io_reader = self.take();
+        self.config.simd_csv_reader_from_reader(io_reader)
     }
 
     fn take_simd_csv_splitter(&mut self) -> BoxedSplitter {
-        self.config
-            .simd_csv_splitter_from_reader(self.reader.take().unwrap())
+        let io_reader = self.take();
+        self.config.simd_csv_splitter_from_reader(io_reader)
     }
 
-    fn headers(&self, fallback: &simd_csv::ByteRecord) -> simd_csv::ByteRecord {
+    fn headers(&self, fallback: &ByteRecord) -> ByteRecord {
         if let Some(h) = &self.headers {
-            let mut new_h = simd_csv::ByteRecord::new();
+            let mut new_h = ByteRecord::new();
             new_h.extend(h);
             new_h
         } else {
@@ -1074,23 +1075,22 @@ impl Args {
             Some(self.flag_buffer_size as usize)
         };
 
-        let flush =
-            |headers: &simd_csv::ByteRecord, records: &[simd_csv::ByteRecord]| -> CliResult<()> {
-                let mut guard = writer_mutex.lock().unwrap();
+        let flush = |headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
+            let mut guard = writer_mutex.lock().unwrap();
 
-                if !guard.0 {
-                    guard.1.write_byte_record(headers)?;
-                    guard.0 = true;
-                }
+            if !guard.0 {
+                guard.1.write_byte_record(headers)?;
+                guard.0 = true;
+            }
 
-                for record in records.iter() {
-                    guard.1.write_byte_record(record)?;
-                }
+            for record in records.iter() {
+                guard.1.write_byte_record(record)?;
+            }
 
-                guard.1.flush()?;
+            guard.1.flush()?;
 
-                Ok(())
-            };
+            Ok(())
+        };
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.io_reader(input, &progress_bar)?;
@@ -1103,13 +1103,13 @@ impl Args {
                 headers.push_field(source_column.as_bytes());
             }
 
-            let mut buffer: Vec<simd_csv::ByteRecord> = if let Some(buffer_size) = buffer_size_opt {
+            let mut buffer: Vec<ByteRecord> = if let Some(buffer_size) = buffer_size_opt {
                 Vec::with_capacity(buffer_size)
             } else {
                 Vec::new()
             };
 
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
 
             while csv_reader.read_byte_record(&mut record)? {
                 if matches!(buffer_size_opt, Some(buffer_size) if buffer.len() == buffer_size) {
@@ -1173,7 +1173,7 @@ impl Args {
             let mut freq_tables =
                 FrequencyTables::with_capacity(sel.collect(&headers), approx_capacity);
 
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
 
             while csv_reader.read_byte_record(&mut record)? {
                 for (counter, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
@@ -1263,7 +1263,7 @@ impl Args {
 
             let mut local_stats =
                 StatsTables::with_capacity(sel.collect(&headers), || self.new_stats());
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
 
             while csv_reader.read_byte_record(&mut record)? {
                 for (cell, stats) in sel.select(&record).zip(local_stats.iter_mut()) {
@@ -1300,7 +1300,7 @@ impl Args {
             let mut csv_reader = input_reader.take_simd_csv_reader();
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
             let mut program = AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers)?;
 
             let mut index: usize = 0;
@@ -1348,7 +1348,7 @@ impl Args {
 
             let sel = self.arg_group.clone().unwrap().selection(&headers, true)?;
 
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
             let mut program =
                 GroupAggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers)?;
 
