@@ -8,7 +8,6 @@ use crate::CliResult;
 
 // TODO: optimize when names are known beforehand
 // TODO: -S/--sorted
-// TODO: multiselections
 
 static USAGE: &str = r#"
 Pivot a CSV file by allowing distinct values from a column to be separated into
@@ -119,7 +118,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .select(arg_column);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
     let pivot_sel = rconf.selection(&headers)?;
     let mut program = PivotAggregationProgram::parse(&arg_expr, &headers)?;
@@ -150,10 +149,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Selection::without_indices(headers.len(), &disappearing_columns)
     };
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let mut index: usize = 0;
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         let group = groupby_sel.collect(&record);
@@ -165,7 +164,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if !rconf.no_headers {
-        let mut output_headers = groupby_sel.select(&headers).collect::<csv::ByteRecord>();
+        let mut output_headers = groupby_sel
+            .select(&headers)
+            .collect::<simd_csv::ByteRecord>();
 
         for name in program.pivoted_column_names() {
             output_headers.push_field(name);

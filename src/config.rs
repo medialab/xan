@@ -246,7 +246,7 @@ impl Config {
         }
     }
 
-    pub fn single_selection(&self, first_record: &csv::ByteRecord) -> Result<usize, String> {
+    pub fn single_selection<R: Record>(&self, first_record: &R) -> Result<usize, String> {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"

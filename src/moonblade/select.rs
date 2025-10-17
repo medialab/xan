@@ -1,4 +1,4 @@
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};

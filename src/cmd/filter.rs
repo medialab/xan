@@ -102,12 +102,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+    if !args.flag_no_headers {
+        wtr.write_byte_record(&headers)?;
+    }
 
     let program = Program::parse(&args.arg_expression, &headers)?;
     let mut matches: usize = 0;
@@ -115,7 +117,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(threads) = parallelization {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
             |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-            move |(index, record)| -> CliResult<Option<csv::ByteRecord>> {
+            move |(index, record)| -> CliResult<Option<simd_csv::ByteRecord>> {
                 let record = record?;
 
                 let value = program.run_with_record(index, &record)?;
@@ -141,7 +143,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     } else {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {

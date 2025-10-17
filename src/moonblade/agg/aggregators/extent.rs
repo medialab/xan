@@ -1,6 +1,6 @@
 use std::cmp::{Ordering, Reverse};
 
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use crate::collections::FixedReverseHeapMap;
 use crate::moonblade::types::{DynamicNumber, DynamicValue};

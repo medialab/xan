@@ -695,7 +695,39 @@ impl<'a> ImmutableRecordHelpers<'a> for csv::ByteRecord {
     }
 
     fn prepend(&self, cell_value: Self::Cell) -> Self {
-        let mut new_record = csv::ByteRecord::new();
+        let mut new_record = Self::new();
+        new_record.push_field(cell_value);
+        new_record.extend(self);
+
+        new_record
+    }
+
+    fn append(&self, cell_value: Self::Cell) -> Self {
+        let mut new_record = self.clone();
+        new_record.push_field(cell_value);
+        new_record
+    }
+
+    fn remove(&self, column_index: usize) -> Self {
+        self.iter()
+            .enumerate()
+            .filter_map(|(i, c)| if i == column_index { None } else { Some(c) })
+            .collect()
+    }
+}
+
+impl<'a> ImmutableRecordHelpers<'a> for simd_csv::ByteRecord {
+    type Cell = &'a [u8];
+
+    fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self {
+        self.iter()
+            .enumerate()
+            .map(|(i, v)| if i == column_index { new_value } else { v })
+            .collect()
+    }
+
+    fn prepend(&self, cell_value: Self::Cell) -> Self {
+        let mut new_record = Self::new();
         new_record.push_field(cell_value);
         new_record.extend(self);
 
@@ -727,7 +759,7 @@ impl<'a> ImmutableRecordHelpers<'a> for csv::StringRecord {
     }
 
     fn prepend(&self, cell_value: Self::Cell) -> Self {
-        let mut new_record = csv::StringRecord::new();
+        let mut new_record = Self::new();
         new_record.push_field(cell_value);
         new_record.extend(self);
 

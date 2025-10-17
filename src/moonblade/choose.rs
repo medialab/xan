@@ -1,4 +1,4 @@
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::Program;
@@ -12,7 +12,7 @@ pub struct ChooseProgram {
 
 impl ChooseProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let mut full_headers = csv::ByteRecord::new();
+        let mut full_headers = ByteRecord::new();
 
         for h in headers.iter() {
             full_headers.push_field(&[b"current_", h].concat());

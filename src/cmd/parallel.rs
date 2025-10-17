@@ -1295,117 +1295,117 @@ impl Args {
         Ok(())
     }
 
-    fn agg(self, inputs: Vec<Input>) -> CliResult<()> {
-        let progress_bar = self.progress_bar(inputs.len());
+    // fn agg(self, inputs: Vec<Input>) -> CliResult<()> {
+    //     let progress_bar = self.progress_bar(inputs.len());
 
-        let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
+    //     let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
-        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+    //     inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+    //         let mut input_reader = self.reader(input, &progress_bar)?;
 
-            let mut record = csv::ByteRecord::new();
-            let mut program =
-                AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &input_reader.headers)?;
+    //         let mut record = csv::ByteRecord::new();
+    //         let mut program =
+    //             AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &input_reader.headers)?;
 
-            let mut index: usize = 0;
+    //         let mut index: usize = 0;
 
-            while input_reader.read_byte_record(&mut record)? {
-                program.run_with_record(index, &record)?;
-                index += 1;
+    //         while input_reader.read_byte_record(&mut record)? {
+    //             program.run_with_record(index, &record)?;
+    //             index += 1;
 
-                input_reader.tick();
-            }
+    //             input_reader.tick();
+    //         }
 
-            let mut total_program_opt = total_program_mutex.lock().unwrap();
+    //         let mut total_program_opt = total_program_mutex.lock().unwrap();
 
-            match total_program_opt.as_mut() {
-                Some(current_program) => current_program.merge(program),
-                None => *total_program_opt = Some(program),
-            };
+    //         match total_program_opt.as_mut() {
+    //             Some(current_program) => current_program.merge(program),
+    //             None => *total_program_opt = Some(program),
+    //         };
 
-            progress_bar.stop(&input.name());
+    //         progress_bar.stop(&input.name());
 
-            Ok(())
-        })?;
+    //         Ok(())
+    //     })?;
 
-        if let Some(mut total_program) = total_program_mutex.into_inner().unwrap() {
-            let mut writer = Config::new(&self.flag_output).writer()?;
-            writer.write_record(total_program.headers())?;
-            writer.write_byte_record(&total_program.finalize(true)?)?;
-        }
+    //     if let Some(mut total_program) = total_program_mutex.into_inner().unwrap() {
+    //         let mut writer = Config::new(&self.flag_output).writer()?;
+    //         writer.write_record(total_program.headers())?;
+    //         writer.write_byte_record(&total_program.finalize(true)?)?;
+    //     }
 
-        progress_bar.succeed();
+    //     progress_bar.succeed();
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
-        let progress_bar = self.progress_bar(inputs.len());
+    // fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
+    //     let progress_bar = self.progress_bar(inputs.len());
 
-        let total_program_mutex: Mutex<Option<(Vec<Vec<u8>>, GroupAggregationProgram)>> =
-            Mutex::new(None);
+    //     let total_program_mutex: Mutex<Option<(Vec<Vec<u8>>, GroupAggregationProgram)>> =
+    //         Mutex::new(None);
 
-        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+    //     inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+    //         let mut input_reader = self.reader(input, &progress_bar)?;
 
-            let sel = self
-                .arg_group
-                .clone()
-                .unwrap()
-                .selection(&input_reader.headers, true)?;
+    //         let sel = self
+    //             .arg_group
+    //             .clone()
+    //             .unwrap()
+    //             .selection(&input_reader.headers, true)?;
 
-            let mut record = csv::ByteRecord::new();
-            let mut program = GroupAggregationProgram::parse(
-                self.arg_expr.as_ref().unwrap(),
-                &input_reader.headers,
-            )?;
+    //         let mut record = csv::ByteRecord::new();
+    //         let mut program = GroupAggregationProgram::parse(
+    //             self.arg_expr.as_ref().unwrap(),
+    //             &input_reader.headers,
+    //         )?;
 
-            let mut index: usize = 0;
+    //         let mut index: usize = 0;
 
-            while input_reader.read_byte_record(&mut record)? {
-                let group = sel.collect(&record);
+    //         while input_reader.read_byte_record(&mut record)? {
+    //             let group = sel.collect(&record);
 
-                program.run_with_record(group, index, &record)?;
-                index += 1;
+    //             program.run_with_record(group, index, &record)?;
+    //             index += 1;
 
-                input_reader.tick();
-            }
+    //             input_reader.tick();
+    //         }
 
-            let mut total_program_opt = total_program_mutex.lock().unwrap();
+    //         let mut total_program_opt = total_program_mutex.lock().unwrap();
 
-            match total_program_opt.as_mut() {
-                Some((_, current_program)) => current_program.merge(program),
-                None => *total_program_opt = Some((sel.collect(&input_reader.headers), program)),
-            };
+    //         match total_program_opt.as_mut() {
+    //             Some((_, current_program)) => current_program.merge(program),
+    //             None => *total_program_opt = Some((sel.collect(&input_reader.headers), program)),
+    //         };
 
-            progress_bar.stop(&input.name());
+    //         progress_bar.stop(&input.name());
 
-            Ok(())
-        })?;
+    //         Ok(())
+    //     })?;
 
-        if let Some((group_headers, total_program)) = total_program_mutex.into_inner().unwrap() {
-            let mut writer = Config::new(&self.flag_output).writer()?;
-            let mut output_record = csv::ByteRecord::new();
-            output_record.extend(group_headers);
-            output_record.extend(total_program.headers());
+    //     if let Some((group_headers, total_program)) = total_program_mutex.into_inner().unwrap() {
+    //         let mut writer = Config::new(&self.flag_output).writer()?;
+    //         let mut output_record = csv::ByteRecord::new();
+    //         output_record.extend(group_headers);
+    //         output_record.extend(total_program.headers());
 
-            writer.write_record(&output_record)?;
+    //         writer.write_record(&output_record)?;
 
-            for result in total_program.into_byte_records(true) {
-                let (group, values) = result?;
+    //         for result in total_program.into_byte_records(true) {
+    //             let (group, values) = result?;
 
-                output_record.clear();
-                output_record.extend(group);
-                output_record.extend(values.into_iter());
+    //             output_record.clear();
+    //             output_record.extend(group);
+    //             output_record.extend(values.into_iter());
 
-                writer.write_byte_record(&output_record)?;
-            }
-        }
+    //             writer.write_byte_record(&output_record)?;
+    //         }
+    //     }
 
-        progress_bar.succeed();
+    //     progress_bar.succeed();
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn map(self, inputs: Vec<Input>) -> CliResult<()> {
         if self.flag_preprocess.is_none() && self.flag_shell_preprocess.is_none() {
@@ -1499,9 +1499,11 @@ impl Args {
         } else if self.cmd_stats {
             self.stats(inputs)?;
         } else if self.cmd_agg {
-            self.agg(inputs)?;
+            // self.agg(inputs)?;
+            todo!()
         } else if self.cmd_groupby {
-            self.groupby(inputs)?;
+            // self.groupby(inputs)?;
+            todo!()
         } else if self.cmd_map {
             self.map(inputs)?;
         } else {

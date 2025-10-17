@@ -109,9 +109,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let mut sel = rconf.selection(&headers)?;
@@ -150,10 +150,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(threads) = parallelization {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
             |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-            move |(index, record)| -> CliResult<csv::ByteRecord> {
+            move |(index, record)| -> CliResult<simd_csv::ByteRecord> {
                 let record = record?;
 
-                let mut output_record = csv::ByteRecord::new();
+                let mut output_record = simd_csv::ByteRecord::new();
                 let mut last_value = DynamicValue::empty_bytes();
 
                 for (m, cell) in mask.iter().copied().zip(record.iter()) {
@@ -178,8 +178,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&result?)?;
         }
     } else {
-        let mut record = csv::ByteRecord::new();
-        let mut output_record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
+        let mut output_record = simd_csv::ByteRecord::new();
         let mut last_value = DynamicValue::empty_bytes();
         let mut index: usize = 0;
 

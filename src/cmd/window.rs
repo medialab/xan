@@ -84,9 +84,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut reader = conf.reader()?;
+    let mut reader = conf.simd_reader()?;
 
-    let mut writer = Config::new(&args.flag_output).writer()?;
+    let mut writer = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = reader.byte_headers()?.clone();
     let mut program = WindowAggregationProgram::parse(&args.arg_expression, &headers)?;
@@ -100,7 +100,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writer.write_record(headers.iter().chain(program.headers()))?;
     }
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
     let mut index: usize = 0;
     let mut group_opt: Option<Vec<Vec<u8>>> = None;
 

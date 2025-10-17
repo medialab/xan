@@ -11,11 +11,11 @@ use crate::util;
 use crate::CliResult;
 
 fn write_group(
-    wtr: &mut csv::Writer<Box<dyn Write + Send>>,
+    wtr: &mut simd_csv::Writer<Box<dyn Write + Send>>,
     group: &Vec<Vec<u8>>,
-    addendum: &csv::ByteRecord,
+    addendum: &simd_csv::ByteRecord,
 ) -> CliResult<()> {
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
     record.extend(group);
     record.extend(addendum);
 
@@ -165,8 +165,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_column);
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
     let headers = rdr.byte_headers()?;
 
     let sel = rconf.selection(headers)?;
@@ -187,7 +187,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
 
         if !args.flag_no_headers {
-            let mut output_headers = sel.select(headers).collect::<csv::ByteRecord>();
+            let mut output_headers = sel.select(headers).collect::<simd_csv::ByteRecord>();
 
             for name in pivot_sel.select(headers) {
                 output_headers.push_field(name);
@@ -196,7 +196,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&output_headers)?;
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
@@ -240,7 +240,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     if args.flag_sorted {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;

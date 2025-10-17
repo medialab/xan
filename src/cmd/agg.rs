@@ -234,8 +234,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
     let headers = rdr.byte_headers()?;
 
     let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
@@ -248,7 +248,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(headers.iter().chain(program.headers()))?;
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
             program.clear();
@@ -271,7 +271,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("expected a single aggregation clause!")?;
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         if !args.flag_no_headers {
             for name in sel.select(headers) {
@@ -309,7 +309,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(program.headers())?;
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
             for (cell, index) in sel.select(&record).zip(sel.iter().copied()) {
@@ -324,7 +324,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // NOTE: we always write headers, because we basically emit a new file
         wtr.write_record(program.headers())?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {

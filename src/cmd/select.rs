@@ -153,9 +153,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
 
     if args.flag_evaluate || args.flag_evaluate_file {
-        let mut rdr = rconfig.reader()?;
-        let mut wtr = Config::new(&args.flag_output).writer()?;
-        let mut record = csv::ByteRecord::new();
+        let mut rdr = rconfig.simd_reader()?;
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+        let mut record = simd_csv::ByteRecord::new();
 
         let headers = rdr.byte_headers()?.clone();
 
@@ -164,7 +164,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(program.headers())?;
 
         let index: usize = 0;
-        let mut output_record = csv::ByteRecord::new();
+        let mut output_record = simd_csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
             output_record.clear();

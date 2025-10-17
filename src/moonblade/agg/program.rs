@@ -3,9 +3,9 @@ use std::iter::once;
 use std::sync::Arc;
 
 use ahash::RandomState;
-use csv::ByteRecord;
 use indexmap::IndexMap;
 use jiff::{civil::DateTime, Unit};
+use simd_csv::ByteRecord;
 
 use super::aggregators::{
     AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
@@ -1436,10 +1436,10 @@ impl PivotAggregationProgram {
 
     pub fn flush<F, E>(self, mut callback: F) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
         E: From<SpecifiedEvaluationError>,
     {
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let names = self.pivoted_column_names_index.names;
 
         for (group, mut pivot_map) in self.groups.into_iter() {

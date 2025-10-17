@@ -37,7 +37,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut out = stdout();
 
-    let mut dummy_headers = csv::ByteRecord::new();
+    let mut dummy_headers = simd_csv::ByteRecord::new();
 
     if let Some(headers) = &args.flag_headers {
         for h in headers.split(',') {
@@ -52,7 +52,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&mut out, "{:#?}\n", program.expr)?;
     }
 
-    let mut dummy_row = csv::ByteRecord::new();
+    let mut dummy_row = simd_csv::ByteRecord::new();
 
     if let Some(cells) = args.flag_row {
         for c in cells.split(',') {

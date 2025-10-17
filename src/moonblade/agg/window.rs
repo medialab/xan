@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use super::aggregators::{Sum, Welford};
 use crate::moonblade::error::{ConcretizationError, SpecifiedEvaluationError};
@@ -681,7 +681,7 @@ impl WindowAggregationProgram {
         if let Some((_, future_buffer)) = self.future_buffer.as_mut() {
             let padding = (0..self.headers_index.len())
                 .map(|_| b"")
-                .collect::<csv::ByteRecord>();
+                .collect::<ByteRecord>();
 
             for _ in 0..future_buffer.len() {
                 from_index += 1;
