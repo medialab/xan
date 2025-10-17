@@ -175,9 +175,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         Ok(wtr.flush()?)
     } else {
-        let mut rdr = rconfig.simd_reader()?;
+        let mut rdr = rconfig.simd_zero_copy_reader()?;
         let mut wtr = Config::new(&args.flag_output).simd_writer()?;
-        let mut record = simd_csv::ByteRecord::new();
 
         let headers = rdr.byte_headers()?.clone();
 
@@ -191,8 +190,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(headers_to_write)?;
         }
 
-        while rdr.read_byte_record(&mut record)? {
-            wtr.write_record(sel.select(&record))?;
+        while let Some(record) = rdr.read_byte_record()? {
+            // NOTE: this is fine because here we have the guarantee we are
+            // using quotes.
+            wtr.write_record_no_quoting(sel.select(&record))?;
         }
 
         Ok(wtr.flush()?)

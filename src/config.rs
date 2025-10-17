@@ -287,6 +287,12 @@ impl Config {
         Ok(self.simd_csv_reader_from_reader(self.io_reader()?))
     }
 
+    pub fn simd_zero_copy_reader(
+        &self,
+    ) -> CliResult<simd_csv::ZeroCopyReader<Box<dyn io::Read + Send + 'static>>> {
+        Ok(self.simd_zero_copy_csv_reader_from_reader(self.io_reader()?))
+    }
+
     pub fn simd_splitter(
         &self,
     ) -> CliResult<simd_csv::Splitter<Box<dyn io::Read + Send + 'static>>> {
@@ -527,6 +533,17 @@ impl Config {
 
     pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Reader<R> {
         simd_csv::ReaderBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .has_headers(!self.no_headers)
+            .from_reader(rdr)
+    }
+
+    pub fn simd_zero_copy_csv_reader_from_reader<R: Read>(
+        &self,
+        rdr: R,
+    ) -> simd_csv::ZeroCopyReader<R> {
+        simd_csv::ZeroCopyReaderBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
             .has_headers(!self.no_headers)
