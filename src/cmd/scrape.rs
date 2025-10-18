@@ -110,7 +110,7 @@ enum ScraperTarget<'a> {
     },
 }
 
-impl<'a> ScraperTarget<'a> {
+impl ScraperTarget<'_> {
     fn decode<'b>(&self, bytes: &'b [u8]) -> Cow<'b, str> {
         match self {
             Self::HtmlCell(_) => Cow::Borrowed(from_utf8(bytes).expect("could not decode")),

@@ -1,6 +1,7 @@
 [package]
 name = "xan"
 version = "0.53.0"
+rust-version = "1.83.0"
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
@@ -66,7 +67,7 @@ bgzip = { version = "0.3.1", features = ["rust_backend"]}
 bstr = "1.11.3"
 btoi = "0.4.3"
 bytesize = "2.0.1"
-calamine = "0.28.0"
+calamine = "0.31.0"
 colored = "2.0.0"
 colorgrad = { version = "0.7.0", default-features = false, features = ["preset"] }
 console = "0.15.8"
@@ -86,14 +87,14 @@ glob = "0.3.1"
 html-escape = "0.2.13"
 hyperloglogplus = "0.4.1"
 indexmap = "2.7.1"
-indicatif = "0.17.11"
+indicatif = "0.18.0"
 jiff = "0.2.14"
 lazy_static = "1.4.0"
 md5 = "0.7.0"
 memmap2 = "0.9.8"
 mime2ext = "0.1.53"
 namedlock = "0.7.0"
-numfmt = "1.1.1"
+numfmt = "=1.1.1"
 num_cpus = "1.4"
 npyz = "0.8.3"
 opener = "0.7.2"

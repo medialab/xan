@@ -2,6 +2,10 @@
 
 ## 0.54.0 (provisional)
 
+*Breaking*
+
+* Bumping MSRV to `1.83.0`.
+
 *Features*
 
 * Adding `xan flatten -F/--flatter`.
