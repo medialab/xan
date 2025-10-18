@@ -19,6 +19,7 @@
 
 * Fixing `xan dedup --check` bug where the first record was ignored.
 * Fixing `xan hist -D` when a same date is found multiple times.
+* Fixing `xan from -f xls` datetime conversion.
 
 *Performance*
 
