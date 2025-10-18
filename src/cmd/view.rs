@@ -442,6 +442,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect();
     }
 
+    headers = headers
+        .into_iter()
+        .map(util::sanitize_text_for_single_line_printing)
+        .collect();
+
     let mut all_records_buffered = false;
 
     let mut number_formatter = args.flag_significance.map(|s| {
@@ -744,7 +749,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|col| (col, &headers[col.index]))
             .enumerate()
             .map(|(i, (col, h))| {
-                let cell = util::unicode_aware_rpad_with_ellipsis(h, col.allowed_width, " ");
+                let cell = util::unicode_aware_highlighted_pad_with_ellipsis(
+                    false,
+                    h,
+                    col.allowed_width,
+                    " ",
+                    true,
+                );
 
                 if !args.flag_hide_index && i == 0 {
                     cell.dimmed()

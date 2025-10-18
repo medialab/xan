@@ -435,20 +435,24 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
     }
 }
 
-pub fn highlight_trimmable_whitespace(string: &str) -> String {
+pub fn highlight_problematic_string_features(string: &str) -> String {
     let start = string.len() - string.trim_start().len();
     let end = string.trim_end().len();
 
-    format!(
+    let replaced = format!(
         "{}{}{}",
         "·".repeat((0..start).len()).white().dimmed(),
         &string[start..end],
         "·".repeat((end..string.len()).len()).white().dimmed()
-    )
+    );
+
+    ESCAPED_WHITESPACE_REPLACER
+        .replace_all(&replaced, |caps: &Captures| caps[0].dimmed().to_string())
+        .into_owned()
 }
 
 lazy_static! {
-    static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|\n\r|[\n\r\t\f]").unwrap();
+    static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
 }
 
 pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
@@ -461,10 +465,21 @@ pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
     string
 }
 
+lazy_static! {
+    static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|[\n\r\t\f]").unwrap();
+}
+
 pub fn sanitize_text_for_single_line_printing(string: &str) -> String {
     let sanitized = sanitize_text_for_multi_line_printing(string);
 
-    match WHITESPACE_REPLACER.replace_all(&sanitized, " ") {
+    match WHITESPACE_REPLACER.replace_all(&sanitized, |caps: &Captures| match &caps[0] {
+        "\r\n" => "\\r\\n",
+        "\n" => "\\n",
+        "\r" => "\\r",
+        "\t" => "\\t",
+        "\x0C" => "\\f",
+        _ => unreachable!(),
+    }) {
         Cow::Borrowed(_) => sanitized,
         Cow::Owned(s) => s,
     }
@@ -588,10 +603,12 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     padding: &str,
     highlight: bool,
 ) -> String {
+    let with_ellipsis = unicode_aware_ellipsis(string, width);
+
     let mut string = unicode_aware_pad(
         left,
         &(if highlight {
-            highlight_trimmable_whitespace(&unicode_aware_ellipsis(string, width))
+            highlight_problematic_string_features(&with_ellipsis)
         } else {
             unicode_aware_ellipsis(string, width)
         }),

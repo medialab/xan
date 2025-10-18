@@ -154,15 +154,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 )?;
             }
 
+            let display_header = util::highlight_problematic_string_features(
+                &util::sanitize_text_for_single_line_printing(&header),
+            );
+
             writeln!(
                 &mut out,
                 "{}",
                 if duplicates.contains(&header) {
-                    header.red()
+                    display_header.red()
                 } else if *name_counts.get(&header).unwrap() < configs.len() {
-                    header.dimmed()
+                    display_header.dimmed()
                 } else {
-                    header.normal()
+                    display_header.normal()
                 }
             )?;
         }
@@ -188,7 +192,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .iter()
                 .filter_map(|(name, count)| {
                     if *count < configs.len() {
-                        Some(name.dimmed().to_string())
+                        Some(
+                            util::highlight_problematic_string_features(
+                                &util::sanitize_text_for_single_line_printing(name),
+                            )
+                            .cyan()
+                            .to_string(),
+                        )
                     } else {
                         None
                     }

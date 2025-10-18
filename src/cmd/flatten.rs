@@ -143,6 +143,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         headers.push(header);
     }
 
+    headers = headers
+        .into_iter()
+        .map(|name| util::sanitize_text_for_single_line_printing(&name))
+        .collect();
+
     let max_header_width = headers
         .iter()
         .map(|h| h.width())
@@ -179,13 +184,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 true,
             )
         } else if args.flag_wrap {
-            util::wrap(
+            util::highlight_problematic_string_features(&util::wrap(
                 &util::sanitize_text_for_multi_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 max_header_width + 1 + offset,
-            )
+            ))
         } else {
-            util::highlight_trimmable_whitespace(cell)
+            util::highlight_problematic_string_features(cell)
         };
 
         let cell = util::colorize(&cell_colorizer, &cell);
@@ -205,24 +210,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     };
 
+    let display_headers = headers
+        .iter()
+        .map(|header| {
+            util::unicode_aware_highlighted_pad_with_ellipsis(
+                false,
+                header,
+                max_header_width + 1,
+                " ",
+                true,
+            )
+        })
+        .collect::<Vec<_>>();
+
     while rdr.read_record(&mut record)? {
-        let record = sel.select(&record).collect::<csv::StringRecord>();
         if record_index > 0 {
             writeln!(&output)?;
         }
+
         writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
         writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
 
-        for (i, (header, cell)) in headers.iter().zip(record.iter()).enumerate() {
+        for (i, (header, cell)) in display_headers.iter().zip(sel.select(&record)).enumerate() {
+            // Splitted cell
             if matches!(&split_sel_opt, Some(split_sel) if !cell.is_empty() && split_sel.contains(i))
             {
                 let mut first: bool = true;
 
-                write!(
-                    &output,
-                    "{}",
-                    util::unicode_aware_rpad(header, max_header_width + 1, " ")
-                )?;
+                write!(&output, "{}", header)?;
 
                 for sub_cell in cell.split(&args.flag_sep) {
                     let sub_cell = prepare_cell(i, sub_cell, 2);
@@ -245,18 +260,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue;
             }
 
+            // Regular cell
             let cell = prepare_cell(i, cell, 0);
 
             if args.flag_flatter {
                 writeln!(&output, "{}", header)?;
                 writeln!(&output, "{}\n", cell)?;
             } else {
-                writeln!(
-                    &output,
-                    "{}{}",
-                    util::unicode_aware_rpad(header, max_header_width + 1, " "),
-                    cell
-                )?;
+                writeln!(&output, "{}{}", header, cell)?;
             }
         }
 

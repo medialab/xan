@@ -20,6 +20,7 @@
 * Fixing `xan dedup --check` bug where the first record was ignored.
 * Fixing `xan hist -D` when a same date is found multiple times.
 * Fixing `xan from -f xls` datetime conversion.
+* Fixing `xan flatten` & `xan view` when column names contain line breaks.
 
 *Performance*
 
@@ -28,6 +29,7 @@
 *Quality of Life*
 
 * `xan parallel cat` now flushing more consistently.
+* Better highlighting of problematic strings in `xan flatten`, `xan view` & `xan headers`.
 
 ## 0.53.0
 
