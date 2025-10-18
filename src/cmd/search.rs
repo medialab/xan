@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use bstr::{ByteSlice, ByteVec};
+use indexmap::IndexMap;
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
@@ -859,10 +860,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-A/--all does not work with -R/--replace, --replacement-column, -B/--breakdown, -c/--count nor -U/--unique-matches!")?;
     }
 
-    if args.flag_breakdown && args.flag_patterns.is_none() {
-        Err("-B/--breakdown requires --patterns!")?;
-    }
-
     let parallelization = match (args.flag_parallel, args.flag_threads) {
         (true, None) => Some(None),
         (_, Some(count)) => Some(Some(count.get())),
@@ -911,6 +908,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|replacement| vec![replacement.clone().into_bytes(); patterns_len])
     });
 
+    let consolidated_patterns = associated.as_ref().and_then(|names| {
+        let mut map: IndexMap<&[u8], Vec<usize>> = IndexMap::new();
+
+        for (i, name) in names.iter().enumerate() {
+            map.entry(name)
+                .and_modify(|indices| indices.push(i))
+                .or_insert(vec![i]);
+        }
+
+        let groups = map.into_values().collect::<Vec<_>>();
+
+        if groups.iter().all(|group| group.len() == 1) {
+            None
+        } else {
+            Some(groups)
+        }
+    });
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -926,7 +941,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(column_name) = args.flag_count.as_ref().or(args.flag_flag.as_ref()) {
         headers.push_field(column_name.as_bytes());
     } else if args.flag_breakdown {
-        if let Some(column_names) = &associated {
+        if let Some(consolidated) = consolidated_patterns.as_ref() {
+            for group in consolidated.iter() {
+                let i = *group.first().unwrap();
+                headers.push_field(&associated.as_ref().unwrap()[i]);
+            }
+        } else if let Some(column_names) = &associated {
             for column_name in column_names {
                 headers.push_field(column_name);
             }
@@ -968,8 +988,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     if is_match || args.flag_left {
-                        for count in counts.into_iter() {
-                            record.push_field(count.to_string().as_bytes());
+                        if let Some(consolidated) = consolidated_patterns.as_ref() {
+                            for group in consolidated.iter() {
+                                let consolidated_count: usize =
+                                    group.iter().copied().map(|i| counts[i]).sum();
+                                record.push_field(consolidated_count.to_string().as_bytes());
+                            }
+                        } else {
+                            for count in counts.iter_mut() {
+                                record.push_field(count.to_string().as_bytes());
+                            }
                         }
 
                         record_to_write_opt.replace(record);
@@ -1095,21 +1123,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = simd_csv::ByteRecord::new();
     let mut replaced_record = simd_csv::ByteRecord::new();
     let mut matches = BTreeSet::<usize>::new();
+    let mut counts = vec![0; patterns_len];
 
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
 
         // Breakdown
         if args.flag_breakdown {
-            let mut counts = vec![0; patterns_len];
-
             for cell in sel.select(&record) {
                 is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts);
             }
 
             if is_match || args.flag_left {
-                for count in counts.into_iter() {
-                    record.push_field(count.to_string().as_bytes());
+                if let Some(consolidated) = consolidated_patterns.as_ref() {
+                    for group in consolidated.iter() {
+                        let consolidated_count: usize = group
+                            .iter()
+                            .copied()
+                            .map(|i| {
+                                let count = counts[i];
+                                counts[i] = 0;
+                                count
+                            })
+                            .sum();
+                        record.push_field(consolidated_count.to_string().as_bytes());
+                    }
+                } else {
+                    for count in counts.iter_mut() {
+                        record.push_field(count.to_string().as_bytes());
+                        *count = 0;
+                    }
                 }
 
                 wtr.write_byte_record(&record)?;

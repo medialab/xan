@@ -1070,46 +1070,57 @@ fn search_patterns_breakdown() {
     assert_eq!(got, expected);
 }
 
-// #[test]
-// fn search_patterns_breakdown_harmonization() {
-//     let wrk = Workdir::new("search_patterns_breakdown_harmonization");
+#[test]
+fn search_patterns_breakdown_harmonization() {
+    let wrk = Workdir::new("search_patterns_breakdown_harmonization");
 
-//     wrk.create(
-//         "patterns.csv",
-//         vec![
-//             svec!["pattern", "name"],
-//             svec!["bfmtv", "bfmtv"],
-//             svec!["BFM", "bfmtv"],
-//             svec!["lemonde", "lemonde"],
-//         ],
-//     );
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["pattern", "name"],
+            svec!["bfmtv", "bfmtv"],
+            svec!["BFM", "bfmtv"],
+            svec!["lemonde", "lemonde"],
+        ],
+    );
 
-//     wrk.create(
-//         "data.csv",
-//         vec![
-//             svec!["text"],
-//             svec!["BFM is no lemonde"],
-//             svec!["BFM bfmtv"],
-//             svec!["lemonde is alright"],
-//         ],
-//     );
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["text"],
+            svec!["BFM is no lemonde"],
+            svec!["BFM bfmtv"],
+            svec!["lemonde is alright"],
+        ],
+    );
 
-//     let mut cmd = wrk.command("search");
-//     cmd.args(["--patterns", "patterns.csv"])
-//         .args(["--pattern-column", "pattern"])
-//         .args(["--name-column", "name"])
-//         .arg("-B")
-//         .arg("data.csv");
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "pattern"])
+        .args(["--name-column", "name"])
+        .arg("-B")
+        .arg("data.csv");
 
-//     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-//     let expected = vec![
-//         svec!["text", "bfmtv", "lemonde"],
-//         svec!["BFM is no lemonde", "1", "1"],
-//         svec!["BFM bfmtv", "2", "0"],
-//         svec!["lemonde is alright", "0", "1"],
-//     ];
-//     assert_eq!(got, expected);
-// }
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["text", "bfmtv", "lemonde"],
+        svec!["BFM is no lemonde", "1", "1"],
+        svec!["BFM bfmtv", "2", "0"],
+        svec!["lemonde is alright", "0", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("search");
+    cmd.args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "pattern"])
+        .args(["--name-column", "name"])
+        .arg("-B")
+        .arg("-p")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    assert_eq!(got, expected);
+}
 
 #[test]
 fn search_patterns_unique_matches() {

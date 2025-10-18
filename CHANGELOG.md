@@ -9,6 +9,7 @@
 * Adding the `xan grep` command for fast but coarse filtering.
 * Adding `xan search -f/--flag`.
 * Adding `xan map -F/--filter`.
+* `xan search -B/--breakdown` now consolidates the results when multiple patterns have a same name.
 
 *Fixes*
 
