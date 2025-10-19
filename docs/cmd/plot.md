@@ -4,6 +4,38 @@
 ```txt
 Draw a scatter plot or a line plot based on 2-dimensional data.
 
+It is also possible to draw multiple series/lines, as well as drawing multiple
+series/lines as small multiples (sometimes also called a facet grid), by providing
+a -c/--category column or selecting multiple columns as <y> series.
+
+Drawing a simple scatter plot:
+
+    $ xan plot sepal_width sepal_length iris.csv
+
+Drawing a categorical scatter plot:
+
+    $ xan plot sepal_width sepal_length -c species iris.csv
+
+The same, as small multiples:
+
+    $ xan plot sepal_width sepal_length -c species iris.csv -S 2
+
+As a line chart:
+
+    $ xan plot -L sepal_length petal_length iris.csv
+
+Plotting time series:
+
+    $ xan plot -LT datetime units sales.csv
+
+Plotting multiple comparable times series at once:
+
+    $ xan plot -LT datetime amount,amount_fixed sales.csv
+
+Different times series, as small multiples:
+
+    $ xan plot -LT datetime revenue,units sales.csv -S 2
+
 Usage:
     xan plot --count [options] <x> [<input>]
     xan plot [options] <x> <y> [<input>]
@@ -21,9 +53,7 @@ plot options:
                                used with -T, --time that will discretize the x axis.
     -c, --category <col>       Name of the categorical column that will be used to
                                draw distinct series per category.
-                               Incompatible with -Y, --add-series.
-    -Y, --add-series <col>     Name of another column of y values to add as a new series.
-                               Incompatible with -c, --category.
+                               Does not work when selecting multiple columns with <y>.
     -R, --regression-line      Draw a regression line. Only works when drawing a scatter plot with
                                a single series.
     -g, --granularity <g>      Force temporal granularity for x axis discretization when
@@ -38,16 +68,16 @@ plot options:
                                terminal size cannot be found (i.e. when piping to file).
                                Can also be given as a ratio of the terminal's height e.g. "0.5".
     -S, --small-multiples <n>  Display small multiples (also called facet grids) of datasets
-                               given by -c, --category or -Y, --add-series using the provided number
-                               of grid columns. The plot will all share the same x scale but use a different
-                               y scale by default. See --share-y-scale and --separate-x-scale to tweak
-                               this behavior.
+                               given by -c, --category or when multiple series are provided to <y>,
+                               using the provided number of grid columns. The plot will all share the same
+                               x scale but use a different y scale by default. See --share-y-scale
+                               and --separate-x-scale to tweak this behavior.
     --share-x-scale <yes|no>   Give "yes" to share x scale for all plot when drawing small multiples with -S,
                                or "no" to keep them separate.
                                [default: yes]
     --share-y-scale <yes|no>   Give "yes" to share y scale for all plot when drawing small multiples with -S,
                                or "no" to keep them separate. Defaults to "yes" when -c, --category is given
-                               and "no" when -Y, --add-series is given.
+                               and "no" when multiple series are provided to <y>.
     -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
                                'halfblock', 'bar', 'block'.
                                [default: braille]

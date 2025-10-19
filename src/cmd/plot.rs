@@ -85,6 +85,38 @@ impl TryFrom<String> for Granularity {
 static USAGE: &str = "
 Draw a scatter plot or a line plot based on 2-dimensional data.
 
+It is also possible to draw multiple series/lines, as well as drawing multiple
+series/lines as small multiples (sometimes also called a facet grid), by providing
+a -c/--category column or selecting multiple columns as <y> series.
+
+Drawing a simple scatter plot:
+
+    $ xan plot sepal_width sepal_length iris.csv
+
+Drawing a categorical scatter plot:
+
+    $ xan plot sepal_width sepal_length -c species iris.csv
+
+The same, as small multiples:
+
+    $ xan plot sepal_width sepal_length -c species iris.csv -S 2
+
+As a line chart:
+
+    $ xan plot -L sepal_length petal_length iris.csv
+
+Plotting time series:
+
+    $ xan plot -LT datetime units sales.csv
+
+Plotting multiple comparable times series at once:
+
+    $ xan plot -LT datetime amount,amount_fixed sales.csv
+
+Different times series, as small multiples:
+
+    $ xan plot -LT datetime revenue,units sales.csv -S 2
+
 Usage:
     xan plot --count [options] <x> [<input>]
     xan plot [options] <x> <y> [<input>]
@@ -102,9 +134,7 @@ plot options:
                                used with -T, --time that will discretize the x axis.
     -c, --category <col>       Name of the categorical column that will be used to
                                draw distinct series per category.
-                               Incompatible with -Y, --add-series.
-    -Y, --add-series <col>     Name of another column of y values to add as a new series.
-                               Incompatible with -c, --category.
+                               Does not work when selecting multiple columns with <y>.
     -R, --regression-line      Draw a regression line. Only works when drawing a scatter plot with
                                a single series.
     -g, --granularity <g>      Force temporal granularity for x axis discretization when
@@ -119,16 +149,16 @@ plot options:
                                terminal size cannot be found (i.e. when piping to file).
                                Can also be given as a ratio of the terminal's height e.g. \"0.5\".
     -S, --small-multiples <n>  Display small multiples (also called facet grids) of datasets
-                               given by -c, --category or -Y, --add-series using the provided number
-                               of grid columns. The plot will all share the same x scale but use a different
-                               y scale by default. See --share-y-scale and --separate-x-scale to tweak
-                               this behavior.
+                               given by -c, --category or when multiple series are provided to <y>,
+                               using the provided number of grid columns. The plot will all share the same
+                               x scale but use a different y scale by default. See --share-y-scale
+                               and --separate-x-scale to tweak this behavior.
     --share-x-scale <yes|no>   Give \"yes\" to share x scale for all plot when drawing small multiples with -S,
                                or \"no\" to keep them separate.
                                [default: yes]
     --share-y-scale <yes|no>   Give \"yes\" to share y scale for all plot when drawing small multiples with -S,
                                or \"no\" to keep them separate. Defaults to \"yes\" when -c, --category is given
-                               and \"no\" when -Y, --add-series is given.
+                               and \"no\" when multiple series are provided to <y>.
     -M, --marker <name>        Marker to use. Can be one of (by order of size): 'braille', 'dot',
                                'halfblock', 'bar', 'block'.
                                [default: braille]
@@ -174,7 +204,6 @@ struct Args {
     flag_share_x_scale: String,
     flag_share_y_scale: Option<String>,
     flag_category: Option<SelectColumns>,
-    flag_add_series: Vec<SelectColumns>,
     flag_regression_line: bool,
     flag_marker: Marker,
     flag_granularity: Option<Granularity>,
@@ -253,23 +282,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--x-scale cannot be customized when using -T,--time")?;
     }
 
-    if args.flag_regression_line {
-        if args.flag_bars || args.flag_line {
-            Err("-R/--regression-line does not work with -B/--bars nor -L/--line!")?;
-        }
-
-        if args.flag_category.is_some() || !args.flag_add_series.is_empty() {
-            Err("-R/--regression-line only works with single series (avoid -c/--category and -Y/--add-series)!")?;
-        }
-    }
-
-    let share_x_scale = args.flag_share_x_scale == "yes";
-    let share_y_scale = args
-        .flag_share_y_scale
-        .as_ref()
-        .map(|choice| choice == "yes")
-        .unwrap_or(args.flag_add_series.is_empty());
-
     debug_assert!(if args.flag_count {
         args.arg_y.is_none()
     } else {
@@ -291,10 +303,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--y-min or --y-max cannot be <= 0 with --y-scale log!")?;
     }
 
-    if args.flag_category.is_some() && !args.flag_add_series.is_empty() {
-        Err("-c, --category cannot work with -Y, --add-series!")?;
-    }
-
     if matches!(args.flag_x_ticks, Some(n) if n.get() < 2) {
         Err("--x-ticks must be > 1!")?;
     }
@@ -307,8 +315,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         colored::control::set_override(true);
     }
 
-    let has_added_series = !args.flag_add_series.is_empty();
-
     // Collecting data
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?;
@@ -320,8 +326,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let y_column_index_opt = args
         .arg_y
         .as_ref()
-        .map(|name| name.single_selection(headers, !args.flag_no_headers))
-        .transpose()?;
+        .map(|name| name.selection(headers, !args.flag_no_headers))
+        .transpose()?
+        .map(|s| s.into_first().unwrap());
 
     let x_column_name = if args.flag_no_headers {
         x_column_index.to_string()
@@ -351,20 +358,49 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .transpose()?;
 
     let additional_series_indices = args
-        .flag_add_series
-        .iter()
-        .map(|name| {
-            let i = name.single_selection(headers, !args.flag_no_headers)?;
+        .arg_y
+        .as_ref()
+        .map(|names| -> CliResult<Vec<(Vec<u8>, usize)>> {
+            let sel = names.selection(headers, !args.flag_no_headers)?.into_rest();
 
-            let col_name = if args.flag_no_headers {
-                i.to_string().into_bytes()
+            let info: Vec<(Vec<u8>, usize)> = if args.flag_no_headers {
+                sel.iter()
+                    .map(|i| (i.to_string().into_bytes(), *i))
+                    .collect()
             } else {
-                headers[i].to_vec()
+                sel.iter()
+                    .zip(sel.select(headers))
+                    .map(|(i, h)| (h.to_vec(), *i))
+                    .collect()
             };
 
-            Ok((col_name, i))
+            Ok(info)
         })
-        .collect::<Result<Vec<(Vec<u8>, usize)>, CliError>>()?;
+        .transpose()?
+        .unwrap_or_else(Vec::new);
+
+    let has_added_series = !additional_series_indices.is_empty();
+
+    if args.flag_category.is_some() && has_added_series {
+        Err("-c, --category cannot work when multiple columns are given to <y>!")?;
+    }
+
+    if args.flag_regression_line {
+        if args.flag_bars || args.flag_line {
+            Err("-R/--regression-line does not work with -B/--bars nor -L/--line!")?;
+        }
+
+        if args.flag_category.is_some() || !has_added_series {
+            Err("-R/--regression-line only works with single series (e.g. when using -c/--category or when selecting multiple columns with <y>)!")?;
+        }
+    }
+
+    let share_x_scale = args.flag_share_x_scale == "yes";
+    let share_y_scale = args
+        .flag_share_y_scale
+        .as_ref()
+        .map(|choice| choice == "yes")
+        .unwrap_or(!has_added_series);
 
     let showing_multiple_series =
         category_column_index.is_some() || !additional_series_indices.is_empty();
@@ -694,6 +730,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         // Create the datasets to fill the chart with
+                        let can_display_y_axis_title =
+                            single_finalized_series.1.can_display_y_axis_title();
+
                         let single_finalized_series = (
                             single_finalized_series.0.clone(),
                             single_finalized_series
@@ -726,7 +765,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             cols / grid_cols,
                         );
                         let y_axis = Axis::default()
-                            .title(if y_axis_info.can_be_displayed {
+                            .title(if can_display_y_axis_title {
                                 if has_added_series {
                                     single_finalized_series.0.unwrap().dim()
                                 } else {
@@ -880,7 +919,7 @@ fn fix_flat_domain(domain: (f64, f64), axis_type: AxisType) -> (f64, f64) {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct AxisInfo {
     can_be_displayed: bool,
     scale: Scale,
@@ -903,8 +942,8 @@ impl AxisInfo {
         let mut y_domain = first_series.y_domain().unwrap();
         let mut x_axis_type = first_series.types.0;
         let mut y_axis_type = first_series.types.1;
-        let mut x_can_be_displayed = true;
-        let mut y_can_be_displayed = true;
+        let mut x_can_be_displayed = first_series.can_display_x_axis_title();
+        let mut y_can_be_displayed = first_series.can_display_y_axis_title();
 
         for (_, other_series) in series {
             let other_x_domain = other_series.x_domain().unwrap();
@@ -1097,6 +1136,7 @@ impl AxisType {
     }
 }
 
+#[derive(Debug)]
 struct Series {
     types: (AxisType, AxisType),
     points: Vec<(f64, f64)>,
