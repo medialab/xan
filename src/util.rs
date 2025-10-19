@@ -48,7 +48,7 @@ pub fn version() -> String {
 }
 
 lazy_static! {
-    static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-]*)").unwrap();
+    static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-=]*)").unwrap();
     static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options):|---+").unwrap();
     static ref DIMMED_REGEX: Regex = Regex::new(
         r"\[--\]|\[?<[\w|\-]+>(?:\.{3})?\]?|\[[\w\s:§|\-.]+\]|\s+[\$>][^\n]+|\*[^*\n]+\*"
@@ -89,6 +89,24 @@ pub fn colorize_main_help(help: &str) -> String {
     let help = MAIN_ALIAS_REGEX.replace_all(&help, |caps: &Captures| caps[0].dimmed().to_string());
 
     help.replace("xan", &"xan".red().to_string())
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub enum ColorMode {
+    #[default]
+    Auto,
+    Never,
+    Always,
+}
+
+impl ColorMode {
+    pub fn apply(&self) {
+        match self {
+            Self::Never => colored::control::set_override(false),
+            Self::Always => colored::control::set_override(true),
+            _ => (),
+        }
+    }
 }
 
 pub fn get_args<T>(usage: &str, argv: &[&str]) -> CliResult<T>

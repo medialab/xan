@@ -39,8 +39,11 @@ hist options:
     -c, --category <col>     Name of the categorical column that will be used to
                              assign distinct colors per category.
                              Incompatible with -R, --rainbow.
-    -C, --force-colors       Force colors even if output is not supposed to be able to
-                             handle them.
+    --color <when>           When to color the output using ANSI escape codes.
+                             Use `auto` for automatic detection, `never` to
+                             disable colors completely and `always` to force
+                             colors, even when the output could not handle them.
+                             [default: auto]
     -P, --hide-percent       Don't show percentages.
     -u, --unit <unit>        Value unit.
     -D, --dates              Set to indicate your values are dates (supporting year, year-month or

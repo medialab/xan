@@ -7,7 +7,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::util;
+use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 static USAGE: &str = "
@@ -17,10 +17,10 @@ This mode is particularly useful for viewing one record at a time.
 There is also a condensed view (-c or --condense) that will shorten the
 contents of each field to provide a summary view.
 
-Pipe into \"less -r\" if you need to page the result, and use -C/--force-colors
+Pipe into \"less -r\" if you need to page the result, and use --color=always
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -Sr
+    $ xan flatten --color=always file.csv | less -Sr
 
 Usage:
     xan flatten [options] [<input>]
@@ -47,8 +47,11 @@ flatten options:
                            terminal's size cannot be found (i.e. when piping to file).
                            Can also be given as a ratio of the terminal's width e.g. \"0.5\".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
     -S, --split <cols>     Split columns containing multiple values separated by --sep
                            to be displayed as a list.
     --sep <sep>            Delimiter separating multiple values in cells splitted
@@ -80,7 +83,7 @@ struct Args {
     flag_cols: Option<String>,
     flag_rainbow: bool,
     flag_csv: bool,
-    flag_force_colors: bool,
+    flag_color: ColorMode,
     flag_split: Option<SelectColumns>,
     flag_sep: String,
     flag_highlight: Option<String>,
@@ -92,6 +95,7 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    args.flag_color.apply();
 
     if args.flag_rainbow && args.flag_highlight.is_some() {
         Err("-R/--rainbow does not work with -H/--highlight!")?;
@@ -173,10 +177,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .build()
         })
         .transpose()?;
-
-    if args.flag_force_colors {
-        colored::control::set_override(true);
-    }
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 

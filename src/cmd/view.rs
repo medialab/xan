@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::util;
+use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 fn prepend(record: &csv::StringRecord, cell_value: &str) -> csv::StringRecord {
@@ -199,9 +199,9 @@ the -p/--pager flag that internally rely on the ubiquitous \"less\"
 command.
 
 If you still want to use a pager manually, don't forget to use
-the -e/--expand and -C/--force-colors flags before piping like so:
+the -e/--expand and --color=always flags before piping like so:
 
-    $ xan view -eC file.csv | less -SR
+    $ xan view -e --color=always file.csv | less -SR
 
 Finally, it is possible to customize the default behavior of this command through
 the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
@@ -235,8 +235,11 @@ view options:
                             Defaults to using all your terminal's width or 80 if
                             terminal's size cannot be found (i.e. when piping to file).
                             Can also be given as a ratio of the terminal's width e.g. \"0.5\".
-    -C, --force-colors      Force colors even if output is not supposed to be able to
-                            handle them.
+    --color <when>          When to color the output using ANSI escape codes.
+                            Use `auto` for automatic detection, `never` to
+                            disable colors completely and `always` to force
+                            colors, even when the output could not handle them.
+                            [default: auto]
     -e, --expand            Expand the table so that in can be easily piped to
                             a pager such as \"less\", with larger width constraints.
     -E, --sanitize-emojis   Replace emojis by their shortcode to avoid formatting issues.
@@ -265,7 +268,7 @@ struct Args {
     flag_cols: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_no_headers: bool,
-    flag_force_colors: bool,
+    flag_color: ColorMode,
     flag_all: bool,
     flag_limit: usize,
     flag_rainbow: bool,
@@ -288,14 +291,14 @@ impl Args {
         if self.flag_no_headers {
             self.flag_hide_headers = true;
         }
+
+        if self.flag_pager {
+            self.flag_color = ColorMode::Always;
+        }
     }
 
     fn infer_expand(&self) -> bool {
         self.flag_pager || self.flag_expand
-    }
-
-    fn infer_force_colors(&self) -> bool {
-        self.flag_pager || self.flag_force_colors
     }
 
     fn merge(from_env: Self, mut from_argv: Self) -> Self {
@@ -338,6 +341,7 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
+    args.flag_color.apply();
 
     let mut env_var_argv = vec!["xan", "view"];
     let env_var_split =
@@ -351,10 +355,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     env_args.resolve();
 
     let args = Args::merge(env_args, args);
-
-    if args.infer_force_colors() {
-        colored::control::set_override(true);
-    }
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 

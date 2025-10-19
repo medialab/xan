@@ -13,9 +13,9 @@ the -p/--pager flag that internally rely on the ubiquitous "less"
 command.
 
 If you still want to use a pager manually, don't forget to use
-the -e/--expand and -C/--force-colors flags before piping like so:
+the -e/--expand and --color=always flags before piping like so:
 
-    $ xan view -eC file.csv | less -SR
+    $ xan view -e --color=always file.csv | less -SR
 
 Finally, it is possible to customize the default behavior of this command through
 the "XAN_VIEW_ARGS" environment variable. This variable takes a series of
@@ -49,8 +49,11 @@ view options:
                             Defaults to using all your terminal's width or 80 if
                             terminal's size cannot be found (i.e. when piping to file).
                             Can also be given as a ratio of the terminal's width e.g. "0.5".
-    -C, --force-colors      Force colors even if output is not supposed to be able to
-                            handle them.
+    --color <when>          When to color the output using ANSI escape codes.
+                            Use `auto` for automatic detection, `never` to
+                            disable colors completely and `always` to force
+                            colors, even when the output could not handle them.
+                            [default: auto]
     -e, --expand            Expand the table so that in can be easily piped to
                             a pager such as "less", with larger width constraints.
     -E, --sanitize-emojis   Replace emojis by their shortcode to avoid formatting issues.

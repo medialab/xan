@@ -32,8 +32,11 @@ heatmap options:
                            Usually works better when -S, --scale > 1.
     -N, --show-numbers     Whether to attempt to show numbers in the cells.
                            Usually only useful when -S, --scale > 1.
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
     --show-gradients       Display a showcase of available gradients.
 
 Common options:

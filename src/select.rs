@@ -560,7 +560,7 @@ impl Selection {
     }
 
     pub fn into_first(self) -> Option<usize> {
-        self.0.first().map(|i| *i)
+        self.0.first().copied()
     }
 
     pub fn into_rest(self) -> Self {

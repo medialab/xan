@@ -8,10 +8,10 @@ This mode is particularly useful for viewing one record at a time.
 There is also a condensed view (-c or --condense) that will shorten the
 contents of each field to provide a summary view.
 
-Pipe into "less -r" if you need to page the result, and use -C/--force-colors
+Pipe into "less -r" if you need to page the result, and use --color=always
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -Sr
+    $ xan flatten --color=always file.csv | less -Sr
 
 Usage:
     xan flatten [options] [<input>]
@@ -38,8 +38,11 @@ flatten options:
                            terminal's size cannot be found (i.e. when piping to file).
                            Can also be given as a ratio of the terminal's width e.g. "0.5".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
     -S, --split <cols>     Split columns containing multiple values separated by --sep
                            to be displayed as a list.
     --sep <sep>            Delimiter separating multiple values in cells splitted

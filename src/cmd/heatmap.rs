@@ -8,7 +8,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
-use crate::util;
+use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
@@ -167,8 +167,11 @@ heatmap options:
                            Usually works better when -S, --scale > 1.
     -N, --show-numbers     Whether to attempt to show numbers in the cells.
                            Usually only useful when -S, --scale > 1.
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
     --show-gradients       Display a showcase of available gradients.
 
 Common options:
@@ -190,7 +193,7 @@ struct Args {
     flag_diverging: bool,
     flag_cram: bool,
     flag_show_numbers: bool,
-    flag_force_colors: bool,
+    flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_show_gradients: bool,
@@ -208,6 +211,7 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
+    args.flag_color.apply();
 
     let mut out = stdout();
 
@@ -239,10 +243,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
-
-    if args.flag_force_colors {
-        colored::control::set_override(true);
-    }
 
     let forced_extent = (args.flag_min, args.flag_max);
 

@@ -94,8 +94,11 @@ plot options:
                                [default: lin]
     --y-scale <scale>          Apply a scale to the y axis. Can be one of "lin" or "log".
                                [default: lin]
-    -C, --force-colors         Force colors even if output is not supposed to be able to
-                               handle them.
+    --color <when>             When to color the output using ANSI escape codes.
+                               Use `auto` for automatic detection, `never` to
+                               disable colors completely and `always` to force
+                               colors, even when the output could not handle them.
+                               [default: auto]
     -i, --ignore               Ignore values that cannot be correctly parsed.
 
 Common options:

@@ -11,7 +11,7 @@ use crate::config::{Config, Delimiter};
 use crate::dates;
 use crate::scales::LinearScale;
 use crate::select::SelectColumns;
-use crate::util;
+use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 const SMALL_BAR_CHARS: [&str; 2] = ["╸", "━"]; // "╾"
@@ -56,8 +56,11 @@ hist options:
     -c, --category <col>     Name of the categorical column that will be used to
                              assign distinct colors per category.
                              Incompatible with -R, --rainbow.
-    -C, --force-colors       Force colors even if output is not supposed to be able to
-                             handle them.
+    --color <when>           When to color the output using ANSI escape codes.
+                             Use `auto` for automatic detection, `never` to
+                             disable colors completely and `always` to force
+                             colors, even when the output could not handle them.
+                             [default: auto]
     -P, --hide-percent       Don't show percentages.
     -u, --unit <unit>        Value unit.
     -D, --dates              Set to indicate your values are dates (supporting year, year-month or
@@ -82,7 +85,7 @@ struct Args {
     flag_label: SelectColumns,
     flag_value: SelectColumns,
     flag_cols: Option<String>,
-    flag_force_colors: bool,
+    flag_color: ColorMode,
     flag_domain_max: String,
     flag_rainbow: bool,
     flag_name: String,
@@ -96,13 +99,10 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    args.flag_color.apply();
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
-
-    if args.flag_force_colors {
-        colored::control::set_override(true);
-    }
 
     if args.flag_category.is_some() && args.flag_rainbow {
         Err("-c, --category cannot work with -R, --rainbow")?;

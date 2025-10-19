@@ -6,6 +6,7 @@
 
 * Bumping MSRV to `1.83.0`.
 * Dropping `xan plot -Y/--add-series`, since it is now possible to select multiple series as `<y>` in  `xan plot <x>, <y>`.
+* Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
 
 *Features*
 
@@ -17,6 +18,7 @@
 * `xan search -B/--breakdown` now consolidates the results when multiple patterns have a same name.
 * Adding `xan flatten --row-separator`.
 * Adding `xan flatten --csv`.
+* Adding `xan headers --color`.
 
 *Fixes*
 
