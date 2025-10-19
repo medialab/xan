@@ -26,6 +26,9 @@ impl SelectionProgram {
                 .enumerate()
                 .map(|(expr_i, (expr, expr_name))| {
                     concretize_expression(expr, headers, None).map(|c| {
+                        let expr_name = expr_name.unwrap();
+
+                        // TODO: what to do in case of plural?
                         let pos = headers_index.get_first_by_name(&expr_name);
 
                         if let Some(i) = pos {

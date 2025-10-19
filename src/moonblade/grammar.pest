@@ -154,10 +154,11 @@ map       =  { "{" ~ map_body* ~ "}" }
 // End-chain parsers
 full_expr = _{ SOI ~ expr ~ EOI }
 
-expr_name      =  { ident | string }
-named_expr     =  { expr ~ "as" ~ expr_name }
-opt_named_expr = _{ named_expr | expr }
-named_exprs    = _{ SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ ","? ~ EOI }
+expr_name_tuple =  { "(" ~ ((ident | string) ~ ","?)+ ~ ")" }
+expr_name       =  { ident | string | expr_name_tuple }
+named_expr      =  { expr ~ "as" ~ expr_name }
+opt_named_expr  = _{ named_expr | expr }
+named_exprs     = _{ SOI ~ opt_named_expr ~ ("," ~ opt_named_expr)* ~ ","? ~ EOI }
 
 named_func     =  { func ~ "as" ~ expr_name }
 opt_named_func = _{ named_func | func }
