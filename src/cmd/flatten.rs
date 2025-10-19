@@ -37,6 +37,11 @@ flatten options:
     -F, --flatter          Even flatter representation alternating column name and content
                            on different lines in the output. Useful to display cells containing
                            large chunks of text.
+    --row-separator <sep>  Separate rows in the output with the given string, instead of
+                           displaying a header with row index. If an empty string is
+                           given, e.g. --row-separator '', will not separate rows at all.
+    --csv                  Write the result as a CSV file with the row,field,value columns
+                           instead. Can be seen as unpivoting the whole file.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
@@ -54,6 +59,8 @@ flatten options:
 
 Common options:
     -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout. Only used
+                           when --csv is set.
     -n, --no-headers       When set, the first row will not be interpreted
                            as headers. When set, the name of each field
                            will be its index.
@@ -69,8 +76,10 @@ struct Args {
     flag_condense: bool,
     flag_wrap: bool,
     flag_flatter: bool,
+    flag_row_separator: Option<String>,
     flag_cols: Option<String>,
     flag_rainbow: bool,
+    flag_csv: bool,
     flag_force_colors: bool,
     flag_split: Option<SelectColumns>,
     flag_sep: String,
@@ -78,6 +87,7 @@ struct Args {
     flag_ignore_case: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_output: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -99,6 +109,47 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select.clone());
+
+    let mut record_index: usize = 0;
+
+    if args.flag_csv {
+        let mut rdr = rconfig.simd_reader()?;
+        let byte_headers = rdr.byte_headers()?.clone();
+        let sel = rconfig.selection(&byte_headers)?;
+
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+
+        let mut output_record = simd_csv::ByteRecord::new();
+        output_record.push_field(b"row");
+        output_record.push_field(b"field");
+        output_record.push_field(b"value");
+
+        wtr.write_byte_record(&output_record)?;
+
+        let mut record = simd_csv::ByteRecord::new();
+
+        while rdr.read_byte_record(&mut record)? {
+            for (h, cell) in sel.select(&byte_headers).zip(sel.select(&record)) {
+                output_record.clear();
+                output_record.push_field(record_index.to_string().as_bytes());
+                output_record.push_field(h);
+                output_record.push_field(cell);
+
+                wtr.write_byte_record(&output_record)?;
+            }
+
+            record_index += 1;
+
+            if let Some(limit) = args.flag_limit {
+                if record_index >= limit.get() {
+                    break;
+                }
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
     let mut rdr = rconfig.reader()?;
     let byte_headers = rdr.byte_headers()?;
     let sel = rconfig.selection(byte_headers)?;
@@ -159,7 +210,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = csv::StringRecord::new();
-    let mut record_index: usize = 0;
 
     let max_value_width = cols - max_header_width - 1;
 
@@ -225,11 +275,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_record(&mut record)? {
         if record_index > 0 {
-            writeln!(&output)?;
+            if let Some(separator) = &args.flag_row_separator {
+                if !separator.is_empty() {
+                    writeln!(&output, "{}", &separator)?;
+                }
+            } else {
+                writeln!(&output)?;
+            }
         }
 
-        writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
-        writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
+        if args.flag_row_separator.is_none() {
+            writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
+            writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
+        }
 
         for (i, (header, cell)) in display_headers.iter().zip(sel.select(&record)).enumerate() {
             // Splitted cell

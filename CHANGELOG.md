@@ -14,6 +14,8 @@
 * Adding `xan search -f/--flag`.
 * Adding `xan map -F/--filter`.
 * `xan search -B/--breakdown` now consolidates the results when multiple patterns have a same name.
+* Adding `xan flatten --row-separator`.
+* Adding `xan flatten --csv`.
 
 *Fixes*
 

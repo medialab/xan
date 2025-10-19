@@ -646,7 +646,7 @@ impl Args {
         } else if io::stdin().is_terminal() {
             vec![]
         } else {
-            Config::stdin()
+            Config::std()
                 .lines(&self.flag_path_column)?
                 .collect::<Result<Vec<_>, _>>()?
         };
@@ -774,7 +774,7 @@ impl Args {
                 Err("-H, --shell-preprocess cannot be an empty command!")?;
             }
 
-            let config = Config::stdin()
+            let config = Config::std()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -905,7 +905,7 @@ impl Args {
                 children.push(command.spawn().expect("could not spawn preprocessing"));
             }
 
-            let config = Config::stdin()
+            let config = Config::std()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 

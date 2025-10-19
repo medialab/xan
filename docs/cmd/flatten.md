@@ -28,6 +28,11 @@ flatten options:
     -F, --flatter          Even flatter representation alternating column name and content
                            on different lines in the output. Useful to display cells containing
                            large chunks of text.
+    --row-separator <sep>  Separate rows in the output with the given string, instead of
+                           displaying a header with row index. If an empty string is
+                           given, e.g. --row-separator '', will not separate rows at all.
+    --csv                  Write the result as a CSV file with the row,field,value columns
+                           instead. Can be seen as unpivoting the whole file.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
@@ -45,6 +50,8 @@ flatten options:
 
 Common options:
     -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout. Only used
+                           when --csv is set.
     -n, --no-headers       When set, the first row will not be interpreted
                            as headers. When set, the name of each field
                            will be its index.

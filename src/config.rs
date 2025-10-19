@@ -147,7 +147,7 @@ impl Config {
         config
     }
 
-    pub fn stdin() -> Config {
+    pub fn std() -> Config {
         Self::new(&None)
     }
 
