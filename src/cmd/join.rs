@@ -11,6 +11,14 @@ use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
+#[derive(Deserialize, Clone, Copy)]
+enum DropKey {
+    None,
+    Left,
+    Right,
+    Both,
+}
+
 fn get_row_key(sel: &Selection, row: &ByteRecord, case_insensitive: bool) -> ByteRecord {
     sel.select(row)
         .map(|v| transform(v, case_insensitive))
@@ -262,6 +270,7 @@ join options:
     --nulls                      When set, joins will work on empty fields.
                                  Otherwise, empty keys are completely ignored, i.e. when
                                  column selection yield only empty cells.
+    -D, --drop-key <mode>        TODO...
     -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  first dataset.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
@@ -294,6 +303,7 @@ struct Args {
     flag_no_headers: bool,
     flag_ignore_case: bool,
     flag_nulls: bool,
+    flag_drop_key: Option<DropKey>,
     flag_delimiter: Option<Delimiter>,
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
@@ -348,6 +358,49 @@ impl Args {
         Index::from_csv_reader(reader, sel, self.flag_ignore_case, self.flag_nulls)
     }
 
+    fn inverted_selections(
+        &mut self,
+        left_headers: &ByteRecord,
+        left_sel: &Selection,
+        right_headers: &ByteRecord,
+        right_sel: &Selection,
+    ) -> (Selection, Selection) {
+        let drop_key = match self.flag_drop_key {
+            Some(d) => d,
+            None => {
+                if !self.flag_no_headers
+                    && !self.flag_ignore_case
+                    && left_sel.select(left_headers).collect::<ByteRecord>()
+                        == right_sel.select(right_headers).collect::<ByteRecord>()
+                {
+                    if self.flag_left || self.flag_full {
+                        DropKey::Right
+                    } else if self.flag_right {
+                        DropKey::Left
+                    } else if !self.flag_cross && !self.flag_semi && !self.flag_anti {
+                        DropKey::Right
+                    } else {
+                        DropKey::None
+                    }
+                } else {
+                    DropKey::None
+                }
+            }
+        };
+
+        let left_inverse_sel = match drop_key {
+            DropKey::Left | DropKey::Both => left_sel.inverse(left_headers.len()),
+            _ => Selection::full(left_headers.len()),
+        };
+
+        let right_inverse_sel = match drop_key {
+            DropKey::Right | DropKey::Both => right_sel.inverse(right_headers.len()),
+            _ => Selection::full(right_headers.len()),
+        };
+
+        (left_inverse_sel, right_inverse_sel)
+    }
+
     fn write_headers<W: io::Write>(
         &self,
         writer: &mut simd_csv::Writer<W>,
@@ -366,15 +419,22 @@ impl Args {
         Ok(())
     }
 
-    fn inner_join(self) -> CliResult<()> {
+    fn inner_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
@@ -382,7 +442,11 @@ impl Args {
 
         while right_reader.read_byte_record(&mut right_record)? {
             index.for_each_record(&right_sel, &right_record, |left_record| {
-                writer.write_record(left_record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(left_record)
+                        .chain(inverted_right_sel.select(&right_record)),
+                )
             })?;
         }
 

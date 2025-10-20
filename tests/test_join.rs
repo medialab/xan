@@ -14,7 +14,8 @@ macro_rules! join_test {
             fn headers() {
                 let wrk = setup(stringify!($name), true);
                 let mut cmd = wrk.command("join");
-                cmd.args(&["city", "cities.csv", "city", "places.csv"]);
+                cmd.args(["-D", "none"])
+                    .args(&["city", "cities.csv", "city", "places.csv"]);
                 $fun(wrk, cmd, true);
             }
 
@@ -23,8 +24,12 @@ macro_rules! join_test {
                 let n = stringify!(concat_idents!($name, _no_headers));
                 let wrk = setup(n, false);
                 let mut cmd = wrk.command("join");
-                cmd.arg("--no-headers");
-                cmd.args(&["0", "cities.csv", "0", "places.csv"]);
+                cmd.args(["-D", "none"]).arg("--no-headers").args(&[
+                    "0",
+                    "cities.csv",
+                    "0",
+                    "places.csv",
+                ]);
                 $fun(wrk, cmd, false);
             }
         }
@@ -148,7 +153,7 @@ fn join_inner_issue11() {
     wrk.create("b.csv", b);
 
     let mut cmd = wrk.command("join");
-    cmd.args(["0,1", "a.csv", "1,0", "b.csv"]);
+    cmd.arg("-n").args(["0,1", "a.csv", "1,0", "b.csv"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -229,6 +234,7 @@ fn join_prefix() {
         .arg("left_")
         .arg("--prefix-right")
         .arg("right_")
+        .args(["-D", "none"])
         .args(["idx", "fruits.csv", "idx", "colors.csv"]);
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -327,9 +333,82 @@ fn join_combined_arity() {
         .args(["idx", "fruits.csv", "colors.csv"]);
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["left_idx", "left_fruit", "right_idx", "right_color"],
+        svec!["left_idx", "left_fruit", "right_color"],
+        svec!["1", "apple", "blue"],
+        svec!["2", "mango", "purple"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn join_drop_key() {
+    let wrk = Workdir::new("join_drop_key");
+    wrk.create(
+        "fruits.csv",
+        vec![
+            svec!["idx", "fruit"],
+            svec!["1", "apple"],
+            svec!["2", "mango"],
+        ],
+    );
+    wrk.create(
+        "colors.csv",
+        vec![
+            svec!["idx", "color"],
+            svec!["1", "blue"],
+            svec!["2", "purple"],
+        ],
+    );
+
+    // --drop-key=none
+    let mut cmd = wrk.command("join");
+    cmd.args(["--drop-key", "none"])
+        .args(["idx", "fruits.csv", "colors.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["idx", "fruit", "idx", "color"],
         svec!["1", "apple", "1", "blue"],
         svec!["2", "mango", "2", "purple"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-key=left
+    let mut cmd = wrk.command("join");
+    cmd.args(["--drop-key", "left"])
+        .args(["idx", "fruits.csv", "colors.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["fruit", "idx", "color"],
+        svec!["apple", "1", "blue"],
+        svec!["mango", "2", "purple"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-key=right
+    let mut cmd = wrk.command("join");
+    cmd.args(["--drop-key", "right"])
+        .args(["idx", "fruits.csv", "colors.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["idx", "fruit", "color"],
+        svec!["1", "apple", "blue"],
+        svec!["2", "mango", "purple"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-key=both
+    let mut cmd = wrk.command("join");
+    cmd.args(["--drop-key", "both"])
+        .args(["idx", "fruits.csv", "colors.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["fruit", "color"],
+        svec!["apple", "blue"],
+        svec!["mango", "purple"],
     ];
     assert_eq!(got, expected);
 }
