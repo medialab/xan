@@ -89,6 +89,137 @@ fn separate() {
 }
 
 #[test]
+fn separate_extra() {
+    let wrk1 = Workdir::new("separate_extra_drop_max_splits");
+    wrk1.create("data.csv", people());
+    let mut cmd1 = wrk1.command("separate");
+    cmd1.arg("fullname,birthdate")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--extra")
+        .arg("drop")
+        .arg("--max-splits")
+        .arg("3");
+    let got1: Vec<Vec<String>> = wrk1.read_stdout(&mut cmd1);
+    let expected1 = vec![
+        svec!["untitled1", "untitled2", "untitled3"],
+        svec!["John", "Doe", "1990"],
+        svec!["Jane", "Smith", "1985"],
+        svec!["Alice", "Johnson", "2000"],
+    ];
+    assert_eq!(got1, expected1);
+
+    let wrk2 = Workdir::new("separate_extra_drop_named");
+    wrk2.create("data.csv", people());
+    let mut cmd2 = wrk2.command("separate");
+    cmd2.arg("fullname,birthdate")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--extra")
+        .arg("drop")
+        .arg("--into")
+        .arg("firstname,lastname,birthyear");
+    let got2: Vec<Vec<String>> = wrk2.read_stdout(&mut cmd2);
+    let expected2 = vec![
+        svec!["firstname", "lastname", "birthyear"],
+        svec!["John", "Doe", "1990"],
+        svec!["Jane", "Smith", "1985"],
+        svec!["Alice", "Johnson", "2000"],
+    ];
+    assert_eq!(got2, expected2);
+
+    let wrk3 = Workdir::new("separate_extra_drop_no_effect");
+    wrk3.create("data.csv", people());
+    let mut cmd3 = wrk3.command("separate");
+    cmd3.arg("fullname")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--extra")
+        .arg("drop")
+        .arg("--max-splits")
+        .arg("5");
+    let got3: Vec<Vec<String>> = wrk3.read_stdout(&mut cmd3);
+    let expected3 = vec![
+        svec![
+            "birthdate",
+            "untitled1",
+            "untitled2",
+            "untitled3",
+            "untitled4",
+            "untitled5"
+        ],
+        svec!["1990 05 15", "John", "Doe", "", "", ""],
+        svec!["1985 10 30", "Jane", "Smith", "", "", ""],
+        svec!["2000 01 01", "Alice", "Johnson", "", "", ""],
+    ];
+    assert_eq!(got3, expected3);
+
+    let wrk4 = Workdir::new("separate_extra_merge_named");
+    wrk4.create("data.csv", people());
+    let mut cmd4 = wrk4.command("separate");
+    cmd4.arg("fullname,birthdate")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--extra")
+        .arg("merge")
+        .arg("--into")
+        .arg("firstname,lastname,birthdate");
+    let got4: Vec<Vec<String>> = wrk4.read_stdout(&mut cmd4);
+    let expected4 = vec![
+        svec!["firstname", "lastname", "birthdate"],
+        svec!["John", "Doe", "1990|05|15"],
+        svec!["Jane", "Smith", "1985|10|30"],
+        svec!["Alice", "Johnson", "2000|01|01"],
+    ];
+    assert_eq!(got4, expected4);
+
+    let wrk5 = Workdir::new("separate_extra_merge_max_splits");
+    wrk5.create("data.csv", people());
+    let mut cmd5 = wrk5.command("separate");
+    cmd5.arg("fullname,birthdate")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--extra")
+        .arg("merge")
+        .arg("--max-splits")
+        .arg("3");
+    let got5: Vec<Vec<String>> = wrk5.read_stdout(&mut cmd5);
+    let expected5 = vec![
+        svec!["untitled1", "untitled2", "untitled3"],
+        svec!["John", "Doe", "1990|05|15"],
+        svec!["Jane", "Smith", "1985|10|30"],
+        svec!["Alice", "Johnson", "2000|01|01"],
+    ];
+    assert_eq!(got5, expected5);
+
+    let wrk6 = Workdir::new("separate_extra_no_effect");
+    wrk6.create("data.csv", people());
+    let mut cmd6 = wrk6.command("separate");
+    cmd6.arg("fullname")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--extra")
+        .arg("no_effect")
+        .arg("--max-splits")
+        .arg("5");
+    let got6: Vec<Vec<String>> = wrk6.read_stdout(&mut cmd6);
+    let expected6 = vec![
+        svec![
+            "birthdate",
+            "untitled1",
+            "untitled2",
+            "untitled3",
+            "untitled4",
+            "untitled5"
+        ],
+        svec!["1990 05 15", "John", "Doe", "", "", ""],
+        svec!["1985 10 30", "Jane", "Smith", "", "", ""],
+        svec!["2000 01 01", "Alice", "Johnson", "", "", ""],
+    ];
+    assert_eq!(got6, expected6);
+}
+
+#[test]
 fn separate_keep_column() {
     let wrk = Workdir::new("separate");
     wrk.create("data.csv", data());
