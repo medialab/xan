@@ -174,7 +174,7 @@ would produce:
 
 Differences between `http` & `https` and the presence of other url details irrelevant for prefix matching can sometimes cause issues. Fortunately, `xan fuzzy-join` has a `-S/--simplified` flag that will sidestep this issue by ignoring url scheme and usually irrelevant parts such as `www` subdomains, ports, user auth etc.
 
-What's more, `xan` commands do not care whether url scheme is present. Which means given a slighlty altered medias file like this one:
+What's more, `xan` commands do not care whether url scheme is present. Which means given a slightly altered medias file like this one:
 
 | id  | homepage            | media            | politics |
 | --- | ------------------- | ---------------- | -------- |

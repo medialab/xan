@@ -16,7 +16,7 @@ Supported formats:
     ndjson  - Newline-delimited JSON (same as `jsonl`)
     npy     - Numpy array
     txt     - Text lines
-    xlsx    - Excel spreasheet
+    xlsx    - Excel spreadsheet
 
 Some formats can be streamed, some others require the full CSV file to be loaded into
 memory.
