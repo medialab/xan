@@ -60,8 +60,8 @@ fn build_headers(
     headers
 }
 
-fn get_padding(headers: &ByteRecord) -> ByteRecord {
-    (0..headers.len()).map(|_| b"").collect()
+fn get_padding(len: usize) -> ByteRecord {
+    (0..len).map(|_| b"").collect()
 }
 
 #[derive(Debug)]
@@ -246,6 +246,10 @@ Usage:
     xan join --help
 
 join options:
+    --inner                      Do an \"inner\" join. This only returns rows where
+                                 a match can be found between both data sets. This
+                                 is the command's default, so this flag can be omitted,
+                                 or used for clarity.
     --left                       Do an \"outer left\" join. This returns all rows in
                                  first CSV data set, including rows with no
                                  corresponding row in the second data set. When no
@@ -293,6 +297,7 @@ struct Args {
     arg_input1: String,
     arg_columns2: SelectColumns,
     arg_input2: String,
+    flag_inner: bool,
     flag_left: bool,
     flag_right: bool,
     flag_full: bool,
@@ -373,12 +378,10 @@ impl Args {
                     && left_sel.select(left_headers).collect::<ByteRecord>()
                         == right_sel.select(right_headers).collect::<ByteRecord>()
                 {
-                    if self.flag_left || self.flag_full {
+                    if self.flag_inner || self.flag_left || self.flag_full {
                         DropKey::Right
                     } else if self.flag_right {
                         DropKey::Left
-                    } else if !self.flag_cross && !self.flag_semi && !self.flag_anti {
-                        DropKey::Right
                     } else {
                         DropKey::None
                     }
@@ -453,18 +456,25 @@ impl Args {
         Ok(writer.flush()?)
     }
 
-    fn full_outer_join(self) -> CliResult<()> {
+    fn full_outer_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        let left_padding = get_padding(&left_headers);
-        let right_padding = get_padding(&right_headers);
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        let left_padding = get_padding(inverted_left_sel.len());
+        let right_padding = get_padding(inverted_right_sel.len());
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
@@ -476,32 +486,51 @@ impl Args {
             index.for_each_node_mut(&right_sel, &right_record, |left_node| {
                 something_was_written = true;
                 left_node.written = true;
-                writer.write_record(left_node.record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(&left_node.record)
+                        .chain(inverted_right_sel.select(&right_record)),
+                )
             })?;
 
             if !something_was_written {
-                writer.write_record(left_padding.iter().chain(right_record.iter()))?;
+                writer.write_record(
+                    left_padding
+                        .iter()
+                        .chain(inverted_right_sel.select(&right_record)),
+                )?;
             }
         }
 
         for left_record in index.records_not_written() {
-            writer.write_record(left_record.iter().chain(right_padding.iter()))?;
+            writer.write_record(
+                inverted_left_sel
+                    .select(left_record)
+                    .chain(right_padding.iter()),
+            )?;
         }
 
         Ok(writer.flush()?)
     }
 
-    fn left_join(self) -> CliResult<()> {
+    fn left_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        let right_padding = get_padding(&right_headers);
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        let right_padding = get_padding(inverted_right_sel.len());
 
         let mut index = self.index(&mut right_reader, &right_sel)?;
 
@@ -512,28 +541,43 @@ impl Args {
 
             index.for_each_record(&left_sel, &left_record, |right_record| {
                 something_was_written = true;
-                writer.write_record(left_record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(&left_record)
+                        .chain(inverted_right_sel.select(right_record)),
+                )
             })?;
 
             if !something_was_written {
-                writer.write_record(left_record.iter().chain(right_padding.iter()))?;
+                writer.write_record(
+                    inverted_left_sel
+                        .select(&left_record)
+                        .chain(right_padding.iter()),
+                )?;
             }
         }
 
         Ok(writer.flush()?)
     }
 
-    fn right_join(self) -> CliResult<()> {
+    fn right_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        let left_padding = get_padding(&left_headers);
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        let left_padding = get_padding(inverted_left_sel.len());
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
@@ -544,11 +588,19 @@ impl Args {
 
             index.for_each_record(&right_sel, &right_record, |left_record| {
                 something_was_written = true;
-                writer.write_record(left_record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(left_record)
+                        .chain(inverted_right_sel.select(&right_record)),
+                )
             })?;
 
             if !something_was_written {
-                writer.write_record(left_padding.iter().chain(right_record.iter()))?;
+                writer.write_record(
+                    left_padding
+                        .iter()
+                        .chain(inverted_right_sel.select(&right_record)),
+                )?;
             }
         }
 
@@ -625,14 +677,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
-    let operation = args.flag_left as u8
+    let operation = args.flag_inner as u8
+        + args.flag_left as u8
         + args.flag_right as u8
         + args.flag_full as u8
         + args.flag_semi as u8
         + args.flag_anti as u8
         + args.flag_cross as u8;
 
-    if operation > 1 {
+    if operation == 0 {
+        args.flag_inner = true;
+    } else if operation > 1 {
         Err("Please pick exactly one join operation.")?;
     }
 

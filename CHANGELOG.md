@@ -20,6 +20,7 @@
 * Adding `xan flatten --csv`.
 * Adding `xan headers --color`.
 * Adding the `xan join <columns> <input1> <input2>` arity as a convenience for when joined column names are the same in both inputs.
+* Adding `xan join -D/--drop-key=(none|both|left|right)`.
 
 *Fixes*
 

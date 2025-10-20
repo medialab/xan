@@ -360,55 +360,61 @@ fn join_drop_key() {
         ],
     );
 
-    // --drop-key=none
-    let mut cmd = wrk.command("join");
-    cmd.args(["--drop-key", "none"])
-        .args(["idx", "fruits.csv", "colors.csv"]);
+    for flag in ["--inner", "--left", "--right", "--full"] {
+        // --drop-key=none
+        let mut cmd = wrk.command("join");
+        cmd.args(["--drop-key", "none"])
+            .args(["idx", "fruits.csv", "colors.csv"])
+            .arg(flag);
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["idx", "fruit", "idx", "color"],
-        svec!["1", "apple", "1", "blue"],
-        svec!["2", "mango", "2", "purple"],
-    ];
-    assert_eq!(got, expected);
+        let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+        let expected = vec![
+            svec!["idx", "fruit", "idx", "color"],
+            svec!["1", "apple", "1", "blue"],
+            svec!["2", "mango", "2", "purple"],
+        ];
+        assert_eq!(got, expected);
 
-    // --drop-key=left
-    let mut cmd = wrk.command("join");
-    cmd.args(["--drop-key", "left"])
-        .args(["idx", "fruits.csv", "colors.csv"]);
+        // --drop-key=left
+        let mut cmd = wrk.command("join");
+        cmd.args(["--drop-key", "left"])
+            .args(["idx", "fruits.csv", "colors.csv"])
+            .arg(flag);
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["fruit", "idx", "color"],
-        svec!["apple", "1", "blue"],
-        svec!["mango", "2", "purple"],
-    ];
-    assert_eq!(got, expected);
+        let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+        let expected = vec![
+            svec!["fruit", "idx", "color"],
+            svec!["apple", "1", "blue"],
+            svec!["mango", "2", "purple"],
+        ];
+        assert_eq!(got, expected);
 
-    // --drop-key=right
-    let mut cmd = wrk.command("join");
-    cmd.args(["--drop-key", "right"])
-        .args(["idx", "fruits.csv", "colors.csv"]);
+        // --drop-key=right
+        let mut cmd = wrk.command("join");
+        cmd.args(["--drop-key", "right"])
+            .args(["idx", "fruits.csv", "colors.csv"])
+            .arg(flag);
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["idx", "fruit", "color"],
-        svec!["1", "apple", "blue"],
-        svec!["2", "mango", "purple"],
-    ];
-    assert_eq!(got, expected);
+        let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+        let expected = vec![
+            svec!["idx", "fruit", "color"],
+            svec!["1", "apple", "blue"],
+            svec!["2", "mango", "purple"],
+        ];
+        assert_eq!(got, expected);
 
-    // --drop-key=both
-    let mut cmd = wrk.command("join");
-    cmd.args(["--drop-key", "both"])
-        .args(["idx", "fruits.csv", "colors.csv"]);
+        // --drop-key=both
+        let mut cmd = wrk.command("join");
+        cmd.args(["--drop-key", "both"])
+            .args(["idx", "fruits.csv", "colors.csv"])
+            .arg(flag);
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["fruit", "color"],
-        svec!["apple", "blue"],
-        svec!["mango", "purple"],
-    ];
-    assert_eq!(got, expected);
+        let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+        let expected = vec![
+            svec!["fruit", "color"],
+            svec!["apple", "blue"],
+            svec!["mango", "purple"],
+        ];
+        assert_eq!(got, expected);
+    }
 }
