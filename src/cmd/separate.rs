@@ -1,7 +1,6 @@
 use bstr::ByteSlice;
 use csv::ByteRecord;
 use regex::bytes;
-use std::iter::Iterator;
 
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
@@ -129,7 +128,13 @@ fn output_splits(
                             .map(|mat| {
                                 mat.iter()
                                     .skip(1)
-                                    .map(|cap_gr| cap_gr.clone().unwrap().as_bytes().to_vec())
+                                    .map(|cap_gr| {
+                                        if cap_gr.is_some() {
+                                            cap_gr.clone().unwrap().as_bytes().to_vec()
+                                        } else {
+                                            Vec::new()
+                                        }
+                                    })
                                     .collect::<Vec<_>>()
                             })
                             .flatten(),
