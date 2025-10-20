@@ -234,6 +234,7 @@ gzipped files out of the box.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
+    xan join [options] <columns> <input1> <input2>
     xan join [options] --cross <input1> <input2>
     xan join --help
 
@@ -279,6 +280,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
+    arg_columns: Option<SelectColumns>,
     arg_columns1: SelectColumns,
     arg_input1: String,
     arg_columns2: SelectColumns,
@@ -302,6 +304,13 @@ type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
 type ReaderHandle = (BoxedReader, ByteRecord, Selection);
 
 impl Args {
+    fn resolve(&mut self) {
+        if let Some(sel) = &self.arg_columns {
+            self.arg_columns1 = sel.clone();
+            self.arg_columns2 = sel.clone();
+        }
+    }
+
     fn readers(&self) -> CliResult<(ReaderHandle, ReaderHandle)> {
         let left = Config::new(&Some(self.arg_input1.clone()))
             .delimiter(self.flag_delimiter)
@@ -550,21 +559,17 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
-    if [
-        args.flag_left,
-        args.flag_right,
-        args.flag_full,
-        args.flag_semi,
-        args.flag_anti,
-        args.flag_cross,
-    ]
-    .iter()
-    .filter(|flag| **flag)
-    .count()
-        > 1
-    {
+    let operation = args.flag_left as u8
+        + args.flag_right as u8
+        + args.flag_full as u8
+        + args.flag_semi as u8
+        + args.flag_anti as u8
+        + args.flag_cross as u8;
+
+    if operation > 1 {
         Err("Please pick exactly one join operation.")?;
     }
 

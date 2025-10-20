@@ -298,3 +298,38 @@ fn join_anti() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn join_combined_arity() {
+    let wrk = Workdir::new("join_combined_arity");
+    wrk.create(
+        "fruits.csv",
+        vec![
+            svec!["idx", "fruit"],
+            svec!["1", "apple"],
+            svec!["2", "mango"],
+        ],
+    );
+    wrk.create(
+        "colors.csv",
+        vec![
+            svec!["idx", "color"],
+            svec!["1", "blue"],
+            svec!["2", "purple"],
+        ],
+    );
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("--prefix-left")
+        .arg("left_")
+        .arg("--prefix-right")
+        .arg("right_")
+        .args(["idx", "fruits.csv", "colors.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["left_idx", "left_fruit", "right_idx", "right_color"],
+        svec!["1", "apple", "1", "blue"],
+        svec!["2", "mango", "2", "purple"],
+    ];
+    assert_eq!(got, expected);
+}

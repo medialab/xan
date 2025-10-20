@@ -19,6 +19,7 @@
 * Adding `xan flatten --row-separator`.
 * Adding `xan flatten --csv`.
 * Adding `xan headers --color`.
+* Adding the `xan join <columns> <input1> <input2>` arity as a convenience for when joined column names are the same in both inputs.
 
 *Fixes*
 
