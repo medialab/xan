@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io;
 use std::num::NonZeroUsize;
 
@@ -10,19 +11,17 @@ use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
-type IndexKey = Vec<Vec<u8>>;
-
-fn get_row_key(sel: &Selection, row: &ByteRecord, case_insensitive: bool) -> IndexKey {
+fn get_row_key(sel: &Selection, row: &ByteRecord, case_insensitive: bool) -> ByteRecord {
     sel.select(row)
         .map(|v| transform(v, case_insensitive))
         .collect()
 }
 
-fn transform(bs: &[u8], case_insensitive: bool) -> Vec<u8> {
+fn transform(bs: &[u8], case_insensitive: bool) -> Cow<[u8]> {
     if !case_insensitive {
-        bs.to_vec()
+        Cow::Borrowed(bs)
     } else {
-        bs.to_lowercase()
+        Cow::Owned(bs.to_lowercase())
     }
 }
 
@@ -82,7 +81,7 @@ impl IndexNode {
 struct Index {
     case_insensitive: bool,
     nulls: bool,
-    map: HashMap<IndexKey, (usize, usize)>,
+    map: HashMap<ByteRecord, (usize, usize)>,
     nodes: Vec<IndexNode>,
 }
 
@@ -502,7 +501,7 @@ impl Args {
             writer.write_byte_record(&left_headers)?;
         }
 
-        let mut index: HashSet<IndexKey> = HashSet::new();
+        let mut index: HashSet<ByteRecord> = HashSet::new();
 
         let mut right_record = simd_csv::ByteRecord::new();
 
