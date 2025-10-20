@@ -72,9 +72,8 @@ map options:
                                expression instead of adding a new column at the end.
                                This means you can both transform and add columns at the
                                same time.
-    -F, --filter               If given, will not write rows in the output if the result
-                               of evaluated expression is falsey. Will only work when
-                               given expression has a single clause.
+    -F, --filter               If given, will not write rows in the output if all results
+                               of evaluated expression are falsey.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to
