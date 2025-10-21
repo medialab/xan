@@ -267,6 +267,7 @@ enum Command {
     Cat,
     Cluster,
     Compgen,
+    Complete,
     Completions,
     Count,
     Dedup,
@@ -351,6 +352,7 @@ impl Command {
                 cmd::compgen::run();
                 Ok(())
             }
+            Command::Complete => cmd::complete::run(argv),
             Command::Completions => cmd::completions::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
