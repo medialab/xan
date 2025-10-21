@@ -45,7 +45,7 @@ flatten options:
                            [default: auto]
     -S, --split <cols>     Split columns containing multiple values separated by --sep
                            to be displayed as a list.
-    --sep <sep>            Delimiter separating multiple values in cells splitted
+    --sep <sep>            Delimiter separating multiple values in cells split
                            by --plural. [default: |]
     -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
                            pattern. Will not work with -R/--rainbow.

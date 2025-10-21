@@ -127,7 +127,7 @@ Don't forget to add `-A` (or `--all`) in `xan freq` in order to plot all days.
 xan map 'local_time.ymd() as year_month_day' dates.csv | xan freq -s year_month_day -A | xan hist -D
 ```
 
-This way, you immediatly notice the fact that there is no line in your dataset on March 18 and 19.
+This way, you immediately notice the fact that there is no line in your dataset on March 18 and 19.
 
 ```
 2022-02-25 |2   2.17%|■■■■■■■■■                            |
