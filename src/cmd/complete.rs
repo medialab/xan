@@ -13,6 +13,10 @@ Usage:
     xan complete --help
 
 complete options:
+    -m, --min <num>          The minimum value to start completing from.
+                             Default is the first one.
+    -M, --max <num>          The maximum value to complete to.
+                             Default is the last one.
 
 Common options:
     -h, --help               Display this message
@@ -27,6 +31,8 @@ Common options:
 struct Args {
     arg_columns: SelectColumns,
     arg_input: Option<String>,
+    flag_min: Option<i32>,
+    flag_max: Option<i32>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -48,6 +54,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconf.selection(&headers)?;
     let mut index: Option<i32> = None;
 
+    if let Some(min) = args.flag_min {
+        index = Some(min);
+    }
+
     let mut record = StringRecord::new();
 
     wtr.write_record(&headers)?;
@@ -58,9 +68,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|i| i.parse::<i32>().unwrap())
             .next();
 
-        while index.is_some() && value.unwrap() > index.unwrap() {
+        if index.is_some() {
+            while value.unwrap() > index.unwrap() {
+                let mut new_record = StringRecord::new();
+                for cell in sel.indexed_mask(record.len()) {
+                    if cell.is_some() {
+                        new_record.push_field(&index.unwrap().to_string());
+                    } else {
+                        new_record.push_field("");
+                    }
+                }
+                index = Some(index.unwrap() + 1);
+                wtr.write_record(&new_record)?;
+            }
+            if index.unwrap() == value.unwrap() {
+                index = Some(index.unwrap() + 1);
+            }
+        } else {
+            index = Some(value.unwrap() + 1);
+        }
+        wtr.write_record(&record)?;
+    }
+
+    if let Some(max) = args.flag_max {
+        while index.is_some() && index.unwrap() <= max {
             let mut new_record = StringRecord::new();
-            for cell in sel.indexed_mask(record.len()) {
+            for cell in sel.indexed_mask(headers.len()) {
                 if cell.is_some() {
                     new_record.push_field(&index.unwrap().to_string());
                 } else {
@@ -70,9 +103,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             index = Some(index.unwrap() + 1);
             wtr.write_record(&new_record)?;
         }
-
-        index = Some(value.unwrap() + 1);
-        wtr.write_record(&record)?;
     }
 
     Ok(wtr.flush()?)
