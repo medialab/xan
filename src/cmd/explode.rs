@@ -47,7 +47,7 @@ John,yellow
 Mary,red
 
 Note that the file can be exploded on multiple well-aligned columns (that
-is to say selected cells must all be splitted into a same number of values).
+is to say selected cells must all be split into a same number of values).
 
 Finally, if you need more complex stuff that splitting cells by a separator,
 check out the `flatmap` command instead.
@@ -121,7 +121,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if new_names.len() != sel.len() {
             Err(format!(
-                "Renamed columns alignement error. Expected {} names and got {}.",
+                "Renamed columns alignment error. Expected {} names and got {}.",
                 sel.len(),
                 new_names.len(),
             ))?;
@@ -168,7 +168,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
             return Err(CliError::Other(
-                "inconsistent exploded length accross columns.".to_string(),
+                "inconsistent exploded length across columns.".to_string(),
             ));
         }
 

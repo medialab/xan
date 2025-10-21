@@ -81,7 +81,7 @@ This command can compute 5 kinds of differents vocabulary statistics:
 
 4. doc-token-level statistics (using the \"doc-token\" subcommand):
     - (*doc): columns representing the document (named like the input)
-    - token: some distinct documnet token (the column will be named like the input)
+    - token: some distinct document token (the column will be named like the input)
     - tf: term frequency for the token in the document
     - expected_tf: expected absolute term frequency (does not follow --tf-weight)
     - tfidf: term frequency * idf for the token in the document

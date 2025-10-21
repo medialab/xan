@@ -294,7 +294,7 @@
         "name": "to_fixed",
         "arguments": ["number", "precision"],
         "returns": "string",
-        "help": "Format given number using fixed point notation with speficied number of decimal places."
+        "help": "Format given number using fixed point notation with specified number of decimal places."
       },
       {
         "name": "ltrim",
@@ -690,7 +690,7 @@
         "name": "cols",
         "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
         "returns": "list[bytes]",
-        "help": "Return list of cell values from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns."
+        "help": "Return list of cell values from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns."
       },
       {
         "name": "err",
@@ -702,7 +702,7 @@
         "name": "headers",
         "arguments": ["from_name_or_pos?", "to_name_or_pos?"],
         "returns": "list[string]",
-        "help": "Return list of header names from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers."
+        "help": "Return list of header names from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers."
       },
       {
         "name": "index",

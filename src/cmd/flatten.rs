@@ -54,7 +54,7 @@ flatten options:
                            [default: auto]
     -S, --split <cols>     Split columns containing multiple values separated by --sep
                            to be displayed as a list.
-    --sep <sep>            Delimiter separating multiple values in cells splitted
+    --sep <sep>            Delimiter separating multiple values in cells split
                            by --plural. [default: |]
     -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
                            pattern. Will not work with -R/--rainbow.
@@ -290,7 +290,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for (i, (header, cell)) in display_headers.iter().zip(sel.select(&record)).enumerate() {
-            // Splitted cell
+            // Split cell
             if matches!(&split_sel_opt, Some(split_sel) if !cell.is_empty() && split_sel.contains(i))
             {
                 let mut first: bool = true;
