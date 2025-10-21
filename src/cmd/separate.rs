@@ -95,24 +95,13 @@ enum Splitter {
 
 fn output_splits(
     record: &ByteRecord,
-    max_splits: usize,
-    keep_column: bool,
+    max_splits: &mut usize,
     splitter: &Splitter,
     sel: &Selection,
     extra: &Option<String>,
 ) -> CliResult<ByteRecord> {
-    let mut max_splits = max_splits;
     let mut output_record = ByteRecord::new();
-    if keep_column {
-        output_record = record.clone();
-    } else {
-        for i in 0..record.len() {
-            if !sel.contains(i) {
-                output_record.push_field(record.get(i).unwrap());
-            }
-        }
-    }
-    let expected_num_fields = max_splits + output_record.len();
+    let expected_num_fields = *max_splits + output_record.len();
     let mut matches_to_add: Box<dyn Iterator<Item = Vec<u8>>>;
 
     for cell in sel.select(record) {
@@ -145,9 +134,9 @@ fn output_splits(
         if extra.is_some() {
             // Collect all parts into a Vec so we can take some and optionally merge the rest.
             let parts: Vec<Vec<u8>> = matches_to_add.collect();
-            let take_n = std::cmp::min(parts.len(), max_splits);
+            let take_n = std::cmp::min(parts.len(), *max_splits);
             output_record.extend(parts.iter().take(take_n - 1).inspect(|_| {
-                max_splits = max_splits.saturating_sub(1);
+                *max_splits = (*max_splits).saturating_sub(1);
             }));
 
             let mut last_cell: Vec<u8> = Vec::new();
@@ -157,7 +146,7 @@ fn output_splits(
                     // If we've exhausted the slots (max_splits == 1, one last
                     // cell to add) AND there are remaining parts, merge them
                     // into a single field separated by a pipe.
-                    if max_splits == 1 && parts.len() > take_n {
+                    if *max_splits == 1 && parts.len() > take_n {
                         for (idx, part) in parts.iter().enumerate().skip(take_n - 1) {
                             if idx > take_n - 1 {
                                 last_cell.push(b'|');
@@ -173,7 +162,7 @@ fn output_splits(
                 }
             }
             output_record.push_field(&last_cell);
-            max_splits = max_splits.saturating_sub(1);
+            *max_splits = (*max_splits).saturating_sub(1);
         } else {
             output_record.extend(matches_to_add);
         }
@@ -183,9 +172,9 @@ fn output_splits(
         Err("Number of splits exceeded the given maximum. Consider using the --extra flag to handle extra splits.")?;
     }
 
-    while max_splits > 0 && output_record.len() < expected_num_fields {
+    while *max_splits > 0 && output_record.len() < expected_num_fields {
         output_record.push_field(b"");
-        max_splits -= 1;
+        *max_splits -= 1;
     }
     Ok(output_record)
 }
@@ -208,7 +197,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     } else if args.flag_into.is_some()
         && args.flag_max_splits.is_some()
-        && args.flag_into.as_ref().unwrap().split(',').count() > args.flag_max_splits.unwrap()
+        && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
+            > args.flag_max_splits.unwrap()
     {
         Err("--into cannot specify more column names than --max-splits")?;
     }
@@ -245,8 +235,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(n) = args.flag_max_splits {
         max_splits = n;
     } else if args.flag_into.is_some() {
-        let into_names: Vec<&str> = args.flag_into.as_ref().unwrap().split(',').collect();
-        max_splits = into_names.len();
+        max_splits = util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len();
     } else {
         for result in rdr.byte_records() {
             let record = result?;
@@ -275,23 +264,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut new_headers: ByteRecord = ByteRecord::new();
+    let mut sel_to_keep: Selection = rconf.selection(&headers)?;
+    if !args.flag_keep_column {
+        sel_to_keep = sel_to_keep.inverse(headers.len());
+    }
+
+    let mut new_headers: ByteRecord;
     if args.flag_keep_column {
         new_headers = headers.clone();
     } else {
-        for i in 0..headers.len() {
-            if !sel.contains(i) {
-                new_headers.push_field(headers.get(i).unwrap());
-            }
-        }
+        new_headers = sel_to_keep.select(&headers).collect::<ByteRecord>()
     }
     let mut number_of_new_columns = max_splits;
     if let Some(into) = &args.flag_into {
-        let new_headers_names: Vec<&str> = into.split(',').collect();
-        for name in new_headers_names {
-            new_headers.push_field(name.as_bytes());
-            number_of_new_columns -= 1;
-        }
+        let headers_to_add = util::str_to_csv_byte_record(into);
+        new_headers.extend(&headers_to_add);
+        number_of_new_columns -= headers_to_add.len();
     }
 
     for i in 1..=number_of_new_columns {
@@ -303,26 +291,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_max_splits.is_some() || args.flag_into.is_some() {
         let mut record = ByteRecord::new();
         while rdr.read_byte_record(&mut record)? {
-            let output_record = output_splits(
+            let mut output_record = sel_to_keep.select(&record).collect::<ByteRecord>();
+            output_record.extend(&output_splits(
                 &record,
-                max_splits,
-                args.flag_keep_column,
+                &mut max_splits.clone(),
                 &splitter,
                 &sel,
                 &args.flag_extra,
-            )?;
+            )?);
             wtr.write_byte_record(&output_record)?;
         }
     } else {
         for record in records {
-            let output_record = output_splits(
+            let mut output_record = sel_to_keep.select(&record).collect::<ByteRecord>();
+            output_record.extend(&output_splits(
                 &record,
-                max_splits,
-                args.flag_keep_column,
+                &mut max_splits.clone(),
                 &splitter,
                 &sel,
                 &args.flag_extra,
-            )?;
+            )?);
             wtr.write_byte_record(&output_record)?;
         }
     }
