@@ -17,6 +17,8 @@ complete options:
                              Default is the first one.
     -M, --max <num>          The maximum value to complete to.
                              Default is the last one.
+    -z, --zero <value>       The value to fill in the completed rows.
+                             Default is an empty string.
 
 Common options:
     -h, --help               Display this message
@@ -36,6 +38,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_zero: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -58,6 +61,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index = Some(min);
     }
 
+    let zero = args.flag_zero.unwrap_or_else(|| "".to_string());
+
     let mut record = StringRecord::new();
 
     wtr.write_record(&headers)?;
@@ -75,7 +80,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     if cell.is_some() {
                         new_record.push_field(&index.unwrap().to_string());
                     } else {
-                        new_record.push_field("");
+                        new_record.push_field(&zero);
                     }
                 }
                 index = Some(index.unwrap() + 1);
@@ -97,7 +102,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if cell.is_some() {
                     new_record.push_field(&index.unwrap().to_string());
                 } else {
-                    new_record.push_field("");
+                    new_record.push_field(&zero);
                 }
             }
             index = Some(index.unwrap() + 1);
