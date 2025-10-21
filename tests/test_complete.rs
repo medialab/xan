@@ -80,3 +80,33 @@ fn test_complete_with_zero_value() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+#[should_panic]
+fn test_complete_check_complete_panic() {
+    let wrk = Workdir::new("complete_check_complete_panic");
+    wrk.create("indexes.csv", people());
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id").arg("indexes.csv").arg("--check");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
+fn test_complete_check_complete() {
+    let wrk = Workdir::new("complete_check_complete");
+    wrk.create(
+        "indexes_complete.csv",
+        vec![
+            svec!["id", "name"],
+            svec!["0", "alice"],
+            svec!["1", "bob"],
+            svec!["2", "charlie"],
+            svec!["3", "dave"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id").arg("indexes_complete.csv").arg("--check");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["file is complete!"]];
+    assert_eq!(got, expected);
+}

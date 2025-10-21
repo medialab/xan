@@ -1,3 +1,5 @@
+use std::io::{stdout, Write};
+
 use csv::StringRecord;
 
 use crate::config::{Config, Delimiter};
@@ -19,6 +21,7 @@ complete options:
                              Default is the last one.
     -z, --zero <value>       The value to fill in the completed rows.
                              Default is an empty string.
+    --check                  Check that the input is complete.
 
 Common options:
     -h, --help               Display this message
@@ -39,6 +42,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_zero: Option<String>,
+    flag_check: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -61,9 +65,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index = Some(min);
     }
 
-    let zero = args.flag_zero.unwrap_or_else(|| "".to_string());
-
     let mut record = StringRecord::new();
+
+    if args.flag_check {
+        while rdr.read_record(&mut record)? {
+            let value = sel
+                .select(&record)
+                .map(|i| i.parse::<i32>().unwrap())
+                .next();
+
+            if index.is_some() {
+                if value.unwrap() != index.unwrap() {
+                    Err(format!(
+                        "file is not complete: missing value {}",
+                        index.unwrap()
+                    ))?;
+                }
+            } else {
+                index = Some(value.unwrap());
+            }
+            index = Some(index.unwrap() + 1);
+        }
+
+        writeln!(&mut stdout(), "file is complete!")?;
+
+        return Ok(());
+    }
+
+    let zero = args.flag_zero.unwrap_or_else(|| "".to_string());
 
     wtr.write_record(&headers)?;
 
