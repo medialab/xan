@@ -31,7 +31,7 @@ mary,SUE
 
 When using unary functions, the above command can be written even shorter:
 
-    $ xan transfrom surname upper
+    $ xan transform surname upper
 
 The above example work on a single column but the command is perfectly able to
 transform multiple columns at once using a selection:
@@ -130,7 +130,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if renamed.len() != sel.len() {
                 Err(format!(
-                    "Renamed columns alignement error. Expected {} names and got {}.",
+                    "Renamed columns alignment error. Expected {} names and got {}.",
                     sel.len(),
                     renamed.len(),
                 ))?;

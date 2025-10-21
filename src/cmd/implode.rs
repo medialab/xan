@@ -132,7 +132,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if new_names.len() != sel.len() {
             Err(format!(
-                "Renamed columns alignement error. Expected {} names and got {}.",
+                "Renamed columns alignment error. Expected {} names and got {}.",
                 sel.len(),
                 new_names.len(),
             ))?;

@@ -535,7 +535,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .collect();
 
-    // Alignment inferrence
+    // Alignment inference
     // TODO: type tagging for values should happen on initial read
     let right_sel_mask_opt = right_sel_opt.map(|sel| sel.mask(headers.len()));
 
@@ -559,7 +559,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .collect::<Vec<_>>();
 
-    // Width inferrence
+    // Width inference
     let displayed_columns = infer_best_column_display(
         cols,
         &max_column_widths,

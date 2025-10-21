@@ -138,7 +138,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if expected_len != rename_as.len() {
             Err(format!(
-                "Renamed columns alignement error. Expected {} names and got {}.",
+                "Renamed columns alignment error. Expected {} names and got {}.",
                 expected_len,
                 rename_as.len(),
             ))?;
@@ -246,7 +246,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if selection.len() != rename_as.len() {
             Err(format!(
-                "Renamed columns alignement error. Expected {} names and got {}.",
+                "Renamed columns alignment error. Expected {} names and got {}.",
                 selection.len(),
                 rename_as.len(),
             ))?;
