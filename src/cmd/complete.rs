@@ -1,3 +1,5 @@
+use csv::StringRecord;
+
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -33,8 +35,6 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    dbg!(&args);
-
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .select(args.arg_columns)
@@ -45,7 +45,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    dbg!(headers);
+    let sel = rconf.selection(&headers)?;
+    let mut index: Option<i32> = None;
+
+    let mut record = StringRecord::new();
+
+    wtr.write_record(&headers)?;
+
+    while rdr.read_record(&mut record)? {
+        let value = sel
+            .select(&record)
+            .map(|i| i.parse::<i32>().unwrap())
+            .next();
+
+        while index.is_some() && value.unwrap() > index.unwrap() {
+            let mut new_record = StringRecord::new();
+            for cell in sel.indexed_mask(record.len()) {
+                if cell.is_some() {
+                    new_record.push_field(&index.unwrap().to_string());
+                } else {
+                    new_record.push_field("");
+                }
+            }
+            index = Some(index.unwrap() + 1);
+            wtr.write_record(&new_record)?;
+        }
+
+        index = Some(value.unwrap() + 1);
+        wtr.write_record(&record)?;
+    }
 
     Ok(wtr.flush()?)
 }
