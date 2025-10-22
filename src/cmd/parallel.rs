@@ -966,6 +966,7 @@ impl Args {
 
     fn progress_bar(&self, total: usize) -> ParallelProgressBar {
         if self.flag_progress {
+            console::set_colors_enabled_stderr(true);
             console::set_colors_enabled(true);
             colored::control::set_override(true);
 
