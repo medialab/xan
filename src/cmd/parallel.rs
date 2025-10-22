@@ -1339,7 +1339,9 @@ impl Args {
     fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
         let progress_bar = self.progress_bar(inputs.len());
 
-        let total_program_mutex: Mutex<Option<(Vec<Vec<u8>>, GroupAggregationProgram)>> =
+        type GroupKey = Vec<Vec<u8>>;
+
+        let total_program_mutex: Mutex<Option<(GroupKey, GroupAggregationProgram<GroupKey>)>> =
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {

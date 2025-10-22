@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::Hash;
 use std::iter::once;
 use std::sync::Arc;
 
@@ -1258,16 +1259,14 @@ impl AggregationProgram {
     }
 }
 
-type GroupKey = Vec<Vec<u8>>;
-
 #[derive(Debug, Clone)]
-pub struct GroupAggregationProgram {
+pub struct GroupAggregationProgram<K> {
     planner: ConcreteAggregationPlanner,
-    groups: ClusteredInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
+    groups: ClusteredInsertHashmap<K, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
 }
 
-impl GroupAggregationProgram {
+impl<K: Eq + Hash> GroupAggregationProgram<K> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
@@ -1297,7 +1296,7 @@ impl GroupAggregationProgram {
 
     pub fn run_with_record(
         &mut self,
-        group: GroupKey,
+        group: K,
         index: usize,
         record: &ByteRecord,
     ) -> Result<(), SpecifiedEvaluationError> {
@@ -1324,7 +1323,7 @@ impl GroupAggregationProgram {
     pub fn into_byte_records(
         self,
         parallel: bool,
-    ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), SpecifiedEvaluationError>> {
+    ) -> impl Iterator<Item = Result<(K, ByteRecord), SpecifiedEvaluationError>> {
         let planner = self.planner;
         let headers_index = self.headers_index;
 
@@ -1360,6 +1359,8 @@ impl PivotedColumnNamesIndex {
         }
     }
 }
+
+type GroupKey = Vec<Vec<u8>>;
 
 #[derive(Debug, Clone)]
 pub struct PivotAggregationProgram {
