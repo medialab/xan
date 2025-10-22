@@ -1,6 +1,6 @@
 use simd_csv::ByteRecord;
 
-use super::error::{ConcretizationError, SpecifiedEvaluationError};
+use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use super::parser::{parse_named_expressions, ExprName};
 use super::types::HeadersIndex;
@@ -90,13 +90,35 @@ impl SelectionProgram {
         index: usize,
         record: &ByteRecord,
         output_record: &mut ByteRecord,
-    ) -> Result<(), SpecifiedEvaluationError> {
-        for (expr, _, _) in self.exprs.iter() {
+    ) -> Result<bool, SpecifiedEvaluationError> {
+        let mut truthy = false;
+
+        for (expr, expr_name, _) in self.exprs.iter() {
             let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
-            output_record.push_field(&value.serialize_as_bytes());
+            truthy |= value.is_truthy();
+
+            match expr_name {
+                ExprName::Singular(_) => {
+                    output_record.push_field(&value.serialize_as_bytes());
+                }
+                ExprName::Plural(names) => {
+                    let mut count: usize = 0;
+
+                    for sub_value in value.flat_iter() {
+                        output_record.push_field(&sub_value.serialize_as_bytes());
+                        count += 1;
+                    }
+
+                    if names.len() != count {
+                        return Err(
+                            EvaluationError::plural_clause_misalignment(names, count).anonymous()
+                        );
+                    }
+                }
+            }
         }
 
-        Ok(())
+        Ok(truthy)
     }
 
     pub fn extend(
@@ -106,10 +128,29 @@ impl SelectionProgram {
     ) -> Result<bool, SpecifiedEvaluationError> {
         let mut truthy = false;
 
-        for (expr, _, _) in self.exprs.iter() {
+        for (expr, expr_name, _) in self.exprs.iter() {
             let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
             truthy |= value.is_truthy();
-            record.push_field(&value.serialize_as_bytes());
+
+            match expr_name {
+                ExprName::Singular(_) => {
+                    record.push_field(&value.serialize_as_bytes());
+                }
+                ExprName::Plural(names) => {
+                    let mut count: usize = 0;
+
+                    for sub_value in value.flat_iter() {
+                        record.push_field(&sub_value.serialize_as_bytes());
+                        count += 1;
+                    }
+
+                    if names.len() != count {
+                        return Err(
+                            EvaluationError::plural_clause_misalignment(names, count).anonymous()
+                        );
+                    }
+                }
+            }
         }
 
         Ok(truthy)
