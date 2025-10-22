@@ -141,6 +141,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let program = SelectionProgram::parse(&args.arg_expression, &headers)?;
 
+    if args.flag_overwrite && program.has_any_plural_expr() {
+        Err("-O/--overwrite does not work with clauses yielding multiple columns yet!")?;
+    }
+
     let actually_overwriting = args.flag_overwrite && program.has_something_to_overwrite();
 
     if !args.flag_no_headers {

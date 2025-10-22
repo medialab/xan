@@ -2,12 +2,12 @@ use simd_csv::ByteRecord;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
-use super::parser::parse_named_expressions;
+use super::parser::{parse_named_expressions, ExprName};
 use super::types::HeadersIndex;
 
 #[derive(Clone, Debug)]
 pub struct SelectionProgram {
-    exprs: Vec<(ConcreteExpr, String, bool)>,
+    exprs: Vec<(ConcreteExpr, ExprName, bool)>,
     headers_index: HeadersIndex,
     mask: Vec<Option<usize>>,
     rest: Vec<usize>,
@@ -25,20 +25,25 @@ impl SelectionProgram {
                 .into_iter()
                 .enumerate()
                 .map(|(expr_i, (expr, expr_name))| {
-                    concretize_expression(expr, headers, None).map(|c| {
-                        let expr_name = expr_name.unwrap();
+                    concretize_expression(expr, headers, None).map(|c| match &expr_name {
+                        ExprName::Singular(name) => {
+                            let pos = headers_index.get_first_by_name(name);
 
-                        // TODO: what to do in case of plural?
-                        let pos = headers_index.get_first_by_name(&expr_name);
+                            if let Some(i) = pos {
+                                mask[i] = Some(expr_i);
+                            } else {
+                                mask.push(None);
+                                rest.push(expr_i);
+                            }
 
-                        if let Some(i) = pos {
-                            mask[i] = Some(expr_i);
-                        } else {
+                            (c, expr_name, pos.is_some())
+                        }
+                        ExprName::Plural(_names) => {
                             mask.push(None);
                             rest.push(expr_i);
-                        }
 
-                        (c, expr_name, pos.is_some())
+                            (c, expr_name, false)
+                        }
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -53,13 +58,27 @@ impl SelectionProgram {
     }
 
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
-        self.exprs.iter().map(|(_, name, _)| name.as_bytes())
+        self.exprs
+            .iter()
+            .flat_map(|(_, expr_name, _)| expr_name.iter())
+            .map(|name| name.as_bytes())
     }
 
     pub fn new_headers(&self) -> impl Iterator<Item = &[u8]> {
         self.exprs
             .iter()
-            .filter_map(|(_, name, already_exists)| (!already_exists).then_some(name.as_bytes()))
+            .filter_map(|(_, expr_name, already_exists)| {
+                (!already_exists).then_some(match expr_name {
+                    ExprName::Singular(name) => name.as_bytes(),
+                    _ => unimplemented!(),
+                })
+            })
+    }
+
+    pub fn has_any_plural_expr(&self) -> bool {
+        self.exprs
+            .iter()
+            .any(|(_, expr_name, _)| matches!(expr_name, ExprName::Plural(_)))
     }
 
     pub fn has_something_to_overwrite(&self) -> bool {
