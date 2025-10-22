@@ -20,9 +20,9 @@ use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
-use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::dates::{infer_temporal_granularity, parse_partial_date, parse_zoned};
+use crate::moonblade::GroupAggregationProgram;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectColumns;
@@ -132,6 +132,12 @@ plot options:
                                y values will be summed wrt the newly discretized x axis.
     --count                    Omit the y column and count rows instead. Only relevant when
                                used with -T, --time that will discretize the x axis.
+    -A, --aggregate <expr>     Expression that will be used to aggregate values falling into
+                               the same bucket when discretizing the x axis, e.g. when using
+                               the -T, --time flag. The `_` implicit variable will be use to
+                               denote a value in said expression. For instance, if you want
+                               to average the values you can pass `mean(_)`. Will default
+                               to `sum(_)`.
     -c, --category <col>       Name of the categorical column that will be used to
                                draw distinct series per category.
                                Does not work when selecting multiple columns with <y>.
@@ -201,6 +207,7 @@ struct Args {
     flag_bars: bool,
     flag_time: bool,
     flag_count: bool,
+    flag_aggregate: Option<String>,
     flag_cols: Option<String>,
     flag_rows: Option<String>,
     flag_small_multiples: Option<NonZeroUsize>,
@@ -517,7 +524,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     for (_, series) in finalized_series.iter_mut() {
         if args.flag_time {
-            series.mark_as_temporal(args.flag_granularity.map(|g| g.into_inner()));
+            series.mark_as_temporal(
+                args.flag_granularity.map(|g| g.into_inner()),
+                args.flag_aggregate.as_deref().unwrap_or("sum(_)"),
+            )?;
         }
 
         // Domain bounds
@@ -915,7 +925,7 @@ fn fix_flat_domain(domain: (f64, f64), axis_type: AxisType) -> (f64, f64) {
             let center_value = domain.0;
             (center_value - 1.0, center_value + 1.0)
         }
-        _ => unimplemented!(),
+        _ => domain, // We can do better but la flemme...
     }
 }
 
@@ -1234,7 +1244,7 @@ impl Series {
         }
     }
 
-    fn mark_as_temporal(&mut self, granularity: Option<Unit>) {
+    fn mark_as_temporal(&mut self, granularity: Option<Unit>, expr: &str) -> CliResult<()> {
         if let Some((x_domain, y_domain)) = self.extent.as_mut() {
             let granularity = granularity.unwrap_or_else(|| {
                 infer_temporal_granularity(
@@ -1245,20 +1255,27 @@ impl Series {
             });
             self.types.0 = AxisType::Timestamp(granularity);
 
-            let mut buckets: HashMap<i64, f64> = HashMap::new();
+            let mut buckets = GroupAggregationProgram::<i64>::parse_without_headers(expr)?;
 
-            for (x, y) in self.points.iter() {
-                buckets
-                    .entry(floor_timestamp(*x, granularity))
-                    .and_modify(|c| *c += *y)
-                    .or_insert(*y);
+            if !buckets.has_single_expr() {
+                Err(format!(
+                    "-A, --aggregate should only have a single clause but found {} instead!",
+                    buckets.len()
+                ))?;
+            }
+
+            for (index, (x, y)) in self.points.iter().enumerate() {
+                buckets.run_with(floor_timestamp(*x, granularity), index, *y)?;
             }
 
             self.points.clear();
 
             let mut new_y_domain: Option<(f64, f64)> = None;
 
-            for (x, y) in buckets {
+            for result in buckets.iter() {
+                let (x, y) = result?;
+                let y = y.try_as_f64()?;
+
                 match new_y_domain.as_mut() {
                     None => new_y_domain = Some((y, y)),
                     Some((current_y_min, current_y_max)) => {
@@ -1281,6 +1298,8 @@ impl Series {
             );
             *y_domain = new_y_domain.unwrap();
         }
+
+        Ok(())
     }
 
     fn set_x_min(&mut self, v: f64) {

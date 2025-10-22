@@ -51,6 +51,12 @@ plot options:
                                y values will be summed wrt the newly discretized x axis.
     --count                    Omit the y column and count rows instead. Only relevant when
                                used with -T, --time that will discretize the x axis.
+    -A, --aggregate <expr>     Expression that will be used to aggregate values falling into
+                               the same bucket when discretizing the x axis, e.g. when using
+                               the -T, --time flag. The `_` implicit variable will be use to
+                               denote a value in said expression. For instance, if you want
+                               to average the values you can pass `mean(_)`. Will default
+                               to `sum(_)`.
     -c, --category <col>       Name of the categorical column that will be used to
                                draw distinct series per category.
                                Does not work when selecting multiple columns with <y>.
