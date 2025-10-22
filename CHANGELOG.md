@@ -23,6 +23,7 @@
 * Adding the `xan join <columns> <input1> <input2>` arity as a convenience for when joined column names are the same in both inputs.
 * Adding `xan join -D/--drop-key=(none|both|left|right)`.
 * Adding `xan plot -A/--aggregate`.
+* Adding support for plural selection clauses in both `xan select -e` & `xan map` e.g. `xan map 'full_name.split(" ") as (first_name, last_name)`.
 
 *Fixes*
 

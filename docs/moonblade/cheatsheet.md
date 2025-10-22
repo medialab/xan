@@ -280,6 +280,21 @@ sum(retweets) as total_retweets, retweets / replies as ratio
 sum(retweets) as "Total Retweets"
 ```
 
+In some commands, namely `xan select -e` & `xan map`, it is even possible for
+named expressions to return multiple things at once, in order to avoid repeating
+computations (notice the parenthesis around names):
+
+```python
+# Splitting full names
+full_name.split(" ") as (first_name, last_name)
+
+# Extracting data from a JSON cell
+data.parse_json() | [_.name, _.meta[2].age] as (name, age)
+```
+
+Note that the expression must return a list of items having exactly the correct
+number of values or an error will be raised.
+
 ## Multiple lines & comments
 
 Expressions can be written on multiple lines freely:

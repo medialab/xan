@@ -38,6 +38,17 @@ a,b,c,d
 1,4,5,4
 5,2,7,10
 
+Expression clauses can also return more than one item at once to avoid repeating
+computations, for instance:
+
+Splitting a full name:
+
+    $ xan map 'full_name.split(" ") as (first_name, last_name)' file.csv > result.csv
+
+Extracting data from a JSON cell:
+
+    $ xan map 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
+
 You can also use the -O/--overwrite flag to overwrite already existing columns:
 
     $ xan map -O 'b * 10 as b, a * b as c' file.csv > result.csv
