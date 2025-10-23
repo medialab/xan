@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
-use csv::ByteRecord;
 use pariter::IteratorExt;
 use regex::bytes::{RegexSet, RegexSetBuilder};
+use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
@@ -12,8 +12,8 @@ use crate::urls::LRUTrieMultiMap;
 use crate::util;
 use crate::CliResult;
 
-fn prefix_header(headers: &csv::ByteRecord, prefix: &String) -> csv::ByteRecord {
-    let mut prefixed_headers = csv::ByteRecord::new();
+fn prefix_header(headers: &ByteRecord, prefix: &String) -> ByteRecord {
+    let mut prefixed_headers = ByteRecord::new();
 
     for column in headers.iter() {
         prefixed_headers.push_field(&[prefix.as_bytes(), column].concat());
@@ -64,8 +64,8 @@ impl Index {
 
 struct Joiner {
     index: Index,
-    headers: csv::ByteRecord,
-    records: Vec<csv::ByteRecord>,
+    headers: ByteRecord,
+    records: Vec<ByteRecord>,
 }
 
 impl Joiner {
@@ -76,7 +76,7 @@ impl Joiner {
     fn matched_records<'a, 'b>(
         &'a self,
         matches: &'b BTreeSet<usize>,
-    ) -> impl Iterator<Item = &'a csv::ByteRecord> + 'b
+    ) -> impl Iterator<Item = &'a ByteRecord> + 'b
     where
         'a: 'b,
     {
@@ -187,7 +187,7 @@ impl Args {
             .no_headers(self.flag_no_headers)
             .select(self.arg_pattern_column.clone());
 
-        let mut reader = rconf.reader()?;
+        let mut reader = rconf.simd_reader()?;
         let headers = reader.byte_headers()?.clone();
         let pattern_cell_index = rconf.single_selection(&headers)?;
         let selection: Selection = match self.flag_drop_key {
@@ -264,9 +264,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_columns.clone());
 
-    let mut reader = rconf.reader()?;
+    let mut reader = rconf.simd_reader()?;
     let mut headers = reader.byte_headers()?.clone();
     let sel = rconf.selection(reader.byte_headers()?)?;
+
     let inverted_sel: Selection = match args.flag_drop_key {
         DropKey::Left | DropKey::Both => sel.inverse(headers.len()),
         _ => Selection::full(headers.len()),
@@ -276,18 +277,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         headers = prefix_header(&headers, prefix);
     }
 
-    let dropped_headers: csv::ByteRecord = inverted_sel.select(&headers).collect();
+    let dropped_headers: ByteRecord = inverted_sel.select(&headers).collect();
 
     let padding = vec![b""; patterns_headers.len()];
 
-    let mut writer = Config::new(&args.flag_output).writer()?;
+    let mut writer = Config::new(&args.flag_output).simd_writer()?;
 
     if !args.flag_no_headers {
-        let mut full_headers = csv::ByteRecord::new();
-        full_headers.extend(dropped_headers.iter());
-        full_headers.extend(patterns_headers.iter());
-
-        writer.write_record(&full_headers)?;
+        writer.write_record(dropped_headers.iter().chain(patterns_headers.iter()))?;
     }
 
     // Parallel
@@ -299,7 +296,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .into_byte_records()
             .parallel_map_custom(
                 |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-                move |result| -> CliResult<(csv::ByteRecord, BTreeSet<usize>)> {
+                move |result| -> CliResult<(ByteRecord, BTreeSet<usize>)> {
                     let record = result?;
 
                     let mut matches = BTreeSet::new();
@@ -315,10 +312,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let (mut record, matches) = result?;
 
                 for pattern_record in joiner_handle.matched_records(&matches) {
-                    let mut dropped_reccord: csv::ByteRecord =
-                        inverted_sel.select(&record).collect();
-                    dropped_reccord.extend(pattern_record);
-                    writer.write_byte_record(&dropped_reccord)?;
+                    writer
+                        .write_record(inverted_sel.select(&record).chain(pattern_record.iter()))?;
                 }
 
                 if !inner && matches.is_empty() {
@@ -333,7 +328,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Single-threaded
-    let mut record = csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
     let mut matches = BTreeSet::new();
 
     while reader.read_byte_record(&mut record)? {
@@ -344,9 +339,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for pattern_record in joiner.matched_records(&matches) {
-            let mut dropped_reccord: csv::ByteRecord = inverted_sel.select(&record).collect();
-            dropped_reccord.extend(pattern_record);
-            writer.write_byte_record(&dropped_reccord)?;
+            writer.write_record(inverted_sel.select(&record).chain(pattern_record.iter()))?;
         }
 
         if !inner && matches.is_empty() {
