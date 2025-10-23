@@ -24,6 +24,7 @@
 * Adding `xan join -D/--drop-key=(none|both|left|right)`.
 * Adding `xan plot -A/--aggregate`.
 * Adding support for plural selection clauses in both `xan select -e` & `xan map` e.g. `xan map 'full_name.split(" ") as (first_name, last_name)`.
+* Adding the `xan search -P/--add-pattern` flag.
 
 *Fixes*
 
