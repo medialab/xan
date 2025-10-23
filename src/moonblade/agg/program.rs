@@ -1266,6 +1266,7 @@ pub struct GroupAggregationProgram<K> {
     headers_index: HeadersIndex,
     len: usize,
     dummy_record: ByteRecord,
+    last_value: DynamicValue,
 }
 
 impl<K: Eq + Hash> GroupAggregationProgram<K> {
@@ -1280,6 +1281,7 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
             headers_index: HeadersIndex::from_headers(headers),
             len,
             dummy_record: ByteRecord::new(),
+            last_value: DynamicValue::empty_bytes(),
         })
     }
 
@@ -1331,6 +1333,35 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
             &self.headers_index,
             None,
         )
+    }
+
+    pub fn run_with_cells<'a>(
+        &mut self,
+        group: K,
+        index: usize,
+        record: &ByteRecord,
+        cells: impl Iterator<Item = &'a [u8]>,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        let planner = &self.planner;
+
+        let aggregators = self
+            .groups
+            .insert_with(group, || planner.instantiate_aggregators());
+
+        for cell in cells {
+            self.last_value.set_bytes(cell);
+
+            run_with_record_on_aggregators(
+                &self.planner,
+                aggregators.iter_mut(),
+                index,
+                record,
+                &self.headers_index,
+                Some(self.last_value.clone()),
+            )?;
+        }
+
+        Ok(())
     }
 
     pub fn run_with<T: Into<DynamicValue>>(
