@@ -1,6 +1,6 @@
 use bstr::ByteSlice;
 use csv::ByteRecord;
-use regex::bytes;
+use regex::bytes::Regex;
 
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectColumns, Selection};
@@ -38,11 +38,11 @@ Usage:
     xan separate --help
 
 separate options:
-    -k, --keep-column        Keep the original column after splitting.
+    -k, --keep               Keep the separated columns after splitting.
     --max-splits <n>         Limit the number of splits per cell to at most <n>.
                              By default, all possible splits are made.
-    --into <col1,col2,...>   Specify names for the new columns created by the 
-                             splits. If not provided, new columns will be named 
+    --into <col1,col2,...>   Specify names for the new columns created by the
+                             splits. If not provided, new columns will be named
                              split1, split2, etc. If used with --max-splits,
                              the number of names provided must be equal or lower
                              than <n>.
@@ -53,7 +53,7 @@ separate options:
                              parts, or 'merge' to combine them into the last column.
     -r, --regex              Split cells using a regex pattern instead of the
                              <separator> substring.
-    -m, --match              When using --regex, only output the parts of the 
+    -m, --match              When using --regex, only output the parts of the
                              cell that match the regex pattern. By default, the
                              parts between matches (i.e. separators) are output.
     -c, --capture-groups     When using --regex, if the regex contains capture
@@ -77,7 +77,7 @@ struct Args {
     flag_regex: bool,
     flag_match: bool,
     flag_capture_groups: bool,
-    flag_keep_column: bool,
+    flag_keep: bool,
     flag_max_splits: Option<usize>,
     flag_into: Option<String>,
     flag_extra: Option<String>,
@@ -86,57 +86,79 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
+enum RegexMode {
+    Split,
+    Match,
+    CaptureGroups,
+}
+
 enum Splitter {
-    String(Vec<u8>),
-    RegexMatchOnly(bytes::Regex),
-    RegexCaptureGroups(bytes::Regex),
-    RegexSplit(bytes::Regex),
+    Substring(Vec<u8>),
+    Regex(Regex, RegexMode),
+}
+
+impl Splitter {
+    fn count_splits<'a>(&self, cells: impl Iterator<Item = &'a [u8]>) -> usize {
+        let mut count = 0;
+
+        for cell in cells {
+            count += match self {
+                Self::Substring(sep) => cell.find_iter(sep).count() + 1,
+                Self::Regex(pattern, mode) => match mode {
+                    RegexMode::Split => pattern.find_iter(cell).count() + 1,
+                    RegexMode::CaptureGroups => {
+                        pattern.captures_iter(cell).map(|m| m.len() - 1).sum()
+                    }
+                    RegexMode::Match => pattern.find_iter(cell).count(),
+                },
+            };
+        }
+
+        count
+    }
+
+    fn split<'s, 'c>(&'s self, cell: &'c [u8]) -> Box<dyn Iterator<Item = &'c [u8]> + 's>
+    where
+        'c: 's,
+    {
+        match self {
+            Self::Substring(sep) => Box::new(cell.split_str(sep)),
+            Self::Regex(pattern, mode) => match mode {
+                RegexMode::Split => Box::new(pattern.split(cell)),
+                RegexMode::CaptureGroups => {
+                    Box::new(pattern.captures_iter(cell).flat_map(|caps| {
+                        caps.iter()
+                            .skip(1)
+                            .map(|m| m.map(|b| b.as_bytes()).unwrap_or(b""))
+                            .collect::<Vec<_>>()
+                    }))
+                }
+                RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
+            },
+        }
+    }
 }
 
 fn output_splits(
     record: &ByteRecord,
-    max_splits: &mut usize,
+    mut max_splits: usize,
     splitter: &Splitter,
     sel: &Selection,
     extra: &Option<String>,
 ) -> CliResult<ByteRecord> {
     let mut output_record = ByteRecord::new();
-    let expected_num_fields = *max_splits + output_record.len();
-    let mut matches_to_add: Box<dyn Iterator<Item = Vec<u8>>>;
+    let expected_num_fields = max_splits + output_record.len();
+    let mut matches_to_add: Box<dyn Iterator<Item = &[u8]>>;
 
     for cell in sel.select(record) {
-        match &splitter {
-            Splitter::RegexMatchOnly(re) => {
-                matches_to_add = Box::new(re.find_iter(cell).map(|mat| mat.as_bytes().to_vec()));
-            }
-            Splitter::RegexCaptureGroups(re) => {
-                matches_to_add = Box::new(re.captures_iter(cell).flat_map(|mat| {
-                    mat.iter()
-                        .skip(1)
-                        .map(|cap_gr| {
-                            if let Some(cap_gr) = cap_gr {
-                                cap_gr.as_bytes().to_vec()
-                            } else {
-                                Vec::new()
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                }));
-            }
-            Splitter::RegexSplit(re) => {
-                matches_to_add = Box::new(re.split(cell).map(|s| s.to_vec()));
-            }
-            Splitter::String(separator) => {
-                matches_to_add = Box::new(cell.split_str(separator).map(|s| s.to_vec()));
-            }
-        }
+        matches_to_add = splitter.split(cell);
 
         if extra.is_some() {
             // Collect all parts into a Vec so we can take some and optionally merge the rest.
-            let parts: Vec<Vec<u8>> = matches_to_add.collect();
-            let take_n = std::cmp::min(parts.len(), *max_splits);
+            let parts: Vec<Vec<u8>> = matches_to_add.map(|s| s.to_vec()).collect();
+            let take_n = std::cmp::min(parts.len(), max_splits);
             output_record.extend(parts.iter().take(take_n - 1).inspect(|_| {
-                *max_splits = (*max_splits).saturating_sub(1);
+                max_splits = max_splits.saturating_sub(1);
             }));
 
             let mut last_cell: Vec<u8> = Vec::new();
@@ -146,7 +168,7 @@ fn output_splits(
                     // If we've exhausted the slots (max_splits == 1, one last
                     // cell to add) AND there are remaining parts, merge them
                     // into a single field separated by a pipe.
-                    if *max_splits == 1 && parts.len() > take_n {
+                    if max_splits == 1 && parts.len() > take_n {
                         for (idx, part) in parts.iter().enumerate().skip(take_n - 1) {
                             if idx > take_n - 1 {
                                 last_cell.push(b'|');
@@ -162,7 +184,7 @@ fn output_splits(
                 }
             }
             output_record.push_field(&last_cell);
-            *max_splits = (*max_splits).saturating_sub(1);
+            max_splits = max_splits.saturating_sub(1);
         } else {
             output_record.extend(matches_to_add);
         }
@@ -172,10 +194,11 @@ fn output_splits(
         Err("Number of splits exceeded the given maximum. Consider using the --extra flag to handle extra splits.")?;
     }
 
-    while *max_splits > 0 && output_record.len() < expected_num_fields {
+    while max_splits > 0 && output_record.len() < expected_num_fields {
         output_record.push_field(b"");
-        *max_splits -= 1;
+        max_splits -= 1;
     }
+
     Ok(output_record)
 }
 
@@ -219,14 +242,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut max_splits: usize = 0;
 
     let splitter = if args.flag_regex {
-        match (args.flag_match, args.flag_capture_groups) {
-            (true, false) => Splitter::RegexMatchOnly(bytes::Regex::new(&args.arg_separator)?),
-            (false, true) => Splitter::RegexCaptureGroups(bytes::Regex::new(&args.arg_separator)?),
-            (false, false) => Splitter::RegexSplit(bytes::Regex::new(&args.arg_separator)?),
-            _ => unreachable!(),
-        }
+        let regex_mode = if args.flag_match {
+            RegexMode::Match
+        } else if args.flag_capture_groups {
+            RegexMode::CaptureGroups
+        } else {
+            RegexMode::Split
+        };
+
+        Splitter::Regex(Regex::new(&args.arg_separator)?, regex_mode)
     } else {
-        Splitter::String(args.arg_separator.as_bytes().to_vec())
+        Splitter::Substring(args.arg_separator.as_bytes().to_vec())
     };
 
     // When we need to determine the maximum number of splits across all rows
@@ -240,37 +266,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for result in rdr.byte_records() {
             let record = result?;
 
-            let mut numsplits = 0;
-            for cell in sel.select(&record) {
-                numsplits += match &splitter {
-                    Splitter::RegexMatchOnly(re) => re.find_iter(cell).count(),
-                    Splitter::RegexCaptureGroups(re) => {
-                        let mut n_groups = 0;
-                        for mat in re.captures_iter(cell) {
-                            n_groups += mat.len() - 1; // mat[0] is the full match
-                        }
-                        n_groups
-                    }
-                    Splitter::RegexSplit(re) => {
-                        // Default behavior: split on the regex matches, acting as a separator
-                        re.find_iter(cell).count() + 1
-                    }
-                    Splitter::String(sep) => cell.find_iter(sep).count() + 1,
-                };
+            let numsplits = splitter.count_splits(sel.select(&record));
+            max_splits = max_splits.max(numsplits);
 
-                max_splits = std::cmp::max(max_splits, numsplits);
-            }
             records.push(record);
         }
     }
 
     let mut sel_to_keep: Selection = rconf.selection(&headers)?;
-    if !args.flag_keep_column {
+
+    if !args.flag_keep {
         sel_to_keep = sel_to_keep.inverse(headers.len());
     }
 
     let mut new_headers: ByteRecord;
-    if args.flag_keep_column {
+    if args.flag_keep {
         new_headers = headers.clone();
     } else {
         new_headers = sel_to_keep.select(&headers).collect::<ByteRecord>()
@@ -294,7 +304,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut output_record = sel_to_keep.select(&record).collect::<ByteRecord>();
             output_record.extend(&output_splits(
                 &record,
-                &mut max_splits.clone(),
+                max_splits,
                 &splitter,
                 &sel,
                 &args.flag_extra,
@@ -306,7 +316,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut output_record = sel_to_keep.select(&record).collect::<ByteRecord>();
             output_record.extend(&output_splits(
                 &record,
-                &mut max_splits.clone(),
+                max_splits,
                 &splitter,
                 &sel,
                 &args.flag_extra,

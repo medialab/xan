@@ -32,7 +32,7 @@ fn people() -> Vec<Vec<String>> {
 
 #[test]
 fn separate() {
-    let wrk1 = Workdir::new("separate_with_one_column");
+    let wrk1 = Workdir::new("separate");
     wrk1.create("data.csv", data());
     let mut cmd1 = wrk1.command("separate");
     cmd1.arg("locution").arg(" ").arg("data.csv");
@@ -209,13 +209,10 @@ fn separate_extra() {
 
 #[test]
 fn separate_keep_column() {
-    let wrk = Workdir::new("separate");
+    let wrk = Workdir::new("separate_keep_column");
     wrk.create("data.csv", data());
     let mut cmd = wrk.command("separate");
-    cmd.arg("locution")
-        .arg(" ")
-        .arg("data.csv")
-        .arg("--keep-column");
+    cmd.arg("locution").arg(" ").arg("data.csv").arg("--keep");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
