@@ -348,3 +348,79 @@ fn fuzzy_join_url_prefix() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn fuzzy_join_drop_key() {
+    let wrk = Workdir::new("fuzzy_join_regex");
+    wrk.create(
+        "people.csv",
+        vec![
+            svec!["pattern", "name"],
+            svec!["john", "John"],
+            svec!["lisa", "Lisa"],
+        ],
+    );
+    wrk.create(
+        "colors.csv",
+        vec![
+            svec!["person", "color"],
+            svec!["jack laurel", "brown"],
+            svec!["john cannon", "blue"],
+            svec!["lisa eckart", "purple"],
+            svec!["lil john", "red"],
+            svec!["mina harker", "yellow"],
+        ],
+    );
+
+    // --drop-key=none
+    let mut cmd = wrk.command("fuzzy-join");
+    cmd.args(["--drop-key", "none"])
+        .args(["person", "colors.csv", "pattern", "people.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["person", "color", "pattern", "name"],
+        svec!["john cannon", "blue", "john", "John"],
+        svec!["lisa eckart", "purple", "lisa", "Lisa"],
+        svec!["lil john", "red", "john", "John"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-key=left
+    let mut cmd = wrk.command("fuzzy-join");
+    cmd.args(["--drop-key", "left"])
+        .args(["person", "colors.csv", "pattern", "people.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["color", "pattern", "name"],
+        svec!["blue", "john", "John"],
+        svec!["purple", "lisa", "Lisa"],
+        svec!["red", "john", "John"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-key=right
+    let mut cmd = wrk.command("fuzzy-join");
+    cmd.args(["--drop-key", "right"])
+        .args(["person", "colors.csv", "pattern", "people.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["person", "color", "name"],
+        svec!["john cannon", "blue", "John"],
+        svec!["lisa eckart", "purple", "Lisa"],
+        svec!["lil john", "red", "John"],
+    ];
+    assert_eq!(got, expected);
+
+    // --drop-key=both
+    let mut cmd = wrk.command("fuzzy-join");
+    cmd.args(["--drop-key", "right"])
+        .args(["person", "colors.csv", "pattern", "people.csv"]);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["person", "color", "name"],
+        svec!["john cannon", "blue", "John"],
+        svec!["lisa eckart", "purple", "Lisa"],
+        svec!["lil john", "red", "John"],
+    ];
+    assert_eq!(got, expected);
+}
