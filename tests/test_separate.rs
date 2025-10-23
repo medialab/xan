@@ -150,9 +150,9 @@ fn separate_extra() {
     let got4: Vec<Vec<String>> = wrk.read_stdout(&mut cmd4);
     let expected4 = vec![
         svec!["firstname", "lastname", "birthdate"],
-        svec!["John", "Doe", "1990|05|15"],
-        svec!["Jane", "Smith", "1985|10|30"],
-        svec!["Alice", "Johnson", "2000|01|01"],
+        svec!["John", "Doe", "1990 05 15"],
+        svec!["Jane", "Smith", "1985 10 30"],
+        svec!["Alice", "Johnson", "2000 01 01"],
     ];
     assert_eq!(got4, expected4);
 
@@ -168,9 +168,9 @@ fn separate_extra() {
     let got5: Vec<Vec<String>> = wrk.read_stdout(&mut cmd5);
     let expected5 = vec![
         svec!["split1", "split2", "split3"],
-        svec!["John", "Doe", "1990|05|15"],
-        svec!["Jane", "Smith", "1985|10|30"],
-        svec!["Alice", "Johnson", "2000|01|01"],
+        svec!["John", "Doe", "1990 05 15"],
+        svec!["Jane", "Smith", "1985 10 30"],
+        svec!["Alice", "Johnson", "2000 01 01"],
     ];
     assert_eq!(got5, expected5);
 
@@ -180,7 +180,7 @@ fn separate_extra() {
         .arg(" ")
         .arg("data.csv")
         .arg("--extra")
-        .arg("no_effect")
+        .arg("drop")
         .arg("--max-splits")
         .arg("5");
     let got6: Vec<Vec<String>> = wrk.read_stdout(&mut cmd6);

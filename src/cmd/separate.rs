@@ -41,7 +41,7 @@ separate options:
     -k, --keep               Keep the separated columns after splitting.
     --max-splits <n>         Limit the number of splits per cell to at most <n>.
                              By default, all possible splits are made.
-    --into <col1,col2,...>   Specify names for the new columns created by the
+    --into <column-names>    Specify names for the new columns created by the
                              splits. If not provided, new columns will be named
                              split1, split2, etc. If used with --max-splits,
                              the number of names provided must be equal or lower
@@ -80,10 +80,24 @@ struct Args {
     flag_keep: bool,
     flag_max_splits: Option<usize>,
     flag_into: Option<String>,
-    flag_extra: Option<String>,
+    flag_extra: Option<ExtraMode>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Default)]
+enum ExtraMode {
+    #[default]
+    Abort,
+    Drop,
+    Merge,
+}
+
+impl ExtraMode {
+    fn requires_splitn(&self) -> bool {
+        matches!(self, Self::Merge | Self::Drop)
+    }
 }
 
 enum RegexMode {
@@ -137,69 +151,71 @@ impl Splitter {
             },
         }
     }
-}
 
-fn output_splits(
-    record: &ByteRecord,
-    mut max_splits: usize,
-    splitter: &Splitter,
-    sel: &Selection,
-    extra: &Option<String>,
-) -> CliResult<ByteRecord> {
-    let mut output_record = ByteRecord::new();
-    let expected_num_fields = max_splits + output_record.len();
-    let mut matches_to_add: Box<dyn Iterator<Item = &[u8]>>;
-
-    for cell in sel.select(record) {
-        matches_to_add = splitter.split(cell);
-
-        if extra.is_some() {
-            // Collect all parts into a Vec so we can take some and optionally merge the rest.
-            let parts: Vec<Vec<u8>> = matches_to_add.map(|s| s.to_vec()).collect();
-            let take_n = std::cmp::min(parts.len(), max_splits);
-            output_record.extend(parts.iter().take(take_n - 1).inspect(|_| {
-                max_splits = max_splits.saturating_sub(1);
-            }));
-
-            let mut last_cell: Vec<u8> = Vec::new();
-
-            match extra.as_ref().unwrap().as_str() {
-                "merge" => {
-                    // If we've exhausted the slots (max_splits == 1, one last
-                    // cell to add) AND there are remaining parts, merge them
-                    // into a single field separated by a pipe.
-                    if max_splits == 1 && parts.len() > take_n {
-                        for (idx, part) in parts.iter().enumerate().skip(take_n - 1) {
-                            if idx > take_n - 1 {
-                                last_cell.push(b'|');
-                            }
-                            last_cell.extend_from_slice(part);
-                        }
-                    } else {
-                        last_cell = parts.iter().take(take_n).last().unwrap().clone();
-                    }
+    fn splitn<'s, 'c>(
+        &'s self,
+        limit: usize,
+        cell: &'c [u8],
+    ) -> Box<dyn Iterator<Item = &'c [u8]> + 's>
+    where
+        'c: 's,
+    {
+        match self {
+            Self::Substring(sep) => Box::new(cell.splitn_str(limit, sep)),
+            Self::Regex(pattern, mode) => match mode {
+                RegexMode::Split => Box::new(pattern.splitn(cell, limit)),
+                RegexMode::CaptureGroups => {
+                    unimplemented!()
                 }
-                _ => {
-                    last_cell = parts.iter().take(take_n).last().unwrap().clone();
-                }
-            }
-            output_record.push_field(&last_cell);
-            max_splits = max_splits.saturating_sub(1);
-        } else {
-            output_record.extend(matches_to_add);
+                RegexMode::Match => unimplemented!(),
+            },
         }
     }
 
-    if output_record.len() > expected_num_fields {
-        Err("Number of splits exceeded the given maximum. Consider using the --extra flag to handle extra splits.")?;
-    }
+    fn split_cells<'a>(
+        &self,
+        cells: impl Iterator<Item = &'a [u8]>,
+        max_splits: usize,
+        extra_mode: ExtraMode,
+    ) -> CliResult<ByteRecord> {
+        let mut output_record = ByteRecord::new();
 
-    while max_splits > 0 && output_record.len() < expected_num_fields {
-        output_record.push_field(b"");
-        max_splits -= 1;
-    }
+        match extra_mode {
+            ExtraMode::Abort => {
+                for cell in cells {
+                    for sub_cell in self.split(cell) {
+                        if output_record.len() == max_splits {
+                            // TODO: we expected that much and got
+                            Err("Number of splits exceeded the given maximum. Consider using the --extra flag to handle extra splits.")?;
+                        }
 
-    Ok(output_record)
+                        output_record.push_field(sub_cell);
+                    }
+                }
+            }
+            ExtraMode::Drop => {
+                for sub_cell in cells.flat_map(|cell| self.split(cell)).take(max_splits) {
+                    output_record.push_field(sub_cell);
+                }
+            }
+            ExtraMode::Merge => {
+                let mut remaining = max_splits;
+
+                for cell in cells {
+                    for sub_cell in self.splitn(remaining, cell) {
+                        remaining -= 1;
+                        output_record.push_field(sub_cell);
+                    }
+                }
+            }
+        };
+
+        while output_record.len() < max_splits {
+            output_record.push_field(b"");
+        }
+
+        Ok(output_record)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -207,16 +223,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
-            Err("--capture-groups and --match can only be used with --regex")?;
+            Err("-c/--capture-groups and --match can only be used with --regex")?;
         }
         if args.flag_capture_groups && args.flag_match {
             Err("--capture-groups and --match cannot be used together")?;
         }
     }
 
-    if args.flag_extra.is_some() {
+    let extra_mode = args.flag_extra.unwrap_or_default();
+
+    if extra_mode.requires_splitn() {
         if args.flag_max_splits.is_none() && args.flag_into.is_none() {
             Err("--extra can only be used with --max-splits or --into")?;
+        }
+
+        if args.flag_capture_groups || args.flag_match {
+            Err("--extra (drop|merge) does work with -c/--capture-groups nor -m/--match!")?;
         }
     } else if args.flag_into.is_some()
         && args.flag_max_splits.is_some()
@@ -296,33 +318,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let header_name = format!("split{}", i);
         new_headers.push_field(header_name.as_bytes());
     }
+
     wtr.write_byte_record(&new_headers)?;
+
+    let mut process_record = |record: &ByteRecord| -> CliResult<()> {
+        wtr.write_record(
+            sel_to_keep.select(record).chain(
+                splitter
+                    .split_cells(sel.select(record), max_splits, extra_mode)?
+                    .iter(),
+            ),
+        )?;
+
+        Ok(())
+    };
 
     if args.flag_max_splits.is_some() || args.flag_into.is_some() {
         let mut record = ByteRecord::new();
+
         while rdr.read_byte_record(&mut record)? {
-            let mut output_record = sel_to_keep.select(&record).collect::<ByteRecord>();
-            output_record.extend(&output_splits(
-                &record,
-                max_splits,
-                &splitter,
-                &sel,
-                &args.flag_extra,
-            )?);
-            wtr.write_byte_record(&output_record)?;
+            process_record(&record)?;
         }
     } else {
         for record in records {
-            let mut output_record = sel_to_keep.select(&record).collect::<ByteRecord>();
-            output_record.extend(&output_splits(
-                &record,
-                max_splits,
-                &splitter,
-                &sel,
-                &args.flag_extra,
-            )?);
-            wtr.write_byte_record(&output_record)?;
+            process_record(&record)?;
         }
     }
+
     Ok(wtr.flush()?)
 }
