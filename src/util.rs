@@ -782,21 +782,21 @@ impl<T: Deref<Target = str>, I: Iterator<Item = T>> JoinIteratorExt for I {
 }
 
 // A custom implementation de/serializing ext-sort chunks as CSV
-pub struct DeepSizedByteRecord(pub csv::ByteRecord);
+pub struct DeepSizedByteRecord(pub simd_csv::ByteRecord);
 
 impl DeepSizedByteRecord {
-    pub fn as_ref(&self) -> &csv::ByteRecord {
+    pub fn as_ref(&self) -> &simd_csv::ByteRecord {
         &self.0
     }
 
-    pub fn into_inner(self) -> csv::ByteRecord {
+    pub fn into_inner(self) -> simd_csv::ByteRecord {
         self.0
     }
 }
 
 impl DeepSizeOf for DeepSizedByteRecord {
     fn deep_size_of(&self) -> usize {
-        std::mem::size_of::<csv::ByteRecord>() + self.0.as_slice().len()
+        std::mem::size_of::<simd_csv::ByteRecord>() + self.0.as_slice().len()
     }
 
     fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
@@ -805,16 +805,16 @@ impl DeepSizeOf for DeepSizedByteRecord {
 }
 
 pub struct CsvExternalChunk {
-    reader: csv::Reader<io::Take<io::BufReader<fs::File>>>,
+    reader: simd_csv::Reader<io::Take<io::BufReader<fs::File>>>,
 }
 
 impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
-    type SerializationError = csv::Error;
-    type DeserializationError = csv::Error;
+    type SerializationError = simd_csv::Error;
+    type DeserializationError = simd_csv::Error;
 
     fn new(reader: io::Take<io::BufReader<fs::File>>) -> Self {
         CsvExternalChunk {
-            reader: csv::ReaderBuilder::new()
+            reader: simd_csv::ReaderBuilder::new()
                 .has_headers(false)
                 .from_reader(reader),
         }
@@ -824,7 +824,7 @@ impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
         chunk_writer: &mut io::BufWriter<fs::File>,
         items: impl IntoIterator<Item = DeepSizedByteRecord>,
     ) -> Result<(), Self::SerializationError> {
-        let mut csv_writer = csv::Writer::from_writer(chunk_writer);
+        let mut csv_writer = simd_csv::Writer::from_writer(chunk_writer);
 
         for item in items.into_iter() {
             csv_writer.write_record(item.as_ref())?;
@@ -841,7 +841,7 @@ impl Iterator for CsvExternalChunk {
     >;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         match self.reader.read_byte_record(&mut record) {
             Ok(read) => {

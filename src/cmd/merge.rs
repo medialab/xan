@@ -97,7 +97,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--paths cannot be used with other positional arguments!")?;
     }
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let confs = args.configs()?.into_iter().collect::<Vec<Config>>();
     let paths = confs
@@ -112,7 +112,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut readers = confs
         .iter()
-        .map(|conf| conf.reader())
+        .map(|conf| conf.simd_reader())
         .collect::<Result<Vec<_>, _>>()?;
 
     let headers = readers

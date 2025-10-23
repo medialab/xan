@@ -9,6 +9,7 @@
 * Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
 * `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
 * `xan behead` does not normalize the output anymore to be as fast as possible.
+* The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
 
 *Features*
 
