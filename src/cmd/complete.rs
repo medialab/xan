@@ -1,6 +1,7 @@
 use std::io::{stdout, Write};
+use std::str;
 
-use csv::StringRecord;
+use csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
@@ -67,7 +68,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     // TODO: use a ByteRecord
-    let mut record = StringRecord::new();
+    let mut record = ByteRecord::new();
 
     let sel = rconf.selection(&headers)?;
 
@@ -75,25 +76,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(&headers)?;
     }
 
-    let zero = args.flag_zero.unwrap_or_else(|| "".to_string());
+    let zero = args.flag_zero.unwrap_or_default().into_bytes();
 
     if args.flag_dates {
         let mut index: Option<dates::PartialDate> = None;
 
         if let Some(min) = &args.flag_min {
             if let Some(max) = &args.flag_max {
-                if dates::parse_partial_date(&min).unwrap().into_inner()
-                    > dates::parse_partial_date(&max).unwrap().into_inner()
+                if dates::parse_partial_date(min).unwrap().into_inner()
+                    > dates::parse_partial_date(max).unwrap().into_inner()
                 {
                     Err("min cannot be greater than max")?;
                 }
             }
-            index = Some(dates::parse_partial_date(&min).ok_or("invalid min date")?);
+            index = Some(dates::parse_partial_date(min).ok_or("invalid min date")?);
         }
 
-        while rdr.read_record(&mut record)? {
-            let value = dates::parse_partial_date(&sel.select(&record).next().unwrap().to_string())
-                .ok_or("invalide date in file")?;
+        while rdr.read_byte_record(&mut record)? {
+            let value = dates::parse_partial_date(
+                str::from_utf8(sel.select(&record).next().unwrap()).unwrap(),
+            )
+            .ok_or("invalide date in file")?;
 
             if let Some(min) = &args.flag_min {
                 // skip values below min of the range
@@ -115,13 +118,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if index.clone().is_some() {
                 if let Some(wtr) = wtr_opt.as_mut() {
                     while value.clone().into_inner() > index.clone().unwrap().into_inner() {
-                        let mut new_record = StringRecord::new();
+                        let mut new_record = ByteRecord::new();
                         for cell in sel.indexed_mask(record.len()) {
                             if cell.is_some() {
-                                new_record.push_field(&dates::format_partial_date(
-                                    index.clone().unwrap().as_unit(),
-                                    &index.clone().unwrap().into_inner(),
-                                ));
+                                new_record.push_field(
+                                    dates::format_partial_date(
+                                        index.clone().unwrap().as_unit(),
+                                        &index.clone().unwrap().into_inner(),
+                                    )
+                                    .as_bytes(),
+                                );
                             } else {
                                 new_record.push_field(&zero);
                             }
@@ -172,13 +178,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 while index.clone().is_some()
                     && index.clone().unwrap().into_inner() <= max.clone().into_inner()
                 {
-                    let mut new_record = StringRecord::new();
+                    let mut new_record = ByteRecord::new();
                     for cell in sel.indexed_mask(headers.len()) {
                         if cell.is_some() {
-                            new_record.push_field(&dates::format_partial_date(
-                                index.clone().unwrap().as_unit(),
-                                &index.clone().unwrap().into_inner(),
-                            ));
+                            new_record.push_field(
+                                dates::format_partial_date(
+                                    index.clone().unwrap().as_unit(),
+                                    &index.clone().unwrap().into_inner(),
+                                )
+                                .as_bytes(),
+                            );
                         } else {
                             new_record.push_field(&zero);
                         }
@@ -193,13 +202,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     );
                     wtr.write_record(&new_record)?;
                 }
-            } else {
-                if index.clone().unwrap().into_inner() <= max.clone().into_inner() {
-                    Err(format!(
-                        "file is not complete: missing value {:?}",
-                        index.clone().unwrap()
-                    ))?;
-                }
+            } else if index.clone().unwrap().into_inner() <= max.clone().into_inner() {
+                Err(format!(
+                    "file is not complete: missing value {:?}",
+                    index.clone().unwrap()
+                ))?;
             }
         }
     } else {
@@ -214,8 +221,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             index = Some(min.parse::<i64>().unwrap());
         }
 
-        while rdr.read_record(&mut record)? {
-            let value = sel.select(&record).next().unwrap().parse::<i64>().unwrap();
+        while rdr.read_byte_record(&mut record)? {
+            let value = str::from_utf8(sel.select(&record).next().unwrap())
+                .unwrap()
+                .parse::<i64>()
+                .unwrap();
 
             if let Some(min) = &args.flag_min {
                 // skip values below min of the range
@@ -234,10 +244,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if index.is_some() {
                 if let Some(wtr) = wtr_opt.as_mut() {
                     while value > index.unwrap() {
-                        let mut new_record = StringRecord::new();
+                        let mut new_record = ByteRecord::new();
                         for cell in sel.indexed_mask(record.len()) {
                             if cell.is_some() {
-                                new_record.push_field(&index.unwrap().to_string());
+                                new_record.push_field(index.unwrap().to_string().as_bytes());
                             } else {
                                 new_record.push_field(&zero);
                             }
@@ -270,10 +280,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let max = max.parse::<i64>().unwrap();
             if let Some(wtr) = wtr_opt.as_mut() {
                 while index.is_some() && index.unwrap() <= max {
-                    let mut new_record = StringRecord::new();
+                    let mut new_record = ByteRecord::new();
                     for cell in sel.indexed_mask(headers.len()) {
                         if cell.is_some() {
-                            new_record.push_field(&index.unwrap().to_string());
+                            new_record.push_field(index.unwrap().to_string().as_bytes());
                         } else {
                             new_record.push_field(&zero);
                         }
@@ -281,13 +291,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     index = Some(index.unwrap() + 1);
                     wtr.write_record(&new_record)?;
                 }
-            } else {
-                if index.unwrap() <= max {
-                    Err(format!(
-                        "file is not complete: missing value {}",
-                        index.unwrap()
-                    ))?;
-                }
+            } else if index.unwrap() <= max {
+                Err(format!(
+                    "file is not complete: missing value {}",
+                    index.unwrap()
+                ))?;
             }
         }
     }
