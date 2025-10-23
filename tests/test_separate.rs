@@ -2,13 +2,13 @@ use crate::workdir::Workdir;
 
 fn data() -> Vec<Vec<String>> {
     vec![
-        svec!["locution"],
-        svec!["a priori"],
-        svec!["de   facto"],
-        svec![""],
-        svec!["au cas   où"],
-        svec![" "],
-        svec!["ex-æquo"],
+        svec!["id", "locution"],
+        svec!["0", "a priori"],
+        svec!["1", "de   facto"],
+        svec!["2", ""],
+        svec!["3", "au cas   où"],
+        svec!["4", " "],
+        svec!["5", "ex-æquo"],
     ]
 }
 
@@ -32,28 +32,27 @@ fn people() -> Vec<Vec<String>> {
 
 #[test]
 fn separate() {
-    let wrk1 = Workdir::new("separate");
-    wrk1.create("data.csv", data());
-    let mut cmd1 = wrk1.command("separate");
+    let wrk = Workdir::new("separate");
+    wrk.create("data.csv", data());
+    let mut cmd1 = wrk.command("separate");
     cmd1.arg("locution").arg(" ").arg("data.csv");
 
-    let got1: Vec<Vec<String>> = wrk1.read_stdout(&mut cmd1);
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
-        svec!["split1", "split2", "split3", "split4", "split5"],
-        svec!["a", "priori", "", "", ""],
-        svec!["de", "", "", "facto", ""],
-        svec!["", "", "", "", ""],
-        svec!["au", "cas", "", "", "où"],
-        svec!["", "", "", "", ""],
-        svec!["ex-æquo", "", "", "", ""],
+        svec!["id", "split1", "split2", "split3", "split4", "split5"],
+        svec!["0", "a", "priori", "", "", ""],
+        svec!["1", "de", "", "", "facto", ""],
+        svec!["2", "", "", "", "", ""],
+        svec!["3", "au", "cas", "", "", "où"],
+        svec!["4", "", "", "", "", ""],
+        svec!["5", "ex-æquo", "", "", "", ""],
     ];
     assert_eq!(got1, expected1);
 
-    let wrk2 = Workdir::new("separate_all_columns");
-    wrk2.create("data.csv", people());
-    let mut cmd2 = wrk2.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd2 = wrk.command("separate");
     cmd2.arg("fullname,birthdate").arg(" ").arg("data.csv");
-    let got2: Vec<Vec<String>> = wrk2.read_stdout(&mut cmd2);
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd2);
     let expected2 = vec![
         svec!["split1", "split2", "split3", "split4", "split5"],
         svec!["John", "Doe", "1990", "05", "15"],
@@ -62,11 +61,10 @@ fn separate() {
     ];
     assert_eq!(got2, expected2);
 
-    let wrk3 = Workdir::new("separate_one_column_with_two_columns");
-    wrk3.create("data.csv", people());
-    let mut cmd3 = wrk3.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd3 = wrk.command("separate");
     cmd3.arg("fullname").arg(" ").arg("data.csv");
-    let got3: Vec<Vec<String>> = wrk3.read_stdout(&mut cmd3);
+    let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
         svec!["birthdate", "split1", "split2"],
         svec!["1990 05 15", "John", "Doe"],
@@ -78,9 +76,9 @@ fn separate() {
 
 #[test]
 fn separate_extra() {
-    let wrk1 = Workdir::new("separate_extra_drop_max_splits");
-    wrk1.create("data.csv", people());
-    let mut cmd1 = wrk1.command("separate");
+    let wrk = Workdir::new("separate_extra");
+    wrk.create("data.csv", people());
+    let mut cmd1 = wrk.command("separate");
     cmd1.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
@@ -88,7 +86,7 @@ fn separate_extra() {
         .arg("drop")
         .arg("--max-splits")
         .arg("3");
-    let got1: Vec<Vec<String>> = wrk1.read_stdout(&mut cmd1);
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
         svec!["split1", "split2", "split3"],
         svec!["John", "Doe", "1990"],
@@ -97,9 +95,8 @@ fn separate_extra() {
     ];
     assert_eq!(got1, expected1);
 
-    let wrk2 = Workdir::new("separate_extra_drop_named");
-    wrk2.create("data.csv", people());
-    let mut cmd2 = wrk2.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd2 = wrk.command("separate");
     cmd2.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
@@ -107,7 +104,7 @@ fn separate_extra() {
         .arg("drop")
         .arg("--into")
         .arg("firstname,lastname,birthyear");
-    let got2: Vec<Vec<String>> = wrk2.read_stdout(&mut cmd2);
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd2);
     let expected2 = vec![
         svec!["firstname", "lastname", "birthyear"],
         svec!["John", "Doe", "1990"],
@@ -116,9 +113,8 @@ fn separate_extra() {
     ];
     assert_eq!(got2, expected2);
 
-    let wrk3 = Workdir::new("separate_extra_drop_no_effect");
-    wrk3.create("data.csv", people());
-    let mut cmd3 = wrk3.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd3 = wrk.command("separate");
     cmd3.arg("fullname")
         .arg(" ")
         .arg("data.csv")
@@ -126,7 +122,7 @@ fn separate_extra() {
         .arg("drop")
         .arg("--max-splits")
         .arg("5");
-    let got3: Vec<Vec<String>> = wrk3.read_stdout(&mut cmd3);
+    let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
         svec![
             "birthdate",
@@ -142,9 +138,8 @@ fn separate_extra() {
     ];
     assert_eq!(got3, expected3);
 
-    let wrk4 = Workdir::new("separate_extra_merge_named");
-    wrk4.create("data.csv", people());
-    let mut cmd4 = wrk4.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd4 = wrk.command("separate");
     cmd4.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
@@ -152,7 +147,7 @@ fn separate_extra() {
         .arg("merge")
         .arg("--into")
         .arg("firstname,lastname,birthdate");
-    let got4: Vec<Vec<String>> = wrk4.read_stdout(&mut cmd4);
+    let got4: Vec<Vec<String>> = wrk.read_stdout(&mut cmd4);
     let expected4 = vec![
         svec!["firstname", "lastname", "birthdate"],
         svec!["John", "Doe", "1990|05|15"],
@@ -161,9 +156,8 @@ fn separate_extra() {
     ];
     assert_eq!(got4, expected4);
 
-    let wrk5 = Workdir::new("separate_extra_merge_max_splits");
-    wrk5.create("data.csv", people());
-    let mut cmd5 = wrk5.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd5 = wrk.command("separate");
     cmd5.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
@@ -171,7 +165,7 @@ fn separate_extra() {
         .arg("merge")
         .arg("--max-splits")
         .arg("3");
-    let got5: Vec<Vec<String>> = wrk5.read_stdout(&mut cmd5);
+    let got5: Vec<Vec<String>> = wrk.read_stdout(&mut cmd5);
     let expected5 = vec![
         svec!["split1", "split2", "split3"],
         svec!["John", "Doe", "1990|05|15"],
@@ -180,9 +174,8 @@ fn separate_extra() {
     ];
     assert_eq!(got5, expected5);
 
-    let wrk6 = Workdir::new("separate_extra_no_effect");
-    wrk6.create("data.csv", people());
-    let mut cmd6 = wrk6.command("separate");
+    wrk.create("data.csv", people());
+    let mut cmd6 = wrk.command("separate");
     cmd6.arg("fullname")
         .arg(" ")
         .arg("data.csv")
@@ -190,7 +183,7 @@ fn separate_extra() {
         .arg("no_effect")
         .arg("--max-splits")
         .arg("5");
-    let got6: Vec<Vec<String>> = wrk6.read_stdout(&mut cmd6);
+    let got6: Vec<Vec<String>> = wrk.read_stdout(&mut cmd6);
     let expected6 = vec![
         svec![
             "birthdate",
@@ -216,32 +209,32 @@ fn separate_keep_column() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["locution", "split1", "split2", "split3", "split4", "split5"],
-        svec!["a priori", "a", "priori", "", "", ""],
-        svec!["de   facto", "de", "", "", "facto", ""],
-        svec!["", "", "", "", "", ""],
-        svec!["au cas   où", "au", "cas", "", "", "où"],
-        svec![" ", "", "", "", "", ""],
-        svec!["ex-æquo", "ex-æquo", "", "", "", ""],
+        svec!["id", "locution", "split1", "split2", "split3", "split4", "split5"],
+        svec!["0", "a priori", "a", "priori", "", "", ""],
+        svec!["1", "de   facto", "de", "", "", "facto", ""],
+        svec!["2", "", "", "", "", "", ""],
+        svec!["3", "au cas   où", "au", "cas", "", "", "où"],
+        svec!["4", " ", "", "", "", "", ""],
+        svec!["5", "ex-æquo", "ex-æquo", "", "", "", ""],
     ];
     assert_eq!(got, expected);
 }
 
 #[test]
 fn separate_regex_sep() {
-    let wrk = Workdir::new("separate_regex");
+    let wrk = Workdir::new("separate_regex_sep");
     wrk.create("data.csv", data());
     let mut cmd = wrk.command("separate");
     cmd.arg("locution").arg(r"\s+").arg("data.csv").arg("-r");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["split1", "split2", "split3"],
-        svec!["a", "priori", ""],
-        svec!["de", "facto", ""],
-        svec!["", "", ""],
-        svec!["au", "cas", "où"],
-        svec!["", "", ""],
-        svec!["ex-æquo", "", ""],
+        svec!["id", "split1", "split2", "split3"],
+        svec!["0", "a", "priori", ""],
+        svec!["1", "de", "facto", ""],
+        svec!["2", "", "", ""],
+        svec!["3", "au", "cas", "où"],
+        svec!["4", "", "", ""],
+        svec!["5", "ex-æquo", "", ""],
     ];
     assert_eq!(got, expected);
 }
@@ -328,9 +321,9 @@ fn separate_regex_named() {
 
 #[test]
 fn separate_named_and_known_max_splits() {
-    let wrk1 = Workdir::new("separate_more_named_than_known_max_splits");
-    wrk1.create("data.csv", dates());
-    let mut cmd1 = wrk1.command("separate");
+    let wrk = Workdir::new("separate_named_and_known_max_splits");
+    wrk.create("data.csv", dates());
+    let mut cmd1 = wrk.command("separate");
     cmd1.arg("date")
         .arg("-")
         .arg("data.csv")
@@ -338,7 +331,7 @@ fn separate_named_and_known_max_splits() {
         .arg("4")
         .arg("--into")
         .arg("year,month,day");
-    let got1: Vec<Vec<String>> = wrk1.read_stdout(&mut cmd1);
+    let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
         svec!["year", "month", "day", "split1"],
         svec!["2023", "01", "15", ""],
@@ -347,9 +340,8 @@ fn separate_named_and_known_max_splits() {
     ];
     assert_eq!(got1, expected1);
 
-    let wrk2 = Workdir::new("separate_named_and_known_max_splits");
-    wrk2.create("data.csv", dates());
-    let mut cmd2 = wrk2.command("separate");
+    wrk.create("data.csv", dates());
+    let mut cmd2 = wrk.command("separate");
     cmd2.arg("date")
         .arg("-")
         .arg("data.csv")
@@ -357,7 +349,7 @@ fn separate_named_and_known_max_splits() {
         .arg("3")
         .arg("--into")
         .arg("year,month,day");
-    let got2: Vec<Vec<String>> = wrk2.read_stdout(&mut cmd2);
+    let got2: Vec<Vec<String>> = wrk.read_stdout(&mut cmd2);
     let expected2 = vec![
         svec!["year", "month", "day"],
         svec!["2023", "01", "15"],

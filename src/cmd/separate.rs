@@ -273,11 +273,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut sel_to_keep: Selection = rconf.selection(&headers)?;
-
-    if !args.flag_keep {
-        sel_to_keep = sel_to_keep.inverse(headers.len());
-    }
+    let sel_to_keep: Selection = if args.flag_keep {
+        Selection::full(headers.len())
+    } else {
+        sel.inverse(headers.len())
+    };
 
     let mut new_headers: ByteRecord;
     if args.flag_keep {
