@@ -307,24 +307,13 @@ impl Args {
     }
 
     fn convert_text_lines(&self) -> CliResult<()> {
-        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
+        let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
         let mut wtr = self.writer()?;
+
         wtr.write_record([&self.flag_column])?;
 
-        let mut record = csv::ByteRecord::new();
-
-        for result in rdr.lines() {
-            let line = result?;
-            let line = line.trim_end();
-
-            if line.is_empty() {
-                continue;
-            }
-
-            record.clear();
-            record.push_field(line.as_bytes());
-
-            wtr.write_byte_record(&record)?;
+        while let Some(line) = rdr.read_line()? {
+            wtr.write_record([line])?;
         }
 
         Ok(wtr.flush()?)
