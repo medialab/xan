@@ -583,7 +583,7 @@ impl Config {
     fn io_writer_with_options(
         &self,
         options: &fs::OpenOptions,
-    ) -> io::Result<Box<dyn io::Write + 'static>> {
+    ) -> io::Result<Box<dyn io::Write + Send + 'static>> {
         Ok(match self.path {
             None => Box::new(io::stdout()),
             Some(ref p) => Box::new(options.open(p)?),
@@ -599,6 +599,16 @@ impl Config {
 
     pub fn buf_io_writer(&self) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
         Ok(BufWriter::with_capacity(32 * (1 << 10), self.io_writer()?))
+    }
+
+    pub fn buf_io_writer_with_options(
+        &self,
+        options: &fs::OpenOptions,
+    ) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
+        Ok(BufWriter::with_capacity(
+            32 * (1 << 10),
+            self.io_writer_with_options(options)?,
+        ))
     }
 
     pub fn csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> csv::Writer<W> {

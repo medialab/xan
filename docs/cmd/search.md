@@ -43,8 +43,14 @@ using -i, --ignore-case.
 # Searching multiple patterns at once
 
 This command is also able to search for multiple patterns at once.
-To do so, you must give a text file with one pattern per line to the --patterns
-flag, or a CSV file containing a column of to indicate using --pattern-column.
+To do so, you can either use the -P, --add-pattern flag or feed a text file
+with one pattern per line to the --patterns flag. You can also feed a CSV file
+to the --patterns flag, in which case you will need to indicate the column
+containing the patterns using the --pattern-column flag.
+
+Giving additional patterns:
+
+    $ xan search disc -P tape -P vinyl file.csv > matches.csv
 
 One pattern per line of text file:
 
@@ -130,7 +136,7 @@ Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]
     xan search [options] --patterns <index> [<input>]
-    xan search [options] <pattern> [<input>]
+    xan search [options] <pattern> [-P <pattern>...] [<input>]
     xan search --help
 
 search mode options:
@@ -181,6 +187,8 @@ search options:
                              if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
+    -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
+                                 to the --patterns flag.
     -B, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
                                  one additional column per pattern. Added column will be given

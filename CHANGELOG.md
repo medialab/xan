@@ -8,6 +8,7 @@
 * Dropping `xan plot -Y/--add-series`, since it is now possible to select multiple series as `<y>` in  `xan plot <x>, <y>`.
 * Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
 * `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
+* `xan behead` does not normalize the output anymore to be as fast as possible.
 
 *Features*
 
