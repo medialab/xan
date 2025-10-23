@@ -58,13 +58,6 @@ strip = false
 debug = true
 lto = false
 
-[profile.test]
-inherits = "release"
-codegen-units = 16
-strip = false
-debug = true
-lto = false
-
 [dependencies]
 ahash = "0.8.12"
 aho-corasick = "1.1.3"

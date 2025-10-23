@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::num::NonZeroUsize;
 
 use crate::cmd::parallel::Args as ParallelArgs;
@@ -9,20 +8,6 @@ use crate::moonblade::{
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-
-fn write_group(
-    wtr: &mut simd_csv::Writer<Box<dyn Write + Send>>,
-    group: &Vec<Vec<u8>>,
-    addendum: &simd_csv::ByteRecord,
-) -> CliResult<()> {
-    let mut record = simd_csv::ByteRecord::new();
-    record.extend(group);
-    record.extend(addendum);
-
-    wtr.write_byte_record(&record)?;
-
-    Ok(())
-}
 
 static USAGE: &str = "
 Group a CSV file by values contained in a column selection then aggregate data per
@@ -52,6 +37,40 @@ You can rename the output columns using the 'as' syntax:
 You can group on multiple columns (read `xan select -h` for more information about column selection):
 
     $ xan groupby name,surname 'sum(count)' file.csv
+
+# Computing a total aggregate in the same pass
+
+This command can compute a total aggregate over the whole file in the same pass
+as computing aggregates per group so you can easily pipe into other commands to
+compute ratios and such.
+
+For instance, given the following file:
+
+user,count
+marcy,5
+john,2
+marcy,6
+john,4
+
+Using the following command:
+
+    $ xan groupby user 'sum(count) as count' -T 'sum(count) as total' file.csv
+
+Will produce the following result:
+
+user,count,total
+john,7,17
+marcy,10,17
+
+You can then pipe this into e.g. `xan select -e` and get a ratio:
+
+    $ <command-above> | xan select -e 'user, count, (count / total).to_fixed(2) as ratio'
+
+To produce:
+
+user,count,ratio
+marcy,11,0.65
+john,6,0.35
 
 # Aggregating along columns
 
@@ -128,6 +147,10 @@ groupby options:
                                and create a column per group with the result in the output.
     -M, --along-matrix <cols>  Aggregate all values found in the given selection
                                of columns.
+    -T, --total <expr>         Run an aggregation over the whole file in the same pass over
+                               the data and add the resulting columns at the end of each group's
+                               result. Can be useful to compute ratios over total etc in a single
+                               pass when piping into `map`, `transform`, `select -e` etc.
     -S, --sorted               Use this flag to indicate that the file is already sorted on the
                                group columns, in which case the command will be able to considerably
                                optimize memory usage.
@@ -158,6 +181,7 @@ struct Args {
     flag_keep: Option<SelectColumns>,
     flag_along_cols: Option<SelectColumns>,
     flag_along_matrix: Option<SelectColumns>,
+    flag_total: Option<String>,
     flag_sorted: bool,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
@@ -168,15 +192,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_parallel || args.flag_threads.is_some() {
         if args.flag_along_cols.is_some() {
-            Err("-p/--parallel or -t/--threads cannot be used with --along-cols!")?;
+            Err("-p/--parallel or -t/--threads cannot be used with -C/--along-cols!")?;
         }
 
         if args.flag_along_matrix.is_some() {
-            Err("-p/--parallel or -t/--threads cannot be used with --along-matrix!")?;
+            Err("-p/--parallel or -t/--threads cannot be used with -M/--along-matrix!")?;
         }
 
         if args.flag_sorted {
-            Err("-p/--parallel or -t/--threads cannot be used with --sorted!")?;
+            Err("-p/--parallel or -t/--threads cannot be used with -S/--sorted!")?;
+        }
+
+        if args.flag_total.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with -T/--total!")?;
         }
 
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
@@ -203,10 +231,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let sel = rconf.selection(headers)?;
 
+    let mut total_program_opt = args
+        .flag_total
+        .as_ref()
+        .map(|total| AggregationProgram::parse(total, headers))
+        .transpose()?;
+
     // --along-cols
     if let Some(selection) = args.flag_along_cols.take() {
         if args.flag_sorted || args.flag_keep.is_some() {
-            Err("--along-cols does not work with -S/--sorted nor --keep!")?;
+            Err("-C/--along-cols does not work with -S/--sorted nor --keep!")?;
+        }
+
+        if args.flag_total.is_some() {
+            Err("-T/--total does work yet with -C/--along-cols!")?;
         }
 
         let mut pivot_sel = selection.selection(headers, !args.flag_no_headers)?;
@@ -242,7 +280,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for result in program.into_byte_records(false) {
             let (group, group_record) = result?;
 
-            write_group(&mut wtr, &group, &group_record)?;
+            wtr.write_record(
+                group
+                    .iter()
+                    .map(|cell| cell.as_slice())
+                    .chain(group_record.iter()),
+            )?;
         }
 
         return Ok(wtr.flush()?);
@@ -254,6 +297,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("--along-matrix does not work with -S/--sorted nor --keep!")?;
         }
 
+        if args.flag_total.is_some() {
+            Err("-T/--total does work yet with -M/--along-matrix!")?;
+        }
+
         let mut matrix_sel = selection.selection(headers, !args.flag_no_headers)?;
         matrix_sel.sort_and_dedup();
 
@@ -261,11 +308,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             GroupAggregationProgram::<Vec<Vec<u8>>>::parse(&args.arg_expression, headers)?;
 
         if !args.flag_no_headers {
-            write_group(
-                &mut wtr,
-                &sel.collect(headers),
-                &program.headers().collect(),
-            )?;
+            wtr.write_record(sel.select(headers).chain(program.headers()))?;
         }
 
         let mut record = simd_csv::ByteRecord::new();
@@ -282,7 +325,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for result in program.into_byte_records(false) {
             let (group, group_record) = result?;
 
-            write_group(&mut wtr, &group, &group_record)?;
+            wtr.write_record(
+                group
+                    .iter()
+                    .map(|cell| cell.as_slice())
+                    .chain(group_record.iter()),
+            )?;
         }
 
         return Ok(wtr.flush()?);
@@ -315,15 +363,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = simd_csv::ByteRecord::new();
 
     if args.flag_sorted {
+        if args.flag_total.is_some() {
+            Err("-T/--total cannot work with -S/--sorted!")?;
+        }
+
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
         let mut current: Option<Vec<Vec<u8>>> = None;
 
         if !args.flag_no_headers {
-            write_group(
-                &mut wtr,
-                &sel.collect(headers),
-                &program.headers().collect(),
-            )?;
+            wtr.write_record(sel.select(headers).chain(program.headers()))?;
         }
 
         let mut index: usize = 0;
@@ -337,7 +385,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 Some(current_group) => {
                     if current_group != &group {
-                        write_group(&mut wtr, current_group, &program.finalize(false)?)?;
+                        wtr.write_record(
+                            current_group
+                                .iter()
+                                .map(|cell| cell.as_slice())
+                                .chain(&program.finalize(false)?),
+                        )?;
+
                         program.clear();
                         current = Some(group);
                     }
@@ -351,17 +405,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Flushing final group
         if let Some(current_group) = current {
-            write_group(&mut wtr, &current_group, &program.finalize(false)?)?;
+            wtr.write_record(
+                current_group
+                    .iter()
+                    .map(|cell| cell.as_slice())
+                    .chain(&program.finalize(false)?),
+            )?;
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
 
         if !args.flag_no_headers {
-            write_group(
-                &mut wtr,
-                &sel.collect(headers),
-                &program.headers().collect(),
-            )?;
+            if let Some(total_program) = &total_program_opt {
+                wtr.write_record(
+                    sel.select(headers)
+                        .chain(program.headers())
+                        .chain(total_program.headers()),
+                )?;
+            } else {
+                wtr.write_record(sel.select(headers).chain(program.headers()))?;
+            }
         }
 
         let mut index: usize = 0;
@@ -371,13 +434,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             program.run_with_record(group, index, &record)?;
 
+            if let Some(total_program) = total_program_opt.as_mut() {
+                total_program.run_with_record(index, &record)?;
+            }
+
             index += 1;
         }
+
+        let total_record_opt = total_program_opt
+            .map(|mut total_program| total_program.finalize(false))
+            .transpose()?;
 
         for result in program.into_byte_records(false) {
             let (group, group_record) = result?;
 
-            write_group(&mut wtr, &group, &group_record)?;
+            if let Some(total_record) = &total_record_opt {
+                wtr.write_record(
+                    group
+                        .iter()
+                        .map(|cell| cell.as_slice())
+                        .chain(group_record.iter())
+                        .chain(total_record.iter()),
+                )?;
+            } else {
+                wtr.write_record(
+                    group
+                        .iter()
+                        .map(|cell| cell.as_slice())
+                        .chain(group_record.iter()),
+                )?;
+            }
         }
     }
 

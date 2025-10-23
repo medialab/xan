@@ -374,3 +374,32 @@ fn groupby_along_matrix() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn groupby_total() {
+    let wrk = Workdir::new("groupby_total");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["user", "count"],
+            svec!["mary", "5"],
+            svec!["john", "2"],
+            svec!["mary", "6"],
+            svec!["john", "4"],
+        ],
+    );
+
+    let mut cmd = wrk.command("groupby");
+    cmd.arg("user")
+        .arg("sum(count) as count")
+        .args(["-T", "sum(count) as total"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["user", "count", "total"],
+        svec!["mary", "11", "17"],
+        svec!["john", "6", "17"],
+    ];
+    assert_eq!(got, expected);
+}

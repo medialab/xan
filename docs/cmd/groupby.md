@@ -30,6 +30,40 @@ You can group on multiple columns (read `xan select -h` for more information abo
 
     $ xan groupby name,surname 'sum(count)' file.csv
 
+# Computing a total aggregate in the same pass
+
+This command can compute a total aggregate over the whole file in the same pass
+as computing aggregates per group so you can easily pipe into other commands to
+compute ratios and such.
+
+For instance, given the following file:
+
+user,count
+marcy,5
+john,2
+marcy,6
+john,4
+
+Using the following command:
+
+    $ xan groupby user 'sum(count) as count' -T 'sum(count) as total' file.csv
+
+Will produce the following result:
+
+user,count,total
+john,7,17
+marcy,10,17
+
+You can then pipe this into e.g. `xan select -e` and get a ratio:
+
+    $ <command-above> | xan select -e 'user, count, (count / total).to_fixed(2) as ratio'
+
+To produce:
+
+user,count,ratio
+marcy,11,0.65
+john,6,0.35
+
 # Aggregating along columns
 
 This command is also able to aggregate along columns that you can select using
@@ -105,6 +139,10 @@ groupby options:
                                and create a column per group with the result in the output.
     -M, --along-matrix <cols>  Aggregate all values found in the given selection
                                of columns.
+    -T, --total <expr>         Run an aggregation over the whole file in the same pass over
+                               the data and add the resulting columns at the end of each group's
+                               result. Can be useful to compute ratios over total etc in a single
+                               pass when piping into `map`, `transform`, `select -e` etc.
     -S, --sorted               Use this flag to indicate that the file is already sorted on the
                                group columns, in which case the command will be able to considerably
                                optimize memory usage.
