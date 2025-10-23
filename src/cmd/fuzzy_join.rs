@@ -1,12 +1,11 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-
 use aho_corasick::AhoCorasick;
 use pariter::IteratorExt;
 use regex::bytes::{RegexSet, RegexSetBuilder};
+use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::{SelectColumns, Selection};
 use crate::urls::LRUTrieMultiMap;
 use crate::util;
 use crate::CliResult;
@@ -19,6 +18,14 @@ fn prefix_header(headers: &csv::ByteRecord, prefix: &String) -> csv::ByteRecord 
     }
 
     prefixed_headers
+}
+
+#[derive(Deserialize, Clone, Copy)]
+enum DropKey {
+    None,
+    Left,
+    Right,
+    Both,
 }
 
 enum Index {
@@ -56,6 +63,7 @@ impl Index {
 struct Joiner {
     index: Index,
     headers: csv::ByteRecord,
+    selection: Selection,
     records: Vec<csv::ByteRecord>,
 }
 
@@ -109,7 +117,7 @@ actually need to join columns from the patterns file, you should
 probably use `xan search --regex --patterns` instead.
 
 Usage:
-    xan fuzzy-join [options] <columns> <input> <pattern-columns> <patterns>
+    xan fuzzy-join [options] <columns> <input> <pattern-column> <patterns>
     xan fuzzy-join --help
 
 fuzzy-join options:
@@ -131,6 +139,10 @@ fuzzy-join options:
                                  indicate the number of threads yourself.
     -t, --threads <threads>      Parellize computations using this many threads. Use -p, --parallel
                                  if you want the number of threads to be automatically chosen instead.
+    -D, --drop-key <mode>        Indicate whether to drop columns representing the join key
+                                 in `left` (i.e. input file) or `right` file (i.e. pattern file),
+                                 or `none`, or `both`.
+                                 Defaults to `none`.
     -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  searched file.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
@@ -150,7 +162,7 @@ Common options:
 struct Args {
     arg_columns: SelectColumns,
     arg_input: String,
-    arg_pattern_columns: SelectColumns,
+    arg_pattern_column: SelectColumns,
     arg_patterns: String,
     flag_regex: bool,
     flag_url_prefix: bool,
@@ -160,6 +172,7 @@ struct Args {
     flag_no_headers: bool,
     flag_ignore_case: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_drop_key: Option<DropKey>,
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
     flag_parallel: bool,
@@ -171,11 +184,12 @@ impl Args {
         let rconf = Config::new(&Some(self.arg_patterns.clone()))
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
-            .select(self.arg_pattern_columns.clone());
+            .select(self.arg_pattern_column.clone());
 
         let mut reader = rconf.reader()?;
         let headers = reader.byte_headers()?.clone();
         let pattern_cell_index = rconf.single_selection(&headers)?;
+        let selection = rconf.selection(reader.byte_headers()?)?;
 
         let mut patterns = Vec::new();
         let mut records = Vec::new();
@@ -214,13 +228,39 @@ impl Args {
         Ok(Joiner {
             index,
             headers,
+            selection,
             records,
         })
+    }
+
+    fn inverted_selections(
+        &mut self,
+        left_headers: &csv::ByteRecord,
+        left_sel: &Selection,
+        right_headers: &csv::ByteRecord,
+        right_sel: &Selection,
+    ) -> (Selection, Selection) {
+        let drop_key = match self.flag_drop_key {
+            Some(d) => d,
+            None => DropKey::None,
+        };
+
+        let left_inverse_sel = match drop_key {
+            DropKey::Left | DropKey::Both => left_sel.inverse(left_headers.len()),
+            _ => Selection::full(left_headers.len()),
+        };
+
+        let right_inverse_sel = match drop_key {
+            DropKey::Right | DropKey::Both => right_sel.inverse(right_headers.len()),
+            _ => Selection::full(right_headers.len()),
+        };
+
+        (left_inverse_sel, right_inverse_sel)
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
 
     let inner = !args.flag_left;
 
@@ -232,8 +272,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let joiner = args.build_joiner()?;
     let mut patterns_headers = joiner.headers.clone();
-
-    let padding = vec![b""; patterns_headers.len()];
+    let pattern_sel: Selection = joiner.selection.clone();
 
     if let Some(prefix) = &args.flag_prefix_right {
         patterns_headers = prefix_header(&patterns_headers, prefix);
@@ -242,7 +281,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&Some(args.arg_input.clone()))
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_columns);
+        .select(args.arg_columns.clone());
 
     let mut reader = rconf.reader()?;
     let mut headers = reader.byte_headers()?.clone();
@@ -252,12 +291,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         headers = prefix_header(&headers, prefix);
     }
 
+    let (inverted_sel, inverted_pattern_sel) =
+        args.inverted_selections(&headers, &sel, &patterns_headers, &pattern_sel);
+
+    let dropped_headers: csv::ByteRecord = inverted_sel.select(&headers).collect();
+    let dropped_patterns_headers: csv::ByteRecord =
+        inverted_pattern_sel.select(&patterns_headers).collect();
+
+    let padding = vec![b""; dropped_patterns_headers.len()];
+
     let mut writer = Config::new(&args.flag_output).writer()?;
 
     if !args.flag_no_headers {
         let mut full_headers = csv::ByteRecord::new();
-        full_headers.extend(headers.iter());
-        full_headers.extend(patterns_headers.iter());
+        full_headers.extend(dropped_headers.iter());
+        full_headers.extend(dropped_patterns_headers.iter());
 
         writer.write_record(&full_headers)?;
     }
@@ -287,9 +335,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let (mut record, matches) = result?;
 
                 for pattern_record in joiner_handle.matched_records(&matches) {
-                    let mut record_to_write = record.clone();
-                    record_to_write.extend(pattern_record);
-                    writer.write_byte_record(&record_to_write)?;
+                    let mut dropped_reccord: csv::ByteRecord =
+                        inverted_sel.select(&record).collect();
+                    dropped_reccord.extend(inverted_pattern_sel.select(pattern_record));
+                    writer.write_byte_record(&dropped_reccord)?;
                 }
 
                 if !inner && matches.is_empty() {
@@ -315,9 +364,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for pattern_record in joiner.matched_records(&matches) {
-            let mut record_to_write = record.clone();
-            record_to_write.extend(pattern_record);
-            writer.write_byte_record(&record_to_write)?;
+            let mut dropped_reccord: csv::ByteRecord = inverted_sel.select(&record).collect();
+            dropped_reccord.extend(inverted_pattern_sel.select(pattern_record));
+            writer.write_byte_record(&dropped_reccord)?;
         }
 
         if !inner && matches.is_empty() {
