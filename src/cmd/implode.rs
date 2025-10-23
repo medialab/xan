@@ -85,8 +85,8 @@ struct Args {
 }
 
 fn compare_but_for_sel(
-    first: &csv::ByteRecord,
-    second: &csv::ByteRecord,
+    first: &simd_csv::ByteRecord,
+    second: &simd_csv::ByteRecord,
     except: &[Option<usize>],
 ) -> bool {
     first
@@ -96,7 +96,11 @@ fn compare_but_for_sel(
         .all(|((a, b), mask)| if mask.is_some() { true } else { a == b })
 }
 
-fn compare_sel(first: &csv::ByteRecord, second: &csv::ByteRecord, sel: &Selection) -> bool {
+fn compare_sel(
+    first: &simd_csv::ByteRecord,
+    second: &simd_csv::ByteRecord,
+    sel: &Selection,
+) -> bool {
     sel.select(first)
         .zip(sel.select(second))
         .all(|(a, b)| a == b)
@@ -114,8 +118,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_columns);
 
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconfig.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
@@ -164,9 +168,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let sep = args.flag_sep.as_bytes();
-    let mut previous: Option<csv::ByteRecord> = None;
+    let mut previous: Option<simd_csv::ByteRecord> = None;
     let mut accumulator: Vec<Vec<Vec<u8>>> = Vec::with_capacity(sel.len());
-    let mut imploded_record = csv::ByteRecord::new();
+    let mut imploded_record = simd_csv::ByteRecord::new();
 
     for result in rdr.into_byte_records() {
         let record = result?;

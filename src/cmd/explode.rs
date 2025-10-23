@@ -101,8 +101,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_columns);
 
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconfig.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
@@ -152,8 +152,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
-    let mut record = csv::ByteRecord::new();
-    let mut output_record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
+    let mut output_record = simd_csv::ByteRecord::new();
 
     'main: while rdr.read_byte_record(&mut record)? {
         let mut splits: Vec<Vec<&[u8]>> = Vec::with_capacity(sel.len());
