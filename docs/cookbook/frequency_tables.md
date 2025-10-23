@@ -111,7 +111,7 @@ xan view
 
 The previous solution runs in a time that depends on the size of the total amount of CSV data to process. This is usually fine, but sometimes we need something faster. Fortunately most computers nowadays pack more than a single core. Some servers even have a number of cores that would make one blush.
 
-So, if we wanted to go faster, maybe at the expense of more memory, we could leverage our cores through parallelism. This is exactly what `xan parallel` does, by providing typical map-reduce parallel implementations that can work when the dataset is splitted into multiple CSV files.
+So, if we wanted to go faster, maybe at the expense of more memory, we could leverage our cores through parallelism. This is exactly what `xan parallel` does, by providing typical map-reduce parallel implementations that can work when the dataset is split into multiple CSV files.
 
 Thus, the `xan parallel` command has a `groupby` subcommand that makes it quite easy to port our first solution to the parallelized operation:
 

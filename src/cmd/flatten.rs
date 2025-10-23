@@ -7,7 +7,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
-use crate::util;
+use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 static USAGE: &str = "
@@ -17,10 +17,10 @@ This mode is particularly useful for viewing one record at a time.
 There is also a condensed view (-c or --condense) that will shorten the
 contents of each field to provide a summary view.
 
-Pipe into \"less -r\" if you need to page the result, and use -C/--force-colors
+Pipe into \"less -r\" if you need to page the result, and use --color=always
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -Sr
+    $ xan flatten --color=always file.csv | less -Sr
 
 Usage:
     xan flatten [options] [<input>]
@@ -37,16 +37,24 @@ flatten options:
     -F, --flatter          Even flatter representation alternating column name and content
                            on different lines in the output. Useful to display cells containing
                            large chunks of text.
+    --row-separator <sep>  Separate rows in the output with the given string, instead of
+                           displaying a header with row index. If an empty string is
+                           given, e.g. --row-separator '', will not separate rows at all.
+    --csv                  Write the result as a CSV file with the row,field,value columns
+                           instead. Can be seen as unpivoting the whole file.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
                            Can also be given as a ratio of the terminal's width e.g. \"0.5\".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
     -S, --split <cols>     Split columns containing multiple values separated by --sep
                            to be displayed as a list.
-    --sep <sep>            Delimiter separating multiple values in cells splitted
+    --sep <sep>            Delimiter separating multiple values in cells split
                            by --plural. [default: |]
     -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
                            pattern. Will not work with -R/--rainbow.
@@ -54,6 +62,8 @@ flatten options:
 
 Common options:
     -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout. Only used
+                           when --csv is set.
     -n, --no-headers       When set, the first row will not be interpreted
                            as headers. When set, the name of each field
                            will be its index.
@@ -69,19 +79,23 @@ struct Args {
     flag_condense: bool,
     flag_wrap: bool,
     flag_flatter: bool,
+    flag_row_separator: Option<String>,
     flag_cols: Option<String>,
     flag_rainbow: bool,
-    flag_force_colors: bool,
+    flag_csv: bool,
+    flag_color: ColorMode,
     flag_split: Option<SelectColumns>,
     flag_sep: String,
     flag_highlight: Option<String>,
     flag_ignore_case: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_output: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    args.flag_color.apply();
 
     if args.flag_rainbow && args.flag_highlight.is_some() {
         Err("-R/--rainbow does not work with -H/--highlight!")?;
@@ -99,6 +113,47 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select.clone());
+
+    let mut record_index: usize = 0;
+
+    if args.flag_csv {
+        let mut rdr = rconfig.simd_reader()?;
+        let byte_headers = rdr.byte_headers()?.clone();
+        let sel = rconfig.selection(&byte_headers)?;
+
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+
+        let mut output_record = simd_csv::ByteRecord::new();
+        output_record.push_field(b"row");
+        output_record.push_field(b"field");
+        output_record.push_field(b"value");
+
+        wtr.write_byte_record(&output_record)?;
+
+        let mut record = simd_csv::ByteRecord::new();
+
+        while rdr.read_byte_record(&mut record)? {
+            for (h, cell) in sel.select(&byte_headers).zip(sel.select(&record)) {
+                output_record.clear();
+                output_record.push_field(record_index.to_string().as_bytes());
+                output_record.push_field(h);
+                output_record.push_field(cell);
+
+                wtr.write_byte_record(&output_record)?;
+            }
+
+            record_index += 1;
+
+            if let Some(limit) = args.flag_limit {
+                if record_index >= limit.get() {
+                    break;
+                }
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
     let mut rdr = rconfig.reader()?;
     let byte_headers = rdr.byte_headers()?;
     let sel = rconfig.selection(byte_headers)?;
@@ -123,10 +178,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         })
         .transpose()?;
 
-    if args.flag_force_colors {
-        colored::control::set_override(true);
-    }
-
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
     let potential_headers = rdr.headers()?.clone();
@@ -143,6 +194,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         headers.push(header);
     }
 
+    headers = headers
+        .into_iter()
+        .map(|name| util::sanitize_text_for_single_line_printing(&name))
+        .collect();
+
     let max_header_width = headers
         .iter()
         .map(|h| h.width())
@@ -154,7 +210,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = csv::StringRecord::new();
-    let mut record_index: usize = 0;
 
     let max_value_width = cols - max_header_width - 1;
 
@@ -179,13 +234,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 true,
             )
         } else if args.flag_wrap {
-            util::wrap(
+            util::highlight_problematic_string_features(&util::wrap(
                 &util::sanitize_text_for_multi_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 max_header_width + 1 + offset,
-            )
+            ))
         } else {
-            util::highlight_trimmable_whitespace(cell)
+            util::highlight_problematic_string_features(cell)
         };
 
         let cell = util::colorize(&cell_colorizer, &cell);
@@ -205,24 +260,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     };
 
-    while rdr.read_record(&mut record)? {
-        let record = sel.select(&record).collect::<csv::StringRecord>();
-        if record_index > 0 {
-            writeln!(&output)?;
-        }
-        writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
-        writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
+    let display_headers = headers
+        .iter()
+        .map(|header| {
+            util::unicode_aware_highlighted_pad_with_ellipsis(
+                false,
+                header,
+                max_header_width + 1,
+                " ",
+                true,
+            )
+        })
+        .collect::<Vec<_>>();
 
-        for (i, (header, cell)) in headers.iter().zip(record.iter()).enumerate() {
+    while rdr.read_record(&mut record)? {
+        if record_index > 0 {
+            if let Some(separator) = &args.flag_row_separator {
+                if !separator.is_empty() {
+                    writeln!(&output, "{}", &separator)?;
+                }
+            } else {
+                writeln!(&output)?;
+            }
+        }
+
+        if args.flag_row_separator.is_none() {
+            writeln!(&output, "{}", format!("Row n°{}", record_index).bold())?;
+            writeln!(&output, "{}", "─".repeat(cols).dimmed())?;
+        }
+
+        for (i, (header, cell)) in display_headers.iter().zip(sel.select(&record)).enumerate() {
+            // Split cell
             if matches!(&split_sel_opt, Some(split_sel) if !cell.is_empty() && split_sel.contains(i))
             {
                 let mut first: bool = true;
 
-                write!(
-                    &output,
-                    "{}",
-                    util::unicode_aware_rpad(header, max_header_width + 1, " ")
-                )?;
+                write!(&output, "{}", header)?;
 
                 for sub_cell in cell.split(&args.flag_sep) {
                     let sub_cell = prepare_cell(i, sub_cell, 2);
@@ -245,18 +318,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue;
             }
 
+            // Regular cell
             let cell = prepare_cell(i, cell, 0);
 
             if args.flag_flatter {
                 writeln!(&output, "{}", header)?;
                 writeln!(&output, "{}\n", cell)?;
             } else {
-                writeln!(
-                    &output,
-                    "{}{}",
-                    util::unicode_aware_rpad(header, max_header_width + 1, " "),
-                    cell
-                )?;
+                writeln!(&output, "{}{}", header, cell)?;
             }
         }
 

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
+use memmap2::Mmap;
 
 use crate::read::{self, ReverseRead};
 use crate::record::Record;
@@ -84,7 +85,7 @@ type PairResult = CliResult<(String, Option<String>)>;
 pub struct Config {
     pub path: Option<PathBuf>, // None implies <stdin>
     select_columns: Option<SelectColumns>,
-    delimiter: u8,
+    pub delimiter: u8,
     pub no_headers: bool,
     flexible: bool,
     terminator: csv::Terminator,
@@ -146,7 +147,7 @@ impl Config {
         config
     }
 
-    pub fn stdin() -> Config {
+    pub fn std() -> Config {
         Self::new(&None)
     }
 
@@ -218,6 +219,24 @@ impl Config {
         self.path.is_none()
     }
 
+    pub fn mmap(&self) -> io::Result<Option<Mmap>> {
+        if self.is_std() || self.compressed {
+            return Ok(None);
+        }
+
+        let file = fs::File::open(self.path.as_ref().unwrap())?;
+
+        let map = unsafe { Mmap::map(&file)? };
+
+        #[cfg(unix)]
+        {
+            map.advise(memmap2::Advice::Sequential)?;
+            map.advise(memmap2::Advice::WillNeed)?;
+        }
+
+        Ok(Some(map))
+    }
+
     pub fn selection<R: Record>(&self, first_record: &R) -> Result<Selection, String> {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
@@ -227,7 +246,7 @@ impl Config {
         }
     }
 
-    pub fn single_selection(&self, first_record: &csv::ByteRecord) -> Result<usize, String> {
+    pub fn single_selection<R: Record>(&self, first_record: &R) -> Result<usize, String> {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"
@@ -284,21 +303,19 @@ impl Config {
     }
 
     pub fn simd_reader(&self) -> CliResult<simd_csv::Reader<Box<dyn io::Read + Send + 'static>>> {
-        let mut reader = self.simd_csv_reader_from_reader(self.io_reader()?);
+        Ok(self.simd_csv_reader_from_reader(self.io_reader()?))
+    }
 
-        reader.strip_bom()?;
-
-        Ok(reader)
+    pub fn simd_zero_copy_reader(
+        &self,
+    ) -> CliResult<simd_csv::ZeroCopyReader<Box<dyn io::Read + Send + 'static>>> {
+        Ok(self.simd_zero_copy_csv_reader_from_reader(self.io_reader()?))
     }
 
     pub fn simd_splitter(
         &self,
     ) -> CliResult<simd_csv::Splitter<Box<dyn io::Read + Send + 'static>>> {
-        let mut splitter = self.simd_csv_splitter_from_reader(self.io_reader()?);
-
-        splitter.strip_bom()?;
-
-        Ok(splitter)
+        Ok(self.simd_csv_splitter_from_reader(self.io_reader()?))
     }
 
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
@@ -340,8 +357,8 @@ impl Config {
     ) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
         if let Some(sel) = select {
             let mut csv_reader = self.simd_reader()?;
-            let headers = csv_reader.peek_byte_record(true)?;
-            let column_index = sel.single_selection(&headers, !self.no_headers)?;
+            let headers = csv_reader.byte_headers()?;
+            let column_index = sel.single_selection(headers, !self.no_headers)?;
 
             return Ok(Box::new(csv_reader.into_byte_records().map(
                 move |result| match result {
@@ -380,12 +397,12 @@ impl Config {
     ) -> CliResult<Box<dyn Iterator<Item = PairResult>>> {
         if let Some(first_sel) = &select.0 {
             let mut csv_reader = self.simd_reader()?;
-            let headers = csv_reader.peek_byte_record(true)?;
-            let first_column_index = first_sel.single_selection(&headers, !self.no_headers)?;
+            let headers = csv_reader.byte_headers()?;
+            let first_column_index = first_sel.single_selection(headers, !self.no_headers)?;
             let second_column_index_opt = select
                 .1
                 .as_ref()
-                .map(|sel| sel.single_selection(&headers, !self.no_headers))
+                .map(|sel| sel.single_selection(headers, !self.no_headers))
                 .transpose()?;
 
             return Ok(Box::new(csv_reader.into_byte_records().map(
@@ -537,6 +554,18 @@ impl Config {
         simd_csv::ReaderBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
+            .has_headers(!self.no_headers)
+            .from_reader(rdr)
+    }
+
+    pub fn simd_zero_copy_csv_reader_from_reader<R: Read>(
+        &self,
+        rdr: R,
+    ) -> simd_csv::ZeroCopyReader<R> {
+        simd_csv::ZeroCopyReaderBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .has_headers(!self.no_headers)
             .from_reader(rdr)
     }
 
@@ -554,7 +583,7 @@ impl Config {
     fn io_writer_with_options(
         &self,
         options: &fs::OpenOptions,
-    ) -> io::Result<Box<dyn io::Write + 'static>> {
+    ) -> io::Result<Box<dyn io::Write + Send + 'static>> {
         Ok(match self.path {
             None => Box::new(io::stdout()),
             Some(ref p) => Box::new(options.open(p)?),
@@ -570,6 +599,16 @@ impl Config {
 
     pub fn buf_io_writer(&self) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
         Ok(BufWriter::with_capacity(32 * (1 << 10), self.io_writer()?))
+    }
+
+    pub fn buf_io_writer_with_options(
+        &self,
+        options: &fs::OpenOptions,
+    ) -> io::Result<BufWriter<Box<dyn io::Write + Send + 'static>>> {
+        Ok(BufWriter::with_capacity(
+            32 * (1 << 10),
+            self.io_writer_with_options(options)?,
+        ))
     }
 
     pub fn csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> csv::Writer<W> {

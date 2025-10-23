@@ -141,13 +141,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
     let sel = rconf.selection(&headers)?;
 
     if args.flag_check {
         let mut already_seen = HashSet::<DeduplicationKey>::new();
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         let mut count: u64 = 0;
 
@@ -193,13 +193,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+    if !args.flag_no_headers {
+        wtr.write_byte_record(&headers)?;
+    }
 
     // External
     if args.flag_external {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         let mut btree_index = BtreeIndex::<Vec<Vec<u8>>, ()>::with_capacity(
             BtreeConfig::default().fixed_value_size(0),
@@ -237,7 +239,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     match (args.flag_sorted, dedup_mode) {
         // Unsorted, keep first
         (false, DedupMode::KeepFirst) => {
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut already_seen = HashSet::<DeduplicationKey>::new();
 
             while rdr.read_byte_record(&mut record)? {
@@ -266,7 +268,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Sorted, keep first
         (true, DedupMode::KeepFirst) => {
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut current: Option<DeduplicationKey> = None;
 
             while rdr.read_byte_record(&mut record)? {
@@ -288,7 +290,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Sorted, keep last
         (true, DedupMode::KeepLast) => {
-            let mut current: Option<(DeduplicationKey, csv::ByteRecord)> = None;
+            let mut current: Option<(DeduplicationKey, simd_csv::ByteRecord)> = None;
 
             for result in rdr.byte_records() {
                 let record = result?;
@@ -311,10 +313,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Unsorted, keep duplicates
         (false, DedupMode::KeepDuplicates) => {
-            let mut map: HashMap<DeduplicationKey, Option<(usize, csv::ByteRecord)>> =
+            let mut map: HashMap<DeduplicationKey, Option<(usize, simd_csv::ByteRecord)>> =
                 HashMap::new();
-            let mut rows: Vec<Option<csv::ByteRecord>> = Vec::new();
-            let mut record = csv::ByteRecord::new();
+            let mut rows: Vec<Option<simd_csv::ByteRecord>> = Vec::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut index: usize = 0;
 
             while rdr.read_byte_record(&mut record)? {
@@ -342,11 +344,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Sorted, keep duplicates
         (true, DedupMode::KeepDuplicates) => {
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
 
             struct PreviousEntry {
                 key: DeduplicationKey,
-                record: csv::ByteRecord,
+                record: simd_csv::ByteRecord,
                 already_emitted: bool,
             }
 
@@ -385,10 +387,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Unsorted choose
         (false, DedupMode::Choose(expr)) => {
-            let mut map: IndexMap<DeduplicationKey, csv::ByteRecord, RandomState> =
+            let mut map: IndexMap<DeduplicationKey, simd_csv::ByteRecord, RandomState> =
                 IndexMap::with_hasher(RandomState::new());
             let mut program = ChooseProgram::parse(&expr, &headers)?;
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut index: usize = 0;
 
             while rdr.read_byte_record(&mut record)? {
@@ -415,9 +417,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Sorted choose
         (true, DedupMode::Choose(expr)) => {
-            let mut current_opt: Option<(DeduplicationKey, csv::ByteRecord)> = None;
+            let mut current_opt: Option<(DeduplicationKey, simd_csv::ByteRecord)> = None;
             let mut program = ChooseProgram::parse(&expr, &headers)?;
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut index: usize = 0;
 
             while rdr.read_byte_record(&mut record)? {
@@ -459,8 +461,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 struct KeepLastSet {
-    map: HashMap<DeduplicationKey, Index<csv::ByteRecord>>,
-    list: VecList<csv::ByteRecord>,
+    map: HashMap<DeduplicationKey, Index<simd_csv::ByteRecord>>,
+    list: VecList<simd_csv::ByteRecord>,
 }
 
 impl KeepLastSet {
@@ -471,7 +473,7 @@ impl KeepLastSet {
         }
     }
 
-    fn push(&mut self, key: DeduplicationKey, record: csv::ByteRecord) {
+    fn push(&mut self, key: DeduplicationKey, record: simd_csv::ByteRecord) {
         match self.map.entry(key) {
             Entry::Occupied(mut entry) => {
                 let current_index = entry.get_mut();
@@ -485,7 +487,7 @@ impl KeepLastSet {
         };
     }
 
-    fn into_iter(self) -> impl Iterator<Item = csv::ByteRecord> {
+    fn into_iter(self) -> impl Iterator<Item = simd_csv::ByteRecord> {
         self.list.into_iter()
     }
 }

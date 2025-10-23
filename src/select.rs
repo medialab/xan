@@ -559,6 +559,14 @@ impl Selection {
         Self((0..len).collect())
     }
 
+    pub fn into_first(self) -> Option<usize> {
+        self.0.first().copied()
+    }
+
+    pub fn into_rest(self) -> Self {
+        Self(self.0.into_iter().skip(1).collect())
+    }
+
     pub fn without_indices(len: usize, indices: &[usize]) -> Self {
         let mut sel = Self::full(len);
 

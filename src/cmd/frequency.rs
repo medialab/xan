@@ -156,7 +156,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let headers = rdr.peek_byte_record(!args.flag_no_headers)?;
+    let headers = rdr.byte_headers()?.clone();
     let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby

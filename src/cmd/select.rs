@@ -90,6 +90,17 @@ commands, you can wrangle the rows and perform a custom selection.
 
   $ xan select -e 'id, name as surname, count1 + count2 as total'
 
+Expression clauses can also return more than one item at once to avoid repeating
+computations, for instance:
+
+Splitting a full name:
+
+    $ xan select -e 'full_name.split(\" \") as (first_name, last_name)' file.csv > result.csv
+
+Extracting data from a JSON cell:
+
+    $ xan select -e 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
+
 If your expression becomes too complicated, you can write it in a file and
 use the -f/--evaluate-file flag instead:
 
@@ -153,9 +164,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
 
     if args.flag_evaluate || args.flag_evaluate_file {
-        let mut rdr = rconfig.reader()?;
-        let mut wtr = Config::new(&args.flag_output).writer()?;
-        let mut record = csv::ByteRecord::new();
+        let mut rdr = rconfig.simd_reader()?;
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+        let mut record = simd_csv::ByteRecord::new();
 
         let headers = rdr.byte_headers()?.clone();
 
@@ -164,7 +175,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(program.headers())?;
 
         let index: usize = 0;
-        let mut output_record = csv::ByteRecord::new();
+        let mut output_record = simd_csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
             output_record.clear();
@@ -175,11 +186,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         Ok(wtr.flush()?)
     } else {
-        let mut rdr = rconfig.simd_reader()?;
+        let mut rdr = rconfig.simd_zero_copy_reader()?;
         let mut wtr = Config::new(&args.flag_output).simd_writer()?;
-        let mut record = simd_csv::ByteRecord::new();
 
-        let headers = rdr.peek_byte_record(!args.flag_no_headers)?;
+        let headers = rdr.byte_headers()?.clone();
 
         rconfig = rconfig.select(SelectColumns::parse(&args.arg_selection)?);
 
@@ -191,8 +201,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(headers_to_write)?;
         }
 
-        while rdr.read_byte_record(&mut record)? {
-            wtr.write_record(sel.select(&record))?;
+        while let Some(record) = rdr.read_byte_record()? {
+            // NOTE: this is fine because here we have the guarantee we are
+            // using quotes.
+            wtr.write_record_no_quoting(sel.select(&record))?;
         }
 
         Ok(wtr.flush()?)

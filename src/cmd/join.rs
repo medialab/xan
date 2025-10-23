@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io;
 use std::num::NonZeroUsize;
 
@@ -10,19 +11,25 @@ use crate::select::{SelectColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
-type IndexKey = Vec<Vec<u8>>;
+#[derive(Deserialize, Clone, Copy)]
+enum DropKey {
+    None,
+    Left,
+    Right,
+    Both,
+}
 
-fn get_row_key(sel: &Selection, row: &ByteRecord, case_insensitive: bool) -> IndexKey {
+fn get_row_key(sel: &Selection, row: &ByteRecord, case_insensitive: bool) -> ByteRecord {
     sel.select(row)
         .map(|v| transform(v, case_insensitive))
         .collect()
 }
 
-fn transform(bs: &[u8], case_insensitive: bool) -> Vec<u8> {
+fn transform(bs: &[u8], case_insensitive: bool) -> Cow<[u8]> {
     if !case_insensitive {
-        bs.to_vec()
+        Cow::Borrowed(bs)
     } else {
-        bs.to_lowercase()
+        Cow::Owned(bs.to_lowercase())
     }
 }
 
@@ -53,8 +60,8 @@ fn build_headers(
     headers
 }
 
-fn get_padding(headers: &ByteRecord) -> ByteRecord {
-    (0..headers.len()).map(|_| b"").collect()
+fn get_padding(len: usize) -> ByteRecord {
+    (0..len).map(|_| b"").collect()
 }
 
 #[derive(Debug)]
@@ -82,7 +89,7 @@ impl IndexNode {
 struct Index {
     case_insensitive: bool,
     nulls: bool,
-    map: HashMap<IndexKey, (usize, usize)>,
+    map: HashMap<ByteRecord, (usize, usize)>,
     nodes: Vec<IndexNode>,
 }
 
@@ -190,24 +197,53 @@ impl Index {
 }
 
 static USAGE: &str = "
-Join two sets of CSV data on the specified columns.
+Join two CSV files on the specified columns.
 
 The default join operation is an \"inner\" join. This corresponds to the
 intersection of rows on the keys specified. The command is also able to
 perform a left outer join with --left, a right outer join with --right,
-a full outer join with --full, a semi join with --semi, an antin join with --anti
+a full outer join with --full, a semi join with --semi, an anti join with --anti
 and finally a cartesian product/cross join with --cross.
 
-By default, joins are done case sensitively, but this can be disabled using
+By default, joins are done case sensitively, but this can be changed using
 the -i, --ignore-case flag.
 
 The column arguments specify the columns to join for each input. Columns can
 be selected using the same syntax as the \"xan select\" command. Both selections
 must return a same number of columns, for the join keys to be properly aligned.
 
+Note that when it is obviously safe to drop the joined columns from one of the files
+the command will do so automatically. Else you can tweak the command's behavior
+using the -D/--drop-key flag.
+
 Note that this command is able to consume streams such as stdin (in which case
-the file name must be \"-\" to indicate which file will be read from stdin) and
-gzipped files out of the box.
+the file name must be \"-\" to indicate which file will be read from stdin).
+
+# Examples
+
+Inner join of two files on a column named differently:
+
+    $ xan join user_id tweets.csv id accounts.csv > joined.csv
+
+The same, but with columns named the same:
+
+    $ xan join user_id tweets.csv accounts.csv > joined.csv
+
+Left join:
+
+    $ xan join --left user_id tweets.csv id accounts.csv > joined.csv
+
+Joining on multiple columns:
+
+    $ xan join media,month per-query.csv totals.csv > joined.csv
+
+One file from stdin:
+
+    $ xan filter 'retweets > 10' tweets.csv | xan join user_id - id accounts.csv > joined.csv
+
+Prefixing right column names:
+
+    $ xan join -R user_ user_id tweets.csv id accounts.csv > joined.csv
 
 # Memory considerations
 
@@ -234,10 +270,15 @@ gzipped files out of the box.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
+    xan join [options] <columns> <input1> <input2>
     xan join [options] --cross <input1> <input2>
     xan join --help
 
 join options:
+    --inner                      Do an \"inner\" join. This only returns rows where
+                                 a match can be found between both data sets. This
+                                 is the command's default, so this flag can be omitted,
+                                 or used for clarity.
     --left                       Do an \"outer left\" join. This returns all rows in
                                  first CSV data set, including rows with no
                                  corresponding row in the second data set. When no
@@ -262,6 +303,10 @@ join options:
     --nulls                      When set, joins will work on empty fields.
                                  Otherwise, empty keys are completely ignored, i.e. when
                                  column selection yield only empty cells.
+    -D, --drop-key <mode>        Indicate whether to drop columns representing the join key
+                                 in `left` or `right` file, or `none`, or `both`.
+                                 Defaults to `none` unless joined columns are named the same
+                                 and -i, --ignore-case is not set.
     -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  first dataset.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
@@ -279,10 +324,12 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
+    arg_columns: Option<SelectColumns>,
     arg_columns1: SelectColumns,
     arg_input1: String,
     arg_columns2: SelectColumns,
     arg_input2: String,
+    flag_inner: bool,
     flag_left: bool,
     flag_right: bool,
     flag_full: bool,
@@ -293,6 +340,7 @@ struct Args {
     flag_no_headers: bool,
     flag_ignore_case: bool,
     flag_nulls: bool,
+    flag_drop_key: Option<DropKey>,
     flag_delimiter: Option<Delimiter>,
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
@@ -302,6 +350,13 @@ type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
 type ReaderHandle = (BoxedReader, ByteRecord, Selection);
 
 impl Args {
+    fn resolve(&mut self) {
+        if let Some(sel) = &self.arg_columns {
+            self.arg_columns1 = sel.clone();
+            self.arg_columns2 = sel.clone();
+        }
+    }
+
     fn readers(&self) -> CliResult<(ReaderHandle, ReaderHandle)> {
         let left = Config::new(&Some(self.arg_input1.clone()))
             .delimiter(self.flag_delimiter)
@@ -316,8 +371,8 @@ impl Args {
         let mut left_reader = left.simd_reader()?;
         let mut right_reader = right.simd_reader()?;
 
-        let left_headers = left_reader.peek_byte_record(!self.flag_no_headers)?;
-        let right_headers = right_reader.peek_byte_record(!self.flag_no_headers)?;
+        let left_headers = left_reader.byte_headers()?.clone();
+        let right_headers = right_reader.byte_headers()?.clone();
 
         let left_sel = left.selection(&left_headers)?;
         let right_sel = right.selection(&right_headers)?;
@@ -340,6 +395,47 @@ impl Args {
         Index::from_csv_reader(reader, sel, self.flag_ignore_case, self.flag_nulls)
     }
 
+    fn inverted_selections(
+        &mut self,
+        left_headers: &ByteRecord,
+        left_sel: &Selection,
+        right_headers: &ByteRecord,
+        right_sel: &Selection,
+    ) -> (Selection, Selection) {
+        let drop_key = match self.flag_drop_key {
+            Some(d) => d,
+            None => {
+                if !self.flag_no_headers
+                    && !self.flag_ignore_case
+                    && left_sel.select(left_headers).collect::<ByteRecord>()
+                        == right_sel.select(right_headers).collect::<ByteRecord>()
+                {
+                    if self.flag_inner || self.flag_left || self.flag_full {
+                        DropKey::Right
+                    } else if self.flag_right {
+                        DropKey::Left
+                    } else {
+                        DropKey::None
+                    }
+                } else {
+                    DropKey::None
+                }
+            }
+        };
+
+        let left_inverse_sel = match drop_key {
+            DropKey::Left | DropKey::Both => left_sel.inverse(left_headers.len()),
+            _ => Selection::full(left_headers.len()),
+        };
+
+        let right_inverse_sel = match drop_key {
+            DropKey::Right | DropKey::Both => right_sel.inverse(right_headers.len()),
+            _ => Selection::full(right_headers.len()),
+        };
+
+        (left_inverse_sel, right_inverse_sel)
+    }
+
     fn write_headers<W: io::Write>(
         &self,
         writer: &mut simd_csv::Writer<W>,
@@ -358,15 +454,22 @@ impl Args {
         Ok(())
     }
 
-    fn inner_join(self) -> CliResult<()> {
+    fn inner_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
@@ -374,25 +477,36 @@ impl Args {
 
         while right_reader.read_byte_record(&mut right_record)? {
             index.for_each_record(&right_sel, &right_record, |left_record| {
-                writer.write_record(left_record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(left_record)
+                        .chain(inverted_right_sel.select(&right_record)),
+                )
             })?;
         }
 
         Ok(writer.flush()?)
     }
 
-    fn full_outer_join(self) -> CliResult<()> {
+    fn full_outer_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        let left_padding = get_padding(&left_headers);
-        let right_padding = get_padding(&right_headers);
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        let left_padding = get_padding(inverted_left_sel.len());
+        let right_padding = get_padding(inverted_right_sel.len());
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
@@ -404,32 +518,51 @@ impl Args {
             index.for_each_node_mut(&right_sel, &right_record, |left_node| {
                 something_was_written = true;
                 left_node.written = true;
-                writer.write_record(left_node.record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(&left_node.record)
+                        .chain(inverted_right_sel.select(&right_record)),
+                )
             })?;
 
             if !something_was_written {
-                writer.write_record(left_padding.iter().chain(right_record.iter()))?;
+                writer.write_record(
+                    left_padding
+                        .iter()
+                        .chain(inverted_right_sel.select(&right_record)),
+                )?;
             }
         }
 
         for left_record in index.records_not_written() {
-            writer.write_record(left_record.iter().chain(right_padding.iter()))?;
+            writer.write_record(
+                inverted_left_sel
+                    .select(left_record)
+                    .chain(right_padding.iter()),
+            )?;
         }
 
         Ok(writer.flush()?)
     }
 
-    fn left_join(self) -> CliResult<()> {
+    fn left_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        let right_padding = get_padding(&right_headers);
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        let right_padding = get_padding(inverted_right_sel.len());
 
         let mut index = self.index(&mut right_reader, &right_sel)?;
 
@@ -440,28 +573,43 @@ impl Args {
 
             index.for_each_record(&left_sel, &left_record, |right_record| {
                 something_was_written = true;
-                writer.write_record(left_record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(&left_record)
+                        .chain(inverted_right_sel.select(right_record)),
+                )
             })?;
 
             if !something_was_written {
-                writer.write_record(left_record.iter().chain(right_padding.iter()))?;
+                writer.write_record(
+                    inverted_left_sel
+                        .select(&left_record)
+                        .chain(right_padding.iter()),
+                )?;
             }
         }
 
         Ok(writer.flush()?)
     }
 
-    fn right_join(self) -> CliResult<()> {
+    fn right_join(mut self) -> CliResult<()> {
         let (
             (mut left_reader, left_headers, left_sel),
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
         let mut writer = self.wconf().simd_writer()?;
 
-        let left_padding = get_padding(&left_headers);
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
 
-        self.write_headers(&mut writer, &left_headers, &right_headers)?;
+        let left_padding = get_padding(inverted_left_sel.len());
 
         let mut index = self.index(&mut left_reader, &left_sel)?;
 
@@ -472,11 +620,19 @@ impl Args {
 
             index.for_each_record(&right_sel, &right_record, |left_record| {
                 something_was_written = true;
-                writer.write_record(left_record.iter().chain(right_record.iter()))
+                writer.write_record(
+                    inverted_left_sel
+                        .select(left_record)
+                        .chain(inverted_right_sel.select(&right_record)),
+                )
             })?;
 
             if !something_was_written {
-                writer.write_record(left_padding.iter().chain(right_record.iter()))?;
+                writer.write_record(
+                    left_padding
+                        .iter()
+                        .chain(inverted_right_sel.select(&right_record)),
+                )?;
             }
         }
 
@@ -493,7 +649,7 @@ impl Args {
             writer.write_byte_record(&left_headers)?;
         }
 
-        let mut index: HashSet<IndexKey> = HashSet::new();
+        let mut index: HashSet<ByteRecord> = HashSet::new();
 
         let mut right_record = simd_csv::ByteRecord::new();
 
@@ -550,21 +706,20 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve();
 
-    if [
-        args.flag_left,
-        args.flag_right,
-        args.flag_full,
-        args.flag_semi,
-        args.flag_anti,
-        args.flag_cross,
-    ]
-    .iter()
-    .filter(|flag| **flag)
-    .count()
-        > 1
-    {
+    let operation = args.flag_inner as u8
+        + args.flag_left as u8
+        + args.flag_right as u8
+        + args.flag_full as u8
+        + args.flag_semi as u8
+        + args.flag_anti as u8
+        + args.flag_cross as u8;
+
+    if operation == 0 {
+        args.flag_inner = true;
+    } else if operation > 1 {
         Err("Please pick exactly one join operation.")?;
     }
 

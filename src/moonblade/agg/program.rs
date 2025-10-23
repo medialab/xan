@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::Hash;
 use std::iter::once;
 use std::sync::Arc;
 
 use ahash::RandomState;
-use csv::ByteRecord;
 use indexmap::IndexMap;
 use jiff::{civil::DateTime, Unit};
+use simd_csv::ByteRecord;
 
 use super::aggregators::{
     AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
@@ -1258,25 +1259,42 @@ impl AggregationProgram {
     }
 }
 
-type GroupKey = Vec<Vec<u8>>;
-
 #[derive(Debug, Clone)]
-pub struct GroupAggregationProgram {
+pub struct GroupAggregationProgram<K> {
     planner: ConcreteAggregationPlanner,
-    groups: ClusteredInsertHashmap<GroupKey, Vec<CompositeAggregator>>,
+    groups: ClusteredInsertHashmap<K, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
+    len: usize,
+    dummy_record: ByteRecord,
+    last_value: DynamicValue,
 }
 
-impl GroupAggregationProgram {
+impl<K: Eq + Hash> GroupAggregationProgram<K> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
         let concrete_aggregations = prepare(code, headers)?;
+        let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
 
         Ok(Self {
             planner,
             groups: ClusteredInsertHashmap::new(),
             headers_index: HeadersIndex::from_headers(headers),
+            len,
+            dummy_record: ByteRecord::new(),
+            last_value: DynamicValue::empty_bytes(),
         })
+    }
+
+    pub fn parse_without_headers(code: &str) -> Result<Self, ConcretizationError> {
+        Self::parse(code, &ByteRecord::new())
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn has_single_expr(&self) -> bool {
+        self.len == 1
     }
 
     pub fn merge(&mut self, other: Self) {
@@ -1297,7 +1315,7 @@ impl GroupAggregationProgram {
 
     pub fn run_with_record(
         &mut self,
-        group: GroupKey,
+        group: K,
         index: usize,
         record: &ByteRecord,
     ) -> Result<(), SpecifiedEvaluationError> {
@@ -1317,14 +1335,86 @@ impl GroupAggregationProgram {
         )
     }
 
+    pub fn run_with_cells<'a>(
+        &mut self,
+        group: K,
+        index: usize,
+        record: &ByteRecord,
+        cells: impl Iterator<Item = &'a [u8]>,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        let planner = &self.planner;
+
+        let aggregators = self
+            .groups
+            .insert_with(group, || planner.instantiate_aggregators());
+
+        for cell in cells {
+            self.last_value.set_bytes(cell);
+
+            run_with_record_on_aggregators(
+                &self.planner,
+                aggregators.iter_mut(),
+                index,
+                record,
+                &self.headers_index,
+                Some(self.last_value.clone()),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn run_with<T: Into<DynamicValue>>(
+        &mut self,
+        group: K,
+        index: usize,
+        value: T,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        let planner = &self.planner;
+
+        let aggregators = self
+            .groups
+            .insert_with(group, || planner.instantiate_aggregators());
+
+        run_with_record_on_aggregators(
+            &self.planner,
+            aggregators.iter_mut(),
+            index,
+            &self.dummy_record,
+            &self.headers_index,
+            Some(value.into()),
+        )
+    }
+
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
         self.planner.headers()
+    }
+
+    pub fn iter(self) -> impl Iterator<Item = Result<(K, DynamicValue), SpecifiedEvaluationError>> {
+        assert!(self.has_single_expr());
+
+        let planner = self.planner;
+        let headers_index = self.headers_index;
+
+        self.groups
+            .into_iter()
+            .map(move |(group, mut aggregators)| {
+                for aggregator in aggregators.iter_mut() {
+                    aggregator.finalize(false);
+                }
+
+                planner
+                    .results(&aggregators, &headers_index)
+                    .next()
+                    .unwrap()
+                    .map(|value| (group, value))
+            })
     }
 
     pub fn into_byte_records(
         self,
         parallel: bool,
-    ) -> impl Iterator<Item = Result<(GroupKey, ByteRecord), SpecifiedEvaluationError>> {
+    ) -> impl Iterator<Item = Result<(K, ByteRecord), SpecifiedEvaluationError>> {
         let planner = self.planner;
         let headers_index = self.headers_index;
 
@@ -1360,6 +1450,8 @@ impl PivotedColumnNamesIndex {
         }
     }
 }
+
+type GroupKey = Vec<Vec<u8>>;
 
 #[derive(Debug, Clone)]
 pub struct PivotAggregationProgram {
@@ -1436,10 +1528,10 @@ impl PivotAggregationProgram {
 
     pub fn flush<F, E>(self, mut callback: F) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
         E: From<SpecifiedEvaluationError>,
     {
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let names = self.pivoted_column_names_index.names;
 
         for (group, mut pivot_map) in self.groups.into_iter() {

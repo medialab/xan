@@ -2,7 +2,8 @@
 # xan search
 
 ```txt
-Search for (or replace) patterns in CSV data.
+Search for (or replace) patterns in CSV data (be sure to check out `xan grep` for
+a faster but coarser equivalent).
 
 This command has several flags to select the way to perform a match:
 
@@ -42,8 +43,14 @@ using -i, --ignore-case.
 # Searching multiple patterns at once
 
 This command is also able to search for multiple patterns at once.
-To do so, you must give a text file with one pattern per line to the --patterns
-flag, or a CSV file containing a column of to indicate using --pattern-column.
+To do so, you can either use the -P, --add-pattern flag or feed a text file
+with one pattern per line to the --patterns flag. You can also feed a CSV file
+to the --patterns flag, in which case you will need to indicate the column
+containing the patterns using the --pattern-column flag.
+
+Giving additional patterns:
+
+    $ xan search disc -P tape -P vinyl file.csv > matches.csv
 
 One pattern per line of text file:
 
@@ -66,6 +73,7 @@ Feeding CSV column as patterns through stdin (using "-"):
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
+    - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
       with -B/--breakdown.
@@ -73,6 +81,10 @@ Now this command is also able to perform search-adjacent operations:
       using -U/--unique-matches.
 
 For instance:
+
+Reporting whether a match was found (instead of filtering):
+
+    $ xan search -s headline -i france -f france_match file.csv
 
 Reporting number of matches:
 
@@ -124,7 +136,7 @@ Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]
     xan search [options] --patterns <index> [<input>]
-    xan search [options] <pattern> [<input>]
+    xan search [options] <pattern> [-P <pattern>...] [<input>]
     xan search --help
 
 search mode options:
@@ -148,6 +160,8 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
+    -f, --flag <column>      Instead of filtering rows, add a new column indicating if any match
+                             was found.
     -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
                              given name. Will still filter out rows with 0 matches, unless --left
                              is used. Does not work with -v/--invert-match.
@@ -173,6 +187,8 @@ search options:
                              if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
+    -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
+                                 to the --patterns flag.
     -B, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
                                  one additional column per pattern. Added column will be given

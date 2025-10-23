@@ -27,7 +27,7 @@ John,yellow
 Mary,red
 
 Note that the file can be exploded on multiple well-aligned columns (that
-is to say selected cells must all be splitted into a same number of values).
+is to say selected cells must all be split into a same number of values).
 
 Finally, if you need more complex stuff that splitting cells by a separator,
 check out the `flatmap` command instead.

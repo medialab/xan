@@ -1,8 +1,8 @@
 use std::fmt;
 
 use arrayvec::ArrayVec;
-use csv::ByteRecord;
 use regex::RegexBuilder;
+use simd_csv::ByteRecord;
 
 use crate::collections::HashMap;
 

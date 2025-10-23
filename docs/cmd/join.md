@@ -2,24 +2,53 @@
 # xan join
 
 ```txt
-Join two sets of CSV data on the specified columns.
+Join two CSV files on the specified columns.
 
 The default join operation is an "inner" join. This corresponds to the
 intersection of rows on the keys specified. The command is also able to
 perform a left outer join with --left, a right outer join with --right,
-a full outer join with --full, a semi join with --semi, an antin join with --anti
+a full outer join with --full, a semi join with --semi, an anti join with --anti
 and finally a cartesian product/cross join with --cross.
 
-By default, joins are done case sensitively, but this can be disabled using
+By default, joins are done case sensitively, but this can be changed using
 the -i, --ignore-case flag.
 
 The column arguments specify the columns to join for each input. Columns can
 be selected using the same syntax as the "xan select" command. Both selections
 must return a same number of columns, for the join keys to be properly aligned.
 
+Note that when it is obviously safe to drop the joined columns from one of the files
+the command will do so automatically. Else you can tweak the command's behavior
+using the -D/--drop-key flag.
+
 Note that this command is able to consume streams such as stdin (in which case
-the file name must be "-" to indicate which file will be read from stdin) and
-gzipped files out of the box.
+the file name must be "-" to indicate which file will be read from stdin).
+
+# Examples
+
+Inner join of two files on a column named differently:
+
+    $ xan join user_id tweets.csv id accounts.csv > joined.csv
+
+The same, but with columns named the same:
+
+    $ xan join user_id tweets.csv accounts.csv > joined.csv
+
+Left join:
+
+    $ xan join --left user_id tweets.csv id accounts.csv > joined.csv
+
+Joining on multiple columns:
+
+    $ xan join media,month per-query.csv totals.csv > joined.csv
+
+One file from stdin:
+
+    $ xan filter 'retweets > 10' tweets.csv | xan join user_id - id accounts.csv > joined.csv
+
+Prefixing right column names:
+
+    $ xan join -R user_ user_id tweets.csv id accounts.csv > joined.csv
 
 # Memory considerations
 
@@ -46,10 +75,15 @@ gzipped files out of the box.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
+    xan join [options] <columns> <input1> <input2>
     xan join [options] --cross <input1> <input2>
     xan join --help
 
 join options:
+    --inner                      Do an "inner" join. This only returns rows where
+                                 a match can be found between both data sets. This
+                                 is the command's default, so this flag can be omitted,
+                                 or used for clarity.
     --left                       Do an "outer left" join. This returns all rows in
                                  first CSV data set, including rows with no
                                  corresponding row in the second data set. When no
@@ -74,6 +108,10 @@ join options:
     --nulls                      When set, joins will work on empty fields.
                                  Otherwise, empty keys are completely ignored, i.e. when
                                  column selection yield only empty cells.
+    -D, --drop-key <mode>        Indicate whether to drop columns representing the join key
+                                 in `left` or `right` file, or `none`, or `both`.
+                                 Defaults to `none` unless joined columns are named the same
+                                 and -i, --ignore-case is not set.
     -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  first dataset.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the

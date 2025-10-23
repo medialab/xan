@@ -38,6 +38,17 @@ a,b,c,d
 1,4,5,4
 5,2,7,10
 
+Expression clauses can also return more than one item at once to avoid repeating
+computations, for instance:
+
+Splitting a full name:
+
+    $ xan map 'full_name.split(" ") as (first_name, last_name)' file.csv > result.csv
+
+Extracting data from a JSON cell:
+
+    $ xan map 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
+
 You can also use the -O/--overwrite flag to overwrite already existing columns:
 
     $ xan map -O 'b * 10 as b, a * b as c' file.csv > result.csv
@@ -78,6 +89,8 @@ map options:
                                expression instead of adding a new column at the end.
                                This means you can both transform and add columns at the
                                same time.
+    -F, --filter               If given, will not write rows in the output if all results
+                               of evaluated expression are falsey.
     -p, --parallel             Whether to use parallelization to speed up computations.
                                Will automatically select a suitable number of threads to use
                                based on your number of cores. Use -t, --threads if you want to
@@ -101,6 +114,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_filter: bool,
     flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_evaluate_file: bool,
@@ -131,12 +145,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let program = SelectionProgram::parse(&args.arg_expression, &headers)?;
+
+    if args.flag_overwrite && program.has_any_plural_expr() {
+        Err("-O/--overwrite does not work with clauses yielding multiple columns yet!")?;
+    }
 
     let actually_overwriting = args.flag_overwrite && program.has_something_to_overwrite();
 
@@ -151,32 +169,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(threads) = parallelization {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
             |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-            move |(index, record)| -> CliResult<csv::ByteRecord> {
+            move |(index, record)| -> CliResult<(bool, simd_csv::ByteRecord)> {
                 let mut record = record?;
 
+                let is_truthy;
+
                 if actually_overwriting {
-                    record = program.overwrite(index, &mut record)?;
+                    (is_truthy, record) = program.overwrite(index, &mut record)?;
                 } else {
-                    program.extend(index, &mut record)?;
+                    is_truthy = program.extend(index, &mut record)?;
                 }
 
-                Ok(record)
+                Ok((is_truthy, record))
             },
         ) {
-            wtr.write_byte_record(&result?)?;
+            let (is_truthy, record) = result?;
+
+            if !args.flag_filter || is_truthy {
+                wtr.write_byte_record(&record)?;
+            }
         }
     } else {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
+            let is_truthy;
+
             if actually_overwriting {
-                record = program.overwrite(index, &mut record)?;
+                (is_truthy, record) = program.overwrite(index, &mut record)?;
             } else {
-                program.extend(index, &mut record)?;
+                is_truthy = program.extend(index, &mut record)?;
             }
 
-            wtr.write_byte_record(&record)?;
+            if !args.flag_filter || is_truthy {
+                wtr.write_byte_record(&record)?;
+            }
 
             index += 1;
         }

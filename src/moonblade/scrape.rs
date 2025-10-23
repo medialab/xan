@@ -2,11 +2,11 @@ use std::convert::TryFrom;
 use std::iter;
 use std::sync::Arc;
 
-use csv::ByteRecord;
 use ego_tree::NodeId;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use scraper::{Element, ElementRef, Html, Node, Selector};
+use simd_csv::ByteRecord;
 
 use crate::collections::HashMap;
 
@@ -572,7 +572,7 @@ fn parse_selector(concrete_expr: ConcreteExpr) -> Result<Selector, Concretizatio
 }
 
 fn parse_contains_pattern(expr: Expr) -> Result<Pattern, ConcretizationError> {
-    let concrete_expr = concretize_expression(expr, &csv::ByteRecord::new(), None)?;
+    let concrete_expr = concretize_expression(expr, &ByteRecord::new(), None)?;
     let value = concrete_expr.try_unwrap()?;
 
     if let DynamicValue::Regex(regex) = value {
@@ -837,8 +837,8 @@ mod tests {
 
     fn eval(html: &str, code: &str) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
         let html = Html::parse_document(html);
-        let program = ScrapingProgram::parse(code, &csv::ByteRecord::new()).unwrap();
-        program.run_singular(0, &csv::ByteRecord::new(), &html)
+        let program = ScrapingProgram::parse(code, &ByteRecord::new()).unwrap();
+        program.run_singular(0, &ByteRecord::new(), &html)
     }
 
     #[test]

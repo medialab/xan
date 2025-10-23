@@ -48,7 +48,7 @@ pub fn version() -> String {
 }
 
 lazy_static! {
-    static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-]*)").unwrap();
+    static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-=]*)").unwrap();
     static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options):|---+").unwrap();
     static ref DIMMED_REGEX: Regex = Regex::new(
         r"\[--\]|\[?<[\w|\-]+>(?:\.{3})?\]?|\[[\w\s:§|\-.]+\]|\s+[\$>][^\n]+|\*[^*\n]+\*"
@@ -89,6 +89,24 @@ pub fn colorize_main_help(help: &str) -> String {
     let help = MAIN_ALIAS_REGEX.replace_all(&help, |caps: &Captures| caps[0].dimmed().to_string());
 
     help.replace("xan", &"xan".red().to_string())
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub enum ColorMode {
+    #[default]
+    Auto,
+    Never,
+    Always,
+}
+
+impl ColorMode {
+    pub fn apply(&self) {
+        match self {
+            Self::Never => colored::control::set_override(false),
+            Self::Always => colored::control::set_override(true),
+            _ => (),
+        }
+    }
 }
 
 pub fn get_args<T>(usage: &str, argv: &[&str]) -> CliResult<T>
@@ -435,20 +453,24 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
     }
 }
 
-pub fn highlight_trimmable_whitespace(string: &str) -> String {
+pub fn highlight_problematic_string_features(string: &str) -> String {
     let start = string.len() - string.trim_start().len();
     let end = string.trim_end().len();
 
-    format!(
+    let replaced = format!(
         "{}{}{}",
         "·".repeat((0..start).len()).white().dimmed(),
         &string[start..end],
         "·".repeat((end..string.len()).len()).white().dimmed()
-    )
+    );
+
+    ESCAPED_WHITESPACE_REPLACER
+        .replace_all(&replaced, |caps: &Captures| caps[0].dimmed().to_string())
+        .into_owned()
 }
 
 lazy_static! {
-    static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|\n\r|[\n\r\t\f]").unwrap();
+    static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
 }
 
 pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
@@ -461,10 +483,21 @@ pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
     string
 }
 
+lazy_static! {
+    static ref WHITESPACE_REPLACER: Regex = Regex::new(r"\r\n|[\n\r\t\f]").unwrap();
+}
+
 pub fn sanitize_text_for_single_line_printing(string: &str) -> String {
     let sanitized = sanitize_text_for_multi_line_printing(string);
 
-    match WHITESPACE_REPLACER.replace_all(&sanitized, " ") {
+    match WHITESPACE_REPLACER.replace_all(&sanitized, |caps: &Captures| match &caps[0] {
+        "\r\n" => "\\r\\n",
+        "\n" => "\\n",
+        "\r" => "\\r",
+        "\t" => "\\t",
+        "\x0C" => "\\f",
+        _ => unreachable!(),
+    }) {
         Cow::Borrowed(_) => sanitized,
         Cow::Owned(s) => s,
     }
@@ -588,10 +621,12 @@ pub fn unicode_aware_highlighted_pad_with_ellipsis(
     padding: &str,
     highlight: bool,
 ) -> String {
+    let with_ellipsis = unicode_aware_ellipsis(string, width);
+
     let mut string = unicode_aware_pad(
         left,
         &(if highlight {
-            highlight_trimmable_whitespace(&unicode_aware_ellipsis(string, width))
+            highlight_problematic_string_features(&with_ellipsis)
         } else {
             unicode_aware_ellipsis(string, width)
         }),
@@ -665,86 +700,6 @@ impl EmojiSanitizer {
                 )
             })
             .to_string()
-    }
-}
-
-pub trait ImmutableRecordHelpers<'a> {
-    type Cell;
-
-    #[must_use]
-    fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self;
-
-    #[must_use]
-    fn prepend(&self, cell_value: Self::Cell) -> Self;
-
-    #[must_use]
-    fn append(&self, cell_value: Self::Cell) -> Self;
-
-    #[must_use]
-    fn remove(&self, column_index: usize) -> Self;
-}
-
-impl<'a> ImmutableRecordHelpers<'a> for csv::ByteRecord {
-    type Cell = &'a [u8];
-
-    fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self {
-        self.iter()
-            .enumerate()
-            .map(|(i, v)| if i == column_index { new_value } else { v })
-            .collect()
-    }
-
-    fn prepend(&self, cell_value: Self::Cell) -> Self {
-        let mut new_record = csv::ByteRecord::new();
-        new_record.push_field(cell_value);
-        new_record.extend(self);
-
-        new_record
-    }
-
-    fn append(&self, cell_value: Self::Cell) -> Self {
-        let mut new_record = self.clone();
-        new_record.push_field(cell_value);
-        new_record
-    }
-
-    fn remove(&self, column_index: usize) -> Self {
-        self.iter()
-            .enumerate()
-            .filter_map(|(i, c)| if i == column_index { None } else { Some(c) })
-            .collect()
-    }
-}
-
-impl<'a> ImmutableRecordHelpers<'a> for csv::StringRecord {
-    type Cell = &'a str;
-
-    fn replace_at(&self, column_index: usize, new_value: Self::Cell) -> Self {
-        self.iter()
-            .enumerate()
-            .map(|(i, v)| if i == column_index { new_value } else { v })
-            .collect()
-    }
-
-    fn prepend(&self, cell_value: Self::Cell) -> Self {
-        let mut new_record = csv::StringRecord::new();
-        new_record.push_field(cell_value);
-        new_record.extend(self);
-
-        new_record
-    }
-
-    fn append(&self, cell_value: Self::Cell) -> Self {
-        let mut new_record = self.clone();
-        new_record.push_field(cell_value);
-        new_record
-    }
-
-    fn remove(&self, column_index: usize) -> Self {
-        self.iter()
-            .enumerate()
-            .filter_map(|(i, c)| if i == column_index { None } else { Some(c) })
-            .collect()
     }
 }
 

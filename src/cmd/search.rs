@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use bstr::{ByteSlice, ByteVec};
+use indexmap::IndexMap;
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
@@ -71,6 +72,7 @@ fn regex_set_replace_all<'a>(
     Cow::Owned(bytes)
 }
 
+#[derive(Debug)]
 pub enum Matcher {
     Empty,
     NonEmpty,
@@ -437,7 +439,8 @@ impl Matcher {
 // early termination when piping to `xan slice` because flush won't get a broken
 // pipe when writing nothing.
 static USAGE: &str = "
-Search for (or replace) patterns in CSV data.
+Search for (or replace) patterns in CSV data (be sure to check out `xan grep` for
+a faster but coarser equivalent).
 
 This command has several flags to select the way to perform a match:
 
@@ -477,8 +480,14 @@ using -i, --ignore-case.
 # Searching multiple patterns at once
 
 This command is also able to search for multiple patterns at once.
-To do so, you must give a text file with one pattern per line to the --patterns
-flag, or a CSV file containing a column of to indicate using --pattern-column.
+To do so, you can either use the -P, --add-pattern flag or feed a text file
+with one pattern per line to the --patterns flag. You can also feed a CSV file
+to the --patterns flag, in which case you will need to indicate the column
+containing the patterns using the --pattern-column flag.
+
+Giving additional patterns:
+
+    $ xan search disc -P tape -P vinyl file.csv > matches.csv
 
 One pattern per line of text file:
 
@@ -501,6 +510,7 @@ Feeding CSV column as patterns through stdin (using \"-\"):
 Now this command is also able to perform search-adjacent operations:
 
     - Replacing matches with -R/--replace or --replacement-column
+    - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
       with -B/--breakdown.
@@ -508,6 +518,10 @@ Now this command is also able to perform search-adjacent operations:
       using -U/--unique-matches.
 
 For instance:
+
+Reporting whether a match was found (instead of filtering):
+
+    $ xan search -s headline -i france -f france_match file.csv
 
 Reporting number of matches:
 
@@ -559,7 +573,7 @@ Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]
     xan search [options] --patterns <index> [<input>]
-    xan search [options] <pattern> [<input>]
+    xan search [options] <pattern> [-P <pattern>...] [<input>]
     xan search --help
 
 search mode options:
@@ -583,6 +597,8 @@ search options:
     -A, --all                Only return a row when ALL columns from the given selection
                              match the desired pattern, instead of returning a row
                              when ANY column matches.
+    -f, --flag <column>      Instead of filtering rows, add a new column indicating if any match
+                             was found.
     -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
                              given name. Will still filter out rows with 0 matches, unless --left
                              is used. Does not work with -v/--invert-match.
@@ -608,6 +624,8 @@ search options:
                              if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
+    -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
+                                 to the --patterns flag.
     -B, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
                                  one additional column per pattern. Added column will be given
@@ -663,6 +681,7 @@ struct Args {
     flag_exact: bool,
     flag_regex: bool,
     flag_url_prefix: bool,
+    flag_flag: Option<String>,
     flag_count: Option<String>,
     flag_replace: Option<String>,
     flag_limit: Option<NonZeroUsize>,
@@ -673,6 +692,7 @@ struct Args {
     flag_patterns: Option<String>,
     flag_pattern_column: Option<SelectColumns>,
     flag_replacement_column: Option<SelectColumns>,
+    flag_add_pattern: Vec<String>,
     flag_name_column: Option<SelectColumns>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
@@ -804,12 +824,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--overlapping only works with -c/--count, -U/--unique-matches or -B/--breakdown!")?;
     }
 
-    if (args.flag_count.is_some() || args.flag_replace.is_some()) && args.flag_invert_match {
-        Err("-c/--count & -R/--replace do not work with -v/--invert-match!")?;
+    if (args.flag_count.is_some()
+        || args.flag_flag.is_some()
+        || args.flag_replace.is_some()
+        || args.flag_breakdown
+        || args.flag_unique_matches.is_some())
+        && args.flag_invert_match
+    {
+        Err("-c/--count, -f,--flag, -R/--replace, -B/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
     }
 
-    if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
-        Err("-N/--non-empty & -E/--empty do not make sense with --patterns!")?;
+    if (args.flag_empty || args.flag_non_empty)
+        && (args.flag_patterns.is_some() || args.arg_pattern.is_some())
+    {
+        Err("-N/--non-empty & -E/--empty do not allow a pattern!")?;
     }
 
     if args.flag_ignore_case && args.flag_url_prefix {
@@ -828,22 +856,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--name-column requires both --patterns & --pattern-column!")?;
     }
 
+    if !args.flag_add_pattern.is_empty() && args.flag_patterns.is_some() {
+        Err("-P/--add-pattern is incompatible with --patterns!")?;
+    }
+
     let actions_count: u8 = args.flag_count.is_some() as u8
         + args.flag_replace.is_some() as u8
         + args.flag_breakdown as u8
         + args.flag_replacement_column.is_some() as u8
-        + args.flag_unique_matches.is_some() as u8;
+        + args.flag_unique_matches.is_some() as u8
+        + args.flag_flag.is_some() as u8;
 
     if actions_count > 1 {
-        Err("must use only one of -R/--replace, --replacement-column, -B/--breakdown, -c/--count, -U/--unique-matches!")?;
+        Err("must use only one of -R/--replace, --replacement-column, -B/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!")?;
     }
 
     if args.flag_all && actions_count > 0 {
         Err("-A/--all does not work with -R/--replace, --replacement-column, -B/--breakdown, -c/--count nor -U/--unique-matches!")?;
-    }
-
-    if args.flag_breakdown && args.flag_patterns.is_none() {
-        Err("-B/--breakdown requires --patterns!")?;
     }
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {
@@ -852,7 +881,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let pairs = args
+    let mut pairs = args
         .flag_patterns
         .as_ref()
         .map(|path| {
@@ -883,6 +912,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             (patterns, associated)
         });
 
+    if !args.flag_add_pattern.is_empty() {
+        let mut additional_patterns = vec![args.arg_pattern.clone().unwrap()];
+
+        for pattern in args.flag_add_pattern.iter() {
+            additional_patterns.push(pattern.to_string());
+        }
+
+        pairs = Some((additional_patterns, None));
+    }
+
     let (patterns, associated) = pairs.unzip();
 
     let matcher = args.build_matcher(&patterns)?;
@@ -894,6 +933,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map(|replacement| vec![replacement.clone().into_bytes(); patterns_len])
     });
 
+    let consolidated_patterns = associated.as_ref().and_then(|names| {
+        let mut map: IndexMap<&[u8], Vec<usize>> = IndexMap::new();
+
+        for (i, name) in names.iter().enumerate() {
+            map.entry(name)
+                .and_modify(|indices| indices.push(i))
+                .or_insert(vec![i]);
+        }
+
+        let groups = map.into_values().collect::<Vec<_>>();
+
+        if groups.iter().all(|group| group.len() == 1) {
+            None
+        } else {
+            Some(groups)
+        }
+    });
+
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
@@ -902,14 +959,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconfig.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut headers = rdr.peek_byte_record(!args.flag_no_headers)?;
+    let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
     let sel_mask = sel.mask(headers.len());
 
-    if let Some(column_name) = &args.flag_count {
+    if let Some(column_name) = args.flag_count.as_ref().or(args.flag_flag.as_ref()) {
         headers.push_field(column_name.as_bytes());
     } else if args.flag_breakdown {
-        if let Some(column_names) = &associated {
+        if let Some(consolidated) = consolidated_patterns.as_ref() {
+            for group in consolidated.iter() {
+                let i = *group.first().unwrap();
+                headers.push_field(&associated.as_ref().unwrap()[i]);
+            }
+        } else if let Some(column_names) = &associated {
             for column_name in column_names {
                 headers.push_field(column_name);
             }
@@ -951,8 +1013,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     if is_match || args.flag_left {
-                        for count in counts.into_iter() {
-                            record.push_field(count.to_string().as_bytes());
+                        if let Some(consolidated) = consolidated_patterns.as_ref() {
+                            for group in consolidated.iter() {
+                                let consolidated_count: usize =
+                                    group.iter().copied().map(|i| counts[i]).sum();
+                                record.push_field(consolidated_count.to_string().as_bytes());
+                            }
+                        } else {
+                            for count in counts.iter_mut() {
+                                record.push_field(count.to_string().as_bytes());
+                            }
                         }
 
                         record_to_write_opt.replace(record);
@@ -1043,7 +1113,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         is_match = !is_match;
                     }
 
-                    if is_match {
+                    if args.flag_flag.is_some() {
+                        record.push_field(if is_match { b"true" } else { b"false" });
+                        record_to_write_opt.replace(record);
+                    } else if is_match {
                         record_to_write_opt.replace(record);
                     }
                 }
@@ -1075,21 +1148,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = simd_csv::ByteRecord::new();
     let mut replaced_record = simd_csv::ByteRecord::new();
     let mut matches = BTreeSet::<usize>::new();
+    let mut counts = vec![0; patterns_len];
 
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
 
         // Breakdown
         if args.flag_breakdown {
-            let mut counts = vec![0; patterns_len];
-
             for cell in sel.select(&record) {
                 is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts);
             }
 
             if is_match || args.flag_left {
-                for count in counts.into_iter() {
-                    record.push_field(count.to_string().as_bytes());
+                if let Some(consolidated) = consolidated_patterns.as_ref() {
+                    for group in consolidated.iter() {
+                        let consolidated_count: usize = group
+                            .iter()
+                            .copied()
+                            .map(|i| {
+                                let count = counts[i];
+                                counts[i] = 0;
+                                count
+                            })
+                            .sum();
+                        record.push_field(consolidated_count.to_string().as_bytes());
+                    }
+                } else {
+                    for count in counts.iter_mut() {
+                        record.push_field(count.to_string().as_bytes());
+                        *count = 0;
+                    }
                 }
 
                 wtr.write_byte_record(&record)?;
@@ -1178,7 +1266,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match = !is_match;
             }
 
-            if is_match {
+            if args.flag_flag.is_some() {
+                record.push_field(if is_match { b"true" } else { b"false" });
+                wtr.write_byte_record(&record)?;
+            } else if is_match {
                 wtr.write_byte_record(&record)?;
             }
         }

@@ -6,8 +6,9 @@ use regex::Regex;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
+use crate::record::Record;
 use crate::select::SelectColumns;
-use crate::util::{self, FilenameTemplate, ImmutableRecordHelpers};
+use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
 static USAGE: &str = "
@@ -22,7 +23,7 @@ know beforehand that your filesystem is case-sensitive and want filenames to be
 better aligned with the original values use the -C/--case-sensitive flag.
 
 Note that most operating systems avoid opening more than 1024 files at once,
-so if you know the cardinality of the paritioned column is very high, please
+so if you know the cardinality of the partitioned column is very high, please
 sort the file on this column beforehand and use the -S/--sorted flag.
 
 Usage:

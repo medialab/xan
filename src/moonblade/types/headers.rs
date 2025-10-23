@@ -63,7 +63,7 @@ impl ColumIndexationBy {
         }
     }
 
-    pub fn find_column_index(&self, headers: &csv::ByteRecord) -> Option<usize> {
+    pub fn find_column_index(&self, headers: &simd_csv::ByteRecord) -> Option<usize> {
         let len = headers.len();
 
         match self {

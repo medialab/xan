@@ -15,6 +15,7 @@ use colored::{ColoredString, Colorize};
 use flate2::{write::GzEncoder, Compression};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
+use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
@@ -372,48 +373,47 @@ impl Input {
 
 struct InputReader {
     config: Config,
-    reader: Box<dyn io::Read + Send>,
+    reader: Option<Box<dyn io::Read + Send>>,
     headers: Option<csv::ByteRecord>,
     _children: Option<Children>,
     bar: Option<ProgressBar>,
 }
 
 impl InputReader {
-    fn into_csv_reader(self) -> CliResult<CsvInputReader> {
-        let mut csv_reader = self.config.csv_reader_from_reader(self.reader);
-
-        let headers = match self.headers {
-            None => csv_reader.byte_headers()?.clone(),
-            Some(h) => h,
-        };
-
-        Ok(CsvInputReader {
-            csv_reader,
-            headers,
-            _children: self._children,
-            bar: self.bar,
-        })
+    fn take(&mut self) -> Box<dyn io::Read + Send> {
+        self.reader.take().unwrap()
     }
-}
 
-struct CsvInputReader {
-    csv_reader: BoxedReader,
-    headers: csv::ByteRecord,
-    _children: Option<Children>,
-    bar: Option<ProgressBar>,
-}
+    fn take_simd_csv_reader(&mut self) -> BoxedReader {
+        let io_reader = self.take();
+        self.config.simd_csv_reader_from_reader(io_reader)
+    }
 
-impl CsvInputReader {
+    fn take_simd_csv_splitter(&mut self) -> BoxedSplitter {
+        let io_reader = self.take();
+        self.config.simd_csv_splitter_from_reader(io_reader)
+    }
+
+    fn headers(&self, fallback: &ByteRecord) -> ByteRecord {
+        if let Some(h) = &self.headers {
+            let mut new_h = ByteRecord::new();
+            new_h.extend(h);
+            new_h
+        } else {
+            fallback.clone()
+        }
+    }
+
     #[inline(always)]
-    fn read_byte_record(&mut self, record: &mut csv::ByteRecord) -> Result<bool, csv::Error> {
-        self.csv_reader.read_byte_record(record)
+    fn inc(&self, delta: u64) {
+        if let Some(bar) = &self.bar {
+            bar.inc(delta)
+        }
     }
 
     #[inline(always)]
     fn tick(&self) {
-        if let Some(bar) = &self.bar {
-            bar.inc(1);
-        }
+        self.inc(1)
     }
 }
 
@@ -601,7 +601,8 @@ pub struct Args {
     pub flag_delimiter: Option<Delimiter>,
 }
 
-type BoxedReader = csv::Reader<Box<dyn io::Read + Send>>;
+type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
+type BoxedSplitter = simd_csv::Splitter<Box<dyn io::Read + Send>>;
 
 impl Args {
     pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
@@ -645,7 +646,7 @@ impl Args {
         } else if io::stdin().is_terminal() {
             vec![]
         } else {
-            Config::stdin()
+            Config::std()
                 .lines(&self.flag_path_column)?
                 .collect::<Result<Vec<_>, _>>()?
         };
@@ -773,7 +774,7 @@ impl Args {
                 Err("-H, --shell-preprocess cannot be an empty command!")?;
             }
 
-            let config = Config::stdin()
+            let config = Config::std()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
@@ -818,7 +819,7 @@ impl Args {
 
             Ok(InputReader {
                 config,
-                reader,
+                reader: Some(reader),
                 headers: None,
                 _children,
                 bar,
@@ -904,20 +905,20 @@ impl Args {
                 children.push(command.spawn().expect("could not spawn preprocessing"));
             }
 
-            let config = Config::stdin()
+            let config = Config::std()
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
             Ok(InputReader {
                 config,
-                reader: Box::new(
+                reader: Some(Box::new(
                     children
                         .last_mut()
                         .unwrap()
                         .stdout
                         .take()
                         .expect("cannot read child stdout"),
-                ),
+                )),
                 headers: None,
                 _children: Some(Children::from(children)),
                 bar,
@@ -935,7 +936,7 @@ impl Args {
 
                     Ok(InputReader {
                         config,
-                        reader,
+                        reader: Some(reader),
                         headers: None,
                         _children: None,
                         bar,
@@ -953,7 +954,7 @@ impl Args {
 
                     Ok(InputReader {
                         config,
-                        reader,
+                        reader: Some(reader),
                         headers: Some(file_chunk.headers.clone()),
                         _children: None,
                         bar,
@@ -963,17 +964,9 @@ impl Args {
         }
     }
 
-    fn reader(
-        &self,
-        input: &Input,
-        progress_bar: &ParallelProgressBar,
-    ) -> CliResult<CsvInputReader> {
-        self.io_reader(input, progress_bar)
-            .and_then(InputReader::into_csv_reader)
-    }
-
     fn progress_bar(&self, total: usize) -> ParallelProgressBar {
         if self.flag_progress {
+            console::set_colors_enabled_stderr(true);
             console::set_colors_enabled(true);
             colored::control::set_override(true);
 
@@ -996,16 +989,14 @@ impl Args {
             let counters_mutex = Mutex::new(BTreeMap::<String, u64>::new());
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.reader(input, &progress_bar)?;
+                let mut input_reader = self.io_reader(input, &progress_bar)?;
+                let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let mut record = csv::ByteRecord::new();
-                let mut count: u64 = 0;
+                let count = csv_splitter
+                    .count_records()?
+                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
 
-                while input_reader.read_byte_record(&mut record)? {
-                    count += 1;
-
-                    input_reader.tick();
-                }
+                input_reader.inc(count);
 
                 counters_mutex
                     .lock()
@@ -1042,18 +1033,16 @@ impl Args {
             let total_count = AtomicU64::new(0);
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.reader(input, &progress_bar)?;
+                let mut input_reader = self.io_reader(input, &progress_bar)?;
+                let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let mut record = csv::ByteRecord::new();
-                let mut count: u64 = 0;
-
-                while input_reader.read_byte_record(&mut record)? {
-                    count += 1;
-
-                    input_reader.tick();
-                }
+                let count = csv_splitter
+                    .count_records()?
+                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
 
                 total_count.fetch_add(count, Ordering::Relaxed);
+
+                input_reader.inc(count);
 
                 progress_bar.stop(&input.name());
 
@@ -1078,7 +1067,7 @@ impl Args {
         // NOTE: the bool tracks whether headers were already written
         let writer_mutex = Arc::new(Mutex::new((
             false,
-            Config::new(&self.flag_output).writer()?,
+            Config::new(&self.flag_output).simd_writer()?,
         )));
 
         let buffer_size_opt = if self.flag_buffer_size <= 0 {
@@ -1087,7 +1076,7 @@ impl Args {
             Some(self.flag_buffer_size as usize)
         };
 
-        let flush = |headers: &csv::ByteRecord, records: &[csv::ByteRecord]| -> CliResult<()> {
+        let flush = |headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
             let mut guard = writer_mutex.lock().unwrap();
 
             if !guard.0 {
@@ -1105,24 +1094,27 @@ impl Args {
         };
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut csv_reader = input_reader.take_simd_csv_reader();
+            let mut headers = input_reader.headers(csv_reader.byte_headers()?);
+
             let path = input.path();
 
             if let Some(source_column) = &self.flag_source_column {
-                input_reader.headers.push_field(source_column.as_bytes());
+                headers.push_field(source_column.as_bytes());
             }
 
-            let mut buffer: Vec<csv::ByteRecord> = if let Some(buffer_size) = buffer_size_opt {
+            let mut buffer: Vec<ByteRecord> = if let Some(buffer_size) = buffer_size_opt {
                 Vec::with_capacity(buffer_size)
             } else {
                 Vec::new()
             };
 
-            let mut record = csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
 
-            while input_reader.read_byte_record(&mut record)? {
+            while csv_reader.read_byte_record(&mut record)? {
                 if matches!(buffer_size_opt, Some(buffer_size) if buffer.len() == buffer_size) {
-                    flush(&input_reader.headers, &buffer)?;
+                    flush(&headers, &buffer)?;
 
                     buffer.clear();
                 }
@@ -1137,7 +1129,7 @@ impl Args {
             }
 
             if !buffer.is_empty() {
-                flush(&input_reader.headers, &buffer)?;
+                flush(&headers, &buffer)?;
             }
 
             progress_bar.stop(&input.name());
@@ -1173,16 +1165,18 @@ impl Args {
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut csv_reader = input_reader.take_simd_csv_reader();
+            let headers = input_reader.headers(csv_reader.byte_headers()?);
 
-            let sel = self.flag_select.selection(&input_reader.headers, true)?;
+            let sel = self.flag_select.selection(&headers, true)?;
 
             let mut freq_tables =
-                FrequencyTables::with_capacity(sel.collect(&input_reader.headers), approx_capacity);
+                FrequencyTables::with_capacity(sel.collect(&headers), approx_capacity);
 
-            let mut record = csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
 
-            while input_reader.read_byte_record(&mut record)? {
+            while csv_reader.read_byte_record(&mut record)? {
                 for (counter, cell) in freq_tables.iter_mut().zip(sel.select(&record)) {
                     if let Some(sep) = &self.flag_sep {
                         for subcell in cell.split_str(sep) {
@@ -1256,21 +1250,23 @@ impl Args {
     fn stats(self, inputs: Vec<Input>) -> CliResult<()> {
         let progress_bar = self.progress_bar(inputs.len());
 
-        let mut writer = Config::new(&self.flag_output).writer()?;
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
         writer.write_byte_record(&self.new_stats().headers())?;
 
         let total_stats_mutex = Mutex::new(StatsTables::new());
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut csv_reader = input_reader.take_simd_csv_reader();
+            let headers = input_reader.headers(csv_reader.byte_headers()?);
 
-            let sel = self.flag_select.selection(&input_reader.headers, true)?;
+            let sel = self.flag_select.selection(&headers, true)?;
 
             let mut local_stats =
-                StatsTables::with_capacity(sel.collect(&input_reader.headers), || self.new_stats());
-            let mut record = csv::ByteRecord::new();
+                StatsTables::with_capacity(sel.collect(&headers), || self.new_stats());
+            let mut record = ByteRecord::new();
 
-            while input_reader.read_byte_record(&mut record)? {
+            while csv_reader.read_byte_record(&mut record)? {
                 for (cell, stats) in sel.select(&record).zip(local_stats.iter_mut()) {
                     stats.process(cell);
                 }
@@ -1301,15 +1297,16 @@ impl Args {
         let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut csv_reader = input_reader.take_simd_csv_reader();
+            let headers = input_reader.headers(csv_reader.byte_headers()?);
 
-            let mut record = csv::ByteRecord::new();
-            let mut program =
-                AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &input_reader.headers)?;
+            let mut record = ByteRecord::new();
+            let mut program = AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers)?;
 
             let mut index: usize = 0;
 
-            while input_reader.read_byte_record(&mut record)? {
+            while csv_reader.read_byte_record(&mut record)? {
                 program.run_with_record(index, &record)?;
                 index += 1;
 
@@ -1329,7 +1326,7 @@ impl Args {
         })?;
 
         if let Some(mut total_program) = total_program_mutex.into_inner().unwrap() {
-            let mut writer = Config::new(&self.flag_output).writer()?;
+            let mut writer = Config::new(&self.flag_output).simd_writer()?;
             writer.write_record(total_program.headers())?;
             writer.write_byte_record(&total_program.finalize(true)?)?;
         }
@@ -1342,27 +1339,25 @@ impl Args {
     fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
         let progress_bar = self.progress_bar(inputs.len());
 
-        let total_program_mutex: Mutex<Option<(Vec<Vec<u8>>, GroupAggregationProgram)>> =
+        type GroupKey = Vec<Vec<u8>>;
+
+        let total_program_mutex: Mutex<Option<(GroupKey, GroupAggregationProgram<GroupKey>)>> =
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut csv_reader = input_reader.take_simd_csv_reader();
+            let headers = input_reader.headers(csv_reader.byte_headers()?);
 
-            let sel = self
-                .arg_group
-                .clone()
-                .unwrap()
-                .selection(&input_reader.headers, true)?;
+            let sel = self.arg_group.clone().unwrap().selection(&headers, true)?;
 
-            let mut record = csv::ByteRecord::new();
-            let mut program = GroupAggregationProgram::parse(
-                self.arg_expr.as_ref().unwrap(),
-                &input_reader.headers,
-            )?;
+            let mut record = ByteRecord::new();
+            let mut program =
+                GroupAggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers)?;
 
             let mut index: usize = 0;
 
-            while input_reader.read_byte_record(&mut record)? {
+            while csv_reader.read_byte_record(&mut record)? {
                 let group = sel.collect(&record);
 
                 program.run_with_record(group, index, &record)?;
@@ -1375,7 +1370,7 @@ impl Args {
 
             match total_program_opt.as_mut() {
                 Some((_, current_program)) => current_program.merge(program),
-                None => *total_program_opt = Some((sel.collect(&input_reader.headers), program)),
+                None => *total_program_opt = Some((sel.collect(&headers), program)),
             };
 
             progress_bar.stop(&input.name());
@@ -1456,10 +1451,12 @@ impl Args {
                 Box::new(output_file)
             };
 
+            let mut inner = input_reader.take();
+
             if let Some(bar) = &input_reader.bar {
-                io::copy(&mut bar.wrap_read(&mut input_reader.reader), &mut output)?;
+                io::copy(&mut bar.wrap_read(&mut inner), &mut output)?;
             } else {
-                io::copy(&mut input_reader.reader, &mut output)?;
+                io::copy(&mut inner, &mut output)?;
             }
 
             progress_bar.stop(&input.name());

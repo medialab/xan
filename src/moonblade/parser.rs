@@ -611,18 +611,78 @@ pub fn parse_expression(input: &str) -> Result<Expr, ParseError> {
     Ok(pratt_parse(Pairs::single(first_pair))?)
 }
 
-fn parse_expression_name(pair: Pair<Rule>) -> String {
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprName {
+    Singular(String),
+    Plural(Vec<String>),
+}
+
+impl ExprName {
+    pub fn unwrap(self) -> String {
+        match self {
+            Self::Singular(string) => string,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn iter(&self) -> ExprNameIter<'_> {
+        match self {
+            Self::Singular(name) => ExprNameIter {
+                name: Some(name),
+                inner: None,
+            },
+            Self::Plural(names) => ExprNameIter {
+                name: None,
+                inner: Some(names.iter()),
+            },
+        }
+    }
+}
+
+pub struct ExprNameIter<'a> {
+    name: Option<&'a String>,
+    inner: Option<std::slice::Iter<'a, String>>,
+}
+
+impl<'a> Iterator for ExprNameIter<'a> {
+    type Item = &'a String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.as_mut() {
+            Some(it) => it.next(),
+            None => self.name.take(),
+        }
+    }
+}
+
+fn parse_generic_string(pair: Pair<Rule>) -> String {
+    match pair.as_rule() {
+        Rule::ident => pair.as_str().to_string(),
+        Rule::string => build_string(pair),
+        _ => unimplemented!(),
+    }
+}
+
+fn parse_expression_name(pair: Pair<Rule>) -> ExprName {
+    use ExprName::*;
+
     debug_assert!(matches!(pair.as_rule(), Rule::expr_name));
+
     let expr_name_inner = pair.into_inner().next().unwrap();
 
     match expr_name_inner.as_rule() {
-        Rule::ident => expr_name_inner.as_str().to_string(),
-        Rule::string => build_string(expr_name_inner),
+        Rule::ident | Rule::string => Singular(parse_generic_string(expr_name_inner)),
+        Rule::expr_name_tuple => Plural(
+            expr_name_inner
+                .into_inner()
+                .map(|inner| parse_generic_string(inner))
+                .collect(),
+        ),
         _ => unreachable!(),
     }
 }
 
-pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, ParseError> {
+pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, ExprName)>, ParseError> {
     let pairs = MoonbladePestParser::parse(Rule::named_exprs, input)?;
 
     pairs
@@ -630,7 +690,7 @@ pub fn parse_named_expressions(input: &str) -> Result<Vec<(Expr, String)>, Parse
         .map(|p| {
             let (name, p) = {
                 match p.as_rule() {
-                    Rule::expr => (p.as_span().as_str().to_string(), p),
+                    Rule::expr => (ExprName::Singular(p.as_span().as_str().to_string()), p),
                     Rule::named_expr => {
                         let mut inner = p.into_inner();
 
@@ -679,7 +739,7 @@ pub fn parse_aggregations(input: &str) -> Result<Aggregations, ParseError> {
                     let func = inner.next().unwrap();
 
                     let expr_name = inner.next().unwrap();
-                    let name = parse_expression_name(expr_name);
+                    let name = parse_expression_name(expr_name).unwrap();
 
                     debug_assert!(matches!(func.as_rule(), Rule::func));
 
@@ -751,7 +811,7 @@ fn parse_scraping_leaf(pair: Pair<Rule>) -> Result<ScrapingLeaf, ParseError> {
         (expr, None)
     };
 
-    let name = parse_expression_name(pairs.pop().unwrap());
+    let name = parse_generic_string(pairs.pop().unwrap().into_inner().next().unwrap());
 
     let expr = if let Expr::Identifier(name, _) = &expr {
         Expr::Func(FunctionCall {
@@ -1210,10 +1270,17 @@ mod tests {
     #[test]
     fn test_named_expressions() {
         assert_eq!(
-            parse_named_expressions("name, 1 + 2 as three"),
+            parse_named_expressions("name, 1 + 2 as three, split as (name, surname)"),
             Ok(vec![
-                (id("name"), "name".to_string()),
-                (func("add", vec![Int(1), Int(2)]), "three".to_string())
+                (id("name"), ExprName::Singular("name".to_string())),
+                (
+                    func("add", vec![Int(1), Int(2)]),
+                    ExprName::Singular("three".to_string())
+                ),
+                (
+                    id("split"),
+                    ExprName::Plural(vec!["name".to_string(), "surname".to_string()])
+                )
             ])
         );
     }

@@ -24,7 +24,7 @@ split options:
                                seekable (e.g. this will not work with stdin nor gzipped
                                files).
     --segments                 When used with -c/--chunks, output the byte offsets of
-                               found segments insteads.
+                               found segments instead.
     -f, --filename <filename>  A filename template to use when constructing
                                the names of the output files. The string '{}'
                                will be replaced either by the index in original file of

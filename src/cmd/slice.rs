@@ -19,7 +19,7 @@ struct Conditions {
 }
 
 impl Conditions {
-    fn process(&mut self, index: usize, record: &csv::ByteRecord) -> CliResult<ControlFlow> {
+    fn process(&mut self, index: usize, record: &simd_csv::ByteRecord) -> CliResult<ControlFlow> {
         if !self.has_started {
             if let Some(program) = &self.start {
                 let value = program.run_with_record(index, record)?;
@@ -225,7 +225,7 @@ impl Args {
                 if let Some(offset) = self.flag_byte_offset {
                     rconf = rconf.no_headers(true);
                     let mut rdr =
-                        rconf.csv_reader_from_reader(rconf.io_reader_for_random_access()?);
+                        rconf.simd_csv_reader_from_reader(rconf.io_reader_for_random_access()?);
                     let headers = rdr.byte_headers()?.clone();
                     let mut inner = rdr.into_inner();
 
@@ -233,14 +233,14 @@ impl Args {
 
                     if let Some(end_offset) = self.flag_end_byte {
                         self.run_plural(
-                            rconf.csv_reader_from_reader(inner.take(end_offset - offset)),
+                            rconf.simd_csv_reader_from_reader(inner.take(end_offset - offset)),
                             headers,
                         )
                     } else {
-                        self.run_plural(rconf.csv_reader_from_reader(inner), headers)
+                        self.run_plural(rconf.simd_csv_reader_from_reader(inner), headers)
                     }
                 } else {
-                    let mut rdr = rconf.reader()?;
+                    let mut rdr = rconf.simd_reader()?;
                     let headers = rdr.byte_headers()?.clone();
                     self.run_plural(rdr, headers)
                 }
@@ -251,7 +251,7 @@ impl Args {
 
         if let Some(offset) = self.flag_byte_offset {
             rconf = rconf.no_headers(true);
-            let mut rdr = rconf.csv_reader_from_reader(rconf.io_reader_for_random_access()?);
+            let mut rdr = rconf.simd_csv_reader_from_reader(rconf.io_reader_for_random_access()?);
             let headers = rdr.byte_headers()?.clone();
             let mut inner = rdr.into_inner();
 
@@ -259,14 +259,14 @@ impl Args {
 
             if let Some(end_offset) = self.flag_end_byte {
                 self.run_default(
-                    rconf.csv_reader_from_reader(inner.take(end_offset - offset)),
+                    rconf.simd_csv_reader_from_reader(inner.take(end_offset - offset)),
                     headers,
                 )
             } else {
-                self.run_default(rconf.csv_reader_from_reader(inner), headers)
+                self.run_default(rconf.simd_csv_reader_from_reader(inner), headers)
             }
         } else {
-            let mut rdr = rconf.reader()?;
+            let mut rdr = rconf.simd_reader()?;
             let headers = rdr.byte_headers()?.clone();
             self.run_default(rdr, headers)
         }
@@ -274,16 +274,16 @@ impl Args {
 
     fn run_default<R: Read>(
         &self,
-        mut rdr: csv::Reader<R>,
-        headers: csv::ByteRecord,
+        mut rdr: simd_csv::Reader<R>,
+        headers: simd_csv::ByteRecord,
     ) -> CliResult<()> {
-        let mut wtr = self.wconfig().writer()?;
+        let mut wtr = self.wconfig().simd_writer()?;
 
         if !self.flag_no_headers {
             wtr.write_byte_record(&headers)?;
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut conditions = self.conditions(&headers)?;
 
         let (start, end) = self.range()?;
@@ -317,12 +317,13 @@ impl Args {
 
     fn run_last(&self) -> CliResult<()> {
         let rconf = self.rconfig();
-        let mut wtr = self.wconfig().writer()?;
 
         let n = self.flag_last.unwrap();
 
         match rconf.reverse_reader() {
             Ok((headers, mut reverse_reader)) => {
+                let mut wtr = self.wconfig().writer()?;
+
                 if !self.flag_no_headers {
                     wtr.write_byte_record(&headers)?;
                 }
@@ -340,9 +341,12 @@ impl Args {
                             .map(|cell| cell.iter().rev().copied().collect::<Vec<_>>()),
                     )?;
                 }
+
+                Ok(wtr.flush()?)
             }
             Err(_) => {
-                let mut rdr = rconf.reader()?;
+                let mut rdr = rconf.simd_reader()?;
+                let mut wtr = self.wconfig().simd_writer()?;
 
                 let n = self.flag_last.unwrap();
 
@@ -352,7 +356,7 @@ impl Args {
                     wtr.write_byte_record(&headers)?;
                 }
 
-                let mut buffer: VecDeque<csv::ByteRecord> = VecDeque::with_capacity(n);
+                let mut buffer: VecDeque<simd_csv::ByteRecord> = VecDeque::with_capacity(n);
 
                 for result in rdr.byte_records() {
                     if buffer.len() >= n {
@@ -365,18 +369,18 @@ impl Args {
                 for record in buffer {
                     wtr.write_byte_record(&record)?;
                 }
-            }
-        };
 
-        Ok(wtr.flush()?)
+                Ok(wtr.flush()?)
+            }
+        }
     }
 
     fn run_plural<R: Read>(
         &self,
-        mut rdr: csv::Reader<R>,
-        headers: csv::ByteRecord,
+        mut rdr: simd_csv::Reader<R>,
+        headers: simd_csv::ByteRecord,
     ) -> CliResult<()> {
-        let mut wtr = self.wconfig().writer()?;
+        let mut wtr = self.wconfig().simd_writer()?;
 
         if !self.flag_no_headers {
             wtr.write_byte_record(&headers)?;
@@ -384,7 +388,7 @@ impl Args {
 
         let indices = self.plural_indices()?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut i: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
@@ -439,7 +443,7 @@ impl Args {
         Config::new(&self.flag_output)
     }
 
-    fn conditions(&self, headers: &csv::ByteRecord) -> CliResult<Conditions> {
+    fn conditions(&self, headers: &simd_csv::ByteRecord) -> CliResult<Conditions> {
         let start_condition_program = self
             .flag_start_condition
             .as_ref()

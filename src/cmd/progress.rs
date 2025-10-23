@@ -172,6 +172,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    console::set_colors_enabled_stderr(true);
     console::set_colors_enabled(true);
 
     if args.flag_bytes {

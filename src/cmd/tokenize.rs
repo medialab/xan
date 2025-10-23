@@ -13,8 +13,9 @@ use regex::Regex;
 use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
+use crate::record::Record;
 use crate::select::SelectColumns;
-use crate::util::{self, ImmutableRecordHelpers, JoinIteratorExt};
+use crate::util::{self, JoinIteratorExt};
 use crate::CliResult;
 
 fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
@@ -277,8 +278,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|name| get_stemmer(name))
         .transpose()?;
 
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconfig.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let mut headers = rdr.byte_headers()?.clone();
     let col_index = rconfig.single_selection(&headers)?;
@@ -379,12 +380,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .flag_vocab
         .map(|path| -> CliResult<TokenWhitelist> {
             let config = Config::new(&Some(path)).select(args.flag_vocab_token);
-            let mut vocab_reader = config.reader()?;
+            let mut vocab_reader = config.simd_reader()?;
             let vocab_headers = vocab_reader.byte_headers()?;
 
             let token_pos = config.single_selection(vocab_headers)?;
 
-            let mut vocab_record = csv::ByteRecord::new();
+            let mut vocab_record = simd_csv::ByteRecord::new();
 
             if let Some(vocab_token_id) = args.flag_vocab_token_id {
                 let mut whitelist = HashMap::new();
@@ -421,7 +422,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // NOTE: everything in this function will be parallelized
     let tokenize = move |index: usize,
-                         record: &csv::ByteRecord,
+                         record: &simd_csv::ByteRecord,
                          string: &str|
           -> CliResult<Vec<(String, WordTokenKind)>> {
         if args.cmd_paragraphs {
@@ -584,7 +585,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 |o| {
                    o.threads(threads.unwrap_or_else(num_cpus::get))
                 },
-                move |(index, result)| -> CliResult<(csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
+                move |(index, result)| -> CliResult<(simd_csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;
 
                     let text =
@@ -603,7 +604,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Ok(())
             })?;
     } else {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {

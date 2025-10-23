@@ -84,6 +84,17 @@ commands, you can wrangle the rows and perform a custom selection.
 
   $ xan select -e 'id, name as surname, count1 + count2 as total'
 
+Expression clauses can also return more than one item at once to avoid repeating
+computations, for instance:
+
+Splitting a full name:
+
+    $ xan select -e 'full_name.split(" ") as (first_name, last_name)' file.csv > result.csv
+
+Extracting data from a JSON cell:
+
+    $ xan select -e 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
+
 If your expression becomes too complicated, you can write it in a file and
 use the -f/--evaluate-file flag instead:
 

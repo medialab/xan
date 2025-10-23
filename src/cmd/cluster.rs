@@ -47,7 +47,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_column);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
 
     let sel_index = rconf.single_selection(headers)?;
@@ -60,7 +60,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let program = Program::parse(&key_expr, headers)?;
     let mut clustering: Box<dyn ClusteringAlgorithm> = Box::<KeyCollision>::default();
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
     let mut index: usize = 0;
 
     while rdr.read_byte_record(&mut record)? {

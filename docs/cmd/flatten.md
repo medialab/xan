@@ -8,10 +8,10 @@ This mode is particularly useful for viewing one record at a time.
 There is also a condensed view (-c or --condense) that will shorten the
 contents of each field to provide a summary view.
 
-Pipe into "less -r" if you need to page the result, and use -C/--force-colors
+Pipe into "less -r" if you need to page the result, and use --color=always
 not to lose the colors:
 
-    $ xan flatten -C file.csv | less -Sr
+    $ xan flatten --color=always file.csv | less -Sr
 
 Usage:
     xan flatten [options] [<input>]
@@ -28,16 +28,24 @@ flatten options:
     -F, --flatter          Even flatter representation alternating column name and content
                            on different lines in the output. Useful to display cells containing
                            large chunks of text.
+    --row-separator <sep>  Separate rows in the output with the given string, instead of
+                           displaying a header with row index. If an empty string is
+                           given, e.g. --row-separator '', will not separate rows at all.
+    --csv                  Write the result as a CSV file with the row,field,value columns
+                           instead. Can be seen as unpivoting the whole file.
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
                            Can also be given as a ratio of the terminal's width e.g. "0.5".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
-    -C, --force-colors     Force colors even if output is not supposed to be able to
-                           handle them.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
     -S, --split <cols>     Split columns containing multiple values separated by --sep
                            to be displayed as a list.
-    --sep <sep>            Delimiter separating multiple values in cells splitted
+    --sep <sep>            Delimiter separating multiple values in cells split
                            by --plural. [default: |]
     -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
                            pattern. Will not work with -R/--rainbow.
@@ -45,6 +53,8 @@ flatten options:
 
 Common options:
     -h, --help             Display this message
+    -o, --output <file>    Write output to <file> instead of stdout. Only used
+                           when --csv is set.
     -n, --no-headers       When set, the first row will not be interpreted
                            as headers. When set, the name of each field
                            will be its index.

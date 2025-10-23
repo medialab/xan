@@ -75,15 +75,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ))?;
     }
 
-    let mut rdr = conf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = conf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = rdr.byte_headers()?.clone();
     let sel = conf.selection(&headers)?;
 
     let mut all_series: Vec<Series> = sel.iter().map(|i| Series::new(*i)).collect();
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         for (cell, series) in sel.select(&record).zip(all_series.iter_mut()) {
@@ -91,13 +91,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    wtr.write_record(vec![
-        "field",
-        "value",
-        "lower_bound",
-        "upper_bound",
-        "count",
-    ])?;
+    wtr.write_record(["field", "value", "lower_bound", "upper_bound", "count"])?;
 
     for series in all_series.iter_mut() {
         match series.bins(
@@ -168,7 +162,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if !args.flag_no_extra && series.nans > 0 {
-            wtr.write_record(vec![
+            wtr.write_record([
                 &headers[series.column],
                 b"<NaN>",
                 b"",
@@ -178,7 +172,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if !args.flag_no_extra && series.nulls > 0 {
-            wtr.write_record(vec![
+            wtr.write_record([
                 &headers[series.column],
                 b"<null>",
                 b"",
@@ -188,7 +182,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if !args.flag_no_extra && series.out_of_bounds > 0 {
-            wtr.write_record(vec![
+            wtr.write_record([
                 &headers[series.column],
                 b"<rest>",
                 b"",

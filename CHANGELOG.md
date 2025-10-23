@@ -2,23 +2,48 @@
 
 ## 0.54.0 (provisional)
 
+*Breaking*
+
+* Bumping MSRV to `1.83.0`.
+* Dropping `xan plot -Y/--add-series`, since it is now possible to select multiple series as `<y>` in  `xan plot <x>, <y>`.
+* Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
+* `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
+* `xan behead` does not normalize the output anymore to be as fast as possible.
+
 *Features*
 
 * Adding `xan flatten -F/--flatter`.
 * `xan pivot` can now target multiple columns.
+* Adding the `xan grep` command for fast but coarse filtering.
+* Adding `xan search -f/--flag`.
+* Adding `xan map -F/--filter`.
+* `xan search -B/--breakdown` now consolidates the results when multiple patterns have a same name.
+* Adding `xan flatten --row-separator`.
+* Adding `xan flatten --csv`.
+* Adding `xan headers --color`.
+* Adding the `xan join <columns> <input1> <input2>` arity as a convenience for when joined column names are the same in both inputs.
+* Adding `xan join -D/--drop-key=(none|both|left|right)`.
+* Adding `xan plot -A/--aggregate`.
+* Adding support for plural selection clauses in both `xan select -e` & `xan map` e.g. `xan map 'full_name.split(" ") as (first_name, last_name)`.
+* Adding `xan search -P/--add-pattern`.
+* Adding `xan groupby -M/--along-matrix`.
+* Adding `xan groupby -T/--total`.
 
 *Fixes*
 
 * Fixing `xan dedup --check` bug where the first record was ignored.
 * Fixing `xan hist -D` when a same date is found multiple times.
+* Fixing `xan from -f xls` datetime conversion.
+* Fixing `xan flatten` & `xan view` when column names contain line breaks.
 
 *Performance*
 
-* Wildly improving performance of the `count`, `freq`, `join`, `search` & `select` commands by leveraging a novel SIMD CSV parser/writer.
+* Wildly improving performance of most of `xan` commands by leveraging a novel SIMD CSV parser/writer.
 
 *Quality of Life*
 
 * `xan parallel cat` now flushing more consistently.
+* Better highlighting of problematic strings in `xan flatten`, `xan view` & `xan headers`.
 
 ## 0.53.0
 

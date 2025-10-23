@@ -172,21 +172,21 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments. Arguments can also be provided as a list.<br>For instance: `split('John Landy') | printf('first: %s, last: %s', _)`
 - **numfmt**(*number*) -> `string`: Format a number with thousands separator and proper significance.
 - **trim**(*string*, *chars?*) -> `string`: Trim string of leading & trailing whitespace or provided characters.
-- **to_fixed**(*number*, *precision*) -> `string`: Format given number using fixed point notation with speficied number of decimal places.
+- **to_fixed**(*number*, *precision*) -> `string`: Format given number using fixed point notation with specified number of decimal places.
 - **ltrim**(*string*, *chars?*) -> `string`: Trim string of leading whitespace or provided characters.
 - **rtrim**(*string*, *chars?*) -> `string`: Trim string of trailing whitespace or provided characters.
 - **upper**(*string*) -> `string`: Uppercase string.
 
 ## Strings
 
-- **count**(*string*, *substring*) -> `int`: Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases.
-- **count**(*string*, *regex*) -> `int`: Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases.
+- **count**(*string*, *substring*) -> `int`: Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
+- **count**(*string*, *regex*) -> `int`: Count number of times substring appear in string. Or count the number of times a regex pattern matched the strings. Note that only non-overlapping matches will be counted in both cases. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
 - **endswith**(*string*, *substring*) -> `bool`: Test if string ends with substring.
-- **match**(*string*, *regex*, *group*) -> `string`: Return a regex pattern match on the string.
-- **replace**(*string*, *substring*, *replacement*) -> `string`: Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches.<br>See regex replacement string syntax documentation here:<br>https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
-- **replace**(*string*, *regex*, *replacement*) -> `string`: Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches.<br>See regex replacement string syntax documentation here:<br>https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
-- **split**(*string*, *substring*, *max?*) -> `list`: Split a string by a given separator substring. Can also split using a regex pattern.
-- **split**(*string*, *regex*, *max?*) -> `list`: Split a string by a given separator substring. Can also split using a regex pattern.
+- **match**(*string*, *regex*, *group*) -> `string`: Return a regex pattern match on the string.  Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
+- **replace**(*string*, *substring*, *replacement*) -> `string`: Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.<br>See regex replacement string syntax documentation here:<br>https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+- **replace**(*string*, *regex*, *replacement*) -> `string`: Replace all non-overlapping occurrences of substring in given string with provided replacement. Can also replace regex pattern matches. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.<br>See regex replacement string syntax documentation here:<br>https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+- **split**(*string*, *substring*, *max?*) -> `list`: Split a string by a given separator substring. Can also split using a regex pattern. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
+- **split**(*string*, *regex*, *max?*) -> `list`: Split a string by a given separator substring. Can also split using a regex pattern. Remember a regex pattern must be written with slashes e.g. `/france|french/i`.
 - **startswith**(*string*, *substring*) -> `bool`: Test if string starts with substring.
 
 ## Strings, lists and maps
@@ -260,9 +260,9 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **header?**(*name_or_pos*, *nth?*) -> `bytes`: Return header namefor given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
 - **col_index**(*name_or_pos*, *nth?*) -> `bytes`: Return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names.
 - **col_index?**(*name_or_pos*, *nth?*) -> `bytes`: Return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
-- **cols**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[bytes]`: Return list of cell values from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns.
+- **cols**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[bytes]`: Return list of cell values from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns.
 - **err**(*msg*) -> `error`: Make the expression return a custom error.
-- **headers**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[string]`: Return list of header names from the given colum by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers.
+- **headers**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[string]`: Return list of header names from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers.
 - **index**() -> `int?`: Return the row's index, if applicable.
 - **regex**(*string*) -> `regex`: Parse given string as regex. Useful when your patterns are dynamic, e.g. built from a CSV cell. Else prefer using regex literals e.g. "/test/".
 - **typeof**(*value*) -> `string`: Return type of value.

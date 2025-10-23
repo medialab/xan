@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use colored::Colorize;
 
 use crate::config::{Config, Delimiter};
-use crate::util;
+use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 fn find_duplicates(headers: &[String]) -> Vec<String> {
@@ -35,6 +35,11 @@ headers options:
                       column names.
     -s, --start <n>   Column indices will start from given number.
                       [default: 0]
+    --color <when>    When to color the output using ANSI escape codes.
+                      Use `auto` for automatic detection, `never` to
+                      disable colors completely and `always` to force
+                      colors, even when the output could not handle them.
+                      [default: auto]
 
 Common options:
     -h, --help             Display this message
@@ -49,12 +54,15 @@ struct Args {
     flag_just_names: bool,
     flag_csv: bool,
     flag_start: usize,
+    flag_color: ColorMode,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    args.flag_color.apply();
+
     let configs = util::many_configs(&args.arg_input, args.flag_delimiter, true, None)?;
 
     let mut headers_per_input: Vec<Vec<String>> = Vec::with_capacity(configs.len());
@@ -154,15 +162,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 )?;
             }
 
+            let display_header = util::highlight_problematic_string_features(
+                &util::sanitize_text_for_single_line_printing(&header),
+            );
+
             writeln!(
                 &mut out,
                 "{}",
                 if duplicates.contains(&header) {
-                    header.red()
+                    display_header.red()
                 } else if *name_counts.get(&header).unwrap() < configs.len() {
-                    header.dimmed()
+                    display_header.dimmed()
                 } else {
-                    header.normal()
+                    display_header.normal()
                 }
             )?;
         }
@@ -188,7 +200,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .iter()
                 .filter_map(|(name, count)| {
                     if *count < configs.len() {
-                        Some(name.dimmed().to_string())
+                        Some(
+                            util::highlight_problematic_string_features(
+                                &util::sanitize_text_for_single_line_printing(name),
+                            )
+                            .cyan()
+                            .to_string(),
+                        )
                     } else {
                         None
                     }

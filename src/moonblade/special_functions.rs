@@ -3,7 +3,7 @@
 // place (e.g. "if"/"unless").
 use std::sync::Arc;
 
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{ConcreteExpr, EvaluationContext};
