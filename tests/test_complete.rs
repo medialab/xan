@@ -21,8 +21,8 @@ fn dates() -> Vec<Vec<String>> {
 
 #[test]
 #[should_panic]
-fn test_complete_check_panic() {
-    let wrk = Workdir::new("complete_check_panic");
+fn test_complete_sorted_check_panic() {
+    let wrk = Workdir::new("complete_sorted_check_panic");
     wrk.create("indexes.csv", people());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes.csv").arg("--check");
@@ -31,8 +31,8 @@ fn test_complete_check_panic() {
 
 #[test]
 #[should_panic]
-fn test_complete_check_panic_min() {
-    let wrk = Workdir::new("complete_check_panic_min");
+fn test_complete_sorted_check_panic_min() {
+    let wrk = Workdir::new("complete_sorted_check_panic_min");
     wrk.create(
         "indexes.csv",
         vec![
@@ -54,8 +54,8 @@ fn test_complete_check_panic_min() {
 
 #[test]
 #[should_panic]
-fn test_complete_check_panic_max() {
-    let wrk = Workdir::new("complete_check_panic_max");
+fn test_complete_sorted_check_panic_max() {
+    let wrk = Workdir::new("complete_sorted_check_panic_max");
     wrk.create(
         "indexes.csv",
         vec![
@@ -76,8 +76,8 @@ fn test_complete_check_panic_max() {
 }
 
 #[test]
-fn test_complete_check() {
-    let wrk = Workdir::new("complete_check");
+fn test_complete_sorted_check() {
+    let wrk = Workdir::new("complete_sorted_check");
     wrk.create(
         "indexes_complete.csv",
         vec![
@@ -96,8 +96,8 @@ fn test_complete_check() {
 }
 
 #[test]
-fn test_complete_check_min_max() {
-    let wrk = Workdir::new("complete_check_min_max");
+fn test_complete_sorted_check_min_max() {
+    let wrk = Workdir::new("complete_sorted_check_min_max");
     wrk.create("indexes_complete.csv", people());
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
@@ -114,8 +114,8 @@ fn test_complete_check_min_max() {
 
 #[test]
 #[should_panic]
-fn test_complete_check_dates_panic() {
-    let wrk = Workdir::new("complete_check_dates_panic");
+fn test_complete_sorted_check_dates_panic() {
+    let wrk = Workdir::new("complete_sorted_check_dates_panic");
     wrk.create("dates_incomplete.csv", dates());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
@@ -127,8 +127,8 @@ fn test_complete_check_dates_panic() {
 
 #[test]
 #[should_panic]
-fn test_complete_check_dates_panic_min() {
-    let wrk = Workdir::new("complete_check_dates_panic_min");
+fn test_complete_sorted_check_dates_panic_min() {
+    let wrk = Workdir::new("complete_sorted_check_dates_panic_min");
     wrk.create(
         "dates_incomplete.csv",
         vec![
@@ -150,8 +150,8 @@ fn test_complete_check_dates_panic_min() {
 
 #[test]
 #[should_panic]
-fn test_complete_check_dates_panic_max() {
-    let wrk = Workdir::new("complete_check_dates_panic_max");
+fn test_complete_sorted_check_dates_panic_max() {
+    let wrk = Workdir::new("complete_sorted_check_dates_panic_max");
     wrk.create(
         "dates_incomplete.csv",
         vec![
@@ -172,8 +172,8 @@ fn test_complete_check_dates_panic_max() {
 }
 
 #[test]
-fn test_complete_check_dates() {
-    let wrk = Workdir::new("complete_check_dates");
+fn test_complete_sorted_check_dates() {
+    let wrk = Workdir::new("complete_sorted_check_dates");
     wrk.create(
         "dates_complete.csv",
         vec![
@@ -194,8 +194,8 @@ fn test_complete_check_dates() {
 }
 
 #[test]
-fn test_complete_check_dates_min_max() {
-    let wrk = Workdir::new("complete_check_dates_min_max");
+fn test_complete_sorted_check_dates_min_max() {
+    let wrk = Workdir::new("complete_sorted_check_dates_min_max");
     wrk.create(
         "dates_complete.csv",
         vec![
@@ -223,8 +223,8 @@ fn test_complete_check_dates_min_max() {
 }
 
 #[test]
-fn test_complete_basic() {
-    let wrk = Workdir::new("complete_basic");
+fn test_complete_sorted_basic() {
+    let wrk = Workdir::new("complete_sorted_basic");
     wrk.create("indexes.csv", people());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes.csv");
@@ -244,8 +244,8 @@ fn test_complete_basic() {
 }
 
 #[test]
-fn test_complete_with_min_max() {
-    let wrk1 = Workdir::new("complete_with_min_max");
+fn test_complete_sorted_with_min_max() {
+    let wrk1 = Workdir::new("complete_sorted_with_min_max");
     wrk1.create("indexes.csv", people());
     let mut cmd1 = wrk1.command("complete");
     cmd1.arg("id")
@@ -271,7 +271,7 @@ fn test_complete_with_min_max() {
     ];
     assert_eq!(got1, expected1);
 
-    let wrk2 = Workdir::new("complete_with_min_max_dropping");
+    let wrk2 = Workdir::new("complete_sorted_with_min_max_dropping");
     wrk2.create("indexes.csv", people());
     let mut cmd2 = wrk2.command("complete");
     cmd2.arg("id")
@@ -293,8 +293,8 @@ fn test_complete_with_min_max() {
 }
 
 #[test]
-fn test_complete_with_zero_value() {
-    let wrk = Workdir::new("complete_with_zero_value");
+fn test_complete_sorted_with_zero_value() {
+    let wrk = Workdir::new("complete_sorted_with_zero_value");
     wrk.create("indexes.csv", people());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes.csv").arg("-z").arg("MISSING");
@@ -314,8 +314,8 @@ fn test_complete_with_zero_value() {
 }
 
 #[test]
-fn test_complete_dates() {
-    let wrk = Workdir::new("complete_dates");
+fn test_complete_sorted_dates() {
+    let wrk = Workdir::new("complete_sorted_dates");
     wrk.create("dates_incomplete.csv", dates());
     let mut cmd = wrk.command("complete");
     cmd.arg("date").arg("dates_incomplete.csv").arg("--dates");
@@ -333,8 +333,8 @@ fn test_complete_dates() {
 }
 
 #[test]
-fn test_complete_dates_with_min_max() {
-    let wrk1 = Workdir::new("complete_dates_with_min_max");
+fn test_complete_sorted_dates_with_min_max() {
+    let wrk1 = Workdir::new("complete_sorted_dates_with_min_max");
     wrk1.create("dates_incomplete.csv", dates());
     let mut cmd1 = wrk1.command("complete");
     cmd1.arg("date")
@@ -360,7 +360,7 @@ fn test_complete_dates_with_min_max() {
     ];
     assert_eq!(got1, expected1);
 
-    let wrk2 = Workdir::new("complete_dates_with_min_max_dropping");
+    let wrk2 = Workdir::new("complete_sorted_dates_with_min_max_dropping");
     wrk2.create("dates_incomplete.csv", dates());
     let mut cmd2 = wrk2.command("complete");
     cmd2.arg("date")
