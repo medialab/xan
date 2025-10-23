@@ -40,6 +40,7 @@
 *Performance*
 
 * Wildly improving performance of most of `xan` commands by leveraging a novel SIMD CSV parser/writer.
+* Improving performance of `xan from -f txt`.
 
 *Quality of Life*
 
