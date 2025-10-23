@@ -29,6 +29,7 @@
 * Adding `xan search -P/--add-pattern`.
 * Adding `xan groupby -M/--along-matrix`.
 * Adding `xan groupby -T/--total`.
+* Adding support for `.ndjson` & `.jsonl` files. Those are considered as headless TSV files with null byte quoting so you can easily use them with `xan` commands.
 
 *Fixes*
 
