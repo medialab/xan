@@ -423,3 +423,51 @@ fn separate_known_max_splits_too_much_splits() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn separate_fixed_width() {
+    let wrk = Workdir::new("separate_fixed_width");
+    wrk.create("dates.csv", dates());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg("--fixed-width")
+        .arg("3")
+        .arg("dates.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["split1", "split2", "split3", "split4"],
+        svec!["202", "3-0", "1-1", "5"],
+        svec!["199", "9-1", "2-3", "1"],
+        svec!["202", "4-0", "7-0", "4"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg("--fixed-width")
+        .arg("5")
+        .arg("dates.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["split1", "split2"],
+        svec!["2023-", "01-15"],
+        svec!["1999-", "12-31"],
+        svec!["2024-", "07-04"],
+    ];
+    assert_eq!(got, expected);
+
+    wrk.create("data.csv", people());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("fullname,birthdate")
+        .arg("--fixed-width")
+        .arg("5")
+        .arg("data.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["split1", "split2", "split3", "split4", "split5"],
+        svec!["John ", "Doe", "1990 ", "05 15", ""],
+        svec!["Jane ", "Smith", "1985 ", "10 30", ""],
+        svec!["Alice", " John", "son", "2000 ", "01 01"],
+    ];
+    assert_eq!(got, expected);
+}

@@ -34,6 +34,7 @@ Examples:
     $ xan separate date '(\d{4})-(\d{2})-(\d{2})' data.csv -r -c --into year,month,day
 
 Usage:
+    xan separate [options] <columns> --fixed-width <width> [<input>]
     xan separate [options] <columns> <separator> [<input>]
     xan separate --help
 
@@ -62,6 +63,8 @@ separate options:
     -c, --capture-groups     When using -r/--regex, if the regex contains capture
                              groups, output the text matching each capture group
                              as a separate column.
+    --fixed-width <width>    Used without <separator>. Instead of splitting on a
+                             separator, split cells every <width> bytes.
 
 Common options:
     -h, --help               Display this message
@@ -87,6 +90,7 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_fixed_width: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -112,6 +116,7 @@ enum RegexMode {
 enum Splitter {
     Substring(Vec<u8>),
     Regex(Regex, RegexMode),
+    FixedWidth(usize),
 }
 
 impl Splitter {
@@ -128,6 +133,7 @@ impl Splitter {
                     }
                     RegexMode::Match => pattern.find_iter(cell).count(),
                 },
+                Self::FixedWidth(width) => cell.len().div_ceil(*width),
             };
         }
 
@@ -152,6 +158,7 @@ impl Splitter {
                 }
                 RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
             },
+            Self::FixedWidth(width) => Box::new(cell.chunks(*width)),
         }
     }
 
@@ -172,6 +179,7 @@ impl Splitter {
                 }
                 RegexMode::Match => unimplemented!(),
             },
+            Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
         }
     }
 
@@ -229,8 +237,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     dbg!(&args);
 
-    if args.arg_separator.is_none() {
-        Err("The <separator> argument is required")?;
+    if args.arg_separator.is_none() && args.flag_fixed_width.is_none() {
+        Err("One <separator> or --fixed-width argument is required")?;
+    }
+
+    if args.flag_fixed_width.is_some() {
+        if args.arg_separator.is_some() {
+            Err("Only one of <separator> or --fixed-width argument can be used")?;
+        }
+        if args.flag_regex || args.flag_capture_groups || args.flag_match {
+            Err(
+                "--fixed-width cannot be used with -r/--regex, -c/--capture-groups nor -m/--match",
+            )?;
+        }
     }
 
     if args.flag_capture_groups || args.flag_match {
@@ -290,7 +309,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         Splitter::Regex(Regex::new(&args.arg_separator.unwrap())?, regex_mode)
     } else {
-        Splitter::Substring(args.arg_separator.unwrap().as_bytes().to_vec())
+        if let Some(width) = args.flag_fixed_width {
+            Splitter::FixedWidth(width)
+        } else {
+            Splitter::Substring(args.arg_separator.unwrap().as_bytes().to_vec())
+        }
     };
 
     // When we need to determine the maximum number of splits across all rows
