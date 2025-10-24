@@ -287,11 +287,11 @@ impl Config {
         Ok(self.simd_csv_writer_from_writer(self.io_writer()?))
     }
 
-    pub fn writer_with_options(
+    pub fn simd_writer_with_options(
         &self,
         options: &fs::OpenOptions,
-    ) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>> {
-        Ok(self.csv_writer_from_writer(self.io_writer_with_options(options)?))
+    ) -> io::Result<simd_csv::Writer<Box<dyn io::Write + 'static>>> {
+        Ok(self.simd_csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
     #[allow(clippy::single_match)]

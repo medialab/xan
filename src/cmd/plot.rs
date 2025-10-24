@@ -323,7 +323,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Collecting data
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
 
     let x_column_index = args
@@ -412,7 +412,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let showing_multiple_series =
         category_column_index.is_some() || !additional_series_indices.is_empty();
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     let mut series_builder = if !additional_series_indices.is_empty() {
         let mut multiple_series = MultipleSeries::with_capacity(additional_series_indices.len());

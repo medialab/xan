@@ -212,7 +212,7 @@ impl FilenameTemplate {
         &self,
         path: P,
         unique_value: &str,
-    ) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>>
+    ) -> io::Result<simd_csv::Writer<Box<dyn io::Write + 'static>>>
     where
         P: AsRef<Path>,
     {
@@ -225,7 +225,7 @@ impl FilenameTemplate {
             fs::create_dir_all(parent)?;
         }
         let spath = Some(full_path.display().to_string());
-        Config::new(&spath).writer_with_options(
+        Config::new(&spath).simd_writer_with_options(
             fs::OpenOptions::new()
                 .write(true)
                 .create(true)
