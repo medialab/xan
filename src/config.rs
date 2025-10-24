@@ -194,6 +194,11 @@ impl Config {
         if env::var("XAN_TOGGLE_HEADERS").unwrap_or("0".to_owned()) == "1" {
             yes = !yes;
         }
+
+        if self.tabular_data_kind.is_ndjson() {
+            yes = true;
+        }
+
         self.no_headers = yes;
         self
     }
