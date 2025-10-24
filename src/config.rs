@@ -1,5 +1,3 @@
-#[allow(deprecated, unused_imports)]
-use std::ascii::AsciiExt;
 use std::borrow::{Borrow, ToOwned};
 use std::convert::TryFrom;
 use std::env;
