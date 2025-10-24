@@ -820,28 +820,8 @@ impl Args {
             return Ok((inputs.into_iter().map(Input::Path).collect(), threads));
         }
 
-        fn is_chunkable(p: &str) -> bool {
-            let s = p.strip_suffix(".gz").unwrap_or(p);
-
-            if s.ends_with(".csv")
-                || s.ends_with(".tsv")
-                || s.ends_with(".tab")
-                || s.ends_with(".ssv")
-                || s.ends_with(".psv")
-                || s.ends_with(".cdx")
-            {
-                if p.ends_with(".gz") {
-                    Config::new(&Some(p.to_string())).is_indexed_gzip()
-                } else {
-                    true
-                }
-            } else {
-                false
-            }
-        }
-
         // If we are using `map` of if inputs are not all chunkable
-        if self.cmd_map || !inputs.iter().all(|p| is_chunkable(p)) {
+        if self.cmd_map || !inputs.iter().all(|p| Config::is_chunkable(p)) {
             let actual_threads = inputs.len();
 
             return Ok((

@@ -102,6 +102,28 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn has_known_extension(path: &str) -> bool {
+        let uncompressed_path = path.strip_suffix(".gz").unwrap_or(path);
+
+        [
+            ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl",
+        ]
+        .iter()
+        .any(|ext| uncompressed_path.ends_with(ext))
+    }
+
+    pub fn is_chunkable(path: &str) -> bool {
+        if !Self::has_known_extension(path) {
+            return false;
+        }
+
+        if path.ends_with(".gz") {
+            Self::new(&Some(path.to_string())).is_indexed_gzip()
+        } else {
+            true
+        }
+    }
+
     pub fn new(path: &Option<String>) -> Config {
         let (path, delimiter, compressed, tabular_data_kind) = match *path {
             None => (None, b',', false, TabularDataKind::RegularCsv),
@@ -361,6 +383,55 @@ impl Config {
         })
     }
 
+    pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
+        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
+
+        match self.path {
+            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
+            Some(ref p) => match fs::File::open(p) {
+                Ok(mut x) => {
+                    if self.compressed {
+                        let index_path_str = p.to_string_lossy() + ".gzi";
+                        let index_path = Path::new(index_path_str.as_ref());
+
+                        if index_path.is_file() {
+                            let reader = BGZFReader::new(x)?;
+                            let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
+                            let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
+
+                            self.read_typical_headers(&mut indexed_reader)?;
+
+                            return Ok(Box::new(indexed_reader));
+                        }
+                    } else {
+                        self.read_typical_headers(&mut x)?;
+                    }
+
+                    match x.borrow().stream_position() {
+                        Ok(_) => Ok(Box::new(x)),
+                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
+                    }
+                }
+                Err(err) => {
+                    let msg = format!("failed to open {}: {}", p.display(), err);
+                    Err(io::Error::new(io::ErrorKind::NotFound, msg))?
+                }
+            },
+        }
+    }
+
+    pub fn io_reader_at_position_with_limit(
+        &self,
+        position: u64,
+        limit: u64,
+    ) -> CliResult<Box<dyn Read + Send + 'static>> {
+        let mut reader = self.io_reader_for_random_access()?;
+
+        reader.seek(SeekFrom::Start(position))?;
+
+        Ok(Box::new(reader.take(limit)))
+    }
+
     pub fn lines(
         &self,
         select: &Option<SelectColumns>,
@@ -465,55 +536,6 @@ impl Config {
                 }
             }
         }
-    }
-
-    pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
-        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
-
-        match self.path {
-            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
-            Some(ref p) => match fs::File::open(p) {
-                Ok(mut x) => {
-                    if self.compressed {
-                        let index_path_str = p.to_string_lossy() + ".gzi";
-                        let index_path = Path::new(index_path_str.as_ref());
-
-                        if index_path.is_file() {
-                            let reader = BGZFReader::new(x)?;
-                            let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
-                            let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
-
-                            self.read_typical_headers(&mut indexed_reader)?;
-
-                            return Ok(Box::new(indexed_reader));
-                        }
-                    } else {
-                        self.read_typical_headers(&mut x)?;
-                    }
-
-                    match x.borrow().stream_position() {
-                        Ok(_) => Ok(Box::new(x)),
-                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
-                    }
-                }
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    Err(io::Error::new(io::ErrorKind::NotFound, msg))?
-                }
-            },
-        }
-    }
-
-    pub fn io_reader_at_position_with_limit(
-        &self,
-        position: u64,
-        limit: u64,
-    ) -> CliResult<Box<dyn Read + Send + 'static>> {
-        let mut reader = self.io_reader_for_random_access()?;
-
-        reader.seek(SeekFrom::Start(position))?;
-
-        Ok(Box::new(reader.take(limit)))
     }
 
     pub fn reverse_reader(
