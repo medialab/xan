@@ -383,7 +383,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut groupby_sel_opt = args
         .flag_groupby
         .clone()
-        .map(|cols| cols.selection(&byte_headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&byte_headers, !rconfig.no_headers))
         .transpose()?;
 
     if let Some(groupby_sel) = &groupby_sel_opt {
@@ -400,7 +400,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|cols| {
             cols.selection(
                 &sel.select(&byte_headers).collect::<csv::ByteRecord>(),
-                !args.flag_no_headers,
+                !rconfig.no_headers,
             )
         })
         .transpose()?;
@@ -415,7 +415,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut right_sel_opt = args
         .flag_right
         .as_ref()
-        .map(|s| s.selection(headers.as_byte_record(), !args.flag_no_headers))
+        .map(|s| s.selection(headers.as_byte_record(), !rconfig.no_headers))
         .transpose()?;
 
     if !args.flag_hide_index {

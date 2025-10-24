@@ -829,7 +829,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let url_column_index = args
         .flag_url_column
         .as_ref()
-        .map(|s| s.single_selection(&headers, !args.flag_no_headers))
+        .map(|s| s.single_selection(&headers, !conf.no_headers))
         .transpose()?;
 
     let scraper = if args.cmd_head {
@@ -873,7 +873,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if s.is_empty() {
                 Ok(Selection::empty())
             } else {
-                s.selection(&headers, !args.flag_no_headers)
+                s.selection(&headers, !conf.no_headers)
             }
         })
         .transpose()?;
@@ -883,7 +883,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let scraper_field_names = scraper.names();
     let padding = scraper_field_names.len();
 
-    if !args.flag_no_headers {
+    if !conf.no_headers {
         let mut output_headers = headers.clone();
 
         if let Some(keep_sel) = &keep {

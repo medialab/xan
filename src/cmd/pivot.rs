@@ -136,7 +136,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     disappearing_columns.extend(column_indices_used_in_aggregation);
 
     let groupby_sel = if let Some(cols) = args.flag_groupby.as_ref() {
-        let sel = cols.selection(&headers, !args.flag_no_headers)?;
+        let sel = cols.selection(&headers, !rconf.no_headers)?;
 
         if sel.iter().any(|i| disappearing_columns.contains(i)) {
             Err(

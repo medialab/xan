@@ -246,11 +246,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SelectColumns::parse(if args.flag_implode { "token" } else { "tokens" }).unwrap()
     });
 
-    let token_pos = flag_token.single_selection(&headers, !args.flag_no_headers)?;
+    let token_pos = flag_token.single_selection(&headers, !rconf.no_headers)?;
 
     let doc_sel = args
         .flag_doc
-        .map(|s| s.selection(&headers, !args.flag_no_headers))
+        .map(|s| s.selection(&headers, !rconf.no_headers))
         .transpose()?;
 
     let mut record = ByteRecord::new();

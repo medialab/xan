@@ -229,7 +229,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_cells {
         let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-        if !args.flag_no_headers {
+        if !rconfig.no_headers {
             wtr.write_byte_record(&headers)?;
         }
 

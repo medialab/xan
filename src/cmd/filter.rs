@@ -107,7 +107,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         wtr.write_byte_record(&headers)?;
     }
 

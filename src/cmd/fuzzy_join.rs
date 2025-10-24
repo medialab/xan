@@ -283,7 +283,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut writer = Config::new(&args.flag_output).simd_writer()?;
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         writer.write_record(dropped_headers.iter().chain(patterns_headers.iter()))?;
     }
 

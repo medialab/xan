@@ -160,7 +160,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| cols.selection(&headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&headers, !rconf.no_headers))
         .transpose()?;
 
     // No need to consider the grouping column when counting frequencies

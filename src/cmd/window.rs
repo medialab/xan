@@ -93,10 +93,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|s| s.selection(&headers, !args.flag_no_headers))
+        .map(|s| s.selection(&headers, !conf.no_headers))
         .transpose()?;
 
-    if !args.flag_no_headers {
+    if !conf.no_headers {
         writer.write_record(headers.iter().chain(program.headers()))?;
     }
 

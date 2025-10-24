@@ -89,7 +89,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         conf.simd_splitter()?
             .count_records()?
-            .saturating_sub(if args.flag_no_headers { 0 } else { 1 })
+            .saturating_sub(if conf.no_headers { 0 } else { 1 })
     };
 
     let mut writer = wconf.io_writer()?;

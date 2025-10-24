@@ -247,7 +247,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-T/--total does work yet with -C/--along-cols!")?;
         }
 
-        let mut pivot_sel = selection.selection(headers, !args.flag_no_headers)?;
+        let mut pivot_sel = selection.selection(headers, !rconf.no_headers)?;
         pivot_sel.sort_and_dedup();
 
         let mut program = GroupAlongColumnsAggregationProgram::parse(
@@ -256,7 +256,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             pivot_sel.len(),
         )?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             let mut output_headers = sel.select(headers).collect::<simd_csv::ByteRecord>();
 
             for name in pivot_sel.select(headers) {
@@ -301,13 +301,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-T/--total does work yet with -M/--along-matrix!")?;
         }
 
-        let mut matrix_sel = selection.selection(headers, !args.flag_no_headers)?;
+        let mut matrix_sel = selection.selection(headers, !rconf.no_headers)?;
         matrix_sel.sort_and_dedup();
 
         let mut program =
             GroupAggregationProgram::<Vec<Vec<u8>>>::parse(&args.arg_expression, headers)?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             wtr.write_record(sel.select(headers).chain(program.headers()))?;
         }
 
@@ -338,7 +338,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // --keep, lol...
     if let Some(selection) = args.flag_keep.take() {
-        let mut keep_sel = selection.selection(headers, !args.flag_no_headers)?;
+        let mut keep_sel = selection.selection(headers, !rconf.no_headers)?;
         keep_sel.dedup();
 
         let addendum = keep_sel
@@ -370,7 +370,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
         let mut current: Option<Vec<Vec<u8>>> = None;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             wtr.write_record(sel.select(headers).chain(program.headers()))?;
         }
 
@@ -415,7 +415,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             if let Some(total_program) = &total_program_opt {
                 wtr.write_record(
                     sel.select(headers)

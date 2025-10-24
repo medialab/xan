@@ -158,7 +158,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let actually_overwriting = args.flag_overwrite && program.has_something_to_overwrite();
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         if actually_overwriting {
             wtr.write_record(headers.iter().chain(program.new_headers()))?;
         } else {

@@ -55,7 +55,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = conf.reader()?;
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    if !args.flag_no_headers {
+    if !conf.no_headers {
         let column_name = args.flag_column_name.unwrap_or(
             (if args.flag_byte_offset {
                 "byte_offset"

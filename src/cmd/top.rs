@@ -76,12 +76,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| cols.selection(headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(headers, !rconf.no_headers))
         .transpose()?;
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         if let Some(name) = &args.flag_rank {
             wtr.write_byte_record(&headers.prepend(name.as_bytes()))?;
         } else {

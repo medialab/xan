@@ -357,7 +357,7 @@ impl Args {
         }
     }
 
-    fn readers(&self) -> CliResult<(ReaderHandle, ReaderHandle)> {
+    fn readers(&mut self) -> CliResult<(ReaderHandle, ReaderHandle)> {
         let left = Config::new(&Some(self.arg_input1.clone()))
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -367,6 +367,8 @@ impl Args {
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
             .select(self.arg_columns2.clone());
+
+        self.flag_no_headers = left.no_headers;
 
         let mut left_reader = left.simd_reader()?;
         let mut right_reader = right.simd_reader()?;
@@ -639,7 +641,7 @@ impl Args {
         Ok(writer.flush()?)
     }
 
-    fn semi_join(self, anti: bool) -> CliResult<()> {
+    fn semi_join(mut self, anti: bool) -> CliResult<()> {
         let ((mut left_reader, left_headers, left_sel), (mut right_reader, _, right_sel)) =
             self.readers()?;
 
@@ -681,7 +683,7 @@ impl Args {
         Ok(writer.flush()?)
     }
 
-    fn cross_join(self) -> CliResult<()> {
+    fn cross_join(mut self) -> CliResult<()> {
         let ((mut left_reader, left_headers, _), (right_reader, right_headers, _)) =
             self.readers()?;
 

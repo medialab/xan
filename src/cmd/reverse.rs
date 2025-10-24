@@ -63,7 +63,7 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
 
-    if !args.flag_no_headers && !headers.is_empty() {
+    if !rconfig.no_headers && !headers.is_empty() {
         wtr.write_byte_record(&headers)?;
     }
 
