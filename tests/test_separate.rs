@@ -458,9 +458,9 @@ fn separate_fixed_width() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["split1", "split2", "split3", "split4", "split5"],
-        svec!["John ", "Doe", "1990 ", "05 15", ""],
-        svec!["Jane ", "Smith", "1985 ", "10 30", ""],
-        svec!["Alice", " John", "son", "2000 ", "01 01"],
+        svec!["John", "Doe", "1990", "05 15", ""],
+        svec!["Jane", "Smith", "1985", "10 30", ""],
+        svec!["Alice", "John", "son", "2000", "01 01"],
     ];
     assert_eq!(got, expected);
 }
@@ -494,9 +494,9 @@ fn separate_widths() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["split1", "split2", "split3", "split4", "split5", "split6"],
-        svec!["John", " Do", "e", "1990", " 05", " 15"],
-        svec!["Jane", " Sm", "ith", "1985", " 10", " 30"],
-        svec!["Alic", "e J", "ohn", "2000", " 01", " 01"],
+        svec!["John", "Do", "e", "1990", "05", "15"],
+        svec!["Jane", "Sm", "ith", "1985", "10", "30"],
+        svec!["Alic", "e J", "ohn", "2000", "01", "01"],
     ];
     assert_eq!(got, expected);
 }
@@ -530,9 +530,9 @@ fn separate_offsets() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["split1", "split2", "split3", "split4", "split5", "split6"],
-        svec!["John", " Do", "e", "1990", " 05", " 15"],
-        svec!["Jane", " Sm", "ith", "1985", " 10", " 30"],
-        svec!["Alic", "e J", "ohn", "2000", " 01", " 01"],
+        svec!["John", "Do", "e", "1990", "05", "15"],
+        svec!["Jane", "Sm", "ith", "1985", "10", "30"],
+        svec!["Alic", "e J", "ohn", "2000", "01", "01"],
     ];
     assert_eq!(got, expected);
 }

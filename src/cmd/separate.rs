@@ -185,7 +185,7 @@ impl Splitter {
                 }
                 RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
             },
-            Self::FixedWidth(width) => Box::new(cell.chunks(*width)),
+            Self::FixedWidth(width) => Box::new(cell.chunks(*width).map(|chunk| chunk.trim())),
             Self::Widths(widths) => {
                 let mut remaining = widths.len();
                 let mut splitted = vec![];
@@ -193,9 +193,9 @@ impl Splitter {
 
                 for width in widths.iter() {
                     if start + width <= cell.len() {
-                        splitted.push(&cell[start..start + width]);
+                        splitted.push(cell[start..start + width].trim());
                     } else {
-                        splitted.push(&cell[start..]);
+                        splitted.push(cell[start..].trim());
                     }
                     start += width;
                     remaining -= 1;
@@ -213,9 +213,9 @@ impl Splitter {
 
                 for offset in offsets.iter() {
                     if *offset <= cell.len() {
-                        splitted.push(&cell[start..*offset]);
+                        splitted.push(cell[start..*offset].trim());
                     } else {
-                        splitted.push(&cell[start..]);
+                        splitted.push(cell[start..].trim());
                     }
                     start = *offset;
                     remaining -= 1;
