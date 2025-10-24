@@ -2,12 +2,14 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
-use std::io::{self, stderr, stdout, IsTerminal, Write};
+use std::io::{self, stderr, stdout, IsTerminal, Read, Write};
 use std::num::NonZeroUsize;
+use std::ops;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 
 use bstr::ByteSlice;
@@ -44,10 +46,11 @@ fn get_spinner_style(path: ColoredString, unspecified: bool) -> ProgressStyle {
     .tick_chars("⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈⠈⣿")
 }
 
+#[derive(Clone)]
 struct Bars {
     main: ProgressBar,
     multi: MultiProgress,
-    bars: Mutex<Vec<(String, ProgressBar)>>,
+    bars: Arc<Mutex<Vec<(String, ProgressBar)>>>,
     total: u64,
     unspecified: bool,
 }
@@ -64,7 +67,7 @@ impl Bars {
         let bars = Bars {
             main,
             multi,
-            bars: Mutex::new(Vec::new()),
+            bars: Arc::new(Mutex::new(Vec::new())),
             total: total as u64,
             unspecified,
         };
@@ -101,12 +104,15 @@ impl Bars {
         bar
     }
 
-    fn stop(&self, name: &str) {
+    fn stop(&self, name: &str, errored: bool) {
         self.bars.lock().unwrap().retain_mut(|(p, b)| {
             if p != name {
                 true
             } else {
-                b.set_style(get_spinner_style(p.green(), self.unspecified));
+                b.set_style(get_spinner_style(
+                    if errored { p.red() } else { p.green() },
+                    self.unspecified,
+                ));
                 b.abandon();
 
                 false
@@ -130,57 +136,195 @@ impl Bars {
         self.abandon();
     }
 
-    // fn interrupt(&self) {
-    //     for (path, bar) in self.bars.lock().unwrap().iter() {
-    //         bar.set_style(get_spinner_style(path.yellow()));
-    //         bar.tick();
-    //         bar.abandon();
-    //     }
-
-    //     self.set_color("yellow");
-    //     self.main.abandon();
-    // }
-}
-
-struct ParallelProgressBar {
-    bars: Option<Bars>,
-}
-
-impl ParallelProgressBar {
-    fn hidden() -> Self {
-        Self { bars: None }
+    fn abort(&self) {
+        self.set_color("red");
+        self.main.tick();
+        self.abandon();
     }
+}
 
-    fn new(total: usize, threads: usize, unspecified: bool) -> Self {
-        Self {
-            bars: Some(Bars::new(total, threads, unspecified)),
+struct OptionalProgressBar(Option<ProgressBar>);
+
+impl OptionalProgressBar {
+    #[inline(always)]
+    fn inc(&self, delta: u64) {
+        if let Some(bar) = &self.0 {
+            bar.inc(delta);
         }
     }
 
-    fn start(&self, path: &str) -> Option<ProgressBar> {
-        self.bars.as_ref().map(|bars| bars.start(path))
+    #[inline(always)]
+    fn tick(&self) {
+        self.inc(1);
+    }
+}
+
+// TODO: we could manage a pool with an index handle instead of a BTreeMap
+struct ProcessManager {
+    bars: Option<Bars>,
+    children_map: Arc<Mutex<BTreeMap<String, Children>>>,
+}
+
+impl ProcessManager {
+    fn new() -> Self {
+        Self {
+            bars: None,
+            children_map: Arc::new(Mutex::new(BTreeMap::new())),
+        }
+    }
+
+    fn with_progress_bar(total: usize, threads: usize, unspecified: bool) -> Self {
+        let mut manager = Self::new();
+        manager.bars = Some(Bars::new(total, threads, unspecified));
+
+        manager
+    }
+
+    fn spawn_checker_thread(&self) {
+        let children_map_handle = self.children_map.clone();
+        let bars_handle = self.bars.clone();
+
+        thread::spawn(move || loop {
+            let mut children_map = children_map_handle.lock().unwrap();
+            let must_abort = check_running_processes(&mut children_map, &bars_handle);
+
+            if must_abort {
+                std::process::exit(1);
+            }
+
+            std::mem::drop(children_map);
+
+            thread::sleep(Duration::from_millis(500));
+        });
+    }
+
+    fn start(&self, name: &str, children_opt: Option<Children>) -> OptionalProgressBar {
+        if let Some(children) = children_opt {
+            self.children_map
+                .lock()
+                .unwrap()
+                .insert(name.to_string(), children);
+        }
+
+        OptionalProgressBar(self.bars.as_ref().map(|bars| bars.start(name)))
     }
 
     fn stop(&self, name: &str) {
+        let mut children_map = self.children_map.lock().unwrap();
+
+        let must_abort = if let Some(mut dropped_children) = children_map.remove(name) {
+            check_running_process(name, &mut dropped_children, &self.bars)
+        } else {
+            false
+        };
+
+        if must_abort {
+            for children in children_map.values_mut() {
+                children.kill().unwrap();
+            }
+            children_map.clear();
+
+            std::process::exit(1);
+        }
+
         if let Some(bars) = &self.bars {
-            bars.stop(name);
+            bars.stop(name, false);
         }
     }
 
-    fn succeed(&self) {
+    fn succeed(self) {
+        assert!(self.children_map.lock().unwrap().is_empty());
+
         if let Some(bars) = &self.bars {
             bars.succeed();
         }
     }
 }
 
-struct Children {
-    children: Vec<Child>,
+fn check_running_process(name: &str, children: &mut Children, bars_handle: &Option<Bars>) -> bool {
+    let mut must_abort = false;
+
+    for child in children.iter_mut() {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if !status.success() {
+                    must_abort = true;
+
+                    // Reading some stderr
+                    let mut stderr_contents = String::new();
+                    let stderr = child.stderr.as_mut().unwrap();
+
+                    stderr
+                        .take(1024 * 64)
+                        .read_to_string(&mut stderr_contents)
+                        .unwrap();
+
+                    if let Some(bars) = bars_handle {
+                        bars.stop(name, true);
+                        bars.abort();
+                    }
+
+                    let stderr_msg = stderr_contents.trim();
+
+                    if stderr_msg.is_empty() {
+                        eprintln!(
+                            "Processing failed for {} without captured stderr (stderr was already closed).",
+                            name.cyan()
+                        );
+                    } else {
+                        eprintln!(
+                            "Processing failed for {} with captured stderr:\n{}",
+                            name.cyan(),
+                            stderr_msg.red()
+                        );
+                    }
+
+                    break;
+                }
+            }
+            Err(_) => {
+                must_abort = true;
+                break;
+            }
+            _ => (),
+        }
+    }
+
+    must_abort
 }
+
+fn check_running_processes(
+    children_map: &mut BTreeMap<String, Children>,
+    bars_handle: &Option<Bars>,
+) -> bool {
+    let mut must_abort = false;
+
+    for (name, children) in children_map.iter_mut() {
+        must_abort = check_running_process(name, children, bars_handle);
+    }
+
+    if must_abort {
+        for children in children_map.values_mut() {
+            children.kill().unwrap();
+        }
+        children_map.clear();
+    }
+
+    must_abort
+}
+
+impl Drop for ProcessManager {
+    fn drop(&mut self) {
+        check_running_processes(&mut self.children_map.lock().unwrap(), &self.bars);
+    }
+}
+
+#[derive(Debug)]
+struct Children(Vec<Child>);
 
 impl Children {
     fn wait(&mut self) -> io::Result<()> {
-        for child in self.children.iter_mut() {
+        for child in self.iter_mut() {
             child.wait()?;
         }
 
@@ -188,7 +332,7 @@ impl Children {
     }
 
     fn kill(&mut self) -> io::Result<()> {
-        for child in self.children.iter_mut() {
+        for child in self.iter_mut() {
             child.kill()?;
         }
 
@@ -198,7 +342,7 @@ impl Children {
 
 impl Drop for Children {
     fn drop(&mut self) {
-        if std::thread::panicking() {
+        if thread::panicking() {
             let _ = self.kill();
         } else {
             let _ = self.wait();
@@ -206,9 +350,23 @@ impl Drop for Children {
     }
 }
 
+impl ops::Deref for Children {
+    type Target = [Child];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ops::DerefMut for Children {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl From<Vec<Child>> for Children {
     fn from(children: Vec<Child>) -> Self {
-        Self { children }
+        Self(children)
     }
 }
 
@@ -375,11 +533,14 @@ struct InputReader {
     config: Config,
     reader: Option<Box<dyn io::Read + Send>>,
     headers: Option<csv::ByteRecord>,
-    _children: Option<Children>,
-    bar: Option<ProgressBar>,
+    children: Option<Children>,
 }
 
 impl InputReader {
+    fn take_children(&mut self) -> Option<Children> {
+        self.children.take()
+    }
+
     fn take(&mut self) -> Box<dyn io::Read + Send> {
         self.reader.take().unwrap()
     }
@@ -402,18 +563,6 @@ impl InputReader {
         } else {
             fallback.clone()
         }
-    }
-
-    #[inline(always)]
-    fn inc(&self, delta: u64) {
-        if let Some(bar) = &self.bar {
-            bar.inc(delta)
-        }
-    }
-
-    #[inline(always)]
-    fn tick(&self) {
-        self.inc(1)
     }
 }
 
@@ -761,13 +910,7 @@ impl Args {
         Ok((chunked_inputs, actual_threads))
     }
 
-    fn io_reader(
-        &self,
-        input: &Input,
-        progress_bar: &ParallelProgressBar,
-    ) -> CliResult<InputReader> {
-        let bar = progress_bar.start(&input.name());
-
+    fn io_reader(&self, input: &Input) -> CliResult<InputReader> {
         // Shell preprocessing
         if let Some(preprocessing) = &self.flag_shell_preprocess {
             if preprocessing.trim().is_empty() {
@@ -788,12 +931,14 @@ impl Args {
                 Input::Path(p) => Command::new("cat")
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
                     .arg(p)
                     .spawn()
                     .expect("could not spawn \"cat\""),
                 Input::FileChunk(file_chunk) => Command::new(env::current_exe()?)
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
                     .arg("slice")
                     .arg("--byte-offset")
                     .arg(file_chunk.from.to_string())
@@ -808,6 +953,7 @@ impl Args {
             let mut child = Command::new(shell)
                 .stdin(cat.stdout.take().expect("could not consume cat stdout"))
                 .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .args(["-c", preprocessing])
                 .spawn()
                 .expect("could not spawn shell preprocessing");
@@ -815,14 +961,13 @@ impl Args {
             let reader = Box::new(child.stdout.take().expect("cannot read child stdout"));
 
             // NOTE: this must happen before reading headers to ensure correct drop
-            let _children = Some(Children::from(vec![cat, child]));
+            let children = Some(Children::from(vec![cat, child]));
 
             Ok(InputReader {
                 config,
                 reader: Some(reader),
                 headers: None,
-                _children,
-                bar,
+                children,
             })
         }
         // Standard preprocessing
@@ -862,6 +1007,7 @@ impl Args {
                     Command::new(exe.clone())
                         .stdin(Stdio::null())
                         .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
                         .arg("slice")
                         .arg("--byte-offset")
                         .arg(file_chunk.from.to_string())
@@ -876,7 +1022,7 @@ impl Args {
 
             for mut step in preprocessing.split(|token| token == "|") {
                 let mut command = Command::new(exe.clone());
-                command.stdout(Stdio::piped());
+                command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
                 if let Some(first) = step.first() {
                     if first == "xan" {
@@ -920,8 +1066,7 @@ impl Args {
                         .expect("cannot read child stdout"),
                 )),
                 headers: None,
-                _children: Some(Children::from(children)),
-                bar,
+                children: Some(Children::from(children)),
             })
         }
         // No preprocessing
@@ -938,8 +1083,7 @@ impl Args {
                         config,
                         reader: Some(reader),
                         headers: None,
-                        _children: None,
-                        bar,
+                        children: None,
                     })
                 }
                 Input::FileChunk(file_chunk) => {
@@ -956,21 +1100,20 @@ impl Args {
                         config,
                         reader: Some(reader),
                         headers: Some(file_chunk.headers.clone()),
-                        _children: None,
-                        bar,
+                        children: None,
                     })
                 }
             }
         }
     }
 
-    fn progress_bar(&self, total: usize) -> ParallelProgressBar {
-        if self.flag_progress {
+    fn process_manager(&self, total: usize) -> ProcessManager {
+        let manager = if self.flag_progress {
             console::set_colors_enabled_stderr(true);
             console::set_colors_enabled(true);
             colored::control::set_override(true);
 
-            ParallelProgressBar::new(
+            ProcessManager::with_progress_bar(
                 total,
                 self.flag_threads
                     .expect("at that point, threads cannot be None")
@@ -978,25 +1121,33 @@ impl Args {
                 self.cmd_map,
             )
         } else {
-            ParallelProgressBar::hidden()
+            ProcessManager::new()
+        };
+
+        if self.flag_preprocess.is_some() || self.flag_shell_preprocess.is_some() {
+            manager.spawn_checker_thread();
         }
+
+        manager
     }
 
     fn count(self, inputs: Vec<Input>) -> CliResult<()> {
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
 
         if let Some(source_column_name) = &self.flag_source_column {
             let counters_mutex = Mutex::new(BTreeMap::<String, u64>::new());
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.io_reader(input, &progress_bar)?;
+                let mut input_reader = self.io_reader(input)?;
+                let progress_bar =
+                    process_manager.start(&input.name(), input_reader.take_children());
                 let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
                 let count = csv_splitter
                     .count_records()?
                     .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
 
-                input_reader.inc(count);
+                progress_bar.inc(count);
 
                 counters_mutex
                     .lock()
@@ -1005,7 +1156,7 @@ impl Args {
                     .and_modify(|c| *c += count)
                     .or_insert(count);
 
-                progress_bar.stop(&input.name());
+                process_manager.stop(&input.name());
 
                 Ok(())
             })?;
@@ -1028,12 +1179,14 @@ impl Args {
 
             writer.flush()?;
 
-            progress_bar.succeed();
+            process_manager.succeed();
         } else {
             let total_count = AtomicU64::new(0);
 
             inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-                let mut input_reader = self.io_reader(input, &progress_bar)?;
+                let mut input_reader = self.io_reader(input)?;
+                let progress_bar =
+                    process_manager.start(&input.name(), input_reader.take_children());
                 let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
                 let count = csv_splitter
@@ -1042,14 +1195,14 @@ impl Args {
 
                 total_count.fetch_add(count, Ordering::Relaxed);
 
-                input_reader.inc(count);
+                progress_bar.inc(count);
 
-                progress_bar.stop(&input.name());
+                process_manager.stop(&input.name());
 
                 Ok(())
             })?;
 
-            progress_bar.succeed();
+            process_manager.succeed();
 
             writeln!(&mut stdout(), "{}", total_count.into_inner())?;
         }
@@ -1062,7 +1215,7 @@ impl Args {
             Err("`xan parallel cat` without -P/--preprocess or -H/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
         }
 
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
 
         // NOTE: the bool tracks whether headers were already written
         let writer_mutex = Arc::new(Mutex::new((
@@ -1094,7 +1247,8 @@ impl Args {
         };
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
             let mut csv_reader = input_reader.take_simd_csv_reader();
             let mut headers = input_reader.headers(csv_reader.byte_headers()?);
 
@@ -1125,19 +1279,19 @@ impl Args {
 
                 buffer.push(record.clone());
 
-                input_reader.tick();
+                progress_bar.tick();
             }
 
             if !buffer.is_empty() {
                 flush(&headers, &buffer)?;
             }
 
-            progress_bar.stop(&input.name());
+            process_manager.stop(&input.name());
 
             Ok(())
         })?;
 
-        progress_bar.succeed();
+        process_manager.succeed();
 
         Arc::into_inner(writer_mutex)
             .unwrap()
@@ -1160,12 +1314,13 @@ impl Args {
 
         let approx_capacity = self.flag_approx.then_some(self.flag_limit);
 
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
 
         let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
             let mut csv_reader = input_reader.take_simd_csv_reader();
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
@@ -1187,12 +1342,12 @@ impl Args {
                     }
                 }
 
-                input_reader.tick();
+                progress_bar.tick();
             }
 
             total_freq_tables_mutex.lock().unwrap().merge(freq_tables)?;
 
-            progress_bar.stop(&input.name());
+            process_manager.stop(&input.name());
 
             Ok(())
         })?;
@@ -1241,14 +1396,14 @@ impl Args {
             }
         }
 
-        progress_bar.succeed();
+        process_manager.succeed();
         writer.flush()?;
 
         Ok(())
     }
 
     fn stats(self, inputs: Vec<Input>) -> CliResult<()> {
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
         writer.write_byte_record(&self.new_stats().headers())?;
@@ -1256,7 +1411,8 @@ impl Args {
         let total_stats_mutex = Mutex::new(StatsTables::new());
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
             let mut csv_reader = input_reader.take_simd_csv_reader();
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
@@ -1271,12 +1427,12 @@ impl Args {
                     stats.process(cell);
                 }
 
-                input_reader.tick();
+                progress_bar.tick();
             }
 
             total_stats_mutex.lock().unwrap().merge(local_stats)?;
 
-            progress_bar.stop(&input.name());
+            process_manager.stop(&input.name());
 
             Ok(())
         })?;
@@ -1285,19 +1441,20 @@ impl Args {
             writer.write_byte_record(&stats.results(&name))?;
         }
 
-        progress_bar.succeed();
+        process_manager.succeed();
         writer.flush()?;
 
         Ok(())
     }
 
     fn agg(self, inputs: Vec<Input>) -> CliResult<()> {
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
 
         let total_program_mutex: Mutex<Option<AggregationProgram>> = Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
             let mut csv_reader = input_reader.take_simd_csv_reader();
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
@@ -1310,7 +1467,7 @@ impl Args {
                 program.run_with_record(index, &record)?;
                 index += 1;
 
-                input_reader.tick();
+                progress_bar.tick();
             }
 
             let mut total_program_opt = total_program_mutex.lock().unwrap();
@@ -1320,7 +1477,7 @@ impl Args {
                 None => *total_program_opt = Some(program),
             };
 
-            progress_bar.stop(&input.name());
+            process_manager.stop(&input.name());
 
             Ok(())
         })?;
@@ -1331,13 +1488,13 @@ impl Args {
             writer.write_byte_record(&total_program.finalize(true)?)?;
         }
 
-        progress_bar.succeed();
+        process_manager.succeed();
 
         Ok(())
     }
 
     fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
 
         type GroupKey = Vec<Vec<u8>>;
 
@@ -1345,7 +1502,8 @@ impl Args {
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
             let mut csv_reader = input_reader.take_simd_csv_reader();
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
@@ -1363,7 +1521,7 @@ impl Args {
                 program.run_with_record(group, index, &record)?;
                 index += 1;
 
-                input_reader.tick();
+                progress_bar.tick();
             }
 
             let mut total_program_opt = total_program_mutex.lock().unwrap();
@@ -1373,7 +1531,7 @@ impl Args {
                 None => *total_program_opt = Some((sel.collect(&headers), program)),
             };
 
-            progress_bar.stop(&input.name());
+            process_manager.stop(&input.name());
 
             Ok(())
         })?;
@@ -1397,7 +1555,7 @@ impl Args {
             }
         }
 
-        progress_bar.succeed();
+        process_manager.succeed();
 
         Ok(())
     }
@@ -1418,11 +1576,12 @@ impl Args {
         //     self.flag_preprocess = Some("slice".to_string());
         // }
 
-        let progress_bar = self.progress_bar(inputs.len());
+        let process_manager = self.process_manager(inputs.len());
         let template = self.arg_template.clone().unwrap();
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
-            let mut input_reader = self.io_reader(input, &progress_bar)?;
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
 
             let err = || format!("Could not extract file base from path {}", input.path());
 
@@ -1453,18 +1612,18 @@ impl Args {
 
             let mut inner = input_reader.take();
 
-            if let Some(bar) = &input_reader.bar {
+            if let Some(bar) = &progress_bar.0 {
                 io::copy(&mut bar.wrap_read(&mut inner), &mut output)?;
             } else {
                 io::copy(&mut inner, &mut output)?;
             }
 
-            progress_bar.stop(&input.name());
+            process_manager.stop(&input.name());
 
             Ok(())
         })?;
 
-        progress_bar.succeed();
+        process_manager.succeed();
 
         Ok(())
     }
