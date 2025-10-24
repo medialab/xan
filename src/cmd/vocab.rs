@@ -11,6 +11,7 @@ use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use bstr::ByteSlice;
+use simd_csv::ByteRecord;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::collections::{hash_map::Entry, HashMap};
@@ -238,7 +239,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let flag_token = args.flag_token.unwrap_or_else(|| {
@@ -252,10 +253,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|s| s.selection(&headers, !args.flag_no_headers))
         .transpose()?;
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
     let mut i: usize = 0;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if args.cmd_cooc {
         let mut cooccurrences = Cooccurrences::default();
@@ -486,7 +487,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(headers)?;
         vocab.for_each_token_level_record(|r| wtr.write_byte_record(r))?;
     } else if args.cmd_doc_token {
-        let mut output_headers = csv::ByteRecord::new();
+        let mut output_headers = ByteRecord::new();
 
         if let Some(sel) = &doc_sel {
             for col_name in sel.select(&headers) {
@@ -512,7 +513,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             |r| wtr.write_byte_record(r),
         )?;
     } else if args.cmd_doc {
-        let mut output_headers = csv::ByteRecord::new();
+        let mut output_headers = ByteRecord::new();
 
         if let Some(sel) = &doc_sel {
             for col_name in sel.select(&headers) {
@@ -755,9 +756,9 @@ impl Vocabulary {
 
     fn for_each_doc_level_record<F, E>(self, mut callback: F) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
     {
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         for (doc, doc_stats) in self.documents.into_iter() {
             record.clear();
@@ -777,7 +778,7 @@ impl Vocabulary {
 
     fn for_each_token_level_record<F, E>(self, mut callback: F) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
     {
         let n = self.doc_count();
 
@@ -785,7 +786,7 @@ impl Vocabulary {
             return Ok(());
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         for stats in self.tokens.into_iter() {
             record.clear();
@@ -812,7 +813,7 @@ impl Vocabulary {
         mut callback: F,
     ) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
     {
         let n = self.doc_count();
 
@@ -823,7 +824,7 @@ impl Vocabulary {
         let average_doc_len = self.average_doc_len();
 
         // Aggregating stats for bm25 and chi2
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         for (doc, doc_stats) in self.documents.into_iter() {
             let doc_len = doc_stats.doc_len();
@@ -1215,9 +1216,9 @@ impl Cooccurrences {
         mut callback: F,
     ) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
     {
-        let mut csv_record = csv::ByteRecord::new();
+        let mut csv_record = ByteRecord::new();
         let n = self.cooccurrences_count;
 
         for source_entry in self.token_entries.iter() {
@@ -1281,7 +1282,7 @@ impl Cooccurrences {
     // NOTE: currently we avoid self loops because they are fiddly
     fn for_each_distrib_cooc_record<F, E>(self, min_count: usize, mut callback: F) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
     {
         #[derive(Default)]
         struct Metrics {
@@ -1289,7 +1290,7 @@ impl Cooccurrences {
             g2: f64,
         }
 
-        let mut csv_record = csv::ByteRecord::new();
+        let mut csv_record = ByteRecord::new();
         let n = self.cooccurrences_count;
 
         let mut sums: Vec<Metrics> = Vec::with_capacity(self.token_entries.len());
@@ -1428,9 +1429,9 @@ impl Cooccurrences {
         mut callback: F,
     ) -> Result<(), E>
     where
-        F: FnMut(&csv::ByteRecord) -> Result<(), E>,
+        F: FnMut(&ByteRecord) -> Result<(), E>,
     {
-        let mut csv_record = csv::ByteRecord::new();
+        let mut csv_record = ByteRecord::new();
         let n = self.cooccurrences_count;
 
         let g2_significance = g2_significance.unwrap_or(3.84);

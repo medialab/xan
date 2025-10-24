@@ -46,7 +46,7 @@ impl Args {
             .no_headers(self.flag_no_headers)
             .select(self.flag_select.clone());
 
-        let mut reader = rconf.reader()?;
+        let mut reader = rconf.simd_reader()?;
         let headers = reader.byte_headers()?.clone();
 
         let sel = rconf.selection(&headers)?;
@@ -55,8 +55,8 @@ impl Args {
             Err("less that 2 columns in selection!")?;
         }
 
-        let mut writer = Config::new(&self.flag_output).writer()?;
-        let mut output_headers = csv::ByteRecord::new();
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+        let mut output_headers = simd_csv::ByteRecord::new();
         output_headers.push_field(b"");
         output_headers.extend(sel.select(&headers));
 
@@ -81,7 +81,7 @@ impl Args {
             welfords.push(CovarianceWelford::new());
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         let mut k: usize;
 
         while reader.read_byte_record(&mut record)? {

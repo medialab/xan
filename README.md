@@ -667,6 +667,23 @@ By default, all commands will print their output to stdout (note that this outpu
 
 In addition, all commands expose a `-o/--output` flag that can be use to specify where to write the output. This can be useful if you do not want to or cannot use `>` (typically in some Windows shells). In which case, `-` as a output path will mean forwarding to stdout also. This can be useful when scripting sometimes.
 
+### Supported files
+
+`xan` is able to process a large variety of CSV-adjacent data formats out-of-the box:
+
+- `.csv` files will be understood as comma-separated
+- `.tsv` & `.tab` files will be understood as tab-separated
+- `.scsv` & `.ssv` files will be understood as semicolon-separated
+- `.psv` files will be understood as pipe-separated
+- `.cdx` files (an index file [format](https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/) related to web archive) will be understood as space-separated and will have its magic bytes dropped
+- `.ndjson` & `.jsonl` files will be understood as tab-separated, headless, null-byte-quoted, so you can easily use them with `xan` commands (e.g. parsing or wrangling JSON data using the expression language to aggregate, even in parallel). If you need a more thorough conversion of newline-delimited JSON data, check out the `xan from -f ndjson` command instead.
+
+Note that more exotic delimiters can always be handled using the ubiquitous `-d, --delimiter` flag.
+
+Some additional formats also supported must first be normalized using the `xan input` command. This is for instance the case for bioinformatics tabular data format such as VCF, GFF, GTF files.
+
+Note also that UTF-8 BOMs will be stripped from the data when processed.
+
 ### Gzipped files
 
 `xan` is able to read gzipped files (having a `.gz` extension) out of the box.

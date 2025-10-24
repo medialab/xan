@@ -47,17 +47,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = rdr.byte_headers()?;
 
     let sel = rconf.selection(headers)?;
     let mask = sel.mask(headers.len());
 
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+    if !args.flag_no_headers {
+        wtr.write_byte_record(headers)?;
+    }
 
-    let mut previous: Option<csv::ByteRecord> = None;
+    let mut previous: Option<simd_csv::ByteRecord> = None;
 
     for result in rdr.byte_records() {
         let record = result?;
@@ -92,7 +94,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 _ => current_cell,
                             }
                         })
-                        .collect::<csv::ByteRecord>();
+                        .collect::<simd_csv::ByteRecord>();
 
                     wtr.write_byte_record(&filled_record)?;
 

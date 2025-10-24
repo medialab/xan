@@ -70,7 +70,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_column);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
     let score_col = rconf.single_selection(headers)?;
 
@@ -79,7 +79,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|cols| cols.selection(headers, !args.flag_no_headers))
         .transpose()?;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !args.flag_no_headers {
         if let Some(name) = &args.flag_rank {
@@ -91,8 +91,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! run {
         ($heap:ident, $type:ident) => {{
-            let mut record = csv::ByteRecord::new();
-            let mut heap = $heap::<$type<NotNan<f64>>, csv::ByteRecord>::with_capacity(
+            let mut record = simd_csv::ByteRecord::new();
+            let mut heap = $heap::<$type<NotNan<f64>>, simd_csv::ByteRecord>::with_capacity(
                 usize::from(args.flag_limit),
             );
 
@@ -117,10 +117,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! run_groupby {
         ($heap:ident, $type:ident, $sel:ident) => {{
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut groups: ClusteredInsertHashmap<
                 GroupKey,
-                $heap<$type<NotNan<f64>>, csv::ByteRecord>,
+                $heap<$type<NotNan<f64>>, simd_csv::ByteRecord>,
             > = ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {

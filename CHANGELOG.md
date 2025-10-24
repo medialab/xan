@@ -9,6 +9,7 @@
 * Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
 * `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
 * `xan behead` does not normalize the output anymore to be as fast as possible.
+* The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
 
 *Features*
 
@@ -29,6 +30,7 @@
 * Adding `xan search -P/--add-pattern`.
 * Adding `xan groupby -M/--along-matrix`.
 * Adding `xan groupby -T/--total`.
+* Adding support for `.ndjson` & `.jsonl` files. Those are considered as headless TSV files with null byte quoting so you can easily use them with `xan` commands.
 
 *Fixes*
 
@@ -46,6 +48,7 @@
 
 * `xan parallel cat` now flushing more consistently.
 * Better highlighting of problematic strings in `xan flatten`, `xan view` & `xan headers`.
+* `xan parallel` will now generally stop as soon as an error is detected in a subprocess and cleanly report errors.
 
 ## 0.53.0
 

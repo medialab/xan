@@ -112,15 +112,15 @@ impl Args {
     }
 
     fn cat_rows(&self) -> CliResult<()> {
-        let mut row = csv::ByteRecord::new();
-        let mut wtr = Config::new(&self.flag_output).writer()?;
+        let mut row = simd_csv::ByteRecord::new();
+        let mut wtr = Config::new(&self.flag_output).simd_writer()?;
         for (i, conf) in self.configs()?.into_iter().enumerate() {
-            let mut rdr = conf.reader()?;
+            let mut rdr = conf.simd_reader()?;
 
             match &self.flag_source_column {
                 None => {
                     if !self.flag_no_headers && i == 0 {
-                        conf.write_headers(&mut rdr, &mut wtr)?;
+                        wtr.write_byte_record(rdr.byte_headers()?)?;
                     }
                     while rdr.read_byte_record(&mut row)? {
                         wtr.write_byte_record(&row)?;
@@ -150,8 +150,8 @@ impl Args {
         let paths =
             Config::new(&Some(self.flag_paths.clone().unwrap())).lines(&self.flag_path_column)?;
 
-        let mut record = csv::ByteRecord::new();
-        let mut wtr = Config::new(&self.flag_output).writer()?;
+        let mut record = simd_csv::ByteRecord::new();
+        let mut wtr = Config::new(&self.flag_output).simd_writer()?;
 
         let mut headers_written = self.flag_no_headers;
 
@@ -161,7 +161,7 @@ impl Args {
             let mut reader = Config::new(&Some(path.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers)
-                .reader()?;
+                .simd_reader()?;
 
             match &self.flag_source_column {
                 None => {
@@ -195,7 +195,7 @@ impl Args {
     }
 
     fn cat_columns(&self) -> CliResult<()> {
-        let mut wtr = Config::new(&self.flag_output).writer()?;
+        let mut wtr = Config::new(&self.flag_output).simd_writer()?;
         let mut rdrs = self
             .configs()?
             .into_iter()
@@ -214,7 +214,7 @@ impl Args {
             .map(|rdr| rdr.byte_records())
             .collect::<Vec<_>>();
         'OUTER: loop {
-            let mut record = csv::ByteRecord::new();
+            let mut record = simd_csv::ByteRecord::new();
             let mut num_done = 0;
             for (iter, &len) in iters.iter_mut().zip(lengths.iter()) {
                 match iter.next() {

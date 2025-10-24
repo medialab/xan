@@ -1,3 +1,5 @@
+use simd_csv::ByteRecord;
+
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
 use crate::util;
@@ -50,41 +52,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let redacted_string = args.flag_redact.unwrap_or("".to_string());
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = rdr.byte_headers()?;
 
     let sel = rconf.selection(headers)?;
     let mask = sel.mask(headers.len());
 
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+    if !args.flag_no_headers {
+        wtr.write_byte_record(headers)?;
+    }
 
-    let mut record = csv::ByteRecord::new();
-    let mut current: Option<Vec<Vec<u8>>> = None;
+    let mut record = ByteRecord::new();
+    let mut current: Option<ByteRecord> = None;
 
     while rdr.read_byte_record(&mut record)? {
-        let key = sel
-            .select(&record)
-            .map(|cell| cell.to_vec())
-            .collect::<Vec<_>>();
+        let key = sel.select(&record).collect::<ByteRecord>();
 
         match current.as_ref() {
             Some(current_key) if current_key == &key => {
-                let redacted_record = mask
-                    .iter()
-                    .copied()
-                    .zip(record.iter())
-                    .map(|(should_redact, cell)| {
+                wtr.write_record(mask.iter().copied().zip(record.iter()).map(
+                    |(should_redact, cell)| {
                         if should_redact {
                             redacted_string.as_bytes()
                         } else {
                             cell
                         }
-                    })
-                    .collect::<csv::ByteRecord>();
-
-                wtr.write_byte_record(&redacted_record)?;
+                    },
+                ))?;
             }
             _ => {
                 current = Some(key);

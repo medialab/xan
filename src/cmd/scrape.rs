@@ -13,6 +13,7 @@ use pariter::IteratorExt;
 use regex::bytes::Regex;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
+use simd_csv::ByteRecord;
 use url::Url;
 
 use crate::config::{Config, Delimiter};
@@ -229,7 +230,7 @@ impl CustomScraper {
     fn run_singular(
         &self,
         index: usize,
-        record: &simd_csv::ByteRecord,
+        record: &ByteRecord,
         html: &Html,
     ) -> CliResult<Vec<DynamicValue>> {
         Ok(self.program.run_singular(index, record, html)?)
@@ -238,7 +239,7 @@ impl CustomScraper {
     fn scrape(
         &self,
         index: usize,
-        record: &simd_csv::ByteRecord,
+        record: &ByteRecord,
         target: &ScraperTarget,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         let html = target.read_html()?;
@@ -336,7 +337,7 @@ impl Scraper {
 
     fn scrape_urls(
         &self,
-        record: &simd_csv::ByteRecord,
+        record: &ByteRecord,
         target: &ScraperTarget,
         url_column_index: Option<usize>,
     ) -> CliResult<Vec<DynamicValue>> {
@@ -372,7 +373,7 @@ impl Scraper {
 
     fn scrape_images(
         &self,
-        record: &simd_csv::ByteRecord,
+        record: &ByteRecord,
         target: &ScraperTarget,
         url_column_index: Option<usize>,
     ) -> CliResult<Vec<String>> {
@@ -563,7 +564,7 @@ impl Scraper {
     fn scrape(
         &self,
         index: usize,
-        record: &simd_csv::ByteRecord,
+        record: &ByteRecord,
         target: &ScraperTarget,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         match self {
@@ -601,7 +602,7 @@ impl Scraper {
     fn scrape_or_report(
         &self,
         index: usize,
-        record: &simd_csv::ByteRecord,
+        record: &ByteRecord,
         target: &ScraperTarget,
     ) -> CliResult<Vec<Vec<DynamicValue>>> {
         self.scrape(index, record, target).map_err(|err| {
@@ -902,7 +903,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
             .parallel_map_custom(
                 |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
-                move |(index, result)| -> CliResult<(simd_csv::ByteRecord, Vec<Vec<DynamicValue>>)> {
+                move |(index, result)| -> CliResult<(ByteRecord, Vec<Vec<DynamicValue>>)> {
                     let record = result?;
 
                     let cell = &record[column_index];
@@ -955,7 +956,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Ok(())
             })?;
     } else {
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut index: usize = 0;
 
         while reader.read_byte_record(&mut record)? {

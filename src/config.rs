@@ -1,5 +1,3 @@
-#[allow(deprecated, unused_imports)]
-use std::ascii::AsciiExt;
 use std::borrow::{Borrow, ToOwned};
 use std::convert::TryFrom;
 use std::env;
@@ -68,11 +66,16 @@ impl TryFrom<String> for Delimiter {
 enum TabularDataKind {
     RegularCsv,
     Cdx,
+    Ndjson,
 }
 
 impl TabularDataKind {
     fn is_cdx(&self) -> bool {
         matches!(self, Self::Cdx)
+    }
+
+    fn is_ndjson(&self) -> bool {
+        matches!(self, Self::Ndjson)
     }
 }
 
@@ -100,7 +103,7 @@ pub struct Config {
 
 impl Config {
     pub fn new(path: &Option<String>) -> Config {
-        let (path, delim, compressed, tabular_data_kind) = match *path {
+        let (path, delimiter, compressed, tabular_data_kind) = match *path {
             None => (None, b',', false, TabularDataKind::RegularCsv),
             Some(ref s) if s.deref() == "-" => (None, b',', false, TabularDataKind::RegularCsv),
             Some(ref s) => {
@@ -116,6 +119,9 @@ impl Config {
                 } else if raw_s.ends_with(".cdx") {
                     kind = TabularDataKind::Cdx;
                     b' '
+                } else if raw_s.ends_with(".ndjson") || raw_s.ends_with(".jsonl") {
+                    kind = TabularDataKind::Ndjson;
+                    b'\t'
                 } else {
                     b','
                 };
@@ -127,11 +133,15 @@ impl Config {
         let mut config = Config {
             path,
             select_columns: None,
-            delimiter: delim,
-            no_headers: false,
+            delimiter,
+            no_headers: tabular_data_kind.is_ndjson(),
             flexible: false,
             terminator: csv::Terminator::Any(b'\n'),
-            quote: b'"',
+            quote: if tabular_data_kind.is_ndjson() {
+                b'\x00'
+            } else {
+                b'"'
+            },
             quote_style: csv::QuoteStyle::Necessary,
             double_quote: true,
             escape: None,
@@ -277,11 +287,11 @@ impl Config {
         Ok(self.simd_csv_writer_from_writer(self.io_writer()?))
     }
 
-    pub fn writer_with_options(
+    pub fn simd_writer_with_options(
         &self,
         options: &fs::OpenOptions,
-    ) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>> {
-        Ok(self.csv_writer_from_writer(self.io_writer_with_options(options)?))
+    ) -> io::Result<simd_csv::Writer<Box<dyn io::Write + 'static>>> {
+        Ok(self.simd_csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
     #[allow(clippy::single_match)]
