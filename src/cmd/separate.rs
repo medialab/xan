@@ -10,7 +10,7 @@ use crate::CliResult;
 static USAGE: &str = r#"
 Separate columns into multiple columns by splitting cell values on a separator or regex.
 By default, all possible splits are made, but you can limit the number of splits
-using the --max-splits option.
+using the --max-splitted-cells option.
 Note that by default, the original columns are removed from the output. Use the --keep-column
 flag to retain them.
 
@@ -39,25 +39,27 @@ Usage:
 
 separate options:
     -k, --keep               Keep the separated columns after splitting.
-    --max-splits <n>         Limit the number of splits per cell to at most <n>.
+    --max-splitted-cells <n>
+                             Limit the number of cells splitted to at most <n>.
                              By default, all possible splits are made.
     --into <column-names>    Specify names for the new columns created by the
                              splits. If not provided, new columns will be named
-                             split1, split2, etc. If used with --max-splits,
+                             split1, split2, etc. If used with --max-splitted-cells,
                              the number of names provided must be equal or lower
                              than <n>.
-    --extra <option>         Specify how to handle extra splits when the number
-                             of splits exceeds --max-splits, or the number of
-                             provided names with --into. By default, it will
-                             cause an error. Options are 'drop' to discard extra
-                             parts, or 'merge' to combine them into the last column.
-                             Note that 'merge' cannot be used with -m/--match nor -c/--capture-groups.
-    -r, --regex              Split cells using a regex pattern instead of the
-                             <separator> substring.
-    -m, --match              When using --regex, only output the parts of the
+    --too-many <option>      Specify how to handle extra cells when the number
+                             of splitted cells exceeds --max-splitted-cells, or
+                             the number of provided names with --into.
+                             By default, it will cause an error. Options are 'drop'
+                             to discard extra parts, or 'merge' to combine them
+                             into the last column. Note that 'merge' cannot be
+                             used with -m/--match nor -c/--capture-groups.
+    -r, --regex              When using --separator, split cells using <separator>
+                             as a regex pattern instead of splitting.
+    -m, --match              When using -r/--regex, only output the parts of the
                              cell that match the regex pattern. By default, the
                              parts between matches (i.e. separators) are output.
-    -c, --capture-groups     When using --regex, if the regex contains capture
+    -c, --capture-groups     When using -r/--regex, if the regex contains capture
                              groups, output the text matching each capture group
                              as a separate column.
 
@@ -73,29 +75,29 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_columns: SelectColumns,
-    arg_separator: String,
+    arg_separator: Option<String>,
     arg_input: Option<String>,
     flag_regex: bool,
     flag_match: bool,
     flag_capture_groups: bool,
     flag_keep: bool,
-    flag_max_splits: Option<usize>,
+    flag_max_splitted_cells: Option<usize>,
     flag_into: Option<String>,
-    flag_extra: Option<ExtraMode>,
+    flag_too_many: Option<TooManyMode>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
-enum ExtraMode {
+enum TooManyMode {
     #[default]
     Abort,
     Drop,
     Merge,
 }
 
-impl ExtraMode {
+impl TooManyMode {
     fn requires_splitn(&self) -> bool {
         matches!(self, Self::Merge | Self::Drop)
     }
@@ -176,31 +178,34 @@ impl Splitter {
     fn split_cells<'a>(
         &self,
         cells: impl Iterator<Item = &'a [u8]>,
-        max_splits: usize,
-        extra_mode: ExtraMode,
+        max_splitted_cells: usize,
+        too_many_mode: TooManyMode,
     ) -> CliResult<ByteRecord> {
         let mut output_record = ByteRecord::new();
 
-        match extra_mode {
-            ExtraMode::Abort => {
+        match too_many_mode {
+            TooManyMode::Abort => {
                 for cell in cells {
                     for sub_cell in self.split(cell) {
-                        if output_record.len() == max_splits {
+                        if output_record.len() == max_splitted_cells {
                             // TODO: we expected that much and got
-                            Err("Number of splits exceeded the given maximum. Consider using the --extra flag to handle extra splits.")?;
+                            Err("Number of splits exceeded the given maximum. Consider using the --too-many flag to handle extra splitted cells.")?;
                         }
 
                         output_record.push_field(sub_cell);
                     }
                 }
             }
-            ExtraMode::Drop => {
-                for sub_cell in cells.flat_map(|cell| self.split(cell)).take(max_splits) {
+            TooManyMode::Drop => {
+                for sub_cell in cells
+                    .flat_map(|cell| self.split(cell))
+                    .take(max_splitted_cells)
+                {
                     output_record.push_field(sub_cell);
                 }
             }
-            ExtraMode::Merge => {
-                let mut remaining = max_splits;
+            TooManyMode::Merge => {
+                let mut remaining = max_splitted_cells;
 
                 for cell in cells {
                     for sub_cell in self.splitn(remaining, cell) {
@@ -211,7 +216,7 @@ impl Splitter {
             }
         };
 
-        while output_record.len() < max_splits {
+        while output_record.len() < max_splitted_cells {
             output_record.push_field(b"");
         }
 
@@ -222,6 +227,12 @@ impl Splitter {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    dbg!(&args);
+
+    if args.arg_separator.is_none() {
+        Err("The <separator> argument is required")?;
+    }
+
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
             Err("-c/--capture-groups and -m/--match can only be used with --regex")?;
@@ -231,24 +242,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let extra_mode = args.flag_extra.unwrap_or_default();
+    let too_many_mode = args.flag_too_many.unwrap_or_default();
 
-    if extra_mode.requires_splitn() {
-        if args.flag_max_splits.is_none() && args.flag_into.is_none() {
-            Err("--extra can only be used with --max-splits or --into")?;
+    if too_many_mode.requires_splitn() {
+        if args.flag_max_splitted_cells.is_none() && args.flag_into.is_none() {
+            Err("--too-many can only be used with --max-splitted-cells or --into")?;
         }
 
-        if (args.flag_capture_groups || args.flag_match) && matches!(extra_mode, ExtraMode::Merge) {
-            Err("--extra merge doesn't work with -c/--capture-groups nor -m/--match!")?;
+        if (args.flag_capture_groups || args.flag_match)
+            && matches!(too_many_mode, TooManyMode::Merge)
+        {
+            Err("--too-many merge doesn't work with -c/--capture-groups nor -m/--match!")?;
         }
     }
 
     if args.flag_into.is_some()
-        && args.flag_max_splits.is_some()
+        && args.flag_max_splitted_cells.is_some()
         && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
-            > args.flag_max_splits.unwrap()
+            > args.flag_max_splitted_cells.unwrap()
     {
-        Err(format!("--into cannot specify more column names than --max-splits : got {} for --into and {} for --max-splits", util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len(), args.flag_max_splits.unwrap()))?;
+        Err(format!("--into cannot specify more column names than --max-splitted-cells : got {} for --into and {} for --max-splitted-cells", util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len(), args.flag_max_splitted_cells.unwrap()))?;
     }
 
     let rconf = Config::new(&args.arg_input)
@@ -264,7 +277,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconf.selection(&headers)?;
 
     let mut records: Vec<ByteRecord> = Vec::new();
-    let mut max_splits: usize = 0;
+    let mut max_splitted_cells: usize = 0;
 
     let splitter = if args.flag_regex {
         let regex_mode = if args.flag_match {
@@ -275,24 +288,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             RegexMode::Split
         };
 
-        Splitter::Regex(Regex::new(&args.arg_separator)?, regex_mode)
+        Splitter::Regex(Regex::new(&args.arg_separator.unwrap())?, regex_mode)
     } else {
-        Splitter::Substring(args.arg_separator.as_bytes().to_vec())
+        Splitter::Substring(args.arg_separator.unwrap().as_bytes().to_vec())
     };
 
     // When we need to determine the maximum number of splits across all rows
     // (to know how many new columns to create), we have to first read all records
     // and store them in memory.
-    if let Some(n) = args.flag_max_splits {
-        max_splits = n;
+    if let Some(n) = args.flag_max_splitted_cells {
+        max_splitted_cells = n;
     } else if args.flag_into.is_some() {
-        max_splits = util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len();
+        max_splitted_cells = util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len();
     } else {
         for result in rdr.byte_records() {
             let record = result?;
 
             let numsplits = splitter.count_splits(sel.select(&record));
-            max_splits = max_splits.max(numsplits);
+            max_splitted_cells = max_splitted_cells.max(numsplits);
 
             records.push(record);
         }
@@ -310,7 +323,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         new_headers = sel_to_keep.select(&headers).collect::<ByteRecord>()
     }
-    let mut number_of_new_columns = max_splits;
+    let mut number_of_new_columns = max_splitted_cells;
     if let Some(into) = &args.flag_into {
         let headers_to_add = util::str_to_csv_byte_record(into);
         new_headers.extend(&headers_to_add);
@@ -328,7 +341,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(
             sel_to_keep.select(record).chain(
                 splitter
-                    .split_cells(sel.select(record), max_splits, extra_mode)?
+                    .split_cells(sel.select(record), max_splitted_cells, too_many_mode)?
                     .iter(),
             ),
         )?;
@@ -336,7 +349,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    if args.flag_max_splits.is_some() || args.flag_into.is_some() {
+    if args.flag_max_splitted_cells.is_some() || args.flag_into.is_some() {
         let mut record = ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {

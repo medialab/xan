@@ -82,9 +82,9 @@ fn separate_extra() {
     cmd1.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
-        .arg("--extra")
+        .arg("--too-many")
         .arg("drop")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("3");
     let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
@@ -100,7 +100,7 @@ fn separate_extra() {
     cmd2.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
-        .arg("--extra")
+        .arg("--too-many")
         .arg("drop")
         .arg("--into")
         .arg("firstname,lastname,birthyear");
@@ -118,9 +118,9 @@ fn separate_extra() {
     cmd3.arg("fullname")
         .arg(" ")
         .arg("data.csv")
-        .arg("--extra")
+        .arg("--too-many")
         .arg("drop")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("5");
     let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
@@ -143,7 +143,7 @@ fn separate_extra() {
     cmd4.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
-        .arg("--extra")
+        .arg("--too-many")
         .arg("merge")
         .arg("--into")
         .arg("firstname,lastname,birthdate");
@@ -161,9 +161,9 @@ fn separate_extra() {
     cmd5.arg("fullname,birthdate")
         .arg(" ")
         .arg("data.csv")
-        .arg("--extra")
+        .arg("--too-many")
         .arg("merge")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("3");
     let got5: Vec<Vec<String>> = wrk.read_stdout(&mut cmd5);
     let expected5 = vec![
@@ -179,9 +179,9 @@ fn separate_extra() {
     cmd6.arg("fullname")
         .arg(" ")
         .arg("data.csv")
-        .arg("--extra")
+        .arg("--too-many")
         .arg("drop")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("5");
     let got6: Vec<Vec<String>> = wrk.read_stdout(&mut cmd6);
     let expected6 = vec![
@@ -327,7 +327,7 @@ fn separate_named_and_known_max_splits() {
     cmd1.arg("date")
         .arg("-")
         .arg("data.csv")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("4")
         .arg("--into")
         .arg("year,month,day");
@@ -345,7 +345,7 @@ fn separate_named_and_known_max_splits() {
     cmd2.arg("date")
         .arg("-")
         .arg("data.csv")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("3")
         .arg("--into")
         .arg("year,month,day");
@@ -368,7 +368,7 @@ fn separate_less_named_than_known_max_splits() {
     cmd.arg("date")
         .arg("-")
         .arg("data.csv")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("2")
         .arg("--into")
         .arg("year,month,day");
@@ -412,7 +412,7 @@ fn separate_known_max_splits_too_much_splits() {
     cmd.arg("date")
         .arg("-")
         .arg("data.csv")
-        .arg("--max-splits")
+        .arg("--max-splitted-cells")
         .arg("2");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
