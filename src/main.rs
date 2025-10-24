@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
+extern crate fast_float2 as fast_float;
 
 use std::borrow::ToOwned;
 use std::env;

@@ -81,7 +81,7 @@ ego-tree = "0.10.0"
 emojis = "0.6.4"
 encoding = "0.2.33"
 ext-sort = { version = "0.1.5", features = ["memory-limit"] }
-fast-float = "0.2.0"
+fast-float2 = "0.2.3"
 flate2 = { version = "1.1.2", default-features = false, features = ["zlib-rs"] }
 glob = "0.3.1"
 html-escape = "0.2.13"
