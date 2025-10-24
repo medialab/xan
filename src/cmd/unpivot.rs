@@ -67,15 +67,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .select(args.arg_columns);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
     let sel = rconf.selection(&headers)?;
     let inverse_sel = sel.inverse(headers.len());
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !rconf.no_headers {
-        let mut output_headers = csv::ByteRecord::new();
+        let mut output_headers = simd_csv::ByteRecord::new();
 
         for h in inverse_sel.select(&headers) {
             output_headers.push_field(h);
@@ -87,8 +87,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&output_headers)?;
     }
 
-    let mut record = csv::ByteRecord::new();
-    let mut output_record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
+    let mut output_record = simd_csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         output_record.clear();
