@@ -500,3 +500,39 @@ fn separate_widths() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn separate_offsets() {
+    let wrk = Workdir::new("separate_offsets");
+    wrk.create("dates.csv", dates());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg("--offsets")
+        .arg("4,7,10")
+        .arg("dates.csv")
+        .arg("--into")
+        .arg("year,month,day");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["year", "month", "day"],
+        svec!["2023", "-01", "-15"],
+        svec!["1999", "-12", "-31"],
+        svec!["2024", "-07", "-04"],
+    ];
+    assert_eq!(got, expected);
+
+    wrk.create("data.csv", people());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("fullname,birthdate")
+        .arg("--offsets")
+        .arg("4,7,10")
+        .arg("data.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["split1", "split2", "split3", "split4", "split5", "split6"],
+        svec!["John", " Do", "e", "1990", " 05", " 15"],
+        svec!["Jane", " Sm", "ith", "1985", " 10", " 30"],
+        svec!["Alic", "e J", "ohn", "2000", " 01", " 01"],
+    ];
+    assert_eq!(got, expected);
+}

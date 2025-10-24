@@ -39,9 +39,13 @@ Examples:
   Split column 'code' into parts of widths 2,4,3:
     $ xan separate code --widths 2,4,3 data.csv
 
+  Split column 'code' into parts of offsets 2,6,9 (same as widths 2,4,3):
+    $ xan separate code --offsets 2,6,9 data.csv
+
 Usage:
     xan separate [options] <columns> --fixed-width <width> [<input>]
     xan separate [options] <columns> --widths <widths> [<input>]
+    xan separate [options] <columns> --offsets <offsets> [<input>]
     xan separate [options] <columns> <separator> [<input>]
     xan separate --help
 
@@ -71,11 +75,17 @@ separate options:
                              groups, output the text matching each capture group
                              as a separate column.
     --fixed-width <width>    Used without <separator>. Instead of splitting on a
-                             separator, split cells every <width> bytes.
+                             separator, split cells every <width> bytes. Cannot
+                             be used with --widths nor --offsets.
     --widths <widths>        Used without <separator>. Instead of splitting on a
                              separator, split cells using the specified fixed
                              widths (comma-separated list of integers). Cannot be
-                             used with --fixed-width nor --max-splitted-cells.
+                             used with --fixed-width, --offsets nor
+                             --max-splitted-cells.
+    --offsets <offsets>      Used without <separator>. Instead of splitting on a
+                             separator, split cells using the specified offsets
+                             (comma-separated list of integers). Cannot be used
+                             with --fixed-width, --widths nor --max-splitted-cells.
 
 Common options:
     -h, --help               Display this message
@@ -103,6 +113,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_fixed_width: Option<usize>,
     flag_widths: Option<String>,
+    flag_offsets: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -130,6 +141,7 @@ enum Splitter {
     Regex(Regex, RegexMode),
     FixedWidth(usize),
     Widths(Vec<usize>),
+    Offsets(Vec<usize>),
 }
 
 impl Splitter {
@@ -148,6 +160,7 @@ impl Splitter {
                 },
                 Self::FixedWidth(width) => cell.len().div_ceil(*width),
                 Self::Widths(widths) => widths.len(),
+                Self::Offsets(offsets) => offsets.len(),
             };
         }
 
@@ -193,6 +206,26 @@ impl Splitter {
                 }
                 Box::new(splitted.into_iter())
             }
+            Self::Offsets(offsets) => {
+                let mut remaining = offsets.len();
+                let mut splitted = vec![];
+                let mut start = 0;
+
+                for offset in offsets.iter() {
+                    if *offset <= cell.len() {
+                        splitted.push(&cell[start..*offset]);
+                    } else {
+                        splitted.push(&cell[start..]);
+                    }
+                    start = *offset;
+                    remaining -= 1;
+                }
+                while remaining > 0 {
+                    splitted.push(b"");
+                    remaining -= 1;
+                }
+                Box::new(splitted.into_iter())
+            }
         }
     }
 
@@ -215,6 +248,7 @@ impl Splitter {
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
             Self::Widths(_) => unimplemented!(),
+            Self::Offsets(_) => unimplemented!(),
         }
     }
 
@@ -272,12 +306,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let splitters_count = args.flag_fixed_width.is_some() as u8
         + args.flag_widths.is_some() as u8
-        + args.arg_separator.is_some() as u8;
+        + args.arg_separator.is_some() as u8
+        + args.flag_offsets.is_some() as u8;
 
     if splitters_count == 0 {
-        Err("One <separator>, --fixed-width or --widths argument is required")?;
+        Err("One <separator>, --fixed-width, --widths or --offsets argument is required")?;
     } else if splitters_count > 1 {
-        Err("Only one of <separator>, --fixed-width or --widths argument can be used")?;
+        Err("Only one of <separator>, --fixed-width, --widths or --offsets argument can be used")?;
     }
 
     if args.flag_fixed_width.is_some() {
@@ -288,31 +323,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let widths = if args.flag_widths.is_some() {
+    let mut widths_or_offsets: Option<Vec<usize>> = None;
+
+    if args.flag_widths.is_some() || args.flag_offsets.is_some() {
         if args.flag_regex || args.flag_capture_groups || args.flag_match {
-            Err("--widths cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
+            Err("--widths|--offsets cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
         }
         if args.flag_max_splitted_cells.is_some() {
-            Err("--widths cannot be used with --max-splitted-cells")?;
+            Err("--widths|--offsets cannot be used with --max-splitted-cells")?;
         }
 
-        let widths_str = args.flag_widths.clone().unwrap();
-        let widths_vec: Vec<usize> = widths_str
-            .split(',')
-            .map(|s| s.trim().parse::<usize>())
-            .collect::<Result<Vec<usize>, _>>()
-            .map_err(|_| "Invalid value within --widths.")?;
+        let widths_or_offsets_str = if let Some(widths) = args.flag_widths.clone() {
+            widths
+        } else {
+            args.flag_offsets.clone().unwrap()
+        };
+        widths_or_offsets = Some(
+            widths_or_offsets_str
+                .split(',')
+                .map(|s| s.trim().parse::<usize>())
+                .collect::<Result<Vec<usize>, _>>()
+                .map_err(|_| "Invalid value within --widths|--offsets.")?,
+        );
 
         if args.flag_into.is_some()
             && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
-                > widths_vec.len()
+                > widths_or_offsets.clone().unwrap().len()
         {
-            Err("--into cannot specify more column names than widths provided with --widths")?;
+            Err("--into cannot specify more column names than widths provided with --widths|--offsets")?;
         }
-        Some(widths_vec)
-    } else {
-        None
-    };
+    }
 
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
@@ -370,14 +410,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         Splitter::Regex(Regex::new(&args.arg_separator.unwrap())?, regex_mode)
-    } else {
-        if let Some(width) = args.flag_fixed_width {
-            Splitter::FixedWidth(width)
-        } else if let Some(widths) = widths {
-            Splitter::Widths(widths)
+    } else if let Some(width) = args.flag_fixed_width {
+        Splitter::FixedWidth(width)
+    } else if let Some(widths_or_offsets) = widths_or_offsets {
+        if args.flag_widths.is_some() {
+            Splitter::Widths(widths_or_offsets)
         } else {
-            Splitter::Substring(args.arg_separator.unwrap().as_bytes().to_vec())
+            Splitter::Offsets(widths_or_offsets)
         }
+    } else {
+        Splitter::Substring(args.arg_separator.unwrap().as_bytes().to_vec())
     };
 
     // When we need to determine the maximum number of splits across all rows
