@@ -51,6 +51,7 @@ separate options:
                              provided names with --into. By default, it will
                              cause an error. Options are 'drop' to discard extra
                              parts, or 'merge' to combine them into the last column.
+                             Note that 'merge' cannot be used with -m/--match nor -c/--capture-groups.
     -r, --regex              Split cells using a regex pattern instead of the
                              <separator> substring.
     -m, --match              When using --regex, only output the parts of the
@@ -223,10 +224,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
-            Err("-c/--capture-groups and --match can only be used with --regex")?;
+            Err("-c/--capture-groups and -m/--match can only be used with --regex")?;
         }
         if args.flag_capture_groups && args.flag_match {
-            Err("--capture-groups and --match cannot be used together")?;
+            Err("-c/--capture-groups and -m/--match cannot be used together")?;
         }
     }
 
@@ -237,15 +238,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("--extra can only be used with --max-splits or --into")?;
         }
 
-        if args.flag_capture_groups || args.flag_match {
-            Err("--extra (drop|merge) does work with -c/--capture-groups nor -m/--match!")?;
+        if (args.flag_capture_groups || args.flag_match) && matches!(extra_mode, ExtraMode::Merge) {
+            Err("--extra merge doesn't work with -c/--capture-groups nor -m/--match!")?;
         }
-    } else if args.flag_into.is_some()
+    }
+
+    if args.flag_into.is_some()
         && args.flag_max_splits.is_some()
         && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
             > args.flag_max_splits.unwrap()
     {
-        Err("--into cannot specify more column names than --max-splits")?;
+        Err(format!("--into cannot specify more column names than --max-splits : got {} for --into and {} for --max-splits", util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len(), args.flag_max_splits.unwrap()))?;
     }
 
     let rconf = Config::new(&args.arg_input)
