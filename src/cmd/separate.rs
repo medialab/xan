@@ -33,8 +33,15 @@ Examples:
   Extract year, month and day from column named 'date' using capture groups:
     $ xan separate date '(\d{4})-(\d{2})-(\d{2})' data.csv -r -c --into year,month,day
 
+  Split column 'code' into parts of fixed width 3:
+    $ xan separate code --fixed-width 3 data.csv
+
+  Split column 'code' into parts of widths 2,4,3:
+    $ xan separate code --widths 2,4,3 data.csv
+
 Usage:
     xan separate [options] <columns> --fixed-width <width> [<input>]
+    xan separate [options] <columns> --widths <widths> [<input>]
     xan separate [options] <columns> <separator> [<input>]
     xan separate --help
 
@@ -65,6 +72,10 @@ separate options:
                              as a separate column.
     --fixed-width <width>    Used without <separator>. Instead of splitting on a
                              separator, split cells every <width> bytes.
+    --widths <widths>        Used without <separator>. Instead of splitting on a
+                             separator, split cells using the specified fixed
+                             widths (comma-separated list of integers). Cannot be
+                             used with --fixed-width nor --max-splitted-cells.
 
 Common options:
     -h, --help               Display this message
@@ -91,6 +102,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_fixed_width: Option<usize>,
+    flag_widths: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default)]
@@ -117,6 +129,7 @@ enum Splitter {
     Substring(Vec<u8>),
     Regex(Regex, RegexMode),
     FixedWidth(usize),
+    Widths(Vec<usize>),
 }
 
 impl Splitter {
@@ -134,6 +147,7 @@ impl Splitter {
                     RegexMode::Match => pattern.find_iter(cell).count(),
                 },
                 Self::FixedWidth(width) => cell.len().div_ceil(*width),
+                Self::Widths(widths) => widths.len(),
             };
         }
 
@@ -159,6 +173,26 @@ impl Splitter {
                 RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width)),
+            Self::Widths(widths) => {
+                let mut remaining = widths.len();
+                let mut splitted = vec![];
+                let mut start = 0;
+
+                for width in widths.iter() {
+                    if start + width <= cell.len() {
+                        splitted.push(&cell[start..start + width]);
+                    } else {
+                        splitted.push(&cell[start..]);
+                    }
+                    start += width;
+                    remaining -= 1;
+                }
+                while remaining > 0 {
+                    splitted.push(b"");
+                    remaining -= 1;
+                }
+                Box::new(splitted.into_iter())
+            }
         }
     }
 
@@ -180,6 +214,7 @@ impl Splitter {
                 RegexMode::Match => unimplemented!(),
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
+            Self::Widths(_) => unimplemented!(),
         }
     }
 
@@ -197,7 +232,7 @@ impl Splitter {
                     for sub_cell in self.split(cell) {
                         if output_record.len() == max_splitted_cells {
                             // TODO: we expected that much and got
-                            Err("Number of splits exceeded the given maximum. Consider using the --too-many flag to handle extra splitted cells.")?;
+                            Err(format!("Number of splits exceeded the given maximum: expected {}. Consider using the --too-many flag to handle extra splitted cells.", max_splitted_cells))?;
                         }
 
                         output_record.push_field(sub_cell);
@@ -235,22 +270,49 @@ impl Splitter {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    dbg!(&args);
+    let splitters_count = args.flag_fixed_width.is_some() as u8
+        + args.flag_widths.is_some() as u8
+        + args.arg_separator.is_some() as u8;
 
-    if args.arg_separator.is_none() && args.flag_fixed_width.is_none() {
-        Err("One <separator> or --fixed-width argument is required")?;
+    if splitters_count == 0 {
+        Err("One <separator>, --fixed-width or --widths argument is required")?;
+    } else if splitters_count > 1 {
+        Err("Only one of <separator>, --fixed-width or --widths argument can be used")?;
     }
 
     if args.flag_fixed_width.is_some() {
-        if args.arg_separator.is_some() {
-            Err("Only one of <separator> or --fixed-width argument can be used")?;
-        }
         if args.flag_regex || args.flag_capture_groups || args.flag_match {
             Err(
                 "--fixed-width cannot be used with -r/--regex, -c/--capture-groups nor -m/--match",
             )?;
         }
     }
+
+    let widths = if args.flag_widths.is_some() {
+        if args.flag_regex || args.flag_capture_groups || args.flag_match {
+            Err("--widths cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
+        }
+        if args.flag_max_splitted_cells.is_some() {
+            Err("--widths cannot be used with --max-splitted-cells")?;
+        }
+
+        let widths_str = args.flag_widths.clone().unwrap();
+        let widths_vec: Vec<usize> = widths_str
+            .split(',')
+            .map(|s| s.trim().parse::<usize>())
+            .collect::<Result<Vec<usize>, _>>()
+            .map_err(|_| "Invalid value within --widths.")?;
+
+        if args.flag_into.is_some()
+            && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
+                > widths_vec.len()
+        {
+            Err("--into cannot specify more column names than widths provided with --widths")?;
+        }
+        Some(widths_vec)
+    } else {
+        None
+    };
 
     if args.flag_capture_groups || args.flag_match {
         if !args.flag_regex {
@@ -311,6 +373,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         if let Some(width) = args.flag_fixed_width {
             Splitter::FixedWidth(width)
+        } else if let Some(widths) = widths {
+            Splitter::Widths(widths)
         } else {
             Splitter::Substring(args.arg_separator.unwrap().as_bytes().to_vec())
         }
