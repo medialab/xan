@@ -81,18 +81,7 @@ impl EnhancedProgressBar {
 
         bar.enable_steady_tick(Duration::from_millis(100));
 
-        let enhanced_bar = Self { inner: bar, bytes };
-
-        // NOTE: dealing with voluntary interruptions
-        let handle = enhanced_bar.clone();
-
-        ctrlc::set_handler(move || {
-            handle.interrupt();
-            std::process::exit(1);
-        })
-        .expect("Could not setup ctrl+c handler!");
-
-        enhanced_bar
+        Self { inner: bar, bytes }
     }
 
     fn inc(&self, delta: u64) {
@@ -108,11 +97,11 @@ impl EnhancedProgressBar {
         ));
     }
 
-    fn interrupt(&self) {
-        eprint!("\x1b[1A");
-        self.change_color("yellow");
-        self.inner.abandon();
-    }
+    // fn interrupt(&self) {
+    //     eprint!("\x1b[1A");
+    //     self.change_color("yellow");
+    //     self.inner.abandon();
+    // }
 
     fn fail(&self) {
         self.change_color("red");
