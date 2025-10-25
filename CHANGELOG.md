@@ -38,6 +38,7 @@
 * Fixing `xan hist -D` when a same date is found multiple times.
 * Fixing `xan from -f xls` datetime conversion.
 * Fixing `xan flatten` & `xan view` when column names contain line breaks.
+* Fixing invalid argument parsing error being printed to stdout instead of stderr.
 
 *Performance*
 
@@ -49,6 +50,7 @@
 * `xan parallel cat` now flushing more consistently.
 * Better highlighting of problematic strings in `xan flatten`, `xan view` & `xan headers`.
 * `xan parallel` will now generally stop as soon as an error is detected in a subprocess and cleanly report errors.
+* Better argv parsing error UX in general.
 
 ## 0.53.0
 
