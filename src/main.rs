@@ -179,7 +179,7 @@ fn main() {
                     eprintln!(
                         "{}",
                         format!(
-                            "xan: unknown command {}!",
+                            "xan: unknown command {}! Use xan --help to review available commands.",
                             std::env::args()
                                 .nth(1)
                                 .unwrap_or_else(|| "<missing>".to_string())
