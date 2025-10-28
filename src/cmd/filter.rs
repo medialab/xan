@@ -116,7 +116,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(threads) = parallelization {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
             move |(index, record)| -> CliResult<Option<simd_csv::ByteRecord>> {
                 let record = record?;
 

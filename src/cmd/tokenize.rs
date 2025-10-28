@@ -583,7 +583,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
             .parallel_map_custom(
                 |o| {
-                   o.threads(threads.unwrap_or_else(num_cpus::get))
+                   o.threads(threads.unwrap_or_else(crate::util::default_num_cpus))
                 },
                 move |(index, result)| -> CliResult<(simd_csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;

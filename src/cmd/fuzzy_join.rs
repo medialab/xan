@@ -295,7 +295,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         reader
             .into_byte_records()
             .parallel_map_custom(
-                |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+                |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
                 move |result| -> CliResult<(ByteRecord, BTreeSet<usize>)> {
                     let record = result?;
 

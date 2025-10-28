@@ -812,7 +812,7 @@ impl Args {
 
         let threads = self
             .flag_threads
-            .unwrap_or_else(|| NonZeroUsize::new(num_cpus::get()).unwrap())
+            .unwrap_or_else(|| NonZeroUsize::new(crate::util::default_num_cpus()).unwrap())
             .get();
 
         // One thread per input or more inputs than threads

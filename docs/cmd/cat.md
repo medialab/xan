@@ -37,11 +37,11 @@ Feeding CSV as stdin ("-") to --paths:
     $ cat filelist.csv | xan cat rows --paths - --path-column path > concatenated.csv
 
 Usage:
-    xan cat rows    [options] [<inputs>...]
-    xan cat columns [options] [<inputs>...]
+    xan cat rows [options] [<inputs>...]
+    xan cat (cols|columns) [options] [<inputs>...]
     xan cat --help
 
-cat columns options:
+cat cols/columns options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
