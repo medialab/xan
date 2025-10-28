@@ -63,7 +63,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } {
         wtr.write_all(i.to_string().as_bytes())?;
         wtr.write_all(b"\n")?;
-        wtr.flush()?;
 
         i += args.flag_step;
     }
