@@ -2,6 +2,7 @@ use std::cmp::Reverse;
 use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
+use simd_csv::ByteRecord;
 
 use crate::collections::{
     ClusteredInsertHashmap, FixedReverseHeapMap, FixedReverseHeapMapWithTies,
@@ -11,8 +12,6 @@ use crate::record::Record;
 use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
-
-type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Find top k CSV rows according to some column values.
@@ -91,10 +90,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! run {
         ($heap:ident, $type:ident) => {{
-            let mut record = simd_csv::ByteRecord::new();
-            let mut heap = $heap::<$type<NotNan<f64>>, simd_csv::ByteRecord>::with_capacity(
-                usize::from(args.flag_limit),
-            );
+            let mut record = ByteRecord::new();
+            let mut heap = $heap::<$type<NotNan<f64>>, ByteRecord>::with_capacity(usize::from(
+                args.flag_limit,
+            ));
 
             while rdr.read_byte_record(&mut record)? {
                 if let Ok(score) = std::str::from_utf8(&record[score_col])
@@ -117,10 +116,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! run_groupby {
         ($heap:ident, $type:ident, $sel:ident) => {{
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
             let mut groups: ClusteredInsertHashmap<
-                GroupKey,
-                $heap<$type<NotNan<f64>>, simd_csv::ByteRecord>,
+                ByteRecord,
+                $heap<$type<NotNan<f64>>, ByteRecord>,
             > = ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {
@@ -128,10 +127,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .unwrap_or("")
                     .parse::<NotNan<f64>>()
                 {
-                    let group = $sel
-                        .select(&record)
-                        .map(|cell| cell.to_vec())
-                        .collect::<Vec<_>>();
+                    let group = $sel.select(&record).collect();
 
                     groups.insert_with_or_else(
                         group,

@@ -383,15 +383,15 @@ impl FrequencyTables {
         }
     }
 
-    fn with_capacity(selected_headers: Vec<Vec<u8>>, approx_capacity: Option<usize>) -> Self {
+    fn with_capacity(selected_headers: ByteRecord, approx_capacity: Option<usize>) -> Self {
         let mut freq_counters = Self {
             counters: Vec::with_capacity(selected_headers.len()),
         };
 
-        for header in selected_headers {
+        for header in selected_headers.into_iter() {
             freq_counters
                 .counters
-                .push((header, Counter::new(approx_capacity)));
+                .push((header.to_vec(), Counter::new(approx_capacity)));
         }
 
         freq_counters
@@ -442,7 +442,7 @@ impl StatsTables {
         Self { tables: Vec::new() }
     }
 
-    fn with_capacity<F>(selected_headers: Vec<Vec<u8>>, new: F) -> Self
+    fn with_capacity<F>(selected_headers: ByteRecord, new: F) -> Self
     where
         F: Fn() -> Stats,
     {
@@ -450,8 +450,8 @@ impl StatsTables {
             tables: Vec::with_capacity(selected_headers.len()),
         };
 
-        for header in selected_headers {
-            stats_tables.tables.push((header, new()));
+        for header in selected_headers.into_iter() {
+            stats_tables.tables.push((header.to_vec(), new()));
         }
 
         stats_tables
@@ -1307,7 +1307,7 @@ impl Args {
             let sel = self.flag_select.selection(&headers, true)?;
 
             let mut freq_tables =
-                FrequencyTables::with_capacity(sel.collect(&headers), approx_capacity);
+                FrequencyTables::with_capacity(sel.select(&headers).collect(), approx_capacity);
 
             let mut record = ByteRecord::new();
 
@@ -1399,7 +1399,7 @@ impl Args {
             let sel = self.flag_select.selection(&headers, true)?;
 
             let mut local_stats =
-                StatsTables::with_capacity(sel.collect(&headers), || self.new_stats());
+                StatsTables::with_capacity(sel.select(&headers).collect(), || self.new_stats());
             let mut record = ByteRecord::new();
 
             while csv_reader.read_byte_record(&mut record)? {
@@ -1476,9 +1476,7 @@ impl Args {
     fn groupby(self, inputs: Vec<Input>) -> CliResult<()> {
         let process_manager = self.process_manager(inputs.len());
 
-        type GroupKey = Vec<Vec<u8>>;
-
-        let total_program_mutex: Mutex<Option<(GroupKey, GroupAggregationProgram<GroupKey>)>> =
+        let total_program_mutex: Mutex<Option<(ByteRecord, GroupAggregationProgram<ByteRecord>)>> =
             Mutex::new(None);
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
@@ -1496,7 +1494,7 @@ impl Args {
             let mut index: usize = 0;
 
             while csv_reader.read_byte_record(&mut record)? {
-                let group = sel.collect(&record);
+                let group = sel.select(&record).collect();
 
                 program.run_with_record(group, index, &record)?;
                 index += 1;
@@ -1508,7 +1506,7 @@ impl Args {
 
             match total_program_opt.as_mut() {
                 Some((_, current_program)) => current_program.merge(program),
-                None => *total_program_opt = Some((sel.collect(&headers), program)),
+                None => *total_program_opt = Some((sel.select(&headers).collect(), program)),
             };
 
             process_manager.stop(&input.name());
@@ -1517,9 +1515,9 @@ impl Args {
         })?;
 
         if let Some((group_headers, total_program)) = total_program_mutex.into_inner().unwrap() {
-            let mut writer = Config::new(&self.flag_output).writer()?;
-            let mut output_record = csv::ByteRecord::new();
-            output_record.extend(group_headers);
+            let mut writer = Config::new(&self.flag_output).simd_writer()?;
+            let mut output_record = ByteRecord::new();
+            output_record.extend(&group_headers);
             output_record.extend(total_program.headers());
 
             writer.write_record(&output_record)?;
@@ -1528,7 +1526,7 @@ impl Args {
                 let (group, values) = result?;
 
                 output_record.clear();
-                output_record.extend(group);
+                output_record.extend(&group);
                 output_record.extend(values.into_iter());
 
                 writer.write_byte_record(&output_record)?;

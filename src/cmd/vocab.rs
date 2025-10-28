@@ -283,7 +283,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     ClusteredInsertHashmap::new();
 
                 while rdr.read_byte_record(&mut record)? {
-                    let doc = sel.collect(&record);
+                    let doc = sel.select(&record).collect();
 
                     doc_tokens.insert_with_or_else(
                         doc,
@@ -377,7 +377,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let mut current_opt: Option<(Document, Vec<Rc<Token>>)> = None;
 
                 while rdr.read_byte_record(&mut record)? {
-                    let doc = sel.collect(&record);
+                    let doc = sel.select(&record).collect();
                     let token = Rc::new(record[token_pos].to_vec());
 
                     match current_opt.as_mut() {
@@ -451,8 +451,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_byte_record(&mut record)? {
         let document: Document = match &doc_sel {
-            Some(sel) => sel.select(&record).map(|cell| cell.to_vec()).collect(),
-            None => vec![i.to_string().into_bytes()],
+            Some(sel) => sel.select(&record).collect(),
+            None => {
+                let mut doc_key = ByteRecord::new();
+                doc_key.push_field(i.to_string().as_bytes());
+                doc_key
+            }
         };
 
         if let Some(sep) = &args.flag_sep {
@@ -549,7 +553,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     Ok(wtr.flush()?)
 }
 
-type Document = Vec<Vec<u8>>;
+type Document = ByteRecord;
 type Token = Vec<u8>;
 type TokenID = usize;
 
@@ -763,8 +767,8 @@ impl Vocabulary {
         for (doc, doc_stats) in self.documents.into_iter() {
             record.clear();
 
-            for cell in doc {
-                record.push_field(&cell);
+            for cell in doc.into_iter() {
+                record.push_field(cell);
             }
 
             record.push_field(doc_stats.doc_len().to_string().as_bytes());
