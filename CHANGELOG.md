@@ -49,6 +49,7 @@
 * Improving performance of `xan from -f txt`.
 * Improving memory footprint of hash-based commands (e.g. `frequency`, `groupby`, `dedup` etc.).
 * Improving performance of `xan progress`.
+* Improving performance of `xan range`.
 
 *Quality of Life*
 
