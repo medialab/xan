@@ -79,6 +79,24 @@ impl TabularDataKind {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum Compression {
+    Gzip,
+    Zstd,
+}
+
+impl Compression {
+    fn infer_from_path(path: &str) -> Option<Self> {
+        if path.ends_with(".gz") {
+            Some(Self::Gzip)
+        } else if path.ends_with(".zst") {
+            Some(Self::Zstd)
+        } else {
+            None
+        }
+    }
+}
+
 pub trait SeekRead: Seek + Read {}
 impl<T: Seek + Read> SeekRead for T {}
 
@@ -97,7 +115,7 @@ pub struct Config {
     double_quote: bool,
     escape: Option<u8>,
     quoting: bool,
-    compressed: bool, // TODO: can become a compression type if we need to support more schemes than gz
+    compression: Option<Compression>,
     tabular_data_kind: TabularDataKind,
 }
 
@@ -125,9 +143,9 @@ impl Config {
     }
 
     pub fn new(path: &Option<String>) -> Config {
-        let (path, delimiter, compressed, tabular_data_kind) = match *path {
-            None => (None, b',', false, TabularDataKind::RegularCsv),
-            Some(ref s) if s.deref() == "-" => (None, b',', false, TabularDataKind::RegularCsv),
+        let (path, delimiter, compression, tabular_data_kind) = match *path {
+            None => (None, b',', None, TabularDataKind::RegularCsv),
+            Some(ref s) if s.deref() == "-" => (None, b',', None, TabularDataKind::RegularCsv),
             Some(ref s) => {
                 let raw_s = s.strip_suffix(".gz").unwrap_or(s);
                 let mut kind = TabularDataKind::RegularCsv;
@@ -148,7 +166,12 @@ impl Config {
                     b','
                 };
 
-                (Some(PathBuf::from(s)), delim, s.ends_with(".gz"), kind)
+                (
+                    Some(PathBuf::from(s)),
+                    delim,
+                    Compression::infer_from_path(s),
+                    kind,
+                )
             }
         };
 
@@ -168,7 +191,7 @@ impl Config {
             double_quote: true,
             escape: None,
             quoting: true,
-            compressed,
+            compression,
             tabular_data_kind,
         };
 
@@ -177,6 +200,10 @@ impl Config {
         }
 
         config
+    }
+
+    pub fn is_compressed(&self) -> bool {
+        self.compression.is_some()
     }
 
     pub fn std() -> Config {
@@ -257,7 +284,7 @@ impl Config {
     }
 
     pub fn mmap(&self) -> io::Result<Option<Mmap>> {
-        if self.is_std() || self.compressed {
+        if self.is_std() || self.is_compressed() {
             return Ok(None);
         }
 
@@ -370,11 +397,15 @@ impl Config {
             }
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
-                    let mut reader: Box<dyn Read + Send + 'static> = if self.compressed {
-                        Box::new(MultiGzDecoder::new(x))
-                    } else {
-                        Box::new(x)
-                    };
+                    let mut reader: Box<dyn Read + Send + 'static> =
+                        if let Some(compression) = self.compression {
+                            match compression {
+                                Compression::Gzip => Box::new(MultiGzDecoder::new(x)),
+                                Compression::Zstd => Box::new(zstd::Decoder::new(x)?),
+                            }
+                        } else {
+                            Box::new(x)
+                        };
 
                     self.read_typical_headers(&mut reader)?;
 
@@ -395,7 +426,7 @@ impl Config {
             None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
             Some(ref p) => match fs::File::open(p) {
                 Ok(mut x) => {
-                    if self.compressed {
+                    if let Some(Compression::Gzip) = self.compression {
                         let index_path_str = p.to_string_lossy() + ".gzi";
                         let index_path = Path::new(index_path_str.as_ref());
 
@@ -531,7 +562,7 @@ impl Config {
         match self.path {
             None => false,
             Some(ref p) => {
-                if self.compressed {
+                if matches!(self.compression, Some(Compression::Gzip)) {
                     let index_path_str = p.to_string_lossy() + ".gzi";
                     let index_path = Path::new(index_path_str.as_ref());
 
