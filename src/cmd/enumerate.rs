@@ -1,5 +1,6 @@
+use std::io::{self, Write};
+
 use crate::config::{Config, Delimiter};
-use crate::record::Record;
 use crate::util;
 use crate::CliResult;
 
@@ -52,8 +53,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = conf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let delimiter = conf.delimiter;
+
+    let mut splitter = conf.simd_splitter()?;
+    let mut wtr = Config::new(&args.flag_output).buf_io_writer()?;
+
+    let mut write = |value: &[u8], record: &[u8]| -> io::Result<()> {
+        wtr.write_all(value)?;
+        wtr.write_all(&[delimiter])?;
+        wtr.write_all(record)?;
+        wtr.write_all(b"\n")?;
+
+        Ok(())
+    };
 
     if !conf.no_headers {
         let column_name = args.flag_column_name.unwrap_or(
@@ -65,30 +77,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .to_string(),
         );
 
-        let headers = rdr.byte_headers()?.prepend(column_name.as_bytes());
-
-        wtr.write_byte_record(&headers)?;
+        if let Some(headers) = splitter.split_record()? {
+            write(column_name.as_bytes(), headers)?;
+        }
     }
 
-    let mut record = csv::ByteRecord::new();
     let mut counter = args.flag_start;
     let mut accumulator: u64 = 0;
+    let mut pos: u64 = splitter.position();
 
-    while rdr.read_byte_record(&mut record)? {
-        let new_record = if args.flag_byte_offset {
-            let offset = (record.position().unwrap().byte() + accumulator).to_string();
+    while let Some(record) = splitter.split_record()? {
+        if args.flag_byte_offset {
+            let offset = (pos + accumulator).to_string();
 
             if args.flag_accumulate {
                 accumulator += offset.len() as u64 + 1;
             }
 
-            record.prepend(offset.as_bytes())
+            write(offset.as_bytes(), record)?;
         } else {
-            record.prepend(counter.to_string().as_bytes())
-        };
+            write(counter.to_string().as_bytes(), record)?;
+        }
 
-        wtr.write_byte_record(&new_record)?;
-
+        pos = splitter.position();
         counter += 1;
     }
 
