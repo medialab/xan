@@ -50,44 +50,44 @@ Usage:
     xan separate --help
 
 separate options:
-    -k, --keep               Keep the separated column after splitting.
-    --max-splitted-cells <n>
-                             Limit the number of cells splitted to at most <n>.
-                             By default, all possible splits are made.
-    --into <column-names>    Specify names for the new columns created by the
-                             splits. If not provided, new columns will be named
-                             split1, split2, etc. If used with --max-splitted-cells,
-                             the number of names provided must be equal or lower
-                             than <n>.
-    --too-many <option>      Specify how to handle extra cells when the number
-                             of splitted cells exceeds --max-splitted-cells, or
-                             the number of provided names with --into.
-                             By default, it will cause an error. Options are 'drop'
-                             to discard extra parts, or 'merge' to combine them
-                             into the last column. Note that 'merge' cannot be
-                             used with -m/--match nor -c/--capture-groups.
-    -r, --regex              When using --separator, split cells using <separator>
-                             as a regex pattern instead of splitting.
-    -m, --match              When using -r/--regex, only output the parts of the
-                             cell that match the regex pattern. By default, the
-                             parts between matches (i.e. separators) are output.
-    -c, --capture-groups     When using -r/--regex, if the regex contains capture
-                             groups, output the text matching each capture group
-                             as a separate column.
-    --fixed-width <width>    Used without <separator>. Instead of splitting on a
-                             separator, split cells every <width> bytes. Cannot
-                             be used with --widths nor --offsets. Trims whitespace
-                             for each splitted cell.
-    --widths <widths>        Used without <separator>. Instead of splitting on a
-                             separator, split cells using the specified fixed
-                             widths (comma-separated list of integers). Cannot be
-                             used with --fixed-width, --offsets nor --max-splitted-cells.
-                             Trims whitespace for each splitted cell.
-    --offsets <offsets>      Used without <separator>. Instead of splitting on a
-                             separator, split cells using the specified offsets
-                             (comma-separated list of integers). Cannot be used
-                             with --fixed-width, --widths nor --max-splitted-cells.
-                             Trims whitespace for each splitted cell.
+    -k, --keep                Keep the separated column after splitting.
+    --max-splitted-cells <n>  Limit the number of cells splitted to at most <n>.
+                              By default, all possible splits are made.
+    --into <column-names>     Specify names for the new columns created by the
+                              splits. If not provided, new columns will be named
+                              split1, split2, etc. If used with --max-splitted-cells,
+                              the number of names provided must be equal or lower
+                              than <n>.
+    --too-many <option>       Specify how to handle extra cells when the number
+                              of splitted cells exceeds --max-splitted-cells, or
+                              the number of provided names with --into.
+                              By default, it will cause an error. Options are 'drop'
+                              to discard extra parts, or 'merge' to combine them
+                              into the last column. Note that 'merge' cannot be
+                              used with -m/--match nor -c/--capture-groups.
+                              [default: error]
+    -r, --regex               When using --separator, split cells using <separator>
+                              as a regex pattern instead of splitting.
+    -m, --match               When using -r/--regex, only output the parts of the
+                              cell that match the regex pattern. By default, the
+                              parts between matches (i.e. separators) are output.
+    -c, --capture-groups      When using -r/--regex, if the regex contains capture
+                              groups, output the text matching each capture group
+                              as a separate column.
+    --fixed-width <width>     Used without <separator>. Instead of splitting on a
+                              separator, split cells every <width> bytes. Cannot
+                              be used with --widths nor --offsets. Trims whitespace
+                              for each splitted cell.
+    --widths <widths>         Used without <separator>. Instead of splitting on a
+                              separator, split cells using the specified fixed
+                              widths (comma-separated list of integers). Cannot be
+                              used with --fixed-width, --offsets nor --max-splitted-cells.
+                              Trims whitespace for each splitted cell.
+    --offsets <offsets>       Used without <separator>. Instead of splitting on a
+                              separator, split cells using the specified offsets
+                              (comma-separated list of integers). Cannot be used
+                              with --fixed-width, --widths nor --max-splitted-cells.
+                              Trims whitespace for each splitted cell.
 
 Common options:
     -h, --help               Display this message
@@ -109,7 +109,7 @@ struct Args {
     flag_keep: bool,
     flag_max_splitted_cells: Option<usize>,
     flag_into: Option<String>,
-    flag_too_many: Option<TooManyMode>,
+    flag_too_many: TooManyMode,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -118,10 +118,9 @@ struct Args {
     flag_offsets: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 enum TooManyMode {
-    #[default]
-    Abort,
+    Error,
     Drop,
     Merge,
 }
@@ -255,7 +254,7 @@ impl Splitter {
         let mut output_record = ByteRecord::new();
 
         match too_many_mode {
-            TooManyMode::Abort => {
+            TooManyMode::Error => {
                 for sub_cell in self.split(cell) {
                     if output_record.len() == max_splitted_cells {
                         // TODO: we expected that much and got
@@ -348,7 +347,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let too_many_mode = args.flag_too_many.unwrap_or_default();
+    let too_many_mode = args.flag_too_many;
 
     if too_many_mode.requires_splitn() {
         if args.flag_max_splitted_cells.is_none() && args.flag_into.is_none() {
