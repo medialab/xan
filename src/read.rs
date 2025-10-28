@@ -458,3 +458,34 @@ pub fn consume_cdx_header<R: Read>(reader: &mut R) -> io::Result<bool> {
 
     Ok(&buf == b" CDX ")
 }
+
+// pub fn consume_vcf_header<R: Read>(
+//     reader: R,
+// ) -> io::Result<Option<(u64, io::Chain<Cursor<Vec<u8>>, R>)>> {
+//     let mut line_reader = simd_csv::LineReader::new(reader);
+//     let mut pos = line_reader.position();
+//     let mut header_opt: Option<Vec<u8>> = None;
+
+//     while let Some(line) = line_reader.read_line()? {
+//         if !line.starts_with(b"#CHROM\t") {
+//             pos = line_reader.position();
+//             continue;
+//         }
+
+//         header_opt = Some(line.to_vec());
+
+//         break;
+//     }
+
+//     if let Some(header) = header_opt {
+//         let bufreader = line_reader.into_bufreader();
+//         let mut fixed_data = Vec::from(bufreader.buffer());
+//         fixed_data.extend(header);
+
+//         let fixed_reader = Cursor::new(fixed_data).chain(bufreader.into_inner());
+
+//         Ok(Some((pos, fixed_reader)))
+//     } else {
+//         Ok(None)
+//     }
+// }
