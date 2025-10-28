@@ -22,9 +22,9 @@ enum options:
                              in the file instead. Can be useful to perform
                              constant time slicing with `xan slice --byte-offset`
                              later on.
-    -A, --accumulate         When use with -B, --byte-offset, will accumulate the
+    -A, --accumulate         Similar to -B/--byte-offset but will accumulate the
                              written offset size in bytes to create an autodescriptive
-                             file that can be seen as a means of indexation.
+                             file that can be seen as a means of indexing the file.
 
 Common options:
     -h, --help             Display this message
@@ -49,6 +49,11 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_accumulate && args.flag_byte_offset {
+        Err("-B/--byte-offset is not compatible with -A/--accumulate!")?;
+    }
+
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
@@ -57,14 +62,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut splitter = conf.simd_splitter()?;
     let mut wtr = Config::new(&args.flag_output).buf_io_writer()?;
+    let mut written: u64 = 0;
 
-    let mut write = |value: &[u8], record: &[u8]| -> io::Result<()> {
+    let mut write = |value: &[u8], record: &[u8]| -> io::Result<u64> {
         wtr.write_all(value)?;
         wtr.write_all(&[delimiter])?;
         wtr.write_all(record)?;
         wtr.write_all(b"\n")?;
 
-        Ok(())
+        Ok((value.len() + 1 + record.len() + 1) as u64)
     };
 
     if !conf.no_headers {
@@ -78,25 +84,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         if let Some(headers) = splitter.split_record()? {
-            write(column_name.as_bytes(), headers)?;
+            written += write(column_name.as_bytes(), headers)?;
         }
     }
 
     let mut counter = args.flag_start;
-    let mut accumulator: u64 = 0;
     let mut pos: u64 = splitter.position();
 
     while let Some(record) = splitter.split_record()? {
         if args.flag_byte_offset {
-            let offset = (pos + accumulator).to_string();
-
-            if args.flag_accumulate {
-                accumulator += offset.len() as u64 + 1;
-            }
-
-            write(offset.as_bytes(), record)?;
+            written += write(pos.to_string().as_bytes(), record)?;
+        } else if args.flag_accumulate {
+            written += write(written.to_string().as_bytes(), record)?;
         } else {
-            write(counter.to_string().as_bytes(), record)?;
+            written += write(counter.to_string().as_bytes(), record)?;
         }
 
         pos = splitter.position();

@@ -10,6 +10,7 @@
 * `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
 * `xan behead` does not normalize the output anymore to be as fast as possible.
 * The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
+* `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 
 *Features*
 
@@ -42,6 +43,7 @@
 * Fixing `xan flatten` & `xan view` when column names contain line breaks.
 * Fixing invalid argument parsing error being printed to stdout instead of stderr.
 * Fixing `xan progress` SIGINT corrupting output.
+* Fixing `xan slice -A/--accumulate`.
 
 *Performance*
 
