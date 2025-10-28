@@ -45,6 +45,14 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 * [Quick tour](#quick-tour)
 * [Available commands](#available-commands)
 * [General flags and IO model](#general-flags-and-io-model)
+  * [Getting help](#getting-help)
+  * [Regarding input & output formats](#regarding-input--output-formats)
+  * [Working with headless CSV file](#working-with-headless-csv-file)
+  * [Regarding stdin](#regarding-stdin)
+  * [Regarding stdout](#regarding-stdout)
+  * [Supported file formats](#supported-file-formats)
+  * [Compressed files](#compressed-files)
+  * [Regarding color](#regarding-color)
 * [Expression language reference](#expression-language-reference)
 * [Cookbook](#cookbook)
 * [News](#news)
@@ -667,7 +675,7 @@ By default, all commands will print their output to stdout (note that this outpu
 
 In addition, all commands expose a `-o/--output` flag that can be use to specify where to write the output. This can be useful if you do not want to or cannot use `>` (typically in some Windows shells). In which case, `-` as a output path will mean forwarding to stdout also. This can be useful when scripting sometimes.
 
-### Supported files
+### Supported file formats
 
 `xan` is able to process a large variety of CSV-adjacent data formats out-of-the box:
 
@@ -689,6 +697,14 @@ Note also that UTF-8 BOMs will be stripped from the data when processed.
 `xan` is able to read gzipped files (having a `.gz` extension) out of the box. It is also able to leverage `.gzi` indices (usually created through [`bgzip`](https://www.htslib.org/doc/bgzip.html)) when seeking is necessary (constant time reversing, parallelization chunking etc.).
 
 `xan` is also able to read files compressed with [`Zstdandard`](https://github.com/facebook/zstd) (having a `.zst` extension) out of the box.
+
+### Regarding color
+
+Some `xan` commands print ANSI colors in the terminal by default, typically `view`, `flatten`, etc.
+
+All those commands have a standard `--color=(auto|always|never)` flag to tweak the colouring behavior if you need it (note that colors are not printed when commands are piped, by default).
+
+They also respect typical environment variables related to ANSI colouring, such as `NO_COLOR`, `CLICOLOR` & `CLICOLOR_FORCE`, as documented [here](https://bixense.com/clicolors/).
 
 ## Expression language reference
 
