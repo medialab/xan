@@ -53,10 +53,10 @@ fn separate() {
     cmd3.arg("fullname").arg(" ").arg("data.csv");
     let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
-        svec!["birthdate", "split1", "split2"],
-        svec!["1990 05 15", "John", "Doe"],
-        svec!["1985 10 30", "Jane", "Smith"],
-        svec!["2000 01 01", "Alice", "Johnson"],
+        svec!["split1", "split2", "birthdate"],
+        svec!["John", "Doe", "1990 05 15"],
+        svec!["Jane", "Smith", "1985 10 30"],
+        svec!["Alice", "Johnson", "2000 01 01"],
     ];
     assert_eq!(got3, expected3);
 }
@@ -110,16 +110,16 @@ fn separate_too_many() {
     let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
         svec![
-            "birthdate",
             "split1",
             "split2",
             "split3",
             "split4",
-            "split5"
+            "split5",
+            "birthdate"
         ],
-        svec!["1990 05 15", "John", "Doe", "", "", ""],
-        svec!["1985 10 30", "Jane", "Smith", "", "", ""],
-        svec!["2000 01 01", "Alice", "Johnson", "", "", ""],
+        svec!["John", "Doe", "", "", "", "1990 05 15"],
+        svec!["Jane", "Smith", "", "", "", "1985 10 30"],
+        svec!["Alice", "Johnson", "", "", "", "2000 01 01"],
     ];
     assert_eq!(got3, expected3);
 
@@ -168,16 +168,16 @@ fn separate_too_many() {
     let got6: Vec<Vec<String>> = wrk.read_stdout(&mut cmd6);
     let expected6 = vec![
         svec![
-            "birthdate",
             "split1",
             "split2",
             "split3",
             "split4",
-            "split5"
+            "split5",
+            "birthdate"
         ],
-        svec!["1990 05 15", "John", "Doe", "", "", ""],
-        svec!["1985 10 30", "Jane", "Smith", "", "", ""],
-        svec!["2000 01 01", "Alice", "Johnson", "", "", ""],
+        svec!["John", "Doe", "", "", "", "1990 05 15"],
+        svec!["Jane", "Smith", "", "", "", "1985 10 30"],
+        svec!["Alice", "Johnson", "", "", "", "2000 01 01"],
     ];
     assert_eq!(got6, expected6);
 }
@@ -198,6 +198,18 @@ fn separate_keep_column() {
         svec!["3", "au cas   où", "au", "cas", "", "", "où"],
         svec!["4", " ", "", "", "", "", ""],
         svec!["5", "ex-æquo", "ex-æquo", "", "", "", ""],
+    ];
+    assert_eq!(got, expected);
+
+    wrk.create("data.csv", people());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("fullname").arg(" ").arg("data.csv").arg("--keep");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["fullname", "split1", "split2", "birthdate"],
+        svec!["John Doe", "John", "Doe", "1990 05 15"],
+        svec!["Jane Smith", "Jane", "Smith", "1985 10 30"],
+        svec!["Alice Johnson", "Alice", "Johnson", "2000 01 01"],
     ];
     assert_eq!(got, expected);
 }

@@ -3,7 +3,7 @@ use csv::ByteRecord;
 use regex::bytes::Regex;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -147,7 +147,7 @@ enum Splitter {
 }
 
 impl Splitter {
-    fn count_splits<'a>(&self, cell: &'a [u8]) -> usize {
+    fn count_splits(&self, cell: &[u8]) -> usize {
         match self {
             Self::Substring(sep) => cell.find_iter(sep).count() + 1,
             Self::Regex(pattern, mode) => match mode {
@@ -246,9 +246,9 @@ impl Splitter {
         }
     }
 
-    fn split_cell<'a>(
+    fn split_cell(
         &self,
-        cell: &'a [u8],
+        cell: &[u8],
         max_splitted_cells: usize,
         too_many_mode: TooManyMode,
     ) -> CliResult<ByteRecord> {
@@ -302,12 +302,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("Only one of <separator>, --fixed-width, --widths or --offsets argument can be used")?;
     }
 
-    if args.flag_fixed_width.is_some() {
-        if args.flag_regex || args.flag_capture_groups || args.flag_match {
-            Err(
-                "--fixed-width cannot be used with -r/--regex, -c/--capture-groups nor -m/--match",
-            )?;
-        }
+    if args.flag_fixed_width.is_some()
+        && (args.flag_regex || args.flag_capture_groups || args.flag_match)
+    {
+        Err("--fixed-width cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
     }
 
     let mut widths_or_offsets: Option<Vec<usize>> = None;
@@ -434,44 +432,61 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let sel_to_keep: Selection = if args.flag_keep {
-        Selection::full(headers.len())
-    } else {
-        sel.inverse(headers.len())
-    };
+    let mut left_headers: ByteRecord = ByteRecord::new();
+    let mut middle_headers: ByteRecord = ByteRecord::new();
+    let mut right_headers: ByteRecord = ByteRecord::new();
+    let mut seen_splitted_column = false;
 
-    let mut new_headers: ByteRecord;
-    if args.flag_keep {
-        new_headers = headers.clone();
-    } else {
-        new_headers = sel_to_keep.select(&headers).collect::<ByteRecord>()
-    }
-    let mut number_of_new_columns = max_splitted_cells;
-    if let Some(into) = &args.flag_into {
-        let headers_to_add = util::str_to_csv_byte_record(into);
-        new_headers.extend(&headers_to_add);
-        number_of_new_columns -= headers_to_add.len();
+    for (i, h) in headers.iter().enumerate() {
+        if sel.contains(i) {
+            seen_splitted_column = true;
+            if args.flag_keep {
+                middle_headers.push_field(h);
+            }
+            let mut number_of_new_columns = max_splitted_cells;
+            if let Some(into) = &args.flag_into {
+                let headers_to_add = util::str_to_csv_byte_record(into);
+                middle_headers.extend(&headers_to_add);
+                number_of_new_columns -= headers_to_add.len();
+            }
+
+            for i in 1..=number_of_new_columns {
+                let header_name = format!("split{}", i);
+                middle_headers.push_field(header_name.as_bytes());
+            }
+        } else if seen_splitted_column {
+            right_headers.push_field(h);
+        } else {
+            left_headers.push_field(h);
+        }
     }
 
-    for i in 1..=number_of_new_columns {
-        let header_name = format!("split{}", i);
-        new_headers.push_field(header_name.as_bytes());
-    }
-
+    let mut new_headers = ByteRecord::new();
+    new_headers.extend(&left_headers);
+    new_headers.extend(&middle_headers);
+    new_headers.extend(&right_headers);
     wtr.write_byte_record(&new_headers)?;
 
     let mut process_record = |record: &ByteRecord| -> CliResult<()> {
-        wtr.write_record(
-            sel_to_keep.select(record).chain(
-                splitter
-                    .split_cell(
-                        sel.select(record).next().unwrap(),
-                        max_splitted_cells,
-                        too_many_mode,
-                    )?
-                    .iter(),
-            ),
-        )?;
+        let mut output_record: ByteRecord = ByteRecord::new();
+
+        output_record.extend(
+            record
+                .iter()
+                .take(left_headers.len() + args.flag_keep as usize),
+        );
+        output_record.extend(
+            splitter
+                .split_cell(
+                    sel.select(record).next().unwrap(),
+                    max_splitted_cells,
+                    too_many_mode,
+                )?
+                .iter(),
+        );
+        output_record.extend(record.iter().skip(left_headers.len() + 1));
+
+        wtr.write_byte_record(&output_record)?;
 
         Ok(())
     };
