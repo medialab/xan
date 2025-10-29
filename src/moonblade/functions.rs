@@ -103,6 +103,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
         ),
+        "earliest" => (
+            |args| {
+                variadic_optimum(
+                    args,
+                    |value| value.try_as_datetime().map(Cow::into_owned),
+                    Ordering::is_lt,
+                )
+            },
+            FunctionArguments::variadic(1),
+        ),
         "endswith" => (endswith, FunctionArguments::binary()),
         "err" => (err, FunctionArguments::unary()),
         "escape_regex" => (escape_regex, FunctionArguments::unary()),
@@ -128,6 +138,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "isfile" => (isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "keys" => (keys, FunctionArguments::unary()),
+        "latest" => (
+            |args| {
+                variadic_optimum(
+                    args,
+                    |value| value.try_as_datetime().map(Cow::into_owned),
+                    Ordering::is_gt,
+                )
+            },
+            FunctionArguments::variadic(1),
+        ),
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
         "log" => (

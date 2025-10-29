@@ -520,6 +520,20 @@
         "help": "Parse a string as a datetime according to format and timezone. If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
       },
       {
+        "name": "earliest",
+        "arguments": ["datetime1", "datetime2", "*datetimen"],
+        "alternatives": [["list_of_datetimes"]],
+        "returns": "datetime",
+        "help": "Return the earliest datetime."
+      },
+      {
+        "name": "latest",
+        "arguments": ["datetime1", "datetime2", "*datetimen"],
+        "alternatives": [["list_of_datetimes"]],
+        "returns": "datetime",
+        "help": "Return the latest datetime."
+      },
+      {
         "name": "strftime",
         "arguments": ["target", "format"],
         "returns": "string",

@@ -35,6 +35,7 @@
 * Adding out-of-the-box support for `.vcf`, `.sam`, `.gtf` & `.gff2` files.
 * Adding a `xan cat cols` alias to `xan cat columns`.
 * Adding `zstd` support.
+* Adding `earliest` & `latest` moonblade functions.
 
 *Fixes*
 
