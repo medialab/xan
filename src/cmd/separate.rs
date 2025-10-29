@@ -379,14 +379,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let sel = rconf.selection(&headers)?;
-
-    if sel.clone().len() != 1 {
-        Err(format!(
-            "Exactly one column must be selected for separation: got {}",
-            sel.len()
-        ))?;
-    }
+    let separated_column_index = rconf.single_selection(&headers)?;
 
     let mut records: Vec<ByteRecord> = Vec::new();
     let mut max_splitted_cells: usize = 0;
@@ -424,7 +417,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for result in rdr.byte_records() {
             let record = result?;
 
-            let numsplits = splitter.count_splits(sel.select(&record).next().unwrap());
+            let numsplits = splitter.count_splits(&record[separated_column_index]);
             max_splitted_cells = max_splitted_cells.max(numsplits);
 
             records.push(record);
@@ -437,7 +430,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut seen_splitted_column = false;
 
     for (i, h) in headers.iter().enumerate() {
-        if sel.contains(i) {
+        if i == separated_column_index {
             seen_splitted_column = true;
             if args.flag_keep {
                 middle_headers.push_field(h);
@@ -480,7 +473,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         output_record.extend(
             splitter
                 .split_cell(
-                    sel.select(record).next().unwrap(),
+                    &record[separated_column_index],
                     max_splitted_cells,
                     too_many_mode,
                 )?
