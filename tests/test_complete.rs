@@ -10,6 +10,16 @@ fn people_sorted_uncomplete() -> Vec<Vec<String>> {
     ]
 }
 
+fn people_sorted_uncomplete_reverse() -> Vec<Vec<String>> {
+    vec![
+        svec!["id", "name"],
+        svec!["7", "dave"],
+        svec!["3", "charlie"],
+        svec!["2", "bob"],
+        svec!["0", "alice"],
+    ]
+}
+
 fn people_unsorted_uncomplete() -> Vec<Vec<String>> {
     vec![
         svec!["id", "name"],
@@ -27,6 +37,16 @@ fn people_sorted_complete() -> Vec<Vec<String>> {
         svec!["1", "bob"],
         svec!["2", "charlie"],
         svec!["3", "dave"],
+    ]
+}
+
+fn people_sorted_complete_reverse() -> Vec<Vec<String>> {
+    vec![
+        svec!["id", "name"],
+        svec!["3", "dave"],
+        svec!["2", "charlie"],
+        svec!["1", "bob"],
+        svec!["0", "alice"],
     ]
 }
 
@@ -49,6 +69,15 @@ fn dates_sorted_uncomplete() -> Vec<Vec<String>> {
     ]
 }
 
+fn dates_sorted_uncomplete_reverse() -> Vec<Vec<String>> {
+    vec![
+        svec!["date", "event"],
+        svec!["2025-06", "event3"],
+        svec!["2025-03", "event2"],
+        svec!["2025-01", "event1"],
+    ]
+}
+
 fn dates_unsorted_uncomplete() -> Vec<Vec<String>> {
     vec![
         svec!["date", "event"],
@@ -64,6 +93,15 @@ fn dates_sorted_complete() -> Vec<Vec<String>> {
         svec!["2025-02", "event1"],
         svec!["2025-03", "event2"],
         svec!["2025-04", "event3"],
+    ]
+}
+
+fn dates_sorted_complete_reverse() -> Vec<Vec<String>> {
+    vec![
+        svec!["date", "event"],
+        svec!["2025-04", "event3"],
+        svec!["2025-03", "event2"],
+        svec!["2025-02", "event1"],
     ]
 }
 
@@ -84,6 +122,17 @@ fn dates_sorted_almost_complete() -> Vec<Vec<String>> {
         svec!["2025-04", "event3"],
         svec!["2025-05", "event4"],
         svec!["2025-07", "event5"],
+    ]
+}
+
+fn dates_sorted_almost_complete_reverse() -> Vec<Vec<String>> {
+    vec![
+        svec!["date", "event"],
+        svec!["2025-07", "event5"],
+        svec!["2025-05", "event4"],
+        svec!["2025-04", "event3"],
+        svec!["2025-03", "event2"],
+        svec!["2025-01", "event1"],
     ]
 }
 
@@ -122,17 +171,27 @@ fn complete() {
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes_unsorted.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id").arg("indexes_sorted.csv").arg("--reverse");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "name"],
-        svec!["0", "alice"],
-        svec!["1", ""],
-        svec!["2", "bob"],
-        svec!["3", "charlie"],
-        svec!["4", ""],
-        svec!["5", ""],
-        svec!["6", ""],
         svec!["7", "dave"],
+        svec!["6", ""],
+        svec!["5", ""],
+        svec!["4", ""],
+        svec!["3", "charlie"],
+        svec!["2", "bob"],
+        svec!["1", ""],
+        svec!["0", "alice"],
     ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id").arg("indexes_unsorted.csv").arg("--reverse");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, expected);
 }
 
@@ -153,6 +212,26 @@ fn complete_sorted() {
         svec!["5", ""],
         svec!["6", ""],
         svec!["7", "dave"],
+    ];
+    assert_eq!(got, expected);
+
+    wrk.create("indexes_reverse.csv", people_sorted_uncomplete_reverse());
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("--reverse")
+        .arg("id")
+        .arg("indexes_reverse.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "name"],
+        svec!["7", "dave"],
+        svec!["6", ""],
+        svec!["5", ""],
+        svec!["4", ""],
+        svec!["3", "charlie"],
+        svec!["2", "bob"],
+        svec!["1", ""],
+        svec!["0", "alice"],
     ];
     assert_eq!(got, expected);
 }
@@ -187,6 +266,31 @@ fn complete_with_min_max() {
 
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
+        .arg("--reverse")
+        .arg("indexes_sorted.csv")
+        .arg("-m")
+        .arg("-2")
+        .arg("-M")
+        .arg("8");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "name"],
+        svec!["8", ""],
+        svec!["7", "dave"],
+        svec!["6", ""],
+        svec!["5", ""],
+        svec!["4", ""],
+        svec!["3", "charlie"],
+        svec!["2", "bob"],
+        svec!["1", ""],
+        svec!["0", "alice"],
+        svec!["-1", ""],
+        svec!["-2", ""],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id")
         .arg("indexes_sorted.csv")
         .arg("-m")
         .arg("1")
@@ -200,6 +304,25 @@ fn complete_with_min_max() {
         svec!["3", "charlie"],
         svec!["4", ""],
         svec!["5", ""],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id")
+        .arg("--reverse")
+        .arg("indexes_sorted.csv")
+        .arg("-m")
+        .arg("1")
+        .arg("-M")
+        .arg("5");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "name"],
+        svec!["5", ""],
+        svec!["4", ""],
+        svec!["3", "charlie"],
+        svec!["2", "bob"],
+        svec!["1", ""],
     ];
     assert_eq!(got, expected);
 
@@ -292,6 +415,33 @@ fn complete_sorted_with_min_max() {
         svec!["3", "charlie"],
         svec!["4", ""],
         svec!["5", ""],
+    ];
+    assert_eq!(got, expected);
+
+    wrk.create("indexes_reverse.csv", people_sorted_uncomplete_reverse());
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("--reverse")
+        .arg("id")
+        .arg("indexes_reverse.csv")
+        .arg("-m")
+        .arg("-2")
+        .arg("-M")
+        .arg("8");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["id", "name"],
+        svec!["8", ""],
+        svec!["7", "dave"],
+        svec!["6", ""],
+        svec!["5", ""],
+        svec!["4", ""],
+        svec!["3", "charlie"],
+        svec!["2", "bob"],
+        svec!["1", ""],
+        svec!["0", "alice"],
+        svec!["-1", ""],
+        svec!["-2", ""],
     ];
     assert_eq!(got, expected);
 }
@@ -391,15 +541,31 @@ fn complete_dates() {
         .arg("dates_unsorted_uncomplete.csv")
         .arg("--dates");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("date")
+        .arg("dates_sorted_uncomplete.csv")
+        .arg("--dates")
+        .arg("--reverse");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["date", "event"],
-        svec!["2025-01", "event1"],
-        svec!["2025-02", ""],
-        svec!["2025-03", "event2"],
-        svec!["2025-04", ""],
-        svec!["2025-05", ""],
         svec!["2025-06", "event3"],
+        svec!["2025-05", ""],
+        svec!["2025-04", ""],
+        svec!["2025-03", "event2"],
+        svec!["2025-02", ""],
+        svec!["2025-01", "event1"],
     ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("complete");
+    cmd.arg("date")
+        .arg("dates_unsorted_uncomplete.csv")
+        .arg("--dates")
+        .arg("--reverse");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, expected);
 }
 
@@ -582,7 +748,6 @@ fn complete_check() {
         .arg("indexes_unsorted_complete.csv")
         .arg("--check");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["file is complete!"]];
     assert_eq!(got, expected);
 }
 
@@ -607,6 +772,19 @@ fn complete_check_sorted() {
         .arg("--check");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["file is complete!"]];
+    assert_eq!(got, expected);
+
+    wrk.create(
+        "indexes_complete_reverse.csv",
+        people_sorted_complete_reverse(),
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("--reverse")
+        .arg("id")
+        .arg("indexes_complete_reverse.csv")
+        .arg("--check");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, expected);
 }
 
@@ -730,6 +908,23 @@ fn complete_check_sorted_min_max() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["file is complete!"]];
     assert_eq!(got, expected);
+
+    wrk.create(
+        "indexes_uncomplete_reverse.csv",
+        people_sorted_uncomplete_reverse(),
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("--reverse")
+        .arg("id")
+        .arg("indexes_uncomplete_reverse.csv")
+        .arg("--check")
+        .arg("-m")
+        .arg("2")
+        .arg("-M")
+        .arg("3");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -752,7 +947,6 @@ fn complete_check_dates() {
         .arg("--dates")
         .arg("--check");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["file is complete!"]];
     assert_eq!(got, expected);
 }
 

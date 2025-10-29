@@ -38,6 +38,14 @@ complete options:
                              within the specified range.
     -D, --dates              Set to indicate your values are dates (supporting
                              year, year-month or year-month-day).
+    --sorted                 Indicate that the input is already sorted. When
+                             used without --reverse, the input is sorted in
+                             ascending order. When used with --reverse, the
+                             input is sorted in descending order.
+    -R, --reverse                When used with --sorted, indicate that the input is
+                             sorted in descending order. When used
+                             without --sorted, the output will be sorted in
+                             descending order.
 
 Common options:
     -h, --help               Display this message
@@ -46,7 +54,6 @@ Common options:
                              as headers.
     -d, --delimiter <arg>    The field delimiter for reading CSV data.
                              Must be a single character.
-    --sorted                 Indicate that the input is already sorted.
 
 "#;
 
@@ -63,6 +70,7 @@ struct Args {
     flag_check: bool,
     flag_dates: bool,
     flag_sorted: bool,
+    flag_reverse: bool,
 }
 
 enum ValuesType {
@@ -142,6 +150,19 @@ impl ValuesType {
         }
     }
 
+    fn previous(&self) -> ValuesType {
+        match self {
+            ValuesType::Integer(i) => ValuesType::Integer(i - 1),
+            ValuesType::Date(d) => ValuesType::Date(
+                dates::parse_partial_date(&dates::format_partial_date(
+                    d.as_unit(),
+                    &dates::previous_partial_date(d.as_unit(), &d.clone().into_inner()),
+                ))
+                .unwrap(),
+            ),
+        }
+    }
+
     fn as_bytes(&self) -> Vec<u8> {
         match self {
             ValuesType::Integer(i) => i.to_string().as_bytes().to_vec(),
@@ -156,6 +177,19 @@ impl ValuesType {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    let min: Option<ValuesType> = match &args.flag_min {
+        Some(m) => Some(ValuesType::new_from(m, args.flag_dates)),
+        None => None,
+    };
+    let max: Option<ValuesType> = match &args.flag_max {
+        Some(m) => Some(ValuesType::new_from(m, args.flag_dates)),
+        None => None,
+    };
+
+    if min.is_some() && max.is_some() && min.clone().unwrap() > max.clone().unwrap() {
+        Err("min cannot be greater than max")?;
+    }
 
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
@@ -179,18 +213,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let zero = args.flag_zero.unwrap_or_default().into_bytes();
 
-    let mut index: Option<ValuesType> = None;
-
-    if let Some(min) = &args.flag_min {
-        let min = ValuesType::new_from(min, args.flag_dates);
-        if let Some(max) = &args.flag_max {
-            let max = ValuesType::new_from(max, args.flag_dates);
-            if min > max {
-                Err("min cannot be greater than max")?;
-            }
-        }
-        index = Some(min);
-    }
+    let mut index: Option<ValuesType> = if args.flag_reverse {
+        max.clone()
+    } else {
+        min.clone()
+    };
 
     let mut process_record =
         |record: &ByteRecord, index: &mut Option<ValuesType>| -> CliResult<ControlFlow<()>> {
@@ -199,25 +226,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 args.flag_dates,
             );
 
-            if let Some(min) = &args.flag_min {
-                let min = ValuesType::new_from(min, args.flag_dates);
-                // skip values below min of the range
-                if value < min {
+            if min.is_some() && value < min.clone().unwrap() {
+                if args.flag_reverse {
+                    // stop completing or checking if we go below min of the range
+                    return Ok(ControlFlow::Break(()));
+                } else {
+                    // skip values below min of the range
                     return Ok(ControlFlow::Continue(()));
                 }
             }
-
-            if let Some(max) = &args.flag_max {
-                let max = ValuesType::new_from(max, args.flag_dates);
-                // stop completing or checking if we go over max of the range
-                if value > max {
+            if max.is_some() && value > max.clone().unwrap() {
+                if args.flag_reverse {
+                    // skip values over max of the range
+                    return Ok(ControlFlow::Continue(()));
+                } else {
+                    // stop completing or checking if we go over max of the range
                     return Ok(ControlFlow::Break(()));
                 }
             }
 
             if index.is_some() {
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    while value > index.clone().unwrap() {
+                    while (args.flag_reverse && value < index.clone().unwrap())
+                        || (!args.flag_reverse && value > index.clone().unwrap())
+                    {
                         let mut new_record = ByteRecord::new();
                         for cell in sel.indexed_mask(record.len()) {
                             if cell.is_some() {
@@ -226,12 +258,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 new_record.push_field(&zero);
                             }
                         }
-                        *index = Some(index.clone().unwrap().next());
+
+                        *index = if args.flag_reverse {
+                            Some(index.clone().unwrap().previous())
+                        } else {
+                            Some(index.clone().unwrap().next())
+                        };
+
                         wtr.write_record(&new_record)?;
                     }
                 } else {
-                    // in case of using min or if there are repeated values
-                    if value < index.clone().unwrap() {
+                    // in case of using min flag (or max flag when flag_reverse is true)
+                    // or if there are repeated values
+                    if (args.flag_reverse && value > index.clone().unwrap())
+                        || (!args.flag_reverse && value < index.clone().unwrap())
+                    {
                         return Ok(ControlFlow::Continue(()));
                     }
                     if value != index.clone().unwrap() {
@@ -244,7 +285,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 *index = Some(value);
             }
-            *index = Some(index.clone().unwrap().next());
+
+            *index = if args.flag_reverse {
+                Some(index.clone().unwrap().previous())
+            } else {
+                Some(index.clone().unwrap().next())
+            };
+
             if let Some(wtr) = wtr_opt.as_mut() {
                 wtr.write_record(record)?;
             }
@@ -254,6 +301,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = ByteRecord::new();
 
+    // process records
     if args.flag_sorted {
         while rdr.read_byte_record(&mut record)? {
             match process_record(&record, &mut index)? {
@@ -276,7 +324,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Ok(value_and_record)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        values_and_records.sort_by(|a, b| a.0.cmp(&b.0));
+        values_and_records.sort_by(|a, b| {
+            if args.flag_reverse {
+                b.0.cmp(&a.0)
+            } else {
+                a.0.cmp(&b.0)
+            }
+        });
         let records = values_and_records.iter().map(|(_, r)| r);
 
         for record in records {
@@ -287,10 +341,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    if let Some(max) = args.flag_max {
-        let max = ValuesType::new_from(&max, args.flag_dates);
+    if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
         if let Some(wtr) = wtr_opt.as_mut() {
-            while index.is_some() && index.clone().unwrap() <= max {
+            while index.is_some()
+                && ((args.flag_reverse && index.clone().unwrap() >= min.clone().unwrap())
+                    || (!args.flag_reverse && index.clone().unwrap() <= max.clone().unwrap()))
+            {
                 let mut new_record = ByteRecord::new();
                 for cell in sel.indexed_mask(headers.len()) {
                     if cell.is_some() {
@@ -299,10 +355,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         new_record.push_field(&zero);
                     }
                 }
-                index = Some(index.unwrap().next());
+
+                index = if args.flag_reverse {
+                    Some(index.unwrap().previous())
+                } else {
+                    Some(index.unwrap().next())
+                };
+
                 wtr.write_record(&new_record)?;
             }
-        } else if index.clone().unwrap() <= max {
+        } else if (args.flag_reverse && index.clone().unwrap() >= min.clone().unwrap())
+            || (!args.flag_reverse && index.clone().unwrap() <= max.clone().unwrap())
+        {
             Err(format!(
                 "file is not complete: missing value {:?}",
                 index.unwrap()

@@ -72,6 +72,15 @@ pub fn next_partial_date(unit: Unit, date: &Date) -> Date {
     }
 }
 
+pub fn previous_partial_date(unit: Unit, date: &Date) -> Date {
+    match unit {
+        Unit::Year => date.checked_sub(1.year()).unwrap(),
+        Unit::Month => date.checked_sub(1.month()).unwrap(),
+        Unit::Day => date.checked_sub(1.day()).unwrap(),
+        _ => unimplemented!(),
+    }
+}
+
 pub fn format_partial_date(unit: Unit, date: &Date) -> String {
     match unit {
         Unit::Year => date.strftime("%Y").to_string(),
