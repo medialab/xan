@@ -140,6 +140,8 @@ pub struct Config {
     quote_style: csv::QuoteStyle,
     double_quote: bool,
     escape: Option<u8>,
+    comment: Option<u8>,
+    trim: bool,
     quoting: bool,
     compression: Option<Compression>,
     tabular_data_kind: TabularDataKind,
@@ -222,7 +224,9 @@ impl Config {
             quote_style: csv::QuoteStyle::Necessary,
             double_quote: true,
             escape: None,
+            comment: None,
             quoting: true,
+            trim: false,
             compression,
             tabular_data_kind,
         };
@@ -300,6 +304,16 @@ impl Config {
         self.escape = escape;
         self
     }
+
+    // pub fn comment(mut self, comment: Option<u8>) -> Config {
+    //     self.comment = comment;
+    //     self
+    // }
+
+    // pub fn trim(mut self, yes: bool) -> Config {
+    //     self.trim = yes;
+    //     self
+    // }
 
     pub fn quoting(mut self, yes: bool) -> Config {
         self.quoting = yes;
@@ -696,6 +710,12 @@ impl Config {
             .has_headers(!self.no_headers)
             .quote(self.quote)
             .quoting(self.quoting)
+            .comment(self.comment)
+            .trim(if self.trim {
+                csv::Trim::All
+            } else {
+                csv::Trim::None
+            })
             .escape(self.escape);
 
         builder
