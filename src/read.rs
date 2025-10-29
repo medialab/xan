@@ -1,6 +1,7 @@
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 
 use csv::{ByteRecord, Position, Reader, ReaderBuilder};
+use regex::bytes::Regex;
 
 use crate::moonblade::agg::Welford;
 
@@ -461,15 +462,16 @@ pub fn consume_cdx_header<R: Read>(reader: &mut R) -> io::Result<bool> {
 
 type RecombobulatedReader<R> = io::Chain<Cursor<Vec<u8>>, R>;
 
-pub fn consume_vcf_header<R: Read>(
+pub fn consume_header_until<R: Read>(
     reader: R,
+    pattern: &Regex,
 ) -> io::Result<Option<(u64, RecombobulatedReader<R>)>> {
     let mut line_reader = simd_csv::LineReader::new(reader);
     let mut pos = line_reader.position();
     let mut header_opt: Option<Vec<u8>> = None;
 
     while let Some(line) = line_reader.read_line()? {
-        if !line.starts_with(b"#CHROM\t") {
+        if !pattern.is_match(line) {
             pos = line_reader.position();
             continue;
         }
@@ -492,15 +494,16 @@ pub fn consume_vcf_header<R: Read>(
     }
 }
 
-pub fn consume_gtf_header<R: Read>(
+pub fn consume_header_while<R: Read>(
     reader: R,
+    pattern: &Regex,
 ) -> io::Result<Option<(u64, RecombobulatedReader<R>)>> {
     let mut line_reader = simd_csv::LineReader::new(reader);
     let mut pos = line_reader.position();
     let mut header_opt: Option<Vec<u8>> = None;
 
     while let Some(line) = line_reader.read_line()? {
-        if line.starts_with(b"#") {
+        if pattern.is_match(line) {
             pos = line_reader.position();
             continue;
         }

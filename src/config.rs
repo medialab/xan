@@ -10,6 +10,7 @@ use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
 use memmap2::Mmap;
+use regex::bytes::Regex;
 
 use crate::read::{self, ReverseRead};
 use crate::record::Record;
@@ -82,6 +83,14 @@ impl TabularDataKind {
 
     fn has_headers(&self) -> bool {
         !matches!(self, Self::Ndjson | Self::Gtf)
+    }
+
+    fn header_pattern(&self) -> Option<Regex> {
+        match self {
+            Self::Vcf => Some(Regex::new("^#CHROM\t").unwrap()),
+            Self::Gtf => Some(Regex::new("^#").unwrap()),
+            _ => None,
+        }
     }
 }
 
@@ -379,14 +388,20 @@ impl Config {
                 Ok(reader)
             }
             TabularDataKind::Vcf => {
-                if let Some((_, fixed_reader)) = read::consume_vcf_header(reader)? {
+                if let Some((_, fixed_reader)) = read::consume_header_until(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )? {
                     Ok(Box::new(fixed_reader))
                 } else {
                     Err(CliError::from("invalid VCF header!"))
                 }
             }
             TabularDataKind::Gtf => {
-                if let Some((_, fixed_reader)) = read::consume_gtf_header(reader)? {
+                if let Some((_, fixed_reader)) = read::consume_header_while(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )? {
                     Ok(Box::new(fixed_reader))
                 } else {
                     Err(CliError::from("invalid GTF header!"))
@@ -404,14 +419,20 @@ impl Config {
                 }
             }
             TabularDataKind::Vcf => {
-                let (pos, fixed_reader) =
-                    read::consume_vcf_header(reader)?.ok_or("invalid VCF header!")?;
+                let (pos, fixed_reader) = read::consume_header_until(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )?
+                .ok_or("invalid VCF header!")?;
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
             TabularDataKind::Gtf => {
-                let (pos, fixed_reader) =
-                    read::consume_gtf_header(reader)?.ok_or("invalid GTF header!")?;
+                let (pos, fixed_reader) = read::consume_header_while(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )?
+                .ok_or("invalid GTF header!")?;
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
