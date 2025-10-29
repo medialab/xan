@@ -424,41 +424,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut left_headers: ByteRecord = ByteRecord::new();
-    let mut middle_headers: ByteRecord = ByteRecord::new();
-    let mut right_headers: ByteRecord = ByteRecord::new();
-    let mut seen_splitted_column = false;
-
-    for (i, h) in headers.iter().enumerate() {
-        if i == separated_column_index {
-            seen_splitted_column = true;
-            if args.flag_keep {
-                middle_headers.push_field(h);
-            }
-            let mut number_of_new_columns = max_splitted_cells;
-            if let Some(into) = &args.flag_into {
-                let headers_to_add = util::str_to_csv_byte_record(into);
-                middle_headers.extend(&headers_to_add);
-                number_of_new_columns -= headers_to_add.len();
-            }
-
-            for i in 1..=number_of_new_columns {
-                let header_name = format!("split{}", i);
-                middle_headers.push_field(header_name.as_bytes());
-            }
-        } else if seen_splitted_column {
-            right_headers.push_field(h);
-        } else {
-            left_headers.push_field(h);
-        }
-    }
-
-    let mut new_headers = ByteRecord::new();
-    new_headers.extend(&left_headers);
-    new_headers.extend(&middle_headers);
-    new_headers.extend(&right_headers);
-
     if !rconf.no_headers {
+        let mut new_headers = ByteRecord::new();
+        new_headers.extend(
+            headers
+                .iter()
+                .take(separated_column_index + args.flag_keep as usize),
+        );
+
+        let mut number_of_new_columns = max_splitted_cells;
+
+        if let Some(into) = &args.flag_into {
+            let headers_to_add = util::str_to_csv_byte_record(into);
+            new_headers.extend(&headers_to_add);
+            number_of_new_columns -= headers_to_add.len();
+        }
+
+        for i in 1..=number_of_new_columns {
+            let header_name = format!("split{}", i);
+            new_headers.push_field(header_name.as_bytes());
+        }
+
+        new_headers.extend(headers.iter().skip(separated_column_index + 1));
+
         wtr.write_byte_record(&new_headers)?;
     }
 
