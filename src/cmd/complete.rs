@@ -1,9 +1,11 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::io::{stdout, Write};
+use std::ops::ControlFlow;
 use std::str;
 
 use csv::ByteRecord;
+use encoding::codec::utf_8::from_utf8;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
@@ -15,19 +17,27 @@ static USAGE: &str = r#"
 TODO...
 
 Usage:
-    xan complete [options] <columns> [<input>]
+    xan complete [options] <column> [<input>]
     xan complete --help
 
 complete options:
-    -m, --min <num>          The minimum value to start completing from.
-                             Default is the first one.
-    -M, --max <num>          The maximum value to complete to.
-                             Default is the last one.
-    -z, --zero <value>       The value to fill in the completed rows.
+    -m, --min <value>        The minimum value to start completing from.
+                             Default is the first one. Note that if <value> is
+                             greater than the minimum value in the input, the
+                             rows with values lower than <value> will be removed
+                             from the output.
+    -M, --max <value>        The maximum value to complete to.
+                             Default is the last one. Note that if <value> is
+                             lower than the maximum value in the input, the rows
+                             with values greater than <value> will be removed
+                             from the output.
+    -z, --zero <value>       The value to fill in the new rows.
                              Default is an empty string.
-    --check                  Check that the input is complete.
-    -D, --dates              Set to indicate your values are dates (supporting year, year-month or
-                             year-month-day).
+    --check                  Check that the input is complete. When used with
+                             either --min or --max, only checks completeness
+                             within the specified range.
+    -D, --dates              Set to indicate your values are dates (supporting
+                             year, year-month or year-month-day).
 
 Common options:
     -h, --help               Display this message
@@ -36,11 +46,13 @@ Common options:
                              as headers.
     -d, --delimiter <arg>    The field delimiter for reading CSV data.
                              Must be a single character.
+    --sorted                 Indicate that the input is already sorted.
+
 "#;
 
 #[derive(Deserialize, Debug)]
 struct Args {
-    arg_columns: SelectColumns,
+    arg_column: SelectColumns,
     arg_input: Option<String>,
     flag_min: Option<String>,
     flag_max: Option<String>,
@@ -50,6 +62,7 @@ struct Args {
     flag_zero: Option<String>,
     flag_check: bool,
     flag_dates: bool,
+    flag_sorted: bool,
 }
 
 enum ValuesType {
@@ -82,19 +95,19 @@ impl PartialEq for ValuesType {
 
 impl PartialOrd for ValuesType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (ValuesType::Integer(a), ValuesType::Integer(b)) => a.partial_cmp(b),
-            (ValuesType::Date(a), ValuesType::Date(b)) => {
-                a.clone().into_inner().partial_cmp(&b.clone().into_inner())
-            }
-            _ => None,
-        }
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for ValuesType {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match (self, other) {
+            (ValuesType::Integer(a), ValuesType::Integer(b)) => a.cmp(b),
+            (ValuesType::Date(a), ValuesType::Date(b)) => {
+                a.clone().into_inner().cmp(&b.clone().into_inner())
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -146,7 +159,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_columns)
+        .select(args.arg_column)
         .delimiter(args.flag_delimiter);
 
     let mut wtr_opt = if args.flag_check {
@@ -157,8 +170,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
-
-    let mut record = ByteRecord::new();
 
     let sel = rconf.selection(&headers)?;
 
@@ -181,60 +192,98 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         index = Some(min);
     }
 
-    while rdr.read_byte_record(&mut record)? {
-        let value = ValuesType::new_from(
-            str::from_utf8(sel.select(&record).next().unwrap()).unwrap(),
-            args.flag_dates,
-        );
+    let mut process_record =
+        |record: &ByteRecord, index: &mut Option<ValuesType>| -> CliResult<ControlFlow<()>> {
+            let value = ValuesType::new_from(
+                str::from_utf8(sel.select(record).next().unwrap()).unwrap(),
+                args.flag_dates,
+            );
 
-        if let Some(min) = &args.flag_min {
-            let min = ValuesType::new_from(min, args.flag_dates);
-            // skip values below min of the range
-            if value < min {
-                continue;
+            if let Some(min) = &args.flag_min {
+                let min = ValuesType::new_from(min, args.flag_dates);
+                // skip values below min of the range
+                if value < min {
+                    return Ok(ControlFlow::Continue(()));
+                }
             }
-        }
 
-        if let Some(max) = &args.flag_max {
-            let max = ValuesType::new_from(max, args.flag_dates);
-            // stop completing or checking if we go over max of the range
-            if value > max {
-                break;
+            if let Some(max) = &args.flag_max {
+                let max = ValuesType::new_from(max, args.flag_dates);
+                // stop completing or checking if we go over max of the range
+                if value > max {
+                    return Ok(ControlFlow::Break(()));
+                }
             }
-        }
 
-        if index.is_some() {
-            if let Some(wtr) = wtr_opt.as_mut() {
-                while value > index.clone().unwrap() {
-                    let mut new_record = ByteRecord::new();
-                    for cell in sel.indexed_mask(record.len()) {
-                        if cell.is_some() {
-                            new_record.push_field(&index.clone().unwrap().as_bytes());
-                        } else {
-                            new_record.push_field(&zero);
+            if index.is_some() {
+                if let Some(wtr) = wtr_opt.as_mut() {
+                    while value > index.clone().unwrap() {
+                        let mut new_record = ByteRecord::new();
+                        for cell in sel.indexed_mask(record.len()) {
+                            if cell.is_some() {
+                                new_record.push_field(&index.clone().unwrap().as_bytes());
+                            } else {
+                                new_record.push_field(&zero);
+                            }
                         }
+                        *index = Some(index.clone().unwrap().next());
+                        wtr.write_record(&new_record)?;
                     }
-                    index = Some(index.unwrap().next());
-                    wtr.write_record(&new_record)?;
+                } else {
+                    // in case of using min or if there are repeated values
+                    if value < index.clone().unwrap() {
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    if value != index.clone().unwrap() {
+                        Err(format!(
+                            "file is not complete: missing value {:?}",
+                            index.clone().unwrap()
+                        ))?;
+                    }
                 }
             } else {
-                // in case of using min or if there are repeated values
-                if value < index.clone().unwrap() {
-                    continue;
-                }
-                if value != index.clone().unwrap() {
-                    Err(format!(
-                        "file is not complete: missing value {:?}",
-                        index.clone().unwrap()
-                    ))?;
-                }
+                *index = Some(value);
             }
-        } else {
-            index = Some(value);
+            *index = Some(index.clone().unwrap().next());
+            if let Some(wtr) = wtr_opt.as_mut() {
+                wtr.write_record(record)?;
+            }
+
+            Ok(ControlFlow::Continue(()))
+        };
+
+    let mut record = ByteRecord::new();
+
+    if args.flag_sorted {
+        while rdr.read_byte_record(&mut record)? {
+            match process_record(&record, &mut index)? {
+                ControlFlow::Continue(()) => continue,
+                ControlFlow::Break(()) => break,
+            }
         }
-        index = Some(index.unwrap().next());
-        if let Some(wtr) = wtr_opt.as_mut() {
-            wtr.write_record(&record)?;
+    } else {
+        let mut values_and_records = rdr
+            .byte_records()
+            .map(|r| -> CliResult<(ValuesType, ByteRecord)> {
+                let record = r?;
+                let value_and_record = (
+                    ValuesType::new_from(
+                        from_utf8(sel.select(&record).next().unwrap()).unwrap(),
+                        args.flag_dates,
+                    ),
+                    record.clone(),
+                );
+                Ok(value_and_record)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        values_and_records.sort_by(|a, b| a.0.cmp(&b.0));
+        let records = values_and_records.iter().map(|(_, r)| r);
+
+        for record in records {
+            match process_record(record, &mut index)? {
+                ControlFlow::Continue(()) => continue,
+                ControlFlow::Break(()) => break,
+            }
         }
     }
 
