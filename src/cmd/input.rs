@@ -1,6 +1,7 @@
 use regex::bytes::Regex;
 
-use crate::config::{Config, Delimiter};
+use crate::config::{Compression, Config, Delimiter};
+use crate::read;
 use crate::util;
 use crate::CliResult;
 
@@ -8,10 +9,17 @@ static USAGE: &str = "
 Read unusually formatted CSV data.
 
 This means being able to process CSV data with peculiar quoting rules
-using --quote or --no-quoting, or dealing with character escaping with --escape.
+using --quote or --no-quoting, or dealing with character escaping, typically
+files with backslash escaping, with --escape.
 
-This command also makes it possible to process CSV files containing metadata and
-headers before the tabular data itself, with -S/--skip-headers, -L/--skip-lines.
+This command is also able to skip metadata headers sometimes found at the beginning
+of CSV-adjacent formats with the -L/--skip-lines, -U/--skip-until & -W/--skip-while
+flags.
+
+Finally this command is also able to handle compressed streams and well-known
+CSV-adjacent formats.
+
+TODO...
 
 This command also recognizes variant of TSV files from bioinformatics out of the
 box, either by detecting their extension or through dedicated flags:
@@ -33,19 +41,31 @@ Usage:
     xan input [options] [<input>]
 
 input options:
-    --tabs                        Same as -d '\\t', i.e. use tabulations as delimiter.
-    --quote <char>                The quote character to use. [default: \"]
-    --escape <char>               The escape character to use. When not specified,
-                                  quotes are escaped by doubling them.
-    --no-quoting                  Disable quoting completely.
-    -L, --skip-lines <n>          Skip the first <n> lines of the file.
-    -H, --skip-headers <pattern>  Skip header lines matching the given regex pattern.
-    -R, --skip-rows <pattern>     Skip rows matching the given regex pattern.
-    --vcf                         Process a VCF file. Shorthand for --tabs -H '^##' and
-                                  some processing over the first column name.
-    --gtf                         Process a GTF file. Shorthand for --tabs -H '^#!'.
-    --gff                         Process a GFF file. Shorthand for --tabs -H '^#[#!]'
-                                  and -R '^###$'.
+    --tabs            Same as -d '\\t', i.e. use tabulations as delimiter.
+    --quote <char>    The quote character to use. [default: \"]
+    --escape <char>   The escape character to use. When not specified,
+                      quotes are escaped by doubling them.
+    --no-quoting      Disable quoting completely.
+    --comment <char>  Skip records starting with this character.
+    --trim            Whether to trim cell values.
+
+input header skipping options:
+    -L, --skip-lines <n>        Skip the first <n> lines of the file.
+    -U, --skip-until <pattern>  Skip lines until <pattern> matches.
+    -W, --skip-while <pattern>  Skip lines while <pattern> matches.
+
+typical data format options:
+    --vcf
+    --gtf
+    --gff
+    --sam
+    --cdx
+
+compression options:
+    --gzip  Read a gzip-compressed stream or gzip-compressed file without the
+            standard `.gz` extension.
+    --zstd  Read a zstd-compressed stream or zstd-compressed file without the
+            standard `.gz` extension.
 
 Common options:
     -h, --help             Display this message
@@ -54,66 +74,52 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_tabs: bool,
+    flag_comment: Option<Delimiter>,
+    flag_trim: bool,
     flag_quote: Delimiter,
+    flag_escape: Option<Delimiter>,
+    flag_no_quoting: bool,
     flag_skip_lines: Option<usize>,
-    flag_skip_headers: Option<String>,
-    flag_skip_rows: Option<String>,
+    flag_skip_until: Option<String>,
+    flag_skip_while: Option<String>,
+    flag_gzip: bool,
+    flag_zstd: bool,
     flag_vcf: bool,
     flag_gtf: bool,
     flag_gff: bool,
-    flag_escape: Option<Delimiter>,
-    flag_no_quoting: bool,
+    flag_sam: bool,
+    flag_cdx: bool,
 }
 
 impl Args {
     fn resolve(&mut self) {
-        if let Some(path) = &self.arg_input {
-            if path.ends_with(".vcf") || path.ends_with(".vcf.gz") {
-                self.flag_vcf = true;
-            }
-
-            if path.ends_with(".gtf")
-                || path.ends_with(".gtf.gz")
-                || path.ends_with(".gff2")
-                || path.ends_with(".gff2.gz")
-            {
-                self.flag_gtf = true;
-            }
-
-            if path.ends_with(".gff")
-                || path.ends_with(".gff.gz")
-                || path.ends_with(".gff3")
-                || path.ends_with(".gff3.gz")
-            {
+        if let Some(path) = self.arg_input.as_ref() {
+            if path.contains(".gff") {
                 self.flag_gff = true;
             }
         }
 
-        if self.flag_vcf {
-            self.flag_tabs = true;
-            self.flag_skip_headers = Some("^##".to_string());
-        }
-
-        if self.flag_gtf {
-            self.flag_tabs = true;
-            self.flag_skip_headers = Some("^#!".to_string());
-        }
-
         if self.flag_gff {
             self.flag_tabs = true;
-            self.flag_skip_headers = Some("^#[#!]".to_string());
-            self.flag_skip_rows = Some("^###$".to_string());
+            self.flag_comment = Some(Delimiter(b'#'));
         }
 
         if self.flag_tabs {
             self.flag_delimiter = Some(Delimiter(b'\t'));
         }
+    }
+
+    fn can_use_simd(&self) -> bool {
+        self.flag_comment.is_none()
+            && !self.flag_trim
+            && self.flag_escape.is_none()
+            && !self.flag_no_quoting
     }
 }
 
@@ -121,90 +127,94 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
-    if args.flag_skip_headers.is_some() && args.flag_skip_lines.is_some() {
-        Err("-L/--skip-lines does not work with -H/--skip-headers!")?;
+    let formats = args.flag_vcf as u8
+        + args.flag_gtf as u8
+        + args.flag_gff as u8
+        + args.flag_sam as u8
+        + args.flag_cdx as u8;
+
+    if formats > 1 {
+        Err("can only select one of --vcf, --gtf, -gff, --sam & --cdx!")?;
     }
 
-    let mut rconfig = Config::new(&args.arg_input)
+    if args.flag_gzip && args.flag_zstd {
+        Err("can only select one of --gzip & --zstd!")?;
+    }
+
+    let skippers = args.flag_skip_lines.is_some() as u8
+        + args.flag_skip_until.is_some() as u8
+        + args.flag_skip_while.is_some() as u8;
+
+    if skippers > 1 {
+        Err("can only select one of -L/--skip-lines, -W,--skip-while & -U,--skip-until!")?;
+    }
+
+    let pretend_path = if args.flag_vcf {
+        Some("file.vcf")
+    } else if args.flag_gtf {
+        Some("file.gtf")
+    } else if args.flag_sam {
+        Some("file.sam")
+    } else if args.flag_cdx {
+        Some("file.cdx")
+    } else {
+        None
+    };
+
+    let mut rconfig = Config::with_pretend_path(&args.arg_input, pretend_path)
         .delimiter(args.flag_delimiter)
         .no_headers(true)
-        .flexible(
-            args.flag_skip_headers.is_some()
-                || args.flag_skip_lines.is_some()
-                || args.flag_skip_rows.is_some(),
-        )
-        .quote(args.flag_quote.as_byte());
+        .quote(args.flag_quote.as_byte())
+        .quoting(!args.flag_no_quoting)
+        .comment(args.flag_comment.map(Delimiter::as_byte))
+        .escape(args.flag_escape.map(Delimiter::as_byte))
+        .trim(args.flag_trim);
 
-    let skip_headers = args
-        .flag_skip_headers
-        .as_ref()
-        .map(|p| Regex::new(p))
-        .transpose()?;
-
-    let skip_rows = args
-        .flag_skip_rows
-        .as_ref()
-        .map(|p| Regex::new(p))
-        .transpose()?;
+    if args.flag_gzip {
+        rconfig.set_compression(Compression::Gzip);
+    } else if args.flag_zstd {
+        rconfig.set_compression(Compression::Zstd);
+    }
 
     let wconfig = Config::new(&args.flag_output);
+    let mut wtr = wconfig.simd_writer()?;
 
-    if let Some(escape) = args.flag_escape {
-        rconfig = rconfig.escape(Some(escape.as_byte())).double_quote(false);
-    }
+    // Skipping header lines?
+    let io_reader = if let Some(limit) = args.flag_skip_lines {
+        read::consume_lines(rconfig.io_reader()?, limit)?
+            .ok_or_else(|| format!("-L/--skip-lines {}: not enough lines to skip!", limit))
+            .map(|(_, r)| Box::new(r))?
+    } else if let Some(pattern) = args.flag_skip_until.as_ref() {
+        let pattern = Regex::new(pattern)?;
 
-    if args.flag_no_quoting {
-        rconfig = rconfig.quoting(false);
-    }
+        read::consume_header_until(rconfig.io_reader()?, &pattern)?
+            .ok_or_else(|| format!("-U/--skip-until {}: skipped everything!", pattern))
+            .map(|(_, r)| Box::new(r))?
+    } else if let Some(pattern) = args.flag_skip_while.as_ref() {
+        let pattern = Regex::new(pattern)?;
 
-    let mut wtr = wconfig.writer()?;
-    let mut record = csv::ByteRecord::new();
+        read::consume_header_while(rconfig.io_reader()?, &pattern)?
+            .ok_or_else(|| format!("-U/--skip-while {}: skipped everything!", pattern))
+            .map(|(_, r)| Box::new(r))?
+    } else {
+        rconfig.io_reader()?
+    };
 
-    let mut rdr = rconfig.reader()?;
-    let mut headers_have_been_skipped = false;
-    let mut i: usize = 0;
+    if args.can_use_simd() {
+        let mut rdr = rconfig.simd_csv_reader_from_reader(io_reader);
+        let mut record = simd_csv::ByteRecord::new();
 
-    while rdr.read_byte_record(&mut record)? {
-        i += 1;
-
-        if let Some(pattern) = &skip_headers {
-            if !headers_have_been_skipped {
-                if !pattern.is_match(record.as_slice()) {
-                    headers_have_been_skipped = true;
-
-                    if args.flag_vcf {
-                        record = record
-                            .iter()
-                            .enumerate()
-                            .map(|(i, cell)| {
-                                if i == 0 && cell == b"#CHROM" {
-                                    b"CHROM"
-                                } else {
-                                    cell
-                                }
-                            })
-                            .collect();
-                    }
-                } else {
-                    continue;
-                }
-            }
-        } else if let Some(skip_lines) = args.flag_skip_lines {
-            if i <= skip_lines {
-                continue;
-            }
+        while rdr.read_byte_record(&mut record)? {
+            wtr.write_byte_record(&record)?;
         }
+    } else {
+        let mut rdr = rconfig.csv_reader_from_reader(io_reader);
+        let mut record = csv::ByteRecord::new();
 
-        if let Some(pattern) = &skip_rows {
-            if pattern.is_match(record.as_slice()) {
-                continue;
-            }
+        while rdr.read_byte_record(&mut record)? {
+            wtr.write_record(&record)?;
         }
-
-        wtr.write_record(&record)?;
     }
 
-    wtr.flush()?;
-
-    Ok(())
+    Ok(wtr.flush()?)
 }

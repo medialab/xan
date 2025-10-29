@@ -97,7 +97,7 @@ impl TabularDataKind {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Compression {
+pub enum Compression {
     Gzip,
     Zstd,
 }
@@ -171,7 +171,7 @@ impl Config {
         }
     }
 
-    pub fn new(path: &Option<String>) -> Config {
+    pub fn new(path: &Option<String>) -> Self {
         let (path, delimiter, compression, tabular_data_kind) = match *path {
             None => (None, b',', None, TabularDataKind::RegularCsv),
             Some(ref s) if s.deref() == "-" => (None, b',', None, TabularDataKind::RegularCsv),
@@ -209,7 +209,7 @@ impl Config {
             }
         };
 
-        let mut config = Config {
+        let mut config = Self {
             path,
             select_columns: None,
             delimiter,
@@ -236,6 +236,21 @@ impl Config {
         }
 
         config
+    }
+
+    pub fn with_pretend_path(path: &Option<String>, pretend: Option<&str>) -> Self {
+        match pretend {
+            None => Self::new(path),
+            Some(dummy) => {
+                let mut conf = Self::new(&Some(dummy.to_string()));
+                conf.path = path.as_ref().map(PathBuf::from);
+                conf
+            }
+        }
+    }
+
+    pub fn set_compression(&mut self, compression: Compression) {
+        self.compression = Some(compression);
     }
 
     pub fn is_compressed(&self) -> bool {
@@ -305,15 +320,15 @@ impl Config {
         self
     }
 
-    // pub fn comment(mut self, comment: Option<u8>) -> Config {
-    //     self.comment = comment;
-    //     self
-    // }
+    pub fn comment(mut self, comment: Option<u8>) -> Config {
+        self.comment = comment;
+        self
+    }
 
-    // pub fn trim(mut self, yes: bool) -> Config {
-    //     self.trim = yes;
-    //     self
-    // }
+    pub fn trim(mut self, yes: bool) -> Config {
+        self.trim = yes;
+        self
+    }
 
     pub fn quoting(mut self, yes: bool) -> Config {
         self.quoting = yes;
@@ -491,7 +506,19 @@ impl Config {
                 if io::stdin().is_terminal() {
                     return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"))?;
                 } else {
-                    Box::new(io::stdin())
+                    let x = io::stdin();
+
+                    let reader: Box<dyn Read + Send + 'static> =
+                        if let Some(compression) = self.compression {
+                            match compression {
+                                Compression::Gzip => Box::new(MultiGzDecoder::new(x)),
+                                Compression::Zstd => Box::new(zstd::Decoder::new(x)?),
+                            }
+                        } else {
+                            Box::new(x)
+                        };
+
+                    self.process_typical_headers(reader)?
                 }
             }
             Some(ref p) => match fs::File::open(p) {
