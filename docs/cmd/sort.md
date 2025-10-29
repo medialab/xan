@@ -2,7 +2,11 @@
 # xan sort
 
 ```txt
-Sort CSV data.
+Sort CSV data, in ascending lexicographic order.
+
+For descending order, use the -R, --reverse flag.
+
+If you need numerical order instead, use the -N, --numeric flag.
 
 This requires reading all of the data into memory, unless
 using the -e/--external flag, which will be slower and fallback
@@ -13,10 +17,11 @@ Usage:
 
 sort options:
     --check                   Verify whether the file is already sorted.
-    -s, --select <arg>        Select a subset of columns to sort.
+    -s, --select <arg>        Select a subset of columns to sort by.
                               See 'xan select --help' for the format details.
-    -N, --numeric             Compare according to string numerical value
-    -R, --reverse             Reverse order
+    -N, --numeric             Compare according to the numerical value of cells instead
+                              of the default lexicographic order.
+    -R, --reverse             Reverse sort order, i.e. descending order.
     -c, --count <name>        Number of times the line was consecutively duplicated.
                               Needs a column name. Can only be used with --uniq.
     -u, --uniq                When set, identical consecutive lines will be dropped
