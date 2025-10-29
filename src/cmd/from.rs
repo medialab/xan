@@ -84,7 +84,7 @@ Some formats can be streamed, some others require the full file to be loaded int
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
 
 Some formats will handle gzip decompression on the fly if the filename ends
-in `.gz`: `json`, `ndjson`, `jsonl` and `txt`.
+in `.gz`: `json`, `ndjson`, `jsonl`, `tar` and `txt`.
 
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
@@ -386,12 +386,15 @@ impl Args {
     }
 
     fn convert_tar(&self) -> CliResult<()> {
-        let rdr: Box<dyn Read> = match self.arg_input.as_ref() {
+        let mut rdr: Box<dyn Read> = match self.arg_input.as_ref() {
             None => Box::new(io::stdin()),
             Some(p) => Box::new(fs::File::open(p)?),
         };
 
-        let rdr = MultiGzDecoder::new(rdr);
+        if matches!(self.arg_input.as_ref(), Some(p) if p.ends_with(".gz")) {
+            rdr = Box::new(MultiGzDecoder::new(rdr));
+        }
+
         let mut archive = tar::Archive::new(rdr);
 
         let mut wtr = self.writer()?;

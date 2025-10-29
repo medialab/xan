@@ -45,6 +45,7 @@
 * Fixing invalid argument parsing error being printed to stdout instead of stderr.
 * Fixing `xan progress` SIGINT corrupting output.
 * Fixing `xan slice -A/--accumulate`.
+* Fixing `xan from -f tar` when tarball archive is not gzipped.
 
 *Performance*
 
