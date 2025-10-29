@@ -463,25 +463,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut process_record = |record: &ByteRecord| -> CliResult<()> {
-        let mut output_record: ByteRecord = ByteRecord::new();
+        let splitted = splitter.split_cell(
+            &record[separated_column_index],
+            max_splitted_cells,
+            too_many_mode,
+        )?;
 
-        output_record.extend(
+        wtr.write_record(
             record
                 .iter()
-                .take(left_headers.len() + args.flag_keep as usize),
-        );
-        output_record.extend(
-            splitter
-                .split_cell(
-                    &record[separated_column_index],
-                    max_splitted_cells,
-                    too_many_mode,
-                )?
-                .iter(),
-        );
-        output_record.extend(record.iter().skip(left_headers.len() + 1));
-
-        wtr.write_byte_record(&output_record)?;
+                .take(separated_column_index + args.flag_keep as usize)
+                .chain(splitted.iter())
+                .chain(record.iter().skip(separated_column_index + 1)),
+        )?;
 
         Ok(())
     };
