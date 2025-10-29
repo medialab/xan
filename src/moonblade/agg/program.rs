@@ -1438,7 +1438,7 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
 
 #[derive(Debug, Clone, Default)]
 struct PivotedColumnNamesIndex {
-    names: Vec<Vec<u8>>,
+    names: ByteRecord,
     seen: BTreeSet<Vec<u8>>,
 }
 
@@ -1446,7 +1446,7 @@ impl PivotedColumnNamesIndex {
     fn add(&mut self, name: &[u8]) {
         if !self.seen.contains(name) {
             self.seen.insert(name.to_vec());
-            self.names.push(name.to_vec());
+            self.names.push_field(name);
         }
     }
 }
@@ -1522,7 +1522,7 @@ impl PivotAggregationProgram {
         )
     }
 
-    pub fn pivoted_column_names(&self) -> &[Vec<u8>] {
+    pub fn pivoted_column_names(&self) -> &ByteRecord {
         &self.pivoted_column_names_index.names
     }
 

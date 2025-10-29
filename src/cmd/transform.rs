@@ -124,7 +124,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|i| Program::parse(&format!("col({}) | {}", i, &args.arg_expression), &headers))
         .collect::<Result<Vec<_>, _>>()?;
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         let output_headers = if let Some(new_names) = &args.flag_rename {
             let renamed = util::str_to_csv_byte_record(new_names);
 
@@ -149,7 +149,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(threads) = parallelization {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
             move |(index, record)| -> CliResult<simd_csv::ByteRecord> {
                 let record = record?;
 

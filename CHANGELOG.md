@@ -5,11 +5,12 @@
 *Breaking*
 
 * Bumping MSRV to `1.83.0`.
-* Dropping `xan plot -Y/--add-series`, since it is now possible to select multiple series as `<y>` in  `xan plot <x>, <y>`.
+* Dropping `xan plot -Y/--add-series`. It is now possible to select multiple columns as `<y>` in  `xan plot <x> <y>` instead.
 * Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
 * `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
 * `xan behead` does not normalize the output anymore to be as fast as possible.
 * The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
+* `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 
 *Features*
 
@@ -22,7 +23,7 @@
 * Adding `xan flatten --row-separator`.
 * Adding `xan flatten --csv`.
 * Adding `xan headers --color`.
-* Adding the `xan join <columns> <input1> <input2>` arity as a convenience for when joined column names are the same in both inputs.
+* Adding the `xan join <columns> <input1> <input2>` arity as a convenience when joined column names are the same in both inputs.
 * Adding `xan join -D/--drop-key=(none|both|left|right)`.
 * Adding `xan fuzzy-join -D/--drop-key=(none|both|left|right)`.
 * Adding `xan plot -A/--aggregate`.
@@ -31,6 +32,9 @@
 * Adding `xan groupby -M/--along-matrix`.
 * Adding `xan groupby -T/--total`.
 * Adding support for `.ndjson` & `.jsonl` files. Those are considered as headless TSV files with null byte quoting so you can easily use them with `xan` commands.
+* Adding out-of-the-box support for `.vcf`, `.sam`, `.gtf` & `.gff2` files.
+* Adding a `xan cat cols` alias to `xan cat columns`.
+* Adding `zstd` support.
 
 *Fixes*
 
@@ -38,17 +42,25 @@
 * Fixing `xan hist -D` when a same date is found multiple times.
 * Fixing `xan from -f xls` datetime conversion.
 * Fixing `xan flatten` & `xan view` when column names contain line breaks.
+* Fixing invalid argument parsing error being printed to stdout instead of stderr.
+* Fixing `xan progress` SIGINT corrupting output.
+* Fixing `xan enum -A/--accumulate`.
+* Fixing `xan from -f tar` when tarball archive is not gzipped.
 
 *Performance*
 
 * Wildly improving performance of most of `xan` commands by leveraging a novel SIMD CSV parser/writer.
 * Improving performance of `xan from -f txt`.
+* Improving memory footprint of hash-based commands (e.g. `frequency`, `groupby`, `dedup` etc.).
+* Improving performance of `xan progress`, `xan range`, `xan enum`.
 
 *Quality of Life*
 
 * `xan parallel cat` now flushing more consistently.
 * Better highlighting of problematic strings in `xan flatten`, `xan view` & `xan headers`.
 * `xan parallel` will now generally stop as soon as an error is detected in a subprocess and cleanly report errors.
+* Better argv parsing error UX in general.
+* The `-p` flag will now avoid going further than 16 to avoid issues on server with many CPUs where hogging the resources is an issue and where using too much threads at once could hurt performance. The `-t` flag remain available to tweak the number of threads.
 
 ## 0.53.0
 

@@ -63,7 +63,7 @@ fn run_random_access(args: Args) -> CliResult<()> {
     {
         let mut rdr = rconf.reader()?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             let header = rdr.byte_headers()?;
 
             if !header.is_empty() {

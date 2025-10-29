@@ -120,7 +120,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|rdr| rdr.byte_headers())
         .collect::<Result<Vec<_>, _>>()?;
 
-    if !args.flag_no_headers {
+    if !confs[0].no_headers {
         if let Some(i) = headers.iter().skip(1).position(|h| *h != headers[0]) {
             let path = &paths[i + 1];
 

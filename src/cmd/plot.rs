@@ -326,14 +326,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
 
-    let x_column_index = args
-        .arg_x
-        .single_selection(headers, !args.flag_no_headers)?;
+    let x_column_index = args.arg_x.single_selection(headers, !rconf.no_headers)?;
 
     let y_column_index_opt = args
         .arg_y
         .as_ref()
-        .map(|name| name.selection(headers, !args.flag_no_headers))
+        .map(|name| name.selection(headers, !rconf.no_headers))
         .transpose()?
         .map(|s| s.into_first().unwrap());
 
@@ -361,14 +359,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let category_column_index = args
         .flag_category
         .as_ref()
-        .map(|name| name.single_selection(headers, !args.flag_no_headers))
+        .map(|name| name.single_selection(headers, !rconf.no_headers))
         .transpose()?;
 
     let additional_series_indices = args
         .arg_y
         .as_ref()
         .map(|names| -> CliResult<Vec<(Vec<u8>, usize)>> {
-            let sel = names.selection(headers, !args.flag_no_headers)?.into_rest();
+            let sel = names.selection(headers, !rconf.no_headers)?.into_rest();
 
             let info: Vec<(Vec<u8>, usize)> = if args.flag_no_headers {
                 sel.iter()

@@ -163,7 +163,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|cols| {
             cols.selection(
                 &sel.select(byte_headers).collect::<csv::ByteRecord>(),
-                !args.flag_no_headers,
+                !rconfig.no_headers,
             )
         })
         .transpose()?;

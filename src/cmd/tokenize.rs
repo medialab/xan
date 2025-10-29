@@ -318,7 +318,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     };
 
-    if !args.flag_no_headers {
+    if !rconfig.no_headers {
         if !args.flag_keep_text {
             headers = headers.remove(col_index);
         }
@@ -390,7 +390,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if let Some(vocab_token_id) = args.flag_vocab_token_id {
                 let mut whitelist = HashMap::new();
                 let token_id_pos =
-                    vocab_token_id.single_selection(vocab_headers, !args.flag_no_headers)?;
+                    vocab_token_id.single_selection(vocab_headers, !rconfig.no_headers)?;
 
                 while vocab_reader.read_byte_record(&mut vocab_record)? {
                     let token = String::from_utf8(vocab_record[token_pos].to_vec()).unwrap();
@@ -583,7 +583,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .enumerate()
             .parallel_map_custom(
                 |o| {
-                   o.threads(threads.unwrap_or_else(num_cpus::get))
+                   o.threads(threads.unwrap_or_else(crate::util::default_num_cpus))
                 },
                 move |(index, result)| -> CliResult<(simd_csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;

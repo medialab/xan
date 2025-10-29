@@ -47,6 +47,10 @@ pub fn version() -> String {
     }
 }
 
+pub fn default_num_cpus() -> usize {
+    num_cpus::get().min(16)
+}
+
 lazy_static! {
     static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-=]*)").unwrap();
     static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options):|---+").unwrap();

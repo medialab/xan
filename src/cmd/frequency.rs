@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
+use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, Counter};
@@ -9,7 +10,7 @@ use crate::select::SelectColumns;
 use crate::util;
 use crate::CliResult;
 
-type GroupKey = Vec<Vec<u8>>;
+type GroupKey = ByteRecord;
 type ValueKey = Vec<u8>;
 
 static USAGE: &str = "
@@ -160,7 +161,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| cols.selection(&headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&headers, !rconf.no_headers))
         .transpose()?;
 
     // No need to consider the grouping column when counting frequencies
@@ -173,7 +174,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    let field_names: Vec<Vec<u8>> = if args.flag_no_headers {
+    let field_names: ByteRecord = if args.flag_no_headers {
         sel.iter()
             .map(|i| i.to_string().as_bytes().to_vec())
             .collect()
@@ -202,7 +203,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         > = ClusteredInsertHashmap::new();
 
         let output_headers = {
-            let mut r = simd_csv::ByteRecord::new();
+            let mut r = ByteRecord::new();
             r.push_field(b"field");
 
             for col_name in groupby_sel.select(&headers) {
@@ -216,11 +217,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&output_headers)?;
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
-            let group: Vec<_> = groupby_sel
+            let group: ByteRecord = groupby_sel
                 .select(&record)
                 .map(|cell| cell.to_vec())
                 .collect();
@@ -276,7 +277,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     emitted += count;
 
                     record.clear();
-                    record.push_field(&name);
+                    record.push_field(name);
 
                     for cell in group {
                         record.push_field(cell);
@@ -291,7 +292,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 if !args.flag_no_extra && remaining > 0 {
                     record.clear();
-                    record.push_field(&name);
+                    record.push_field(name);
 
                     for cell in group {
                         record.push_field(cell);
@@ -308,7 +309,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             (0..sel.len()).map(|_| Counter::new(approx_k)).collect();
 
         let output_headers = {
-            let mut r = simd_csv::ByteRecord::new();
+            let mut r = ByteRecord::new();
             r.push_field(b"field");
             r.push_field(b"value");
             r.push_field(b"count");
@@ -317,7 +318,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&output_headers)?;
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         // Aggregating
         while rdr.read_byte_record(&mut record)? {
@@ -359,7 +360,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 emitted += count;
 
                 record.clear();
-                record.push_field(&name);
+                record.push_field(name);
                 record.push_field(&value);
                 record.push_field(count.to_string().as_bytes());
                 wtr.write_byte_record(&record)?;
@@ -369,7 +370,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if !args.flag_no_extra && remaining > 0 {
                 record.clear();
-                record.push_field(&name);
+                record.push_field(name);
                 record.push_field(b"<rest>");
                 record.push_field(remaining.to_string().as_bytes());
                 wtr.write_byte_record(&record)?;

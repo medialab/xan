@@ -1,5 +1,7 @@
 use std::num::NonZeroUsize;
 
+use simd_csv::ByteRecord;
+
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{
@@ -247,7 +249,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-T/--total does work yet with -C/--along-cols!")?;
         }
 
-        let mut pivot_sel = selection.selection(headers, !args.flag_no_headers)?;
+        let mut pivot_sel = selection.selection(headers, !rconf.no_headers)?;
         pivot_sel.sort_and_dedup();
 
         let mut program = GroupAlongColumnsAggregationProgram::parse(
@@ -256,8 +258,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             pivot_sel.len(),
         )?;
 
-        if !args.flag_no_headers {
-            let mut output_headers = sel.select(headers).collect::<simd_csv::ByteRecord>();
+        if !rconf.no_headers {
+            let mut output_headers = sel.select(headers).collect::<ByteRecord>();
 
             for name in pivot_sel.select(headers) {
                 output_headers.push_field(name);
@@ -266,7 +268,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&output_headers)?;
         }
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
@@ -301,21 +303,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-T/--total does work yet with -M/--along-matrix!")?;
         }
 
-        let mut matrix_sel = selection.selection(headers, !args.flag_no_headers)?;
+        let mut matrix_sel = selection.selection(headers, !rconf.no_headers)?;
         matrix_sel.sort_and_dedup();
 
         let mut program =
-            GroupAggregationProgram::<Vec<Vec<u8>>>::parse(&args.arg_expression, headers)?;
+            GroupAggregationProgram::<ByteRecord>::parse(&args.arg_expression, headers)?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             wtr.write_record(sel.select(headers).chain(program.headers()))?;
         }
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            let group = sel.collect(&record);
+            let group = sel.select(&record).collect();
 
             program.run_with_cells(group, index, &record, matrix_sel.select(&record))?;
 
@@ -325,12 +327,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for result in program.into_byte_records(false) {
             let (group, group_record) = result?;
 
-            wtr.write_record(
-                group
-                    .iter()
-                    .map(|cell| cell.as_slice())
-                    .chain(group_record.iter()),
-            )?;
+            wtr.write_record(group.iter().chain(group_record.iter()))?;
         }
 
         return Ok(wtr.flush()?);
@@ -338,7 +335,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // --keep, lol...
     if let Some(selection) = args.flag_keep.take() {
-        let mut keep_sel = selection.selection(headers, !args.flag_no_headers)?;
+        let mut keep_sel = selection.selection(headers, !rconf.no_headers)?;
         keep_sel.dedup();
 
         let addendum = keep_sel
@@ -360,7 +357,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut record = simd_csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
 
     if args.flag_sorted {
         if args.flag_total.is_some() {
@@ -368,16 +365,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
-        let mut current: Option<Vec<Vec<u8>>> = None;
+        let mut current: Option<ByteRecord> = None;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             wtr.write_record(sel.select(headers).chain(program.headers()))?;
         }
 
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            let group = sel.collect(&record);
+            let group = sel.select(&record).collect();
 
             match current.as_ref() {
                 None => {
@@ -385,12 +382,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 Some(current_group) => {
                     if current_group != &group {
-                        wtr.write_record(
-                            current_group
-                                .iter()
-                                .map(|cell| cell.as_slice())
-                                .chain(&program.finalize(false)?),
-                        )?;
+                        wtr.write_record(current_group.iter().chain(&program.finalize(false)?))?;
 
                         program.clear();
                         current = Some(group);
@@ -405,17 +397,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Flushing final group
         if let Some(current_group) = current {
-            wtr.write_record(
-                current_group
-                    .iter()
-                    .map(|cell| cell.as_slice())
-                    .chain(&program.finalize(false)?),
-            )?;
+            wtr.write_record(current_group.iter().chain(&program.finalize(false)?))?;
         }
     } else {
         let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             if let Some(total_program) = &total_program_opt {
                 wtr.write_record(
                     sel.select(headers)

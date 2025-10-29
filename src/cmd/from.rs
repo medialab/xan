@@ -10,6 +10,7 @@ use calamine::{open_workbook_auto_from_rs, Data, Reader};
 use flate2::read::MultiGzDecoder;
 use jiff::civil::{DateTime, Time};
 use serde_json::{Map, Value};
+use simd_csv::ByteRecord;
 
 use crate::config::Config;
 use crate::json::for_each_json_value_as_csv_record;
@@ -84,7 +85,7 @@ Some formats can be streamed, some others require the full file to be loaded int
 memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
 
 Some formats will handle gzip decompression on the fly if the filename ends
-in `.gz`: `json`, `ndjson`, `jsonl` and `txt`.
+in `.gz`: `json`, `ndjson`, `jsonl`, `tar` and `txt`.
 
 Tarball extraction was designed for utf8-encoded text files. Expect weird or
 broken results with other encodings or binary files.
@@ -141,8 +142,8 @@ struct Args {
 }
 
 impl Args {
-    fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + Send>>> {
-        Config::new(&self.flag_output).writer()
+    fn writer(&self) -> io::Result<simd_csv::Writer<Box<dyn io::Write + Send>>> {
+        Config::new(&self.flag_output).simd_writer()
     }
 
     fn convert_xls(&self) -> CliResult<()> {
@@ -172,7 +173,7 @@ impl Args {
         }
 
         let mut wtr = self.writer()?;
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         let range = match &self.flag_sheet_name {
             Some(name) => Some(workbook.worksheet_range(name)),
@@ -346,7 +347,7 @@ impl Args {
 
         let mut wtr = self.writer()?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         for i in 0..columns {
             record.push_field(format!("dim_{}", i).as_bytes());
@@ -386,17 +387,20 @@ impl Args {
     }
 
     fn convert_tar(&self) -> CliResult<()> {
-        let rdr: Box<dyn Read> = match self.arg_input.as_ref() {
+        let mut rdr: Box<dyn Read> = match self.arg_input.as_ref() {
             None => Box::new(io::stdin()),
             Some(p) => Box::new(fs::File::open(p)?),
         };
 
-        let rdr = MultiGzDecoder::new(rdr);
+        if matches!(self.arg_input.as_ref(), Some(p) if p.ends_with(".gz")) {
+            rdr = Box::new(MultiGzDecoder::new(rdr));
+        }
+
         let mut archive = tar::Archive::new(rdr);
 
         let mut wtr = self.writer()?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut bytes: Vec<u8> = Vec::new();
 
         record.push_field(b"path");
@@ -475,7 +479,7 @@ impl Args {
             })?;
 
         let mut wtr = self.writer()?;
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let lines = buf.lines().collect::<Vec<_>>();
         for row in table.children() {
             // Ignore non-row nodes, though there shouldn't be any.

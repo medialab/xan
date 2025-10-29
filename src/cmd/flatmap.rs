@@ -147,7 +147,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let replaced_index_opt = args
         .flag_replace
         .as_ref()
-        .map(|s| s.single_selection(&headers, !args.flag_no_headers))
+        .map(|s| s.single_selection(&headers, !rconf.no_headers))
         .transpose()?;
 
     if let Some(i) = replaced_index_opt {
@@ -156,7 +156,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let program = Program::parse(&args.arg_expression, &headers)?;
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         let output_headers = if let Some(i) = replaced_index_opt {
             headers.replace_at(i, args.arg_column.as_bytes())
         } else {
@@ -170,7 +170,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(threads) = parallelization {
         for records in rdr.into_byte_records().enumerate().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
             move |(index, record)| -> CliResult<Vec<simd_csv::ByteRecord>> {
                 let record = record?;
 

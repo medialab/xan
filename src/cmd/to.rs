@@ -347,7 +347,7 @@ impl Args {
         let headers = rdr.byte_headers()?.clone();
         let column_index = self
             .flag_select
-            .single_selection(&headers, !self.flag_no_headers).map_err(|_| {
+            .single_selection(&headers, rdr.has_headers()).map_err(|_| {
                 "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
             })?;
 

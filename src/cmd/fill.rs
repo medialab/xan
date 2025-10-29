@@ -55,7 +55,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconf.selection(headers)?;
     let mask = sel.mask(headers.len());
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         wtr.write_byte_record(headers)?;
     }
 

@@ -111,7 +111,7 @@ impl Args {
 
             let node_column_index = self
                 .flag_node_column
-                .single_selection(&node_headers, !self.flag_no_headers)?;
+                .single_selection(&node_headers, !nodes_rconf.no_headers)?;
 
             let node_attr_sel =
                 Selection::without_indices(node_headers.len(), &[node_column_index]);
@@ -156,12 +156,12 @@ impl Args {
             .arg_source
             .as_ref()
             .unwrap()
-            .single_selection(&edge_headers, !self.flag_no_headers)?;
+            .single_selection(&edge_headers, !edges_rconf.no_headers)?;
         let target_column_index = self
             .arg_target
             .as_ref()
             .unwrap()
-            .single_selection(&edge_headers, !self.flag_no_headers)?;
+            .single_selection(&edge_headers, !edges_rconf.no_headers)?;
 
         let edge_attr_sel = Selection::without_indices(
             edge_headers.len(),
@@ -229,13 +229,13 @@ impl Args {
             .arg_part1
             .as_ref()
             .unwrap()
-            .single_selection(&headers, !self.flag_no_headers)?;
+            .single_selection(&headers, !rconf.no_headers)?;
 
         let second_part_index = self
             .arg_part2
             .as_ref()
             .unwrap()
-            .single_selection(&headers, !self.flag_no_headers)?;
+            .single_selection(&headers, !rconf.no_headers)?;
 
         let mut incremental_id =
             (!self.flag_disjoint_keys).then(IncrementalId::<(usize, String)>::new);

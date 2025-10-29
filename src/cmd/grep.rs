@@ -103,7 +103,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .has_headers(false)
             .from_bytes(&map);
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             if let Some(header) = reader.split_record() {
                 if let Some(writer) = writer_opt.as_mut() {
                     writer.write_all(header)?;
@@ -133,7 +133,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         let mut splitter = rconf.simd_splitter()?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             if let Some(header) = splitter.split_record()? {
                 if let Some(writer) = writer_opt.as_mut() {
                     writer.write_all(header)?;

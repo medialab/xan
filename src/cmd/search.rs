@@ -997,7 +997,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let matcher = Arc::new(matcher);
 
         for result in rdr.into_byte_records().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
             move |result| -> CliResult<(bool, Option<simd_csv::ByteRecord>)> {
                 let mut record = result?;
 

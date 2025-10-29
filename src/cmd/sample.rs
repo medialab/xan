@@ -98,7 +98,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let group_sel_opt = args
         .flag_groupby
-        .map(|s| s.selection(byte_headers, !args.flag_no_headers))
+        .map(|s| s.selection(byte_headers, !rconfig.no_headers))
         .transpose()?;
 
     let sampled = if args.flag_cursed {

@@ -125,7 +125,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel = rconfig.selection(&headers)?;
     let cmp_sel_opt = args
         .flag_cmp
-        .map(|s| s.selection(&headers, !args.flag_no_headers))
+        .map(|s| s.selection(&headers, !rconfig.no_headers))
         .transpose()?;
 
     // NOTE: the mask deduplicates

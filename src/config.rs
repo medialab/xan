@@ -10,6 +10,7 @@ use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
 use memmap2::Mmap;
+use regex::bytes::Regex;
 
 use crate::read::{self, ReverseRead};
 use crate::record::Record;
@@ -67,6 +68,9 @@ enum TabularDataKind {
     RegularCsv,
     Cdx,
     Ndjson,
+    Vcf,
+    Gtf,
+    Sam,
 }
 
 impl TabularDataKind {
@@ -76,6 +80,46 @@ impl TabularDataKind {
 
     fn is_ndjson(&self) -> bool {
         matches!(self, Self::Ndjson)
+    }
+
+    fn has_headers(&self) -> bool {
+        !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam)
+    }
+
+    fn header_pattern(&self) -> Option<Regex> {
+        match self {
+            Self::Vcf => Some(Regex::new("^#CHROM\t").unwrap()),
+            Self::Gtf => Some(Regex::new("^#").unwrap()),
+            Self::Sam => Some(Regex::new("^@").unwrap()),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Compression {
+    Gzip,
+    Zstd,
+}
+
+impl Compression {
+    fn infer_from_path(path: &str) -> Option<Self> {
+        if path.ends_with(".gz") {
+            Some(Self::Gzip)
+        } else if path.ends_with(".zst") {
+            Some(Self::Zstd)
+        } else {
+            None
+        }
+    }
+
+    fn strip_ext<'p>(&self, path: &'p str) -> &'p str {
+        let suffix = match self {
+            Self::Gzip => ".gz",
+            Self::Zstd => ".zst",
+        };
+
+        path.strip_suffix(suffix).unwrap_or(path)
     }
 }
 
@@ -97,17 +141,41 @@ pub struct Config {
     double_quote: bool,
     escape: Option<u8>,
     quoting: bool,
-    compressed: bool, // TODO: can become a compression type if we need to support more schemes than gz
+    compression: Option<Compression>,
     tabular_data_kind: TabularDataKind,
 }
 
 impl Config {
+    pub fn has_known_extension(path: &str) -> bool {
+        let uncompressed_path = path.strip_suffix(".gz").unwrap_or(path);
+
+        [
+            ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
+            ".gtf", ".gff2", ".bed", ".sam",
+        ]
+        .iter()
+        .any(|ext| uncompressed_path.ends_with(ext))
+    }
+
+    pub fn is_chunkable(path: &str) -> bool {
+        if !Self::has_known_extension(path) {
+            return false;
+        }
+
+        if path.ends_with(".gz") {
+            Self::new(&Some(path.to_string())).is_indexed_gzip()
+        } else {
+            true
+        }
+    }
+
     pub fn new(path: &Option<String>) -> Config {
-        let (path, delimiter, compressed, tabular_data_kind) = match *path {
-            None => (None, b',', false, TabularDataKind::RegularCsv),
-            Some(ref s) if s.deref() == "-" => (None, b',', false, TabularDataKind::RegularCsv),
+        let (path, delimiter, compression, tabular_data_kind) = match *path {
+            None => (None, b',', None, TabularDataKind::RegularCsv),
+            Some(ref s) if s.deref() == "-" => (None, b',', None, TabularDataKind::RegularCsv),
             Some(ref s) => {
-                let raw_s = s.strip_suffix(".gz").unwrap_or(s);
+                let compression = Compression::infer_from_path(s);
+                let raw_s = compression.map(|c| c.strip_ext(s)).unwrap_or(s);
                 let mut kind = TabularDataKind::RegularCsv;
 
                 let delim = if raw_s.ends_with(".tsv") || raw_s.ends_with(".tab") {
@@ -122,11 +190,20 @@ impl Config {
                 } else if raw_s.ends_with(".ndjson") || raw_s.ends_with(".jsonl") {
                     kind = TabularDataKind::Ndjson;
                     b'\t'
+                } else if raw_s.ends_with(".vcf") {
+                    kind = TabularDataKind::Vcf;
+                    b'\t'
+                } else if raw_s.ends_with(".gtf") || raw_s.ends_with(".gff2") {
+                    kind = TabularDataKind::Gtf;
+                    b'\t'
+                } else if raw_s.ends_with(".sam") {
+                    kind = TabularDataKind::Sam;
+                    b'\t'
                 } else {
                     b','
                 };
 
-                (Some(PathBuf::from(s)), delim, s.ends_with(".gz"), kind)
+                (Some(PathBuf::from(s)), delim, compression, kind)
             }
         };
 
@@ -134,7 +211,7 @@ impl Config {
             path,
             select_columns: None,
             delimiter,
-            no_headers: tabular_data_kind.is_ndjson(),
+            no_headers: !tabular_data_kind.has_headers(),
             flexible: false,
             terminator: csv::Terminator::Any(b'\n'),
             quote: if tabular_data_kind.is_ndjson() {
@@ -146,7 +223,7 @@ impl Config {
             double_quote: true,
             escape: None,
             quoting: true,
-            compressed,
+            compression,
             tabular_data_kind,
         };
 
@@ -155,6 +232,10 @@ impl Config {
         }
 
         config
+    }
+
+    pub fn is_compressed(&self) -> bool {
+        self.compression.is_some()
     }
 
     pub fn std() -> Config {
@@ -172,6 +253,11 @@ impl Config {
         if env::var("XAN_TOGGLE_HEADERS").unwrap_or("0".to_owned()) == "1" {
             yes = !yes;
         }
+
+        if !self.tabular_data_kind.has_headers() {
+            yes = true;
+        }
+
         self.no_headers = yes;
         self
     }
@@ -230,7 +316,7 @@ impl Config {
     }
 
     pub fn mmap(&self) -> io::Result<Option<Mmap>> {
-        if self.is_std() || self.compressed {
+        if self.is_std() || self.is_compressed() {
             return Ok(None);
         }
 
@@ -294,13 +380,66 @@ impl Config {
         Ok(self.simd_csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
-    #[allow(clippy::single_match)]
-    fn read_typical_headers<R: Read>(&self, reader: &mut R) -> CliResult<()> {
+    fn process_typical_headers(
+        &self,
+        mut reader: Box<dyn Read + Send + 'static>,
+    ) -> CliResult<Box<dyn Read + Send + 'static>> {
+        match self.tabular_data_kind {
+            TabularDataKind::Cdx => {
+                if !read::consume_cdx_header(&mut reader)? {
+                    Err("invalid CDX header!")?;
+                }
+
+                Ok(reader)
+            }
+            TabularDataKind::Vcf => {
+                if let Some((_, fixed_reader)) = read::consume_header_until(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )? {
+                    Ok(Box::new(fixed_reader))
+                } else {
+                    Err(CliError::from("invalid VCF header!"))
+                }
+            }
+            TabularDataKind::Gtf | TabularDataKind::Sam => {
+                if let Some((_, fixed_reader)) = read::consume_header_while(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )? {
+                    Ok(Box::new(fixed_reader))
+                } else {
+                    Err(CliError::from("invalid header!"))
+                }
+            }
+            _ => Ok(reader),
+        }
+    }
+
+    fn process_typical_headers_seek<R: Read + Seek>(&self, reader: &mut R) -> CliResult<()> {
         match self.tabular_data_kind {
             TabularDataKind::Cdx => {
                 if !read::consume_cdx_header(reader)? {
                     Err("invalid CDX header!")?;
                 }
+            }
+            TabularDataKind::Vcf => {
+                let (pos, fixed_reader) = read::consume_header_until(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )?
+                .ok_or("invalid VCF header!")?;
+
+                fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
+            }
+            TabularDataKind::Gtf | TabularDataKind::Sam => {
+                let (pos, fixed_reader) = read::consume_header_while(
+                    reader,
+                    &self.tabular_data_kind.header_pattern().unwrap(),
+                )?
+                .ok_or("invalid header!")?;
+
+                fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
             _ => (),
         };
@@ -343,15 +482,17 @@ impl Config {
             }
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
-                    let mut reader: Box<dyn Read + Send + 'static> = if self.compressed {
-                        Box::new(MultiGzDecoder::new(x))
-                    } else {
-                        Box::new(x)
-                    };
+                    let reader: Box<dyn Read + Send + 'static> =
+                        if let Some(compression) = self.compression {
+                            match compression {
+                                Compression::Gzip => Box::new(MultiGzDecoder::new(x)),
+                                Compression::Zstd => Box::new(zstd::Decoder::new(x)?),
+                            }
+                        } else {
+                            Box::new(x)
+                        };
 
-                    self.read_typical_headers(&mut reader)?;
-
-                    reader
+                    self.process_typical_headers(reader)?
                 }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
@@ -359,6 +500,55 @@ impl Config {
                 }
             },
         })
+    }
+
+    pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
+        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
+
+        match self.path {
+            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
+            Some(ref p) => match fs::File::open(p) {
+                Ok(mut x) => {
+                    if let Some(Compression::Gzip) = self.compression {
+                        let index_path_str = p.to_string_lossy() + ".gzi";
+                        let index_path = Path::new(index_path_str.as_ref());
+
+                        if index_path.is_file() {
+                            let reader = BGZFReader::new(x)?;
+                            let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
+                            let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
+
+                            self.process_typical_headers_seek(&mut indexed_reader)?;
+
+                            return Ok(Box::new(indexed_reader));
+                        }
+                    } else {
+                        self.process_typical_headers_seek(&mut x)?;
+                    }
+
+                    match x.borrow().stream_position() {
+                        Ok(_) => Ok(Box::new(x)),
+                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
+                    }
+                }
+                Err(err) => {
+                    let msg = format!("failed to open {}: {}", p.display(), err);
+                    Err(io::Error::new(io::ErrorKind::NotFound, msg))?
+                }
+            },
+        }
+    }
+
+    pub fn io_reader_at_position_with_limit(
+        &self,
+        position: u64,
+        limit: u64,
+    ) -> CliResult<Box<dyn Read + Send + 'static>> {
+        let mut reader = self.io_reader_for_random_access()?;
+
+        reader.seek(SeekFrom::Start(position))?;
+
+        Ok(Box::new(reader.take(limit)))
     }
 
     pub fn lines(
@@ -455,7 +645,7 @@ impl Config {
         match self.path {
             None => false,
             Some(ref p) => {
-                if self.compressed {
+                if matches!(self.compression, Some(Compression::Gzip)) {
                     let index_path_str = p.to_string_lossy() + ".gzi";
                     let index_path = Path::new(index_path_str.as_ref());
 
@@ -465,55 +655,6 @@ impl Config {
                 }
             }
         }
-    }
-
-    pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
-        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
-
-        match self.path {
-            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
-            Some(ref p) => match fs::File::open(p) {
-                Ok(mut x) => {
-                    if self.compressed {
-                        let index_path_str = p.to_string_lossy() + ".gzi";
-                        let index_path = Path::new(index_path_str.as_ref());
-
-                        if index_path.is_file() {
-                            let reader = BGZFReader::new(x)?;
-                            let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
-                            let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
-
-                            self.read_typical_headers(&mut indexed_reader)?;
-
-                            return Ok(Box::new(indexed_reader));
-                        }
-                    } else {
-                        self.read_typical_headers(&mut x)?;
-                    }
-
-                    match x.borrow().stream_position() {
-                        Ok(_) => Ok(Box::new(x)),
-                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
-                    }
-                }
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    Err(io::Error::new(io::ErrorKind::NotFound, msg))?
-                }
-            },
-        }
-    }
-
-    pub fn io_reader_at_position_with_limit(
-        &self,
-        position: u64,
-        limit: u64,
-    ) -> CliResult<Box<dyn Read + Send + 'static>> {
-        let mut reader = self.io_reader_for_random_access()?;
-
-        reader.seek(SeekFrom::Start(position))?;
-
-        Ok(Box::new(reader.take(limit)))
     }
 
     pub fn reverse_reader(

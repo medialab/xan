@@ -39,11 +39,11 @@ Feeding CSV as stdin (\"-\") to --paths:
     $ cat filelist.csv | xan cat rows --paths - --path-column path > concatenated.csv
 
 Usage:
-    xan cat rows    [options] [<inputs>...]
-    xan cat columns [options] [<inputs>...]
+    xan cat rows [options] [<inputs>...]
+    xan cat (cols|columns) [options] [<inputs>...]
     xan cat --help
 
-cat columns options:
+cat cols/columns options:
     -p, --pad                   When concatenating columns, this flag will cause
                                 all records to appear. It will pad each row if
                                 other CSV data isn't long enough.
@@ -70,6 +70,7 @@ Common options:
 struct Args {
     cmd_rows: bool,
     cmd_columns: bool,
+    cmd_cols: bool,
     arg_inputs: Vec<String>,
     flag_paths: Option<String>,
     flag_path_column: Option<SelectColumns>,
@@ -93,7 +94,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         } else {
             args.cat_rows()
         }
-    } else if args.cmd_columns {
+    } else if args.cmd_columns || args.cmd_cols {
         args.cat_columns()
     } else {
         unreachable!();
@@ -119,7 +120,7 @@ impl Args {
 
             match &self.flag_source_column {
                 None => {
-                    if !self.flag_no_headers && i == 0 {
+                    if !conf.no_headers && i == 0 {
                         wtr.write_byte_record(rdr.byte_headers()?)?;
                     }
                     while rdr.read_byte_record(&mut row)? {
@@ -127,7 +128,7 @@ impl Args {
                     }
                 }
                 Some(source_column) => {
-                    if !self.flag_no_headers && i == 0 {
+                    if !conf.no_headers && i == 0 {
                         let headers = rdr.byte_headers()?;
                         wtr.write_record([source_column.as_bytes()].into_iter().chain(headers))?;
                     }

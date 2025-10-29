@@ -242,9 +242,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // --along-rows
     if let Some(cols) = &args.flag_along_rows {
-        let sel = cols.selection(headers, !args.flag_no_headers)?;
+        let sel = cols.selection(headers, !rconf.no_headers)?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             wtr.write_record(headers.iter().chain(program.headers()))?;
         }
 
@@ -264,7 +264,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     // --along-cols
     else if let Some(cols) = &args.flag_along_cols {
-        let mut sel = cols.selection(headers, !args.flag_no_headers)?;
+        let mut sel = cols.selection(headers, !rconf.no_headers)?;
         sel.dedup();
 
         if !program.has_single_expr() {
@@ -273,7 +273,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut record = simd_csv::ByteRecord::new();
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             for name in sel.select(headers) {
                 record.push_field(name);
             }
@@ -303,9 +303,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     // --along-matrix
     else if let Some(cols) = &args.flag_along_matrix {
-        let sel = cols.selection(headers, !args.flag_no_headers)?;
+        let sel = cols.selection(headers, !rconf.no_headers)?;
 
-        if !args.flag_no_headers {
+        if !rconf.no_headers {
             wtr.write_record(program.headers())?;
         }
 

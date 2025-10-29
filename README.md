@@ -4,15 +4,17 @@
 
 `xan` is a command line tool that can be used to process CSV files directly from the shell.
 
-It has been written in Rust to be as fast as possible, use as little memory as possible, and can easily handle very large CSV files (Gigabytes). It is also able to leverage parallelism (through multithreading) to make some tasks complete as fast as your computer can allow.
+It has been written in Rust to be as fast as possible, use as little memory as possible, and can very easily handle large CSV files (Gigabytes). It leverages a novel [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) CSV [parser](https://docs.rs/simd-csv) and is also able to parallelize some computations (through multithreading) to make some tasks complete as fast as your computer can allow.
 
 It can easily preview, filter, slice, aggregate, sort, join CSV files, and exposes a large collection of composable commands that can be chained together to perform a wide variety of typical tasks.
 
-`xan` also leverages its own expression language so you can perform complex tasks that cannot be done by relying on the simplest commands. This minimalistic language has been tailored for CSV data and is *way* faster than evaluating typical dynamically-typed languages such as Python, Lua, JavaScript etc.
+`xan` also offers its own expression language so you can perform complex tasks that cannot be done by relying on the simplest commands. This minimalistic language has been tailored for CSV data and is *way* faster than evaluating typical dynamically-typed languages such as Python, Lua, JavaScript etc.
 
 Note that this tool is originally a fork of [BurntSushi](https://github.com/BurntSushi)'s [`xsv`](https://github.com/BurntSushi/xsv), but has been nearly entirely rewritten at that point, to fit [SciencesPo's médialab](https://github.com/medialab) use-cases, rooted in web data collection and analysis geared towards social sciences (you might think CSV is outdated by now, but read our [love letter](./docs/LOVE_LETTER.md) to the format before judging too quickly).
 
 `xan` therefore goes beyond typical data manipulation and expose utilities related to lexicometry, graph theory and even scraping.
+
+Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam` etc.). `xan` is also able to convert to & from many data formats such as json, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
 
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations:
 
@@ -45,6 +47,14 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 * [Quick tour](#quick-tour)
 * [Available commands](#available-commands)
 * [General flags and IO model](#general-flags-and-io-model)
+  * [Getting help](#getting-help)
+  * [Regarding input & output formats](#regarding-input--output-formats)
+  * [Working with headless CSV file](#working-with-headless-csv-file)
+  * [Regarding stdin](#regarding-stdin)
+  * [Regarding stdout](#regarding-stdout)
+  * [Supported file formats](#supported-file-formats)
+  * [Compressed files](#compressed-files)
+  * [Regarding color](#regarding-color)
 * [Expression language reference](#expression-language-reference)
 * [Cookbook](#cookbook)
 * [News](#news)
@@ -667,7 +677,7 @@ By default, all commands will print their output to stdout (note that this outpu
 
 In addition, all commands expose a `-o/--output` flag that can be use to specify where to write the output. This can be useful if you do not want to or cannot use `>` (typically in some Windows shells). In which case, `-` as a output path will mean forwarding to stdout also. This can be useful when scripting sometimes.
 
-### Supported files
+### Supported file formats
 
 `xan` is able to process a large variety of CSV-adjacent data formats out-of-the box:
 
@@ -677,16 +687,29 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 - `.psv` files will be understood as pipe-separated
 - `.cdx` files (an index file [format](https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/) related to web archive) will be understood as space-separated and will have its magic bytes dropped
 - `.ndjson` & `.jsonl` files will be understood as tab-separated, headless, null-byte-quoted, so you can easily use them with `xan` commands (e.g. parsing or wrangling JSON data using the expression language to aggregate, even in parallel). If you need a more thorough conversion of newline-delimited JSON data, check out the `xan from -f ndjson` command instead.
+- `.vcf` files ([Variant Call Format](https://en.wikipedia.org/wiki/Variant_Call_Format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as tab-delimited.
+- `.gtf` & `.gff2` files ([Gene Transfert Format](https://en.wikipedia.org/wiki/Gene_transfer_format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
+- `.sam` files ([Sequence Alignment Map](https://en.wikipedia.org/wiki/SAM_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as tab-delimited.
 
 Note that more exotic delimiters can always be handled using the ubiquitous `-d, --delimiter` flag.
 
-Some additional formats also supported must first be normalized using the `xan input` command. This is for instance the case for bioinformatics tabular data format such as VCF, GFF, GTF files.
+Some additional formats (e.g. `.gff`, `.gff3`) are also supported but must first be normalized using the `xan input` command because their cells must be trimmed or because they have comment lines to be skipped.
 
-Note also that UTF-8 BOMs will be stripped from the data when processed.
+Note also that UTF-8 BOMs ara always stripped from the data when processed.
 
-### Gzipped files
+### Compressed files
 
-`xan` is able to read gzipped files (having a `.gz` extension) out of the box.
+`xan` is able to read gzipped files (having a `.gz` extension) out of the box. It is also able to leverage `.gzi` indices (usually created through [`bgzip`](https://www.htslib.org/doc/bgzip.html)) when seeking is necessary (constant time reversing, parallelization chunking etc.).
+
+`xan` is also able to read files compressed with [`Zstdandard`](https://github.com/facebook/zstd) (having a `.zst` extension) out of the box.
+
+### Regarding color
+
+Some `xan` commands print ANSI colors in the terminal by default, typically `view`, `flatten`, etc.
+
+All those commands have a standard `--color=(auto|always|never)` flag to tweak the colouring behavior if you need it (note that colors are not printed when commands are piped, by default).
+
+They also respect typical environment variables related to ANSI colouring, such as `NO_COLOR`, `CLICOLOR` & `CLICOLOR_FORCE`, as documented [here](https://bixense.com/clicolors/).
 
 ## Expression language reference
 
