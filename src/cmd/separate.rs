@@ -464,7 +464,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     new_headers.extend(&left_headers);
     new_headers.extend(&middle_headers);
     new_headers.extend(&right_headers);
-    wtr.write_byte_record(&new_headers)?;
+
+    if !rconf.no_headers {
+        wtr.write_byte_record(&new_headers)?;
+    }
 
     let mut process_record = |record: &ByteRecord| -> CliResult<()> {
         let mut output_record: ByteRecord = ByteRecord::new();

@@ -491,3 +491,18 @@ fn separate_offsets() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn separate_no_headers() {
+    let wrk = Workdir::new("map");
+    wrk.create(
+        "data.csv",
+        vec![svec!["john landis", "1"], svec!["evan babka", "2"]],
+    );
+    let mut cmd = wrk.command("separate");
+    cmd.arg("-n").arg("0").arg(" ").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["john", "landis", "1"], svec!["evan", "babka", "2"]];
+    assert_eq!(got, expected);
+}
