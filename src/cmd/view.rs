@@ -354,7 +354,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut env_args: Args = util::get_args(USAGE, &env_var_argv)?;
     env_args.resolve();
 
-    let args = Args::merge(env_args, args);
+    let mut args = Args::merge(env_args, args);
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 
@@ -373,6 +373,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select.clone());
+
+    if rconfig.no_headers {
+        args.flag_hide_headers = true;
+    }
 
     let mut rdr = rconfig.reader()?;
     let byte_headers = rdr.byte_headers()?.clone();

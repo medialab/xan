@@ -68,6 +68,7 @@ enum TabularDataKind {
     Cdx,
     Ndjson,
     Vcf,
+    Gtf,
 }
 
 impl TabularDataKind {
@@ -77,6 +78,10 @@ impl TabularDataKind {
 
     fn is_ndjson(&self) -> bool {
         matches!(self, Self::Ndjson)
+    }
+
+    fn has_headers(&self) -> bool {
+        !matches!(self, Self::Ndjson | Self::Gtf)
     }
 }
 
@@ -95,6 +100,15 @@ impl Compression {
         } else {
             None
         }
+    }
+
+    fn strip_ext<'p>(&self, path: &'p str) -> &'p str {
+        let suffix = match self {
+            Self::Gzip => ".gz",
+            Self::Zstd => ".zst",
+        };
+
+        path.strip_suffix(suffix).unwrap_or(path)
     }
 }
 
@@ -126,6 +140,7 @@ impl Config {
 
         [
             ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
+            ".gtf", ".gff2",
         ]
         .iter()
         .any(|ext| uncompressed_path.ends_with(ext))
@@ -148,7 +163,8 @@ impl Config {
             None => (None, b',', None, TabularDataKind::RegularCsv),
             Some(ref s) if s.deref() == "-" => (None, b',', None, TabularDataKind::RegularCsv),
             Some(ref s) => {
-                let raw_s = s.strip_suffix(".gz").unwrap_or(s);
+                let compression = Compression::infer_from_path(s);
+                let raw_s = compression.map(|c| c.strip_ext(s)).unwrap_or(s);
                 let mut kind = TabularDataKind::RegularCsv;
 
                 let delim = if raw_s.ends_with(".tsv") || raw_s.ends_with(".tab") {
@@ -166,16 +182,14 @@ impl Config {
                 } else if raw_s.ends_with(".vcf") {
                     kind = TabularDataKind::Vcf;
                     b'\t'
+                } else if raw_s.ends_with(".gtf") || raw_s.ends_with(".gff2") {
+                    kind = TabularDataKind::Gtf;
+                    b'\t'
                 } else {
                     b','
                 };
 
-                (
-                    Some(PathBuf::from(s)),
-                    delim,
-                    Compression::infer_from_path(s),
-                    kind,
-                )
+                (Some(PathBuf::from(s)), delim, compression, kind)
             }
         };
 
@@ -183,7 +197,7 @@ impl Config {
             path,
             select_columns: None,
             delimiter,
-            no_headers: tabular_data_kind.is_ndjson(),
+            no_headers: !tabular_data_kind.has_headers(),
             flexible: false,
             terminator: csv::Terminator::Any(b'\n'),
             quote: if tabular_data_kind.is_ndjson() {
@@ -226,7 +240,7 @@ impl Config {
             yes = !yes;
         }
 
-        if self.tabular_data_kind.is_ndjson() {
+        if !self.tabular_data_kind.has_headers() {
             yes = true;
         }
 
@@ -371,6 +385,13 @@ impl Config {
                     Err(CliError::from("invalid VCF header!"))
                 }
             }
+            TabularDataKind::Gtf => {
+                if let Some((_, fixed_reader)) = read::consume_gtf_header(reader)? {
+                    Ok(Box::new(fixed_reader))
+                } else {
+                    Err(CliError::from("invalid GTF header!"))
+                }
+            }
             _ => Ok(reader),
         }
     }
@@ -385,6 +406,12 @@ impl Config {
             TabularDataKind::Vcf => {
                 let (pos, fixed_reader) =
                     read::consume_vcf_header(reader)?.ok_or("invalid VCF header!")?;
+
+                fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
+            }
+            TabularDataKind::Gtf => {
+                let (pos, fixed_reader) =
+                    read::consume_gtf_header(reader)?.ok_or("invalid GTF header!")?;
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
