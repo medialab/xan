@@ -44,7 +44,7 @@
 * Fixing `xan flatten` & `xan view` when column names contain line breaks.
 * Fixing invalid argument parsing error being printed to stdout instead of stderr.
 * Fixing `xan progress` SIGINT corrupting output.
-* Fixing `xan slice -A/--accumulate`.
+* Fixing `xan enum -A/--accumulate`.
 * Fixing `xan from -f tar` when tarball archive is not gzipped.
 
 *Performance*
