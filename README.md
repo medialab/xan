@@ -14,6 +14,8 @@ Note that this tool is originally a fork of [BurntSushi](https://github.com/Burn
 
 `xan` therefore goes beyond typical data manipulation and expose utilities related to lexicometry, graph theory and even scraping.
 
+Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam` etc.). `xan` is also able to convert to & from many data formats such as json, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
+
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations:
 
 |*view command*|*flatten command*|
@@ -685,13 +687,15 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 - `.psv` files will be understood as pipe-separated
 - `.cdx` files (an index file [format](https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/) related to web archive) will be understood as space-separated and will have its magic bytes dropped
 - `.ndjson` & `.jsonl` files will be understood as tab-separated, headless, null-byte-quoted, so you can easily use them with `xan` commands (e.g. parsing or wrangling JSON data using the expression language to aggregate, even in parallel). If you need a more thorough conversion of newline-delimited JSON data, check out the `xan from -f ndjson` command instead.
-- `.vcf` files ([Variant Call Format](https://en.wikipedia.org/wiki/Variant_Call_Format)) from bioinformatics are also supported out of the box. They will be stripped of their header data and considered as tab-delimited.
+- `.vcf` files ([Variant Call Format](https://en.wikipedia.org/wiki/Variant_Call_Format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as tab-delimited.
+- `.gtf` & `.gff2` files ([Gene Transfert Format](https://en.wikipedia.org/wiki/Gene_transfer_format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
+- `.sam` files ([Sequence Alignment Map](https://en.wikipedia.org/wiki/SAM_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as tab-delimited.
 
 Note that more exotic delimiters can always be handled using the ubiquitous `-d, --delimiter` flag.
 
-Some additional formats also supported must first be normalized using the `xan input` command. This is for instance the case for bioinformatics tabular data format such as VCF, GFF, GTF files.
+Some additional formats (e.g. `.gff`, `.gff3`) are also supported but must first be normalized using the `xan input` command because their cells must be trimmed or because they have comment lines to be skipped.
 
-Note also that UTF-8 BOMs will be stripped from the data when processed.
+Note also that UTF-8 BOMs ara always stripped from the data when processed.
 
 ### Compressed files
 

@@ -70,6 +70,7 @@ enum TabularDataKind {
     Ndjson,
     Vcf,
     Gtf,
+    Sam,
 }
 
 impl TabularDataKind {
@@ -82,13 +83,14 @@ impl TabularDataKind {
     }
 
     fn has_headers(&self) -> bool {
-        !matches!(self, Self::Ndjson | Self::Gtf)
+        !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam)
     }
 
     fn header_pattern(&self) -> Option<Regex> {
         match self {
             Self::Vcf => Some(Regex::new("^#CHROM\t").unwrap()),
             Self::Gtf => Some(Regex::new("^#").unwrap()),
+            Self::Sam => Some(Regex::new("^@").unwrap()),
             _ => None,
         }
     }
@@ -149,7 +151,7 @@ impl Config {
 
         [
             ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
-            ".gtf", ".gff2",
+            ".gtf", ".gff2", ".bed", ".sam",
         ]
         .iter()
         .any(|ext| uncompressed_path.ends_with(ext))
@@ -193,6 +195,9 @@ impl Config {
                     b'\t'
                 } else if raw_s.ends_with(".gtf") || raw_s.ends_with(".gff2") {
                     kind = TabularDataKind::Gtf;
+                    b'\t'
+                } else if raw_s.ends_with(".sam") {
+                    kind = TabularDataKind::Sam;
                     b'\t'
                 } else {
                     b','
@@ -397,14 +402,14 @@ impl Config {
                     Err(CliError::from("invalid VCF header!"))
                 }
             }
-            TabularDataKind::Gtf => {
+            TabularDataKind::Gtf | TabularDataKind::Sam => {
                 if let Some((_, fixed_reader)) = read::consume_header_while(
                     reader,
                     &self.tabular_data_kind.header_pattern().unwrap(),
                 )? {
                     Ok(Box::new(fixed_reader))
                 } else {
-                    Err(CliError::from("invalid GTF header!"))
+                    Err(CliError::from("invalid header!"))
                 }
             }
             _ => Ok(reader),
@@ -427,12 +432,12 @@ impl Config {
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
-            TabularDataKind::Gtf => {
+            TabularDataKind::Gtf | TabularDataKind::Sam => {
                 let (pos, fixed_reader) = read::consume_header_while(
                     reader,
                     &self.tabular_data_kind.header_pattern().unwrap(),
                 )?
-                .ok_or("invalid GTF header!")?;
+                .ok_or("invalid header!")?;
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
