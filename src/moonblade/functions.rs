@@ -103,6 +103,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
         ),
+        "earliest" => (
+            |args| {
+                variadic_optimum(
+                    args,
+                    |value| value.try_as_datetime().map(Cow::into_owned),
+                    Ordering::is_lt,
+                )
+            },
+            FunctionArguments::variadic(1),
+        ),
         "endswith" => (endswith, FunctionArguments::binary()),
         "err" => (err, FunctionArguments::unary()),
         "escape_regex" => (escape_regex, FunctionArguments::unary()),
@@ -128,6 +138,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "isfile" => (isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "keys" => (keys, FunctionArguments::unary()),
+        "latest" => (
+            |args| {
+                variadic_optimum(
+                    args,
+                    |value| value.try_as_datetime().map(Cow::into_owned),
+                    Ordering::is_gt,
+                )
+            },
+            FunctionArguments::variadic(1),
+        ),
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
         "log" => (
@@ -149,11 +169,17 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "lower" => (lower, FunctionArguments::unary()),
         "lru" => (lru, FunctionArguments::unary()),
         "match" => (regex_match, FunctionArguments::with_range(2..=3)),
-        "max" => (variadic_max, FunctionArguments::variadic(2)),
+        "max" => (
+            |args| variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_gt),
+            FunctionArguments::variadic(1),
+        ),
         "md5" => (md5, FunctionArguments::unary()),
         "mean" => (mean, FunctionArguments::unary()),
         "mime_ext" => (mime_ext, FunctionArguments::unary()),
-        "min" => (variadic_min, FunctionArguments::variadic(2)),
+        "min" => (
+            |args| variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_lt),
+            FunctionArguments::variadic(1),
+        ),
         "mod" => (
             |args| binary_arithmetic_op(args, Rem::rem),
             FunctionArguments::binary(),
@@ -1034,7 +1060,13 @@ where
     Ok(DynamicValue::from(op(n1, n2)))
 }
 
-fn variadic_min(args: BoundArguments) -> FunctionResult {
+fn variadic_optimum<F, V, T>(args: BoundArguments, convert: F, validate: V) -> FunctionResult
+where
+    F: Fn(&DynamicValue) -> Result<T, EvaluationError>,
+    V: Fn(Ordering) -> bool,
+    T: Ord,
+    DynamicValue: From<T>,
+{
     if args.len() == 1 {
         let values = args.get1().try_as_list()?;
 
@@ -1043,67 +1075,31 @@ fn variadic_min(args: BoundArguments) -> FunctionResult {
         }
 
         let mut values_iter = values.iter();
-        let mut min_value = values_iter.next().unwrap().try_as_number()?;
+        let mut best_value = convert(values_iter.next().unwrap())?;
 
         for value in values_iter {
-            let other = value.try_as_number()?;
+            let other = convert(value)?;
 
-            if other < min_value {
-                min_value = other;
+            if validate(other.cmp(&best_value)) {
+                best_value = other;
             }
         }
 
-        return Ok(DynamicValue::from(min_value));
+        return Ok(DynamicValue::from(best_value));
     }
 
     let mut args_iter = args.into_iter();
-    let mut min_value = args_iter.next().unwrap().try_as_number()?;
+    let mut best_value = convert(&args_iter.next().unwrap())?;
 
     for arg in args_iter {
-        let other_value = arg.try_as_number()?;
+        let other_value = convert(&arg)?;
 
-        if other_value < min_value {
-            min_value = other_value;
+        if validate(other_value.cmp(&best_value)) {
+            best_value = other_value;
         }
     }
 
-    Ok(DynamicValue::from(min_value))
-}
-
-fn variadic_max(args: BoundArguments) -> FunctionResult {
-    if args.len() == 1 {
-        let values = args.get1().try_as_list()?;
-
-        if values.is_empty() {
-            return Ok(DynamicValue::None);
-        }
-
-        let mut values_iter = values.iter();
-        let mut max_value = values_iter.next().unwrap().try_as_number()?;
-
-        for value in values_iter {
-            let other = value.try_as_number()?;
-
-            if other > max_value {
-                max_value = other;
-            }
-        }
-
-        return Ok(DynamicValue::from(max_value));
-    }
-
-    let mut args_iter = args.into_iter();
-    let mut max_value = args_iter.next().unwrap().try_as_number()?;
-
-    for arg in args_iter {
-        let other_value = arg.try_as_number()?;
-
-        if other_value > max_value {
-            max_value = other_value;
-        }
-    }
-
-    Ok(DynamicValue::from(max_value))
+    Ok(DynamicValue::from(best_value))
 }
 
 fn argcompare<F>(args: BoundArguments, validate: F) -> FunctionResult

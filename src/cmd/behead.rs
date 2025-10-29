@@ -8,9 +8,9 @@ use crate::CliResult;
 static USAGE: &str = "
 Drop a CSV file's header.
 
-Note that this command does not try to be clever and only parses the first CSV
-row encountered to drop it. The rest of the file will be redirected to the output
-as-is without any kind of normalization.
+Note that to be as performant as possible, this command does not try
+to be clever and only parses the first CSV row to drop it. The rest of
+the file will be flushed to the output as-is without any kind of normalization.
 
 Usage:
     xan behead [options] [<input>]

@@ -8,7 +8,7 @@
 * Dropping `xan plot -Y/--add-series`. It is now possible to select multiple columns as `<y>` in  `xan plot <x> <y>` instead.
 * Dropping the `-C/--force-colors` flag in `flatten`, `heatmap`, `hist`, `plot` and `view` in favor of the more standardized and flexible `--color=(auto|never|always)` flag.
 * `xan join` will now automatically drop joined columns from one the files when it is obviously safe to do so.
-* `xan behead` does not normalize the output anymore to be as fast as possible.
+* `xan behead` & `xan rename` do not normalize the output anymore to be as fast as possible.
 * The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
 * `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 
@@ -35,6 +35,7 @@
 * Adding out-of-the-box support for `.vcf`, `.sam`, `.gtf` & `.gff2` files.
 * Adding a `xan cat cols` alias to `xan cat columns`.
 * Adding `zstd` support.
+* Adding `earliest` & `latest` moonblade functions.
 
 *Fixes*
 
@@ -46,13 +47,14 @@
 * Fixing `xan progress` SIGINT corrupting output.
 * Fixing `xan enum -A/--accumulate`.
 * Fixing `xan from -f tar` when tarball archive is not gzipped.
+* Fixing `min` & `max` moonblade function when passing a list of numbers.
 
 *Performance*
 
 * Wildly improving performance of most of `xan` commands by leveraging a novel SIMD CSV parser/writer.
 * Improving performance of `xan from -f txt`.
 * Improving memory footprint of hash-based commands (e.g. `frequency`, `groupby`, `dedup` etc.).
-* Improving performance of `xan progress`, `xan range`, `xan enum`.
+* Improving performance of `xan progress`, `xan range`, `xan enum`, `xan behead`, `xan rename`.
 
 *Quality of Life*
 
