@@ -46,6 +46,7 @@
 * Fixing `xan progress` SIGINT corrupting output.
 * Fixing `xan enum -A/--accumulate`.
 * Fixing `xan from -f tar` when tarball archive is not gzipped.
+* Fixing `min` & `max` moonblade function when passing a list of numbers.
 
 *Performance*
 
