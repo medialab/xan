@@ -1,6 +1,6 @@
 use bstr::ByteSlice;
-use csv::ByteRecord;
 use regex::bytes::Regex;
+use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectColumns;
@@ -374,9 +374,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.arg_column)
         .delimiter(args.flag_delimiter);
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let sel = rconf.selection(&headers)?;
