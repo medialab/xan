@@ -459,33 +459,35 @@ pub fn consume_cdx_header<R: Read>(reader: &mut R) -> io::Result<bool> {
     Ok(&buf == b" CDX ")
 }
 
-// pub fn consume_vcf_header<R: Read>(
-//     reader: R,
-// ) -> io::Result<Option<(u64, io::Chain<Cursor<Vec<u8>>, R>)>> {
-//     let mut line_reader = simd_csv::LineReader::new(reader);
-//     let mut pos = line_reader.position();
-//     let mut header_opt: Option<Vec<u8>> = None;
+type RecombobulatedReader<R> = io::Chain<Cursor<Vec<u8>>, R>;
 
-//     while let Some(line) = line_reader.read_line()? {
-//         if !line.starts_with(b"#CHROM\t") {
-//             pos = line_reader.position();
-//             continue;
-//         }
+pub fn consume_vcf_header<R: Read>(
+    reader: R,
+) -> io::Result<Option<(u64, RecombobulatedReader<R>)>> {
+    let mut line_reader = simd_csv::LineReader::new(reader);
+    let mut pos = line_reader.position();
+    let mut header_opt: Option<Vec<u8>> = None;
 
-//         header_opt = Some(line.to_vec());
+    while let Some(line) = line_reader.read_line()? {
+        if !line.starts_with(b"#CHROM\t") {
+            pos = line_reader.position();
+            continue;
+        }
 
-//         break;
-//     }
+        header_opt = Some(line.to_vec());
 
-//     if let Some(header) = header_opt {
-//         let bufreader = line_reader.into_bufreader();
-//         let mut fixed_data = Vec::from(bufreader.buffer());
-//         fixed_data.extend(header);
+        break;
+    }
 
-//         let fixed_reader = Cursor::new(fixed_data).chain(bufreader.into_inner());
+    if let Some(mut fixed_data) = header_opt {
+        let bufreader = line_reader.into_bufreader();
+        fixed_data.push(b'\n');
+        fixed_data.extend(bufreader.buffer());
 
-//         Ok(Some((pos, fixed_reader)))
-//     } else {
-//         Ok(None)
-//     }
-// }
+        let fixed_reader = Cursor::new(fixed_data).chain(bufreader.into_inner());
+
+        Ok(Some((pos, fixed_reader)))
+    } else {
+        Ok(None)
+    }
+}

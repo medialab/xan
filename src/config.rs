@@ -67,6 +67,7 @@ enum TabularDataKind {
     RegularCsv,
     Cdx,
     Ndjson,
+    Vcf,
 }
 
 impl TabularDataKind {
@@ -124,7 +125,7 @@ impl Config {
         let uncompressed_path = path.strip_suffix(".gz").unwrap_or(path);
 
         [
-            ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl",
+            ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
         ]
         .iter()
         .any(|ext| uncompressed_path.ends_with(ext))
@@ -161,6 +162,9 @@ impl Config {
                     b' '
                 } else if raw_s.ends_with(".ndjson") || raw_s.ends_with(".jsonl") {
                     kind = TabularDataKind::Ndjson;
+                    b'\t'
+                } else if raw_s.ends_with(".vcf") {
+                    kind = TabularDataKind::Vcf;
                     b'\t'
                 } else {
                     b','
@@ -348,13 +352,41 @@ impl Config {
         Ok(self.simd_csv_writer_from_writer(self.io_writer_with_options(options)?))
     }
 
-    #[allow(clippy::single_match)]
-    fn read_typical_headers<R: Read>(&self, reader: &mut R) -> CliResult<()> {
+    fn process_typical_headers(
+        &self,
+        mut reader: Box<dyn Read + Send + 'static>,
+    ) -> CliResult<Box<dyn Read + Send + 'static>> {
+        match self.tabular_data_kind {
+            TabularDataKind::Cdx => {
+                if !read::consume_cdx_header(&mut reader)? {
+                    Err("invalid CDX header!")?;
+                }
+
+                Ok(reader)
+            }
+            TabularDataKind::Vcf => {
+                if let Some((_, fixed_reader)) = read::consume_vcf_header(reader)? {
+                    Ok(Box::new(fixed_reader))
+                } else {
+                    Err(CliError::from("invalid VCF header!"))
+                }
+            }
+            _ => Ok(reader),
+        }
+    }
+
+    fn process_typical_headers_seek<R: Read + Seek>(&self, reader: &mut R) -> CliResult<()> {
         match self.tabular_data_kind {
             TabularDataKind::Cdx => {
                 if !read::consume_cdx_header(reader)? {
                     Err("invalid CDX header!")?;
                 }
+            }
+            TabularDataKind::Vcf => {
+                let (pos, fixed_reader) =
+                    read::consume_vcf_header(reader)?.ok_or("invalid VCF header!")?;
+
+                fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
             _ => (),
         };
@@ -397,7 +429,7 @@ impl Config {
             }
             Some(ref p) => match fs::File::open(p) {
                 Ok(x) => {
-                    let mut reader: Box<dyn Read + Send + 'static> =
+                    let reader: Box<dyn Read + Send + 'static> =
                         if let Some(compression) = self.compression {
                             match compression {
                                 Compression::Gzip => Box::new(MultiGzDecoder::new(x)),
@@ -407,9 +439,7 @@ impl Config {
                             Box::new(x)
                         };
 
-                    self.read_typical_headers(&mut reader)?;
-
-                    reader
+                    self.process_typical_headers(reader)?
                 }
                 Err(err) => {
                     let msg = format!("failed to open {}: {}", p.display(), err);
@@ -435,12 +465,12 @@ impl Config {
                             let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
                             let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
 
-                            self.read_typical_headers(&mut indexed_reader)?;
+                            self.process_typical_headers_seek(&mut indexed_reader)?;
 
                             return Ok(Box::new(indexed_reader));
                         }
                     } else {
-                        self.read_typical_headers(&mut x)?;
+                        self.process_typical_headers_seek(&mut x)?;
                     }
 
                     match x.borrow().stream_position() {

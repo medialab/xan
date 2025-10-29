@@ -4,7 +4,7 @@
 
 `xan` is a command line tool that can be used to process CSV files directly from the shell.
 
-It has been written in Rust to be as fast as possible, use as little memory as possible, and can very easily handle large CSV files (Gigabytes). It leverages a novel [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) CSV parser and is also able to parallelize some computations (through multithreading) to make some tasks complete as fast as your computer can allow.
+It has been written in Rust to be as fast as possible, use as little memory as possible, and can very easily handle large CSV files (Gigabytes). It leverages a novel [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) CSV [parser](https://docs.rs/simd-csv) and is also able to parallelize some computations (through multithreading) to make some tasks complete as fast as your computer can allow.
 
 It can easily preview, filter, slice, aggregate, sort, join CSV files, and exposes a large collection of composable commands that can be chained together to perform a wide variety of typical tasks.
 
@@ -685,6 +685,7 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 - `.psv` files will be understood as pipe-separated
 - `.cdx` files (an index file [format](https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/) related to web archive) will be understood as space-separated and will have its magic bytes dropped
 - `.ndjson` & `.jsonl` files will be understood as tab-separated, headless, null-byte-quoted, so you can easily use them with `xan` commands (e.g. parsing or wrangling JSON data using the expression language to aggregate, even in parallel). If you need a more thorough conversion of newline-delimited JSON data, check out the `xan from -f ndjson` command instead.
+- `.vcf` files ([Variant Call Format](https://en.wikipedia.org/wiki/Variant_Call_Format)) from bioinformatics are also supported out of the box. They will be stripped of their header data and considered as tab-delimited.
 
 Note that more exotic delimiters can always be handled using the ubiquitous `-d, --delimiter` flag.
 
