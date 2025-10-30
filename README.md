@@ -14,7 +14,7 @@ Note that this tool is originally a fork of [BurntSushi](https://github.com/Burn
 
 `xan` therefore goes beyond typical data manipulation and expose utilities related to lexicometry, graph theory and even scraping.
 
-Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam` etc.). `xan` is also able to convert to & from many data formats such as json, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
+Beyond CSV data, `xan` is able to process a large variety of CSV-adjacent data formats from many different disciplines such as web archival (`.cdx`) or bioinformatics (`.vcf`, `.gtf`, `.sam`, `.bed` etc.). `xan` is also able to convert to & from many data formats such as json, excel files, numpy arrays etc. using [`xan to`](./docs/cmd/to.md) and [`xan from`](./docs/cmd/from.md). See [this](#supported-file-formats) section for more detail.
 
 Finally, `xan` can be used to display CSV files in the terminal, for easy exploration, and can even be used to draw basic data visualisations:
 
@@ -691,7 +691,8 @@ In addition, all commands expose a `-o/--output` flag that can be use to specify
 - `.ndjson` & `.jsonl` files will be understood as tab-separated, headless, null-byte-quoted, so you can easily use them with `xan` commands (e.g. parsing or wrangling JSON data using the expression language to aggregate, even in parallel). If you need a more thorough conversion of newline-delimited JSON data, check out the `xan from -f ndjson` command instead.
 - `.vcf` files ([Variant Call Format](https://en.wikipedia.org/wiki/Variant_Call_Format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as tab-delimited.
 - `.gtf` & `.gff2` files ([Gene Transfert Format](https://en.wikipedia.org/wiki/Gene_transfer_format)) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
-- `.sam` files ([Sequence Alignment Map](https://en.wikipedia.org/wiki/SAM_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as tab-delimited.
+- `.sam` files ([Sequence Alignment Map](https://en.wikipedia.org/wiki/SAM_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
+- `.bed` files ([Browser Extensible Data](https://en.wikipedia.org/wiki/BED_(file_format))) from bioinformatics are supported out of the box. They will be stripped of their header data and considered as headless & tab-delimited.
 
 Note that more exotic delimiters can always be handled using the ubiquitous `-d, --delimiter` flag.
 

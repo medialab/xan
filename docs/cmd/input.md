@@ -52,6 +52,11 @@ CSV-adjacent data format options:
            file from bioinformatics. This is not needed when using xan on a file
            with `.sam` extension because xan already knows how to handle them.
            https://en.wikipedia.org/wiki/SAM_(file_format)
+    --bed  Indicate that the given stream should be understood as a BED ("Browser Extensible Data")
+           file from bioinformatics. This is not needed when using xan on a file
+           with `.bed` extension because xan already knows how to handle them.
+           Note that the file will be considered as tab-delimited, not space-delimited!
+           https://en.wikipedia.org/wiki/BED_(file_format)
     --cdx  Indicate that the given stream should be understood as a CDX index
            file from web archives. This is not needed when using xan on a file
            with `.cdx` extension because xan already knows how to handle them.

@@ -56,6 +56,11 @@ CSV-adjacent data format options:
            file from bioinformatics. This is not needed when using xan on a file
            with `.sam` extension because xan already knows how to handle them.
            https://en.wikipedia.org/wiki/SAM_(file_format)
+    --bed  Indicate that the given stream should be understood as a BED (\"Browser Extensible Data\")
+           file from bioinformatics. This is not needed when using xan on a file
+           with `.bed` extension because xan already knows how to handle them.
+           Note that the file will be considered as tab-delimited, not space-delimited!
+           https://en.wikipedia.org/wiki/BED_(file_format)
     --cdx  Indicate that the given stream should be understood as a CDX index
            file from web archives. This is not needed when using xan on a file
            with `.cdx` extension because xan already knows how to handle them.
@@ -94,6 +99,7 @@ struct Args {
     flag_gtf: bool,
     flag_gff: bool,
     flag_sam: bool,
+    flag_bed: bool,
     flag_cdx: bool,
 }
 
@@ -131,10 +137,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_gtf as u8
         + args.flag_gff as u8
         + args.flag_sam as u8
+        + args.flag_bed as u8
         + args.flag_cdx as u8;
 
     if formats > 1 {
-        Err("can only select one of --vcf, --gtf, -gff, --sam & --cdx!")?;
+        Err("can only select one of --vcf, --gtf, -gff, --bed, --sam & --cdx!")?;
     }
 
     if args.flag_gzip && args.flag_zstd {
@@ -155,6 +162,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Some("file.gtf")
     } else if args.flag_sam {
         Some("file.sam")
+    } else if args.flag_bed {
+        Some("file.bed")
     } else if args.flag_cdx {
         Some("file.cdx")
     } else {

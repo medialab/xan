@@ -71,6 +71,7 @@ enum TabularDataKind {
     Vcf,
     Gtf,
     Sam,
+    Bed,
 }
 
 impl TabularDataKind {
@@ -83,7 +84,7 @@ impl TabularDataKind {
     }
 
     fn has_headers(&self) -> bool {
-        !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam)
+        !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam | Self::Bed)
     }
 
     fn header_pattern(&self) -> Option<Regex> {
@@ -91,6 +92,7 @@ impl TabularDataKind {
             Self::Vcf => Some(Regex::new("^#CHROM\t").unwrap()),
             Self::Gtf => Some(Regex::new("^#").unwrap()),
             Self::Sam => Some(Regex::new("^@").unwrap()),
+            Self::Bed => Some(Regex::new("^(?:track|browser|#)").unwrap()),
             _ => None,
         }
     }
@@ -153,7 +155,7 @@ impl Config {
 
         [
             ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
-            ".gtf", ".gff2", ".bed", ".sam",
+            ".gtf", ".gff2", ".bed", ".sam", ".bed",
         ]
         .iter()
         .any(|ext| uncompressed_path.ends_with(ext))
@@ -200,6 +202,9 @@ impl Config {
                     b'\t'
                 } else if raw_s.ends_with(".sam") {
                     kind = TabularDataKind::Sam;
+                    b'\t'
+                } else if raw_s.ends_with(".bed") {
+                    kind = TabularDataKind::Bed;
                     b'\t'
                 } else {
                     b','
@@ -431,7 +436,7 @@ impl Config {
                     Err(CliError::from("invalid VCF header!"))
                 }
             }
-            TabularDataKind::Gtf | TabularDataKind::Sam => {
+            TabularDataKind::Gtf | TabularDataKind::Sam | TabularDataKind::Bed => {
                 if let Some((_, fixed_reader)) = read::consume_header_while(
                     reader,
                     &self.tabular_data_kind.header_pattern().unwrap(),
@@ -461,7 +466,7 @@ impl Config {
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
-            TabularDataKind::Gtf | TabularDataKind::Sam => {
+            TabularDataKind::Gtf | TabularDataKind::Sam | TabularDataKind::Bed => {
                 let (pos, fixed_reader) = read::consume_header_while(
                     reader,
                     &self.tabular_data_kind.header_pattern().unwrap(),
