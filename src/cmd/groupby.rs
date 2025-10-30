@@ -138,7 +138,7 @@ by `bgzip -i`) can be found beside it. Parallelization is not compatible
 with the -S/--sorted nor -C/--along-cols flags.
 
 Usage:
-    xan groupby [options] <column> <expression> [<input>]
+    xan groupby [options] <columns> <expression> [<input>]
     xan groupby --help
 
 groupby options:
@@ -174,7 +174,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_columns: SelectColumns,
     arg_expression: String,
     arg_input: Option<String>,
     flag_no_headers: bool,
@@ -212,7 +212,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
 
         parallel_args.cmd_groupby = true;
-        parallel_args.arg_group = Some(args.arg_column);
+        parallel_args.arg_group = Some(args.arg_columns);
         parallel_args.arg_expr = Some(args.arg_expression);
 
         parallel_args.flag_no_headers = args.flag_no_headers;
@@ -225,7 +225,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column);
+        .select(args.arg_columns);
 
     let mut rdr = rconf.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;

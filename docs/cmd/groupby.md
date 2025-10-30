@@ -128,7 +128,7 @@ by `bgzip -i`) can be found beside it. Parallelization is not compatible
 with the -S/--sorted nor -C/--along-cols flags.
 
 Usage:
-    xan groupby [options] <column> <expression> [<input>]
+    xan groupby [options] <columns> <expression> [<input>]
     xan groupby --help
 
 groupby options:
