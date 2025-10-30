@@ -702,9 +702,9 @@ Note also that UTF-8 BOMs ara always stripped from the data when processed.
 
 ### Compressed files
 
-`xan` is able to read gzipped files (having a `.gz` extension) out of the box. It is also able to leverage `.gzi` indices (usually created through [`bgzip`](https://www.htslib.org/doc/bgzip.html)) when seeking is necessary (constant time reversing, parallelization chunking etc.).
+`xan` is able to read gzipped files (having a `.gz` extension). It is also able to leverage `.gzi` indices (usually created through [`bgzip`](https://www.htslib.org/doc/bgzip.html)) when seeking is necessary (constant time reversing, parallelization etc.).
 
-`xan` is also able to read files compressed with [`Zstdandard`](https://github.com/facebook/zstd) (having a `.zst` extension) out of the box.
+`xan` is also able to read files compressed with [`Zstdandard`](https://github.com/facebook/zstd) (having a `.zst` extension).
 
 ### Regarding color
 
