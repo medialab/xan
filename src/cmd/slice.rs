@@ -335,7 +335,7 @@ impl Args {
 
         match rconf.reverse_reader() {
             Ok((headers, mut reverse_reader)) => {
-                let mut wtr = self.wconfig().writer()?;
+                let mut wtr = self.wconfig().simd_writer()?;
 
                 if !rconf.no_headers {
                     wtr.write_byte_record(&headers)?;

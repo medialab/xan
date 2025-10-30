@@ -75,16 +75,12 @@ enum TabularDataKind {
 }
 
 impl TabularDataKind {
-    fn is_cdx(&self) -> bool {
-        matches!(self, Self::Cdx)
-    }
-
-    fn is_ndjson(&self) -> bool {
-        matches!(self, Self::Ndjson)
-    }
-
     fn has_headers(&self) -> bool {
         !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam | Self::Bed)
+    }
+
+    fn has_no_quoting(&self) -> bool {
+        matches!(self, Self::Cdx | Self::Ndjson)
     }
 
     fn header_pattern(&self) -> Option<Regex> {
@@ -214,14 +210,14 @@ impl Config {
             }
         };
 
-        let mut config = Self {
+        Self {
             path,
             select_columns: None,
             delimiter,
             no_headers: !tabular_data_kind.has_headers(),
             flexible: false,
             terminator: csv::Terminator::Any(b'\n'),
-            quote: if tabular_data_kind.is_ndjson() {
+            quote: if tabular_data_kind.has_no_quoting() {
                 b'\x00'
             } else {
                 b'"'
@@ -234,13 +230,7 @@ impl Config {
             trim: false,
             compression,
             tabular_data_kind,
-        };
-
-        if config.tabular_data_kind.is_cdx() {
-            config.quoting = false;
         }
-
-        config
     }
 
     pub fn with_pretend_path(path: &Option<String>, pretend: Option<&str>) -> Self {
@@ -706,25 +696,25 @@ impl Config {
     pub fn reverse_reader(
         &self,
     ) -> CliResult<(
-        csv::ByteRecord,
-        csv::Reader<Box<dyn io::Read + Send + 'static>>,
+        simd_csv::ByteRecord,
+        simd_csv::Reader<Box<dyn io::Read + Send + 'static>>,
     )> {
         let mut io_reader = self.io_reader_for_random_access()?;
         let offset_before_csv_parsing = io_reader.stream_position()?;
 
-        let mut forward_reader = self.csv_reader_from_reader(io_reader);
+        let mut forward_reader = self.simd_csv_reader_from_reader(io_reader);
         let headers = forward_reader.byte_headers()?.clone();
 
         let offset = if self.no_headers {
             offset_before_csv_parsing
         } else {
-            offset_before_csv_parsing + forward_reader.position().byte()
+            offset_before_csv_parsing + forward_reader.position()
         };
 
         let filesize = forward_reader.get_mut().seek(SeekFrom::End(0))?;
 
         let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
-        let mut reader_builder = self.csv_reader_builder();
+        let mut reader_builder = self.simd_csv_reader_builder();
         reader_builder.has_headers(false);
 
         Ok((
@@ -753,12 +743,19 @@ impl Config {
         builder
     }
 
-    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Reader<R> {
-        simd_csv::ReaderBuilder::new()
+    pub fn simd_csv_reader_builder(&self) -> simd_csv::ReaderBuilder {
+        let mut builder = simd_csv::ReaderBuilder::new();
+
+        builder
             .delimiter(self.delimiter)
             .quote(self.quote)
-            .has_headers(!self.no_headers)
-            .from_reader(rdr)
+            .has_headers(!self.no_headers);
+
+        builder
+    }
+
+    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Reader<R> {
+        self.simd_csv_reader_builder().from_reader(rdr)
     }
 
     pub fn simd_zero_copy_csv_reader_from_reader<R: Read>(

@@ -61,14 +61,14 @@ fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()>
         "can't use provided input: needs to be loaded in the RAM using -m, --in-memory flag"
     })?;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !rconfig.no_headers && !headers.is_empty() {
         wtr.write_byte_record(&headers)?;
     }
 
-    let mut record = csv::ByteRecord::new();
-    let mut reversed_record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
+    let mut reversed_record = simd_csv::ByteRecord::new();
     let mut reversed_bytes: Vec<u8> = Vec::new();
 
     while reverse_reader.read_byte_record(&mut record)? {
