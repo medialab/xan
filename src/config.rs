@@ -134,7 +134,7 @@ pub struct Config {
     pub no_headers: bool,
     flexible: bool,
     terminator: csv::Terminator,
-    quote: u8,
+    pub quote: u8,
     quote_style: csv::QuoteStyle,
     double_quote: bool,
     escape: Option<u8>,
