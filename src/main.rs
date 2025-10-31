@@ -601,6 +601,12 @@ impl From<serde_json::Error> for CliError {
     }
 }
 
+impl From<simd_json::Error> for CliError {
+    fn from(value: simd_json::Error) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
 impl From<url::ParseError> for CliError {
     fn from(value: url::ParseError) -> Self {
         CliError::Other(value.to_string())

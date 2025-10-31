@@ -247,12 +247,22 @@ impl Args {
     }
 
     fn convert_ndjson(&self) -> CliResult<()> {
+        use simd_json::Buffers;
+
+        let mut buffers = Buffers::default();
+
         let wtr = self.writer()?;
         let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
         let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
 
         while let Some(line) = rdr.read_line()? {
-            tabularizer.process(serde_json::from_slice(line)?)?;
+            // Sshhh... it's alright, really.
+            let line_mut =
+                unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
+
+            let value: Value = simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
+
+            tabularizer.process(value)?;
         }
 
         Ok(tabularizer.flush()?)
