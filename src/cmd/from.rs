@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 
 use crate::config::Config;
-use crate::json::for_each_json_value_as_csv_record;
+use crate::json::JSONTabularizer;
 use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
 use crate::CliResult;
@@ -247,25 +247,15 @@ impl Args {
     }
 
     fn convert_ndjson(&self) -> CliResult<()> {
-        let mut wtr = self.writer()?;
+        let wtr = self.writer()?;
         let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
+        let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
 
-        for_each_json_value_as_csv_record(
-            || {
-                if let Some(line) = rdr.read_line()? {
-                    Ok(Some(serde_json::from_slice(line)?))
-                } else {
-                    Ok(None)
-                }
-            },
-            self.flag_sample_size,
-            |record| -> CliResult<()> {
-                wtr.write_record(record)?;
-                Ok(())
-            },
-        )?;
+        while let Some(line) = rdr.read_line()? {
+            tabularizer.process(serde_json::from_slice(line)?)?;
+        }
 
-        Ok(wtr.flush()?)
+        Ok(tabularizer.flush()?)
     }
 
     fn convert_json(&self) -> CliResult<()> {
@@ -289,19 +279,14 @@ impl Args {
         }
 
         if let Value::Array(array) = value {
-            let mut wtr = self.writer()?;
-            let mut iter = array.into_iter();
+            let wtr = self.writer()?;
+            let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
 
-            for_each_json_value_as_csv_record(
-                || Ok(iter.next()),
-                self.flag_sample_size,
-                |record| -> CliResult<()> {
-                    wtr.write_record(record)?;
-                    Ok(())
-                },
-            )?;
+            for item in array.into_iter() {
+                tabularizer.process(item)?;
+            }
 
-            Ok(wtr.flush()?)
+            Ok(tabularizer.flush()?)
         } else {
             Err(CliError::Other(
                 "target JSON does not contain an array nor an object".to_string(),

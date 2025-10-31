@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{btree_map::Entry as BTreeMapEntry, BTreeMap};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
@@ -248,6 +248,7 @@ where
     }
 }
 
+#[inline]
 fn serialize_json_value_to_csv_field(value: &Value) -> Cow<[u8]> {
     match value {
         Value::Null => Cow::Borrowed(b""),
@@ -259,6 +260,7 @@ fn serialize_json_value_to_csv_field(value: &Value) -> Cow<[u8]> {
     }
 }
 
+#[inline]
 fn fill_record(value: &Value, record: &mut ByteRecord, stack: &JSONTraversalStack) {
     record.clear();
 
@@ -281,64 +283,65 @@ fn merge(a: &mut Value, b: &Value) {
     *a = b.clone();
 }
 
-pub fn for_each_json_value_as_csv_record<N, F, E>(
-    mut next: N,
-    sample_size: NonZeroUsize,
-    mut callback: F,
-) -> Result<(), E>
-where
-    N: FnMut() -> Result<Option<Value>, E>,
-    F: FnMut(&ByteRecord) -> Result<(), E>,
-{
-    let mut merged_value_from_sample = Value::Null;
-    let mut sampled_records: Vec<Value> = Vec::new();
-    let mut headers_emitted: bool = false;
-    let mut output_record = ByteRecord::new();
-    let mut stack = JSONTraversalStack::new();
+pub struct JSONTabularizer<W: Write> {
+    writer: simd_csv::Writer<W>,
+    harmonized_value: Value,
+    sample_size: usize,
+    sample: Vec<Value>,
+    flushed: bool,
+    output_record: ByteRecord,
+    stack: JSONTraversalStack,
+}
 
-    let sample_size: usize = sample_size.into();
-    let mut i: usize = 0;
-
-    while let Some(value) = next()? {
-        // Reading sample
-        if i < sample_size {
-            merge(&mut merged_value_from_sample, &value);
-            sampled_records.push(value);
-            continue;
-        }
-
-        i += 1;
-
-        // Emitting headers
-        if !headers_emitted {
-            traverse_to_build_stack(&merged_value_from_sample, &mut stack, 0);
-            callback(&headers_from_stack(&stack))?;
-
-            for sample in sampled_records.iter() {
-                fill_record(sample, &mut output_record, &stack);
-                callback(&output_record)?;
-            }
-
-            headers_emitted = true;
-            sampled_records.clear();
-        }
-
-        fill_record(&value, &mut output_record, &stack);
-        callback(&output_record)?;
-    }
-
-    // Sample was larger than the file
-    if !sampled_records.is_empty() {
-        traverse_to_build_stack(&merged_value_from_sample, &mut stack, 0);
-        callback(&headers_from_stack(&stack))?;
-
-        for sample in sampled_records.iter() {
-            fill_record(sample, &mut output_record, &stack);
-            callback(&output_record)?;
+impl<W: Write> JSONTabularizer<W> {
+    pub fn from_writer(writer: simd_csv::Writer<W>, sample_size: NonZeroUsize) -> Self {
+        Self {
+            writer,
+            harmonized_value: Value::Null,
+            sample_size: sample_size.get(),
+            sample: Vec::with_capacity(sample_size.get()),
+            flushed: false,
+            output_record: ByteRecord::new(),
+            stack: JSONTraversalStack::new(),
         }
     }
 
-    Ok(())
+    pub fn flush(&mut self) -> simd_csv::Result<()> {
+        if self.flushed {
+            return Ok(());
+        }
+
+        traverse_to_build_stack(&self.harmonized_value, &mut self.stack, 0);
+        self.writer
+            .write_byte_record(&headers_from_stack(&self.stack))?;
+
+        for value in self.sample.iter() {
+            fill_record(value, &mut self.output_record, &self.stack);
+            self.writer.write_byte_record(&self.output_record)?;
+        }
+
+        self.writer.flush()?;
+
+        self.flushed = true;
+
+        Ok(())
+    }
+
+    pub fn process(&mut self, value: Value) -> simd_csv::Result<()> {
+        // Sampling
+        if self.sample.len() < self.sample_size {
+            merge(&mut self.harmonized_value, &value);
+            self.sample.push(value);
+            return Ok(());
+        }
+
+        self.flush()?;
+
+        fill_record(&value, &mut self.output_record, &self.stack);
+        self.writer.write_byte_record(&self.output_record)?;
+
+        Ok(())
+    }
 }
 
 const JSON_MAX_SAFE_INTEGER: i64 = 9007199254740991;
