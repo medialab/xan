@@ -397,14 +397,9 @@ impl Args {
 
         let mut wtr = self.writer()?;
 
-        let mut record = ByteRecord::new();
         let mut bytes: Vec<u8> = Vec::new();
 
-        record.push_field(b"path");
-        record.push_field(b"size");
-        record.push_field(b"content");
-
-        wtr.write_byte_record(&record)?;
+        wtr.write_record(["path".as_bytes(), b"size", b"content"])?;
 
         for result in archive.entries()? {
             let mut entry = result?;
@@ -422,12 +417,11 @@ impl Args {
                 entry.read_to_end(&mut bytes)?;
             }
 
-            record.clear();
-            record.push_field(&entry.path_bytes());
-            record.push_field(entry.size().to_string().as_bytes());
-            record.push_field(&bytes);
-
-            wtr.write_byte_record(&record)?;
+            wtr.write_record([
+                &entry.path_bytes(),
+                entry.size().to_string().as_bytes(),
+                &bytes,
+            ])?;
         }
 
         Ok(wtr.flush()?)
