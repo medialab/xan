@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::{
     fs,
-    io::{self, BufRead, BufReader, Cursor, Read},
+    io::{self, BufReader, Cursor, Read},
     path::Path,
 };
 
@@ -248,12 +248,16 @@ impl Args {
 
     fn convert_ndjson(&self) -> CliResult<()> {
         let mut wtr = self.writer()?;
-        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
+        let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
 
         for_each_json_value_as_csv_record(
-            rdr.lines().map(|line| -> Result<Value, CliError> {
-                serde_json::from_str(&line?).map_err(|err| CliError::Other(err.to_string()))
-            }),
+            || {
+                if let Some(line) = rdr.read_line()? {
+                    Ok(Some(serde_json::from_slice(line)?))
+                } else {
+                    Ok(None)
+                }
+            },
             self.flag_sample_size,
             |record| -> CliResult<()> {
                 wtr.write_record(record)?;
@@ -265,13 +269,10 @@ impl Args {
     }
 
     fn convert_json(&self) -> CliResult<()> {
-        let mut rdr = Config::new(&self.arg_input).io_reader()?;
-
-        let mut contents = String::new();
-        rdr.read_to_string(&mut contents)?;
+        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
 
         let mut value =
-            serde_json::from_str(&contents).map_err(|err| CliError::Other(err.to_string()))?;
+            serde_json::from_reader(rdr).map_err(|err| CliError::Other(err.to_string()))?;
 
         // NOTE: recombobulating objects as collections
         if let Value::Object(object) = value {
@@ -289,9 +290,10 @@ impl Args {
 
         if let Value::Array(array) = value {
             let mut wtr = self.writer()?;
+            let mut iter = array.into_iter();
 
             for_each_json_value_as_csv_record(
-                array.into_iter().map(Ok),
+                || Ok(iter.next()),
                 self.flag_sample_size,
                 |record| -> CliResult<()> {
                     wtr.write_record(record)?;

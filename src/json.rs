@@ -8,6 +8,7 @@ use std::rc::Rc;
 use csv::StringRecord;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde_json::{json, Value};
+use simd_csv::ByteRecord;
 
 use crate::select::Selection;
 
@@ -168,12 +169,12 @@ fn traverse_to_build_stack(value: &Value, stack: &mut JSONTraversalStack, depth:
     };
 }
 
-fn headers_from_stack(stack: &JSONTraversalStack) -> csv::StringRecord {
-    let mut record = csv::StringRecord::new();
+fn headers_from_stack(stack: &JSONTraversalStack) -> ByteRecord {
+    let mut record = ByteRecord::new();
 
     // Single scalar early return
     if stack.len() == 1 {
-        record.push_field("value");
+        record.push_field(b"value");
         return record;
     }
 
@@ -185,7 +186,7 @@ fn headers_from_stack(stack: &JSONTraversalStack) -> csv::StringRecord {
                 path.push(key.as_str());
             }
             JSONTraversalState::Emit => {
-                record.push_field(&path.join("."));
+                record.push_field(path.join(".").as_bytes());
             }
             JSONTraversalState::Pop(_) => {
                 path.pop();
@@ -247,18 +248,18 @@ where
     }
 }
 
-fn serialize_json_value_to_csv_field(value: &Value) -> Cow<str> {
+fn serialize_json_value_to_csv_field(value: &Value) -> Cow<[u8]> {
     match value {
-        Value::Null => Cow::Borrowed(""),
-        Value::Bool(b) => Cow::Borrowed(if *b { "true" } else { "false" }),
-        Value::String(s) => Cow::Borrowed(s.as_str()),
-        Value::Number(n) => Cow::Owned(n.to_string()),
-        Value::Array(l) => Cow::Owned(serde_json::to_string(l).unwrap()),
-        Value::Object(o) => Cow::Owned(serde_json::to_string(o).unwrap()),
+        Value::Null => Cow::Borrowed(b""),
+        Value::Bool(b) => Cow::Borrowed(if *b { b"true" } else { b"false" }),
+        Value::String(s) => Cow::Borrowed(s.as_bytes()),
+        Value::Number(n) => Cow::Owned(n.to_string().into_bytes()),
+        Value::Array(l) => Cow::Owned(serde_json::to_vec(l).unwrap()),
+        Value::Object(o) => Cow::Owned(serde_json::to_vec(o).unwrap()),
     }
 }
 
-fn fill_record(value: &Value, record: &mut StringRecord, stack: &JSONTraversalStack) {
+fn fill_record(value: &Value, record: &mut ByteRecord, stack: &JSONTraversalStack) {
     record.clear();
 
     traverse_with_stack(value, stack, |v| {
@@ -280,32 +281,33 @@ fn merge(a: &mut Value, b: &Value) {
     *a = b.clone();
 }
 
-pub fn for_each_json_value_as_csv_record<I, F, E>(
-    values: I,
+pub fn for_each_json_value_as_csv_record<N, F, E>(
+    mut next: N,
     sample_size: NonZeroUsize,
     mut callback: F,
 ) -> Result<(), E>
 where
-    I: Iterator<Item = Result<Value, E>>,
-    F: FnMut(&StringRecord) -> Result<(), E>,
+    N: FnMut() -> Result<Option<Value>, E>,
+    F: FnMut(&ByteRecord) -> Result<(), E>,
 {
     let mut merged_value_from_sample = Value::Null;
     let mut sampled_records: Vec<Value> = Vec::new();
     let mut headers_emitted: bool = false;
-    let mut output_record = StringRecord::new();
+    let mut output_record = ByteRecord::new();
     let mut stack = JSONTraversalStack::new();
 
     let sample_size: usize = sample_size.into();
+    let mut i: usize = 0;
 
-    for (i, result) in values.enumerate() {
-        let value = result?;
-
+    while let Some(value) = next()? {
         // Reading sample
         if i < sample_size {
             merge(&mut merged_value_from_sample, &value);
             sampled_records.push(value);
             continue;
         }
+
+        i += 1;
 
         // Emitting headers
         if !headers_emitted {
