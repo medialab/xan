@@ -48,12 +48,13 @@ lto = true
 strip = true
 
 [profile.release-fast]
-codegen-units = 16
 inherits = "release"
+codegen-units = 16
 lto = false
 
 [profile.release-debug]
 inherits = "release"
+codegen-units = 16
 strip = false
 debug = true
 lto = false
