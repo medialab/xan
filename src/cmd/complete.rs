@@ -42,10 +42,13 @@ complete options:
                              used without --reverse, the input is sorted in
                              ascending order. When used with --reverse, the
                              input is sorted in descending order.
-    -R, --reverse                When used with --sorted, indicate that the input is
+    -R, --reverse            When used with --sorted, indicate that the input is
                              sorted in descending order. When used
                              without --sorted, the output will be sorted in
                              descending order.
+    -g, --groupby <cols>     Select columns to group by. The completion will be
+                             done independently within each group.
+
 
 Common options:
     -h, --help               Display this message
@@ -71,6 +74,7 @@ struct Args {
     flag_dates: bool,
     flag_sorted: bool,
     flag_reverse: bool,
+    flag_groupby: Option<SelectColumns>,
 }
 
 enum ValuesType {
@@ -163,6 +167,14 @@ impl ValuesType {
         }
     }
 
+    fn advance(&self, reverse: bool) -> ValuesType {
+        if reverse {
+            self.previous()
+        } else {
+            self.next()
+        }
+    }
+
     fn as_bytes(&self) -> Vec<u8> {
         match self {
             ValuesType::Integer(i) => i.to_string().as_bytes().to_vec(),
@@ -175,14 +187,35 @@ impl ValuesType {
     }
 }
 
+fn new_record_with_zeroed_column(
+    headers_len: usize,
+    column_to_complete_index: usize,
+    zero: &[u8],
+    index_value: &[u8],
+) -> ByteRecord {
+    let mut new_record = ByteRecord::new();
+    for i in 0..headers_len {
+        if i == column_to_complete_index {
+            new_record.push_field(index_value);
+        } else {
+            new_record.push_field(zero);
+        }
+    }
+    new_record
+}
+
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let min: Option<ValuesType> = match &args.flag_min {
+    if args.flag_groupby.is_some() && args.flag_sorted {
+        Err("--groupby cannot be used with --sorted")?;
+    }
+
+    let mut min: Option<ValuesType> = match &args.flag_min {
         Some(m) => Some(ValuesType::new_from(m, args.flag_dates)),
         None => None,
     };
-    let max: Option<ValuesType> = match &args.flag_max {
+    let mut max: Option<ValuesType> = match &args.flag_max {
         Some(m) => Some(ValuesType::new_from(m, args.flag_dates)),
         None => None,
     };
@@ -205,7 +238,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let sel = rconf.selection(&headers)?;
+    let column_to_complete_index = rconf.single_selection(&headers)?;
 
     if let Some(wtr) = wtr_opt.as_mut() {
         wtr.write_record(&headers)?;
@@ -219,10 +252,58 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         min.clone()
     };
 
+    let mut record = ByteRecord::new();
+
+    // let mut records_per_group: std::collections::HashMap<Vec<Vec<u8>>, Vec<ByteRecord>> =
+    //     std::collections::HashMap::new();
+    // if !args.flag_sorted {
+    //     if args.flag_groupby.is_some() {
+    //         while rdr.read_byte_record(&mut record)? {
+    //             let key = args
+    //                 .flag_groupby
+    //                 .as_ref()
+    //                 .unwrap()
+    //                 .selection(&headers, !args.flag_no_headers)?
+    //                 .select(&record)
+    //                 .map(|b| b.to_vec())
+    //                 .collect::<Vec<_>>();
+    //             let entry = records_per_group
+    //                 .as_mut()
+    //                 .unwrap()
+    //                 .entry(key)
+    //                 .or_insert_with(Vec::new);
+    //             entry.push(record.clone());
+    //             if args.flag_min.is_none() || args.flag_max.is_none() {
+    //                 let value = ValuesType::new_from(
+    //                     str::from_utf8(sel.select(&record).next().unwrap()).unwrap(),
+    //                     args.flag_dates,
+    //                 );
+    //                 if args.flag_min.is_none() {
+    //                     if min.is_none() || value < min.clone().unwrap() {
+    //                         min = Some(value.clone());
+    //                     }
+    //                 }
+    //                 if args.flag_max.is_none() {
+    //                     if max.is_none() || value > max.clone().unwrap() {
+    //                         max = Some(value.clone());
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     } else {
+    //         records_per_group.as_mut().unwrap().insert(
+    //             vec![vec![0]],
+    //             rdr.byte_records().collect::<Result<Vec<_>, _>>()?,
+    //         );
+    //     };
+    // } else {
+    //     records_per_group.insert(vec![vec![0]], Vec::new());
+    // }
+
     let mut process_record =
         |record: &ByteRecord, index: &mut Option<ValuesType>| -> CliResult<ControlFlow<()>> {
             let value = ValuesType::new_from(
-                str::from_utf8(sel.select(record).next().unwrap()).unwrap(),
+                str::from_utf8(&record[column_to_complete_index]).unwrap(),
                 args.flag_dates,
             );
 
@@ -250,22 +331,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     while (args.flag_reverse && value < index.clone().unwrap())
                         || (!args.flag_reverse && value > index.clone().unwrap())
                     {
-                        let mut new_record = ByteRecord::new();
-                        for cell in sel.indexed_mask(record.len()) {
-                            if cell.is_some() {
-                                new_record.push_field(&index.clone().unwrap().as_bytes());
-                            } else {
-                                new_record.push_field(&zero);
-                            }
-                        }
+                        wtr.write_record(&new_record_with_zeroed_column(
+                            headers.len(),
+                            column_to_complete_index,
+                            &zero,
+                            &index.clone().unwrap().as_bytes(),
+                        ))?;
 
-                        *index = if args.flag_reverse {
-                            Some(index.clone().unwrap().previous())
-                        } else {
-                            Some(index.clone().unwrap().next())
-                        };
-
-                        wtr.write_record(&new_record)?;
+                        *index = Some(index.clone().unwrap().advance(args.flag_reverse));
                     }
                 } else {
                     // in case of using min flag (or max flag when flag_reverse is true)
@@ -286,11 +359,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 *index = Some(value);
             }
 
-            *index = if args.flag_reverse {
-                Some(index.clone().unwrap().previous())
-            } else {
-                Some(index.clone().unwrap().next())
-            };
+            *index = Some(index.clone().unwrap().advance(args.flag_reverse));
 
             if let Some(wtr) = wtr_opt.as_mut() {
                 wtr.write_record(record)?;
@@ -299,10 +368,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Ok(ControlFlow::Continue(()))
         };
 
-    let mut record = ByteRecord::new();
-
     // process records
-    if args.flag_sorted {
+    if args.flag_sorted && args.flag_groupby.is_none() {
         while rdr.read_byte_record(&mut record)? {
             match process_record(&record, &mut index)? {
                 ControlFlow::Continue(()) => continue,
@@ -316,7 +383,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let record = r?;
                 let value_and_record = (
                     ValuesType::new_from(
-                        from_utf8(sel.select(&record).next().unwrap()).unwrap(),
+                        from_utf8(&record[column_to_complete_index]).unwrap(),
                         args.flag_dates,
                     ),
                     record.clone(),
@@ -347,22 +414,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 && ((args.flag_reverse && index.clone().unwrap() >= min.clone().unwrap())
                     || (!args.flag_reverse && index.clone().unwrap() <= max.clone().unwrap()))
             {
-                let mut new_record = ByteRecord::new();
-                for cell in sel.indexed_mask(headers.len()) {
-                    if cell.is_some() {
-                        new_record.push_field(&index.clone().unwrap().as_bytes());
-                    } else {
-                        new_record.push_field(&zero);
-                    }
-                }
+                wtr.write_record(&new_record_with_zeroed_column(
+                    headers.len(),
+                    column_to_complete_index,
+                    &zero,
+                    &index.clone().unwrap().as_bytes(),
+                ))?;
 
-                index = if args.flag_reverse {
-                    Some(index.unwrap().previous())
-                } else {
-                    Some(index.unwrap().next())
-                };
-
-                wtr.write_record(&new_record)?;
+                index = Some(index.clone().unwrap().advance(args.flag_reverse));
             }
         } else if (args.flag_reverse && index.clone().unwrap() >= min.clone().unwrap())
             || (!args.flag_reverse && index.clone().unwrap() <= max.clone().unwrap())
