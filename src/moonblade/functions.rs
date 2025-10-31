@@ -1640,9 +1640,9 @@ fn err(args: BoundArguments) -> FunctionResult {
 }
 
 fn parse_json(args: BoundArguments) -> FunctionResult {
-    let arg = args.get1_str()?;
+    let arg = args.get1();
 
-    serde_json::from_str(arg.as_ref())
+    serde_json::from_slice(arg.try_as_bytes()?)
         .map_err(|_| EvaluationError::JSONParseError(format!("{:?}", args.get1())))
 }
 
