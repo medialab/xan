@@ -18,7 +18,7 @@ use url::Url;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, ScrapingProgram};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::urls::should_follow_href;
 use crate::util;
 use crate::{CliError, CliResult};
@@ -761,7 +761,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     cmd_head: bool,
     cmd_urls: bool,
     cmd_article: bool,
@@ -773,9 +773,9 @@ struct Args {
     flag_evaluate_file: Option<String>,
     flag_foreach: Option<String>,
     flag_encoding: Option<String>,
-    flag_url_column: Option<SelectColumns>,
+    flag_url_column: Option<SelectedColumns>,
     flag_input_dir: Option<String>,
-    flag_keep: Option<SelectColumns>,
+    flag_keep: Option<SelectedColumns>,
     flag_sep: String,
     flag_parallel: bool,
     flag_threads: Option<usize>,

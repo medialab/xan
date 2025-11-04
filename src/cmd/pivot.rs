@@ -2,7 +2,7 @@ use std::io::{stdout, Write};
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::PivotAggregationProgram;
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -83,9 +83,9 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
-    arg_columns: Option<SelectColumns>,
+    arg_columns: Option<SelectedColumns>,
     arg_expr: Option<String>,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_column_sep: String,
     #[serde(rename = "flag_P")]
     flag_p: usize,
@@ -109,7 +109,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Handling defaults
     let arg_column = args
         .arg_columns
-        .unwrap_or_else(|| SelectColumns::parse("name").unwrap());
+        .unwrap_or_else(|| SelectedColumns::parse("name").unwrap());
 
     let arg_expr = args.arg_expr.unwrap_or_else(|| "first(value)".to_string());
 

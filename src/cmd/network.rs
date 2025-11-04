@@ -6,7 +6,7 @@ use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
 use crate::graph::GraphBuilder;
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -73,17 +73,17 @@ struct Args {
     cmd_edgelist: bool,
     cmd_bipartite: bool,
     arg_input: Option<String>,
-    arg_source: Option<SelectColumns>,
-    arg_target: Option<SelectColumns>,
-    arg_part1: Option<SelectColumns>,
-    arg_part2: Option<SelectColumns>,
+    arg_source: Option<SelectedColumns>,
+    arg_target: Option<SelectedColumns>,
+    arg_part1: Option<SelectedColumns>,
+    arg_part2: Option<SelectedColumns>,
     flag_format: String,
     flag_gexf_version: String,
     flag_largest_component: bool,
     flag_stats: bool,
     flag_undirected: bool,
     flag_nodes: Option<String>,
-    flag_node_column: SelectColumns,
+    flag_node_column: SelectedColumns,
     flag_disjoint_keys: bool,
     flag_degrees: bool,
     flag_no_headers: bool,

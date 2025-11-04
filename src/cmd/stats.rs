@@ -6,7 +6,7 @@ use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Stats;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -92,8 +92,8 @@ Common options:
 #[derive(Clone, Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
-    flag_groupby: Option<SelectColumns>,
+    flag_select: SelectedColumns,
+    flag_groupby: Option<SelectedColumns>,
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,

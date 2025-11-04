@@ -6,7 +6,7 @@ use simd_csv::ByteRecord;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -83,7 +83,7 @@ Common options:
 #[derive(Clone, Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_sep: Option<String>,
     flag_all: bool,
     flag_limit: usize,
@@ -94,7 +94,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_no_limit_we_reach_for_the_sky: bool,
 }
 

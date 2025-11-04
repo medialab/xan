@@ -9,7 +9,7 @@ use crate::collections::{
 };
 use crate::config::{Config, Delimiter};
 use crate::record::Record;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -50,13 +50,13 @@ struct Forward<T>(T);
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_limit: NonZeroUsize,
     flag_reverse: bool,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_rank: Option<String>,
     flag_ties: bool,
 }

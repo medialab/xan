@@ -8,12 +8,12 @@ use std::str::FromStr;
 
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]
-pub struct SelectColumns {
+pub struct SelectedColumns {
     selectors: Vec<Selector>,
     invert: bool,
 }
 
-impl SelectColumns {
+impl SelectedColumns {
     pub fn parse(mut s: &str) -> Result<Self, String> {
         let invert = if !s.is_empty() && s.as_bytes()[0] == b'!' {
             s = &s[1..];
@@ -119,7 +119,7 @@ impl SelectColumns {
     }
 }
 
-impl fmt::Debug for SelectColumns {
+impl fmt::Debug for SelectedColumns {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.selectors.is_empty() {
             write!(f, "<All>")
@@ -134,7 +134,7 @@ impl fmt::Debug for SelectColumns {
     }
 }
 
-impl TryFrom<String> for SelectColumns {
+impl TryFrom<String> for SelectedColumns {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -142,7 +142,7 @@ impl TryFrom<String> for SelectColumns {
     }
 }
 
-impl Default for SelectColumns {
+impl Default for SelectedColumns {
     fn default() -> Self {
         Self::parse("").unwrap()
     }

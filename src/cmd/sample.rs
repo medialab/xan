@@ -8,7 +8,7 @@ use simd_csv::ByteRecord;
 use crate::collections::ClusteredInsertHashmap;
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -68,8 +68,8 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_seed: Option<usize>,
-    flag_weight: Option<SelectColumns>,
-    flag_groupby: Option<SelectColumns>,
+    flag_weight: Option<SelectedColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_cursed: bool,
 }
 

@@ -6,7 +6,7 @@ use regex::{Captures, RegexBuilder};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -74,7 +74,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_limit: Option<NonZeroUsize>,
     flag_condense: bool,
     flag_wrap: bool,
@@ -84,7 +84,7 @@ struct Args {
     flag_rainbow: bool,
     flag_csv: bool,
     flag_color: ColorMode,
-    flag_split: Option<SelectColumns>,
+    flag_split: Option<SelectedColumns>,
     flag_sep: String,
     flag_highlight: Option<String>,
     flag_ignore_case: bool,

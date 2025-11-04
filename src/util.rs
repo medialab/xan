@@ -25,7 +25,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::CliResult;
 
 pub fn version() -> String {
@@ -131,7 +131,7 @@ pub fn many_configs(
     inps: &[String],
     delim: Option<Delimiter>,
     no_headers: bool,
-    select: Option<&SelectColumns>,
+    select: Option<&SelectedColumns>,
 ) -> Result<Vec<Config>, String> {
     let mut inps = inps.to_vec();
     if inps.is_empty() {

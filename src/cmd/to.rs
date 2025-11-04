@@ -10,7 +10,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::xml::XMLWriter;
 use crate::CliResult;
@@ -67,7 +67,7 @@ struct Args {
     arg_input: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_delimiter: Option<Delimiter>,
     flag_buffer_size: NonZeroUsize,
     flag_nulls: bool,

@@ -13,7 +13,7 @@ use memmap2::Mmap;
 use regex::bytes::Regex;
 
 use crate::read;
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::{CliError, CliResult};
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -128,7 +128,7 @@ type PairResult = CliResult<(String, Option<String>)>;
 #[derive(Debug)]
 pub struct Config {
     pub path: Option<PathBuf>, // None implies <stdin>
-    select_columns: Option<SelectColumns>,
+    select_columns: Option<SelectedColumns>,
     pub delimiter: u8,
     pub no_headers: bool,
     flexible: bool,
@@ -329,7 +329,7 @@ impl Config {
         self
     }
 
-    pub fn select(mut self, sel_cols: SelectColumns) -> Config {
+    pub fn select(mut self, sel_cols: SelectedColumns) -> Config {
         self.select_columns = Some(sel_cols);
         self
     }
@@ -596,7 +596,7 @@ impl Config {
 
     pub fn lines(
         &self,
-        select: &Option<SelectColumns>,
+        select: &Option<SelectedColumns>,
     ) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
         if let Some(sel) = select {
             let mut csv_reader = self.simd_reader()?;
@@ -636,7 +636,7 @@ impl Config {
 
     pub fn pairs(
         &self,
-        select: (&Option<SelectColumns>, &Option<SelectColumns>),
+        select: (&Option<SelectedColumns>, &Option<SelectedColumns>),
     ) -> CliResult<Box<dyn Iterator<Item = PairResult>>> {
         if let Some(first_sel) = &select.0 {
             let mut csv_reader = self.simd_reader()?;

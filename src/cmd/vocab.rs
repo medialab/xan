@@ -16,7 +16,7 @@ use simd_csv::ByteRecord;
 use crate::collections::ClusteredInsertHashmap;
 use crate::collections::{hash_map::Entry, HashMap};
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -186,8 +186,8 @@ struct Args {
     cmd_corpus: bool,
     cmd_cooc: bool,
     arg_input: Option<String>,
-    flag_token: Option<SelectColumns>,
-    flag_doc: Option<SelectColumns>,
+    flag_token: Option<SelectedColumns>,
+    flag_doc: Option<SelectedColumns>,
     flag_sep: Option<String>,
     flag_implode: bool,
     flag_tf_weight: TfWeighting,
@@ -243,7 +243,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = rdr.byte_headers()?.clone();
 
     let flag_token = args.flag_token.unwrap_or_else(|| {
-        SelectColumns::parse(if args.flag_implode { "token" } else { "tokens" }).unwrap()
+        SelectedColumns::parse(if args.flag_implode { "token" } else { "tokens" }).unwrap()
     });
 
     let token_pos = flag_token.single_selection(&headers, !rconf.no_headers)?;

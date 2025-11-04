@@ -1,5 +1,5 @@
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -52,7 +52,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_columns: SelectColumns,
+    arg_columns: SelectedColumns,
     flag_name_column: String,
     flag_value_column: String,
     flag_output: Option<String>,

@@ -7,7 +7,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{
     AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
 };
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -174,15 +174,15 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_columns: SelectColumns,
+    arg_columns: SelectedColumns,
     arg_expression: String,
     arg_input: Option<String>,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
-    flag_keep: Option<SelectColumns>,
-    flag_along_cols: Option<SelectColumns>,
-    flag_along_matrix: Option<SelectColumns>,
+    flag_keep: Option<SelectedColumns>,
+    flag_along_cols: Option<SelectedColumns>,
+    flag_along_matrix: Option<SelectedColumns>,
     flag_total: Option<String>,
     flag_sorted: bool,
     flag_parallel: bool,

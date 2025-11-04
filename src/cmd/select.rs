@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -191,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let headers = rdr.byte_headers()?.clone();
 
-        rconfig = rconfig.select(SelectColumns::parse(&args.arg_selection)?);
+        rconfig = rconfig.select(SelectedColumns::parse(&args.arg_selection)?);
 
         let sel = rconfig.selection(&headers)?;
 

@@ -23,7 +23,7 @@ use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
@@ -725,16 +725,16 @@ pub struct Args {
     cmd_map: bool,
     arg_inputs: Vec<String>,
     pub arg_expr: Option<String>,
-    pub arg_group: Option<SelectColumns>,
+    pub arg_group: Option<SelectedColumns>,
     arg_template: Option<FilenameTemplate>,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
-    flag_path_column: Option<SelectColumns>,
+    flag_path_column: Option<SelectedColumns>,
     flag_buffer_size: isize,
     flag_source_column: Option<String>,
-    pub flag_select: SelectColumns,
+    pub flag_select: SelectedColumns,
     pub flag_sep: Option<String>,
     pub flag_limit: usize,
     pub flag_no_extra: bool,

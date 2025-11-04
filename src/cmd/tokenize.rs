@@ -14,7 +14,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
 use crate::record::Record;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, JoinIteratorExt};
 use crate::CliResult;
 
@@ -192,7 +192,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_input: Option<String>,
     cmd_words: bool,
     cmd_sentences: bool,
@@ -220,8 +220,8 @@ struct Args {
     flag_ngrams_sep: String,
     flag_stemmer: Option<String>,
     flag_vocab: Option<String>,
-    flag_vocab_token: SelectColumns,
-    flag_vocab_token_id: Option<SelectColumns>,
+    flag_vocab_token: SelectedColumns,
+    flag_vocab_token_id: Option<SelectedColumns>,
     flag_uniq: bool,
     flag_flatmap: Option<String>,
     flag_aerated: bool,

@@ -6,7 +6,7 @@ use regex::Regex;
 use unidecode::unidecode;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -93,7 +93,7 @@ struct Args {
     arg_columns: Option<String>,
     arg_pattern: Option<String>,
     arg_replacement: Option<String>,
-    flag_select: Option<SelectColumns>,
+    flag_select: Option<SelectedColumns>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,

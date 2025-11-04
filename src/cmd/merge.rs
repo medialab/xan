@@ -5,7 +5,7 @@ use colored::Colorize;
 
 use crate::cmd::sort::{ComparableByteRecord, NumericallyComparableByteRecord};
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -78,7 +78,7 @@ struct Forward<T>(T);
 #[derive(Deserialize)]
 struct Args {
     arg_inputs: Vec<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -87,7 +87,7 @@ struct Args {
     flag_uniq: bool,
     flag_source_column: Option<String>,
     flag_paths: Option<String>,
-    flag_path_column: Option<SelectColumns>,
+    flag_path_column: Option<SelectedColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {

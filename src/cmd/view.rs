@@ -8,7 +8,7 @@ use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -262,7 +262,7 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_pager: bool,
     flag_theme: String,
     flag_cols: Option<String>,
@@ -277,8 +277,8 @@ struct Args {
     flag_hide_index: bool,
     flag_hide_headers: bool,
     flag_hide_info: bool,
-    flag_groupby: Option<SelectColumns>,
-    flag_right: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
+    flag_right: Option<SelectedColumns>,
     flag_significance: Option<NonZeroUsize>,
 }
 
