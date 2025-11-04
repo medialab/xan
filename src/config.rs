@@ -12,7 +12,7 @@ use flate2::read::MultiGzDecoder;
 use memmap2::Mmap;
 use regex::bytes::Regex;
 
-use crate::read::{self, ReverseRead};
+use crate::read;
 use crate::record::Record;
 use crate::select::{SelectColumns, Selection};
 use crate::{CliError, CliResult};
@@ -695,32 +695,11 @@ impl Config {
 
     pub fn reverse_reader(
         &self,
-    ) -> CliResult<(
-        simd_csv::ByteRecord,
-        simd_csv::Reader<Box<dyn io::Read + Send + 'static>>,
-    )> {
-        let mut io_reader = self.io_reader_for_random_access()?;
-        let offset_before_csv_parsing = io_reader.stream_position()?;
+    ) -> CliResult<simd_csv::ReverseReader<Box<dyn SeekRead + Send + 'static>>> {
+        let io_reader = self.io_reader_for_random_access()?;
+        let builder = self.simd_csv_reader_builder();
 
-        let mut forward_reader = self.simd_csv_reader_from_reader(io_reader);
-        let headers = forward_reader.byte_headers()?.clone();
-
-        let offset = if self.no_headers {
-            offset_before_csv_parsing
-        } else {
-            offset_before_csv_parsing + forward_reader.position()
-        };
-
-        let filesize = forward_reader.get_mut().seek(SeekFrom::End(0))?;
-
-        let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
-        let mut reader_builder = self.simd_csv_reader_builder();
-        reader_builder.has_headers(false);
-
-        Ok((
-            headers,
-            reader_builder.from_reader(Box::new(reverse_reader)),
-        ))
+        Ok(builder.reverse_from_reader(io_reader)?)
     }
 
     pub fn csv_reader_builder(&self) -> csv::ReaderBuilder {

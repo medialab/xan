@@ -334,11 +334,11 @@ impl Args {
         let n = self.flag_last.unwrap();
 
         match rconf.reverse_reader() {
-            Ok((headers, mut reverse_reader)) => {
+            Ok(mut reverse_reader) => {
                 let mut wtr = self.wconfig().simd_writer()?;
 
                 if !rconf.no_headers {
-                    wtr.write_byte_record(&headers)?;
+                    wtr.write_byte_record(reverse_reader.byte_headers())?;
                 }
 
                 let records = reverse_reader
@@ -347,12 +347,7 @@ impl Args {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 for record in records.into_iter().rev() {
-                    wtr.write_record(
-                        record
-                            .iter()
-                            .rev()
-                            .map(|cell| cell.iter().rev().copied().collect::<Vec<_>>()),
-                    )?;
+                    wtr.write_byte_record(&record)?;
                 }
 
                 Ok(wtr.flush()?)
