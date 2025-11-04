@@ -688,3 +688,9 @@ impl ops::Deref for Selection {
         &self.0
     }
 }
+
+impl ops::DerefMut for Selection {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
