@@ -13,7 +13,6 @@ use memmap2::Mmap;
 use regex::bytes::Regex;
 
 use crate::read;
-use crate::record::Record;
 use crate::select::{SelectColumns, Selection};
 use crate::{CliError, CliResult};
 
@@ -357,7 +356,10 @@ impl Config {
         Ok(Some(map))
     }
 
-    pub fn selection<R: Record>(&self, first_record: &R) -> Result<Selection, String> {
+    pub fn selection<'a, H>(&self, first_record: H) -> Result<Selection, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"
@@ -366,7 +368,10 @@ impl Config {
         }
     }
 
-    pub fn single_selection<R: Record>(&self, first_record: &R) -> Result<usize, String> {
+    pub fn single_selection<'a, H>(&self, first_record: H) -> Result<usize, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"
