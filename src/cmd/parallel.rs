@@ -23,7 +23,6 @@ use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
-use crate::read::{segment_csv_file, SegmentationOptions};
 use crate::select::SelectColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
@@ -498,7 +497,7 @@ struct FileChunk {
     from: u64,
     to: u64,
     position: usize,
-    headers: csv::ByteRecord,
+    headers: ByteRecord,
 }
 
 impl FileChunk {
@@ -532,7 +531,7 @@ impl Input {
 struct InputReader {
     config: Config,
     reader: Option<Box<dyn io::Read + Send>>,
-    headers: Option<csv::ByteRecord>,
+    headers: Option<ByteRecord>,
     children: Option<Children>,
 }
 
@@ -857,15 +856,8 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let mut reader = config.io_reader_for_random_access()?;
-
-            // NOTE: we could fallback to not chunking the file
-            let (segments, sample) = segment_csv_file(
-                &mut reader,
-                || config.csv_reader_builder(),
-                SegmentationOptions::chunks(t),
-            )?
-            .ok_or_else(|| format!("could not segment {}", p))?;
+            let mut seeker = config.simd_seeker()?.ok_or("could not sample file!")?;
+            let segments = seeker.segments(t)?;
 
             actual_threads += segments.len();
 
@@ -882,7 +874,7 @@ impl Args {
                     from,
                     to,
                     position: i,
-                    headers: sample.headers.clone(),
+                    headers: seeker.byte_headers().clone(),
                 }));
             }
         }

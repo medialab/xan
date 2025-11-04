@@ -1,8 +1,7 @@
-use std::num::{NonZeroU64, NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
-use crate::read::sample_initial_records;
 use crate::util;
 use crate::CliResult;
 
@@ -30,8 +29,6 @@ count options:
     -a, --approx             Attempt to approximate a CSV file row count by sampling its
                              first rows. Target must be seekable, which means this cannot
                              work on a stream fed through stdin nor with gzipped data.
-    --sample-size <n>        Number of rows to sample when using -a, --approx.
-                             [default: 512]
 
 Common options:
     -h, --help             Display this message
@@ -48,7 +45,6 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_approx: bool,
-    flag_sample_size: NonZeroU64,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -80,11 +76,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let wconf = Config::new(&args.flag_output);
 
     let count = if args.flag_approx {
-        let mut rdr = conf.seekable_reader()?;
-
-        match sample_initial_records(&mut rdr, args.flag_sample_size.get())? {
+        match conf.simd_seeker()? {
             None => 0,
-            Some(sample) => sample.exact_or_approx_count(),
+            Some(seeker) => seeker.approx_count(),
         }
     } else {
         conf.simd_splitter()?.count_records()?

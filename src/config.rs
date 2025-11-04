@@ -497,10 +497,6 @@ impl Config {
         Ok(self.simd_csv_seeker_from_reader(self.io_reader_for_random_access()?)?)
     }
 
-    pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
-        Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
-    }
-
     pub fn io_reader(&self) -> CliResult<Box<dyn io::Read + Send + 'static>> {
         Ok(match self.path {
             None => {

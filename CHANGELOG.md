@@ -12,6 +12,7 @@
 * The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
 * `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 * `xan input` has been overhauled.
+* Dropping `xan count --sample-size`.
 
 *Features*
 
