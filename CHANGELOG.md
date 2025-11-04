@@ -55,7 +55,7 @@
 *Performance*
 
 * Wildly improving performance of most of `xan` commands by leveraging a novel SIMD CSV parser/writer.
-* Improving performance of `xan from -f txt`.
+* Improving performance of `xan from -f txt` & `xan from -f npy`.
 * Improving memory footprint of hash-based commands (e.g. `frequency`, `groupby`, `dedup` etc.).
 * Improving performance of `xan progress`, `xan range`, `xan enum`, `xan behead`, `xan rename`.
 

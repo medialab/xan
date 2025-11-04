@@ -344,13 +344,7 @@ impl Args {
 
         let mut wtr = self.writer()?;
 
-        let mut record = ByteRecord::new();
-
-        for i in 0..columns {
-            record.push_field(format!("dim_{}", i).as_bytes());
-        }
-
-        wtr.write_byte_record(&record)?;
+        wtr.write_record_no_quoting((0..columns).map(|i| format!("dim_{}", i)))?;
 
         macro_rules! process {
             ($type: ty) => {
@@ -359,13 +353,10 @@ impl Args {
                     .unwrap()
                     .chunks(NonZeroUsize::new(columns as usize).unwrap())
                 {
-                    record.clear();
-
-                    for cell in row {
-                        record.push_field(cell.unwrap().to_string().as_bytes());
-                    }
-
-                    wtr.write_byte_record(&record)?;
+                    // NOTE: this is safe because the output delimiter is guaranteed to be a comma
+                    wtr.write_record_no_quoting(
+                        row.into_iter().map(|cell| cell.unwrap().to_string()),
+                    )?;
                 }
             };
         }
