@@ -380,20 +380,6 @@ impl Config {
         }
     }
 
-    pub fn write_headers<R: io::Read, W: io::Write>(
-        &self,
-        r: &mut csv::Reader<R>,
-        w: &mut csv::Writer<W>,
-    ) -> csv::Result<()> {
-        if !self.no_headers {
-            let r = r.byte_headers()?;
-            if !r.is_empty() {
-                w.write_record(r)?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + Send + 'static>>> {
         Ok(self.csv_writer_from_writer(self.io_writer()?))
     }

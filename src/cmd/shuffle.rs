@@ -118,7 +118,10 @@ fn run_in_memory(args: Args) -> CliResult<()> {
 
     let mut rdr = rconf.reader()?;
     let mut wtr = wconf.writer()?;
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+
+    if !rconf.no_headers {
+        wtr.write_byte_record(rdr.byte_headers()?)?;
+    }
 
     let mut rows: Vec<csv::ByteRecord> = Vec::new();
 
