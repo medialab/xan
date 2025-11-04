@@ -491,6 +491,12 @@ impl Config {
         Ok(self.simd_csv_splitter_from_reader(self.io_reader()?))
     }
 
+    pub fn simd_seeker(
+        &self,
+    ) -> CliResult<Option<simd_csv::Seeker<Box<dyn SeekRead + Send + 'static>>>> {
+        Ok(self.simd_csv_seeker_from_reader(self.io_reader_for_random_access()?)?)
+    }
+
     pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
         Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
     }
@@ -750,6 +756,17 @@ impl Config {
 
     pub fn simd_csv_splitter_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Splitter<R> {
         simd_csv::SplitterBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .has_headers(!self.no_headers)
+            .from_reader(rdr)
+    }
+
+    pub fn simd_csv_seeker_from_reader<R: Read + Seek>(
+        &self,
+        rdr: R,
+    ) -> simd_csv::Result<Option<simd_csv::Seeker<R>>> {
+        simd_csv::SeekerBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
             .has_headers(!self.no_headers)
