@@ -44,7 +44,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(false);
+        .no_headers(true);
 
     let mut splitter = rconf.simd_splitter()?;
     let header_opt = splitter.split_record()?;

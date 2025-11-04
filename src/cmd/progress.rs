@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, ErrorKind::BrokenPipe, Read, Write};
+use std::io::{self, ErrorKind::BrokenPipe, Read};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -208,13 +208,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
 
     let mut splitter = conf.simd_splitter()?;
-    let mut wtr = Config::new(&args.flag_output).buf_io_writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !conf.no_headers {
-        if let Some(headers) = splitter.split_record()? {
-            wtr.write_all(headers)?;
-            wtr.write_all(b"\n")?;
-        }
+        wtr.write_splitted_record(splitter.byte_headers()?)?;
     }
 
     let mut total = args.flag_total;
@@ -242,10 +239,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let bar = EnhancedProgressBar::new(total, args.flag_title, false);
 
     let mut handle_record = |record: &[u8]| -> CliResult<()> {
-        wtr.write_all(record)
-            .and_then(|_| wtr.write_all(b"\n"))
+        wtr.write_splitted_record(record)
             .map_err(|err| match err.kind() {
-                BrokenPipe => {
+                simd_csv::ErrorKind::Io(inner) if inner.kind() == BrokenPipe => {
                     bar.fail();
 
                     err

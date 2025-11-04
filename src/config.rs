@@ -752,6 +752,7 @@ impl Config {
         simd_csv::SplitterBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
+            .has_headers(!self.no_headers)
             .from_reader(rdr)
     }
 

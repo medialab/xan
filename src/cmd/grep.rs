@@ -74,7 +74,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let wconf = Config::new(&args.flag_output);
 
     let mut writer_opt = (!args.flag_count)
-        .then(|| wconf.buf_io_writer())
+        .then(|| wconf.simd_writer())
         .transpose()?;
 
     let matcher = if args.flag_regex {
@@ -106,8 +106,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !rconf.no_headers {
             if let Some(header) = reader.split_record() {
                 if let Some(writer) = writer_opt.as_mut() {
-                    writer.write_all(header)?;
-                    writer.write_all(b"\n")?;
+                    writer.write_splitted_record(header)?;
                 }
             }
         }
@@ -124,8 +123,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             if let Some(writer) = writer_opt.as_mut() {
-                writer.write_all(record)?;
-                writer.write_all(b"\n")?;
+                writer.write_splitted_record(record)?;
             } else {
                 count += 1;
             }
@@ -134,11 +132,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut splitter = rconf.simd_splitter()?;
 
         if !rconf.no_headers {
-            if let Some(header) = splitter.split_record()? {
-                if let Some(writer) = writer_opt.as_mut() {
-                    writer.write_all(header)?;
-                    writer.write_all(b"\n")?;
-                }
+            if let Some(writer) = writer_opt.as_mut() {
+                writer.write_splitted_record(splitter.byte_headers()?)?;
             }
         }
 
@@ -154,8 +149,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             if let Some(writer) = writer_opt.as_mut() {
-                writer.write_all(record)?;
-                writer.write_all(b"\n")?;
+                writer.write_splitted_record(record)?;
             } else {
                 count += 1;
             }

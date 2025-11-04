@@ -1123,9 +1123,7 @@ impl Args {
                     process_manager.start(&input.name(), input_reader.take_children());
                 let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let count = csv_splitter
-                    .count_records()?
-                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
+                let count = csv_splitter.count_records()?;
 
                 progress_bar.inc(count);
 
@@ -1169,9 +1167,7 @@ impl Args {
                     process_manager.start(&input.name(), input_reader.take_children());
                 let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let count = csv_splitter
-                    .count_records()?
-                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
+                let count = csv_splitter.count_records()?;
 
                 total_count.fetch_add(count, Ordering::Relaxed);
 

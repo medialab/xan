@@ -87,9 +87,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(sample) => sample.exact_or_approx_count(),
         }
     } else {
-        conf.simd_splitter()?
-            .count_records()?
-            .saturating_sub(if conf.no_headers { 0 } else { 1 })
+        conf.simd_splitter()?.count_records()?
     };
 
     let mut writer = wconf.io_writer()?;
