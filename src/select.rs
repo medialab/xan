@@ -6,7 +6,6 @@ use std::iter::repeat;
 use std::ops;
 use std::str::FromStr;
 
-use crate::collections::HashSet;
 use crate::record::Record;
 
 #[derive(Clone, Deserialize)]
@@ -58,14 +57,13 @@ impl SelectColumns {
             map.extend(idxs?.into_iter());
         }
         if self.invert {
-            let set: HashSet<_> = map.into_iter().collect();
-            let mut map = vec![];
+            let mut new_map = vec![];
             for i in 0..first_record.len() {
-                if !set.contains(&i) {
-                    map.push(i);
+                if !map.contains(&i) {
+                    new_map.push(i);
                 }
             }
-            return Ok(Selection(map));
+            return Ok(Selection(new_map));
         }
         Ok(Selection(map))
     }
@@ -605,10 +603,9 @@ impl Selection {
 
     pub fn dedup(&mut self) {
         let mut new = Vec::new();
-        let mut seen = HashSet::new();
 
         for i in self.0.iter().copied() {
-            if seen.insert(i) {
+            if !new.contains(&i) {
                 new.push(i);
             }
         }
