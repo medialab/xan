@@ -143,15 +143,6 @@ impl NextRecordOffsetInferrence {
             _ => None,
         }
     }
-
-    pub fn into_record_with_offset(self) -> Option<(ByteRecord, u64)> {
-        match self {
-            Self::WasInQuoted(offset, record) | Self::WasInUnquoted(offset, record) => {
-                Some((record, offset))
-            }
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug)]
