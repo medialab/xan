@@ -1,5 +1,4 @@
-use std::fs;
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, IsTerminal, Write};
 use std::iter;
 use std::num::NonZeroUsize;
 
@@ -90,11 +89,20 @@ impl Args {
         }
     }
 
-    fn convert_to_json<R: Read, W: Write>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        mut writer: W,
-    ) -> CliResult<()> {
+    fn rconf(&self) -> Config {
+        Config::new(&self.arg_input)
+            .no_headers(self.flag_no_headers)
+            .delimiter(self.flag_delimiter)
+    }
+
+    fn wconf(&self) -> Config {
+        Config::new(&self.flag_output)
+    }
+
+    fn convert_to_json(&self) -> CliResult<()> {
+        let mut rdr = self.rconf().reader()?;
+        let mut writer = self.wconf().buf_io_writer()?;
+
         let headers = rdr.headers()?.clone();
 
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
@@ -126,11 +134,10 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_ndjson<R: Read, W: Write>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        mut writer: W,
-    ) -> CliResult<()> {
+    fn convert_to_ndjson(&self) -> CliResult<()> {
+        let mut rdr = self.rconf().reader()?;
+        let mut writer = self.wconf().buf_io_writer()?;
+
         let headers = rdr.headers()?.clone();
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
@@ -157,14 +164,13 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_xlsx<R: Read>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        mut writer: Box<dyn Write>,
-    ) -> CliResult<()> {
+    fn convert_to_xlsx(&self) -> CliResult<()> {
         if !self.is_writing_to_file() {
             Err("cannot export in xlsx without a path.\nUse -o, --output or pipe the result!")?;
         }
+
+        let mut rdr = self.rconf().reader()?;
+        let mut writer = self.wconf().io_writer()?;
 
         let mut workbook = Workbook::new();
         let headers = rdr.headers()?.clone();
@@ -190,11 +196,10 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_html<R: Read>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        writer: Box<dyn Write>,
-    ) -> CliResult<()> {
+    fn convert_to_html(&self) -> CliResult<()> {
+        let mut rdr = self.rconf().reader()?;
+        let writer = self.wconf().buf_io_writer()?;
+
         let mut xml_writer = XMLWriter::new(writer);
         let mut record = csv::StringRecord::new();
 
@@ -233,11 +238,10 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_md<R: Read>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        mut writer: Box<dyn Write>,
-    ) -> CliResult<()> {
+    fn convert_to_md(&self) -> CliResult<()> {
+        let mut rdr = self.rconf().reader()?;
+        let mut writer = self.wconf().buf_io_writer()?;
+
         fn escape_md_table_cell(cell: &str) -> String {
             cell.replace("|", "\\|")
                 .replace("<", "\\<")
@@ -298,14 +302,13 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_npy<R: Read>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        writer: Box<dyn Write>,
-    ) -> CliResult<()> {
+    fn convert_to_npy(&self) -> CliResult<()> {
         if !self.is_writing_to_file() {
             Err("cannot export in npy without a path.\nUse -o, --output or pipe the result!")?;
         }
+
+        let mut rdr = self.rconf().reader()?;
+        let io_writer = self.wconf().io_writer()?;
 
         let records = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
 
@@ -314,7 +317,7 @@ impl Args {
                 let mut writer = npyz::WriteOptions::new()
                     .default_dtype()
                     .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
-                    .writer(writer)
+                    .writer(io_writer)
                     .begin_nd()?;
 
                 for record in records.iter() {
@@ -339,11 +342,10 @@ impl Args {
         Ok(())
     }
 
-    fn convert_to_txt<R: Read>(
-        &self,
-        mut rdr: csv::Reader<R>,
-        mut writer: Box<dyn Write>,
-    ) -> CliResult<()> {
+    fn convert_to_txt(&self) -> CliResult<()> {
+        let mut rdr = self.rconf().reader()?;
+        let mut writer = self.wconf().buf_io_writer()?;
+
         let headers = rdr.byte_headers()?.clone();
         let column_index = self
             .flag_select
@@ -365,24 +367,15 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    let conf = Config::new(&args.arg_input)
-        .no_headers(args.flag_no_headers)
-        .delimiter(args.flag_delimiter);
-    let rdr = conf.reader()?;
-
-    let writer: Box<dyn Write> = match &args.flag_output {
-        Some(output_path) => Box::new(fs::File::create(output_path)?),
-        None => Box::new(io::stdout()),
-    };
 
     match args.arg_format.as_str() {
-        "html" => args.convert_to_html(rdr, writer),
-        "json" => args.convert_to_json(rdr, writer),
-        "jsonl" | "ndjson" => args.convert_to_ndjson(rdr, writer),
-        "md" => args.convert_to_md(rdr, writer),
-        "npy" => args.convert_to_npy(rdr, writer),
-        "txt" | "text" => args.convert_to_txt(rdr, writer),
-        "xlsx" => args.convert_to_xlsx(rdr, writer),
+        "html" => args.convert_to_html(),
+        "json" => args.convert_to_json(),
+        "jsonl" | "ndjson" => args.convert_to_ndjson(),
+        "md" => args.convert_to_md(),
+        "npy" => args.convert_to_npy(),
+        "txt" | "text" => args.convert_to_txt(),
+        "xlsx" => args.convert_to_xlsx(),
         _ => Err("could not export the file to this format!")?,
     }
 }
