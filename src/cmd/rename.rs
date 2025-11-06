@@ -154,7 +154,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(&rename_as)?;
             wtr.write_byte_record(&record)?;
 
-            let mut bufreader = rdr.into_bufreader();
+            let (rest, mut bufreader) = rdr.into_bufreader();
+
+            assert!(rest.is_none());
 
             match wtr.into_inner() {
                 Err(err) => Err(err.into_error())?,
@@ -273,7 +275,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&renamed_headers)?;
 
-    let mut bufreader = rdr.into_bufreader();
+    let (rest, mut bufreader) = rdr.into_bufreader();
+
+    assert!(rest.is_none());
 
     match wtr.into_inner() {
         Err(err) => Err(err.into_error())?,

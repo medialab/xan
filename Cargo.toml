@@ -118,7 +118,7 @@ serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 shlex = "1.3.0"
-simd-csv = "0.6.0"
+simd-csv = "0.7.0"
 simd-json = "0.14.3"
 sprintf = "0.4.1"
 tar = { version = "0.4.44", default-features = false }
