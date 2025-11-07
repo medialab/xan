@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::AggregationProgram;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -187,9 +187,9 @@ struct Args {
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
-    flag_along_rows: Option<SelectColumns>,
-    flag_along_cols: Option<SelectColumns>,
-    flag_along_matrix: Option<SelectColumns>,
+    flag_along_rows: Option<SelectedColumns>,
+    flag_along_cols: Option<SelectedColumns>,
+    flag_along_matrix: Option<SelectedColumns>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
 }

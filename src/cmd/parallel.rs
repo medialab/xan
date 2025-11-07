@@ -23,8 +23,7 @@ use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
-use crate::read::{segment_csv_file, SegmentationOptions};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
@@ -498,7 +497,7 @@ struct FileChunk {
     from: u64,
     to: u64,
     position: usize,
-    headers: csv::ByteRecord,
+    headers: ByteRecord,
 }
 
 impl FileChunk {
@@ -532,7 +531,7 @@ impl Input {
 struct InputReader {
     config: Config,
     reader: Option<Box<dyn io::Read + Send>>,
-    headers: Option<csv::ByteRecord>,
+    headers: Option<ByteRecord>,
     children: Option<Children>,
 }
 
@@ -726,16 +725,16 @@ pub struct Args {
     cmd_map: bool,
     arg_inputs: Vec<String>,
     pub arg_expr: Option<String>,
-    pub arg_group: Option<SelectColumns>,
+    pub arg_group: Option<SelectedColumns>,
     arg_template: Option<FilenameTemplate>,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
-    flag_path_column: Option<SelectColumns>,
+    flag_path_column: Option<SelectedColumns>,
     flag_buffer_size: isize,
     flag_source_column: Option<String>,
-    pub flag_select: SelectColumns,
+    pub flag_select: SelectedColumns,
     pub flag_sep: Option<String>,
     pub flag_limit: usize,
     pub flag_no_extra: bool,
@@ -857,15 +856,8 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let mut reader = config.io_reader_for_random_access()?;
-
-            // NOTE: we could fallback to not chunking the file
-            let (segments, sample) = segment_csv_file(
-                &mut reader,
-                || config.csv_reader_builder(),
-                SegmentationOptions::chunks(t),
-            )?
-            .ok_or_else(|| format!("could not segment {}", p))?;
+            let mut seeker = config.simd_seeker()?.ok_or("could not sample file!")?;
+            let segments = seeker.segments(t)?;
 
             actual_threads += segments.len();
 
@@ -882,7 +874,7 @@ impl Args {
                     from,
                     to,
                     position: i,
-                    headers: sample.headers.clone(),
+                    headers: seeker.byte_headers().clone(),
                 }));
             }
         }
@@ -1123,9 +1115,7 @@ impl Args {
                     process_manager.start(&input.name(), input_reader.take_children());
                 let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let count = csv_splitter
-                    .count_records()?
-                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
+                let count = csv_splitter.count_records()?;
 
                 progress_bar.inc(count);
 
@@ -1169,9 +1159,7 @@ impl Args {
                     process_manager.start(&input.name(), input_reader.take_children());
                 let mut csv_splitter = input_reader.take_simd_csv_splitter();
 
-                let count = csv_splitter
-                    .count_records()?
-                    .saturating_sub(if input_reader.config.no_headers { 0 } else { 1 });
+                let count = csv_splitter.count_records()?;
 
                 total_count.fetch_add(count, Ordering::Relaxed);
 

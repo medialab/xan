@@ -116,14 +116,17 @@ fn run_in_memory(args: Args) -> CliResult<()> {
     // Seeding rng
     let mut rng = util::acquire_rng(args.flag_seed);
 
-    let mut rdr = rconf.reader()?;
-    let mut wtr = wconf.writer()?;
-    rconf.write_headers(&mut rdr, &mut wtr)?;
+    let mut rdr = rconf.simd_reader()?;
+    let mut wtr = wconf.simd_writer()?;
 
-    let mut rows: Vec<csv::ByteRecord> = Vec::new();
+    if !rconf.no_headers {
+        wtr.write_byte_record(rdr.byte_headers()?)?;
+    }
+
+    let mut rows: Vec<simd_csv::ByteRecord> = Vec::new();
 
     for record in rdr.into_byte_records() {
-        rows.push(record.unwrap());
+        rows.push(record?);
     }
 
     rows.shuffle(&mut rng);

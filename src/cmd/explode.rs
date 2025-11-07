@@ -1,7 +1,7 @@
 use bstr::ByteSlice;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -78,7 +78,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_columns: SelectColumns,
+    arg_columns: SelectedColumns,
     arg_input: Option<String>,
     flag_sep: String,
     flag_singularize: bool,

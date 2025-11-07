@@ -5,7 +5,7 @@ use pariter::IteratorExt;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::record::Record;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -111,7 +111,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
-    flag_replace: Option<SelectColumns>,
+    flag_replace: Option<SelectedColumns>,
     flag_evaluate_file: bool,
 }
 

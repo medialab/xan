@@ -7,7 +7,7 @@ use regex::bytes::{RegexSet, RegexSetBuilder};
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::urls::LRUTrieMultiMap;
 use crate::util;
 use crate::CliResult;
@@ -161,9 +161,9 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_columns: SelectColumns,
+    arg_columns: SelectedColumns,
     arg_input: String,
-    arg_pattern_column: SelectColumns,
+    arg_pattern_column: SelectedColumns,
     arg_patterns: String,
     flag_regex: bool,
     flag_url_prefix: bool,

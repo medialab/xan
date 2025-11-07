@@ -5,7 +5,7 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 use crate::collections::{hash_map::Entry, HashMap};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -31,7 +31,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_input: Option<String>,
     flag_key: Option<String>,
     flag_no_headers: bool,

@@ -6,7 +6,7 @@ use regex::{Captures, RegexBuilder};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -74,7 +74,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_limit: Option<NonZeroUsize>,
     flag_condense: bool,
     flag_wrap: bool,
@@ -84,7 +84,7 @@ struct Args {
     flag_rainbow: bool,
     flag_csv: bool,
     flag_color: ColorMode,
-    flag_split: Option<SelectColumns>,
+    flag_split: Option<SelectedColumns>,
     flag_sep: String,
     flag_highlight: Option<String>,
     flag_ignore_case: bool,
@@ -234,20 +234,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 true,
             )
         } else if args.flag_wrap {
-            util::highlight_problematic_string_features(&util::wrap(
+            util::wrap(
                 &util::sanitize_text_for_multi_line_printing(cell),
                 max_value_width.saturating_sub(offset),
                 max_header_width + 1 + offset,
-            ))
+            )
         } else {
-            util::highlight_problematic_string_features(cell)
+            cell.to_string()
         };
 
-        let cell = util::colorize(&cell_colorizer, &cell);
-
-        match (cell_colorizer.highlightable_color(), &highlight_pattern) {
+        let mut cell = match (cell_colorizer.highlightable_color(), &highlight_pattern) {
             (Some(fg), Some(pattern)) => pattern
-                .replace_all(&cell.to_string(), |caps: &Captures| {
+                .replace_all(&cell, |caps: &Captures| {
                     let mut r = String::from("\x1b[0;1;31m");
                     r.push_str(&caps[0]);
                     r.push_str("\x1b[0;");
@@ -256,8 +254,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     r
                 })
                 .into_owned(),
-            _ => cell.to_string(),
+            _ => cell,
+        };
+
+        if !args.flag_condense {
+            cell = util::highlight_problematic_string_features(&cell);
         }
+
+        util::colorize(&cell_colorizer, &cell).to_string()
     };
 
     let display_headers = headers

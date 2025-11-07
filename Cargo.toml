@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.54.0-rc.2"
+version = "0.54.0-rc.3"
 rust-version = "1.83.0"
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
@@ -48,12 +48,13 @@ lto = true
 strip = true
 
 [profile.release-fast]
-codegen-units = 16
 inherits = "release"
+codegen-units = 16
 lto = false
 
 [profile.release-debug]
 inherits = "release"
+codegen-units = 16
 strip = false
 debug = true
 lto = false
@@ -103,7 +104,7 @@ paltoquet = "0.11.0"
 pariter = "0.5.1"
 pest = "2.7.15"
 pest_derive = "2.7.15"
-quick-xml = "0.37.2"
+quick-xml = "0.38.3"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 rand_seeder = "0.4.0"
@@ -117,7 +118,8 @@ serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 shlex = "1.3.0"
-simd-csv = { git = "https://github.com/medialab/simd-csv", rev = "068d7923" }
+simd-csv = "0.6.0"
+simd-json = "0.14.3"
 sprintf = "0.4.1"
 tar = { version = "0.4.44", default-features = false }
 tdigest = "0.2.3"

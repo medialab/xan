@@ -7,7 +7,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{
     AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
 };
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -138,7 +138,7 @@ by `bgzip -i`) can be found beside it. Parallelization is not compatible
 with the -S/--sorted nor -C/--along-cols flags.
 
 Usage:
-    xan groupby [options] <column> <expression> [<input>]
+    xan groupby [options] <columns> <expression> [<input>]
     xan groupby --help
 
 groupby options:
@@ -174,15 +174,15 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_columns: SelectedColumns,
     arg_expression: String,
     arg_input: Option<String>,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
-    flag_keep: Option<SelectColumns>,
-    flag_along_cols: Option<SelectColumns>,
-    flag_along_matrix: Option<SelectColumns>,
+    flag_keep: Option<SelectedColumns>,
+    flag_along_cols: Option<SelectedColumns>,
+    flag_along_matrix: Option<SelectedColumns>,
     flag_total: Option<String>,
     flag_sorted: bool,
     flag_parallel: bool,
@@ -212,7 +212,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
 
         parallel_args.cmd_groupby = true;
-        parallel_args.arg_group = Some(args.arg_column);
+        parallel_args.arg_group = Some(args.arg_columns);
         parallel_args.arg_expr = Some(args.arg_expression);
 
         parallel_args.flag_no_headers = args.flag_no_headers;
@@ -225,7 +225,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column);
+        .select(args.arg_columns);
 
     let mut rdr = rconf.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;

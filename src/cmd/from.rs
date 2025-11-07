@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 use std::{
     fs,
-    io::{self, BufRead, BufReader, Cursor, Read},
+    io::{self, BufReader, Cursor, Read},
     path::Path,
 };
 
@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 use simd_csv::ByteRecord;
 
 use crate::config::Config;
-use crate::json::for_each_json_value_as_csv_record;
+use crate::json::JSONTabularizer;
 use crate::util::{self, ChunksIteratorExt};
 use crate::CliError;
 use crate::CliResult;
@@ -247,31 +247,32 @@ impl Args {
     }
 
     fn convert_ndjson(&self) -> CliResult<()> {
-        let mut wtr = self.writer()?;
-        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
+        use simd_json::Buffers;
 
-        for_each_json_value_as_csv_record(
-            rdr.lines().map(|line| -> Result<Value, CliError> {
-                serde_json::from_str(&line?).map_err(|err| CliError::Other(err.to_string()))
-            }),
-            self.flag_sample_size,
-            |record| -> CliResult<()> {
-                wtr.write_record(record)?;
-                Ok(())
-            },
-        )?;
+        let mut buffers = Buffers::default();
 
-        Ok(wtr.flush()?)
+        let wtr = self.writer()?;
+        let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
+        let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
+
+        while let Some(line) = rdr.read_line()? {
+            // Sshhh... it's alright, really.
+            let line_mut =
+                unsafe { std::slice::from_raw_parts_mut(line.as_ptr() as *mut u8, line.len()) };
+
+            let value: Value = simd_json::serde::from_slice_with_buffers(line_mut, &mut buffers)?;
+
+            tabularizer.process(value)?;
+        }
+
+        Ok(tabularizer.flush()?)
     }
 
     fn convert_json(&self) -> CliResult<()> {
-        let mut rdr = Config::new(&self.arg_input).io_reader()?;
-
-        let mut contents = String::new();
-        rdr.read_to_string(&mut contents)?;
+        let rdr = BufReader::new(Config::new(&self.arg_input).io_reader()?);
 
         let mut value =
-            serde_json::from_str(&contents).map_err(|err| CliError::Other(err.to_string()))?;
+            serde_json::from_reader(rdr).map_err(|err| CliError::Other(err.to_string()))?;
 
         // NOTE: recombobulating objects as collections
         if let Value::Object(object) = value {
@@ -288,18 +289,14 @@ impl Args {
         }
 
         if let Value::Array(array) = value {
-            let mut wtr = self.writer()?;
+            let wtr = self.writer()?;
+            let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
 
-            for_each_json_value_as_csv_record(
-                array.into_iter().map(Ok),
-                self.flag_sample_size,
-                |record| -> CliResult<()> {
-                    wtr.write_record(record)?;
-                    Ok(())
-                },
-            )?;
+            for item in array.into_iter() {
+                tabularizer.process(item)?;
+            }
 
-            Ok(wtr.flush()?)
+            Ok(tabularizer.flush()?)
         } else {
             Err(CliError::Other(
                 "target JSON does not contain an array nor an object".to_string(),
@@ -347,13 +344,7 @@ impl Args {
 
         let mut wtr = self.writer()?;
 
-        let mut record = ByteRecord::new();
-
-        for i in 0..columns {
-            record.push_field(format!("dim_{}", i).as_bytes());
-        }
-
-        wtr.write_byte_record(&record)?;
+        wtr.write_record_no_quoting((0..columns).map(|i| format!("dim_{}", i)))?;
 
         macro_rules! process {
             ($type: ty) => {
@@ -362,13 +353,10 @@ impl Args {
                     .unwrap()
                     .chunks(NonZeroUsize::new(columns as usize).unwrap())
                 {
-                    record.clear();
-
-                    for cell in row {
-                        record.push_field(cell.unwrap().to_string().as_bytes());
-                    }
-
-                    wtr.write_byte_record(&record)?;
+                    // NOTE: this is safe because the output delimiter is guaranteed to be a comma
+                    wtr.write_record_no_quoting(
+                        row.into_iter().map(|cell| cell.unwrap().to_string()),
+                    )?;
                 }
             };
         }
@@ -400,14 +388,9 @@ impl Args {
 
         let mut wtr = self.writer()?;
 
-        let mut record = ByteRecord::new();
         let mut bytes: Vec<u8> = Vec::new();
 
-        record.push_field(b"path");
-        record.push_field(b"size");
-        record.push_field(b"content");
-
-        wtr.write_byte_record(&record)?;
+        wtr.write_record(["path".as_bytes(), b"size", b"content"])?;
 
         for result in archive.entries()? {
             let mut entry = result?;
@@ -425,12 +408,11 @@ impl Args {
                 entry.read_to_end(&mut bytes)?;
             }
 
-            record.clear();
-            record.push_field(&entry.path_bytes());
-            record.push_field(entry.size().to_string().as_bytes());
-            record.push_field(&bytes);
-
-            wtr.write_byte_record(&record)?;
+            wtr.write_record([
+                &entry.path_bytes(),
+                entry.size().to_string().as_bytes(),
+                &bytes,
+            ])?;
         }
 
         Ok(wtr.flush()?)

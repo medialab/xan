@@ -25,7 +25,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::CliResult;
 
 pub fn version() -> String {
@@ -131,7 +131,7 @@ pub fn many_configs(
     inps: &[String],
     delim: Option<Delimiter>,
     no_headers: bool,
-    select: Option<&SelectColumns>,
+    select: Option<&SelectedColumns>,
 ) -> Result<Vec<Config>, String> {
     let mut inps = inps.to_vec();
     if inps.is_empty() {
@@ -457,24 +457,32 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
     }
 }
 
+lazy_static! {
+    static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
+}
+
 pub fn highlight_problematic_string_features(string: &str) -> String {
     let start = string.len() - string.trim_start().len();
     let end = string.trim_end().len();
 
     let replaced = format!(
         "{}{}{}",
-        "·".repeat((0..start).len()).white().dimmed(),
+        if (0..start).is_empty() {
+            "".normal()
+        } else {
+            "·".repeat((0..start).len()).white().dimmed()
+        },
         &string[start..end],
-        "·".repeat((end..string.len()).len()).white().dimmed()
+        if (end..string.len()).is_empty() {
+            "".normal()
+        } else {
+            "·".repeat((end..string.len()).len()).white().dimmed()
+        }
     );
 
     ESCAPED_WHITESPACE_REPLACER
         .replace_all(&replaced, |caps: &Captures| caps[0].dimmed().to_string())
         .into_owned()
-}
-
-lazy_static! {
-    static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
 }
 
 pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {

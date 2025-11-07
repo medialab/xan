@@ -25,7 +25,7 @@ use crate::dates::{infer_temporal_granularity, parse_partial_date, parse_zoned};
 use crate::moonblade::GroupAggregationProgram;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::{CliError, CliResult};
 
@@ -199,8 +199,8 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_x: SelectColumns,
-    arg_y: Option<SelectColumns>,
+    arg_x: SelectedColumns,
+    arg_y: Option<SelectedColumns>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_line: bool,
@@ -213,7 +213,7 @@ struct Args {
     flag_small_multiples: Option<NonZeroUsize>,
     flag_share_x_scale: String,
     flag_share_y_scale: Option<String>,
-    flag_category: Option<SelectColumns>,
+    flag_category: Option<SelectedColumns>,
     flag_regression_line: bool,
     flag_marker: Marker,
     flag_granularity: Option<Granularity>,

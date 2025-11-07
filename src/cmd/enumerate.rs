@@ -83,9 +83,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .to_string(),
         );
 
-        if let Some(headers) = splitter.split_record()? {
-            written += write(column_name.as_bytes(), headers)?;
-        }
+        written += write(column_name.as_bytes(), splitter.byte_headers()?)?;
     }
 
     let mut counter = args.flag_start;

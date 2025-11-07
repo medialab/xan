@@ -12,7 +12,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::ChooseProgram;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -82,7 +82,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_check: bool,
     flag_no_headers: bool,
     flag_output: Option<String>,

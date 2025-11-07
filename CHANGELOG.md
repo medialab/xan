@@ -11,6 +11,8 @@
 * `xan behead` & `xan rename` do not normalize the output anymore to be as fast as possible.
 * The new SIMD CSV parser might not deal with CSV irregular cases the same way `rust-csv` did. In any case, `xan input` will still continue to use `rust-csv`.
 * `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
+* `xan input` has been overhauled.
+* Dropping `xan count --sample-size`.
 
 *Features*
 
@@ -32,7 +34,7 @@
 * Adding `xan groupby -M/--along-matrix`.
 * Adding `xan groupby -T/--total`.
 * Adding support for `.ndjson` & `.jsonl` files. Those are considered as headless TSV files with null byte quoting so you can easily use them with `xan` commands.
-* Adding out-of-the-box support for `.vcf`, `.sam`, `.gtf` & `.gff2` files.
+* Adding out-of-the-box support for `.vcf`, `.sam`, `.bed`, `.gtf` & `.gff2` files.
 * Adding a `xan cat cols` alias to `xan cat columns`.
 * Adding `zstd` support.
 * Adding `earliest` & `latest` moonblade functions.
@@ -48,11 +50,12 @@
 * Fixing `xan enum -A/--accumulate`.
 * Fixing `xan from -f tar` when tarball archive is not gzipped.
 * Fixing `min` & `max` moonblade function when passing a list of numbers.
+* Fixing `xan flatten -H` edge cases.
 
 *Performance*
 
 * Wildly improving performance of most of `xan` commands by leveraging a novel SIMD CSV parser/writer.
-* Improving performance of `xan from -f txt`.
+* Improving performance of `xan from -f txt` & `xan from -f npy`.
 * Improving memory footprint of hash-based commands (e.g. `frequency`, `groupby`, `dedup` etc.).
 * Improving performance of `xan progress`, `xan range`, `xan enum`, `xan behead`, `xan rename`.
 

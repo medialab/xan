@@ -4,7 +4,7 @@ use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicValue, Program};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -72,7 +72,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_expression: String,
     arg_input: Option<String>,
     flag_rename: Option<String>,

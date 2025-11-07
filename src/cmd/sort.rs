@@ -12,7 +12,7 @@ use simd_csv::{ByteRecord, Error};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, DeepSizedByteRecord};
 use crate::CliResult;
 
@@ -101,7 +101,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_check: bool,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_numeric: bool,
     flag_reverse: bool,
     flag_count: Option<String>,

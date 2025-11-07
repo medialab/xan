@@ -7,7 +7,7 @@ use regex::Regex;
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::record::Record;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
@@ -62,7 +62,7 @@ Common options:
 
 #[derive(Clone, Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_input: Option<String>,
     flag_out_dir: Option<String>,
     flag_filename: FilenameTemplate,

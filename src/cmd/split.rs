@@ -4,7 +4,6 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use crate::config::{Config, Delimiter};
-use crate::read::{segment_csv_file, SegmentationOptions};
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
@@ -81,18 +80,17 @@ impl Args {
         }
 
         let rconfig = self.rconfig();
-        let mut rdr = rconfig.reader()?;
-        let headers = rdr.byte_headers()?.clone();
+        let mut splitter = rconfig.simd_splitter()?;
+        let headers = splitter.byte_headers()?.to_vec();
 
         let mut wtr = self.new_writer(&headers, 0)?;
         let mut i = 0;
-        let mut row = csv::ByteRecord::new();
-        while rdr.read_byte_record(&mut row)? {
+        while let Some(record) = splitter.split_record()? {
             if i > 0 && i % self.flag_size == 0 {
                 wtr.flush()?;
                 wtr = self.new_writer(&headers, i)?;
             }
-            wtr.write_byte_record(&row)?;
+            wtr.write_splitted_record(record)?;
             i += 1;
         }
 
@@ -105,30 +103,27 @@ impl Args {
         }
 
         let rconfig = self.rconfig();
-        let mut reader = rconfig.io_reader_for_random_access()?;
+        let mut seeker = rconfig
+            .simd_seeker()?
+            .ok_or("Could not sample the file to build segments!")?;
 
-        let (segments, _) = segment_csv_file(
-            &mut reader,
-            || rconfig.csv_reader_builder(),
-            SegmentationOptions::chunks(self.flag_chunks.unwrap().get()),
-        )?
-        .ok_or("could not segment the file properly!")?;
+        let initial_pos = seeker.initial_position();
 
-        let mut reader = rconfig.reader()?;
-        let headers = reader.byte_headers()?.clone();
+        let segments = seeker.segments(self.flag_chunks.unwrap().get())?;
+        let mut splitter = seeker.into_splitter()?;
+        let headers = splitter.byte_headers()?.to_vec();
 
-        let mut record = csv::ByteRecord::new();
         let mut writer = self.new_writer(&headers, 0)?;
         let mut chunk: usize = 0;
 
-        while reader.read_byte_record(&mut record)? {
-            if record.position().unwrap().byte() >= segments[chunk].1 {
+        while let Some((pos, record)) = splitter.split_record_with_position()? {
+            if initial_pos + pos >= segments[chunk].1 {
                 writer.flush()?;
                 chunk += 1;
                 writer = self.new_writer(&headers, chunk)?;
             }
 
-            writer.write_byte_record(&record)?;
+            writer.write_splitted_record(record)?;
         }
 
         Ok(())
@@ -136,17 +131,14 @@ impl Args {
 
     fn segments(&self) -> CliResult<()> {
         let rconfig = self.rconfig();
-        let mut reader = rconfig.io_reader_for_random_access()?;
+        let mut seeker = rconfig
+            .simd_seeker()?
+            .ok_or("Could not sample the file to build segments!")?;
 
-        let (segments, _) = segment_csv_file(
-            &mut reader,
-            || rconfig.csv_reader_builder(),
-            SegmentationOptions::chunks(self.flag_chunks.unwrap().get()),
-        )?
-        .ok_or("could not segment the file properly!")?;
+        let segments = seeker.segments(self.flag_chunks.unwrap().get())?;
 
-        let mut wtr = Config::new(&None).writer()?;
-        let mut record = csv::ByteRecord::new();
+        let mut wtr = Config::new(&None).simd_writer()?;
+        let mut record = simd_csv::ByteRecord::new();
 
         record.push_field(b"from");
         record.push_field(b"to");
@@ -168,18 +160,18 @@ impl Args {
 
     fn new_writer(
         &self,
-        headers: &csv::ByteRecord,
+        headers: &[u8],
         id: usize,
-    ) -> CliResult<csv::Writer<Box<dyn io::Write + Send + 'static>>> {
+    ) -> CliResult<simd_csv::Writer<Box<dyn io::Write + Send + 'static>>> {
         let dir = match &self.flag_out_dir {
             Some(out_dir) => Path::new(out_dir),
             None => Path::new(""),
         };
         let path = dir.join(self.flag_filename.filename(&format!("{}", id)));
         let spath = Some(path.display().to_string());
-        let mut wtr = Config::new(&spath).writer()?;
+        let mut wtr = Config::new(&spath).simd_writer()?;
         if !self.rconfig().no_headers {
-            wtr.write_record(headers)?;
+            wtr.write_splitted_record(headers)?;
         }
         Ok(wtr)
     }

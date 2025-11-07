@@ -13,7 +13,7 @@ use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
 use crate::util;
 use crate::CliError;
@@ -668,7 +668,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_pattern: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -690,10 +690,10 @@ struct Args {
     flag_sep: String,
     flag_left: bool,
     flag_patterns: Option<String>,
-    flag_pattern_column: Option<SelectColumns>,
-    flag_replacement_column: Option<SelectColumns>,
+    flag_pattern_column: Option<SelectedColumns>,
+    flag_replacement_column: Option<SelectedColumns>,
     flag_add_pattern: Vec<String>,
-    flag_name_column: Option<SelectColumns>,
+    flag_name_column: Option<SelectedColumns>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
 }

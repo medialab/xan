@@ -2,7 +2,7 @@ use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::WindowAggregationProgram;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -73,7 +73,7 @@ Common options:
 struct Args {
     arg_expression: String,
     arg_input: Option<String>,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,

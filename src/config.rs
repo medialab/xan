@@ -12,9 +12,8 @@ use flate2::read::MultiGzDecoder;
 use memmap2::Mmap;
 use regex::bytes::Regex;
 
-use crate::read::{self, ReverseRead};
-use crate::record::Record;
-use crate::select::{SelectColumns, Selection};
+use crate::read;
+use crate::select::{SelectedColumns, Selection};
 use crate::{CliError, CliResult};
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -71,19 +70,16 @@ enum TabularDataKind {
     Vcf,
     Gtf,
     Sam,
+    Bed,
 }
 
 impl TabularDataKind {
-    fn is_cdx(&self) -> bool {
-        matches!(self, Self::Cdx)
-    }
-
-    fn is_ndjson(&self) -> bool {
-        matches!(self, Self::Ndjson)
-    }
-
     fn has_headers(&self) -> bool {
-        !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam)
+        !matches!(self, Self::Ndjson | Self::Gtf | Self::Sam | Self::Bed)
+    }
+
+    fn has_no_quoting(&self) -> bool {
+        matches!(self, Self::Cdx | Self::Ndjson)
     }
 
     fn header_pattern(&self) -> Option<Regex> {
@@ -91,13 +87,14 @@ impl TabularDataKind {
             Self::Vcf => Some(Regex::new("^#CHROM\t").unwrap()),
             Self::Gtf => Some(Regex::new("^#").unwrap()),
             Self::Sam => Some(Regex::new("^@").unwrap()),
+            Self::Bed => Some(Regex::new("^(?:track|browser|#)").unwrap()),
             _ => None,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Compression {
+pub enum Compression {
     Gzip,
     Zstd,
 }
@@ -131,15 +128,17 @@ type PairResult = CliResult<(String, Option<String>)>;
 #[derive(Debug)]
 pub struct Config {
     pub path: Option<PathBuf>, // None implies <stdin>
-    select_columns: Option<SelectColumns>,
+    select_columns: Option<SelectedColumns>,
     pub delimiter: u8,
     pub no_headers: bool,
     flexible: bool,
     terminator: csv::Terminator,
-    quote: u8,
+    pub quote: u8,
     quote_style: csv::QuoteStyle,
     double_quote: bool,
     escape: Option<u8>,
+    comment: Option<u8>,
+    trim: bool,
     quoting: bool,
     compression: Option<Compression>,
     tabular_data_kind: TabularDataKind,
@@ -151,7 +150,7 @@ impl Config {
 
         [
             ".csv", ".tsv", ".tab", ".ssv", ".scsv", ".psv", ".cdx", ".ndjson", ".jsonl", ".vcf",
-            ".gtf", ".gff2", ".bed", ".sam",
+            ".gtf", ".gff2", ".bed", ".sam", ".bed",
         ]
         .iter()
         .any(|ext| uncompressed_path.ends_with(ext))
@@ -169,7 +168,7 @@ impl Config {
         }
     }
 
-    pub fn new(path: &Option<String>) -> Config {
+    pub fn new(path: &Option<String>) -> Self {
         let (path, delimiter, compression, tabular_data_kind) = match *path {
             None => (None, b',', None, TabularDataKind::RegularCsv),
             Some(ref s) if s.deref() == "-" => (None, b',', None, TabularDataKind::RegularCsv),
@@ -199,6 +198,9 @@ impl Config {
                 } else if raw_s.ends_with(".sam") {
                     kind = TabularDataKind::Sam;
                     b'\t'
+                } else if raw_s.ends_with(".bed") {
+                    kind = TabularDataKind::Bed;
+                    b'\t'
                 } else {
                     b','
                 };
@@ -207,14 +209,14 @@ impl Config {
             }
         };
 
-        let mut config = Config {
+        Self {
             path,
             select_columns: None,
             delimiter,
             no_headers: !tabular_data_kind.has_headers(),
             flexible: false,
             terminator: csv::Terminator::Any(b'\n'),
-            quote: if tabular_data_kind.is_ndjson() {
+            quote: if tabular_data_kind.has_no_quoting() {
                 b'\x00'
             } else {
                 b'"'
@@ -222,16 +224,27 @@ impl Config {
             quote_style: csv::QuoteStyle::Necessary,
             double_quote: true,
             escape: None,
+            comment: None,
             quoting: true,
+            trim: false,
             compression,
             tabular_data_kind,
-        };
-
-        if config.tabular_data_kind.is_cdx() {
-            config.quoting = false;
         }
+    }
 
-        config
+    pub fn with_pretend_path(path: &Option<String>, pretend: Option<&str>) -> Self {
+        match pretend {
+            None => Self::new(path),
+            Some(dummy) => {
+                let mut conf = Self::new(&Some(dummy.to_string()));
+                conf.path = path.as_ref().map(PathBuf::from);
+                conf
+            }
+        }
+    }
+
+    pub fn set_compression(&mut self, compression: Compression) {
+        self.compression = Some(compression);
     }
 
     pub fn is_compressed(&self) -> bool {
@@ -301,12 +314,22 @@ impl Config {
         self
     }
 
+    pub fn comment(mut self, comment: Option<u8>) -> Config {
+        self.comment = comment;
+        self
+    }
+
+    pub fn trim(mut self, yes: bool) -> Config {
+        self.trim = yes;
+        self
+    }
+
     pub fn quoting(mut self, yes: bool) -> Config {
         self.quoting = yes;
         self
     }
 
-    pub fn select(mut self, sel_cols: SelectColumns) -> Config {
+    pub fn select(mut self, sel_cols: SelectedColumns) -> Config {
         self.select_columns = Some(sel_cols);
         self
     }
@@ -333,7 +356,10 @@ impl Config {
         Ok(Some(map))
     }
 
-    pub fn selection<R: Record>(&self, first_record: &R) -> Result<Selection, String> {
+    pub fn selection<'a, H>(&self, first_record: H) -> Result<Selection, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"
@@ -342,27 +368,16 @@ impl Config {
         }
     }
 
-    pub fn single_selection<R: Record>(&self, first_record: &R) -> Result<usize, String> {
+    pub fn single_selection<'a, H>(&self, first_record: H) -> Result<usize, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
         match self.select_columns {
             None => Err("Config has no 'SelectColums'. Did you call \
                          Config::select?"
                 .to_owned()),
             Some(ref sel) => sel.single_selection(first_record, !self.no_headers),
         }
-    }
-
-    pub fn write_headers<R: io::Read, W: io::Write>(
-        &self,
-        r: &mut csv::Reader<R>,
-        w: &mut csv::Writer<W>,
-    ) -> csv::Result<()> {
-        if !self.no_headers {
-            let r = r.byte_headers()?;
-            if !r.is_empty() {
-                w.write_record(r)?;
-            }
-        }
-        Ok(())
     }
 
     pub fn writer(&self) -> io::Result<csv::Writer<Box<dyn io::Write + Send + 'static>>> {
@@ -402,7 +417,7 @@ impl Config {
                     Err(CliError::from("invalid VCF header!"))
                 }
             }
-            TabularDataKind::Gtf | TabularDataKind::Sam => {
+            TabularDataKind::Gtf | TabularDataKind::Sam | TabularDataKind::Bed => {
                 if let Some((_, fixed_reader)) = read::consume_header_while(
                     reader,
                     &self.tabular_data_kind.header_pattern().unwrap(),
@@ -432,7 +447,7 @@ impl Config {
 
                 fixed_reader.into_inner().1.seek(SeekFrom::Start(pos))?;
             }
-            TabularDataKind::Gtf | TabularDataKind::Sam => {
+            TabularDataKind::Gtf | TabularDataKind::Sam | TabularDataKind::Bed => {
                 let (pos, fixed_reader) = read::consume_header_while(
                     reader,
                     &self.tabular_data_kind.header_pattern().unwrap(),
@@ -467,8 +482,10 @@ impl Config {
         Ok(self.simd_csv_splitter_from_reader(self.io_reader()?))
     }
 
-    pub fn seekable_reader(&self) -> CliResult<csv::Reader<Box<dyn SeekRead + Send + 'static>>> {
-        Ok(self.csv_reader_from_reader(self.io_reader_for_random_access()?))
+    pub fn simd_seeker(
+        &self,
+    ) -> CliResult<Option<simd_csv::Seeker<Box<dyn SeekRead + Send + 'static>>>> {
+        Ok(self.simd_csv_seeker_from_reader(self.io_reader_for_random_access()?)?)
     }
 
     pub fn io_reader(&self) -> CliResult<Box<dyn io::Read + Send + 'static>> {
@@ -477,7 +494,19 @@ impl Config {
                 if io::stdin().is_terminal() {
                     return Err(io::Error::new(io::ErrorKind::NotFound, "failed to read CSV data from stdin. Did you forget to give a path to your file?"))?;
                 } else {
-                    Box::new(io::stdin())
+                    let x = io::stdin();
+
+                    let reader: Box<dyn Read + Send + 'static> =
+                        if let Some(compression) = self.compression {
+                            match compression {
+                                Compression::Gzip => Box::new(MultiGzDecoder::new(x)),
+                                Compression::Zstd => Box::new(zstd::Decoder::new(x)?),
+                            }
+                        } else {
+                            Box::new(x)
+                        };
+
+                    self.process_typical_headers(reader)?
                 }
             }
             Some(ref p) => match fs::File::open(p) {
@@ -553,7 +582,7 @@ impl Config {
 
     pub fn lines(
         &self,
-        select: &Option<SelectColumns>,
+        select: &Option<SelectedColumns>,
     ) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
         if let Some(sel) = select {
             let mut csv_reader = self.simd_reader()?;
@@ -593,7 +622,7 @@ impl Config {
 
     pub fn pairs(
         &self,
-        select: (&Option<SelectColumns>, &Option<SelectColumns>),
+        select: (&Option<SelectedColumns>, &Option<SelectedColumns>),
     ) -> CliResult<Box<dyn Iterator<Item = PairResult>>> {
         if let Some(first_sel) = &select.0 {
             let mut csv_reader = self.simd_reader()?;
@@ -659,32 +688,11 @@ impl Config {
 
     pub fn reverse_reader(
         &self,
-    ) -> CliResult<(
-        csv::ByteRecord,
-        csv::Reader<Box<dyn io::Read + Send + 'static>>,
-    )> {
-        let mut io_reader = self.io_reader_for_random_access()?;
-        let offset_before_csv_parsing = io_reader.stream_position()?;
+    ) -> CliResult<simd_csv::ReverseReader<Box<dyn SeekRead + Send + 'static>>> {
+        let io_reader = self.io_reader_for_random_access()?;
+        let builder = self.simd_csv_reader_builder();
 
-        let mut forward_reader = self.csv_reader_from_reader(io_reader);
-        let headers = forward_reader.byte_headers()?.clone();
-
-        let offset = if self.no_headers {
-            offset_before_csv_parsing
-        } else {
-            offset_before_csv_parsing + forward_reader.position().byte()
-        };
-
-        let filesize = forward_reader.get_mut().seek(SeekFrom::End(0))?;
-
-        let reverse_reader = ReverseRead::new(forward_reader.into_inner(), filesize, offset);
-        let mut reader_builder = self.csv_reader_builder();
-        reader_builder.has_headers(false);
-
-        Ok((
-            headers,
-            reader_builder.from_reader(Box::new(reverse_reader)),
-        ))
+        Ok(builder.reverse_from_reader(io_reader)?)
     }
 
     pub fn csv_reader_builder(&self) -> csv::ReaderBuilder {
@@ -696,17 +704,30 @@ impl Config {
             .has_headers(!self.no_headers)
             .quote(self.quote)
             .quoting(self.quoting)
+            .comment(self.comment)
+            .trim(if self.trim {
+                csv::Trim::All
+            } else {
+                csv::Trim::None
+            })
             .escape(self.escape);
 
         builder
     }
 
-    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Reader<R> {
-        simd_csv::ReaderBuilder::new()
+    pub fn simd_csv_reader_builder(&self) -> simd_csv::ReaderBuilder {
+        let mut builder = simd_csv::ReaderBuilder::new();
+
+        builder
             .delimiter(self.delimiter)
             .quote(self.quote)
-            .has_headers(!self.no_headers)
-            .from_reader(rdr)
+            .has_headers(!self.no_headers);
+
+        builder
+    }
+
+    pub fn simd_csv_reader_from_reader<R: Read>(&self, rdr: R) -> simd_csv::Reader<R> {
+        self.simd_csv_reader_builder().from_reader(rdr)
     }
 
     pub fn simd_zero_copy_csv_reader_from_reader<R: Read>(
@@ -724,6 +745,18 @@ impl Config {
         simd_csv::SplitterBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
+            .has_headers(!self.no_headers)
+            .from_reader(rdr)
+    }
+
+    pub fn simd_csv_seeker_from_reader<R: Read + Seek>(
+        &self,
+        rdr: R,
+    ) -> simd_csv::Result<Option<simd_csv::Seeker<R>>> {
+        simd_csv::SeekerBuilder::new()
+            .delimiter(self.delimiter)
+            .quote(self.quote)
+            .has_headers(!self.no_headers)
             .from_reader(rdr)
     }
 

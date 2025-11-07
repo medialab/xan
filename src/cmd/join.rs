@@ -7,7 +7,7 @@ use simd_csv::ByteRecord;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -324,10 +324,10 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_columns: Option<SelectColumns>,
-    arg_columns1: SelectColumns,
+    arg_columns: Option<SelectedColumns>,
+    arg_columns1: SelectedColumns,
     arg_input1: String,
-    arg_columns2: SelectColumns,
+    arg_columns2: SelectedColumns,
     arg_input2: String,
     flag_inner: bool,
     flag_left: bool,
