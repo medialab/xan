@@ -758,6 +758,44 @@ fn complete_groupby() {
         svec!["B", "3", "qux"],
     ];
     assert_eq!(got, expected);
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["group", "city", "id", "value"],
+            svec!["A", "Paris", "0", "foo"],
+            svec!["A", "Marseille", "2", "bar"],
+            svec!["B", "Londres", "1", "baz"],
+            svec!["B", "Paris", "3", "qux"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id")
+        .arg("data.csv")
+        .arg("--reverse")
+        .arg("--groupby")
+        .arg("group,city");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![
+        svec!["group", "city", "id", "value"],
+        svec!["A", "Paris", "3", ""],
+        svec!["A", "Paris", "2", ""],
+        svec!["A", "Paris", "1", ""],
+        svec!["A", "Paris", "0", "foo"],
+        svec!["A", "Marseille", "3", ""],
+        svec!["A", "Marseille", "2", "bar"],
+        svec!["A", "Marseille", "1", ""],
+        svec!["A", "Marseille", "0", ""],
+        svec!["B", "Londres", "3", ""],
+        svec!["B", "Londres", "2", ""],
+        svec!["B", "Londres", "1", "baz"],
+        svec!["B", "Londres", "0", ""],
+        svec!["B", "Paris", "3", "qux"],
+        svec!["B", "Paris", "2", ""],
+        svec!["B", "Paris", "1", ""],
+        svec!["B", "Paris", "0", ""],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]

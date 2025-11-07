@@ -9,7 +9,7 @@ use encoding::codec::utf_8::from_utf8;
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::dates;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::select::Selection;
 use crate::util;
 use crate::CliResult;
@@ -89,7 +89,7 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_input: Option<String>,
     flag_min: Option<String>,
     flag_max: Option<String>,
@@ -101,7 +101,7 @@ struct Args {
     flag_dates: bool,
     flag_sorted: bool,
     flag_reverse: bool,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
 }
 
 enum ValuesType {
