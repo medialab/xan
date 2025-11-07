@@ -3,7 +3,7 @@ use regex::bytes::Regex;
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -94,7 +94,7 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_separator: String,
     arg_input: Option<String>,
     flag_regex: bool,
