@@ -1,15 +1,16 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::io::{stdout, Write};
-use std::ops::ControlFlow;
 use std::str;
 
 use csv::ByteRecord;
 use encoding::codec::utf_8::from_utf8;
 
+use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::dates;
 use crate::select::SelectColumns;
+use crate::select::Selection;
 use crate::util;
 use crate::CliResult;
 
@@ -190,13 +191,25 @@ impl ValuesType {
 fn new_record_with_zeroed_column(
     headers_len: usize,
     column_to_complete_index: usize,
+    sel_group_by: &Option<&Selection>,
+    groups: &[Vec<u8>],
     zero: &[u8],
     index_value: &[u8],
 ) -> ByteRecord {
     let mut new_record = ByteRecord::new();
+    let mut group_index = 0;
+
     for i in 0..headers_len {
         if i == column_to_complete_index {
             new_record.push_field(index_value);
+        } else if sel_group_by.is_some()
+            && sel_group_by
+                .as_ref()
+                .map(|s| s.contains(i))
+                .unwrap_or(false)
+        {
+            new_record.push_field(&groups[group_index]);
+            group_index += 1;
         } else {
             new_record.push_field(zero);
         }
@@ -246,62 +259,67 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let zero = args.flag_zero.unwrap_or_default().into_bytes();
 
-    let mut index: Option<ValuesType> = if args.flag_reverse {
+    let mut record = ByteRecord::new();
+
+    let mut records_per_group: ClusteredInsertHashmap<Vec<Vec<u8>>, Vec<ByteRecord>> =
+        ClusteredInsertHashmap::new();
+    if !args.flag_sorted {
+        if args.flag_groupby.is_some() {
+            while rdr.read_byte_record(&mut record)? {
+                let key = args
+                    .flag_groupby
+                    .as_ref()
+                    .unwrap()
+                    .selection(&headers, !args.flag_no_headers)?
+                    .select(&record)
+                    .map(|b| b.to_vec())
+                    .collect::<Vec<_>>();
+                records_per_group.insert_with_or_else(
+                    key,
+                    || vec![record.clone()],
+                    |v| v.push(record.clone()),
+                );
+                if args.flag_min.is_none() || args.flag_max.is_none() {
+                    let value = ValuesType::new_from(
+                        str::from_utf8(&record[column_to_complete_index]).unwrap(),
+                        args.flag_dates,
+                    );
+                    if args.flag_min.is_none() && (min.is_none() || value < min.clone().unwrap()) {
+                        min = Some(value.clone());
+                    }
+                    if args.flag_max.is_none() && (max.is_none() || value > max.clone().unwrap()) {
+                        max = Some(value.clone());
+                    }
+                }
+            }
+        } else {
+            records_per_group.insert_with(vec![vec![0]], || {
+                rdr.byte_records().collect::<Result<Vec<_>, _>>().unwrap()
+            });
+        };
+    } else {
+        records_per_group.insert_with(vec![vec![0]], Vec::new);
+    }
+
+    let index: Option<ValuesType> = if args.flag_reverse {
         max.clone()
     } else {
         min.clone()
     };
 
-    let mut record = ByteRecord::new();
+    let sel_group_by_owned: Option<Selection> = if let Some(ref fgb) = args.flag_groupby {
+        Some(fgb.selection(&headers, !args.flag_no_headers)?)
+    } else {
+        None
+    };
+    let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
 
-    // let mut records_per_group: std::collections::HashMap<Vec<Vec<u8>>, Vec<ByteRecord>> =
-    //     std::collections::HashMap::new();
-    // if !args.flag_sorted {
-    //     if args.flag_groupby.is_some() {
-    //         while rdr.read_byte_record(&mut record)? {
-    //             let key = args
-    //                 .flag_groupby
-    //                 .as_ref()
-    //                 .unwrap()
-    //                 .selection(&headers, !args.flag_no_headers)?
-    //                 .select(&record)
-    //                 .map(|b| b.to_vec())
-    //                 .collect::<Vec<_>>();
-    //             let entry = records_per_group
-    //                 .as_mut()
-    //                 .unwrap()
-    //                 .entry(key)
-    //                 .or_insert_with(Vec::new);
-    //             entry.push(record.clone());
-    //             if args.flag_min.is_none() || args.flag_max.is_none() {
-    //                 let value = ValuesType::new_from(
-    //                     str::from_utf8(sel.select(&record).next().unwrap()).unwrap(),
-    //                     args.flag_dates,
-    //                 );
-    //                 if args.flag_min.is_none() {
-    //                     if min.is_none() || value < min.clone().unwrap() {
-    //                         min = Some(value.clone());
-    //                     }
-    //                 }
-    //                 if args.flag_max.is_none() {
-    //                     if max.is_none() || value > max.clone().unwrap() {
-    //                         max = Some(value.clone());
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     } else {
-    //         records_per_group.as_mut().unwrap().insert(
-    //             vec![vec![0]],
-    //             rdr.byte_records().collect::<Result<Vec<_>, _>>()?,
-    //         );
-    //     };
-    // } else {
-    //     records_per_group.insert(vec![vec![0]], Vec::new());
-    // }
+    let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
+                                        group_key: &Vec<Vec<u8>>|
+     -> CliResult<()> {
+        let mut locale_index: Option<ValuesType> = index.clone();
 
-    let mut process_record =
-        |record: &ByteRecord, index: &mut Option<ValuesType>| -> CliResult<ControlFlow<()>> {
+        for record in records {
             let value = ValuesType::new_from(
                 str::from_utf8(&record[column_to_complete_index]).unwrap(),
                 args.flag_dates,
@@ -310,126 +328,126 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             if min.is_some() && value < min.clone().unwrap() {
                 if args.flag_reverse {
                     // stop completing or checking if we go below min of the range
-                    return Ok(ControlFlow::Break(()));
+                    break;
                 } else {
                     // skip values below min of the range
-                    return Ok(ControlFlow::Continue(()));
+                    continue;
                 }
             }
             if max.is_some() && value > max.clone().unwrap() {
                 if args.flag_reverse {
                     // skip values over max of the range
-                    return Ok(ControlFlow::Continue(()));
+                    continue;
                 } else {
                     // stop completing or checking if we go over max of the range
-                    return Ok(ControlFlow::Break(()));
+                    break;
                 }
             }
 
-            if index.is_some() {
+            if locale_index.is_some() {
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    while (args.flag_reverse && value < index.clone().unwrap())
-                        || (!args.flag_reverse && value > index.clone().unwrap())
+                    while (args.flag_reverse && value < locale_index.clone().unwrap())
+                        || (!args.flag_reverse && value > locale_index.clone().unwrap())
                     {
                         wtr.write_record(&new_record_with_zeroed_column(
                             headers.len(),
                             column_to_complete_index,
+                            &sel_group_by,
+                            group_key,
                             &zero,
-                            &index.clone().unwrap().as_bytes(),
+                            &locale_index.clone().unwrap().as_bytes(),
                         ))?;
 
-                        *index = Some(index.clone().unwrap().advance(args.flag_reverse));
+                        locale_index =
+                            Some(locale_index.clone().unwrap().advance(args.flag_reverse));
                     }
                 } else {
                     // in case of using min flag (or max flag when flag_reverse is true)
                     // or if there are repeated values
-                    if (args.flag_reverse && value > index.clone().unwrap())
-                        || (!args.flag_reverse && value < index.clone().unwrap())
+                    if (args.flag_reverse && value > locale_index.clone().unwrap())
+                        || (!args.flag_reverse && value < locale_index.clone().unwrap())
                     {
-                        return Ok(ControlFlow::Continue(()));
+                        continue;
                     }
-                    if value != index.clone().unwrap() {
+                    if value != locale_index.clone().unwrap() {
                         Err(format!(
                             "file is not complete: missing value {:?}",
-                            index.clone().unwrap()
+                            locale_index.clone().unwrap()
                         ))?;
                     }
                 }
             } else {
-                *index = Some(value);
+                locale_index = Some(value);
             }
 
-            *index = Some(index.clone().unwrap().advance(args.flag_reverse));
+            locale_index = Some(locale_index.clone().unwrap().advance(args.flag_reverse));
 
             if let Some(wtr) = wtr_opt.as_mut() {
-                wtr.write_record(record)?;
+                wtr.write_record(&record)?;
             }
+        }
 
-            Ok(ControlFlow::Continue(()))
-        };
+        if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
+            if let Some(wtr) = wtr_opt.as_mut() {
+                while locale_index.is_some()
+                    && ((args.flag_reverse
+                        && locale_index.clone().unwrap() >= min.clone().unwrap())
+                        || (!args.flag_reverse
+                            && locale_index.clone().unwrap() <= max.clone().unwrap()))
+                {
+                    wtr.write_record(&new_record_with_zeroed_column(
+                        headers.len(),
+                        column_to_complete_index,
+                        &sel_group_by,
+                        group_key,
+                        &zero,
+                        &locale_index.clone().unwrap().as_bytes(),
+                    ))?;
+
+                    locale_index = Some(locale_index.clone().unwrap().advance(args.flag_reverse));
+                }
+            } else if (args.flag_reverse && locale_index.clone().unwrap() >= min.clone().unwrap())
+                || (!args.flag_reverse && locale_index.clone().unwrap() <= max.clone().unwrap())
+            {
+                Err(format!(
+                    "file is not complete: missing value {:?}",
+                    locale_index.unwrap()
+                ))?;
+            }
+        }
+
+        Ok(())
+    };
 
     // process records
-    if args.flag_sorted && args.flag_groupby.is_none() {
-        while rdr.read_byte_record(&mut record)? {
-            match process_record(&record, &mut index)? {
-                ControlFlow::Continue(()) => continue,
-                ControlFlow::Break(()) => break,
-            }
-        }
-    } else {
-        let mut values_and_records = rdr
-            .byte_records()
-            .map(|r| -> CliResult<(ValuesType, ByteRecord)> {
-                let record = r?;
-                let value_and_record = (
-                    ValuesType::new_from(
-                        from_utf8(&record[column_to_complete_index]).unwrap(),
-                        args.flag_dates,
-                    ),
-                    record.clone(),
-                );
-                Ok(value_and_record)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        values_and_records.sort_by(|a, b| {
-            if args.flag_reverse {
-                b.0.cmp(&a.0)
-            } else {
-                a.0.cmp(&b.0)
-            }
-        });
-        let records = values_and_records.iter().map(|(_, r)| r);
+    for (group_key, records) in records_per_group.iter() {
+        if args.flag_sorted && args.flag_groupby.is_none() {
+            // QUESTION: Am I not allowing memory for every record here (in case input from stdin)?
+            process_records_in_group(&mut rdr.byte_records().map(|r| r.unwrap()), group_key)?;
+        } else {
+            let mut values_and_records = records
+                .iter()
+                .map(|record| -> CliResult<(ValuesType, ByteRecord)> {
+                    let value_and_record = (
+                        ValuesType::new_from(
+                            from_utf8(&record[column_to_complete_index]).unwrap(),
+                            args.flag_dates,
+                        ),
+                        record.clone(),
+                    );
+                    Ok(value_and_record)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            values_and_records.sort_by(|a, b| {
+                if args.flag_reverse {
+                    b.0.cmp(&a.0)
+                } else {
+                    a.0.cmp(&b.0)
+                }
+            });
+            let records = values_and_records.iter().map(|(_, r)| r);
 
-        for record in records {
-            match process_record(record, &mut index)? {
-                ControlFlow::Continue(()) => continue,
-                ControlFlow::Break(()) => break,
-            }
-        }
-    }
-
-    if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
-        if let Some(wtr) = wtr_opt.as_mut() {
-            while index.is_some()
-                && ((args.flag_reverse && index.clone().unwrap() >= min.clone().unwrap())
-                    || (!args.flag_reverse && index.clone().unwrap() <= max.clone().unwrap()))
-            {
-                wtr.write_record(&new_record_with_zeroed_column(
-                    headers.len(),
-                    column_to_complete_index,
-                    &zero,
-                    &index.clone().unwrap().as_bytes(),
-                ))?;
-
-                index = Some(index.clone().unwrap().advance(args.flag_reverse));
-            }
-        } else if (args.flag_reverse && index.clone().unwrap() >= min.clone().unwrap())
-            || (!args.flag_reverse && index.clone().unwrap() <= max.clone().unwrap())
-        {
-            Err(format!(
-                "file is not complete: missing value {:?}",
-                index.unwrap()
-            ))?;
+            process_records_in_group(&mut records.cloned(), group_key)?;
         }
     }
 

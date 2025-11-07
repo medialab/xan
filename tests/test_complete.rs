@@ -731,6 +731,36 @@ fn complete_sorted_dates_with_min_max() {
 }
 
 #[test]
+fn complete_groupby() {
+    let wrk = Workdir::new("complete_groupby");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["group", "id", "value"],
+            svec!["A", "0", "foo"],
+            svec!["A", "2", "bar"],
+            svec!["B", "1", "baz"],
+            svec!["B", "3", "qux"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id").arg("data.csv").arg("--groupby").arg("group");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![
+        svec!["group", "id", "value"],
+        svec!["A", "0", "foo"],
+        svec!["A", "1", ""],
+        svec!["A", "2", "bar"],
+        svec!["A", "3", ""],
+        svec!["B", "0", ""],
+        svec!["B", "1", "baz"],
+        svec!["B", "2", ""],
+        svec!["B", "3", "qux"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn complete_check() {
     let wrk = Workdir::new("complete_check");
     wrk.create("indexes_sorted_complete.csv", people_sorted_complete());
