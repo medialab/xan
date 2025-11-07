@@ -39,8 +39,12 @@ Examples:
   Split column 'code' into parts of widths 2,4,3:
     $ xan separate code --widths 2,4,3 data.csv
 
-  Split column 'code' into parts of offsets 2,6,9 (same as widths 2,4,3):
-    $ xan separate code --offsets 2,6,9 data.csv
+  Split column 'code' on bytes 2,6:
+    $ xan separate code --split-on-bytes 2,6 data.csv
+
+  Split column 'code' into parts of segments defined by offsets 0,2,6,9 (same as
+  split-on-bytes 2,6 if the length of the cell is 9):
+    $ xan separate code --segment-bytes 0,2,6,9 data.csv
 
 Usage:
     xan separate [options] <column> <separator> [<input>]
@@ -72,16 +76,26 @@ separate options:
                               groups, output the text matching each capture group
                               as a separate column.
     --fixed-width             Split cells every <separator> bytes. Cannot be used
-                              with --widths nor --offsets. Trims whitespace
-                              for each splitted cell.
+                              with --widths, --split-on-bytes nor --segment-bytes.
+                              Trims whitespace for each splitted cell.
     --widths                  Split cells using the specified fixed widths
                               (comma-separated list of integers). Cannot be
-                              used with --fixed-width, --offsets nor --max-splitted-cells.
-                              Trims whitespace for each splitted cell.
-    --offsets                 Split cells using the specified offsets
+                              used with --fixed-width, --split-on-bytes, --segment-bytes
+                              nor --max-splitted-cells. Trims whitespace for each
+                              splitted cell.
+    --split-on-bytes          Split cells on the specified bytes
                               (comma-separated list of integers). Cannot be used
-                              with --fixed-width, --widths nor --max-splitted-cells.
-                              Trims whitespace for each splitted cell.
+                              with --fixed-width, --widths, --segment-bytes
+                              nor --max-splitted-cells. Trims whitespace for each
+                              splitted cell.
+    --segment-bytes           Split cells according to the specified byte offsets
+                              (comma-separated list of integers). Cannot be used
+                              with --fixed-width, --widths, --split-on-bytes
+                              nor --max-splitted-cells. Trims whitespace for
+                              each splitted cell. When the first byte is 0 and
+                              the last byte is equal to the cell length,
+                              this is equivalent to --split-on-bytes (we're being
+                              more explicit here).
 
 Common options:
     -h, --help               Display this message
@@ -109,7 +123,8 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_fixed_width: bool,
     flag_widths: bool,
-    flag_offsets: bool,
+    flag_split_on_bytes: bool,
+    flag_segment_bytes: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -136,7 +151,8 @@ enum Splitter {
     Regex(Regex, RegexMode),
     FixedWidth(usize),
     Widths(Vec<usize>),
-    Offsets(Vec<usize>),
+    SplitOnBytes(Vec<usize>),
+    SegmentBytes(Vec<usize>),
 }
 
 impl Splitter {
@@ -150,7 +166,8 @@ impl Splitter {
             },
             Self::FixedWidth(width) => cell.len().div_ceil(*width),
             Self::Widths(widths) => widths.len(),
-            Self::Offsets(offsets) => offsets.len(),
+            Self::SplitOnBytes(offsets) => offsets.len() + 1,
+            Self::SegmentBytes(offsets) => offsets.len() - 1,
         }
     }
 
@@ -193,8 +210,8 @@ impl Splitter {
                 }
                 Box::new(splitted.into_iter())
             }
-            Self::Offsets(offsets) => {
-                let mut remaining = offsets.len();
+            Self::SplitOnBytes(offsets) => {
+                let mut remaining = offsets.len() + 1;
                 let mut splitted = vec![];
                 let mut start = 0;
 
@@ -203,6 +220,32 @@ impl Splitter {
                         splitted.push(cell[start..*offset].trim());
                     } else {
                         splitted.push(cell[start..].trim());
+                        break;
+                    }
+                    start = *offset;
+                    remaining -= 1;
+                }
+                if start < cell.len() {
+                    splitted.push(cell[start..].trim());
+                    remaining -= 1;
+                }
+                while remaining > 0 {
+                    splitted.push(b"");
+                    remaining -= 1;
+                }
+                Box::new(splitted.into_iter())
+            }
+            Self::SegmentBytes(offsets) => {
+                let mut remaining = offsets.len() - 1;
+                let mut splitted = vec![];
+                let mut start = offsets[0];
+
+                for offset in offsets.iter().skip(1) {
+                    if *offset <= cell.len() {
+                        splitted.push(cell[start..*offset].trim());
+                    } else {
+                        splitted.push(cell[start..].trim());
+                        break;
                     }
                     start = *offset;
                     remaining -= 1;
@@ -235,7 +278,8 @@ impl Splitter {
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
             Self::Widths(_) => unimplemented!(),
-            Self::Offsets(_) => unimplemented!(),
+            Self::SplitOnBytes(_) => unimplemented!(),
+            Self::SegmentBytes(_) => unimplemented!(),
         }
     }
 
@@ -284,21 +328,23 @@ impl Splitter {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let segments_count =
-        args.flag_fixed_width as u8 + args.flag_widths as u8 + args.flag_offsets as u8;
+    let segments_count = args.flag_fixed_width as u8
+        + args.flag_widths as u8
+        + args.flag_split_on_bytes as u8
+        + args.flag_segment_bytes as u8;
 
     if segments_count > 1 {
-        Err("Only one of --fixed-width, --widths or --offsets argument can be used")?;
+        Err("Only one of --fixed-width, --widths, --split-on-bytes or --segment-bytes argument can be used")?;
     }
 
     if args.flag_fixed_width && (args.flag_regex || args.flag_capture_groups || args.flag_match) {
         Err("--fixed-width cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
     }
-    if args.flag_widths || args.flag_offsets {
+    if args.flag_widths || args.flag_split_on_bytes || args.flag_segment_bytes {
         if args.flag_regex || args.flag_capture_groups || args.flag_match {
-            Err("--widths|--offsets cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
+            Err("--widths|--split-on-bytes|--segment-bytes cannot be used with -r/--regex, -c/--capture-groups nor -m/--match")?;
         } else if args.flag_max_splitted_cells.is_some() {
-            Err("--widths|--offsets cannot be used with --max-splitted-cells")?;
+            Err("--widths|--split-on-bytes|--segment-bytes cannot be used with --max-splitted-cells")?;
         }
     }
 
@@ -364,7 +410,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .parse::<usize>()
                 .map_err(|_| "Invalid value for --fixed-width. It must be a positive integer.")?,
         )
-    } else if args.flag_widths || args.flag_offsets {
+    } else if args.flag_widths || args.flag_split_on_bytes || args.flag_segment_bytes {
         let widths_or_offsets: Vec<usize> = args
             .arg_separator
             .split(',')
@@ -373,15 +419,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .map_err(|_| "Invalid value within --widths|--offsets.")?;
 
         if args.flag_into.is_some()
-            && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
-                > widths_or_offsets.clone().len()
+            && ((args.flag_split_on_bytes
+                && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
+                    > widths_or_offsets.clone().len() + 1)
+                || (args.flag_segment_bytes
+                    && util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len()
+                        > widths_or_offsets.clone().len() - 1))
         {
-            Err("--into cannot specify more column names than widths provided with --widths|--offsets")?;
+            Err("--into cannot specify more column names than widths provided with --widths|--split-on-bytes|--segment-bytes")?;
         }
         if args.flag_widths {
             Splitter::Widths(widths_or_offsets)
+        } else if args.flag_split_on_bytes {
+            Splitter::SplitOnBytes(widths_or_offsets)
+        } else if widths_or_offsets.len() < 2 {
+            Err("--segment-bytes requires at least two byte offsets")?
         } else {
-            Splitter::Offsets(widths_or_offsets)
+            Splitter::SegmentBytes(widths_or_offsets)
         }
     } else {
         Splitter::Substring(args.arg_separator.as_bytes().to_vec())

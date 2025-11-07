@@ -472,13 +472,13 @@ fn separate_widths() {
 }
 
 #[test]
-fn separate_offsets() {
-    let wrk = Workdir::new("separate_offsets");
+fn separate_split_on_bytes() {
+    let wrk = Workdir::new("separate_split_on_bytes");
     wrk.create("dates.csv", dates());
     let mut cmd = wrk.command("separate");
     cmd.arg("date")
-        .arg("--offsets")
-        .arg("4,7,10")
+        .arg("--split-on-bytes")
+        .arg("4,7")
         .arg("dates.csv")
         .arg("--into")
         .arg("year,month,day");
@@ -488,6 +488,43 @@ fn separate_offsets() {
         svec!["2023", "-01", "-15"],
         svec!["1999", "-12", "-31"],
         svec!["2024", "-07", "-04"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn separate_segment_bytes() {
+    let wrk = Workdir::new("separate_segment_bytes");
+    wrk.create("dates.csv", dates());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg("--segment-bytes")
+        .arg("0,4,7,10")
+        .arg("dates.csv")
+        .arg("--into")
+        .arg("year,month,day");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["year", "month", "day"],
+        svec!["2023", "-01", "-15"],
+        svec!["1999", "-12", "-31"],
+        svec!["2024", "-07", "-04"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg("--segment-bytes")
+        .arg("0,4,7")
+        .arg("dates.csv")
+        .arg("--into")
+        .arg("year,month");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["year", "month"],
+        svec!["2023", "-01"],
+        svec!["1999", "-12"],
+        svec!["2024", "-07"],
     ];
     assert_eq!(got, expected);
 }
