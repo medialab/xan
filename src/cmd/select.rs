@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -89,6 +89,17 @@ Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
 commands, you can wrangle the rows and perform a custom selection.
 
   $ xan select -e 'id, name as surname, count1 + count2 as total'
+
+Expression clauses can also return more than one item at once to avoid repeating
+computations, for instance:
+
+Splitting a full name:
+
+    $ xan select -e 'full_name.split(\" \") as (first_name, last_name)' file.csv > result.csv
+
+Extracting data from a JSON cell:
+
+    $ xan select -e 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
 
 If your expression becomes too complicated, you can write it in a file and
 use the -f/--evaluate-file flag instead:
@@ -180,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let headers = rdr.byte_headers()?.clone();
 
-        rconfig = rconfig.select(SelectColumns::parse(&args.arg_selection)?);
+        rconfig = rconfig.select(SelectedColumns::parse(&args.arg_selection)?);
 
         let sel = rconfig.selection(&headers)?;
 

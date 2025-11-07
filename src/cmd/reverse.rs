@@ -57,31 +57,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()> {
-    let (headers, mut reverse_reader) = rconfig.reverse_reader().map_err(|_| {
+    let mut reverse_reader = rconfig.reverse_reader().map_err(|_| {
         "can't use provided input: needs to be loaded in the RAM using -m, --in-memory flag"
     })?;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let headers = reverse_reader.byte_headers();
 
-    if !args.flag_no_headers && !headers.is_empty() {
-        wtr.write_byte_record(&headers)?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+
+    if !rconfig.no_headers && !headers.is_empty() {
+        wtr.write_byte_record(headers)?;
     }
 
-    let mut record = csv::ByteRecord::new();
-    let mut reversed_record = csv::ByteRecord::new();
-    let mut reversed_bytes: Vec<u8> = Vec::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     while reverse_reader.read_byte_record(&mut record)? {
-        reversed_record.clear();
-
-        for cell in record.iter().rev() {
-            reversed_bytes.clear();
-            reversed_bytes.extend(cell.iter().rev());
-
-            reversed_record.push_field(&reversed_bytes);
-        }
-
-        wtr.write_byte_record(&reversed_record)?;
+        wtr.write_byte_record(&record)?;
     }
 
     Ok(wtr.flush()?)
@@ -92,7 +83,10 @@ fn run_without_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<
     let all = reader.byte_records().collect::<Result<Vec<_>, _>>()?;
 
     let mut wtr = Config::new(&args.flag_output).writer()?;
-    rconfig.write_headers(&mut reader, &mut wtr)?;
+
+    if !rconfig.no_headers {
+        wtr.write_byte_record(reader.byte_headers()?)?;
+    }
 
     for r in all.into_iter().rev() {
         wtr.write_byte_record(&r)?;

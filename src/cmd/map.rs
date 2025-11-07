@@ -38,6 +38,17 @@ a,b,c,d
 1,4,5,4
 5,2,7,10
 
+Expression clauses can also return more than one item at once to avoid repeating
+computations, for instance:
+
+Splitting a full name:
+
+    $ xan map 'full_name.split(" ") as (first_name, last_name)' file.csv > result.csv
+
+Extracting data from a JSON cell:
+
+    $ xan map 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
+
 You can also use the -O/--overwrite flag to overwrite already existing columns:
 
     $ xan map -O 'b * 10 as b, a * b as c' file.csv > result.csv
@@ -141,9 +152,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let program = SelectionProgram::parse(&args.arg_expression, &headers)?;
 
+    if args.flag_overwrite && program.has_any_plural_expr() {
+        Err("-O/--overwrite does not work with clauses yielding multiple columns yet!")?;
+    }
+
     let actually_overwriting = args.flag_overwrite && program.has_something_to_overwrite();
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         if actually_overwriting {
             wtr.write_record(headers.iter().chain(program.new_headers()))?;
         } else {
@@ -153,7 +168,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if let Some(threads) = parallelization {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
             move |(index, record)| -> CliResult<(bool, simd_csv::ByteRecord)> {
                 let mut record = record?;
 

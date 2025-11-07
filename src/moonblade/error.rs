@@ -147,6 +147,10 @@ pub enum EvaluationError {
     UnicodeDecodeError,
     JSONParseError(String),
     UnfillableUnderscore,
+    PluralClauseMisalignment {
+        got: usize,
+        names: Vec<String>,
+    },
 }
 
 impl EvaluationError {
@@ -192,6 +196,13 @@ impl EvaluationError {
             reason: self,
         }
     }
+
+    pub fn plural_clause_misalignment(names: &[String], got: usize) -> Self {
+        Self::PluralClauseMisalignment {
+            got,
+            names: names.to_owned(),
+        }
+    }
 }
 
 impl Display for EvaluationError {
@@ -235,6 +246,13 @@ impl Display for EvaluationError {
             Self::UnfillableUnderscore => write!(
                 f,
                 "some underscore `_` was not fillable because it is not downstream of a pipe"
+            ),
+            Self::PluralClauseMisalignment { got, names } => write!(
+                f,
+                "plural clause related to columns ({}) yielded {} items instead of {}",
+                names.join(", "),
+                got,
+                names.len()
             ),
         }
     }

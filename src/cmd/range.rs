@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::config::Config;
 use crate::util;
 use crate::CliResult;
@@ -47,12 +49,10 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).buf_io_writer()?;
 
-    let mut record = csv::ByteRecord::new();
-    record.push_field(args.flag_column_name.as_bytes());
-
-    wtr.write_byte_record(&record)?;
+    wtr.write_all(args.flag_column_name.as_bytes())?;
+    wtr.write_all(b"\n")?;
 
     let mut i = args.flag_start;
 
@@ -61,10 +61,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         i < args.arg_end
     } {
-        record.clear();
-        record.push_field((i).to_string().as_bytes());
-        wtr.write_byte_record(&record)?;
-        wtr.flush()?;
+        wtr.write_all(i.to_string().as_bytes())?;
+        wtr.write_all(b"\n")?;
 
         i += args.flag_step;
     }

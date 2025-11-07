@@ -81,18 +81,7 @@ impl EnhancedProgressBar {
 
         bar.enable_steady_tick(Duration::from_millis(100));
 
-        let enhanced_bar = Self { inner: bar, bytes };
-
-        // NOTE: dealing with voluntary interruptions
-        let handle = enhanced_bar.clone();
-
-        ctrlc::set_handler(move || {
-            handle.interrupt();
-            std::process::exit(1);
-        })
-        .expect("Could not setup ctrl+c handler!");
-
-        enhanced_bar
+        Self { inner: bar, bytes }
     }
 
     fn inc(&self, delta: u64) {
@@ -108,11 +97,11 @@ impl EnhancedProgressBar {
         ));
     }
 
-    fn interrupt(&self) {
-        eprint!("\x1b[1A");
-        self.change_color("yellow");
-        self.inner.abandon();
-    }
+    // fn interrupt(&self) {
+    //     eprint!("\x1b[1A");
+    //     self.change_color("yellow");
+    //     self.inner.abandon();
+    // }
 
     fn fail(&self) {
         self.change_color("red");
@@ -172,6 +161,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
+    console::set_colors_enabled_stderr(true);
     console::set_colors_enabled(true);
 
     if args.flag_bytes {
@@ -217,24 +207,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = conf.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut splitter = conf.simd_splitter()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    conf.write_headers(&mut rdr, &mut wtr)?;
+    if !conf.no_headers {
+        wtr.write_splitted_record(splitter.byte_headers()?)?;
+    }
 
-    let mut record = csv::ByteRecord::new();
     let mut total = args.flag_total;
 
-    let mut buffer: Vec<csv::ByteRecord> = Vec::new();
+    let mut buffer: Vec<Vec<u8>> = Vec::new();
 
     if total.is_none() {
         let upper_bound = args.flag_prebuffer * MB;
         let mut read_all = true;
 
-        while rdr.read_byte_record(&mut record)? {
-            buffer.push(record.clone());
+        while let Some(record) = splitter.split_record()? {
+            buffer.push(record.to_vec());
 
-            if record.position().unwrap().byte() >= upper_bound {
+            if splitter.position() >= upper_bound {
                 read_all = false;
                 break;
             }
@@ -247,39 +238,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let bar = EnhancedProgressBar::new(total, args.flag_title, false);
 
-    macro_rules! handle_row {
-        ($record:ident) => {
-            wtr.write_byte_record(&$record)
-                .map_err(|err| match err.kind() {
-                    csv::ErrorKind::Io(inner_err) if inner_err.kind() == BrokenPipe => {
-                        bar.fail();
-
-                        err
-                    }
-
-                    _ => err,
-                })?;
-
-            if args.flag_smooth {
-                wtr.flush().map_err(|err| {
-                    if err.kind() == BrokenPipe {
-                        bar.fail();
-                    }
+    let mut handle_record = |record: &[u8]| -> CliResult<()> {
+        wtr.write_splitted_record(record)
+            .map_err(|err| match err.kind() {
+                simd_csv::ErrorKind::Io(inner) if inner.kind() == BrokenPipe => {
+                    bar.fail();
 
                     err
-                })?;
-            }
+                }
+                _ => err,
+            })?;
 
-            bar.inc(1);
-        };
-    }
+        if args.flag_smooth {
+            wtr.flush().inspect_err(|err| {
+                if err.kind() == BrokenPipe {
+                    bar.fail();
+                }
+            })?;
+        }
+
+        bar.inc(1);
+
+        Ok(())
+    };
 
     for buffered_record in buffer {
-        handle_row!(buffered_record);
+        handle_record(&buffered_record)?;
     }
 
-    while rdr.read_byte_record(&mut record)? {
-        handle_row!(record);
+    while let Some(record) = splitter.split_record()? {
+        handle_record(record)?;
     }
 
     bar.succeed();

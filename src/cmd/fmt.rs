@@ -123,12 +123,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
     wconfig = wconfig.quote(args.flag_quote.as_byte());
 
-    let mut rdr = rconfig.reader()?;
+    let mut rdr = rconfig.simd_reader()?;
     let mut wtr = wconfig.writer()?;
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
-        wtr.write_byte_record(&record)?;
+        wtr.write_record(&record)?;
     }
 
     wtr.flush()?;

@@ -35,7 +35,7 @@ actually need to join columns from the patterns file, you should
 probably use `xan search --regex --patterns` instead.
 
 Usage:
-    xan fuzzy-join [options] <columns> <input> <pattern-columns> <patterns>
+    xan fuzzy-join [options] <columns> <input> <pattern-column> <patterns>
     xan fuzzy-join --help
 
 fuzzy-join options:
@@ -57,6 +57,10 @@ fuzzy-join options:
                                  indicate the number of threads yourself.
     -t, --threads <threads>      Parellize computations using this many threads. Use -p, --parallel
                                  if you want the number of threads to be automatically chosen instead.
+    -D, --drop-key <mode>        Indicate whether to drop columns representing the join key
+                                 in `left` (i.e. input file) or `right` file (i.e. pattern file),
+                                 or `none`, or `both`.
+                                 [default: none]
     -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  searched file.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the

@@ -1,5 +1,5 @@
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -25,7 +25,7 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_selection: SelectColumns,
+    arg_selection: SelectedColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -41,8 +41,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_selection);
 
-    let mut rdr = rconfig.reader()?;
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut rdr = rconfig.simd_zero_copy_reader()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = rdr.byte_headers()?;
     let sel = rconfig.selection(headers)?;
@@ -55,10 +55,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_record(sel.select(headers))?;
     }
 
-    let mut record = csv::ByteRecord::new();
-
-    while rdr.read_byte_record(&mut record)? {
-        wtr.write_record(sel.select(&record))?;
+    while let Some(record) = rdr.read_byte_record()? {
+        wtr.write_record_no_quoting(sel.select(&record))?;
     }
 
     Ok(wtr.flush()?)

@@ -1,4 +1,5 @@
 use std::fs::OpenOptions;
+use std::io::{self, Write};
 
 use crate::config::{Config, Delimiter};
 use crate::util;
@@ -6,6 +7,10 @@ use crate::CliResult;
 
 static USAGE: &str = "
 Drop a CSV file's header.
+
+Note that to be as performant as possible, this command does not try
+to be clever and only parses the first CSV row to drop it. The rest of
+the file will be flushed to the output as-is without any kind of normalization.
 
 Usage:
     xan behead [options] [<input>]
@@ -37,29 +42,30 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-A/--append needs to know where the output will be written!\nPlease provide -o/--output.")?;
     }
 
-    let conf = Config::new(&args.arg_input)
+    let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(false);
+        .no_headers(true);
 
-    let mut rdr = conf.reader()?;
-    let headers = rdr.byte_headers()?.clone();
+    let mut splitter = rconf.simd_splitter()?;
+    let header_opt = splitter.split_record()?;
 
-    let wtr_conf = Config::new(&args.flag_output);
-    let mut wtr = wtr_conf.writer_with_options(
+    let wconf = Config::new(&args.flag_output);
+
+    let mut wtr = wconf.buf_io_writer_with_options(
         OpenOptions::new()
             .write(true)
             .create(true)
             .append(args.flag_append),
     )?;
-    let mut record = csv::ByteRecord::new();
 
-    if args.flag_append && wtr_conf.path.unwrap().metadata()?.len() == 0 {
-        wtr.write_byte_record(&headers)?;
+    if args.flag_append && wconf.path.unwrap().metadata()?.len() == 0 {
+        if let Some(header) = header_opt {
+            wtr.write_all(header)?;
+            wtr.write_all(b"\n")?;
+        }
     }
 
-    while rdr.read_byte_record(&mut record)? {
-        wtr.write_byte_record(&record)?;
-    }
+    io::copy(&mut splitter.into_bufreader(), &mut wtr)?;
 
     Ok(wtr.flush()?)
 }

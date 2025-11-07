@@ -624,6 +624,35 @@ impl ExprName {
             _ => unimplemented!(),
         }
     }
+
+    pub fn iter(&self) -> ExprNameIter<'_> {
+        match self {
+            Self::Singular(name) => ExprNameIter {
+                name: Some(name),
+                inner: None,
+            },
+            Self::Plural(names) => ExprNameIter {
+                name: None,
+                inner: Some(names.iter()),
+            },
+        }
+    }
+}
+
+pub struct ExprNameIter<'a> {
+    name: Option<&'a String>,
+    inner: Option<std::slice::Iter<'a, String>>,
+}
+
+impl<'a> Iterator for ExprNameIter<'a> {
+    type Item = &'a String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.as_mut() {
+            Some(it) => it.next(),
+            None => self.name.take(),
+        }
+    }
 }
 
 fn parse_generic_string(pair: Pair<Rule>) -> String {

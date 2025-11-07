@@ -13,7 +13,7 @@ use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
 use crate::util;
 use crate::CliError;
@@ -480,8 +480,14 @@ using -i, --ignore-case.
 # Searching multiple patterns at once
 
 This command is also able to search for multiple patterns at once.
-To do so, you must give a text file with one pattern per line to the --patterns
-flag, or a CSV file containing a column of to indicate using --pattern-column.
+To do so, you can either use the -P, --add-pattern flag or feed a text file
+with one pattern per line to the --patterns flag. You can also feed a CSV file
+to the --patterns flag, in which case you will need to indicate the column
+containing the patterns using the --pattern-column flag.
+
+Giving additional patterns:
+
+    $ xan search disc -P tape -P vinyl file.csv > matches.csv
 
 One pattern per line of text file:
 
@@ -567,7 +573,7 @@ Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]
     xan search [options] --patterns <index> [<input>]
-    xan search [options] <pattern> [<input>]
+    xan search [options] <pattern> [-P <pattern>...] [<input>]
     xan search --help
 
 search mode options:
@@ -618,6 +624,8 @@ search options:
                              if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
+    -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
+                                 to the --patterns flag.
     -B, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
                                  one additional column per pattern. Added column will be given
@@ -660,7 +668,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_pattern: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -682,9 +690,10 @@ struct Args {
     flag_sep: String,
     flag_left: bool,
     flag_patterns: Option<String>,
-    flag_pattern_column: Option<SelectColumns>,
-    flag_replacement_column: Option<SelectColumns>,
-    flag_name_column: Option<SelectColumns>,
+    flag_pattern_column: Option<SelectedColumns>,
+    flag_replacement_column: Option<SelectedColumns>,
+    flag_add_pattern: Vec<String>,
+    flag_name_column: Option<SelectedColumns>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
 }
@@ -825,8 +834,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-c/--count, -f,--flag, -R/--replace, -B/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
     }
 
-    if (args.flag_empty || args.flag_non_empty) && args.flag_patterns.is_some() {
-        Err("-N/--non-empty & -E/--empty do not make sense with --patterns!")?;
+    if (args.flag_empty || args.flag_non_empty)
+        && (args.flag_patterns.is_some() || args.arg_pattern.is_some())
+    {
+        Err("-N/--non-empty & -E/--empty do not allow a pattern!")?;
     }
 
     if args.flag_ignore_case && args.flag_url_prefix {
@@ -843,6 +854,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         && (args.flag_patterns.is_none() || args.flag_pattern_column.is_none())
     {
         Err("--name-column requires both --patterns & --pattern-column!")?;
+    }
+
+    if !args.flag_add_pattern.is_empty() && args.flag_patterns.is_some() {
+        Err("-P/--add-pattern is incompatible with --patterns!")?;
     }
 
     let actions_count: u8 = args.flag_count.is_some() as u8
@@ -866,7 +881,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => None,
     };
 
-    let pairs = args
+    let mut pairs = args
         .flag_patterns
         .as_ref()
         .map(|path| {
@@ -896,6 +911,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             (patterns, associated)
         });
+
+    if !args.flag_add_pattern.is_empty() {
+        let mut additional_patterns = vec![args.arg_pattern.clone().unwrap()];
+
+        for pattern in args.flag_add_pattern.iter() {
+            additional_patterns.push(pattern.to_string());
+        }
+
+        pairs = Some((additional_patterns, None));
+    }
 
     let (patterns, associated) = pairs.unzip();
 
@@ -972,7 +997,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let matcher = Arc::new(matcher);
 
         for result in rdr.into_byte_records().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(num_cpus::get)),
+            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
             move |result| -> CliResult<(bool, Option<simd_csv::ByteRecord>)> {
                 let mut record = result?;
 

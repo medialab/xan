@@ -7,7 +7,7 @@ use simd_csv::ByteRecord;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -324,10 +324,10 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_columns: Option<SelectColumns>,
-    arg_columns1: SelectColumns,
+    arg_columns: Option<SelectedColumns>,
+    arg_columns1: SelectedColumns,
     arg_input1: String,
-    arg_columns2: SelectColumns,
+    arg_columns2: SelectedColumns,
     arg_input2: String,
     flag_inner: bool,
     flag_left: bool,
@@ -357,7 +357,7 @@ impl Args {
         }
     }
 
-    fn readers(&self) -> CliResult<(ReaderHandle, ReaderHandle)> {
+    fn readers(&mut self) -> CliResult<(ReaderHandle, ReaderHandle)> {
         let left = Config::new(&Some(self.arg_input1.clone()))
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -367,6 +367,8 @@ impl Args {
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
             .select(self.arg_columns2.clone());
+
+        self.flag_no_headers = left.no_headers;
 
         let mut left_reader = left.simd_reader()?;
         let mut right_reader = right.simd_reader()?;
@@ -639,7 +641,7 @@ impl Args {
         Ok(writer.flush()?)
     }
 
-    fn semi_join(self, anti: bool) -> CliResult<()> {
+    fn semi_join(mut self, anti: bool) -> CliResult<()> {
         let ((mut left_reader, left_headers, left_sel), (mut right_reader, _, right_sel)) =
             self.readers()?;
 
@@ -681,7 +683,7 @@ impl Args {
         Ok(writer.flush()?)
     }
 
-    fn cross_join(self) -> CliResult<()> {
+    fn cross_join(mut self) -> CliResult<()> {
         let ((mut left_reader, left_headers, _), (right_reader, right_headers, _)) =
             self.readers()?;
 

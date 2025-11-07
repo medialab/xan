@@ -248,14 +248,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let gradient = args.flag_gradient.build();
 
-    let mut rdr = conf.reader()?;
-    let mut record = csv::ByteRecord::new();
+    let mut rdr = conf.simd_reader()?;
+    let mut record = simd_csv::ByteRecord::new();
 
     let column_labels = rdr
-        .headers()?
+        .byte_headers()?
         .iter()
         .skip(1)
-        .map(String::from)
+        .map(|cell| String::from_utf8_lossy(cell).into_owned())
         .collect::<Vec<_>>();
 
     let mut formatter = args

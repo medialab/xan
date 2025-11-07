@@ -5,7 +5,7 @@ use colored::Colorize;
 
 use crate::cmd::sort::{ComparableByteRecord, NumericallyComparableByteRecord};
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -78,7 +78,7 @@ struct Forward<T>(T);
 #[derive(Deserialize)]
 struct Args {
     arg_inputs: Vec<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -87,7 +87,7 @@ struct Args {
     flag_uniq: bool,
     flag_source_column: Option<String>,
     flag_paths: Option<String>,
-    flag_path_column: Option<SelectColumns>,
+    flag_path_column: Option<SelectedColumns>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -97,7 +97,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--paths cannot be used with other positional arguments!")?;
     }
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let confs = args.configs()?.into_iter().collect::<Vec<Config>>();
     let paths = confs
@@ -112,7 +112,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut readers = confs
         .iter()
-        .map(|conf| conf.reader())
+        .map(|conf| conf.simd_reader())
         .collect::<Result<Vec<_>, _>>()?;
 
     let headers = readers
@@ -120,7 +120,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|rdr| rdr.byte_headers())
         .collect::<Result<Vec<_>, _>>()?;
 
-    if !args.flag_no_headers {
+    if !confs[0].no_headers {
         if let Some(i) = headers.iter().skip(1).position(|h| *h != headers[0]) {
             let path = &paths[i + 1];
 

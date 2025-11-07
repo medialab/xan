@@ -1,6 +1,8 @@
+use simd_csv::ByteRecord;
+
 use crate::config::{Config, Delimiter};
 use crate::moonblade::WindowAggregationProgram;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -71,7 +73,7 @@ Common options:
 struct Args {
     arg_expression: String,
     arg_input: Option<String>,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -93,25 +95,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|s| s.selection(&headers, !args.flag_no_headers))
+        .map(|s| s.selection(&headers, !conf.no_headers))
         .transpose()?;
 
-    if !args.flag_no_headers {
+    if !conf.no_headers {
         writer.write_record(headers.iter().chain(program.headers()))?;
     }
 
-    let mut record = simd_csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
     let mut index: usize = 0;
-    let mut group_opt: Option<Vec<Vec<u8>>> = None;
+    let mut group_opt: Option<ByteRecord> = None;
 
     while reader.read_byte_record(&mut record)? {
         if let Some(sel) = &groupby_sel_opt {
             match &mut group_opt {
                 None => {
-                    group_opt = Some(sel.collect(&record));
+                    group_opt = Some(sel.select(&record).collect());
                 }
                 Some(group) => {
-                    let new_group = sel.collect(&record);
+                    let new_group = sel.select(&record).collect();
 
                     if group != &new_group {
                         program.flush_and_clear(index, |output_record| -> CliResult<()> {

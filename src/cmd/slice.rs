@@ -221,6 +221,7 @@ impl Args {
 
             return {
                 let mut rconf = self.rconfig();
+                let no_headers = rconf.no_headers;
 
                 if let Some(offset) = self.flag_byte_offset {
                     rconf = rconf.no_headers(true);
@@ -233,21 +234,27 @@ impl Args {
 
                     if let Some(end_offset) = self.flag_end_byte {
                         self.run_plural(
+                            no_headers,
                             rconf.simd_csv_reader_from_reader(inner.take(end_offset - offset)),
                             headers,
                         )
                     } else {
-                        self.run_plural(rconf.simd_csv_reader_from_reader(inner), headers)
+                        self.run_plural(
+                            no_headers,
+                            rconf.simd_csv_reader_from_reader(inner),
+                            headers,
+                        )
                     }
                 } else {
                     let mut rdr = rconf.simd_reader()?;
                     let headers = rdr.byte_headers()?.clone();
-                    self.run_plural(rdr, headers)
+                    self.run_plural(no_headers, rdr, headers)
                 }
             };
         }
 
         let mut rconf = self.rconfig();
+        let no_headers = rconf.no_headers;
 
         if let Some(offset) = self.flag_byte_offset {
             rconf = rconf.no_headers(true);
@@ -259,27 +266,33 @@ impl Args {
 
             if let Some(end_offset) = self.flag_end_byte {
                 self.run_default(
+                    no_headers,
                     rconf.simd_csv_reader_from_reader(inner.take(end_offset - offset)),
                     headers,
                 )
             } else {
-                self.run_default(rconf.simd_csv_reader_from_reader(inner), headers)
+                self.run_default(
+                    no_headers,
+                    rconf.simd_csv_reader_from_reader(inner),
+                    headers,
+                )
             }
         } else {
             let mut rdr = rconf.simd_reader()?;
             let headers = rdr.byte_headers()?.clone();
-            self.run_default(rdr, headers)
+            self.run_default(no_headers, rdr, headers)
         }
     }
 
     fn run_default<R: Read>(
         &self,
+        no_headers: bool,
         mut rdr: simd_csv::Reader<R>,
         headers: simd_csv::ByteRecord,
     ) -> CliResult<()> {
         let mut wtr = self.wconfig().simd_writer()?;
 
-        if !self.flag_no_headers {
+        if !no_headers {
             wtr.write_byte_record(&headers)?;
         }
 
@@ -321,11 +334,11 @@ impl Args {
         let n = self.flag_last.unwrap();
 
         match rconf.reverse_reader() {
-            Ok((headers, mut reverse_reader)) => {
-                let mut wtr = self.wconfig().writer()?;
+            Ok(mut reverse_reader) => {
+                let mut wtr = self.wconfig().simd_writer()?;
 
-                if !self.flag_no_headers {
-                    wtr.write_byte_record(&headers)?;
+                if !rconf.no_headers {
+                    wtr.write_byte_record(reverse_reader.byte_headers())?;
                 }
 
                 let records = reverse_reader
@@ -334,12 +347,7 @@ impl Args {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 for record in records.into_iter().rev() {
-                    wtr.write_record(
-                        record
-                            .iter()
-                            .rev()
-                            .map(|cell| cell.iter().rev().copied().collect::<Vec<_>>()),
-                    )?;
+                    wtr.write_byte_record(&record)?;
                 }
 
                 Ok(wtr.flush()?)
@@ -352,7 +360,7 @@ impl Args {
 
                 let headers = rdr.byte_headers()?.clone();
 
-                if !self.flag_no_headers {
+                if !rconf.no_headers {
                     wtr.write_byte_record(&headers)?;
                 }
 
@@ -377,12 +385,13 @@ impl Args {
 
     fn run_plural<R: Read>(
         &self,
+        no_headers: bool,
         mut rdr: simd_csv::Reader<R>,
         headers: simd_csv::ByteRecord,
     ) -> CliResult<()> {
         let mut wtr = self.wconfig().simd_writer()?;
 
-        if !self.flag_no_headers {
+        if !no_headers {
             wtr.write_byte_record(&headers)?;
         }
 

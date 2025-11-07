@@ -8,7 +8,7 @@ use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -262,7 +262,7 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_pager: bool,
     flag_theme: String,
     flag_cols: Option<String>,
@@ -277,8 +277,8 @@ struct Args {
     flag_hide_index: bool,
     flag_hide_headers: bool,
     flag_hide_info: bool,
-    flag_groupby: Option<SelectColumns>,
-    flag_right: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
+    flag_right: Option<SelectedColumns>,
     flag_significance: Option<NonZeroUsize>,
 }
 
@@ -354,7 +354,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut env_args: Args = util::get_args(USAGE, &env_var_argv)?;
     env_args.resolve();
 
-    let args = Args::merge(env_args, args);
+    let mut args = Args::merge(env_args, args);
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 
@@ -374,6 +374,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select.clone());
 
+    if rconfig.no_headers {
+        args.flag_hide_headers = true;
+    }
+
     let mut rdr = rconfig.reader()?;
     let byte_headers = rdr.byte_headers()?.clone();
     let mut sel = rconfig.selection(&byte_headers)?;
@@ -383,7 +387,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut groupby_sel_opt = args
         .flag_groupby
         .clone()
-        .map(|cols| cols.selection(&byte_headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&byte_headers, !rconfig.no_headers))
         .transpose()?;
 
     if let Some(groupby_sel) = &groupby_sel_opt {
@@ -400,7 +404,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|cols| {
             cols.selection(
                 &sel.select(&byte_headers).collect::<csv::ByteRecord>(),
-                !args.flag_no_headers,
+                !rconfig.no_headers,
             )
         })
         .transpose()?;
@@ -415,7 +419,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut right_sel_opt = args
         .flag_right
         .as_ref()
-        .map(|s| s.selection(headers.as_byte_record(), !args.flag_no_headers))
+        .map(|s| s.selection(headers.as_byte_record(), !rconfig.no_headers))
         .transpose()?;
 
     if !args.flag_hide_index {

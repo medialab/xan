@@ -7,7 +7,7 @@ use regex::Regex;
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::record::Record;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
 
@@ -62,7 +62,7 @@ Common options:
 
 #[derive(Clone, Deserialize)]
 struct Args {
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     arg_input: Option<String>,
     flag_out_dir: Option<String>,
     flag_filename: FilenameTemplate,
@@ -98,7 +98,7 @@ impl Args {
     }
 
     /// Get the column to use as a key.
-    fn key_column(&self, rconfig: &Config, headers: &csv::ByteRecord) -> CliResult<usize> {
+    fn key_column(&self, rconfig: &Config, headers: &simd_csv::ByteRecord) -> CliResult<usize> {
         let select_cols = rconfig.selection(headers)?;
         if select_cols.len() == 1 {
             Ok(select_cols[0])
@@ -110,7 +110,7 @@ impl Args {
     /// A basic sequential partition.
     fn sequential_partition(&self) -> CliResult<()> {
         let rconfig = self.rconfig();
-        let mut rdr = rconfig.reader()?;
+        let mut rdr = rconfig.simd_reader()?;
         let mut headers = rdr.byte_headers()?.clone();
         let key_col = self.key_column(&rconfig, &headers)?;
         let mut generator =
@@ -124,7 +124,7 @@ impl Args {
             headers = headers.remove(key_col);
         }
 
-        let mut row = csv::ByteRecord::new();
+        let mut row = simd_csv::ByteRecord::new();
 
         if self.flag_sorted {
             let mut current: Option<(Vec<u8>, BoxedWriter)> = None;
@@ -196,7 +196,7 @@ impl Args {
     }
 }
 
-type BoxedWriter = csv::Writer<Box<dyn io::Write + 'static>>;
+type BoxedWriter = simd_csv::Writer<Box<dyn io::Write + 'static>>;
 
 /// Generates unique filenames based on CSV values.
 struct WriterGenerator {

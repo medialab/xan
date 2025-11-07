@@ -8,10 +8,11 @@ use bytesize::MB;
 use colored::Colorize;
 use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
+use simd_csv::{ByteRecord, Error};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, DeepSizedByteRecord};
 use crate::CliResult;
 
@@ -45,7 +46,11 @@ macro_rules! sort_by {
 }
 
 static USAGE: &str = "
-Sort CSV data.
+Sort CSV data, in ascending lexicographic order.
+
+For descending order, use the -R, --reverse flag.
+
+If you need numerical order instead, use the -N, --numeric flag.
 
 This requires reading all of the data into memory, unless
 using the -e/--external flag, which will be slower and fallback
@@ -56,10 +61,11 @@ Usage:
 
 sort options:
     --check                   Verify whether the file is already sorted.
-    -s, --select <arg>        Select a subset of columns to sort.
+    -s, --select <arg>        Select a subset of columns to sort by.
                               See 'xan select --help' for the format details.
-    -N, --numeric             Compare according to string numerical value
-    -R, --reverse             Reverse order
+    -N, --numeric             Compare according to the numerical value of cells instead
+                              of the default lexicographic order.
+    -R, --reverse             Reverse sort order, i.e. descending order.
     -c, --count <name>        Number of times the line was consecutively duplicated.
                               Needs a column name. Can only be used with --uniq.
     -u, --uniq                When set, identical consecutive lines will be dropped
@@ -95,7 +101,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     flag_check: bool,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_numeric: bool,
     flag_reverse: bool,
     flag_count: Option<String>,
@@ -129,14 +135,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-U/--unstable cannot be used with -e/--external!")?;
     }
 
-    let mut rdr = rconfig.reader()?;
+    let mut rdr = rconfig.simd_reader()?;
 
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
     // Checking order
     if args.flag_check {
-        let mut record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         let mut last: Option<Vec<Vec<u8>>> = None;
 
@@ -226,13 +232,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Sorting cells
     if args.flag_cells {
-        let mut wtr = Config::new(&args.flag_output).writer()?;
-        rconfig.write_headers(&mut rdr, &mut wtr)?;
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+
+        if !rconfig.no_headers {
+            wtr.write_byte_record(&headers)?;
+        }
 
         let mask = sel.indexed_mask(headers.len());
 
-        let mut record = csv::ByteRecord::new();
-        let mut output_record = csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
+        let mut output_record = ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
             let cells: Vec<&[u8]> = if args.flag_numeric {
@@ -280,7 +289,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Sorting rows
-    let all: Box<dyn Iterator<Item = csv::ByteRecord>> = if args.flag_external {
+    let all: Box<dyn Iterator<Item = ByteRecord>> = if args.flag_external {
         let tmp_dir = args.flag_tmp_dir.unwrap_or(match args.arg_input {
             None => "./".to_string(),
             Some(p) => Path::new(&p)
@@ -296,12 +305,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .with_buffer(MemoryLimitedBufferBuilder::new(args.flag_memory_limit * MB));
 
         if args.flag_parallel {
-            sorter_builder = sorter_builder.with_threads_number(num_cpus::get());
+            sorter_builder = sorter_builder.with_threads_number(crate::util::default_num_cpus());
         }
 
         let sorter: ExternalSorter<
             DeepSizedByteRecord,
-            csv::Error,
+            Error,
             MemoryLimitedBufferBuilder,
             util::CsvExternalChunk,
         > = sorter_builder.build().unwrap();
@@ -344,7 +353,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Box::new(all.into_iter())
     };
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !rconfig.no_headers {
         if let Some(count_name) = count {
@@ -355,9 +364,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let mut prev: Option<csv::ByteRecord> = None;
+    let mut prev: Option<ByteRecord> = None;
     let mut counter: u64 = 1;
-    let mut line_buffer: Option<csv::ByteRecord> = None;
+    let mut line_buffer: Option<ByteRecord> = None;
 
     for r in all.into_iter() {
         if args.flag_uniq {
@@ -477,16 +486,16 @@ where
 
 // Standard comparable byte record abstraction
 pub struct ComparableByteRecord<'a> {
-    record: csv::ByteRecord,
+    record: ByteRecord,
     sel: &'a Selection,
 }
 
 impl<'a> ComparableByteRecord<'a> {
-    pub fn new(record: csv::ByteRecord, sel: &'a Selection) -> Self {
+    pub fn new(record: ByteRecord, sel: &'a Selection) -> Self {
         ComparableByteRecord { record, sel }
     }
 
-    pub fn as_byte_record(&self) -> &csv::ByteRecord {
+    pub fn as_byte_record(&self) -> &ByteRecord {
         &self.record
     }
 }
@@ -516,16 +525,16 @@ impl cmp::Eq for ComparableByteRecord<'_> {}
 
 // Numerically comparable byte record abstraction
 pub struct NumericallyComparableByteRecord<'a> {
-    record: csv::ByteRecord,
+    record: ByteRecord,
     sel: &'a Selection,
 }
 
 impl<'a> NumericallyComparableByteRecord<'a> {
-    pub fn new(record: csv::ByteRecord, sel: &'a Selection) -> Self {
+    pub fn new(record: ByteRecord, sel: &'a Selection) -> Self {
         NumericallyComparableByteRecord { record, sel }
     }
 
-    pub fn as_byte_record(&self) -> &csv::ByteRecord {
+    pub fn as_byte_record(&self) -> &ByteRecord {
         &self.record
     }
 }

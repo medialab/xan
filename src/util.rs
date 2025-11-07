@@ -25,7 +25,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::CliResult;
 
 pub fn version() -> String {
@@ -45,6 +45,10 @@ pub fn version() -> String {
         }
         _ => "".to_owned(),
     }
+}
+
+pub fn default_num_cpus() -> usize {
+    num_cpus::get().min(16)
 }
 
 lazy_static! {
@@ -127,7 +131,7 @@ pub fn many_configs(
     inps: &[String],
     delim: Option<Delimiter>,
     no_headers: bool,
-    select: Option<&SelectColumns>,
+    select: Option<&SelectedColumns>,
 ) -> Result<Vec<Config>, String> {
     let mut inps = inps.to_vec();
     if inps.is_empty() {
@@ -212,7 +216,7 @@ impl FilenameTemplate {
         &self,
         path: P,
         unique_value: &str,
-    ) -> io::Result<csv::Writer<Box<dyn io::Write + 'static>>>
+    ) -> io::Result<simd_csv::Writer<Box<dyn io::Write + 'static>>>
     where
         P: AsRef<Path>,
     {
@@ -225,7 +229,7 @@ impl FilenameTemplate {
             fs::create_dir_all(parent)?;
         }
         let spath = Some(full_path.display().to_string());
-        Config::new(&spath).writer_with_options(
+        Config::new(&spath).simd_writer_with_options(
             fs::OpenOptions::new()
                 .write(true)
                 .create(true)
@@ -453,24 +457,32 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
     }
 }
 
+lazy_static! {
+    static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
+}
+
 pub fn highlight_problematic_string_features(string: &str) -> String {
     let start = string.len() - string.trim_start().len();
     let end = string.trim_end().len();
 
     let replaced = format!(
         "{}{}{}",
-        "·".repeat((0..start).len()).white().dimmed(),
+        if (0..start).is_empty() {
+            "".normal()
+        } else {
+            "·".repeat((0..start).len()).white().dimmed()
+        },
         &string[start..end],
-        "·".repeat((end..string.len()).len()).white().dimmed()
+        if (end..string.len()).is_empty() {
+            "".normal()
+        } else {
+            "·".repeat((end..string.len()).len()).white().dimmed()
+        }
     );
 
     ESCAPED_WHITESPACE_REPLACER
         .replace_all(&replaced, |caps: &Captures| caps[0].dimmed().to_string())
         .into_owned()
-}
-
-lazy_static! {
-    static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
 }
 
 pub fn sanitize_text_for_multi_line_printing(string: &str) -> String {
@@ -782,21 +794,21 @@ impl<T: Deref<Target = str>, I: Iterator<Item = T>> JoinIteratorExt for I {
 }
 
 // A custom implementation de/serializing ext-sort chunks as CSV
-pub struct DeepSizedByteRecord(pub csv::ByteRecord);
+pub struct DeepSizedByteRecord(pub simd_csv::ByteRecord);
 
 impl DeepSizedByteRecord {
-    pub fn as_ref(&self) -> &csv::ByteRecord {
+    pub fn as_ref(&self) -> &simd_csv::ByteRecord {
         &self.0
     }
 
-    pub fn into_inner(self) -> csv::ByteRecord {
+    pub fn into_inner(self) -> simd_csv::ByteRecord {
         self.0
     }
 }
 
 impl DeepSizeOf for DeepSizedByteRecord {
     fn deep_size_of(&self) -> usize {
-        std::mem::size_of::<csv::ByteRecord>() + self.0.as_slice().len()
+        std::mem::size_of::<simd_csv::ByteRecord>() + self.0.as_slice().len()
     }
 
     fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
@@ -805,16 +817,16 @@ impl DeepSizeOf for DeepSizedByteRecord {
 }
 
 pub struct CsvExternalChunk {
-    reader: csv::Reader<io::Take<io::BufReader<fs::File>>>,
+    reader: simd_csv::Reader<io::Take<io::BufReader<fs::File>>>,
 }
 
 impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
-    type SerializationError = csv::Error;
-    type DeserializationError = csv::Error;
+    type SerializationError = simd_csv::Error;
+    type DeserializationError = simd_csv::Error;
 
     fn new(reader: io::Take<io::BufReader<fs::File>>) -> Self {
         CsvExternalChunk {
-            reader: csv::ReaderBuilder::new()
+            reader: simd_csv::ReaderBuilder::new()
                 .has_headers(false)
                 .from_reader(reader),
         }
@@ -824,7 +836,7 @@ impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
         chunk_writer: &mut io::BufWriter<fs::File>,
         items: impl IntoIterator<Item = DeepSizedByteRecord>,
     ) -> Result<(), Self::SerializationError> {
-        let mut csv_writer = csv::Writer::from_writer(chunk_writer);
+        let mut csv_writer = simd_csv::Writer::from_writer(chunk_writer);
 
         for item in items.into_iter() {
             csv_writer.write_record(item.as_ref())?;
@@ -841,7 +853,7 @@ impl Iterator for CsvExternalChunk {
     >;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         match self.reader.read_byte_record(&mut record) {
             Ok(read) => {

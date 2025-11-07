@@ -6,7 +6,7 @@ use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
 use crate::graph::GraphBuilder;
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -73,17 +73,17 @@ struct Args {
     cmd_edgelist: bool,
     cmd_bipartite: bool,
     arg_input: Option<String>,
-    arg_source: Option<SelectColumns>,
-    arg_target: Option<SelectColumns>,
-    arg_part1: Option<SelectColumns>,
-    arg_part2: Option<SelectColumns>,
+    arg_source: Option<SelectedColumns>,
+    arg_target: Option<SelectedColumns>,
+    arg_part1: Option<SelectedColumns>,
+    arg_part2: Option<SelectedColumns>,
     flag_format: String,
     flag_gexf_version: String,
     flag_largest_component: bool,
     flag_stats: bool,
     flag_undirected: bool,
     flag_nodes: Option<String>,
-    flag_node_column: SelectColumns,
+    flag_node_column: SelectedColumns,
     flag_disjoint_keys: bool,
     flag_degrees: bool,
     flag_no_headers: bool,
@@ -111,7 +111,7 @@ impl Args {
 
             let node_column_index = self
                 .flag_node_column
-                .single_selection(&node_headers, !self.flag_no_headers)?;
+                .single_selection(&node_headers, !nodes_rconf.no_headers)?;
 
             let node_attr_sel =
                 Selection::without_indices(node_headers.len(), &[node_column_index]);
@@ -156,12 +156,12 @@ impl Args {
             .arg_source
             .as_ref()
             .unwrap()
-            .single_selection(&edge_headers, !self.flag_no_headers)?;
+            .single_selection(&edge_headers, !edges_rconf.no_headers)?;
         let target_column_index = self
             .arg_target
             .as_ref()
             .unwrap()
-            .single_selection(&edge_headers, !self.flag_no_headers)?;
+            .single_selection(&edge_headers, !edges_rconf.no_headers)?;
 
         let edge_attr_sel = Selection::without_indices(
             edge_headers.len(),
@@ -229,13 +229,13 @@ impl Args {
             .arg_part1
             .as_ref()
             .unwrap()
-            .single_selection(&headers, !self.flag_no_headers)?;
+            .single_selection(&headers, !rconf.no_headers)?;
 
         let second_part_index = self
             .arg_part2
             .as_ref()
             .unwrap()
-            .single_selection(&headers, !self.flag_no_headers)?;
+            .single_selection(&headers, !rconf.no_headers)?;
 
         let mut incremental_id =
             (!self.flag_disjoint_keys).then(IncrementalId::<(usize, String)>::new);

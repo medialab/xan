@@ -132,3 +132,28 @@ fn map_filter() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn map_plural_clause() {
+    let wrk = Workdir::new("map_plural_clause");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["full_name"],
+            svec!["john landis"],
+            svec!["béatrice babka"],
+        ],
+    );
+    let mut cmd = wrk.command("map");
+
+    cmd.arg("full_name.split(' ') as (first_name, last_name)")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["full_name", "first_name", "last_name"],
+        svec!["john landis", "john", "landis"],
+        svec!["béatrice babka", "béatrice", "babka"],
+    ];
+    assert_eq!(got, expected);
+}

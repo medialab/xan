@@ -1,10 +1,12 @@
+use std::io;
+
 use lazy_static::lazy_static;
 use regex::bytes::Regex as BytesRegex;
 use regex::Regex;
 use unidecode::unidecode;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -27,6 +29,10 @@ Rename columns of a CSV file. Can also be used to add headers to a headless
 CSV file. The new names must be passed in CSV format to the column as argument,
 which can be useful if the desired column names contains actual commas and/or double
 quotes.
+
+Note that to be as performant as possible, this command does not try
+to be clever and only parses the first CSV row to drop it. The rest of
+the file will be flushed to the output as-is without any kind of normalization.
 
 Renaming all columns:
 
@@ -87,7 +93,7 @@ struct Args {
     arg_columns: Option<String>,
     arg_pattern: Option<String>,
     arg_replacement: Option<String>,
-    flag_select: Option<SelectColumns>,
+    flag_select: Option<SelectedColumns>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -105,11 +111,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    let mut rdr = rconfig.reader()?;
+    let mut rdr = rconfig.simd_reader()?;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut record = csv::ByteRecord::new();
+    let mut record = simd_csv::ByteRecord::new();
 
     if args.flag_no_headers {
         if args.flag_prefix.is_some() {
@@ -145,15 +151,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if expected_len > 0 {
-            wtr.write_byte_record(&rename_as)?;
+            wtr.write_record(&rename_as)?;
             wtr.write_byte_record(&record)?;
 
-            while rdr.read_byte_record(&mut record)? {
-                wtr.write_byte_record(&record)?;
+            let mut bufreader = rdr.into_bufreader();
+
+            match wtr.into_inner() {
+                Err(err) => Err(err.into_error())?,
+                Ok(mut wtr) => {
+                    io::copy(&mut bufreader, &mut wtr)?;
+                    wtr.flush()?;
+                }
             }
         }
 
-        return Ok(wtr.flush()?);
+        return Ok(());
     }
 
     let headers = rdr.byte_headers()?;
@@ -180,7 +192,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("Cannot rename a column selection where some columns appear multiple times!")?;
     }
 
-    let renamed_headers: csv::ByteRecord = if nothing_to_do {
+    let renamed_headers: simd_csv::ByteRecord = if nothing_to_do {
         headers.clone()
     } else if args.flag_slugify {
         headers
@@ -261,11 +273,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&renamed_headers)?;
 
-    while rdr.read_byte_record(&mut record)? {
-        wtr.write_byte_record(&record)?;
+    let mut bufreader = rdr.into_bufreader();
+
+    match wtr.into_inner() {
+        Err(err) => Err(err.into_error())?,
+        Ok(mut wtr) => {
+            io::copy(&mut bufreader, &mut wtr)?;
+            wtr.flush()?;
+        }
     }
 
-    Ok(wtr.flush()?)
+    Ok(())
 }
 
 #[cfg(test)]

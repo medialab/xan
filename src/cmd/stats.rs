@@ -1,14 +1,14 @@
 use std::num::NonZeroUsize;
 
+use simd_csv::ByteRecord;
+
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Stats;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
-
-type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Computes descriptive statistics on CSV data.
@@ -92,8 +92,8 @@ Common options:
 #[derive(Clone, Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
-    flag_groupby: Option<SelectColumns>,
+    flag_select: SelectedColumns,
+    flag_groupby: Option<SelectedColumns>,
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,
@@ -168,7 +168,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let groupby_sel_opt = args
         .flag_groupby
         .as_ref()
-        .map(|cols| cols.selection(&headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&headers, !rconf.no_headers))
         .transpose()?;
 
     // No need to consider the grouping column when aggregating stats
@@ -191,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Grouping
     if let Some(gsel) = groupby_sel_opt {
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         for h in gsel.select(&headers) {
             record.push_field(h);
@@ -201,11 +201,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&record)?;
 
-        let mut groups: ClusteredInsertHashmap<GroupKey, Vec<Stats>> =
+        let mut groups: ClusteredInsertHashmap<ByteRecord, Vec<Stats>> =
             ClusteredInsertHashmap::new();
 
         while rdr.read_byte_record(&mut record)? {
-            let group_key: Vec<_> = gsel.select(&record).map(|cell| cell.to_vec()).collect();
+            let group_key = gsel.select(&record).collect();
 
             groups.insert_with_or_else(
                 group_key,
@@ -248,7 +248,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&fields[0].headers())?;
 
-    let mut record = simd_csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {

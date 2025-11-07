@@ -2,17 +2,16 @@ use std::cmp::Reverse;
 use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
+use simd_csv::ByteRecord;
 
 use crate::collections::{
     ClusteredInsertHashmap, FixedReverseHeapMap, FixedReverseHeapMapWithTies,
 };
 use crate::config::{Config, Delimiter};
 use crate::record::Record;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
-
-type GroupKey = Vec<Vec<u8>>;
 
 static USAGE: &str = "
 Find top k CSV rows according to some column values.
@@ -51,13 +50,13 @@ struct Forward<T>(T);
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    arg_column: SelectColumns,
+    arg_column: SelectedColumns,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
     flag_limit: NonZeroUsize,
     flag_reverse: bool,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_rank: Option<String>,
     flag_ties: bool,
 }
@@ -70,18 +69,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.arg_column);
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
     let score_col = rconf.single_selection(headers)?;
 
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| cols.selection(headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(headers, !rconf.no_headers))
         .transpose()?;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    if !args.flag_no_headers {
+    if !rconf.no_headers {
         if let Some(name) = &args.flag_rank {
             wtr.write_byte_record(&headers.prepend(name.as_bytes()))?;
         } else {
@@ -91,10 +90,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! run {
         ($heap:ident, $type:ident) => {{
-            let mut record = csv::ByteRecord::new();
-            let mut heap = $heap::<$type<NotNan<f64>>, csv::ByteRecord>::with_capacity(
-                usize::from(args.flag_limit),
-            );
+            let mut record = ByteRecord::new();
+            let mut heap = $heap::<$type<NotNan<f64>>, ByteRecord>::with_capacity(usize::from(
+                args.flag_limit,
+            ));
 
             while rdr.read_byte_record(&mut record)? {
                 if let Ok(score) = std::str::from_utf8(&record[score_col])
@@ -117,10 +116,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! run_groupby {
         ($heap:ident, $type:ident, $sel:ident) => {{
-            let mut record = csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
             let mut groups: ClusteredInsertHashmap<
-                GroupKey,
-                $heap<$type<NotNan<f64>>, csv::ByteRecord>,
+                ByteRecord,
+                $heap<$type<NotNan<f64>>, ByteRecord>,
             > = ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {
@@ -128,10 +127,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     .unwrap_or("")
                     .parse::<NotNan<f64>>()
                 {
-                    let group = $sel
-                        .select(&record)
-                        .map(|cell| cell.to_vec())
-                        .collect::<Vec<_>>();
+                    let group = $sel.select(&record).collect();
 
                     groups.insert_with_or_else(
                         group,

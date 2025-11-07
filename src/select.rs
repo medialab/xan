@@ -6,17 +6,14 @@ use std::iter::repeat;
 use std::ops;
 use std::str::FromStr;
 
-use crate::collections::HashSet;
-use crate::record::Record;
-
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]
-pub struct SelectColumns {
+pub struct SelectedColumns {
     selectors: Vec<Selector>,
     invert: bool,
 }
 
-impl SelectColumns {
+impl SelectedColumns {
     pub fn parse(mut s: &str) -> Result<Self, String> {
         let invert = if !s.is_empty() && s.as_bytes()[0] == b'!' {
             s = &s[1..];
@@ -38,11 +35,12 @@ impl SelectColumns {
         self.invert = !self.invert;
     }
 
-    pub fn selection<R: Record>(
-        &self,
-        first_record: &R,
-        use_names: bool,
-    ) -> Result<Selection, String> {
+    pub fn selection<'a, H>(&self, first_record: H, use_names: bool) -> Result<Selection, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
+        let first_record = first_record.into_iter().collect::<Vec<_>>();
+
         if self.selectors.is_empty() {
             return Ok(Selection(if self.invert {
                 // Inverting everything means we get nothing.
@@ -54,27 +52,27 @@ impl SelectColumns {
 
         let mut map = vec![];
         for sel in &self.selectors {
-            let idxs = sel.indices(first_record, use_names);
+            let idxs = sel.indices(&first_record, use_names);
             map.extend(idxs?.into_iter());
         }
         if self.invert {
-            let set: HashSet<_> = map.into_iter().collect();
-            let mut map = vec![];
+            let mut new_map = vec![];
             for i in 0..first_record.len() {
-                if !set.contains(&i) {
-                    map.push(i);
+                if !map.contains(&i) {
+                    new_map.push(i);
                 }
             }
-            return Ok(Selection(map));
+            return Ok(Selection(new_map));
         }
         Ok(Selection(map))
     }
 
-    pub fn single_selection<R: Record>(
-        &self,
-        first_record: &R,
-        use_names: bool,
-    ) -> Result<usize, String> {
+    pub fn single_selection<'a, H>(&self, first_record: H, use_names: bool) -> Result<usize, String>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
+        let first_record = first_record.into_iter().collect::<Vec<_>>();
+
         let selection = self.selection(first_record, use_names)?;
 
         if selection.len() != 1 {
@@ -84,16 +82,22 @@ impl SelectColumns {
         Ok(selection[0])
     }
 
-    pub fn retain_known<R: Record>(&mut self, headers: &R) -> Vec<usize> {
+    pub fn retain_known<'a, H>(&mut self, headers: H) -> Vec<usize>
+    where
+        H: IntoIterator<Item = &'a [u8]>,
+    {
+        let headers = headers.into_iter().collect::<Vec<_>>();
+
         let mut dropped: Vec<usize> = Vec::new();
 
         for (i, selector) in self.selectors.iter().enumerate() {
             match selector {
-                Selector::One(sel) if sel.index(headers, true).is_err() => {
+                Selector::One(sel) if sel.index(&headers, true).is_err() => {
                     dropped.push(i);
                 }
                 Selector::Range(start, end)
-                    if start.index(headers, true).is_err() && end.index(headers, true).is_err() =>
+                    if start.index(&headers, true).is_err()
+                        && end.index(&headers, true).is_err() =>
                 {
                     dropped.push(i);
                 }
@@ -115,7 +119,7 @@ impl SelectColumns {
     }
 }
 
-impl fmt::Debug for SelectColumns {
+impl fmt::Debug for SelectedColumns {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.selectors.is_empty() {
             write!(f, "<All>")
@@ -130,7 +134,7 @@ impl fmt::Debug for SelectColumns {
     }
 }
 
-impl TryFrom<String> for SelectColumns {
+impl TryFrom<String> for SelectedColumns {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -138,7 +142,7 @@ impl TryFrom<String> for SelectColumns {
     }
 }
 
-impl Default for SelectColumns {
+impl Default for SelectedColumns {
     fn default() -> Self {
         Self::parse("").unwrap()
     }
@@ -346,7 +350,7 @@ enum OneSelector {
 }
 
 impl Selector {
-    fn indices<R: Record>(&self, first_record: &R, use_names: bool) -> Result<Vec<usize>, String> {
+    fn indices(&self, first_record: &[&[u8]], use_names: bool) -> Result<Vec<usize>, String> {
         match *self {
             Selector::All => Ok((0..first_record.len()).collect()),
             Selector::One(ref sel) => sel.index(first_record, use_names).map(|i| vec![i]),
@@ -426,7 +430,7 @@ impl Selector {
 }
 
 impl OneSelector {
-    fn index<R: Record>(&self, first_record: &R, use_names: bool) -> Result<usize, String> {
+    fn index(&self, first_record: &[&[u8]], use_names: bool) -> Result<usize, String> {
         match *self {
             OneSelector::Start => Ok(0),
             OneSelector::End => Ok(if first_record.is_empty() {
@@ -476,7 +480,7 @@ impl OneSelector {
 
                 if sidx < 0 {
                     for (i, field) in first_record.iter().enumerate().rev() {
-                        if field == s.as_bytes() {
+                        if field == &s.as_bytes() {
                             if num_found == sidx.abs() - 1 {
                                 return Ok(i);
                             }
@@ -485,7 +489,7 @@ impl OneSelector {
                     }
                 } else {
                     for (i, field) in first_record.iter().enumerate() {
-                        if field == s.as_bytes() {
+                        if field == &s.as_bytes() {
                             if num_found == sidx {
                                 return Ok(i);
                             }
@@ -605,10 +609,9 @@ impl Selection {
 
     pub fn dedup(&mut self) {
         let mut new = Vec::new();
-        let mut seen = HashSet::new();
 
         for i in self.0.iter().copied() {
-            if seen.insert(i) {
+            if !new.contains(&i) {
                 new.push(i);
             }
         }
@@ -683,5 +686,11 @@ impl ops::Deref for Selection {
 
     fn deref(&self) -> &[usize] {
         &self.0
+    }
+}
+
+impl ops::DerefMut for Selection {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }

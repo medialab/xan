@@ -7,6 +7,10 @@ CSV file. The new names must be passed in CSV format to the column as argument,
 which can be useful if the desired column names contains actual commas and/or double
 quotes.
 
+Note that to be as performant as possible, this command does not try
+to be clever and only parses the first CSV row to drop it. The rest of
+the file will be flushed to the output as-is without any kind of normalization.
+
 Renaming all columns:
 
     $ xan rename NAME,SURNAME,AGE file.csv

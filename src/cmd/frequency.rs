@@ -1,15 +1,16 @@
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
+use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
-type GroupKey = Vec<Vec<u8>>;
+type GroupKey = ByteRecord;
 type ValueKey = Vec<u8>;
 
 static USAGE: &str = "
@@ -82,7 +83,7 @@ Common options:
 #[derive(Clone, Deserialize)]
 struct Args {
     arg_input: Option<String>,
-    flag_select: SelectColumns,
+    flag_select: SelectedColumns,
     flag_sep: Option<String>,
     flag_all: bool,
     flag_limit: usize,
@@ -93,7 +94,7 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_threads: Option<NonZeroUsize>,
-    flag_groupby: Option<SelectColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_no_limit_we_reach_for_the_sky: bool,
 }
 
@@ -153,14 +154,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
 
-    let mut rdr = rconf.simd_reader()?;
+    if let Some(sep) = args.flag_sep.as_ref() {
+        if sep.as_bytes() == [rconf.quote] {
+            Err("--sep cannot be the CSV quote character!")?;
+        }
+    }
+
+    let mut rdr = rconf.simd_zero_copy_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = rdr.byte_headers()?.clone();
     let mut sel = rconf.selection(&headers)?;
     let groupby_sel_opt = args
         .flag_groupby
-        .map(|cols| cols.selection(&headers, !args.flag_no_headers))
+        .map(|cols| cols.selection(&headers, !rconf.no_headers))
         .transpose()?;
 
     // No need to consider the grouping column when counting frequencies
@@ -173,7 +180,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    let field_names: Vec<Vec<u8>> = if args.flag_no_headers {
+    let field_names: ByteRecord = if args.flag_no_headers {
         sel.iter()
             .map(|i| i.to_string().as_bytes().to_vec())
             .collect()
@@ -202,7 +209,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         > = ClusteredInsertHashmap::new();
 
         let output_headers = {
-            let mut r = simd_csv::ByteRecord::new();
+            let mut r = ByteRecord::new();
             r.push_field(b"field");
 
             for col_name in groupby_sel.select(&headers) {
@@ -216,11 +223,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&output_headers)?;
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut output_record = ByteRecord::new();
 
         // Aggregating
-        while rdr.read_byte_record(&mut record)? {
-            let group: Vec<_> = groupby_sel
+        while let Some(record) = rdr.read_byte_record()? {
+            let group: ByteRecord = groupby_sel
                 .select(&record)
                 .map(|cell| cell.to_vec())
                 .collect();
@@ -235,7 +242,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 list
             });
 
-            for (i, cell) in sel.select(&record).enumerate() {
+            for (i, cell) in sel.iter().map(|i| record.unquote(*i).unwrap()).enumerate() {
                 if let Some(sep) = &args.flag_sep {
                     for sub_cell in cell.split_str(sep) {
                         let sub_cell = match coerce_cell(sub_cell, args.flag_no_extra) {
@@ -275,31 +282,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 for (value, count) in items {
                     emitted += count;
 
-                    record.clear();
-                    record.push_field(&name);
+                    output_record.clear();
+                    output_record.push_field(name);
 
                     for cell in group {
-                        record.push_field(cell);
+                        output_record.push_field(cell);
                     }
 
-                    record.push_field(&value);
-                    record.push_field(count.to_string().as_bytes());
-                    wtr.write_byte_record(&record)?;
+                    output_record.push_field(&simd_csv::unescape(&value, rconf.quote));
+                    output_record.push_field(count.to_string().as_bytes());
+                    wtr.write_byte_record(&output_record)?;
                 }
 
                 let remaining = total - emitted;
 
                 if !args.flag_no_extra && remaining > 0 {
-                    record.clear();
-                    record.push_field(&name);
+                    output_record.clear();
+                    output_record.push_field(name);
 
                     for cell in group {
-                        record.push_field(cell);
+                        output_record.push_field(cell);
                     }
 
-                    record.push_field(b"<rest>");
-                    record.push_field(remaining.to_string().as_bytes());
-                    wtr.write_byte_record(&record)?;
+                    output_record.push_field(b"<rest>");
+                    output_record.push_field(remaining.to_string().as_bytes());
+                    wtr.write_byte_record(&output_record)?;
                 }
             }
         }
@@ -308,7 +315,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             (0..sel.len()).map(|_| Counter::new(approx_k)).collect();
 
         let output_headers = {
-            let mut r = simd_csv::ByteRecord::new();
+            let mut r = ByteRecord::new();
             r.push_field(b"field");
             r.push_field(b"value");
             r.push_field(b"count");
@@ -317,11 +324,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         wtr.write_byte_record(&output_headers)?;
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut output_record = ByteRecord::new();
 
         // Aggregating
-        while rdr.read_byte_record(&mut record)? {
-            for (cell, counter) in sel.select(&record).zip(fields.iter_mut()) {
+        while let Some(record) = rdr.read_byte_record()? {
+            for (cell, counter) in sel
+                .iter()
+                .map(|i| record.unquote(*i).unwrap())
+                .zip(fields.iter_mut())
+            {
                 if let Some(sep) = &args.flag_sep {
                     for sub_cell in cell.split_str(sep) {
                         let sub_cell = match coerce_cell(sub_cell, args.flag_no_extra) {
@@ -358,21 +369,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             for (value, count) in items {
                 emitted += count;
 
-                record.clear();
-                record.push_field(&name);
-                record.push_field(&value);
-                record.push_field(count.to_string().as_bytes());
-                wtr.write_byte_record(&record)?;
+                output_record.clear();
+                output_record.push_field(name);
+                output_record.push_field(&simd_csv::unescape(&value, rconf.quote));
+                output_record.push_field(count.to_string().as_bytes());
+                wtr.write_byte_record(&output_record)?;
             }
 
             let remaining = total - emitted;
 
             if !args.flag_no_extra && remaining > 0 {
-                record.clear();
-                record.push_field(&name);
-                record.push_field(b"<rest>");
-                record.push_field(remaining.to_string().as_bytes());
-                wtr.write_byte_record(&record)?;
+                output_record.clear();
+                output_record.push_field(name);
+                output_record.push_field(b"<rest>");
+                output_record.push_field(remaining.to_string().as_bytes());
+                wtr.write_byte_record(&output_record)?;
             }
         }
     }

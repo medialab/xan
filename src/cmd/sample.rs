@@ -3,12 +3,12 @@ use std::collections::BinaryHeap;
 use std::io;
 
 use rand::Rng;
+use simd_csv::ByteRecord;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
-use crate::read::{find_next_record_offset_from_random_position, sample_initial_records};
-use crate::select::{SelectColumns, Selection};
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
@@ -68,8 +68,8 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_seed: Option<usize>,
-    flag_weight: Option<SelectColumns>,
-    flag_groupby: Option<SelectColumns>,
+    flag_weight: Option<SelectedColumns>,
+    flag_groupby: Option<SelectedColumns>,
     flag_cursed: bool,
 }
 
@@ -90,21 +90,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let sample_size = args.arg_sample_size;
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut rdr = rconfig.reader()?;
+    let mut rdr = rconfig.simd_reader()?;
 
-    let byte_headers = rdr.byte_headers()?;
+    let byte_headers = rdr.byte_headers()?.clone();
 
     let group_sel_opt = args
         .flag_groupby
-        .map(|s| s.selection(byte_headers, !args.flag_no_headers))
+        .map(|s| s.selection(&byte_headers, !rconfig.no_headers))
         .transpose()?;
 
     let sampled = if args.flag_cursed {
         sample_cursed(&rconfig, sample_size, args.flag_seed)?
     } else if args.flag_weight.is_some() {
-        let weight_column_index = rconfig.single_selection(byte_headers)?;
+        let weight_column_index = rconfig.single_selection(&byte_headers)?;
 
         if let Some(group_sel) = group_sel_opt {
             sample_weighted_reservoir_grouped(
@@ -123,7 +123,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         sample_reservoir(&mut rdr, sample_size, args.flag_seed)?
     };
 
-    rconfig.write_headers(&mut rdr, &mut wtr)?;
+    if !rconfig.no_headers {
+        wtr.write_byte_record(&byte_headers)?;
+    }
 
     for row in sampled.into_iter() {
         wtr.write_byte_record(&row)?;
@@ -133,10 +135,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 fn sample_reservoir<R: io::Read>(
-    rdr: &mut csv::Reader<R>,
+    rdr: &mut simd_csv::Reader<R>,
     sample_size: u64,
     seed: Option<usize>,
-) -> CliResult<Vec<csv::ByteRecord>> {
+) -> CliResult<Vec<ByteRecord>> {
     // The following algorithm has been adapted from:
     // https://en.wikipedia.org/wiki/Reservoir_sampling
     let mut reservoir = Vec::with_capacity(sample_size as usize);
@@ -159,16 +161,16 @@ fn sample_reservoir<R: io::Read>(
 }
 
 struct GroupReservoir {
-    records: Vec<csv::ByteRecord>,
+    records: Vec<ByteRecord>,
     count: usize,
 }
 
 fn sample_reservoir_grouped<R: io::Read>(
-    rdr: &mut csv::Reader<R>,
+    rdr: &mut simd_csv::Reader<R>,
     sample_size: u64,
     seed: Option<usize>,
     group_sel: Selection,
-) -> CliResult<Vec<csv::ByteRecord>> {
+) -> CliResult<Vec<ByteRecord>> {
     let mut global_reservoir: ClusteredInsertHashmap<GroupKey, GroupReservoir> =
         ClusteredInsertHashmap::new();
 
@@ -202,10 +204,10 @@ fn sample_reservoir_grouped<R: io::Read>(
 }
 
 #[derive(PartialEq)]
-struct WeightedRow(f64, csv::ByteRecord);
+struct WeightedRow(f64, ByteRecord);
 
 impl WeightedRow {
-    fn row(self) -> csv::ByteRecord {
+    fn row(self) -> ByteRecord {
         self.1
     }
 }
@@ -225,11 +227,11 @@ impl Ord for WeightedRow {
 }
 
 fn sample_weighted_reservoir<R: io::Read>(
-    rdr: &mut csv::Reader<R>,
+    rdr: &mut simd_csv::Reader<R>,
     sample_size: u64,
     seed: Option<usize>,
     weight_column_index: usize,
-) -> CliResult<Vec<csv::ByteRecord>> {
+) -> CliResult<Vec<ByteRecord>> {
     // Seeding rng
     let mut rng = util::acquire_rng(seed);
 
@@ -259,12 +261,12 @@ fn sample_weighted_reservoir<R: io::Read>(
 }
 
 fn sample_weighted_reservoir_grouped<R: io::Read>(
-    rdr: &mut csv::Reader<R>,
+    rdr: &mut simd_csv::Reader<R>,
     sample_size: u64,
     seed: Option<usize>,
     weight_column_index: usize,
     group_sel: Selection,
-) -> CliResult<Vec<csv::ByteRecord>> {
+) -> CliResult<Vec<ByteRecord>> {
     let mut rng = util::acquire_rng(seed);
 
     let mut global_reservoir: ClusteredInsertHashmap<GroupKey, BinaryHeap<WeightedRow>> =
@@ -302,37 +304,25 @@ fn sample_cursed(
     config: &Config,
     sample_size: u64,
     seed: Option<usize>,
-) -> CliResult<Vec<csv::ByteRecord>> {
-    let mut reader = config.seekable_reader()?;
-    let sample = sample_initial_records(&mut reader, 64)?.ok_or("file is empty!")?;
+) -> CliResult<Vec<ByteRecord>> {
+    let mut seeker = config.simd_seeker()?.ok_or("Could not sample the file!")?;
 
     // If sample size is too large wrt whole file approximated number of records we fall back to
     // traditional reservoir sampling:
-    if sample_size > (sample.exact_or_approx_count() as f64 * 0.1).ceil() as u64 {
-        return sample_reservoir(&mut config.reader()?, sample_size, seed);
+    if sample_size > (seeker.approx_count() as f64 * 0.1).ceil() as u64 {
+        return sample_reservoir(&mut config.simd_reader()?, sample_size, seed);
     }
 
-    // NOTE: we don't need to avoid headers because next record found will always be not the headers
-    let range = 0..(sample.file_len - sample.max_record_size * 8);
-
     let mut rng = util::acquire_rng(seed);
-    let mut records: HashMap<u64, csv::ByteRecord> = HashMap::with_capacity(sample_size as usize);
+    let mut records: HashMap<u64, ByteRecord> = HashMap::with_capacity(sample_size as usize);
 
     'outer: while records.len() < sample_size as usize {
         // NOTE: we only attempt 5 times to find a not yet sampled record
         for _ in 0..5 {
-            let random_byte_offset = rng.random_range(range.clone());
+            let random_byte_offset = rng.random_range(seeker.range());
 
-            if let Some((record, offset)) = find_next_record_offset_from_random_position(
-                &mut reader,
-                || config.csv_reader_builder(),
-                random_byte_offset,
-                &sample,
-                8,
-            )?
-            .into_record_with_offset()
-            {
-                records.insert(offset, record);
+            if let Some((pos, record)) = seeker.seek(random_byte_offset)? {
+                records.insert(pos, record);
                 continue 'outer;
             } else {
                 continue;

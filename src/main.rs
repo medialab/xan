@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
+extern crate fast_float2 as fast_float;
 
 use std::borrow::ToOwned;
 use std::env;
@@ -171,14 +172,14 @@ fn main() {
             match e {
                 docopt::Error::Deserialize(_) => {
                     // Command mismatch
-                    eprintln!(
-                        "Please choose one of the following commands/flags:\n{}",
-                        util::colorize_main_help(command_list!())
-                    );
+                    // eprintln!(
+                    //     "Please choose one of the following commands/flags:\n{}",
+                    //     util::colorize_main_help(command_list!())
+                    // );
                     eprintln!(
                         "{}",
                         format!(
-                            "Unknown command {}!\nUse one of the commands listed above.",
+                            "xan: unknown command \"{}\"! Use xan --help to review available commands.",
                             std::env::args()
                                 .nth(1)
                                 .unwrap_or_else(|| "<missing>".to_string())
@@ -250,7 +251,11 @@ Please choose one of the following commands/flags:\n{}",
                 process::exit(1);
             }
             Err(CliError::Help(usage, exit_code)) => {
-                println!("{}", usage);
+                if exit_code == 0 {
+                    println!("{}", usage);
+                } else {
+                    eprintln!("{}", usage);
+                }
                 process::exit(exit_code);
             }
         },
@@ -448,23 +453,26 @@ impl fmt::Display for CliError {
 
 impl From<docopt::Error> for CliError {
     fn from(err: docopt::Error) -> CliError {
-        use colored::Colorize;
-
         match err {
             docopt::Error::WithProgramUsage(kind, usage) => {
                 let usage = util::colorize_help(&usage);
 
+                let format_error_msg = |msg: &str| -> String {
+                    format!(
+                        "{}\n\n{} Use the {} flag for more information.",
+                        usage,
+                        msg.red(),
+                        "-h/--help".cyan()
+                    )
+                };
+
                 match kind.as_ref() {
                     docopt::Error::Help => CliError::Help(usage, 0),
-                    _ => CliError::Help(
-                        format!(
-                            "{}\n\n{} Use the {} flag for more information.",
-                            usage,
-                            "Invalid command!".red(),
-                            "-h/--help".cyan()
-                        ),
-                        1,
-                    ),
+                    docopt::Error::NoMatch => {
+                        CliError::Help(format_error_msg("Invalid subcommand or arguments!"), 1)
+                    }
+                    docopt::Error::Argv(msg) => CliError::Help(format_error_msg(msg), 1),
+                    _ => CliError::Help(format_error_msg("Invalid arguments!"), 1),
                 }
             }
             _ => CliError::Flag(err),
@@ -591,6 +599,12 @@ impl From<rust_xlsxwriter::XlsxError> for CliError {
 
 impl From<serde_json::Error> for CliError {
     fn from(value: serde_json::Error) -> Self {
+        CliError::Other(value.to_string())
+    }
+}
+
+impl From<simd_json::Error> for CliError {
+    fn from(value: simd_json::Error) -> Self {
         CliError::Other(value.to_string())
     }
 }

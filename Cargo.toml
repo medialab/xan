@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.54.0-rc.1"
+version = "0.54.0-rc.3"
 rust-version = "1.83.0"
 authors = [
   "Andrew Gallant <jamslam@gmail.com>",
@@ -48,12 +48,13 @@ lto = true
 strip = true
 
 [profile.release-fast]
-codegen-units = 16
 inherits = "release"
+codegen-units = 16
 lto = false
 
 [profile.release-debug]
 inherits = "release"
+codegen-units = 16
 strip = false
 debug = true
 lto = false
@@ -70,9 +71,8 @@ bytesize = "2.0.1"
 calamine = "0.31.0"
 colored = "2.0.0"
 colorgrad = { version = "0.7.0", default-features = false, features = ["preset"] }
-console = "0.15.8"
+console = "0.16.1"
 csv = "1.3.1"
-ctrlc = "3.4.4"
 comrak = { version = "0.39.0", default-features = false }
 deepsize = "0.2.0"
 dlv-list = "0.6.0"
@@ -81,7 +81,7 @@ ego-tree = "0.10.0"
 emojis = "0.6.4"
 encoding = "0.2.33"
 ext-sort = { version = "0.1.5", features = ["memory-limit"] }
-fast-float = "0.2.0"
+fast-float2 = "0.2.3"
 flate2 = { version = "1.1.2", default-features = false, features = ["zlib-rs"] }
 glob = "0.3.1"
 html-escape = "0.2.13"
@@ -104,7 +104,7 @@ paltoquet = "0.11.0"
 pariter = "0.5.1"
 pest = "2.7.15"
 pest_derive = "2.7.15"
-quick-xml = "0.37.2"
+quick-xml = "0.38.3"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 rand_seeder = "0.4.0"
@@ -118,7 +118,8 @@ serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 shlex = "1.3.0"
-simd-csv = { git = "https://github.com/medialab/simd-csv", rev = "7e5eb1f7" }
+simd-csv = "0.6.0"
+simd-json = "0.14.3"
 sprintf = "0.4.1"
 tar = { version = "0.4.44", default-features = false }
 tdigest = "0.2.3"
@@ -131,6 +132,7 @@ unicode-segmentation = "1.12.0"
 unicode-width = "0.2.0"
 url = "2.5.4"
 uuid = { version = "1.16.0", features = ["v4"] }
+zstd = "0.13.3"
 
 # NOTE: pager does not work on windows
 [target.'cfg(not(windows))'.dependencies]

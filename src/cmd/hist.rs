@@ -10,7 +10,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::config::{Config, Delimiter};
 use crate::dates;
 use crate::scales::LinearScale;
-use crate::select::SelectColumns;
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -81,9 +81,9 @@ struct Args {
     arg_input: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_field: SelectColumns,
-    flag_label: SelectColumns,
-    flag_value: SelectColumns,
+    flag_field: SelectedColumns,
+    flag_label: SelectedColumns,
+    flag_value: SelectedColumns,
     flag_cols: Option<String>,
     flag_color: ColorMode,
     flag_domain_max: String,
@@ -91,7 +91,7 @@ struct Args {
     flag_name: String,
     flag_hide_percent: bool,
     flag_unit: Option<String>,
-    flag_category: Option<SelectColumns>,
+    flag_category: Option<SelectedColumns>,
     flag_bar_size: String,
     flag_dates: bool,
     flag_compress_gaps: Option<usize>,
@@ -115,13 +115,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let label_pos = args
         .flag_label
-        .single_selection(&headers, !args.flag_no_headers)?;
+        .single_selection(&headers, !conf.no_headers)?;
     let value_pos = args
         .flag_value
-        .single_selection(&headers, !args.flag_no_headers)?;
+        .single_selection(&headers, !conf.no_headers)?;
     let field_pos_option = args
         .flag_field
-        .single_selection(&headers, !args.flag_no_headers)
+        .single_selection(&headers, !conf.no_headers)
         .ok();
 
     let mut histograms = Histograms::new();
@@ -131,7 +131,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let category_column_index = args
         .flag_category
         .as_ref()
-        .map(|name| name.single_selection(&headers, !args.flag_no_headers))
+        .map(|name| name.single_selection(&headers, !conf.no_headers))
         .transpose()?;
 
     let mut category_colors: IndexMap<String, usize, RandomState> =

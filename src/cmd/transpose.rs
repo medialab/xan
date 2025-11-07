@@ -42,7 +42,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(true);
 
-    let rdr = rconfig.reader()?;
+    let rdr = rconfig.simd_reader()?;
 
     let records = rdr.into_byte_records().collect::<Result<Vec<_>, _>>()?;
 
@@ -50,8 +50,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
-    let mut output_record = csv::ByteRecord::new();
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+    let mut output_record = simd_csv::ByteRecord::new();
 
     let columns = records[0].len();
 
