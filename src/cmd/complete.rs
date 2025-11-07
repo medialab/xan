@@ -15,7 +15,33 @@ use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"
-TODO...
+Complete or check on missing values in a column. Can handle integer or date values.
+A --min and/or --max flag can be used to specify a range to complete or check.
+Note that when completing, if the input contains values outside the specified
+range, those values will be removed from the output.
+You can specify that the input is already sorted in ascending order on the column
+to complete with the --sorted flag, and in descending order using both --sorted
+and --reverse, which will make the command faster.
+Will by default output in ascending order on the completed column, but you can
+use the --reverse flag to output in descending order.
+You can also complete values within groups defined by other columns using the --groupby
+flag, completing with the same range for each group.
+When completing, new rows will be filled with the value specified by the --zero
+flag (or an empty string by default) in all columns except the completed column
+and the group-by columns (if any).
+
+Examples:
+  Complete integer values in column named "score" from 1 to 10, filling new rows with 0:
+    $ xan complete -m 1 -M 10 -z 0 score input.csv
+
+  Complete already sorted date values in column named "date":
+    $ xan complete -D --sorted date input.csv
+
+  Check that the values (already sorted in descending order) in column named "score" are complete:
+    $ xan complete --check --sorted --reverse score input.csv
+
+  Complete integer values in column named "score" within groups defined by columns "name" and "category":
+    $ xan complete --groupby name,category score input.csv
 
 Usage:
     xan complete [options] <column> [<input>]
@@ -261,6 +287,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = ByteRecord::new();
 
+    // reading records and grouping them if needed
+    // will
     let mut records_per_group: ClusteredInsertHashmap<Vec<Vec<u8>>, Vec<ByteRecord>> =
         ClusteredInsertHashmap::new();
     if !args.flag_sorted {
@@ -314,6 +342,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
     let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
 
+    // closure to process ALREADY SORTED records in a group
     let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
                                         group_key: &Vec<Vec<u8>>|
      -> CliResult<()> {
@@ -419,12 +448,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Ok(())
     };
 
-    // process records
+    // process all records
     for (group_key, records) in records_per_group.iter() {
         if args.flag_sorted && args.flag_groupby.is_none() {
             // QUESTION: Am I not allowing memory for every record here (in case input from stdin)?
             process_records_in_group(&mut rdr.byte_records().map(|r| r.unwrap()), group_key)?;
         } else {
+            // sorting records in the group
             let mut values_and_records = records
                 .iter()
                 .map(|record| -> CliResult<(ValuesType, ByteRecord)> {
