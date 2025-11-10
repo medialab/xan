@@ -104,18 +104,10 @@ struct Args {
     flag_groupby: Option<SelectedColumns>,
 }
 
+#[derive(Clone)]
 enum ValuesType {
     Integer(i64),
     Date(dates::PartialDate),
-}
-
-impl Clone for ValuesType {
-    fn clone(&self) -> Self {
-        match self {
-            ValuesType::Integer(i) => ValuesType::Integer(*i),
-            ValuesType::Date(d) => ValuesType::Date(d.clone()),
-        }
-    }
 }
 
 impl Eq for ValuesType {}
