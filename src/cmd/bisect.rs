@@ -56,17 +56,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut value: u64;
 
     let mut record: ByteRecord;
-    let mut record_pos: u64;
-
-    dbg!(&seek_rdr.has_headers());
-
-    // dbg!(&seek_rdr.seek(0)?);
-
-    // dbg!(&seek_rdr.seek(1)?);
-
-    dbg!(&seek_rdr.seek(2)?);
-
-    dbg!(&seek_rdr.seek(3)?);
+    let mut record_pos: u64 = start_byte;
 
     while start_byte <= end_byte {
         (record_pos, record) = seek_rdr.seek(median_byte)?.unwrap();
@@ -76,33 +66,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .parse::<u64>()
             .unwrap();
 
-        // dbg!(&value);
-        // dbg!(&start_byte);
-        // dbg!(&end_byte);
-        // dbg!(&median_byte);
-
         if value == target_value {
-            println!(
-                "Found value {} at byte position {}",
-                target_value, record_pos
-            );
             break;
         } else if value < target_value {
             // move start byte up
-            start_byte = median_byte + 1;
+            start_byte = record_pos;
         } else {
             // move end byte down
-            end_byte = median_byte.saturating_sub(1);
+            end_byte = record_pos;
         }
+
         if let Some(prev) = previous_median {
             if prev == median_byte {
                 println!("Value {} not found in file", target_value);
-                break;
+                return Ok(());
             }
         }
         previous_median = Some(median_byte);
         median_byte = (start_byte + end_byte) / 2;
     }
 
+    println!(
+        "Found value {} at byte position {}",
+        target_value, record_pos
+    );
     Ok(())
 }
