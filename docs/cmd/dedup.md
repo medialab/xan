@@ -13,6 +13,13 @@ a specific identity to the output, unless you use -l/--keep-last.
 
 The command can also write only the duplicated rows with --keep-duplicates.
 
+You are also given the option to add a column indicating whether each row is
+a duplicate or not, as per selected method, using -f/--flag <name>. You can
+even pipe the result into `xan partition` to split the file into a deduplicated
+one and another containing only discarded duplicates:
+
+    $ xan dedup -f duplicated file.csv | xan partition -s duplicated
+
 Finally, it is also possible to specify which rows to keep by evaluating
 an expression (see `xan help cheatsheet` and `xan help functions` for
 the documentation of the expression language).
@@ -36,24 +43,28 @@ Usage:
     xan dedup --help
 
 dedup options:
-    --check             Verify whether the selection has any duplicates, i.e. whether
-                        the selected columns satisfy a uniqueness constraint.
-    -s, --select <arg>  Select a subset of columns to on which to deduplicate.
-                        See 'xan select --help' for the format details.
-    -S, --sorted        Use if you know your file is already sorted on the deduplication
-                        selection to avoid needing to keep a hashmap of values
-                        in memory.
-    -l, --keep-last     Keep the last row having a specific identity, rather than
-                        the first one. Note that it will cost more memory and that
-                        no rows will be flushed before the whole file has been read
-                        if -S/--sorted is not used.
-    -e, --external      Use an external btree index to keep the index on disk and avoid
-                        overflowing RAM. Does not work with -l/--keep-last and --keep-duplicates.
-    --keep-duplicates   Emit only the duplicated rows.
-    --choose <expr>     Evaluate an expression that must return whether to
-                        keep a newly seen row or not. Column name in the given
-                        expression will be prefixed with "current_" for the
-                        currently kept row and "new_" for the new row to consider.
+    --check                Verify whether the selection has any duplicates, i.e. whether
+                           the selected columns satisfy a uniqueness constraint.
+    -s, --select <arg>     Select a subset of columns to on which to deduplicate.
+                           See 'xan select --help' for the format details.
+    -S, --sorted           Use if you know your file is already sorted on the deduplication
+                           selection to avoid needing to keep a hashmap of values
+                           in memory.
+    -l, --keep-last        Keep the last row having a specific identity, rather than
+                           the first one. Note that it will cost more memory and that
+                           no rows will be flushed before the whole file has been read
+                           if -S/--sorted is not used.
+    -e, --external         Use an external btree index to keep the index on disk and avoid
+                           overflowing RAM. Does not work with -l/--keep-last and -k/--keep-duplicates.
+    -k, --keep-duplicates  Emit only the duplicated rows.
+    -C, --choose <expr>    Evaluate an expression that must return whether to
+                           keep a newly seen row or not. Column name in the given
+                           expression will be prefixed with "current_" for the
+                           currently kept row and "new_" for the new row to consider.
+    -f, --flag <name>      Instead of filtering duplicated rows, add a column with given <name>
+                           indicating whether a row is duplicated. File order might get
+                           modified to keep proper performance when -l/--keep-last
+                           or -C/--choose is used.
 
 Common options:
     -h, --help               Display this message

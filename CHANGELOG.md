@@ -38,6 +38,8 @@
 * Adding a `xan cat cols` alias to `xan cat columns`.
 * Adding `zstd` support.
 * Adding `earliest` & `latest` moonblade functions.
+* Adding `xan dedup -f/--flag`.
+* Adding `-k` short flag for `xan dedup --keep-duplicates`, and `-C` short flag for `xan dedup --choose`.
 
 *Fixes*
 
