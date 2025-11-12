@@ -654,6 +654,8 @@ If you need to process a file with a custom delimiter, you can either use the `x
 
 If you need to output a custom CSV dialect (e.g. using `;` delimiters), feel free to use the `xan fmt` command.
 
+If your CSV file has a varying number of columns per row, use the `xan fixlengths` command before piping into other commands as `xan` expects well-behaved CSV data where rows all have the same number of columns.
+
 Finally, even if most `xan` commands won't even need to decode the file's bytes, some might still need to. In this case, `xan` will expect correctly formatted UTF-8 text. Please use `iconv` or other utils if you need to process other encodings such as `latin1` ahead of `xan`.
 
 ### Working with headless CSV file
