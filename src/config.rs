@@ -485,7 +485,7 @@ impl Config {
     pub fn simd_seeker(
         &self,
     ) -> CliResult<Option<simd_csv::Seeker<Box<dyn SeekRead + Send + 'static>>>> {
-        Ok(self.simd_csv_seeker_from_reader(self.io_reader_for_random_access()?)?)
+        Ok(self.simd_csv_seeker_from_reader(self.seekable_io_reader()?)?)
     }
 
     pub fn io_reader(&self) -> CliResult<Box<dyn io::Read + Send + 'static>> {
@@ -531,11 +531,11 @@ impl Config {
         })
     }
 
-    pub fn io_reader_for_random_access(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
-        let msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)".to_string();
+    pub fn seekable_io_reader(&self) -> CliResult<Box<dyn SeekRead + Send + 'static>> {
+        let error_msg = "can't use provided input because it does not allow for random access (e.g. stdin or piping)";
 
         match self.path {
-            None => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
+            None => Err(error_msg)?,
             Some(ref p) => match fs::File::open(p) {
                 Ok(mut x) => {
                     if let Some(Compression::Gzip) = self.compression {
@@ -550,20 +550,24 @@ impl Config {
                             self.process_typical_headers_seek(&mut indexed_reader)?;
 
                             return Ok(Box::new(indexed_reader));
+                        } else {
+                            Err(error_msg)?;
                         }
+                    } else if self.compression.is_some() {
+                        Err(error_msg)?;
                     } else {
                         self.process_typical_headers_seek(&mut x)?;
                     }
 
                     match x.borrow().stream_position() {
                         Ok(_) => Ok(Box::new(x)),
-                        Err(_) => Err(io::Error::new(io::ErrorKind::Unsupported, msg))?,
+                        Err(_) => Err(error_msg)?,
                     }
                 }
-                Err(err) => {
-                    let msg = format!("failed to open {}: {}", p.display(), err);
-                    Err(io::Error::new(io::ErrorKind::NotFound, msg))?
-                }
+                Err(err) => Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("failed to open {}: {}", p.display(), err),
+                ))?,
             },
         }
     }
@@ -573,7 +577,7 @@ impl Config {
         position: u64,
         limit: u64,
     ) -> CliResult<Box<dyn Read + Send + 'static>> {
-        let mut reader = self.io_reader_for_random_access()?;
+        let mut reader = self.seekable_io_reader()?;
 
         reader.seek(SeekFrom::Start(position))?;
 
@@ -689,7 +693,7 @@ impl Config {
     pub fn reverse_reader(
         &self,
     ) -> CliResult<simd_csv::ReverseReader<Box<dyn SeekRead + Send + 'static>>> {
-        let io_reader = self.io_reader_for_random_access()?;
+        let io_reader = self.seekable_io_reader()?;
         let builder = self.simd_csv_reader_builder();
 
         Ok(builder.reverse_from_reader(io_reader)?)

@@ -83,7 +83,7 @@ fn run_random_access(args: Args) -> CliResult<()> {
         positions.shuffle(&mut rng);
     }
 
-    let mut input_rdr = rconf.io_reader_for_random_access()?;
+    let mut input_rdr = rconf.seekable_io_reader()?;
     let mut reading_buffer: Vec<u8> = Vec::new();
 
     if let Some(l) = header_len {
