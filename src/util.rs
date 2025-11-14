@@ -463,7 +463,7 @@ lazy_static! {
 
 pub fn highlight_problematic_string_features(string: &str) -> String {
     let start = string.len() - string.trim_start().len();
-    let end = string.trim_end().len();
+    let end = start + string[start..].trim_end().len();
 
     let replaced = format!(
         "{}{}{}",
