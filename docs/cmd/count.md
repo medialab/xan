@@ -25,8 +25,6 @@ count options:
     -a, --approx             Attempt to approximate a CSV file row count by sampling its
                              first rows. Target must be seekable, which means this cannot
                              work on a stream fed through stdin nor with gzipped data.
-    --sample-size <n>        Number of rows to sample when using -a, --approx.
-                             [default: 512]
 
 Common options:
     -h, --help             Display this message

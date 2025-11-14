@@ -13,6 +13,7 @@
 * `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 * `xan input` has been overhauled.
 * Dropping `xan count --sample-size`.
+* Overhauling `xan fixlengths` to accept streams by shifting default from double-pass read to buffering the whole stream into memory.
 
 *Features*
 
@@ -38,6 +39,9 @@
 * Adding a `xan cat cols` alias to `xan cat columns`.
 * Adding `zstd` support.
 * Adding `earliest` & `latest` moonblade functions.
+* Adding `xan dedup -f/--flag`.
+* Adding `-k` short flag for `xan dedup --keep-duplicates`, and `-C` short flag for `xan dedup --choose`.
+* Adding `xan fixlengths -H/--trust-header`.
 
 *Fixes*
 
@@ -51,6 +55,7 @@
 * Fixing `xan from -f tar` when tarball archive is not gzipped.
 * Fixing `min` & `max` moonblade function when passing a list of numbers.
 * Fixing `xan flatten -H` edge cases.
+* Fixing commands requiring seekable streams accepting unindexed compressed files by error.
 
 *Performance*
 
@@ -202,6 +207,8 @@ The **parallel** update.
 * Adding `header`, `col_index` & `col_index?` moonblade functions.
 * Adding `find` & `find_index` moonblade functions.
 * Adding `-l/--limit` support to `xan search -p` & `xan filter -p`.
+* Adding `xan pivot-longer` alias to `xan unpivot`.
+* Adding `xan pivot-wider` alias to `xan pivot`.
 
 *Fixes*
 

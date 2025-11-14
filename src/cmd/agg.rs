@@ -69,6 +69,9 @@ instead of aggregating the whole file, when using the --along-rows flag. In
 which case aggregation functions will accept the anonymous `_` placeholder value
 representing the currently processed column's value.
 
+In a way, it is a variant of `xan map`, able to leverage aggregation
+functions and generic over target columns.
+
 Note that when using --along-rows, the `index()` function will return the
 index of currently processed column, not the row index. This can be useful
 when used with `argmin/argmax` etc.
@@ -90,6 +93,15 @@ Will produce the following output:
 | ---- | ------ | ------ | --- |
 | john | 3      | 6      | 9   |
 | lucy | 10     | 7      | 17  |
+
+Typical use-cases include getting the variance of the dimensions of
+dense vectors:
+
+    $ xan agg -R 'dim_*' 'var(_) as variance' vectors.csv
+
+Finding the column maximizing a score:
+
+    $ xan agg -R '*_score' 'argmax(_, header(index()) as best' results.csv
 
 # Aggregating along columns
 

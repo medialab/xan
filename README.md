@@ -601,6 +601,9 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**to**](./docs/cmd/to.md): Convert a CSV file to a variety of data formats
 - [**scrape**](./docs/cmd/scrape.md): Scrape HTML into CSV data
 - [**reverse**](./docs/cmd/reverse.md): Reverse rows of CSV data
+
+*Transpose & pivot*
+
 - [**transpose (t)**](./docs/cmd/transpose.md): Transpose CSV file
 - [**pivot**](./docs/cmd/pivot.md): Stack multiple columns into fewer columns
 - [**unpivot**](./docs/cmd/unpivot.md): Split distinct values of a column into their own columns
@@ -653,6 +656,8 @@ All `xan` commands expect a "standard" CSV file, e.g. comma-delimited, with prop
 If you need to process a file with a custom delimiter, you can either use the `xan input` command or use the `-d/--delimiter` flag available with all commands.
 
 If you need to output a custom CSV dialect (e.g. using `;` delimiters), feel free to use the `xan fmt` command.
+
+If your CSV file has a varying number of columns per row, use the `xan fixlengths` command before piping into other commands as `xan` expects well-behaved CSV data where rows all have the same number of columns.
 
 Finally, even if most `xan` commands won't even need to decode the file's bytes, some might still need to. In this case, `xan` will expect correctly formatted UTF-8 text. Please use `iconv` or other utils if you need to process other encodings such as `latin1` ahead of `xan`.
 

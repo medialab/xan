@@ -343,7 +343,7 @@ impl Args {
     }
 
     fn convert_to_txt(&self) -> CliResult<()> {
-        let mut rdr = self.rconf().reader()?;
+        let mut rdr = self.rconf().simd_zero_copy_reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
         let headers = rdr.byte_headers()?.clone();
@@ -353,11 +353,9 @@ impl Args {
                 "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
             })?;
 
-        let mut record = csv::ByteRecord::new();
-
-        while rdr.read_byte_record(&mut record)? {
-            let cell = &record[column_index];
-            writer.write_all(cell)?;
+        while let Some(record) = rdr.read_byte_record()? {
+            let cell = record.unescape(column_index).unwrap();
+            writer.write_all(&cell)?;
             writer.write_all(b"\n")?;
         }
 

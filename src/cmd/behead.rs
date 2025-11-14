@@ -65,7 +65,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    io::copy(&mut splitter.into_bufreader(), &mut wtr)?;
+    io::copy(&mut splitter.into_bufreader().1, &mut wtr)?;
 
     Ok(wtr.flush()?)
 }

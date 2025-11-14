@@ -58,8 +58,11 @@ you can easily call `xan pivot` downstream of `xan unpivot`:
 
 Usage:
     xan pivot [-P...] [options] <columns> <expr> [<input>]
+    xan pivot-wider [-P...] [options] <columns> <expr> [<input>]
     xan pivot [-P...] [options] [<input>]
+    xan pivot-wider [-P...] [options] [<input>]
     xan pivot --help
+    xan pivot-wider --help
 
 pivot options:
     -g, --groupby <columns>  Group results by given selection of columns instead
