@@ -5,6 +5,7 @@ pub mod blank;
 pub mod cat;
 pub mod cluster;
 pub mod compgen;
+pub mod complete;
 pub mod completions;
 pub mod count;
 pub mod dedup;
