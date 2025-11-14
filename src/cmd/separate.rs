@@ -150,9 +150,7 @@ enum Splitter {
     Substring(Vec<u8>),
     Regex(Regex, RegexMode),
     FixedWidth(usize),
-    Widths(Vec<usize>),
-    SplitOnBytes(Vec<usize>),
-    SegmentBytes(Vec<usize>),
+    SegmentBytes(Vec<u64>, bool),
 }
 
 impl Splitter {
@@ -165,9 +163,13 @@ impl Splitter {
                 RegexMode::Match => pattern.find_iter(cell).count(),
             },
             Self::FixedWidth(width) => cell.len().div_ceil(*width),
-            Self::Widths(widths) => widths.len(),
-            Self::SplitOnBytes(offsets) => offsets.len() + 1,
-            Self::SegmentBytes(offsets) => offsets.len() - 1,
+            Self::SegmentBytes(offsets, implicit_final_byte) => {
+                if *implicit_final_byte {
+                    offsets.len()
+                } else {
+                    offsets.len() - 1
+                }
+            }
         }
     }
 
@@ -190,66 +192,29 @@ impl Splitter {
                 RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width).map(|chunk| chunk.trim())),
-            Self::Widths(widths) => {
-                let mut remaining = widths.len();
+            Self::SegmentBytes(offsets, implicit_final_byte) => {
+                let mut remaining = self.count_splits(cell);
                 let mut splitted = vec![];
-                let mut start = 0;
+                let mut start = offsets[0] as usize;
 
-                for width in widths.iter() {
-                    if start + width <= cell.len() {
-                        splitted.push(cell[start..start + width].trim());
-                    } else {
-                        splitted.push(cell[start..].trim());
-                    }
-                    start += width;
-                    remaining -= 1;
-                }
-                while remaining > 0 {
-                    splitted.push(b"");
-                    remaining -= 1;
-                }
-                Box::new(splitted.into_iter())
-            }
-            Self::SplitOnBytes(offsets) => {
-                let mut remaining = offsets.len() + 1;
-                let mut splitted = vec![];
-                let mut start = 0;
-
-                for offset in offsets.iter() {
-                    if *offset <= cell.len() {
-                        splitted.push(cell[start..*offset].trim());
+                for offset in offsets.iter().skip(1) {
+                    if *offset <= cell.len() as u64 {
+                        splitted.push(cell[start..*offset as usize].trim());
                     } else {
                         splitted.push(cell[start..].trim());
                         break;
                     }
-                    start = *offset;
+                    start = *offset as usize;
                     remaining -= 1;
                 }
-                if start < cell.len() {
+
+                // Add the final segment if the final byte is implicit,
+                // i.e. corresponds to the end of the cell.
+                if *implicit_final_byte && start < cell.len() {
                     splitted.push(cell[start..].trim());
                     remaining -= 1;
                 }
-                while remaining > 0 {
-                    splitted.push(b"");
-                    remaining -= 1;
-                }
-                Box::new(splitted.into_iter())
-            }
-            Self::SegmentBytes(offsets) => {
-                let mut remaining = offsets.len() - 1;
-                let mut splitted = vec![];
-                let mut start = offsets[0];
 
-                for offset in offsets.iter().skip(1) {
-                    if *offset <= cell.len() {
-                        splitted.push(cell[start..*offset].trim());
-                    } else {
-                        splitted.push(cell[start..].trim());
-                        break;
-                    }
-                    start = *offset;
-                    remaining -= 1;
-                }
                 while remaining > 0 {
                     splitted.push(b"");
                     remaining -= 1;
@@ -277,9 +242,7 @@ impl Splitter {
                 RegexMode::Match => unimplemented!(),
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
-            Self::Widths(_) => unimplemented!(),
-            Self::SplitOnBytes(_) => unimplemented!(),
-            Self::SegmentBytes(_) => unimplemented!(),
+            Self::SegmentBytes(_, _) => unimplemented!(),
         }
     }
 
@@ -411,11 +374,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .map_err(|_| "Invalid value for --fixed-width. It must be a positive integer.")?,
         )
     } else if args.flag_widths || args.flag_split_on_bytes || args.flag_segment_bytes {
-        let widths_or_offsets: Vec<usize> = args
+        let widths_or_offsets: Vec<u64> = args
             .arg_separator
             .split(',')
-            .map(|s| s.trim().parse::<usize>())
-            .collect::<Result<Vec<usize>, _>>()
+            .map(|s| s.trim().parse::<u64>())
+            .collect::<Result<Vec<u64>, _>>()
             .map_err(|_| "Invalid value within --widths|--offsets.")?;
 
         if args.flag_into.is_some()
@@ -429,13 +392,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("--into cannot specify more column names than widths provided with --widths|--split-on-bytes|--segment-bytes")?;
         }
         if args.flag_widths {
-            Splitter::Widths(widths_or_offsets)
+            let mut offsets: Vec<u64> = vec![0];
+            let mut cumulative = 0;
+            for width in widths_or_offsets.iter() {
+                cumulative += *width as u64;
+                offsets.push(cumulative);
+            }
+            Splitter::SegmentBytes(offsets, false)
         } else if args.flag_split_on_bytes {
-            Splitter::SplitOnBytes(widths_or_offsets)
+            Splitter::SegmentBytes(
+                vec![0]
+                    .into_iter()
+                    .chain(widths_or_offsets.into_iter())
+                    .collect(),
+                true,
+            )
         } else if widths_or_offsets.len() < 2 {
             Err("--segment-bytes requires at least two byte offsets")?
         } else {
-            Splitter::SegmentBytes(widths_or_offsets)
+            Splitter::SegmentBytes(widths_or_offsets, false)
         }
     } else {
         Splitter::Substring(args.arg_separator.as_bytes().to_vec())
