@@ -3,7 +3,7 @@ use std::fmt;
 use std::io::{stdout, Write};
 use std::str;
 
-use csv::ByteRecord;
+use simd_csv::ByteRecord;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -184,7 +184,7 @@ fn new_record_with_zeroed_column(
     headers_len: usize,
     column_to_complete_index: usize,
     sel_group_by: &Option<&Selection>,
-    groups: &[Vec<u8>],
+    groups: &ByteRecord,
     index_value: &[u8],
 ) -> ByteRecord {
     let mut new_record = ByteRecord::new();
@@ -242,22 +242,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter);
 
     let mut wtr_opt = (!(args.flag_check))
-        .then(|| Config::new(&args.flag_output).writer())
+        .then(|| Config::new(&args.flag_output).simd_writer())
         .transpose()?;
 
-    let mut rdr = rconf.reader()?;
+    let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let column_to_complete_index = rconf.single_selection(&headers)?;
 
-    if let Some(wtr) = wtr_opt.as_mut() {
-        wtr.write_record(&headers)?;
+    if !rconf.no_headers {
+        if let Some(wtr) = wtr_opt.as_mut() {
+            wtr.write_byte_record(&headers)?;
+        }
     }
 
     let mut record = ByteRecord::new();
 
     // reading records and grouping them if needed
-    let mut records_per_group: ClusteredInsertHashmap<Vec<Vec<u8>>, Vec<ByteRecord>> =
+    let mut records_per_group: ClusteredInsertHashmap<ByteRecord, Vec<ByteRecord>> =
         ClusteredInsertHashmap::new();
     if !args.flag_sorted {
         if args.flag_groupby.is_some() {
@@ -267,10 +269,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .unwrap()
                 .selection(&headers, !args.flag_no_headers)?;
             while rdr.read_byte_record(&mut record)? {
-                let key = group_sel
-                    .select(&record)
-                    .map(|b| b.to_vec())
-                    .collect::<Vec<_>>();
+                let key = group_sel.select(&record).collect::<ByteRecord>();
                 records_per_group.insert_with_or_else(
                     key,
                     || vec![record.clone()],
@@ -295,12 +294,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
         } else {
-            records_per_group.insert_with(vec![vec![0]], || {
+            records_per_group.insert_with(ByteRecord::new(), || {
                 rdr.byte_records().collect::<Result<Vec<_>, _>>().unwrap()
             });
         };
     } else {
-        records_per_group.insert_with(vec![vec![0]], Vec::new);
+        records_per_group.insert_with(ByteRecord::new(), Vec::new);
     }
 
     let index: Option<ValuesType> = if args.flag_reverse {
@@ -318,7 +317,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // closure to process ALREADY SORTED records in a group
     let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
-                                        group_key: &Vec<Vec<u8>>|
+                                        group_key: &ByteRecord|
      -> CliResult<()> {
         let mut local_index: Option<ValuesType> = index.clone();
 
@@ -353,7 +352,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     while (args.flag_reverse && value < local_index.clone().unwrap())
                         || (!args.flag_reverse && value > local_index.clone().unwrap())
                     {
-                        wtr.write_record(&new_record_with_zeroed_column(
+                        wtr.write_byte_record(&new_record_with_zeroed_column(
                             headers.len(),
                             column_to_complete_index,
                             &sel_group_by,
@@ -385,7 +384,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
 
             if let Some(wtr) = wtr_opt.as_mut() {
-                wtr.write_record(&record)?;
+                wtr.write_byte_record(&record)?;
             }
         }
 
@@ -396,7 +395,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         || (!args.flag_reverse
                             && local_index.clone().unwrap() <= max.clone().unwrap()))
                 {
-                    wtr.write_record(&new_record_with_zeroed_column(
+                    wtr.write_byte_record(&new_record_with_zeroed_column(
                         headers.len(),
                         column_to_complete_index,
                         &sel_group_by,
