@@ -154,6 +154,15 @@ enum Splitter {
 }
 
 impl Splitter {
+    fn static_count_splits(&self) -> Option<usize> {
+        match self {
+            Self::SegmentBytes(offsets, implicit_final_byte) => {
+                Some(offsets.len() - (if *implicit_final_byte { 0 } else { 1 }))
+            }
+            _ => None,
+        }
+    }
+
     fn count_splits(&self, cell: &[u8]) -> usize {
         match self {
             Self::Substring(sep) => cell.find_iter(sep).count() + 1,
@@ -417,6 +426,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         max_splitted_cells = n;
     } else if args.flag_into.is_some() {
         max_splitted_cells = util::str_to_csv_byte_record(&args.flag_into.clone().unwrap()).len();
+    } else if let Some(n) = splitter.static_count_splits() {
+        max_splitted_cells = n;
     } else {
         for result in rdr.byte_records() {
             let record = result?;
