@@ -6,7 +6,7 @@ lazy_static! {
     static ref PARTIAL_DATE_REGEX: Regex = Regex::new(r"^[12]\d{3}(?:-(?:0\d|1[012]))?$").unwrap();
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PartialDate {
     inner: Date,
     precision: Unit,

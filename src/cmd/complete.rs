@@ -8,6 +8,7 @@ use simd_csv::ByteRecord;
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::dates::{self, PartialDate};
+use crate::scales::{Extent, ExtentBuilder};
 use crate::select::SelectedColumns;
 use crate::select::Selection;
 use crate::util;
@@ -100,7 +101,21 @@ struct Args {
     flag_groupby: Option<SelectedColumns>,
 }
 
-#[derive(Clone, PartialEq)]
+impl Args {
+    fn get_value_from_str(&self, cell: &str) -> ValuesType {
+        if self.flag_dates {
+            ValuesType::new_date(cell)
+        } else {
+            ValuesType::new_integer(cell)
+        }
+    }
+
+    fn get_value_from_bytes(&self, cell: &[u8]) -> ValuesType {
+        self.get_value_from_str(str::from_utf8(cell).unwrap())
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
 enum ValuesType {
     Integer(i64),
     Date(dates::PartialDate),
@@ -172,7 +187,7 @@ impl ValuesType {
 
     fn as_bytes(&self) -> Vec<u8> {
         match self {
-            ValuesType::Integer(i) => i.to_string().as_bytes().to_vec(),
+            ValuesType::Integer(i) => i.to_string().into_bytes(),
             ValuesType::Date(ref d) => {
                 dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes()
             }
@@ -215,20 +230,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--groupby cannot be used with --sorted")?;
     }
 
-    let mut min: Option<ValuesType> = args.flag_min.clone().map(|m| {
-        if args.flag_dates {
-            ValuesType::new_date(m.as_str())
-        } else {
-            ValuesType::new_integer(m.as_str())
-        }
-    });
-    let mut max: Option<ValuesType> = args.flag_max.clone().map(|m| {
-        if args.flag_dates {
-            ValuesType::new_date(m.as_str())
-        } else {
-            ValuesType::new_integer(m.as_str())
-        }
-    });
+    let min: Option<ValuesType> = args
+        .flag_min
+        .clone()
+        .map(|m| args.get_value_from_str(m.as_str()));
+    let max: Option<ValuesType> = args
+        .flag_max
+        .clone()
+        .map(|m| args.get_value_from_str(m.as_str()));
 
     if matches!((&min, &max), (Some(min), Some(max))
         if min > max)
@@ -236,9 +245,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("min cannot be greater than max")?;
     }
 
+    let mut extent_builder = ExtentBuilder::<ValuesType>::new();
+
+    if let Some(m) = min {
+        extent_builder.clamp_min(m);
+    }
+    if let Some(m) = max {
+        extent_builder.clamp_max(m);
+    }
+
+    let mut extent: Option<Extent<ValuesType>> = extent_builder.clone().build();
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column)
+        .select(args.arg_column.clone())
         .delimiter(args.flag_delimiter);
 
     let mut wtr_opt = (!(args.flag_check))
@@ -275,22 +295,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     || vec![record.clone()],
                     |v| v.push(record.clone()),
                 );
-                if args.flag_min.is_none() || args.flag_max.is_none() {
-                    let value = if args.flag_dates {
-                        ValuesType::new_date(
-                            str::from_utf8(&record[column_to_complete_index]).unwrap(),
-                        )
-                    } else {
-                        ValuesType::new_integer(
-                            str::from_utf8(&record[column_to_complete_index]).unwrap(),
-                        )
-                    };
-                    if args.flag_min.is_none() && (min.is_none() || value < min.clone().unwrap()) {
-                        min = Some(value.clone());
-                    }
-                    if args.flag_max.is_none() && (max.is_none() || value > max.clone().unwrap()) {
-                        max = Some(value.clone());
-                    }
+
+                if extent.is_none() {
+                    let value = args.get_value_from_bytes(&record[column_to_complete_index]);
+                    extent_builder.process(value);
                 }
             }
         } else {
@@ -301,6 +309,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         records_per_group.insert_with(ByteRecord::new(), Vec::new);
     }
+
+    if extent.is_none() {
+        extent = extent_builder.build();
+    }
+
+    let min = min.or_else(|| extent.as_ref().map(|e| e.min().clone()));
+    let max = max.or_else(|| extent.as_ref().map(|e| e.max().clone()));
 
     let index: Option<ValuesType> = if args.flag_reverse {
         max.clone()
@@ -322,11 +337,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut local_index: Option<ValuesType> = index.clone();
 
         for record in records {
-            let value = if args.flag_dates {
-                ValuesType::new_date(str::from_utf8(&record[column_to_complete_index]).unwrap())
-            } else {
-                ValuesType::new_integer(str::from_utf8(&record[column_to_complete_index]).unwrap())
-            };
+            let value = args.get_value_from_bytes(&record[column_to_complete_index]);
 
             if min.is_some() && value < min.clone().unwrap() {
                 if args.flag_reverse {
@@ -429,15 +440,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .iter()
                 .map(|record| -> CliResult<(ValuesType, ByteRecord)> {
                     let value_and_record = (
-                        if args.flag_dates {
-                            ValuesType::new_date(
-                                str::from_utf8(&record[column_to_complete_index]).unwrap(),
-                            )
-                        } else {
-                            ValuesType::new_integer(
-                                str::from_utf8(&record[column_to_complete_index]).unwrap(),
-                            )
-                        },
+                        args.get_value_from_bytes(&record[column_to_complete_index]),
                         record.clone(),
                     );
                     Ok(value_and_record)
