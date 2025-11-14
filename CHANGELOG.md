@@ -13,6 +13,7 @@
 * `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 * `xan input` has been overhauled.
 * Dropping `xan count --sample-size`.
+* Overhauling `xan fixlengths` to accept streams by shifting default from double-pass read to buffering the whole stream into memory.
 
 *Features*
 
@@ -40,6 +41,7 @@
 * Adding `earliest` & `latest` moonblade functions.
 * Adding `xan dedup -f/--flag`.
 * Adding `-k` short flag for `xan dedup --keep-duplicates`, and `-C` short flag for `xan dedup --choose`.
+* Adding `xan fixlengths -H/--trust-header`.
 
 *Fixes*
 

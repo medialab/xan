@@ -725,6 +725,7 @@ impl Config {
         builder
             .delimiter(self.delimiter)
             .quote(self.quote)
+            .flexible(self.flexible)
             .has_headers(!self.no_headers);
 
         builder
@@ -741,6 +742,7 @@ impl Config {
         simd_csv::ZeroCopyReaderBuilder::new()
             .delimiter(self.delimiter)
             .quote(self.quote)
+            .flexible(self.flexible)
             .has_headers(!self.no_headers)
             .from_reader(rdr)
     }
