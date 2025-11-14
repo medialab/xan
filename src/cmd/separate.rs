@@ -395,18 +395,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut offsets: Vec<u64> = vec![0];
             let mut cumulative = 0;
             for width in widths_or_offsets.iter() {
-                cumulative += *width as u64;
+                cumulative += *width;
                 offsets.push(cumulative);
             }
             Splitter::SegmentBytes(offsets, false)
         } else if args.flag_split_on_bytes {
-            Splitter::SegmentBytes(
-                vec![0]
-                    .into_iter()
-                    .chain(widths_or_offsets.into_iter())
-                    .collect(),
-                true,
-            )
+            Splitter::SegmentBytes(vec![0].into_iter().chain(widths_or_offsets).collect(), true)
         } else if widths_or_offsets.len() < 2 {
             Err("--segment-bytes requires at least two byte offsets")?
         } else {
