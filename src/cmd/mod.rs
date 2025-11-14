@@ -47,6 +47,7 @@ pub mod sample;
 pub mod scrape;
 pub mod search;
 pub mod select;
+pub mod separate;
 pub mod shuffle;
 pub mod slice;
 pub mod sort;
