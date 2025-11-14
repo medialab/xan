@@ -311,14 +311,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         extent = extent_builder.build();
     }
 
-    let min = min.or_else(|| extent.as_ref().map(|e| e.min().clone()));
-    let max = max.or_else(|| extent.as_ref().map(|e| e.max().clone()));
+    let min = min.or_else(|| extent.as_ref().map(|e| e.min()));
+    let max = max.or_else(|| extent.as_ref().map(|e| e.max()));
 
-    let index: Option<ValuesType> = if args.flag_reverse {
-        max.clone()
-    } else {
-        min.clone()
-    };
+    let index: Option<ValuesType> = if args.flag_reverse { max } else { min };
 
     let sel_group_by_owned: Option<Selection> = if let Some(ref fgb) = args.flag_groupby {
         Some(fgb.selection(&headers, !args.flag_no_headers)?)
@@ -328,103 +324,101 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
 
     // closure to process ALREADY SORTED records in a group
-    let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
-                                        group_key: &ByteRecord|
-     -> CliResult<()> {
-        let mut local_index: Option<ValuesType> = index.clone();
+    let mut process_records_in_group =
+        |records: &mut dyn Iterator<Item = ByteRecord>, group_key: &ByteRecord| -> CliResult<()> {
+            let mut local_index: Option<ValuesType> = index;
 
-        for record in records {
-            let value = args.get_value_from_bytes(&record[column_to_complete_index]);
+            for record in records {
+                let value = args.get_value_from_bytes(&record[column_to_complete_index]);
 
-            if min.is_some() && value < min.clone().unwrap() {
-                if args.flag_reverse {
-                    // stop completing or checking if we go below min of the range
-                    break;
-                } else {
-                    // skip values below min of the range
-                    continue;
+                if min.is_some() && value < min.unwrap() {
+                    if args.flag_reverse {
+                        // stop completing or checking if we go below min of the range
+                        break;
+                    } else {
+                        // skip values below min of the range
+                        continue;
+                    }
                 }
-            }
-            if max.is_some() && value > max.clone().unwrap() {
-                if args.flag_reverse {
-                    // skip values over max of the range
-                    continue;
-                } else {
-                    // stop completing or checking if we go over max of the range
-                    break;
+                if max.is_some() && value > max.unwrap() {
+                    if args.flag_reverse {
+                        // skip values over max of the range
+                        continue;
+                    } else {
+                        // stop completing or checking if we go over max of the range
+                        break;
+                    }
                 }
-            }
 
-            if local_index.is_some() {
+                if local_index.is_some() {
+                    if let Some(wtr) = wtr_opt.as_mut() {
+                        while (args.flag_reverse && value < local_index.unwrap())
+                            || (!args.flag_reverse && value > local_index.unwrap())
+                        {
+                            wtr.write_byte_record(&new_record(
+                                headers.len(),
+                                column_to_complete_index,
+                                &sel_group_by,
+                                group_key,
+                                &local_index.unwrap().as_bytes(),
+                            ))?;
+
+                            local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+                        }
+                    } else {
+                        // in case of using min flag (or max flag when flag_reverse is true)
+                        // or if there are repeated values
+                        if (args.flag_reverse && value > local_index.unwrap())
+                            || (!args.flag_reverse && value < local_index.unwrap())
+                        {
+                            continue;
+                        }
+                        if value != local_index.unwrap() {
+                            Err(format!(
+                                "file is not complete: missing value {:?}",
+                                local_index.unwrap()
+                            ))?;
+                        }
+                    }
+                } else {
+                    local_index = Some(value);
+                }
+
+                local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    while (args.flag_reverse && value < local_index.clone().unwrap())
-                        || (!args.flag_reverse && value > local_index.clone().unwrap())
+                    wtr.write_byte_record(&record)?;
+                }
+            }
+
+            if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
+                if let Some(wtr) = wtr_opt.as_mut() {
+                    while local_index.is_some()
+                        && ((args.flag_reverse && local_index.unwrap() >= min.unwrap())
+                            || (!args.flag_reverse && local_index.unwrap() <= max.unwrap()))
                     {
                         wtr.write_byte_record(&new_record(
                             headers.len(),
                             column_to_complete_index,
                             &sel_group_by,
                             group_key,
-                            &local_index.clone().unwrap().as_bytes(),
+                            &local_index.unwrap().as_bytes(),
                         ))?;
 
-                        local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
+                        local_index = Some(local_index.unwrap().advance(args.flag_reverse));
                     }
-                } else {
-                    // in case of using min flag (or max flag when flag_reverse is true)
-                    // or if there are repeated values
-                    if (args.flag_reverse && value > local_index.clone().unwrap())
-                        || (!args.flag_reverse && value < local_index.clone().unwrap())
-                    {
-                        continue;
-                    }
-                    if value != local_index.clone().unwrap() {
-                        Err(format!(
-                            "file is not complete: missing value {:?}",
-                            local_index.clone().unwrap()
-                        ))?;
-                    }
-                }
-            } else {
-                local_index = Some(value);
-            }
-
-            local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
-
-            if let Some(wtr) = wtr_opt.as_mut() {
-                wtr.write_byte_record(&record)?;
-            }
-        }
-
-        if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
-            if let Some(wtr) = wtr_opt.as_mut() {
-                while local_index.is_some()
-                    && ((args.flag_reverse && local_index.clone().unwrap() >= min.clone().unwrap())
-                        || (!args.flag_reverse
-                            && local_index.clone().unwrap() <= max.clone().unwrap()))
+                } else if (args.flag_reverse && local_index.unwrap() >= min.unwrap())
+                    || (!args.flag_reverse && local_index.unwrap() <= max.unwrap())
                 {
-                    wtr.write_byte_record(&new_record(
-                        headers.len(),
-                        column_to_complete_index,
-                        &sel_group_by,
-                        group_key,
-                        &local_index.clone().unwrap().as_bytes(),
+                    Err(format!(
+                        "file is not complete: missing value {:?}",
+                        local_index.unwrap()
                     ))?;
-
-                    local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
                 }
-            } else if (args.flag_reverse && local_index.clone().unwrap() >= min.clone().unwrap())
-                || (!args.flag_reverse && local_index.clone().unwrap() <= max.clone().unwrap())
-            {
-                Err(format!(
-                    "file is not complete: missing value {:?}",
-                    local_index.unwrap()
-                ))?;
             }
-        }
 
-        Ok(())
-    };
+            Ok(())
+        };
 
     // process all records
     for (group_key, records) in records_per_group.iter() {
