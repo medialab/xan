@@ -85,6 +85,7 @@ macro_rules! command_list {
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
     fill        Fill empty cells
     blank       Blank down contiguous identical cell values
+    separate    Split a single column into multiple ones
 
 ## Format, convert & recombobulate
     behead        Drop header from CSV file

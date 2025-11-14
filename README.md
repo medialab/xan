@@ -587,6 +587,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
 - [**fill**](./docs/cmd/fill.md): Fill empty cells
 - [**blank**](./docs/cmd/blank.md): Blank down contiguous identical cell values
+- [**separate**](./docs/cmd/separate.md): Split a single column into multiple ones
 
 *Format, convert & recombobulate*
 
