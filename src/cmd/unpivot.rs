@@ -32,7 +32,9 @@ cars,mar,300
 
 Usage:
     xan unpivot [options] <columns> [<input>]
+    xan pivot-longer [options] <columns> [<input>]
     xan unpivot --help
+    xan pivot-longer --help
 
 unpivot options:
     -N, --name-column <name>   Name for the column that will contain unpivoted column

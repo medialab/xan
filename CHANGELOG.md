@@ -205,6 +205,8 @@ The **parallel** update.
 * Adding `header`, `col_index` & `col_index?` moonblade functions.
 * Adding `find` & `find_index` moonblade functions.
 * Adding `-l/--limit` support to `xan search -p` & `xan filter -p`.
+* Adding `xan pivot-longer` alias to `xan unpivot`.
+* Adding `xan pivot-wider` alias to `xan pivot`.
 
 *Fixes*
 
