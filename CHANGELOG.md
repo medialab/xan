@@ -42,6 +42,7 @@
 * Adding `xan dedup -f/--flag`.
 * Adding `-k` short flag for `xan dedup --keep-duplicates`, and `-C` short flag for `xan dedup --choose`.
 * Adding `xan fixlengths -H/--trust-header`.
+* Adding `xan separate`.
 
 *Fixes*
 
