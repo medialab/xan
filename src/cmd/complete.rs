@@ -4,7 +4,6 @@ use std::io::{stdout, Write};
 use std::str;
 
 use csv::ByteRecord;
-use encoding::codec::utf_8::from_utf8;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
@@ -216,28 +215,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--groupby cannot be used with --sorted")?;
     }
 
-    let mut min: Option<ValuesType> = match &args.flag_min {
-        Some(m) => {
-            if args.flag_dates {
-                Some(ValuesType::new_date(m))
-            } else {
-                Some(ValuesType::new_integer(m))
-            }
+    let mut min: Option<ValuesType> = args.flag_min.clone().map(|m| {
+        if args.flag_dates {
+            ValuesType::new_date(m.as_str())
+        } else {
+            ValuesType::new_integer(m.as_str())
         }
-        None => None,
-    };
-    let mut max: Option<ValuesType> = match &args.flag_max {
-        Some(m) => {
-            if args.flag_dates {
-                Some(ValuesType::new_date(m))
-            } else {
-                Some(ValuesType::new_integer(m))
-            }
+    });
+    let mut max: Option<ValuesType> = args.flag_max.clone().map(|m| {
+        if args.flag_dates {
+            ValuesType::new_date(m.as_str())
+        } else {
+            ValuesType::new_integer(m.as_str())
         }
-        None => None,
-    };
+    });
 
-    if min.is_some() && max.is_some() && min.clone().unwrap() > max.clone().unwrap() {
+    if matches!((&min, &max), (Some(min), Some(max))
+        if min > max)
+    {
         Err("min cannot be greater than max")?;
     }
 
@@ -246,11 +241,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.arg_column)
         .delimiter(args.flag_delimiter);
 
-    let mut wtr_opt = if args.flag_check {
-        None
-    } else {
-        Some(Config::new(&args.flag_output).writer()?)
-    };
+    let mut wtr_opt = (!(args.flag_check))
+        .then(|| Config::new(&args.flag_output).writer())
+        .transpose()?;
 
     let mut rdr = rconf.reader()?;
     let headers = rdr.byte_headers()?.clone();
@@ -264,17 +257,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = ByteRecord::new();
 
     // reading records and grouping them if needed
-    // will
     let mut records_per_group: ClusteredInsertHashmap<Vec<Vec<u8>>, Vec<ByteRecord>> =
         ClusteredInsertHashmap::new();
     if !args.flag_sorted {
         if args.flag_groupby.is_some() {
+            let group_sel = args
+                .flag_groupby
+                .as_ref()
+                .unwrap()
+                .selection(&headers, !args.flag_no_headers)?;
             while rdr.read_byte_record(&mut record)? {
-                let key = args
-                    .flag_groupby
-                    .as_ref()
-                    .unwrap()
-                    .selection(&headers, !args.flag_no_headers)?
+                let key = group_sel
                     .select(&record)
                     .map(|b| b.to_vec())
                     .collect::<Vec<_>>();
@@ -327,7 +320,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
                                         group_key: &Vec<Vec<u8>>|
      -> CliResult<()> {
-        let mut locale_index: Option<ValuesType> = index.clone();
+        let mut local_index: Option<ValuesType> = index.clone();
 
         for record in records {
             let value = if args.flag_dates {
@@ -355,42 +348,41 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            if locale_index.is_some() {
+            if local_index.is_some() {
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    while (args.flag_reverse && value < locale_index.clone().unwrap())
-                        || (!args.flag_reverse && value > locale_index.clone().unwrap())
+                    while (args.flag_reverse && value < local_index.clone().unwrap())
+                        || (!args.flag_reverse && value > local_index.clone().unwrap())
                     {
                         wtr.write_record(&new_record_with_zeroed_column(
                             headers.len(),
                             column_to_complete_index,
                             &sel_group_by,
                             group_key,
-                            &locale_index.clone().unwrap().as_bytes(),
+                            &local_index.clone().unwrap().as_bytes(),
                         ))?;
 
-                        locale_index =
-                            Some(locale_index.clone().unwrap().advance(args.flag_reverse));
+                        local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
                     }
                 } else {
                     // in case of using min flag (or max flag when flag_reverse is true)
                     // or if there are repeated values
-                    if (args.flag_reverse && value > locale_index.clone().unwrap())
-                        || (!args.flag_reverse && value < locale_index.clone().unwrap())
+                    if (args.flag_reverse && value > local_index.clone().unwrap())
+                        || (!args.flag_reverse && value < local_index.clone().unwrap())
                     {
                         continue;
                     }
-                    if value != locale_index.clone().unwrap() {
+                    if value != local_index.clone().unwrap() {
                         Err(format!(
                             "file is not complete: missing value {:?}",
-                            locale_index.clone().unwrap()
+                            local_index.clone().unwrap()
                         ))?;
                     }
                 }
             } else {
-                locale_index = Some(value);
+                local_index = Some(value);
             }
 
-            locale_index = Some(locale_index.clone().unwrap().advance(args.flag_reverse));
+            local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
 
             if let Some(wtr) = wtr_opt.as_mut() {
                 wtr.write_record(&record)?;
@@ -399,28 +391,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
             if let Some(wtr) = wtr_opt.as_mut() {
-                while locale_index.is_some()
-                    && ((args.flag_reverse
-                        && locale_index.clone().unwrap() >= min.clone().unwrap())
+                while local_index.is_some()
+                    && ((args.flag_reverse && local_index.clone().unwrap() >= min.clone().unwrap())
                         || (!args.flag_reverse
-                            && locale_index.clone().unwrap() <= max.clone().unwrap()))
+                            && local_index.clone().unwrap() <= max.clone().unwrap()))
                 {
                     wtr.write_record(&new_record_with_zeroed_column(
                         headers.len(),
                         column_to_complete_index,
                         &sel_group_by,
                         group_key,
-                        &locale_index.clone().unwrap().as_bytes(),
+                        &local_index.clone().unwrap().as_bytes(),
                     ))?;
 
-                    locale_index = Some(locale_index.clone().unwrap().advance(args.flag_reverse));
+                    local_index = Some(local_index.clone().unwrap().advance(args.flag_reverse));
                 }
-            } else if (args.flag_reverse && locale_index.clone().unwrap() >= min.clone().unwrap())
-                || (!args.flag_reverse && locale_index.clone().unwrap() <= max.clone().unwrap())
+            } else if (args.flag_reverse && local_index.clone().unwrap() >= min.clone().unwrap())
+                || (!args.flag_reverse && local_index.clone().unwrap() <= max.clone().unwrap())
             {
                 Err(format!(
                     "file is not complete: missing value {:?}",
-                    locale_index.unwrap()
+                    local_index.unwrap()
                 ))?;
             }
         }
@@ -441,11 +432,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let value_and_record = (
                         if args.flag_dates {
                             ValuesType::new_date(
-                                from_utf8(&record[column_to_complete_index]).unwrap(),
+                                str::from_utf8(&record[column_to_complete_index]).unwrap(),
                             )
                         } else {
                             ValuesType::new_integer(
-                                from_utf8(&record[column_to_complete_index]).unwrap(),
+                                str::from_utf8(&record[column_to_complete_index]).unwrap(),
                             )
                         },
                         record.clone(),
