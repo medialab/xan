@@ -8,7 +8,7 @@ use encoding::codec::utf_8::from_utf8;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
-use crate::dates;
+use crate::dates::{self, PartialDate};
 use crate::select::SelectedColumns;
 use crate::select::Selection;
 use crate::util;
@@ -101,25 +101,13 @@ struct Args {
     flag_groupby: Option<SelectedColumns>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum ValuesType {
     Integer(i64),
     Date(dates::PartialDate),
 }
 
 impl Eq for ValuesType {}
-
-impl PartialEq for ValuesType {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (ValuesType::Integer(a), ValuesType::Integer(b)) => a == b,
-            (ValuesType::Date(a), ValuesType::Date(b)) => {
-                a.clone().into_inner() == b.clone().into_inner()
-            }
-            _ => false,
-        }
-    }
-}
 
 impl PartialOrd for ValuesType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -131,9 +119,7 @@ impl Ord for ValuesType {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
             (ValuesType::Integer(a), ValuesType::Integer(b)) => a.cmp(b),
-            (ValuesType::Date(a), ValuesType::Date(b)) => {
-                a.clone().into_inner().cmp(&b.clone().into_inner())
-            }
+            (ValuesType::Date(a), ValuesType::Date(b)) => a.cmp(b),
             _ => unreachable!(),
         }
     }
@@ -143,43 +129,37 @@ impl fmt::Debug for ValuesType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ValuesType::Integer(i) => write!(f, "{}", i),
-            ValuesType::Date(d) => write!(f, "{}", d.clone().into_inner()),
+            ValuesType::Date(d) => write!(f, "{}", d.as_date()),
         }
     }
 }
 
 impl ValuesType {
-    fn new_from(s: &str, is_date: bool) -> Self {
-        if is_date {
-            ValuesType::Date(dates::parse_partial_date(s).unwrap())
-        } else {
-            ValuesType::Integer(s.parse::<i64>().unwrap())
-        }
+    fn new_date(s: &str) -> Self {
+        ValuesType::Date(dates::parse_partial_date(s).unwrap())
+    }
+
+    fn new_integer(s: &str) -> Self {
+        ValuesType::Integer(s.parse::<i64>().unwrap())
     }
 
     fn next(&self) -> ValuesType {
         match self {
             ValuesType::Integer(i) => ValuesType::Integer(i + 1),
-            ValuesType::Date(d) => ValuesType::Date(
-                dates::parse_partial_date(&dates::format_partial_date(
-                    d.as_unit(),
-                    &dates::next_partial_date(d.as_unit(), &d.clone().into_inner()),
-                ))
-                .unwrap(),
-            ),
+            ValuesType::Date(d) => ValuesType::Date(PartialDate::new_from_date(
+                dates::next_partial_date(d.as_unit(), d.as_date()),
+                d.as_unit(),
+            )),
         }
     }
 
     fn previous(&self) -> ValuesType {
         match self {
             ValuesType::Integer(i) => ValuesType::Integer(i - 1),
-            ValuesType::Date(d) => ValuesType::Date(
-                dates::parse_partial_date(&dates::format_partial_date(
-                    d.as_unit(),
-                    &dates::previous_partial_date(d.as_unit(), &d.clone().into_inner()),
-                ))
-                .unwrap(),
-            ),
+            ValuesType::Date(d) => ValuesType::Date(PartialDate::new_from_date(
+                dates::previous_partial_date(d.as_unit(), d.as_date()),
+                d.as_unit(),
+            )),
         }
     }
 
@@ -195,9 +175,7 @@ impl ValuesType {
         match self {
             ValuesType::Integer(i) => i.to_string().as_bytes().to_vec(),
             ValuesType::Date(ref d) => {
-                dates::format_partial_date(d.as_unit(), &d.clone().into_inner())
-                    .as_bytes()
-                    .to_vec()
+                dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes()
             }
         }
     }
@@ -239,11 +217,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut min: Option<ValuesType> = match &args.flag_min {
-        Some(m) => Some(ValuesType::new_from(m, args.flag_dates)),
+        Some(m) => {
+            if args.flag_dates {
+                Some(ValuesType::new_date(m))
+            } else {
+                Some(ValuesType::new_integer(m))
+            }
+        }
         None => None,
     };
     let mut max: Option<ValuesType> = match &args.flag_max {
-        Some(m) => Some(ValuesType::new_from(m, args.flag_dates)),
+        Some(m) => {
+            if args.flag_dates {
+                Some(ValuesType::new_date(m))
+            } else {
+                Some(ValuesType::new_integer(m))
+            }
+        }
         None => None,
     };
 
@@ -294,10 +284,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     |v| v.push(record.clone()),
                 );
                 if args.flag_min.is_none() || args.flag_max.is_none() {
-                    let value = ValuesType::new_from(
-                        str::from_utf8(&record[column_to_complete_index]).unwrap(),
-                        args.flag_dates,
-                    );
+                    let value = if args.flag_dates {
+                        ValuesType::new_date(
+                            str::from_utf8(&record[column_to_complete_index]).unwrap(),
+                        )
+                    } else {
+                        ValuesType::new_integer(
+                            str::from_utf8(&record[column_to_complete_index]).unwrap(),
+                        )
+                    };
                     if args.flag_min.is_none() && (min.is_none() || value < min.clone().unwrap()) {
                         min = Some(value.clone());
                     }
@@ -335,10 +330,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut locale_index: Option<ValuesType> = index.clone();
 
         for record in records {
-            let value = ValuesType::new_from(
-                str::from_utf8(&record[column_to_complete_index]).unwrap(),
-                args.flag_dates,
-            );
+            let value = if args.flag_dates {
+                ValuesType::new_date(str::from_utf8(&record[column_to_complete_index]).unwrap())
+            } else {
+                ValuesType::new_integer(str::from_utf8(&record[column_to_complete_index]).unwrap())
+            };
 
             if min.is_some() && value < min.clone().unwrap() {
                 if args.flag_reverse {
@@ -443,10 +439,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .iter()
                 .map(|record| -> CliResult<(ValuesType, ByteRecord)> {
                     let value_and_record = (
-                        ValuesType::new_from(
-                            from_utf8(&record[column_to_complete_index]).unwrap(),
-                            args.flag_dates,
-                        ),
+                        if args.flag_dates {
+                            ValuesType::new_date(
+                                from_utf8(&record[column_to_complete_index]).unwrap(),
+                            )
+                        } else {
+                            ValuesType::new_integer(
+                                from_utf8(&record[column_to_complete_index]).unwrap(),
+                            )
+                        },
                         record.clone(),
                     );
                     Ok(value_and_record)
