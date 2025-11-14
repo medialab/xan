@@ -58,8 +58,6 @@ complete options:
                              lower than the maximum value in the input, the rows
                              with values greater than <value> will be removed
                              from the output.
-    -z, --zero <value>       The value to fill in the new rows.
-                             Default is an empty string.
     --check                  Check that the input is complete. When used with
                              either --min or --max, only checks completeness
                              within the specified range.
@@ -96,7 +94,6 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_zero: Option<String>,
     flag_check: bool,
     flag_dates: bool,
     flag_sorted: bool,
@@ -211,7 +208,6 @@ fn new_record_with_zeroed_column(
     column_to_complete_index: usize,
     sel_group_by: &Option<&Selection>,
     groups: &[Vec<u8>],
-    zero: &[u8],
     index_value: &[u8],
 ) -> ByteRecord {
     let mut new_record = ByteRecord::new();
@@ -229,7 +225,7 @@ fn new_record_with_zeroed_column(
             new_record.push_field(&groups[group_index]);
             group_index += 1;
         } else {
-            new_record.push_field(zero);
+            new_record.push_field(b"");
         }
     }
     new_record
@@ -274,8 +270,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(wtr) = wtr_opt.as_mut() {
         wtr.write_record(&headers)?;
     }
-
-    let zero = args.flag_zero.unwrap_or_default().into_bytes();
 
     let mut record = ByteRecord::new();
 
@@ -375,7 +369,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             column_to_complete_index,
                             &sel_group_by,
                             group_key,
-                            &zero,
                             &locale_index.clone().unwrap().as_bytes(),
                         ))?;
 
@@ -421,7 +414,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         column_to_complete_index,
                         &sel_group_by,
                         group_key,
-                        &zero,
                         &locale_index.clone().unwrap().as_bytes(),
                     ))?;
 
