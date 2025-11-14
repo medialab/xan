@@ -26,13 +26,10 @@ Will by default output in ascending order on the completed column, but you can
 use the --reverse flag to output in descending order.
 You can also complete values within groups defined by other columns using the --groupby
 flag, completing with the same range for each group.
-When completing, new rows will be filled with the value specified by the --zero
-flag (or an empty string by default) in all columns except the completed column
-and the group-by columns (if any).
 
 Examples:
-  Complete integer values in column named "score" from 1 to 10, filling new rows with 0:
-    $ xan complete -m 1 -M 10 -z 0 score input.csv
+  Complete integer values in column named "score" from 1 to 10:
+    $ xan complete -m 1 -M 10 score input.csv
 
   Complete already sorted date values in column named "date":
     $ xan complete -D --sorted date input.csv
@@ -195,7 +192,7 @@ impl ValuesType {
     }
 }
 
-fn new_record_with_zeroed_column(
+fn new_record(
     headers_len: usize,
     column_to_complete_index: usize,
     sel_group_by: &Option<&Selection>,
@@ -363,7 +360,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     while (args.flag_reverse && value < local_index.clone().unwrap())
                         || (!args.flag_reverse && value > local_index.clone().unwrap())
                     {
-                        wtr.write_byte_record(&new_record_with_zeroed_column(
+                        wtr.write_byte_record(&new_record(
                             headers.len(),
                             column_to_complete_index,
                             &sel_group_by,
@@ -406,7 +403,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         || (!args.flag_reverse
                             && local_index.clone().unwrap() <= max.clone().unwrap()))
                 {
-                    wtr.write_byte_record(&new_record_with_zeroed_column(
+                    wtr.write_byte_record(&new_record(
                         headers.len(),
                         column_to_complete_index,
                         &sel_group_by,
