@@ -1,11 +1,10 @@
 use std::fs;
 
 use crate::config::{Config, Delimiter};
+use crate::moonblade::SelectionProgram;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
-
-use crate::moonblade::SelectionProgram;
 
 static USAGE: &str = "
 Select columns from CSV data using a shorthand notation or by evaluating an expression
@@ -202,9 +201,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         while let Some(record) = rdr.read_byte_record()? {
-            // NOTE: this is fine because here we have the guarantee we are
-            // using quotes.
-            wtr.write_record_no_quoting(sel.select(&record))?;
+            if rconfig.is_standard_csv() {
+                wtr.write_record_no_quoting(sel.select(&record))?;
+            } else {
+                wtr.write_record(sel.iter().copied().map(|i| record.unescape(i).unwrap()))?;
+            }
         }
 
         Ok(wtr.flush()?)

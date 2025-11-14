@@ -56,7 +56,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     while let Some(record) = rdr.read_byte_record()? {
-        wtr.write_record_no_quoting(sel.select(&record))?;
+        if rconfig.is_standard_csv() {
+            wtr.write_record_no_quoting(sel.select(&record))?;
+        } else {
+            wtr.write_record(sel.iter().copied().map(|i| record.unescape(i).unwrap()))?;
+        }
     }
 
     Ok(wtr.flush()?)

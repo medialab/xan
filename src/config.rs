@@ -255,6 +255,10 @@ impl Config {
         Self::new(&None)
     }
 
+    pub fn is_standard_csv(&self) -> bool {
+        self.delimiter == b',' && self.quote == b'"'
+    }
+
     pub fn delimiter(mut self, d: Option<Delimiter>) -> Config {
         if let Some(d) = d {
             self.delimiter = d.as_byte();
