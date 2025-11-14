@@ -9,7 +9,8 @@ authors = [
   "Laura Miguel <laura.miguel@sciencespo.fr>",
   "César Pichon <cesar.pichon@sciencespo.fr>",
   "Anna Charles <anna.charles@sciencespo.fr>",
-  "Julien Pontoire <julien.pontoire@sciencespo.fr>"
+  "Julien Pontoire <julien.pontoire@sciencespo.fr>",
+  "Evan Chevalerias <evan.chevalerias@sciencespo.fr>"
 ]
 description = "The CSV magician"
 documentation = "https://github.com/medialab/xan#readme"
