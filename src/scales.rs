@@ -412,12 +412,37 @@ impl TryFrom<String> for GradientName {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum LogBase {
+    Natural,
+    Base10,
+    Custom(f64),
+}
+
+impl LogBase {
+    fn apply(&self, x: f64) -> f64 {
+        match self {
+            Self::Natural => x.ln(),
+            Self::Base10 => x.log10(),
+            Self::Custom(base) => x.log(*base),
+        }
+    }
+
+    fn invert(&self, x: f64) -> f64 {
+        match self {
+            Self::Natural => x.exp(),
+            Self::Base10 => 10.0_f64.powf(x),
+            Self::Custom(base) => base.powf(x),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 #[serde(try_from = "String")]
 pub enum ScaleType {
     #[default]
     Linear,
-    Log10,
+    Logarithmic(LogBase),
 }
 
 impl ScaleType {
@@ -426,24 +451,16 @@ impl ScaleType {
     }
 
     pub fn is_logarithmic(&self) -> bool {
-        matches!(self, Self::Log10)
+        matches!(self, Self::Logarithmic(_))
     }
 
     #[inline]
     pub fn convert(&self, x: f64) -> f64 {
         match self {
             Self::Linear => x,
-            Self::Log10 => x.log10(),
+            Self::Logarithmic(base) => base.apply(x),
         }
     }
-
-    // #[inline]
-    // fn invert(&self, x: f64) -> f64 {
-    //     match self {
-    //         Self::Linear => x,
-    //         Self::Log10 => 10.0_f64.powf(x),
-    //     }
-    // }
 }
 
 impl TryFrom<String> for ScaleType {
@@ -452,7 +469,8 @@ impl TryFrom<String> for ScaleType {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(match value.as_str() {
             "lin" => Self::Linear,
-            "log" => Self::Log10,
+            // TODO: change to ln
+            "log" => Self::Logarithmic(LogBase::Base10),
             _ => return Err(format!("unknown scale type \"{}\"", &value)),
         })
     }
@@ -599,6 +617,7 @@ impl TimeScale {
 // TODO: support custom base, currently only base10
 #[derive(Debug, Clone)]
 pub struct LogScale {
+    base: LogBase,
     #[allow(unused)]
     input_domain: Extent<f64>,
     converted_input_domain: Extent<f64>,
@@ -607,29 +626,34 @@ pub struct LogScale {
 }
 
 impl LogScale {
-    fn new(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+    fn new(base: LogBase, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
         assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
         assert!(output_range.0 <= output_range.1, "output_range min > max");
 
         Self {
+            base,
             input_domain: Extent::from(input_domain),
-            converted_input_domain: Extent::from((input_domain.0.log10(), input_domain.1.log10())),
+            converted_input_domain: Extent::from((
+                base.apply(input_domain.0),
+                base.apply(input_domain.1),
+            )),
             output_range: Extent::from(output_range),
         }
     }
 
-    fn nice(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+    fn nice(base: LogBase, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
         let input_domain = (
-            10.0_f64.powf(input_domain.0.log10().floor()),
-            10.0_f64.powf(input_domain.1.log10().ceil()),
+            base.invert(base.apply(input_domain.0).floor()),
+            base.invert(base.apply(input_domain.1).ceil()),
         );
 
-        Self::new(input_domain, output_range)
+        Self::new(base, input_domain, output_range)
     }
 
     #[inline]
     fn percent(&self, value: f64) -> f64 {
-        (value.log10() - self.converted_input_domain.min()) / self.converted_input_domain.width()
+        (self.base.apply(value) - self.converted_input_domain.min())
+            / self.converted_input_domain.width()
     }
 
     // fn map(&self, value: f64) -> f64 {
@@ -642,6 +666,8 @@ impl LogScale {
     fn ticks(&self, count: usize) -> Vec<f64> {
         let i = self.converted_input_domain.min();
         let j = self.converted_input_domain.max();
+
+        // TODO: deal with non 10 base
 
         // NOTE: I do not support non int bases either like d3
         ticks(i, j, ((j - i).floor() as usize).min(count))
@@ -657,9 +683,6 @@ impl LogScale {
             .collect()
     }
 }
-
-// TODO: extent builder
-// TODO: scale builder
 
 #[derive(Debug, Clone)]
 pub enum Scale {
@@ -677,7 +700,9 @@ impl Scale {
     ) -> Self {
         match scale_type {
             ScaleType::Linear => Self::Linear(LinearScale::nice(input_domain, output_range, ticks)),
-            ScaleType::Log10 => Self::Log(LogScale::nice(input_domain, output_range)),
+            ScaleType::Logarithmic(base) => {
+                Self::Log(LogScale::nice(base, input_domain, output_range))
+            }
         }
     }
 
