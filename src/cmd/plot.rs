@@ -177,9 +177,11 @@ plot options:
     --x-max <n>                Force a maximum value for the x axis.
     --y-min <n>                Force a minimum value for the y axis.
     --y-max <n>                Force a maximum value for the y axis.
-    --x-scale <scale>          Apply a scale to the x axis. Can be one of \"lin\" or \"log\".
+    --x-scale <scale>          Apply a scale to the x axis. Can be one of \"lin\", \"log\",
+                               \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
                                [default: lin]
-    --y-scale <scale>          Apply a scale to the y axis. Can be one of \"lin\" or \"log\".
+    --y-scale <scale>          Apply a scale to the y axis. Can be one of \"lin\", \"log\",
+                               \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
                                [default: lin]
     --color <when>             When to color the output using ANSI escape codes.
                                Use `auto` for automatic detection, `never` to

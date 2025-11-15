@@ -14,6 +14,7 @@
 * `xan input` has been overhauled.
 * Dropping `xan count --sample-size`.
 * Overhauling `xan fixlengths` to accept streams by shifting default from double-pass read to buffering the whole stream into memory.
+* `xan plot --x-scale log & --y-scale log` are now natural log. Use `log10` for the base10 log as before.
 
 *Features*
 
@@ -43,6 +44,7 @@
 * Adding `-k` short flag for `xan dedup --keep-duplicates`, and `-C` short flag for `xan dedup --choose`.
 * Adding `xan fixlengths -H/--trust-header`.
 * Adding `xan separate`.
+* Adding full log scale support to `xan plot`.
 
 *Fixes*
 
