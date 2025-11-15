@@ -480,7 +480,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Some(y_column_index) => {
                 try_parse_as_float!(args.flag_y_scale, &record[y_column_index])
             }
-            None => args.flag_y_scale.convert(1.0),
+            None => 1.0,
         };
 
         // Filtering out-of-bounds values
