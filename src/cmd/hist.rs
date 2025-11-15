@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::dates;
-use crate::scales::LinearScale;
+use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
@@ -67,6 +67,9 @@ hist options:
                              year-month-day). This will sort the bars by date, and add missing dates.
     -G, --compress-gaps <n>  If given, will compress gaps of minimum <n> consecutive
                              entries set to 0 and replace it with an ellipsis.
+    --scale <scale>          Apply a scale to the values. Can be one of \"lin\", \"log\",
+                             \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
+                             [default: lin]
 
 Common options:
     -h, --help             Display this message
@@ -95,6 +98,7 @@ struct Args {
     flag_bar_size: String,
     flag_dates: bool,
     flag_compress_gaps: Option<usize>,
+    flag_scale: ScaleType,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -147,6 +151,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let value = record[value_pos]
             .parse::<f64>()
             .map_err(|_| "could not parse value")?;
+
+        if args.flag_scale.is_logarithmic() && (value < 0.0 || (value > 0.0 && value < 1.0)) {
+            Err(format!(
+                "{} value cannot work with a log scale!",
+                value.to_string().cyan()
+            ))?;
+        }
 
         if let Some(category_col) = category_column_index {
             let category = record[category_col].to_string();
@@ -214,13 +225,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         writeln!(
             &mut out,
-            "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}):\n",
+            "\nHistogram for {} (bars: {}, sum: {}{}, max: {}{}){}:\n",
             histogram.field.green(),
             util::format_number(histogram.len()).cyan(),
             util::format_number(sum).cyan(),
             unit.cyan(),
             util::format_number(histogram.max().unwrap()).cyan(),
             unit.cyan(),
+            if args.flag_scale.is_linear() {
+                "".to_string()
+            } else {
+                format!(", {} scale", args.flag_scale.to_string().cyan())
+            }
         )?;
 
         let pct_cols: usize = if args.flag_hide_percent { 0 } else { 8 };
@@ -252,7 +268,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             _ => Err("unknown -B, --bar-size. Should be one of \"small\", \"medium\", \"large\".")?,
         };
 
-        let scale = LinearScale::new((0.0, domain_max), (0.0, bar_cols as f64));
+        let scale = Scale::new(
+            args.flag_scale,
+            (
+                if args.flag_scale.is_logarithmic() {
+                    1.0
+                } else {
+                    0.0
+                },
+                domain_max,
+            ),
+            (0.0, bar_cols as f64),
+        );
 
         for (i, bar_opt) in histogram
             .compressed_bars(args.flag_compress_gaps)
@@ -266,7 +293,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let bar = bar_opt.unwrap();
 
-            let bar_width = scale.map(bar.value);
+            let bar_width = if scale.is_logarithmic() && bar.value == 0.0 {
+                0.0
+            } else {
+                scale.map(bar.value)
+            };
 
             let mut bar_as_chars =
                 util::unicode_aware_rpad(&create_bar(chars, bar_width), bar_cols, " ").clear();
@@ -305,16 +336,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 _ => label.normal(),
             };
 
+            let count = util::unicode_aware_lpad_with_ellipsis(
+                &util::format_number(bar.value),
+                count_cols,
+                " ",
+            );
+
             writeln!(
                 &mut out,
                 "{} |{}{}{}|{}|",
                 label,
-                util::unicode_aware_lpad_with_ellipsis(
-                    &util::format_number(bar.value),
-                    count_cols,
-                    " "
-                )
-                .cyan(),
+                if bar.value == 0.0 {
+                    count.dimmed()
+                } else {
+                    count.cyan()
+                },
                 unit.cyan(),
                 if args.flag_hide_percent {
                     "".to_string().normal()

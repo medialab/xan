@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::fmt;
 use std::mem;
 use std::ops::Sub;
 
@@ -421,6 +422,7 @@ pub enum LogBase {
 }
 
 impl LogBase {
+    #[inline(always)]
     fn is_integer(&self) -> bool {
         match self {
             Self::Natural => false,
@@ -430,6 +432,7 @@ impl LogBase {
         }
     }
 
+    #[inline(always)]
     fn as_float(&self) -> f64 {
         match self {
             Self::Natural => std::f64::consts::E,
@@ -439,6 +442,7 @@ impl LogBase {
         }
     }
 
+    #[inline(always)]
     fn apply(&self, x: f64) -> f64 {
         match self {
             Self::Natural => x.ln(),
@@ -448,6 +452,7 @@ impl LogBase {
         }
     }
 
+    #[inline(always)]
     fn invert(&self, x: f64) -> f64 {
         match self {
             Self::Natural => x.exp(),
@@ -496,6 +501,20 @@ impl TryFrom<String> for ScaleType {
             }
             _ => return Err(format!("unknown scale type \"{}\"", &value)),
         })
+    }
+}
+
+impl fmt::Display for ScaleType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Linear => write!(f, "lin"),
+            Self::Logarithmic(base) => match base {
+                LogBase::Base2 => write!(f, "log2"),
+                LogBase::Base10 => write!(f, "log10"),
+                LogBase::Natural => write!(f, "log"),
+                LogBase::Custom(base) => write!(f, "log({})", base),
+            },
+        }
     }
 }
 
@@ -576,7 +595,6 @@ fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
 #[derive(Debug, Clone)]
 pub struct TimeScale {
     input_domain: Extent<f64>,
-    #[allow(unused)]
     output_range: Extent<f64>,
     unit: Unit,
 }
@@ -602,11 +620,11 @@ impl TimeScale {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
-    // fn map(&self, value: f64) -> f64 {
-    //     let percent = self.percent(value);
+    fn map(&self, value: f64) -> f64 {
+        let percent = self.percent(value);
 
-    //     percent * self.output_range.width() + self.output_range.min()
-    // }
+        percent * self.output_range.width() + self.output_range.min()
+    }
 
     fn ticks(&self, count: usize) -> Vec<f64> {
         if count < 1 {
@@ -641,13 +659,11 @@ impl TimeScale {
     }
 }
 
-// TODO: support custom base, currently only base10
 #[derive(Debug, Clone)]
 pub struct LogScale {
     base: LogBase,
     input_domain: Extent<f64>,
     converted_input_domain: Extent<f64>,
-    #[allow(unused)]
     output_range: Extent<f64>,
 }
 
@@ -682,11 +698,12 @@ impl LogScale {
             / self.converted_input_domain.width()
     }
 
-    // fn map(&self, value: f64) -> f64 {
-    //     let percent = self.percent(value);
+    #[inline]
+    fn map(&self, value: f64) -> f64 {
+        let percent = self.percent(value);
 
-    //     percent * self.output_range.width() + self.output_range.min()
-    // }
+        percent * self.output_range.width() + self.output_range.min()
+    }
 
     // NOTE: I do not support reverse scales (i.e. pow scales?)
     fn ticks(&self, count: usize) -> Vec<f64> {
@@ -785,6 +802,15 @@ pub enum Scale {
 }
 
 impl Scale {
+    pub fn new(scale_type: ScaleType, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+        match scale_type {
+            ScaleType::Linear => Self::Linear(LinearScale::new(input_domain, output_range)),
+            ScaleType::Logarithmic(base) => {
+                Self::Log(LogScale::new(base, input_domain, output_range))
+            }
+        }
+    }
+
     pub fn nice(
         scale_type: ScaleType,
         input_domain: (f64, f64),
@@ -803,6 +829,10 @@ impl Scale {
         Self::Time(TimeScale::nice(input_domain, output_range, unit))
     }
 
+    pub fn is_logarithmic(&self) -> bool {
+        matches!(self, Self::Log(_))
+    }
+
     pub fn formatted_ticks(&self, count: usize) -> Vec<String> {
         match self {
             Self::Linear(inner) => inner.formatted_ticks(count),
@@ -819,14 +849,38 @@ impl Scale {
         }
     }
 
-    // pub fn map(&self, value: f64) -> f64 {
-    //     match self {
-    //         Self::Linear(inner) => inner.map(value),
-    //         Self::Log(inner) => inner.map(value),
-    //         Self::Time(inner) => inner.map(value),
-    //     }
-    // }
+    pub fn map(&self, value: f64) -> f64 {
+        match self {
+            Self::Linear(inner) => inner.map(value),
+            Self::Log(inner) => inner.map(value),
+            Self::Time(inner) => inner.map(value),
+        }
+    }
 }
+
+// pub struct HorizontalAxisOptions {
+//     columns: usize,
+//     left_offset: usize,
+//     over: bool,
+// }
+
+// impl HorizontalAxisOptions {
+//     fn available_width(&self) -> usize {
+//         self.left_offset + self.columns
+//     }
+
+//     fn capacity(&self) -> usize {
+//         self.available_width() * 2 + 1
+//     }
+// }
+
+// impl Scale {
+//     pub fn draw_horizontal_axis(&self, options: HorizontalAxisOptions) -> String {
+//         let mut output = String::with_capacity(options.capacity());
+
+//         output
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

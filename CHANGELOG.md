@@ -45,6 +45,7 @@
 * Adding `xan fixlengths -H/--trust-header`.
 * Adding `xan separate`.
 * Adding full log scale support to `xan plot`.
+* Adding `xan hist --scale`.
 
 *Fixes*
 
@@ -75,6 +76,7 @@
 * `xan parallel` will now generally stop as soon as an error is detected in a subprocess and cleanly report errors.
 * Better argv parsing error UX in general.
 * The `-p` flag will now avoid going further than 16 to avoid issues on server with many CPUs where hogging the resources is an issue and where using too much threads at once could hurt performance. The `-t` flag remain available to tweak the number of threads.
+* `xan hist` will now dim bars having a `0` count so you can easily distinguish them from non-empty bars.
 
 ## 0.53.0
 
