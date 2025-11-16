@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use simd_csv::ByteRecord;
 
 use super::aggregators::{Sum, Welford};
+use super::program::{concretize_aggregations, is_agg_fn_name, AggregationProgram};
 use crate::moonblade::error::{ConcretizationError, SpecifiedEvaluationError};
 use crate::moonblade::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
 use crate::moonblade::parser::parse_aggregations;
@@ -122,6 +123,7 @@ enum ConcreteWindowAggregation {
     RollingWelford(ConcreteExpr, WelfordStat, RollingWelford),
     Frac(ConcreteExpr, Sum, Option<usize>),
     DenseRank(ConcreteExpr, Vec<(DynamicNumber, usize)>, VecDeque<usize>),
+    TotalAggregation(AggregationProgram, DynamicValue),
 }
 
 fn eval_expression_to_number(
@@ -145,7 +147,10 @@ impl ConcreteWindowAggregation {
     }
 
     fn requires_total_buffer(&self) -> bool {
-        matches!(self, Self::Frac(_, _, _) | Self::DenseRank(_, _, _))
+        matches!(
+            self,
+            Self::Frac(_, _, _) | Self::DenseRank(_, _, _) | Self::TotalAggregation(_, _)
+        )
     }
 
     fn aggregate_total(
@@ -170,36 +175,47 @@ impl ConcreteWindowAggregation {
 
                 numbers.push((number, numbers.len()));
             }
+            Self::TotalAggregation(program, _) => {
+                program.run_with_record(index, record)?;
+            }
             _ => (),
         };
 
         Ok(())
     }
 
-    fn finalize_total(&mut self) {
-        if let Self::DenseRank(_, numbers, ranks) = self {
-            numbers.sort();
-            ranks.resize(numbers.len(), 0);
+    fn finalize_total(&mut self) -> Result<(), SpecifiedEvaluationError> {
+        match self {
+            Self::DenseRank(_, numbers, ranks) => {
+                numbers.sort();
+                ranks.resize(numbers.len(), 0);
 
-            let mut rank: usize = 0;
-            let mut last_number: Option<DynamicNumber> = None;
+                let mut rank: usize = 0;
+                let mut last_number: Option<DynamicNumber> = None;
 
-            for (n, i) in numbers.iter() {
-                match last_number {
-                    None => {
-                        last_number = Some(*n);
-                        rank += 1;
-                    }
-                    Some(l) if l != *n => {
-                        last_number = Some(*n);
-                        rank += 1;
-                    }
-                    _ => {}
-                };
+                for (n, i) in numbers.iter() {
+                    match last_number {
+                        None => {
+                            last_number = Some(*n);
+                            rank += 1;
+                        }
+                        Some(l) if l != *n => {
+                            last_number = Some(*n);
+                            rank += 1;
+                        }
+                        _ => {}
+                    };
 
-                ranks[*i] = rank;
+                    ranks[*i] = rank;
+                }
             }
+            Self::TotalAggregation(program, value) => {
+                *value = program.finalize_iter(false).next().unwrap()?
+            }
+            _ => (),
         }
+
+        Ok(())
     }
 
     fn run(
@@ -313,6 +329,7 @@ impl ConcreteWindowAggregation {
                 })
             }
             Self::DenseRank(_, _, ranks) => Ok(DynamicValue::from(ranks.pop_front().unwrap())),
+            Self::TotalAggregation(_, value) => Ok(value.clone()),
         }
     }
 
@@ -343,6 +360,10 @@ impl ConcreteWindowAggregation {
             Self::DenseRank(_, numbers, ranks) => {
                 numbers.clear();
                 ranks.clear();
+            }
+            Self::TotalAggregation(program, value) => {
+                program.clear();
+                *value = DynamicValue::None;
             }
         };
     }
@@ -382,6 +403,21 @@ fn concretize_window_aggregations(
 
     for mut agg in aggs {
         let func_name = &agg.func_name;
+
+        if is_agg_fn_name(func_name) {
+            let agg_name = agg.agg_name.clone();
+
+            let concrete_aggregations = concretize_aggregations(vec![agg], headers)?;
+            let sub_program =
+                AggregationProgram::from_concrete_aggregations(concrete_aggregations, headers);
+
+            concrete_aggs.push((
+                agg_name,
+                ConcreteWindowAggregation::TotalAggregation(sub_program, DynamicValue::None),
+            ));
+
+            continue;
+        }
 
         let arguments_spec = get_function(func_name)
             .ok_or_else(|| ConcretizationError::UnknownFunction(func_name.to_string()))?;
@@ -668,7 +704,7 @@ impl WindowAggregationProgram {
             }
 
             for (_, agg) in self.aggs.iter_mut() {
-                agg.finalize_total();
+                agg.finalize_total()?;
             }
 
             for (index, record) in total_buffer.iter() {

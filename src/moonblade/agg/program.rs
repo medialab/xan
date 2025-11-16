@@ -839,6 +839,10 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
     })
 }
 
+pub fn is_agg_fn_name(name: &str) -> bool {
+    get_function_arguments_parser(name).is_some()
+}
+
 #[derive(Debug, Clone)]
 enum ConcreteAggregationMethod {
     All,
@@ -907,7 +911,7 @@ impl ConcreteAggregationMethod {
 }
 
 #[derive(Debug)]
-struct ConcreteAggregation {
+pub struct ConcreteAggregation {
     agg_name: String,
     method: ConcreteAggregationMethod,
     expr: Option<ConcreteExpr>,
@@ -920,9 +924,9 @@ impl ConcreteAggregation {
     }
 }
 
-type ConcreteAggregations = Vec<ConcreteAggregation>;
+pub type ConcreteAggregations = Vec<ConcreteAggregation>;
 
-fn concretize_aggregations(
+pub fn concretize_aggregations(
     aggregations: Aggregations,
     headers: &ByteRecord,
 ) -> Result<ConcreteAggregations, ConcretizationError> {
@@ -1174,19 +1178,29 @@ pub struct AggregationProgram {
 }
 
 impl AggregationProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let concrete_aggregations = prepare(code, headers)?;
+    pub fn from_concrete_aggregations(
+        concrete_aggregations: ConcreteAggregations,
+        headers: &ByteRecord,
+    ) -> Self {
         let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
         let aggregators = planner.instantiate_aggregators();
 
-        Ok(Self {
+        Self {
             planner,
             aggregators,
             len,
             headers_index: HeadersIndex::from_headers(headers),
             last_value: DynamicValue::empty_bytes(),
-        })
+        }
+    }
+
+    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
+        let concrete_aggregations = prepare(code, headers)?;
+        Ok(Self::from_concrete_aggregations(
+            concrete_aggregations,
+            headers,
+        ))
     }
 
     pub fn has_single_expr(&self) -> bool {
@@ -1244,14 +1258,21 @@ impl AggregationProgram {
         self.planner.headers()
     }
 
-    pub fn finalize(&mut self, parallel: bool) -> Result<ByteRecord, SpecifiedEvaluationError> {
+    pub fn finalize_iter(
+        &mut self,
+        parallel: bool,
+    ) -> impl Iterator<Item = Result<DynamicValue, SpecifiedEvaluationError>> + '_ {
         for aggregator in self.aggregators.iter_mut() {
             aggregator.finalize(parallel);
         }
 
+        self.planner.results(&self.aggregators, &self.headers_index)
+    }
+
+    pub fn finalize(&mut self, parallel: bool) -> Result<ByteRecord, SpecifiedEvaluationError> {
         let mut record = ByteRecord::new();
 
-        for value in self.planner.results(&self.aggregators, &self.headers_index) {
+        for value in self.finalize_iter(parallel) {
             record.push_field(&value?.serialize_as_bytes());
         }
 

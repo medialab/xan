@@ -46,6 +46,7 @@
 * Adding `xan separate`.
 * Adding full log scale support to `xan plot`.
 * Adding `xan hist --scale`.
+* `xan window` is now able to run total aggregations.
 
 *Fixes*
 
