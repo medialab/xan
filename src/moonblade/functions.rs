@@ -126,7 +126,15 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "fmt" => (fmt, FunctionArguments::variadic(2)),
-        "numfmt" => (fmt_number, FunctionArguments::unary()),
+        "numfmt" => (
+            fmt_number,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("thousands_sep"),
+                Argument::with_name("comma"),
+                Argument::with_name("significance"),
+            ]),
+        ),
         "get" => (get, FunctionArguments::with_range(2..=3)),
         "html_unescape" => (html_unescape, FunctionArguments::unary()),
         "idiv" => (
@@ -582,10 +590,40 @@ fn fmt(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(formatted))
 }
 
-fn fmt_number(mut args: BoundArguments) -> FunctionResult {
-    let number = args.pop1().try_as_number()?;
+fn fmt_number(args: BoundArguments) -> FunctionResult {
+    let mut args_iter = args.into_iter();
+    let number = args_iter.next().unwrap().try_as_number()?;
 
-    Ok(DynamicValue::from(crate::util::format_number(number)))
+    let thousands_sep = args_iter.next().unwrap();
+    let comma = args_iter.next().unwrap();
+    let significance = args_iter.next().unwrap();
+
+    if !thousands_sep.is_none() || !comma.is_none() || !significance.is_none() {
+        let mut formatter = numfmt::Formatter::new()
+            .separator(',')
+            .unwrap()
+            .comma(comma.is_truthy());
+
+        let separator = if comma.is_truthy() { '.' } else { ',' };
+
+        if !significance.is_none() {
+            formatter = formatter.precision(numfmt::Precision::Significance(
+                significance.try_as_usize()? as u8,
+            ));
+        } else {
+            formatter = formatter.precision(numfmt::Precision::Significance(5));
+        }
+
+        let mut formatted = crate::util::format_number_with_formatter(&mut formatter, number);
+
+        if !thousands_sep.is_none() {
+            formatted = formatted.replace(separator, &thousands_sep.try_as_str()?);
+        }
+
+        Ok(DynamicValue::from(formatted))
+    } else {
+        Ok(DynamicValue::from(crate::util::format_number(number)))
+    }
 }
 
 fn printf(args: BoundArguments) -> FunctionResult {
