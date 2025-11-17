@@ -16,6 +16,8 @@
 * Overhauling `xan fixlengths` to accept streams by shifting default from double-pass read to buffering the whole stream into memory.
 * `xan plot --x-scale log & --y-scale log` are now natural log. Use `log10` for the base10 log as before.
 * Dropping `xan reverse -m/--in-memory` flag. Behavior is now automatically detected.
+* Dropping `xan shuffle -m/--in-memory` flag. Loading the file into memory is now the default. The `xan shuffle -e/--external` flag has been added if
+you want the old default behavior.
 
 *Features*
 
