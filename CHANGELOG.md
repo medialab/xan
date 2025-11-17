@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.54.0 (provisional)
+## 0.54.0
+
+The **SIMD** update.
 
 *Breaking*
 

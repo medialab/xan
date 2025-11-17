@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.54.0-rc.4"
+version = "0.54.0"
 rust-version = "1.83.0"
 authors = [
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
