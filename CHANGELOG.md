@@ -19,6 +19,7 @@
 * Dropping `xan shuffle -m/--in-memory` flag. Loading the file into memory is now the default. The `xan shuffle -e/--external` flag has been added if
 you want the old default behavior.
 * `xan bins` now outputs `<empty>` values instead of `<nulls>`.
+* Overhauling `xan bins`. The default is now to find nice boundaries for the bins. Use `-e/--exact` to revert to the old behavior. The default number of bins is now `10`, and won't use Freedman-Diaconis rule by default. A `-H/--heuristic` flag has been added if you want to automatically select a suitable number of bins.
 
 *Features*
 
