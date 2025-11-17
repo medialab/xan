@@ -410,7 +410,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
             return ColorOrStyles::Color(Color::Cyan)
         }
         "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
-        | "<null>" | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
+        | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
         _ => (),
     };
 

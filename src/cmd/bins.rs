@@ -35,7 +35,7 @@ bins options:
                            [default: full]
     -m, --min <min>        Override min value.
     -M, --max <max>        Override max value.
-    -N, --no-extra         Don't include, nulls, nans and out-of-bounds counts.
+    -N, --no-extra         Don't include, empty cells, nans and out-of-bounds counts.
 
 Common options:
     -h, --help             Display this message
@@ -174,7 +174,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !args.flag_no_extra && series.nulls > 0 {
             wtr.write_record([
                 &headers[series.column],
-                b"<null>",
+                b"<empty>",
                 b"",
                 b"",
                 series.nulls.to_string().as_bytes(),

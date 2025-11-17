@@ -18,6 +18,7 @@
 * Dropping `xan reverse -m/--in-memory` flag. Behavior is now automatically detected.
 * Dropping `xan shuffle -m/--in-memory` flag. Loading the file into memory is now the default. The `xan shuffle -e/--external` flag has been added if
 you want the old default behavior.
+* `xan bins` now outputs `<empty>` values instead of `<nulls>`.
 
 *Features*
 
