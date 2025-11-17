@@ -1,5 +1,5 @@
 use rand::seq::SliceRandom;
-use std::io::SeekFrom;
+use std::io::{SeekFrom, Write};
 
 use crate::config::{Config, Delimiter};
 use crate::util;
@@ -58,24 +58,24 @@ fn run_random_access(args: Args) -> CliResult<()> {
     let mut positions: Vec<(u64, usize)> = Vec::new();
     let mut last_pos: u64 = 0;
 
-    let mut output_wtr = wconf.io_writer()?;
+    let mut output_wtr = wconf.buf_io_writer()?;
 
     {
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
 
         if !rconf.no_headers {
             let header = rdr.byte_headers()?;
 
             if !header.is_empty() {
-                last_pos = rdr.position().byte();
+                last_pos = rdr.position();
                 header_len = Some(last_pos as usize);
             }
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
-            let pos = rdr.position().byte();
+            let pos = rdr.position();
             positions.push((last_pos, (pos - last_pos) as usize));
             last_pos = pos;
         }
@@ -87,7 +87,7 @@ fn run_random_access(args: Args) -> CliResult<()> {
     let mut reading_buffer: Vec<u8> = Vec::new();
 
     if let Some(l) = header_len {
-        reading_buffer.try_reserve(l).expect("not enough memory");
+        reading_buffer.reserve(l);
         reading_buffer.extend((reading_buffer.len()..l).map(|_| 0));
 
         input_rdr.read_exact(&mut reading_buffer[0..l])?;
@@ -97,7 +97,7 @@ fn run_random_access(args: Args) -> CliResult<()> {
     for (byte_offset, l) in positions {
         input_rdr.seek(SeekFrom::Start(byte_offset))?;
 
-        reading_buffer.try_reserve(l).expect("not enough memory");
+        reading_buffer.reserve(l);
         reading_buffer.extend((reading_buffer.len()..l).map(|_| 0));
 
         input_rdr.read_exact(&mut reading_buffer[0..l])?;
