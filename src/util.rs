@@ -55,7 +55,7 @@ lazy_static! {
     static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-=]*)").unwrap();
     static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options):|---+").unwrap();
     static ref DIMMED_REGEX: Regex = Regex::new(
-        r"\[--\]|\[?<[\w|\-]+>(?:\.{3})?\]?|\[[\w\s:§|\-.]+\]|\s+[\$>][^\n]+|\*[^*\n]+\*"
+        r"\[--\]|\[-\w\s+<\w+>\.\.\.\]|\[?<[\w|\-]+>(?:\.{3})?\]?|\[[\w\s:§|\-.]+\]|\s+[\$>][^\n]+|\*[^*\n]+\*"
     )
     .unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
