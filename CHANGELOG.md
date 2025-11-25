@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.54.1 (provisional)
+
+*Fixes*
+
+* Fixing `xan freq --groupby` incorrectly unescaping group cells.
+
 ## 0.54.0
 
 The **SIMD** update.

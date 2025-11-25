@@ -232,8 +232,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Aggregating
         while let Some(record) = rdr.read_byte_record()? {
             let group: ByteRecord = groupby_sel
-                .select(&record)
-                .map(|cell| cell.to_vec())
+                .iter()
+                .map(|i| record.unescape(*i).unwrap().into_owned())
                 .collect();
 
             let fields_to_counter = groups_to_fields_to_counter.insert_with(group, || {
