@@ -547,6 +547,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 *Search & filter*
 
 - [**search**](./docs/cmd/search.md): Search for (or replace) patterns in CSV data
+- [**bisect**](./docs/cmd/bisect.md): Search for value using binary search in sorted CSV data
 - [**grep**](./docs/cmd/grep.md): Coarse but fast filtering of CSV data
 - [**filter**](./docs/cmd/filter.md): Only keep some CSV rows based on an evaluated expression
 - [**head**](./docs/cmd/head.md): First rows of CSV file

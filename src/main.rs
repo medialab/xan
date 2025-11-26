@@ -49,6 +49,7 @@ macro_rules! command_list {
 
 ## Search & filter
     search      Search for (or replace) patterns in CSV data
+    bisect      Search for value using binary search in sorted CSV data
     grep        Coarse but fast filtering of CSV data
     filter      Only keep some CSV rows based on an evaluated expression
     head        First rows of CSV file

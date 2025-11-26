@@ -74,9 +74,54 @@ fn bisect() {
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
+    cmd.arg("letter").arg("d").arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["d"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("letter").arg("e").arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["e"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("bisect");
     cmd.arg("letter").arg("z").arg("letters.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![svec!["letter"]];
+    assert_eq!(got, expected);
+
+    wrk.create(
+        "letters.csv",
+        vec![
+            svec!["letter"],
+            svec!["a"],
+            svec!["b"],
+            svec!["b"],
+            svec!["c"],
+            svec!["d"],
+            svec!["e"],
+            svec!["e"],
+            svec!["e"],
+            svec!["e"],
+        ],
+    );
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("letter").arg("b").arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["b"], svec!["b"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("letter").arg("e").arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![
+        svec!["letter"],
+        svec!["e"],
+        svec!["e"],
+        svec!["e"],
+        svec!["e"],
+    ];
     assert_eq!(got, expected);
 
     wrk.create(
