@@ -98,9 +98,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let column_index = rconf.single_selection(rconf.reader()?.byte_headers()?)?;
 
-    let mut median_byte = seek_rdr.file_len() / 2;
+    let mut median_byte = seek_rdr.stream_len() / 2;
     let mut start_byte = seek_rdr.first_record_position();
-    let mut end_byte = seek_rdr.file_len();
+    let mut end_byte = seek_rdr.stream_len();
 
     let mut previous_median: Option<u64> = None;
 
@@ -145,7 +145,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
         if target_value >= first_value || target_value <= last_value {
             while start_byte <= end_byte {
-                let sought = seek_rdr.seek(median_byte)?;
+                let sought = seek_rdr.find_record_after(median_byte)?;
 
                 // Meaning we reached the last record
                 if sought.is_none() {
@@ -212,7 +212,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             let mut gap: u64;
                             let mut returned_first_occurrence = false;
                             loop {
-                                let sought = seek_rdr.seek(pos)?;
+                                let sought = seek_rdr.find_record_after(pos)?;
                                 if sought.is_none() {
                                     break;
                                 }
