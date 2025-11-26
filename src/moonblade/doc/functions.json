@@ -280,7 +280,7 @@
       },
       {
         "name": "numfmt",
-        "arguments": ["number"],
+        "arguments": ["number", "thousands_sep=\",\"", "comma=false", "significance=5"],
         "returns": "string",
         "help": "Format a number with thousands separator and proper significance."
       },
@@ -798,7 +798,7 @@
       },
       {
         "name": "read",
-        "arguments": ["path", "encoding=?", "errors=?"],
+        "arguments": ["path", "encoding=\"utf-8\"", "errors=\"strict\""],
         "returns": "string",
         "help": "Read file at path. Default encoding is \"utf-8\". Default error handling policy is \"replace\", and can be one of \"replace\", \"ignore\" or \"strict\"."
       },

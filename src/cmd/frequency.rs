@@ -22,6 +22,10 @@ field - Name of the column
 value - Some distinct value of the column
 count - Number of rows containing this value
 
+Pipe into `xan hist` to easily visualize the result:
+
+    $ xan freq -s category data.csv | xan hist
+
 By default, there is a row for the N most frequent values for each field in the
 data. The number of returned values can be tweaked with -l/--limit or you can
 disable the limit altogether using the -A/--all flag.
@@ -228,8 +232,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Aggregating
         while let Some(record) = rdr.read_byte_record()? {
             let group: ByteRecord = groupby_sel
-                .select(&record)
-                .map(|cell| cell.to_vec())
+                .iter()
+                .map(|i| record.unescape(*i).unwrap().into_owned())
                 .collect();
 
             let fields_to_counter = groups_to_fields_to_counter.insert_with(group, || {

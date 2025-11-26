@@ -4,22 +4,16 @@
 ```txt
 Reverse rows of CSV data.
 
-Useful to retrieve the last lines of a large file for instance, or for cases when
-there is no column that can be used for sorting in reverse order, or when keys are
-not unique and order of rows with the same key needs to be preserved.
+If target is seekable (e.g. an uncompressed file on disk), this command is
+able to work in amortized linear time and constant memory. If target is not
+seekable, this command will need to buffer the whole file into memory to
+be able to reverse it.
 
-This function is memory efficient by default but only for seekable inputs (ones with
-the possibility to randomly access data, e.g. a file on disk, but not a piped stream).
-Others sources need to be read using --in-memory flag and will need to load full
-data into memory unfortunately.
+If you only need to retrieve the last rows of a large file, see `xan tail`
+or `xan slice -L` instead.
 
 Usage:
     xan reverse [options] [<input>]
-
-reverse options:
-    -m, --in-memory        Load all CSV data in memory before reversing it. Can
-                           be useful for streamed inputs such as stdin but at the
-                           expense of memory.
 
 Common options:
     -h, --help             Display this message

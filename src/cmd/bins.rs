@@ -12,30 +12,58 @@ use crate::CliResult;
 static USAGE: &str = "
 Discretize selection of columns containing continuous data into bins.
 
-The bins table is formatted as CSV data:
+The resulting bins table will be formatted thusly:
 
-    field,value,lower_bound,upper_bound,count
+field       - Name of the column
+value       - Bin's label (depends on what was given to -l/--label)
+lower_bound - Lower bound of the bin
+upper_bound - Upper bound of the bin
+count       - Number of rows falling into this bin
+
+The number of bins can be chosen with the -b/--bins flag. Note that,
+by default, this number is an approximate goal since the command
+attempts to find readble boundaries for the bins and this make it
+hard to respect a precise number of bins. Use the -e/--exact flag
+if you want to force the command to respect -b/--bins exactly.
+
+Combined with `xan hist`, this command can be very useful to visualize
+distributions of continous columns:
+
+    $ xan bins -s count data.csv | xan hist
+
+Using a log scale:
+
+    $ xan bins -s count data.csv | xan hist --scale log
 
 Usage:
     xan bins [options] [<input>]
     xan bins --help
 
 bins options:
-    -s, --select <arg>     Select a subset of columns to compute bins
-                           for. See 'xan select --help' for the format
-                           details.
-    -b, --bins <number>    Number of bins. Will default to using various heuristics
-                           to find an optimal default number if not provided.
-    -E, --nice             Whether to choose nice boundaries for the bins.
-                           Might return a number of bins slightly different to
-                           what was passed to -b/--bins, as a consequence.
-    -l, --label <mode>     Label to choose for the bins (that will be placed in the
-                           `value` column). Mostly useful to tweak representation when
-                           piping to `xan hist`. Can be one of \"full\", \"lower\" or \"upper\".
-                           [default: full]
-    -m, --min <min>        Override min value.
-    -M, --max <max>        Override max value.
-    -N, --no-extra         Don't include, nulls, nans and out-of-bounds counts.
+    -s, --select <arg>      Select a subset of columns to compute bins for. See
+                            'xan select --help' for more detail.
+    -b, --bins <number>     Number of bins to generate. Note that without -e/--exact,
+                            this number should be considered as an approximate goal.
+                            The command by default attempts to find nice & readable boundaries
+                            for the bins and this means a precise number of bins is not
+                            always achievable.
+                            [default: 10]
+    -H, --heuristic <name>  Heuristic to use to automatically find an adequate number
+                            of bins. Must be one of `freedman-diaconis`, `sqrt` or `sturges`.
+    --max-bins <number>     Maximum number of bins to generate. Only useful when using
+                            the -H/--heuristic flag.
+    -e, --exact             Whether to make sure to return the exact number of bins
+                            provided to -b/--bins, which means the readability of the
+                            bins boundaries might suffer.
+    -l, --label <mode>      Label to choose for the bins (that will be placed in the
+                            `value` column). Mostly useful to tweak representation when
+                            piping to `xan hist`. Can be one of \"full\", \"lower\" or \"upper\".
+                            [default: full]
+    -m, --min <min>         Override min value. Values lower that this min will be counted
+                            as out of bounds.
+    -M, --max <max>         Override max value. Values greater that this max will be counted
+                            as out of bounds.
+    -N, --no-extra          Don't include, empty cells, nans and out of bounds counts.
 
 Common options:
     -h, --help             Display this message
@@ -54,11 +82,22 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
     flag_no_extra: bool,
-    flag_bins: Option<usize>,
-    flag_label: String,
-    flag_nice: bool,
+    flag_bins: usize,
+    flag_max_bins: Option<usize>,
+    flag_heuristic: Option<Heuristic>,
+    flag_label: LabelOption,
+    flag_exact: bool,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
+}
+
+impl Args {
+    fn bins_count(&self) -> BinsCount {
+        match self.flag_heuristic {
+            Some(heuristic) => BinsCount::WithHeuristic(heuristic),
+            None => BinsCount::Some(self.flag_bins),
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -66,14 +105,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.flag_select);
-
-    if !["full", "upper", "lower"].contains(&args.flag_label.as_str()) {
-        Err(format!(
-            "unknown --label {:?}, must be one of \"full\", \"upper\" or \"lower\".",
-            args.flag_label
-        ))?;
-    }
+        .select(args.flag_select.clone());
 
     let mut rdr = conf.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
@@ -95,10 +127,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     for series in all_series.iter_mut() {
         match series.bins(
-            args.flag_bins,
-            &args.flag_min,
-            &args.flag_max,
-            args.flag_nice,
+            args.bins_count(),
+            args.flag_max_bins,
+            args.flag_min,
+            args.flag_max,
+            args.flag_exact,
         ) {
             None => continue,
             Some(bins) => {
@@ -127,8 +160,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let label_format = if bin.is_constant() {
                         lower_bound
                     } else {
-                        match args.flag_label.as_str() {
-                            "full" => match bins_iter.peek() {
+                        match args.flag_label {
+                            LabelOption::Full => match bins_iter.peek() {
                                 None => format!(
                                     ">= {:lower_width$} <= {:upper_width$}",
                                     lower_bound,
@@ -144,13 +177,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                     upper_width = max_upper_bound_width
                                 ),
                             },
-                            "upper" => upper_bound,
-                            "lower" => lower_bound,
-                            _ => unreachable!(),
+                            LabelOption::Upper => upper_bound,
+                            LabelOption::Lower => lower_bound,
                         }
                     };
 
-                    wtr.write_record(vec![
+                    wtr.write_record([
                         &headers[series.column],
                         label_format.as_bytes(),
                         bin.lower_bound.to_string().as_bytes(),
@@ -174,7 +206,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !args.flag_no_extra && series.nulls > 0 {
             wtr.write_record([
                 &headers[series.column],
-                b"<null>",
+                b"<empty>",
                 b"",
                 b"",
                 series.nulls.to_string().as_bytes(),
@@ -215,6 +247,27 @@ fn compute_rectified_iqr(numbers: &[f64], stats: &SeriesStats) -> Option<f64> {
 
         Some(iqr)
     }
+}
+
+#[derive(Deserialize, Clone, Copy)]
+enum LabelOption {
+    Full,
+    Lower,
+    Upper,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug)]
+enum Heuristic {
+    #[serde(rename = "freedman-diaconis")]
+    FreedmanDiaconis,
+    Sturges,
+    Sqrt,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum BinsCount {
+    Some(usize),
+    WithHeuristic(Heuristic),
 }
 
 #[derive(Debug)]
@@ -331,7 +384,7 @@ impl Series {
     }
 
     pub fn naive_optimal_bin_count(&self) -> usize {
-        usize::min((self.len() as f64).sqrt().ceil() as usize, 50)
+        (self.len() as f64).sqrt().ceil() as usize
     }
 
     pub fn freedman_diaconis(&mut self, width: f64, stats: &SeriesStats) -> Option<usize> {
@@ -348,21 +401,44 @@ impl Series {
         })
     }
 
-    pub fn optimal_bin_count(&mut self, width: f64, stats: &SeriesStats) -> usize {
-        usize::max(
-            2,
-            self.freedman_diaconis(width, stats)
-                .unwrap_or_else(|| self.naive_optimal_bin_count()),
-        )
-        .min(50)
+    pub fn sturges(&self) -> usize {
+        1 + (self.numbers.len() as f64).log2().ceil() as usize
+    }
+
+    pub fn solve_bins_count(
+        &mut self,
+        bins_count: BinsCount,
+        max_opt: Option<usize>,
+        width: f64,
+        stats: &SeriesStats,
+    ) -> usize {
+        let mut expected = match bins_count {
+            BinsCount::Some(count) => count,
+            BinsCount::WithHeuristic(heuristic) => match heuristic {
+                Heuristic::FreedmanDiaconis => self
+                    .freedman_diaconis(width, stats)
+                    .unwrap_or_else(|| self.naive_optimal_bin_count()),
+                Heuristic::Sqrt => self.naive_optimal_bin_count(),
+                Heuristic::Sturges => self.sturges(),
+            },
+        };
+
+        expected = expected.max(2);
+
+        if let Some(max) = max_opt {
+            expected = expected.min(max);
+        }
+
+        expected
     }
 
     pub fn bins(
         &mut self,
-        count: Option<usize>,
-        min: &Option<f64>,
-        max: &Option<f64>,
-        nice: bool,
+        count: BinsCount,
+        max_bins: Option<usize>,
+        min: Option<f64>,
+        max: Option<f64>,
+        exact: bool,
     ) -> Option<Vec<Bin>> {
         if self.len() < 1 {
             return None;
@@ -383,9 +459,9 @@ impl Series {
 
         let width = max - min;
 
-        let count = count.unwrap_or_else(|| self.optimal_bin_count(width, &stats));
+        let count = self.solve_bins_count(count, max_bins, width, &stats);
 
-        let bins = if nice {
+        let bins = if !exact {
             let scale = LinearScale::nice((min, max), (0.0, 1.0), count);
             let mut ticks = scale.ticks(count);
 

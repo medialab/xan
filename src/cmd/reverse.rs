@@ -5,22 +5,16 @@ use crate::CliResult;
 static USAGE: &str = "
 Reverse rows of CSV data.
 
-Useful to retrieve the last lines of a large file for instance, or for cases when
-there is no column that can be used for sorting in reverse order, or when keys are
-not unique and order of rows with the same key needs to be preserved.
+If target is seekable (e.g. an uncompressed file on disk), this command is
+able to work in amortized linear time and constant memory. If target is not
+seekable, this command will need to buffer the whole file into memory to
+be able to reverse it.
 
-This function is memory efficient by default but only for seekable inputs (ones with
-the possibility to randomly access data, e.g. a file on disk, but not a piped stream).
-Others sources need to be read using --in-memory flag and will need to load full
-data into memory unfortunately.
+If you only need to retrieve the last rows of a large file, see `xan tail`
+or `xan slice -L` instead.
 
 Usage:
     xan reverse [options] [<input>]
-
-reverse options:
-    -m, --in-memory        Load all CSV data in memory before reversing it. Can
-                           be useful for streamed inputs such as stdin but at the
-                           expense of memory.
 
 Common options:
     -h, --help             Display this message
@@ -39,7 +33,6 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
-    flag_in_memory: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -49,47 +42,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
 
-    if args.flag_in_memory {
-        run_without_memory_efficiency(rconfig, args)
-    } else {
-        run_with_memory_efficiency(rconfig, args)
-    }
-}
-
-fn run_with_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()> {
-    let mut reverse_reader = rconfig.reverse_reader().map_err(|_| {
-        "can't use provided input: needs to be loaded in the RAM using -m, --in-memory flag"
-    })?;
-
-    let headers = reverse_reader.byte_headers();
-
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    if !rconfig.no_headers && !headers.is_empty() {
-        wtr.write_byte_record(headers)?;
-    }
+    if let Ok(mut reverse_reader) = rconfig.reverse_reader() {
+        let headers = reverse_reader.byte_headers();
 
-    let mut record = simd_csv::ByteRecord::new();
+        if !rconfig.no_headers && !headers.is_empty() {
+            wtr.write_byte_record(headers)?;
+        }
 
-    while reverse_reader.read_byte_record(&mut record)? {
-        wtr.write_byte_record(&record)?;
-    }
+        let mut record = simd_csv::ByteRecord::new();
 
-    Ok(wtr.flush()?)
-}
+        while reverse_reader.read_byte_record(&mut record)? {
+            wtr.write_byte_record(&record)?;
+        }
+    } else {
+        let mut reader = rconfig.simd_reader()?;
+        let records = reader.byte_records().collect::<Result<Vec<_>, _>>()?;
 
-fn run_without_memory_efficiency(rconfig: &mut Config, args: Args) -> CliResult<()> {
-    let mut reader = rconfig.reader()?;
-    let all = reader.byte_records().collect::<Result<Vec<_>, _>>()?;
+        if !rconfig.no_headers {
+            wtr.write_byte_record(reader.byte_headers()?)?;
+        }
 
-    let mut wtr = Config::new(&args.flag_output).writer()?;
-
-    if !rconfig.no_headers {
-        wtr.write_byte_record(reader.byte_headers()?)?;
-    }
-
-    for r in all.into_iter().rev() {
-        wtr.write_byte_record(&r)?;
+        for record in records.into_iter().rev() {
+            wtr.write_byte_record(&record)?;
+        }
     }
 
     Ok(wtr.flush()?)

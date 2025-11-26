@@ -1,30 +1,24 @@
 use rand::seq::SliceRandom;
-use std::io::SeekFrom;
+use std::io::{SeekFrom, Write};
 
 use crate::config::{Config, Delimiter};
 use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = "
-Shuffle the given CSV file. Requires memory proportional to the
-number of rows of the file (approx. 2 u64 per row).
-
-Note that rows from input file are copied as-is in the output.
-This means that no CSV serialization harmonization will happen,
-unless --in-memory is set.
-
-Also, since this command needs random access in the input file, it
-does not work with stdin or piping (unless --in-memory) is set.
+Shuffle the rows of a given CSV file. This requires loading the whole
+file in memory. If memory is scarce and target file is seekable (not stdin,
+nor unindexed compressed file), you can also use the -e/--external flag that
+only requires memory proportional to the number of rows of the file.
 
 Usage:
     xan shuffle [options] [<input>]
     xan shuffle --help
 
 shuffle options:
-    --seed <number>        RNG seed.
-    -m, --in-memory        Load all CSV data in memory before shuffling it. Can
-                           be useful for streamed inputs such as stdin but of
-                           course costs more memory.
+    --seed <number>  RNG seed.
+    -e, --external   Shuffle the file without buffering it into memory. Only
+                     works if target is seekable (no stdin etc.).
 
 Common options:
     -h, --help             Display this message
@@ -42,40 +36,40 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_seed: Option<usize>,
-    flag_in_memory: bool,
+    flag_external: bool,
 }
 
-fn run_random_access(args: Args) -> CliResult<()> {
+fn run_external(args: Args) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
     let wconf = Config::new(&args.flag_output);
 
-    // Seeding rng
+    // Seedmemorying rng
     let mut rng = util::acquire_rng(args.flag_seed);
 
     let mut header_len: Option<usize> = None;
     let mut positions: Vec<(u64, usize)> = Vec::new();
     let mut last_pos: u64 = 0;
 
-    let mut output_wtr = wconf.io_writer()?;
+    let mut output_wtr = wconf.buf_io_writer()?;
 
     {
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
 
         if !rconf.no_headers {
             let header = rdr.byte_headers()?;
 
             if !header.is_empty() {
-                last_pos = rdr.position().byte();
+                last_pos = rdr.position();
                 header_len = Some(last_pos as usize);
             }
         }
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
-            let pos = rdr.position().byte();
+            let pos = rdr.position();
             positions.push((last_pos, (pos - last_pos) as usize));
             last_pos = pos;
         }
@@ -83,11 +77,11 @@ fn run_random_access(args: Args) -> CliResult<()> {
         positions.shuffle(&mut rng);
     }
 
-    let mut input_rdr = rconf.io_reader_for_random_access()?;
+    let mut input_rdr = rconf.seekable_io_reader()?;
     let mut reading_buffer: Vec<u8> = Vec::new();
 
     if let Some(l) = header_len {
-        reading_buffer.try_reserve(l).expect("not enough memory");
+        reading_buffer.reserve(l);
         reading_buffer.extend((reading_buffer.len()..l).map(|_| 0));
 
         input_rdr.read_exact(&mut reading_buffer[0..l])?;
@@ -97,7 +91,7 @@ fn run_random_access(args: Args) -> CliResult<()> {
     for (byte_offset, l) in positions {
         input_rdr.seek(SeekFrom::Start(byte_offset))?;
 
-        reading_buffer.try_reserve(l).expect("not enough memory");
+        reading_buffer.reserve(l);
         reading_buffer.extend((reading_buffer.len()..l).map(|_| 0));
 
         input_rdr.read_exact(&mut reading_buffer[0..l])?;
@@ -141,9 +135,9 @@ fn run_in_memory(args: Args) -> CliResult<()> {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_in_memory {
-        run_in_memory(args)
+    if args.flag_external {
+        run_external(args)
     } else {
-        run_random_access(args)
+        run_in_memory(args)
     }
 }

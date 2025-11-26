@@ -10,6 +10,10 @@ field - Name of the column
 value - Some distinct value of the column
 count - Number of rows containing this value
 
+Pipe into `xan hist` to easily visualize the result:
+
+    $ xan freq -s category data.csv | xan hist
+
 By default, there is a row for the N most frequent values for each field in the
 data. The number of returned values can be tweaked with -l/--limit or you can
 disable the limit altogether using the -A/--all flag.

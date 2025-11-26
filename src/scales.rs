@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::fmt;
 use std::mem;
 use std::ops::Sub;
 
@@ -13,8 +14,8 @@ const E10: f64 = 7.0710678118654755; // sqrt(50)
 const E5: f64 = 3.1622776601683795; // sqrt(10)
 const E2: f64 = std::f64::consts::SQRT_2; // sqrt(2)
 
-fn tick_spec(start: f64, stop: f64, count: usize) -> (f64, f64, f64) {
-    let step = (stop - start) / count.max(0) as f64;
+fn tick_spec(start: f64, stop: f64, count: f64) -> (f64, f64, f64) {
+    let step = (stop - start) / count.max(0.0);
     let power = step.log10().floor();
     let error = step / 10.0_f64.powf(power);
     let factor = if error >= E10 {
@@ -54,19 +55,19 @@ fn tick_spec(start: f64, stop: f64, count: usize) -> (f64, f64, f64) {
         (i1, i2, inc)
     };
 
-    if i2 < i1 && 0.5 <= count as f64 && count < 2 {
-        return tick_spec(start, stop, count * 2);
+    if i2 < i1 && (0.5..2.0).contains(&count) {
+        return tick_spec(start, stop, count * 2.0);
     }
 
     (i1, i2, inc)
 }
 
-fn tick_increment(start: f64, stop: f64, count: usize) -> f64 {
+fn tick_increment(start: f64, stop: f64, count: f64) -> f64 {
     tick_spec(start, stop, count).2
 }
 
-fn ticks(start: f64, stop: f64, count: usize) -> Vec<f64> {
-    if count == 0 {
+fn ticks(start: f64, stop: f64, count: f64) -> Vec<f64> {
+    if count == 0.0 {
         return vec![];
     }
 
@@ -124,7 +125,7 @@ fn linear_nice(domain: (f64, f64), count: usize) -> Option<(f64, f64)> {
     }
 
     for _ in 0..10 {
-        step = tick_increment(start, stop, count);
+        step = tick_increment(start, stop, count as f64);
 
         if matches!(previous_step, Some(s) if s == step) {
             return Some(if stop < start {
@@ -412,12 +413,62 @@ impl TryFrom<String> for GradientName {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum LogBase {
+    Natural,
+    Base2,
+    Base10,
+    Custom(f64),
+}
+
+impl LogBase {
+    #[inline(always)]
+    fn is_integer(&self) -> bool {
+        match self {
+            Self::Natural => false,
+            Self::Base2 => true,
+            Self::Base10 => true,
+            Self::Custom(base) => base.fract() <= f64::EPSILON,
+        }
+    }
+
+    #[inline(always)]
+    fn as_float(&self) -> f64 {
+        match self {
+            Self::Natural => std::f64::consts::E,
+            Self::Base2 => 2.0,
+            Self::Base10 => 10.0,
+            Self::Custom(base) => *base,
+        }
+    }
+
+    #[inline(always)]
+    fn apply(&self, x: f64) -> f64 {
+        match self {
+            Self::Natural => x.ln(),
+            Self::Base2 => x.log2(),
+            Self::Base10 => x.log10(),
+            Self::Custom(base) => x.log(*base),
+        }
+    }
+
+    #[inline(always)]
+    fn invert(&self, x: f64) -> f64 {
+        match self {
+            Self::Natural => x.exp(),
+            Self::Base2 => x.exp2(),
+            Self::Base10 => 10.0_f64.powf(x),
+            Self::Custom(base) => base.powf(x),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 #[serde(try_from = "String")]
 pub enum ScaleType {
     #[default]
     Linear,
-    Log10,
+    Logarithmic(LogBase),
 }
 
 impl ScaleType {
@@ -426,24 +477,8 @@ impl ScaleType {
     }
 
     pub fn is_logarithmic(&self) -> bool {
-        matches!(self, Self::Log10)
+        matches!(self, Self::Logarithmic(_))
     }
-
-    #[inline]
-    pub fn convert(&self, x: f64) -> f64 {
-        match self {
-            Self::Linear => x,
-            Self::Log10 => x.log10(),
-        }
-    }
-
-    // #[inline]
-    // fn invert(&self, x: f64) -> f64 {
-    //     match self {
-    //         Self::Linear => x,
-    //         Self::Log10 => 10.0_f64.powf(x),
-    //     }
-    // }
 }
 
 impl TryFrom<String> for ScaleType {
@@ -452,9 +487,34 @@ impl TryFrom<String> for ScaleType {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(match value.as_str() {
             "lin" => Self::Linear,
-            "log" => Self::Log10,
+            "log" | "ln" => Self::Logarithmic(LogBase::Natural),
+            "log2" => Self::Logarithmic(LogBase::Base2),
+            "log10" => Self::Logarithmic(LogBase::Base10),
+            v if v.starts_with("log(") && v.ends_with(")") => {
+                let base_str = v.split("log(").nth(1).unwrap().trim_end_matches(')');
+
+                if let Ok(base) = base_str.parse::<f64>() {
+                    Self::Logarithmic(LogBase::Custom(base))
+                } else {
+                    return Err(format!("could not parse log base \"{}\"", base_str));
+                }
+            }
             _ => return Err(format!("unknown scale type \"{}\"", &value)),
         })
+    }
+}
+
+impl fmt::Display for ScaleType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Linear => write!(f, "lin"),
+            Self::Logarithmic(base) => match base {
+                LogBase::Base2 => write!(f, "log2"),
+                LogBase::Base10 => write!(f, "log10"),
+                LogBase::Natural => write!(f, "log"),
+                LogBase::Custom(base) => write!(f, "log({})", base),
+            },
+        }
     }
 }
 
@@ -502,7 +562,11 @@ impl LinearScale {
     }
 
     pub fn ticks(&self, count: usize) -> Vec<f64> {
-        ticks(self.input_domain.min(), self.input_domain.max(), count)
+        ticks(
+            self.input_domain.min(),
+            self.input_domain.max(),
+            count as f64,
+        )
     }
 
     fn formatted_ticks(&self, count: usize) -> Vec<String> {
@@ -531,7 +595,6 @@ fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
 #[derive(Debug, Clone)]
 pub struct TimeScale {
     input_domain: Extent<f64>,
-    #[allow(unused)]
     output_range: Extent<f64>,
     unit: Unit,
 }
@@ -557,11 +620,11 @@ impl TimeScale {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
-    // fn map(&self, value: f64) -> f64 {
-    //     let percent = self.percent(value);
+    fn map(&self, value: f64) -> f64 {
+        let percent = self.percent(value);
 
-    //     percent * self.output_range.width() + self.output_range.min()
-    // }
+        percent * self.output_range.width() + self.output_range.min()
+    }
 
     fn ticks(&self, count: usize) -> Vec<f64> {
         if count < 1 {
@@ -596,58 +659,131 @@ impl TimeScale {
     }
 }
 
-// TODO: support custom base, currently only base10
 #[derive(Debug, Clone)]
 pub struct LogScale {
-    #[allow(unused)]
+    base: LogBase,
     input_domain: Extent<f64>,
     converted_input_domain: Extent<f64>,
-    #[allow(unused)]
     output_range: Extent<f64>,
 }
 
 impl LogScale {
-    fn new(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+    fn new(base: LogBase, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
         assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
         assert!(output_range.0 <= output_range.1, "output_range min > max");
 
         Self {
+            base,
             input_domain: Extent::from(input_domain),
-            converted_input_domain: Extent::from((input_domain.0.log10(), input_domain.1.log10())),
+            converted_input_domain: Extent::from((
+                base.apply(input_domain.0),
+                base.apply(input_domain.1),
+            )),
             output_range: Extent::from(output_range),
         }
     }
 
-    fn nice(input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+    fn nice(base: LogBase, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
         let input_domain = (
-            10.0_f64.powf(input_domain.0.log10().floor()),
-            10.0_f64.powf(input_domain.1.log10().ceil()),
+            base.invert(base.apply(input_domain.0).floor()),
+            base.invert(base.apply(input_domain.1).ceil()),
         );
 
-        Self::new(input_domain, output_range)
+        Self::new(base, input_domain, output_range)
     }
 
     #[inline]
     fn percent(&self, value: f64) -> f64 {
-        (value.log10() - self.converted_input_domain.min()) / self.converted_input_domain.width()
+        (self.base.apply(value) - self.converted_input_domain.min())
+            / self.converted_input_domain.width()
     }
 
-    // fn map(&self, value: f64) -> f64 {
-    //     let percent = self.percent(value);
+    #[inline]
+    fn map(&self, value: f64) -> f64 {
+        let percent = self.percent(value);
 
-    //     percent * self.output_range.width() + self.output_range.min()
-    // }
+        percent * self.output_range.width() + self.output_range.min()
+    }
 
     // NOTE: I do not support reverse scales (i.e. pow scales?)
     fn ticks(&self, count: usize) -> Vec<f64> {
-        let i = self.converted_input_domain.min();
-        let j = self.converted_input_domain.max();
+        let u = self.input_domain.min();
+        let v = self.input_domain.max();
 
-        // NOTE: I do not support non int bases either like d3
-        ticks(i, j, ((j - i).floor() as usize).min(count))
-            .into_iter()
-            .map(|tick| 10.0_f64.powf(tick))
-            .collect()
+        let mut i = self.converted_input_domain.min();
+        let mut j = self.converted_input_domain.max();
+
+        if !self.base.is_integer() && j - i < count as f64 {
+            i = i.floor();
+            j = j.ceil();
+
+            let mut alt_ticks = Vec::new();
+
+            if u > 0.0 {
+                while i <= j {
+                    let mut k = 1.0;
+
+                    while k < self.base.as_float() {
+                        let t = if i < 0.0 {
+                            k / self.base.invert(-i)
+                        } else {
+                            k * self.base.invert(i)
+                        };
+
+                        if t < u {
+                            continue;
+                        }
+
+                        if t > v {
+                            break;
+                        }
+
+                        alt_ticks.push(t);
+
+                        k += 1.0;
+                    }
+
+                    i += 1.0;
+                }
+            } else {
+                while i <= j {
+                    let mut k = self.base.as_float() - 1.0;
+
+                    while k >= 1.0 {
+                        let t = if i > 0.0 {
+                            k / self.base.invert(-i)
+                        } else {
+                            k * self.base.invert(i)
+                        };
+
+                        if t < u {
+                            continue;
+                        }
+
+                        if t > v {
+                            break;
+                        }
+
+                        alt_ticks.push(t);
+
+                        k -= 1.0;
+                    }
+
+                    i += 1.0;
+                }
+            }
+
+            if alt_ticks.len() * 2 < count {
+                ticks(u, v, count as f64)
+            } else {
+                alt_ticks
+            }
+        } else {
+            ticks(i, j, (j - i).min(count as f64))
+                .into_iter()
+                .map(|tick| self.base.invert(tick))
+                .collect()
+        }
     }
 
     fn formatted_ticks(&self, count: usize) -> Vec<String> {
@@ -658,9 +794,6 @@ impl LogScale {
     }
 }
 
-// TODO: extent builder
-// TODO: scale builder
-
 #[derive(Debug, Clone)]
 pub enum Scale {
     Linear(LinearScale),
@@ -669,6 +802,15 @@ pub enum Scale {
 }
 
 impl Scale {
+    pub fn new(scale_type: ScaleType, input_domain: (f64, f64), output_range: (f64, f64)) -> Self {
+        match scale_type {
+            ScaleType::Linear => Self::Linear(LinearScale::new(input_domain, output_range)),
+            ScaleType::Logarithmic(base) => {
+                Self::Log(LogScale::new(base, input_domain, output_range))
+            }
+        }
+    }
+
     pub fn nice(
         scale_type: ScaleType,
         input_domain: (f64, f64),
@@ -677,12 +819,18 @@ impl Scale {
     ) -> Self {
         match scale_type {
             ScaleType::Linear => Self::Linear(LinearScale::nice(input_domain, output_range, ticks)),
-            ScaleType::Log10 => Self::Log(LogScale::nice(input_domain, output_range)),
+            ScaleType::Logarithmic(base) => {
+                Self::Log(LogScale::nice(base, input_domain, output_range))
+            }
         }
     }
 
     pub fn time(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
         Self::Time(TimeScale::nice(input_domain, output_range, unit))
+    }
+
+    pub fn is_logarithmic(&self) -> bool {
+        matches!(self, Self::Log(_))
     }
 
     pub fn formatted_ticks(&self, count: usize) -> Vec<String> {
@@ -701,14 +849,38 @@ impl Scale {
         }
     }
 
-    // pub fn map(&self, value: f64) -> f64 {
-    //     match self {
-    //         Self::Linear(inner) => inner.map(value),
-    //         Self::Log(inner) => inner.map(value),
-    //         Self::Time(inner) => inner.map(value),
-    //     }
-    // }
+    pub fn map(&self, value: f64) -> f64 {
+        match self {
+            Self::Linear(inner) => inner.map(value),
+            Self::Log(inner) => inner.map(value),
+            Self::Time(inner) => inner.map(value),
+        }
+    }
 }
+
+// pub struct HorizontalAxisOptions {
+//     columns: usize,
+//     left_offset: usize,
+//     over: bool,
+// }
+
+// impl HorizontalAxisOptions {
+//     fn available_width(&self) -> usize {
+//         self.left_offset + self.columns
+//     }
+
+//     fn capacity(&self) -> usize {
+//         self.available_width() * 2 + 1
+//     }
+// }
+
+// impl Scale {
+//     pub fn draw_horizontal_axis(&self, options: HorizontalAxisOptions) -> String {
+//         let mut output = String::with_capacity(options.capacity());
+
+//         output
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -716,18 +888,18 @@ mod tests {
 
     #[test]
     fn test_ticks() {
-        assert_eq!(ticks(0.0, 10.0, 0), Vec::<f64>::new());
-        assert_eq!(ticks(1.0, 1.0, 10), vec![1.0]);
-        assert_eq!(ticks(0.0, 10.0, 1), vec![0.0, 10.0]);
-        assert_eq!(ticks(0.0, 10.0, 2), vec![0.0, 5.0, 10.0]);
-        assert_eq!(ticks(0.0, 10.0, 3), vec![0.0, 5.0, 10.0]);
-        assert_eq!(ticks(0.0, 10.0, 4), vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
-        assert_eq!(ticks(0.0, 10.0, 5), [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+        assert_eq!(ticks(0.0, 10.0, 0.0), Vec::<f64>::new());
+        assert_eq!(ticks(1.0, 1.0, 10.0), vec![1.0]);
+        assert_eq!(ticks(0.0, 10.0, 1.0), vec![0.0, 10.0]);
+        assert_eq!(ticks(0.0, 10.0, 2.0), vec![0.0, 5.0, 10.0]);
+        assert_eq!(ticks(0.0, 10.0, 3.0), vec![0.0, 5.0, 10.0]);
+        assert_eq!(ticks(0.0, 10.0, 4.0), vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+        assert_eq!(ticks(0.0, 10.0, 5.0), [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
         assert_eq!(
-            ticks(0.0, 10.0, 10),
+            ticks(0.0, 10.0, 10.0),
             [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
         );
-        assert_eq!(ticks(-5.0, 5.0, 3), vec![-5.0, 0.0, 5.0]);
+        assert_eq!(ticks(-5.0, 5.0, 3.0), vec![-5.0, 0.0, 5.0]);
     }
 
     #[test]

@@ -19,6 +19,19 @@ fn dedup() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["1", "1"], svec!["2", "2"]];
     assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "b", "duplicated"],
+        svec!["1", "1", "false"],
+        svec!["2", "2", "false"],
+        svec!["2", "2", "true"],
+        svec!["1", "1", "true"],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -34,11 +47,25 @@ fn dedup_external() {
             svec!["1", "1"],
         ],
     );
+
     let mut cmd = wrk.command("dedup");
     cmd.arg("data.csv").arg("-e");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["1", "1"], svec!["2", "2"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").arg("-e").args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "b", "duplicated"],
+        svec!["1", "1", "false"],
+        svec!["2", "2", "false"],
+        svec!["2", "2", "true"],
+        svec!["1", "1", "true"],
+    ];
     assert_eq!(got, expected);
 }
 
@@ -67,6 +94,25 @@ fn dedup_keep_last() {
         svec!["3", "5"],
         svec!["2", "6"],
         svec!["1", "7"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv")
+        .args(["-s", "a"])
+        .arg("-l")
+        .args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "i", "duplicated"],
+        svec!["2", "2", "true"],
+        svec!["3", "1", "true"],
+        svec!["2", "3", "true"],
+        svec!["1", "4", "true"],
+        svec!["3", "5", "false"],
+        svec!["2", "6", "false"],
+        svec!["1", "7", "false"],
     ];
     assert_eq!(got, expected);
 }
@@ -141,6 +187,22 @@ fn dedup_sorted() {
         svec!["3", "3"],
     ];
     assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv").arg("-S").args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "b", "duplicated"],
+        svec!["1", "1", "false"],
+        svec!["2", "2", "false"],
+        svec!["2", "2", "true"],
+        svec!["1", "1", "false"],
+        svec!["1", "1", "true"],
+        svec!["3", "3", "false"],
+        svec!["3", "3", "true"],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -166,6 +228,24 @@ fn dedup_sorted_keep_last() {
         svec!["1", "1"],
         svec!["2", "3"],
         svec!["3", "5"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv")
+        .arg("-S")
+        .args(["-s", "a"])
+        .arg("-l")
+        .args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["a", "i", "duplicated"],
+        ["1", "1", "false"],
+        ["2", "2", "true"],
+        ["2", "3", "false"],
+        ["3", "4", "true"],
+        ["3", "5", "false"],
     ];
     assert_eq!(got, expected);
 }
@@ -245,6 +325,22 @@ fn dedup_keep_duplicates() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["2", "2"], svec!["2", "3"]];
     assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv")
+        .arg("--keep-duplicates")
+        .args(["-s", "a"])
+        .args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["a", "b", "duplicated"],
+        ["4", "1", "false"],
+        ["2", "2", "true"],
+        ["2", "3", "true"],
+        ["3", "4", "false"],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -269,6 +365,23 @@ fn dedup_keep_duplicates_sorted() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["a", "b"], svec!["2", "2"], svec!["2", "3"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("data.csv")
+        .arg("--keep-duplicates")
+        .args(["-s", "a"])
+        .arg("-S")
+        .args(["-f", "duplicated"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["a", "b", "duplicated"],
+        svec!["1", "1", "false"],
+        svec!["2", "2", "true"],
+        svec!["2", "3", "true"],
+        svec!["3", "4", "false"],
+    ];
     assert_eq!(got, expected);
 }
 
@@ -333,6 +446,24 @@ fn dedup_choose() {
         svec!["lucy", "1"],
     ];
     assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.args(["-s", "name"])
+        .args(["-f", "duplicated"])
+        .args(["--choose", "new_count > current_count"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "count", "duplicated"],
+        ["mary", "1", "true"],
+        ["mary", "7", "true"],
+        ["john", "1", "true"],
+        ["mary", "8", "false"],
+        ["john", "2", "false"],
+        ["lucy", "1", "false"],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -363,6 +494,25 @@ fn dedup_choose_sorted() {
         svec!["mary", "8"],
         svec!["john", "2"],
         svec!["lucy", "1"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.args(["-s", "name"])
+        .arg("-S")
+        .args(["--choose", "new_count > current_count"])
+        .args(["-f", "duplicated"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "count", "duplicated"],
+        ["mary", "1", "true"],
+        ["mary", "7", "true"],
+        ["mary", "8", "false"],
+        ["john", "1", "true"],
+        ["john", "2", "false"],
+        ["lucy", "1", "false"],
     ];
     assert_eq!(got, expected);
 }

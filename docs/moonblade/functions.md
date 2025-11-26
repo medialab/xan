@@ -170,7 +170,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **lpad**(*string*, *width*, *char?*) -> `string`: Left pad given string with spaces or given character so that it is least given width.
 - **rpad**(*string*, *width*, *char?*) -> `string`: Right pad given string with spaces or given character so that it is least given width.
 - **printf**(*format*, *\*arguments*) -> `string`: Apply printf formatting with given format and arguments. Arguments can also be provided as a list.<br>For instance: `split('John Landy') | printf('first: %s, last: %s', _)`
-- **numfmt**(*number*) -> `string`: Format a number with thousands separator and proper significance.
+- **numfmt**(*number*, *thousands_sep=","*, *comma=false*, *significance=5*) -> `string`: Format a number with thousands separator and proper significance.
 - **trim**(*string*, *chars?*) -> `string`: Trim string of leading & trailing whitespace or provided characters.
 - **to_fixed**(*number*, *precision*) -> `string`: Format given number using fixed point notation with specified number of decimal places.
 - **ltrim**(*string*, *chars?*) -> `string`: Trim string of leading whitespace or provided characters.
@@ -282,7 +282,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **move**(*source_path*, *target_path*) -> `string`: Move a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
 - **parse_json**(*string*) -> `any`: Parse the given string as JSON.
 - **pathjoin**(*string*, *\*strings*) -> `string` (aliases: **pjoin**): Join multiple paths correctly.
-- **read**(*path*, *encoding=?*, *errors=?*) -> `string`: Read file at path. Default encoding is "utf-8". Default error handling policy is "replace", and can be one of "replace", "ignore" or "strict".
+- **read**(*path*, *encoding="utf-8"*, *errors="strict"*) -> `string`: Read file at path. Default encoding is "utf-8". Default error handling policy is "replace", and can be one of "replace", "ignore" or "strict".
 - **read_csv**(*path*) -> `list[map]`: Read and parse CSV file at path, returning its rows as a list of maps with headers as keys.
 - **read_json**(*path*) -> `any`: Read and parse JSON file at path.
 - **shell**(*string*) -> `bytes`: Convenience function running `cmd("$SHELL -c <command>") ` on unix-like systems and `cmd("cmd \C <command>")` on Windows.

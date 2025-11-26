@@ -55,7 +55,7 @@ lazy_static! {
     static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-=]*)").unwrap();
     static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options):|---+").unwrap();
     static ref DIMMED_REGEX: Regex = Regex::new(
-        r"\[--\]|\[?<[\w|\-]+>(?:\.{3})?\]?|\[[\w\s:§|\-.]+\]|\s+[\$>][^\n]+|\*[^*\n]+\*"
+        r"\[--\]|\[-\w\s+<\w+>\.\.\.\]|\[?<[\w|\-]+>(?:\.{3})?\]?|\[[\w\s:§|\-.]+\]|\s+[\$>][^\n]+|\*[^*\n]+\*"
     )
     .unwrap();
     static ref QUOTE_REGEX: Regex = Regex::new(r#"(?m)"[^"\n]+"|'[^'\n]+'|`[^`\n]+`"#).unwrap();
@@ -410,7 +410,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
             return ColorOrStyles::Color(Color::Cyan)
         }
         "NULL" | "null" | "na" | "NA" | "None" | "n/a" | "N/A" | "nan" | "NaN" | "<empty>"
-        | "<null>" | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
+        | "<rest>" | "." | "-" => return ColorOrStyles::Styles(Styles::Dimmed),
         _ => (),
     };
 
@@ -463,7 +463,7 @@ lazy_static! {
 
 pub fn highlight_problematic_string_features(string: &str) -> String {
     let start = string.len() - string.trim_start().len();
-    let end = string.trim_end().len();
+    let end = start + string[start..].trim_end().len();
 
     let replaced = format!(
         "{}{}{}",

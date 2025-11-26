@@ -28,8 +28,8 @@ fn shuffle() {
 }
 
 #[test]
-fn shuffle_in_memory() {
-    let wrk = Workdir::new("shuffle_in_memory");
+fn shuffle_external() {
+    let wrk = Workdir::new("shuffle_external");
     wrk.create(
         "data.csv",
         vec![
@@ -43,7 +43,7 @@ fn shuffle_in_memory() {
     let mut cmd = wrk.command("shuffle");
     cmd.arg("data.csv")
         .args(["--seed", "321"])
-        .arg("--in-memory");
+        .arg("--external");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -74,8 +74,8 @@ fn shuffle_no_headers() {
 }
 
 #[test]
-fn shuffle_in_memory_no_headers() {
-    let wrk = Workdir::new("shuffle_in_memory_no_headers");
+fn shuffle_external_no_headers() {
+    let wrk = Workdir::new("shuffle_external_no_headers");
     wrk.create(
         "data.csv",
         vec![svec!["1"], svec!["2"], svec!["3"], svec!["4"]],
@@ -84,7 +84,7 @@ fn shuffle_in_memory_no_headers() {
     cmd.arg("data.csv")
         .args(["--seed", "123"])
         .arg("--no-headers")
-        .arg("--in-memory");
+        .arg("--external");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["2"], svec!["1"], svec!["3"], svec!["4"]];

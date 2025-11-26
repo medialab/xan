@@ -44,8 +44,22 @@ the file must be sorted by columns representing group identities beforehand:
 
     $ xan window -g country 'cumsum(n)' file.csv
 
-For a list of available window aggregation functions, use `xan help window`
-instead.
+Finally, this command can also run arbitrary aggregation functions (like
+with `xan agg` & `xan groupby`) for the whole file or per group and repeat their
+result for each row. This can be useful to filter rows belonging to some group
+(e.g. if an aggregated score is over some threshold), or for normalization purposes.
+
+Note that when doing so, the whole file will be buffered to memory.
+
+Keeping rows belonging to groups whose average for the `count` column is over 10:
+
+    $ xan window -g country 'mean(count) as mean' file.csv | xan filter 'mean > 10'
+
+---
+
+For a list of available window aggregation functions, use `xan help window`.
+
+For a list of available generic aggregation functions, use `xan help aggs`.
 
 For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
