@@ -198,3 +198,29 @@ fn bisect_reverse() {
     let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["d"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+#[should_panic]
+fn bisect_unsorted_input() {
+    let wrk = Workdir::new("bisect_unsorted_input");
+    wrk.create(
+        "letters_unsorted.csv",
+        vec![
+            svec!["letter"],
+            svec!["a"],
+            svec!["e"],
+            svec!["e"],
+            svec!["d"],
+            svec!["c"],
+            svec!["b"],
+            svec!["b"],
+            svec!["a"],
+            svec!["a"],
+            svec!["a"],
+            svec!["z"],
+        ],
+    );
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("letter").arg("d").arg("letters.csv");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}

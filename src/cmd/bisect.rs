@@ -67,6 +67,18 @@ impl Ord for ValuesType {
     }
 }
 
+impl std::fmt::Display for ValuesType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValuesType::Number(n) => match n {
+                Number::Int(i) => write!(f, "{}", i),
+                Number::Float(fl) => write!(f, "{}", fl),
+            },
+            ValuesType::String(s) => write!(f, "{}", s),
+        }
+    }
+}
+
 impl ValuesType {
     fn new_string(s: &[u8]) -> Self {
         ValuesType::String(std::str::from_utf8(s).unwrap().to_string())
@@ -111,6 +123,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut previous_median: Option<u64> = None;
 
     let mut value: ValuesType;
+    let mut previous_median_value: Option<ValuesType> = None;
+    let mut being_in_first_half: bool = false;
 
     let mut record: ByteRecord;
     let mut record_pos: u64 = seek_rdr.first_record_position();
@@ -118,11 +132,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let first_record = seek_rdr.first_byte_record()?.unwrap();
     let last_record = seek_rdr.last_byte_record()?.unwrap();
+
     let first_value = if args.flag_numeric {
         ValuesType::new_number(&first_record[column_index])
     } else {
         ValuesType::new_string(&first_record[column_index])
     };
+
+    let last_value = if args.flag_numeric {
+        ValuesType::new_number(&last_record[column_index])
+    } else {
+        ValuesType::new_string(&last_record[column_index])
+    };
+
+    match (args.flag_reverse, first_value.cmp(&last_value)) {
+        (false, std::cmp::Ordering::Greater) | (true, std::cmp::Ordering::Less) => Err(
+            format!("Input is not sorted in the specified order, first and last values are inconsistent: {} and {}", first_value, last_value)
+        )?,
+        _ => {}
+    }
 
     match (args.flag_reverse, target_value.cmp(&first_value)) {
         (_, std::cmp::Ordering::Equal) => {
@@ -187,12 +215,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let last_value = if args.flag_numeric {
-        ValuesType::new_number(&last_record[column_index])
-    } else {
-        ValuesType::new_string(&last_record[column_index])
-    };
-
     if match args.flag_reverse {
         false => target_value >= first_value && target_value <= last_value,
         true => target_value <= first_value && target_value >= last_value,
@@ -212,6 +234,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     (_, std::cmp::Ordering::Equal) => {
                         // We need to find the first occurrence of the target value
                         end_byte = record_pos - 1;
+                        being_in_first_half = true;
                         median_byte_for_first_occurrence =
                             if let Some(pos) = median_byte_for_first_occurrence {
                                 Some(std::cmp::min(pos, median_byte))
@@ -219,19 +242,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 Some(median_byte)
                             };
                     }
-                    (false, std::cmp::Ordering::Less) | (true, std::cmp::Ordering::Greater) => {
-                        // move start byte up
-                        start_byte = median_byte;
-                    }
-                    (false, std::cmp::Ordering::Greater) | (true, std::cmp::Ordering::Less) => {
-                        // move end byte down
-                        end_byte = median_byte;
+                    (rev_flag, ord) => {
+                        if let Some(prev_value) = previous_median_value {
+                            match (rev_flag, being_in_first_half, prev_value.cmp(&value)) {
+                                (false, true, std::cmp::Ordering::Less)
+                                | (true, false, std::cmp::Ordering::Less) => {
+                                    return Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} comes after {}", prev_value, value))?;
+                                }
+                                (false, false, std::cmp::Ordering::Greater)
+                                | (true, true, std::cmp::Ordering::Greater) => {
+                                    return Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} comes before {}", prev_value, value))?;
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        match (rev_flag, ord) {
+                            (false, std::cmp::Ordering::Less)
+                            | (true, std::cmp::Ordering::Greater) => {
+                                // move start byte up
+                                being_in_first_half = false;
+                                start_byte = median_byte;
+                            }
+                            (false, std::cmp::Ordering::Greater)
+                            | (true, std::cmp::Ordering::Less) => {
+                                // move end byte down
+                                being_in_first_half = true;
+                                end_byte = median_byte;
+                            }
+                            _ => {}
+                        }
                     }
                 }
+                previous_median_value = Some(value);
             } else {
                 // Meaning we reached the last record or there are no more records
                 // after median_byte, so we try to find some before it
                 end_byte = median_byte;
+                being_in_first_half = true;
                 median_byte = (start_byte + end_byte) / 2;
                 continue;
             }
