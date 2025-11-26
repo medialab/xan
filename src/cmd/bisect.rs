@@ -9,8 +9,9 @@ use crate::CliResult;
 static USAGE: &str = r#"
 Search for rows where the value in <column> matches <value> using binary search.
 It is assumed that the INPUT IS SORTED according to the specified column.
-The ordering of the rows is assumed to be sorted according lexicographic order
-per default, but you can specify numeric ordering using the -N or --numeric flag.
+The ordering of the rows is assumed to be sorted according ascending lexicographic
+order per default, but you can specify numeric ordering using the -N or --numeric
+flag. You can also reverse the order using the -R/--reverse flag.
 
 Usage:
     xan bisect [options] [--] <column> <value> [<input>]
@@ -19,6 +20,7 @@ Usage:
 complete options:
     -N, --numeric            Compare according to the numerical value of cells
                              instead of the default lexicographic order.
+    -R, --reverse            Reverse sort order, i.e. descending order.
 
 Common options:
     -h, --help               Display this message
@@ -35,6 +37,7 @@ struct Args {
     arg_value: String,
     arg_input: Option<String>,
     flag_numeric: bool,
+    flag_reverse: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -121,8 +124,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ValuesType::new_string(&first_record[column_index])
     };
 
-    match target_value.cmp(&first_value) {
-        std::cmp::Ordering::Equal => {
+    match (args.flag_reverse, target_value.cmp(&first_value)) {
+        (_, std::cmp::Ordering::Equal) => {
             // No search needed, write first record and every next ones with the same value
             // record_pos = seek_rdr.first_record_position();
             let mut rdr = rconf.simd_reader()?;
@@ -145,10 +148,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             return Ok(wtr.flush()?);
         }
-        std::cmp::Ordering::Less => {
-            // Target value is less than the first value, so it is not present
+        (false, std::cmp::Ordering::Less) | (true, std::cmp::Ordering::Greater) => {
+            // Target value is out of bounds, so it is not present
         }
-        std::cmp::Ordering::Greater => {
+        (false, std::cmp::Ordering::Greater) | (true, std::cmp::Ordering::Less) => {
             // checking the second record as it is skipped
             // by simd_csv::Seek::Seeker::find_record_after()
             // when records are too small
@@ -190,7 +193,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ValuesType::new_string(&last_record[column_index])
     };
 
-    if target_value >= first_value || target_value <= last_value {
+    if match args.flag_reverse {
+        false => target_value >= first_value && target_value <= last_value,
+        true => target_value <= first_value && target_value >= last_value,
+    } {
         while start_byte <= end_byte {
             let sought = seek_rdr.find_record_after(median_byte)?;
 
@@ -202,10 +208,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     ValuesType::new_string(&record[column_index])
                 };
 
-                match value.cmp(&target_value) {
-                    std::cmp::Ordering::Equal => {
+                match (args.flag_reverse, value.cmp(&target_value)) {
+                    (_, std::cmp::Ordering::Equal) => {
                         // We need to find the first occurrence of the target value
-                        end_byte = record_pos;
+                        end_byte = record_pos - 1;
                         median_byte_for_first_occurrence =
                             if let Some(pos) = median_byte_for_first_occurrence {
                                 Some(std::cmp::min(pos, median_byte))
@@ -213,11 +219,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 Some(median_byte)
                             };
                     }
-                    std::cmp::Ordering::Less => {
+                    (false, std::cmp::Ordering::Less) | (true, std::cmp::Ordering::Greater) => {
                         // move start byte up
                         start_byte = median_byte;
                     }
-                    std::cmp::Ordering::Greater => {
+                    (false, std::cmp::Ordering::Greater) | (true, std::cmp::Ordering::Less) => {
                         // move end byte down
                         end_byte = median_byte;
                     }
@@ -255,7 +261,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 let old_record_pos = record_pos;
                 (record_pos, record) = sought.unwrap();
-                gap = if record_pos == old_record_pos {
+                gap = if record_pos <= old_record_pos {
                     record.as_slice().len() as u64 + 1
                 } else {
                     record_pos - old_record_pos

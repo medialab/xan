@@ -151,3 +151,50 @@ fn bisect() {
     let expected: Vec<Vec<String>> = vec![svec!["sentence"], svec!["xan is great"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn bisect_reverse() {
+    let wrk = Workdir::new("bisect_reverse");
+    wrk.create(
+        "letters.csv",
+        vec![
+            svec!["letter"],
+            svec!["e"],
+            svec!["e"],
+            svec!["e"],
+            svec!["d"],
+            svec!["c"],
+            svec!["b"],
+            svec!["b"],
+            svec!["a"],
+            svec!["a"],
+            svec!["a"],
+        ],
+    );
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("--reverse")
+        .arg("letter")
+        .arg("b")
+        .arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["b"], svec!["b"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("--reverse")
+        .arg("letter")
+        .arg("a")
+        .arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["a"], svec!["a"], svec!["a"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("--reverse")
+        .arg("letter")
+        .arg("d")
+        .arg("letters.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["d"]];
+    assert_eq!(got, expected);
+}
