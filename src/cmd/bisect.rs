@@ -43,10 +43,20 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
 }
 
+impl Args {
+    fn get_value_from_bytes(&self, bytes: &[u8]) -> Result<ValuesType, String> {
+        if self.flag_numeric {
+            ValuesType::new_number(bytes)
+        } else {
+            Ok(ValuesType::new_string(bytes))
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 enum ValuesType {
     Number(Number),
-    String(String),
+    String(Vec<u8>),
 }
 
 impl Eq for ValuesType {}
@@ -74,36 +84,40 @@ impl std::fmt::Display for ValuesType {
                 Number::Int(i) => write!(f, "{}", i),
                 Number::Float(fl) => write!(f, "{}", fl),
             },
-            ValuesType::String(s) => write!(f, "{}", s),
+            ValuesType::String(s) => write!(f, "{}", std::str::from_utf8(s).unwrap()),
         }
     }
 }
 
 impl ValuesType {
     fn new_string(s: &[u8]) -> Self {
-        ValuesType::String(std::str::from_utf8(s).unwrap().to_string())
+        ValuesType::String(s.to_vec())
     }
 
-    fn new_number(s: &[u8]) -> Self {
+    fn new_number(s: &[u8]) -> Result<Self, String> {
         match parse_num(s) {
-            Some(n) => ValuesType::Number(n),
-            None => panic!("Failed to parse number from bytes"),
+            Some(n) => Ok(ValuesType::Number(n)),
+            None => Err("Failed to parse number from bytes".to_string()),
         }
+    }
+}
+
+fn reversing_order_if_necessary(ord: std::cmp::Ordering, reverse: bool) -> std::cmp::Ordering {
+    if reverse {
+        ord.reverse()
+    } else {
+        ord
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    let target_value = if args.flag_numeric {
-        ValuesType::new_number(args.arg_value.as_bytes())
-    } else {
-        ValuesType::new_string(args.arg_value.as_bytes())
-    };
+    let target_value = args.get_value_from_bytes(args.arg_value.as_bytes())?;
 
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column)
+        .select(args.arg_column.clone())
         .delimiter(args.flag_delimiter);
 
     let mut seek_rdr = rconf.simd_seeker()?.unwrap();
@@ -111,14 +125,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !rconf.no_headers {
-        wtr.write_byte_record(rconf.simd_reader()?.byte_headers()?)?;
+        wtr.write_byte_record(seek_rdr.byte_headers())?;
     }
 
-    let column_index = rconf.single_selection(rconf.reader()?.byte_headers()?)?;
+    let column_index = rconf.single_selection(seek_rdr.byte_headers())?;
 
-    let mut median_byte = seek_rdr.stream_len() / 2;
     let mut start_byte = seek_rdr.first_record_position();
     let mut end_byte = seek_rdr.stream_len();
+    let mut median_byte = (start_byte + end_byte) / 2;
 
     let mut previous_median: Option<u64> = None;
 
@@ -128,46 +142,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record: ByteRecord;
     let mut record_pos: u64 = seek_rdr.first_record_position();
+    let mut previously_found_record_pos: Option<u64> = None;
     let mut median_byte_for_first_occurrence: Option<u64> = None;
 
     let first_record = seek_rdr.first_byte_record()?.unwrap();
     let last_record = seek_rdr.last_byte_record()?.unwrap();
 
-    let first_value = if args.flag_numeric {
-        ValuesType::new_number(&first_record[column_index])
-    } else {
-        ValuesType::new_string(&first_record[column_index])
-    };
+    let first_value = args.get_value_from_bytes(&first_record[column_index])?;
+    let last_value = args.get_value_from_bytes(&last_record[column_index])?;
 
-    let last_value = if args.flag_numeric {
-        ValuesType::new_number(&last_record[column_index])
-    } else {
-        ValuesType::new_string(&last_record[column_index])
-    };
-
-    match (args.flag_reverse, first_value.cmp(&last_value)) {
-        (false, std::cmp::Ordering::Greater) | (true, std::cmp::Ordering::Less) => Err(
+    if reversing_order_if_necessary(first_value.cmp(&last_value), args.flag_reverse)
+        == std::cmp::Ordering::Greater
+    {
+        Err(
             format!("Input is not sorted in the specified order, first and last values are inconsistent: {} and {}", first_value, last_value)
-        )?,
-        _ => {}
+        )?;
     }
 
-    match (args.flag_reverse, target_value.cmp(&first_value)) {
-        (_, std::cmp::Ordering::Equal) => {
+    match reversing_order_if_necessary(target_value.cmp(&first_value), args.flag_reverse) {
+        std::cmp::Ordering::Equal => {
             // No search needed, write first record and every next ones with the same value
             // record_pos = seek_rdr.first_record_position();
             let mut rdr = rconf.simd_reader()?;
             record = ByteRecord::new();
 
             while rdr.read_byte_record(&mut record)? {
-                if {
-                    if args.flag_numeric {
-                        ValuesType::new_number(&record[column_index])
-                    } else {
-                        ValuesType::new_string(&record[column_index])
-                    }
-                } == target_value
-                {
+                if args.get_value_from_bytes(&record[column_index])? == target_value {
                     wtr.write_byte_record(&record)?;
                 } else {
                     break;
@@ -176,10 +176,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             return Ok(wtr.flush()?);
         }
-        (false, std::cmp::Ordering::Less) | (true, std::cmp::Ordering::Greater) => {
+        std::cmp::Ordering::Less => {
             // Target value is out of bounds, so it is not present
         }
-        (false, std::cmp::Ordering::Greater) | (true, std::cmp::Ordering::Less) => {
+        std::cmp::Ordering::Greater => {
             // checking the second record as it is skipped
             // by simd_csv::Seek::Seeker::find_record_after()
             // when records are too small
@@ -187,21 +187,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if let Some(second_record) = rdr.byte_records().nth(1) {
                 let second_record = second_record?;
-                let second_value = if args.flag_numeric {
-                    ValuesType::new_number(&second_record[column_index])
-                } else {
-                    ValuesType::new_string(&second_record[column_index])
-                };
+                let second_value = args.get_value_from_bytes(&second_record[column_index])?;
                 if target_value == second_value {
                     wtr.write_byte_record(&second_record)?;
 
                     for record in rdr.byte_records() {
                         let record = record?;
-                        let value = if args.flag_numeric {
-                            ValuesType::new_number(&record[column_index])
-                        } else {
-                            ValuesType::new_string(&record[column_index])
-                        };
+                        let value = args.get_value_from_bytes(&record[column_index])?;
                         if value == target_value {
                             wtr.write_byte_record(&record)?;
                         } else {
@@ -224,14 +216,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if let Some(sought) = sought {
                 (record_pos, record) = sought;
-                value = if args.flag_numeric {
-                    ValuesType::new_number(&record[column_index])
-                } else {
-                    ValuesType::new_string(&record[column_index])
-                };
-
-                match (args.flag_reverse, value.cmp(&target_value)) {
-                    (_, std::cmp::Ordering::Equal) => {
+                value = args.get_value_from_bytes(&record[column_index])?;
+                match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse) {
+                    std::cmp::Ordering::Equal => {
                         // We need to find the first occurrence of the target value
                         end_byte = record_pos - 1;
                         being_in_first_half = true;
@@ -242,30 +229,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 Some(median_byte)
                             };
                     }
-                    (rev_flag, ord) => {
+                    ord => {
                         if let Some(prev_value) = previous_median_value {
-                            match (rev_flag, being_in_first_half, prev_value.cmp(&value)) {
-                                (false, true, std::cmp::Ordering::Less)
-                                | (true, false, std::cmp::Ordering::Less) => {
-                                    return Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} comes after {}", prev_value, value))?;
+                            match (
+                                being_in_first_half,
+                                reversing_order_if_necessary(
+                                    prev_value.cmp(&value),
+                                    args.flag_reverse,
+                                ),
+                            ) {
+                                (true, std::cmp::Ordering::Less) => {
+                                    Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
                                 }
-                                (false, false, std::cmp::Ordering::Greater)
-                                | (true, true, std::cmp::Ordering::Greater) => {
-                                    return Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} comes before {}", prev_value, value))?;
+                                (false, std::cmp::Ordering::Greater) => {
+                                    Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
                                 }
                                 _ => {}
                             }
                         }
 
-                        match (rev_flag, ord) {
-                            (false, std::cmp::Ordering::Less)
-                            | (true, std::cmp::Ordering::Greater) => {
+                        match ord {
+                            std::cmp::Ordering::Less => {
                                 // move start byte up
                                 being_in_first_half = false;
                                 start_byte = median_byte;
                             }
-                            (false, std::cmp::Ordering::Greater)
-                            | (true, std::cmp::Ordering::Less) => {
+                            std::cmp::Ordering::Greater => {
                                 // move end byte down
                                 being_in_first_half = true;
                                 end_byte = median_byte;
@@ -275,21 +264,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
                 previous_median_value = Some(value);
+                previously_found_record_pos = Some(record_pos);
+
+                if let Some(prev) = previous_median {
+                    // We are not making any more progress
+                    // Meaning the target value is either found or not present
+                    if prev == median_byte {
+                        break;
+                    }
+                }
             } else {
                 // Meaning we reached the last record or there are no more records
                 // after median_byte, so we try to find some before it
                 end_byte = median_byte;
                 being_in_first_half = true;
-                median_byte = (start_byte + end_byte) / 2;
-                continue;
-            }
-
-            if let Some(prev) = previous_median {
-                // We are not making any more progress
-                // Meaning the target value is either found or not present
-                if prev == median_byte {
-                    break;
-                }
+                previous_median_value = None;
+                previously_found_record_pos = None;
             }
             previous_median = Some(median_byte);
             median_byte = (start_byte + end_byte) / 2;
@@ -318,11 +308,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 // Check if we have a new record and if we have not yet returned
                 // the first occurrence
                 if record_pos != old_record_pos || !returned_first_occurrence {
-                    value = if args.flag_numeric {
-                        ValuesType::new_number(&record[column_index])
-                    } else {
-                        ValuesType::new_string(&record[column_index])
-                    };
+                    value = args.get_value_from_bytes(&record[column_index])?;
 
                     if value == target_value {
                         wtr.write_byte_record(&record)?;
