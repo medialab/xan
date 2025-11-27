@@ -9,7 +9,7 @@ use crate::CliResult;
 
 static USAGE: &str = "
 Splits the given CSV data into smaller files having a fixed number of
-rows given to -s, --size.
+rows given to -S, --size.
 
 Target file can also be split into a given number of -c/--chunks.
 
