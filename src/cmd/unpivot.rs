@@ -15,7 +15,7 @@ cars,100,200,300
 
 The following command:
 
-    $ xan pivot jan: -N month -V sales file.csv
+    $ xan unpivot jan: -N month -V sales file.csv
 
 Will produce the following result:
 

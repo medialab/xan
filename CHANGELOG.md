@@ -5,6 +5,8 @@
 *Fixes*
 
 * Fixing `xan freq --groupby` incorrectly unescaping group cells.
+* Fixing help related to `xan pivot` & `xan unpivot`.
+* Upgrading `simd-csv` to get safety fixes.
 
 ## 0.54.0
 

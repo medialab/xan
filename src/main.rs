@@ -102,8 +102,8 @@ macro_rules! command_list {
 
 ## Transpose & pivot
     transpose (t)            Transpose CSV file
-    pivot     (pivot-wider)  Stack multiple columns into fewer columns
-    unpivot   (pivot-longer) Split distinct values of a column into their own columns
+    pivot     (pivot-wider)  Split distinct values of a column into their own columns
+    unpivot   (pivot-longer) Stack multiple columns into fewer columns
 
 ## Split a CSV file into multiple
     split       Split CSV data into chunks
