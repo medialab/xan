@@ -49,6 +49,7 @@ macro_rules! command_list {
 
 ## Search & filter
     search      Search for (or replace) patterns in CSV data
+    bisect      Search for value using binary search in sorted CSV data
     grep        Coarse but fast filtering of CSV data
     filter      Only keep some CSV rows based on an evaluated expression
     head        First rows of CSV file
@@ -271,6 +272,7 @@ enum Command {
     Agg,
     Behead,
     Bins,
+    Bisect,
     Blank,
     Cat,
     Cluster,
@@ -357,6 +359,7 @@ impl Command {
             Command::Agg => cmd::agg::run(argv),
             Command::Behead | Command::Guillotine => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
+            Command::Bisect => cmd::bisect::run(argv),
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
             Command::Cluster => cmd::cluster::run(argv),
