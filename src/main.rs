@@ -84,6 +84,7 @@ macro_rules! command_list {
     enum        Enumerate CSV file by preprending an index column
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
     fill        Fill empty cells
+    complete    Add missing rows in a column of contiguous values
     blank       Blank down contiguous identical cell values
     separate    Split a single column into multiple ones
 
