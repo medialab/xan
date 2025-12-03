@@ -1,15 +1,15 @@
 [package]
 name = "xan"
-version = "0.54.0-rc.3"
+version = "0.54.1"
 rust-version = "1.83.0"
 authors = [
-  "Andrew Gallant <jamslam@gmail.com>",
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
   "Béatrice Mazoyer <beatrice.mazoyer@sciencespo.fr>",
   "Laura Miguel <laura.miguel@sciencespo.fr>",
   "César Pichon <cesar.pichon@sciencespo.fr>",
   "Anna Charles <anna.charles@sciencespo.fr>",
-  "Julien Pontoire <julien.pontoire@sciencespo.fr>"
+  "Julien Pontoire <julien.pontoire@sciencespo.fr>",
+  "Evan Chevalerias <evan.chevalerias@sciencespo.fr>"
 ]
 description = "The CSV magician"
 documentation = "https://github.com/medialab/xan#readme"
@@ -118,7 +118,7 @@ serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 shlex = "1.3.0"
-simd-csv = "0.6.0"
+simd-csv = "0.10.2"
 simd-json = "0.14.3"
 sprintf = "0.4.1"
 tar = { version = "0.4.44", default-features = false }

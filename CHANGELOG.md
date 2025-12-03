@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.54.0 (provisional)
+## 0.54.1
+
+*Fixes*
+
+* Fixing `xan freq --groupby` incorrectly unescaping group cells.
+* Fixing help related to `xan pivot` & `xan unpivot`.
+* Upgrading `simd-csv` to get safety fixes.
+
+## 0.54.0
+
+The **SIMD** update.
 
 *Breaking*
 
@@ -13,6 +23,13 @@
 * `xan slice -B/--byte-offset` & `xan slice -A/--accumulate` are now mutually exclusive.
 * `xan input` has been overhauled.
 * Dropping `xan count --sample-size`.
+* Overhauling `xan fixlengths` to accept streams by shifting default from double-pass read to buffering the whole stream into memory.
+* `xan plot --x-scale log & --y-scale log` are now natural log. Use `log10` for the base10 log as before.
+* Dropping `xan reverse -m/--in-memory` flag. Behavior is now automatically detected.
+* Dropping `xan shuffle -m/--in-memory` flag. Loading the file into memory is now the default. The `xan shuffle -e/--external` flag has been added if
+you want the old default behavior.
+* `xan bins` now outputs `<empty>` values instead of `<nulls>`.
+* Overhauling `xan bins`. The default is now to find nice boundaries for the bins. Use `-e/--exact` to revert to the old behavior. The default number of bins is now `10`, and won't use Freedman-Diaconis rule by default. A `-H/--heuristic` flag has been added if you want to automatically select a suitable number of bins.
 
 *Features*
 
@@ -38,6 +55,14 @@
 * Adding a `xan cat cols` alias to `xan cat columns`.
 * Adding `zstd` support.
 * Adding `earliest` & `latest` moonblade functions.
+* Adding `xan dedup -f/--flag`.
+* Adding `-k` short flag for `xan dedup --keep-duplicates`, and `-C` short flag for `xan dedup --choose`.
+* Adding `xan fixlengths -H/--trust-header`.
+* Adding `xan separate`.
+* Adding full log scale support to `xan plot`.
+* Adding `xan hist --scale`.
+* `xan window` is now able to run total aggregations.
+* Adding `thousands_sep`, `comma` and `significance` kwargs to `numfmt` moonblade function.
 
 *Fixes*
 
@@ -51,6 +76,8 @@
 * Fixing `xan from -f tar` when tarball archive is not gzipped.
 * Fixing `min` & `max` moonblade function when passing a list of numbers.
 * Fixing `xan flatten -H` edge cases.
+* Fixing commands requiring seekable streams accepting unindexed compressed files by error.
+* Fixing `xan plot --count --y-scale log`.
 
 *Performance*
 
@@ -66,6 +93,7 @@
 * `xan parallel` will now generally stop as soon as an error is detected in a subprocess and cleanly report errors.
 * Better argv parsing error UX in general.
 * The `-p` flag will now avoid going further than 16 to avoid issues on server with many CPUs where hogging the resources is an issue and where using too much threads at once could hurt performance. The `-t` flag remain available to tweak the number of threads.
+* `xan hist` will now dim bars having a `0` count so you can easily distinguish them from non-empty bars.
 
 ## 0.53.0
 
@@ -202,6 +230,8 @@ The **parallel** update.
 * Adding `header`, `col_index` & `col_index?` moonblade functions.
 * Adding `find` & `find_index` moonblade functions.
 * Adding `-l/--limit` support to `xan search -p` & `xan filter -p`.
+* Adding `xan pivot-longer` alias to `xan unpivot`.
+* Adding `xan pivot-wider` alias to `xan pivot`.
 
 *Fixes*
 

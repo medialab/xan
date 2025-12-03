@@ -2162,9 +2162,9 @@ checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
 
 [[package]]
 name = "simd-csv"
-version = "0.6.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca5a57470bde94a2115a02c5fd4a3ae84cb21d96d17490e478fbe200c789aef3"
+checksum = "4e9f5d41d9a89d9ae7cb41f2e6451db84352fbd9101882355bf86c76cb5a4d1f"
 dependencies = [
  "memchr",
 ]
@@ -2914,7 +2914,7 @@ checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
 
 [[package]]
 name = "xan"
-version = "0.54.0-rc.3"
+version = "0.54.1"
 dependencies = [
  "ahash",
  "aho-corasick",

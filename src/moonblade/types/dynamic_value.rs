@@ -433,6 +433,10 @@ impl DynamicValue {
         })
     }
 
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Self::List(value) => !value.is_empty(),

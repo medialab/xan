@@ -321,7 +321,7 @@ fn sample_cursed(
         for _ in 0..5 {
             let random_byte_offset = rng.random_range(seeker.range());
 
-            if let Some((pos, record)) = seeker.seek(random_byte_offset)? {
+            if let Some((pos, record)) = seeker.find_record_after(random_byte_offset)? {
                 records.insert(pos, record);
                 continue 'outer;
             } else {

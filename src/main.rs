@@ -85,6 +85,7 @@ macro_rules! command_list {
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
     fill        Fill empty cells
     blank       Blank down contiguous identical cell values
+    separate    Split a single column into multiple ones
 
 ## Format, convert & recombobulate
     behead        Drop header from CSV file
@@ -98,9 +99,11 @@ macro_rules! command_list {
     to            Convert a CSV file to a variety of data formats
     scrape        Scrape HTML into CSV data
     reverse       Reverse rows of CSV data
-    transpose (t) Transpose CSV file
-    pivot         Stack multiple columns into fewer columns
-    unpivot       Split distinct values of a column into their own columns
+
+## Transpose & pivot
+    transpose (t)            Transpose CSV file
+    pivot     (pivot-wider)  Split distinct values of a column into their own columns
+    unpivot   (pivot-longer) Stack multiple columns into fewer columns
 
 ## Split a CSV file into multiple
     split       Split CSV data into chunks
@@ -312,6 +315,10 @@ enum Command {
     Parallel,
     Partition,
     Pivot,
+    #[serde(rename = "pivot-longer")]
+    PivotLonger,
+    #[serde(rename = "pivot-wider")]
+    PivotWider,
     Plot,
     Progress,
     Range,
@@ -321,6 +328,7 @@ enum Command {
     Scrape,
     Search,
     Select,
+    Separate,
     Shuffle,
     Slice,
     Sort,
@@ -397,7 +405,7 @@ impl Command {
             Command::Merge => cmd::merge::run(argv),
             Command::Parallel | Command::P => cmd::parallel::run(argv),
             Command::Partition => cmd::partition::run(argv),
-            Command::Pivot => cmd::pivot::run(argv),
+            Command::Pivot | Command::PivotWider => cmd::pivot::run(argv),
             Command::Plot => cmd::plot::run(argv),
             Command::Progress => cmd::progress::run(argv),
             Command::Range => cmd::range::run(argv),
@@ -407,6 +415,7 @@ impl Command {
             Command::Scrape => cmd::scrape::run(argv),
             Command::Search => cmd::search::run(argv),
             Command::Select => cmd::select::run(argv),
+            Command::Separate => cmd::separate::run(argv),
             Command::Shuffle => cmd::shuffle::run(argv),
             Command::Slice => cmd::slice::run(argv),
             Command::Sort => cmd::sort::run(argv),
@@ -418,7 +427,7 @@ impl Command {
             Command::Top => cmd::top::run(argv),
             Command::Transform => cmd::transform::run(argv),
             Command::Transpose | Command::T => cmd::transpose::run(argv),
-            Command::Unpivot => cmd::unpivot::run(argv),
+            Command::Unpivot | Command::PivotLonger => cmd::unpivot::run(argv),
             Command::View | Command::V => cmd::view::run(argv),
             Command::Vocab => cmd::vocab::run(argv),
             Command::Window => cmd::window::run(argv),

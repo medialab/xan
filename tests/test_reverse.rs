@@ -37,18 +37,3 @@ fn reverse_empty() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, Vec::<Vec<String>>::new());
 }
-
-#[test]
-fn reverse_in_memory() {
-    let wrk = Workdir::new("reverse_in_memory");
-    wrk.create(
-        "data.csv",
-        vec![svec!["n"], svec!["1"], svec!["2"], svec!["3"]],
-    );
-    let mut cmd = wrk.command("reverse");
-    cmd.arg("-m").arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["n"], svec!["3"], svec!["2"], svec!["1"]];
-    assert_eq!(got, expected);
-}

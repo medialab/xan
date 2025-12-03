@@ -252,7 +252,7 @@ impl Args {
         let mut buffers = Buffers::default();
 
         let wtr = self.writer()?;
-        let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
+        let mut rdr = simd_csv::LineReader::from_reader(Config::new(&self.arg_input).io_reader()?);
         let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
 
         while let Some(line) = rdr.read_line()? {
@@ -305,7 +305,7 @@ impl Args {
     }
 
     fn convert_text_lines(&self) -> CliResult<()> {
-        let mut rdr = simd_csv::LineReader::new(Config::new(&self.arg_input).io_reader()?);
+        let mut rdr = simd_csv::LineReader::from_reader(Config::new(&self.arg_input).io_reader()?);
         let mut wtr = self.writer()?;
 
         wtr.write_record([&self.flag_column])?;

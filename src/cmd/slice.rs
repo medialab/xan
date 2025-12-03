@@ -188,7 +188,7 @@ impl Args {
 
             let mut wtr = wconf.io_writer()?;
 
-            let mut rdr = rconf.io_reader_for_random_access()?;
+            let mut rdr = rconf.seekable_io_reader()?;
 
             if !rconf.no_headers {
                 let mut csv_rdr = rconf.csv_reader_from_reader(&mut rdr);
@@ -225,8 +225,7 @@ impl Args {
 
                 if let Some(offset) = self.flag_byte_offset {
                     rconf = rconf.no_headers(true);
-                    let mut rdr =
-                        rconf.simd_csv_reader_from_reader(rconf.io_reader_for_random_access()?);
+                    let mut rdr = rconf.simd_csv_reader_from_reader(rconf.seekable_io_reader()?);
                     let headers = rdr.byte_headers()?.clone();
                     let mut inner = rdr.into_inner();
 
@@ -258,7 +257,7 @@ impl Args {
 
         if let Some(offset) = self.flag_byte_offset {
             rconf = rconf.no_headers(true);
-            let mut rdr = rconf.simd_csv_reader_from_reader(rconf.io_reader_for_random_access()?);
+            let mut rdr = rconf.simd_csv_reader_from_reader(rconf.seekable_io_reader()?);
             let headers = rdr.byte_headers()?.clone();
             let mut inner = rdr.into_inner();
 

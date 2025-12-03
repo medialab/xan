@@ -453,3 +453,33 @@ fn window_dense_rank() {
 
     assert_eq!(got, expected);
 }
+
+#[test]
+fn window_generic_agg() {
+    let wrk = Workdir::new("window_generic_agg");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["n"],
+            svec!["1"],
+            svec!["2"],
+            svec!["3"],
+            svec!["4"],
+            svec!["5"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("mean(n) as mean").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "mean"],
+        svec!["1", "3"],
+        svec!["2", "3"],
+        svec!["3", "3"],
+        svec!["4", "3"],
+        svec!["5", "3"],
+    ];
+
+    assert_eq!(got, expected);
+}
