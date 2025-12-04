@@ -46,7 +46,7 @@ impl PartialDate {
         &self.inner
     }
 
-    pub fn new_from_date(date: Date, unit: Unit) -> Self {
+    pub fn from_date(date: Date, unit: Unit) -> Self {
         Self {
             inner: date,
             precision: unit,

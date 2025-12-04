@@ -157,7 +157,10 @@ impl ValuesType {
         if !dates::could_be_date(s) {
             Err(format!("Invalid date format: {}", s))?;
         }
-        Ok(ValuesType::Date(dates::parse_partial_date(s).unwrap()))
+        Ok(ValuesType::Date(dates::parse_partial_date(s).map_or_else(
+            || Err(format!("Invalid date format: {}", s)),
+            Ok,
+        )?))
     }
 
     fn new_integer(s: &str) -> CliResult<Self> {
@@ -171,7 +174,7 @@ impl ValuesType {
     fn next(&self) -> ValuesType {
         match self {
             ValuesType::Integer(i) => ValuesType::Integer(i + 1),
-            ValuesType::Date(d) => ValuesType::Date(PartialDate::new_from_date(
+            ValuesType::Date(d) => ValuesType::Date(PartialDate::from_date(
                 dates::next_partial_date(d.as_unit(), d.as_date()),
                 d.as_unit(),
             )),
@@ -181,7 +184,7 @@ impl ValuesType {
     fn previous(&self) -> ValuesType {
         match self {
             ValuesType::Integer(i) => ValuesType::Integer(i - 1),
-            ValuesType::Date(d) => ValuesType::Date(PartialDate::new_from_date(
+            ValuesType::Date(d) => ValuesType::Date(PartialDate::from_date(
                 dates::previous_partial_date(d.as_unit(), d.as_date()),
                 d.as_unit(),
             )),
@@ -228,7 +231,7 @@ impl ValuesType {
                 ))?
             }
         } else {
-            *first_seen_value = Some(self.clone());
+            *first_seen_value = Some(*self);
             Ok(())
         }
     }
@@ -241,18 +244,15 @@ fn new_record(
     groups: &ByteRecord,
     index_value: &[u8],
 ) -> ByteRecord {
+    // let mut new_record = ByteRecord::new();
     let mut new_record = ByteRecord::new();
     let mut group_index = 0;
 
     for i in 0..headers_len {
         if i == column_to_complete_index {
             new_record.push_field(index_value);
-        } else if sel_group_by.is_some()
-            && sel_group_by
-                .as_ref()
-                .map(|s| s.contains(i))
-                .unwrap_or(false)
-        {
+        // i + 1 because Selection::mask(alignement) returns a mask of length alignement
+        } else if matches!(sel_group_by, Some(s) if s.mask(i+1)[i]) {
             new_record.push_field(&groups[group_index]);
             group_index += 1;
         } else {
@@ -280,6 +280,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|m| args.get_value_from_str(m.as_str()))
         .transpose()?;
 
+    // to verify that all values have the same unit and type
     let mut first_seen_value: Option<ValuesType> = None;
 
     if let (Some(min_v), Some(max_v)) = (&min, &max) {
@@ -306,6 +307,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         extent_builder.clamp_max(m);
     }
 
+    // Will be equal to None if either min or max is not specified.
+    // If both min and max are specified, then when processing the input values,
+    // there will be no need to found the extreme values of the input range.
     let mut extent: Option<Extent<ValuesType>> = extent_builder.clone().build();
 
     let rconf = Config::new(&args.arg_input)
@@ -322,6 +326,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let column_to_complete_index = rconf.single_selection(&headers)?;
 
+    let sel_group_by_owned: Option<Selection> = if let Some(ref fgb) = args.flag_groupby {
+        Some(fgb.selection(&headers, !args.flag_no_headers)?)
+    } else {
+        None
+    };
+    let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
+
+    if matches!(sel_group_by, Some(s) if s.mask(column_to_complete_index + 1)[column_to_complete_index])
+    {
+        Err("Cannot complete on a column that is also used in --groupby")?;
+    }
+
     if !rconf.no_headers {
         if let Some(wtr) = wtr_opt.as_mut() {
             wtr.write_byte_record(&headers)?;
@@ -334,36 +350,42 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut records_per_group: ClusteredInsertHashmap<ByteRecord, Vec<ByteRecord>> =
         ClusteredInsertHashmap::new();
     if !args.flag_sorted {
-        if args.flag_groupby.is_some() {
-            let group_sel = args
-                .flag_groupby
-                .as_ref()
-                .unwrap()
-                .selection(&headers, !args.flag_no_headers)?;
+        // Collecting records per group
+        if let Some(flag_groupby) = &args.flag_groupby {
+            let group_sel = flag_groupby.selection(&headers, !args.flag_no_headers)?;
             while rdr.read_byte_record(&mut record)? {
+                let value: ValuesType =
+                    args.get_value_from_bytes(&record[column_to_complete_index])?;
+                value.verify_unit(&mut first_seen_value)?;
+                // Meaning we need to find the extent from the input values
+                // (either min or max or both were not specified)
+                if extent.is_none() {
+                    extent_builder.process(value);
+                // Skipping the value if outside of the specified range
+                } else if matches!(extent, Some(e) if value < e.min() || value > e.max()) {
+                    continue;
+                }
+
                 let key = group_sel.select(&record).collect::<ByteRecord>();
                 records_per_group.insert_with_or_else(
                     key,
                     || vec![record.clone()],
                     |v| v.push(record.clone()),
                 );
-
-                if extent.is_none() {
-                    let value: ValuesType =
-                        args.get_value_from_bytes(&record[column_to_complete_index])?;
-                    value.verify_unit(&mut first_seen_value)?;
-                    extent_builder.process(value);
-                }
             }
+        // Collecting all records together (artificial single group)
         } else {
             records_per_group.insert_with(ByteRecord::new(), || {
                 rdr.byte_records().collect::<Result<Vec<_>, _>>().unwrap()
             });
         };
+    // Input is sorted, no need to collect nor group records (will process them
+    // directly later, here just creating an empty group to enter the processing loop)
     } else {
         records_per_group.insert_with(ByteRecord::new(), Vec::new);
     }
 
+    // if extent was not determined yet, do it now
     if extent.is_none() {
         extent = extent_builder.build();
     }
@@ -371,26 +393,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let min = min.or_else(|| extent.as_ref().map(|e| e.min()));
     let max = max.or_else(|| extent.as_ref().map(|e| e.max()));
 
-    let index: Option<ValuesType> = if args.flag_reverse { max } else { min };
-
-    let sel_group_by_owned: Option<Selection> = if let Some(ref fgb) = args.flag_groupby {
-        Some(fgb.selection(&headers, !args.flag_no_headers)?)
-    } else {
-        None
-    };
-    let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
+    // Can be None if min is None when not using --reverse or max is None when
+    //using --reverse (with -S/--sorted), meaning we start completing
+    // from the first value in the input
+    let current_value: Option<ValuesType> = if args.flag_reverse { max } else { min };
 
     // closure to process ALREADY SORTED records in a group
     let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
                                         group_key: &ByteRecord|
      -> CliResult<()> {
-        let mut local_index: Option<ValuesType> = index;
+        let mut local_current_value: Option<ValuesType> = current_value;
 
         for record in records {
             let value: ValuesType = args.get_value_from_bytes(&record[column_to_complete_index])?;
             value.verify_unit(&mut first_seen_value)?;
 
-            if min.is_some() && value < min.unwrap() {
+            if matches!(min, Some(m) if value < m) {
                 if args.flag_reverse {
                     // stop completing or checking if we go below min of the range
                     break;
@@ -399,7 +417,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     continue;
                 }
             }
-            if max.is_some() && value > max.unwrap() {
+            if matches!(max, Some(m) if value > m) {
                 if args.flag_reverse {
                     // skip values over max of the range
                     continue;
@@ -409,69 +427,96 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            if local_index.is_some() {
+            if local_current_value.is_some() {
+                // writing missing values
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    while (args.flag_reverse && value < local_index.unwrap())
-                        || (!args.flag_reverse && value > local_index.unwrap())
-                    {
+                    // until we reach the input value, complete missing values
+                    while match (args.flag_reverse, local_current_value) {
+                        (true, Some(cv)) => cv > value,
+                        (false, Some(cv)) => cv < value,
+                        _ => false,
+                    } {
                         wtr.write_byte_record(&new_record(
                             headers.len(),
                             column_to_complete_index,
                             &sel_group_by,
                             group_key,
-                            &local_index.unwrap().as_bytes(),
+                            &local_current_value.unwrap().as_bytes(),
                         ))?;
 
-                        local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+                        local_current_value =
+                            local_current_value.map(|v| v.advance(args.flag_reverse));
                     }
-                } else {
+                // checking for completeness
+                } else if value != local_current_value.unwrap() {
                     // in case of using min flag (or max flag when flag_reverse is true)
-                    // or if there are repeated values
-                    if (args.flag_reverse && value > local_index.unwrap())
-                        || (!args.flag_reverse && value < local_index.unwrap())
-                    {
+                    // and having 'value' outside of that range,
+                    // or if there are repeated values in the input
+                    if match (args.flag_reverse, local_current_value) {
+                        // If using max flag, this condition being true means
+                        // the current value is out of range, ignoring it.
+                        // else if conditon is true, means there are repeated values in the input
+                        (true, Some(cv)) => cv < value,
+                        // if using min flag, this condition being true means
+                        // the current value is out of range, ignoring it
+                        // else if conditon is true, means there are repeated values in the input
+                        (false, Some(cv)) => cv > value,
+                        _ => false,
+                    } {
                         continue;
                     }
-                    if value != local_index.unwrap() {
-                        Err(format!(
-                            "file is not complete: missing value {:?}",
-                            local_index.unwrap()
-                        ))?;
-                    }
+                    Err(format!(
+                        "file is not complete: missing value {:?}",
+                        local_current_value.unwrap()
+                    ))?;
                 }
+            // meaning we are at the first record of the group
             } else {
-                local_index = Some(value);
+                local_current_value = Some(value);
             }
 
-            local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+            local_current_value = local_current_value.map(|v| v.advance(args.flag_reverse));
 
             if let Some(wtr) = wtr_opt.as_mut() {
                 wtr.write_byte_record(&record)?;
             }
         }
 
+        // No more input records in the group, but we may need to complete/check
+        // to min or max (if set by the flag) depending on the direction
         if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
+            // completing/writing missing values
             if let Some(wtr) = wtr_opt.as_mut() {
-                while local_index.is_some()
-                    && ((args.flag_reverse && local_index.unwrap() >= min.unwrap())
-                        || (!args.flag_reverse && local_index.unwrap() <= max.unwrap()))
+                // while being within the specified range, complete values
+                while local_current_value.is_some()
+                    && match (args.flag_reverse, local_current_value) {
+                        (true, Some(cv)) if cv >= min.unwrap() => true,
+                        (false, Some(cv)) if cv <= max.unwrap() => true,
+                        _ => false,
+                    }
                 {
                     wtr.write_byte_record(&new_record(
                         headers.len(),
                         column_to_complete_index,
                         &sel_group_by,
                         group_key,
-                        &local_index.unwrap().as_bytes(),
+                        &local_current_value.unwrap().as_bytes(),
                     ))?;
 
-                    local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+                    local_current_value = local_current_value.map(|v| v.advance(args.flag_reverse));
                 }
-            } else if (args.flag_reverse && local_index.unwrap() >= min.unwrap())
-                || (!args.flag_reverse && local_index.unwrap() <= max.unwrap())
-            {
+            // checking for completeness
+            } else if match (args.flag_reverse, local_current_value) {
+                // if after processing all input records in the group and
+                // 'advancing' to the next value, we are still within the
+                // specified range, then the input is not complete
+                (true, Some(cv)) if cv >= min.unwrap() => true,
+                (false, Some(cv)) if cv <= max.unwrap() => true,
+                _ => false,
+            } {
                 Err(format!(
                     "file is not complete: missing value {:?}",
-                    local_index.unwrap()
+                    local_current_value.unwrap()
                 ))?;
             }
         }
@@ -482,6 +527,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // process all records
     for (group_key, records) in records_per_group.iter() {
         if args.flag_sorted && args.flag_groupby.is_none() {
+            // NOTE: group_key is empty here, and will be ignored in the processing
             // QUESTION: Am I not allowing memory for every record here (in case input from stdin)?
             process_records_in_group(&mut rdr.byte_records().map(|r| r.unwrap()), group_key)?;
         } else {
