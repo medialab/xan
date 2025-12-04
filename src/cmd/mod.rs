@@ -31,6 +31,7 @@ pub mod hist;
 pub mod implode;
 pub mod input;
 pub mod join;
+pub mod lang;
 pub mod map;
 pub mod matrix;
 pub mod merge;
