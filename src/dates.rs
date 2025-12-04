@@ -52,6 +52,20 @@ impl PartialDate {
             precision: unit,
         }
     }
+
+    pub fn next(&self) -> Self {
+        Self {
+            inner: next_partial_date(self.precision, &self.inner),
+            precision: self.precision,
+        }
+    }
+
+    pub fn previous(&self) -> Self {
+        Self {
+            inner: previous_partial_date(self.precision, &self.inner),
+            precision: self.precision,
+        }
+    }
 }
 
 pub fn is_partial_date(string: &str) -> bool {

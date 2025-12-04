@@ -8,7 +8,7 @@ use simd_csv::ByteRecord;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
-use crate::dates::{self, PartialDate};
+use crate::dates;
 use crate::scales::{Extent, ExtentBuilder};
 use crate::select::SelectedColumns;
 use crate::select::Selection;
@@ -174,20 +174,14 @@ impl ValuesType {
     fn next(&self) -> ValuesType {
         match self {
             ValuesType::Integer(i) => ValuesType::Integer(i + 1),
-            ValuesType::Date(d) => ValuesType::Date(PartialDate::from_date(
-                dates::next_partial_date(d.as_unit(), d.as_date()),
-                d.as_unit(),
-            )),
+            ValuesType::Date(d) => ValuesType::Date(d.next()),
         }
     }
 
     fn previous(&self) -> ValuesType {
         match self {
             ValuesType::Integer(i) => ValuesType::Integer(i - 1),
-            ValuesType::Date(d) => ValuesType::Date(PartialDate::from_date(
-                dates::previous_partial_date(d.as_unit(), d.as_date()),
-                d.as_unit(),
-            )),
+            ValuesType::Date(d) => ValuesType::Date(d.previous()),
         }
     }
 
