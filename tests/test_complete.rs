@@ -196,6 +196,25 @@ fn complete() {
 }
 
 #[test]
+#[should_panic(expected = "Invalid integer format: 2025-01-02")]
+fn complete_type_mismatch() {
+    let wrk = Workdir::new("complete_type_mismatch");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["id", "name"],
+            svec!["2", "bob"],
+            svec!["2025-01-02", "alice"],
+            svec!["3", "charlie"],
+            svec!["7", "dave"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id").arg("data.csv");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
 fn complete_sorted() {
     let wrk = Workdir::new("complete_sorted");
     wrk.create("indexes.csv", people_sorted_uncomplete());
@@ -447,6 +466,19 @@ fn complete_sorted_with_min_max() {
 }
 
 #[test]
+#[should_panic(expected = "Invalid integer format: 2025-01")]
+fn complete_with_min_max_type_mismatch() {
+    let wrk = Workdir::new("complete_with_min_max_type_mismatch");
+    wrk.create("indexes_sorted.csv", people_sorted_uncomplete());
+    let mut cmd = wrk.command("complete");
+    cmd.arg("id")
+        .arg("indexes_sorted.csv")
+        .args(&["-m", "2025-01"])
+        .args(&["-M", "8"]);
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
 fn complete_dates() {
     let wrk = Workdir::new("complete_dates");
     wrk.create("dates_sorted_uncomplete.csv", dates_sorted_uncomplete());
@@ -501,6 +533,28 @@ fn complete_dates() {
 }
 
 #[test]
+#[should_panic(
+    expected = "Inconsistent value units: first seen was Date(Day) and then found Date(Month)"
+)]
+fn complete_dates_unit_mismatch() {
+    let wrk = Workdir::new("complete_dates_unit_mismatch");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["date", "event"],
+            svec!["2025-05", "event4"],
+            svec!["2025-01-02", "event1"],
+            svec!["2025-04", "event3"],
+            svec!["2025-07", "event5"],
+            svec!["2025-03", "event2"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("date").arg("data.csv").arg("--dates");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
 fn complete_sorted_dates() {
     let wrk = Workdir::new("complete_sorted_dates");
     wrk.create("dates_uncomplete.csv", dates_sorted_uncomplete());
@@ -520,6 +574,31 @@ fn complete_sorted_dates() {
         svec!["2025-06", "event3"],
     ];
     assert_eq!(got, expected);
+}
+
+#[test]
+#[should_panic(
+    expected = "Inconsistent value units: first seen was Date(Month) and then found Date(Day)"
+)]
+fn complete_sorted_dates_unit_mismatch() {
+    let wrk = Workdir::new("complete_sorted_dates_unit_mismatch");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["date", "event"],
+            svec!["2024-05", "event4"],
+            svec!["2025-01-02", "event1"],
+            svec!["2025-04", "event3"],
+            svec!["2025-07", "event5"],
+            svec!["2025-12", "event2"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("date")
+        .arg("data.csv")
+        .arg("--dates");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 }
 
 #[test]
@@ -662,6 +741,22 @@ fn complete_sorted_dates_with_min_max() {
 }
 
 #[test]
+#[should_panic(expected = "min and max have different units: Date(Month) vs Date(Day)")]
+fn completed_dates_with_min_max_unit_mismach() {
+    let wrk = Workdir::new("completed_dates_with_min_max_unit_mismatch");
+    wrk.create("dates_sorted_uncomplete.csv", dates_sorted_uncomplete());
+    let mut cmd = wrk.command("complete");
+    cmd.arg("date")
+        .arg("dates_sorted_uncomplete.csv")
+        .arg("--dates")
+        .arg("-m")
+        .arg("2025-01")
+        .arg("-M")
+        .arg("2025-01-28");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
 fn complete_groupby() {
     let wrk = Workdir::new("complete_groupby");
     wrk.create(
@@ -730,6 +825,32 @@ fn complete_groupby() {
 }
 
 #[test]
+#[should_panic(
+    expected = "Inconsistent value units: first seen was Date(Month) and then found Date(Year)"
+)]
+fn complete_groupby_unit_mismatch() {
+    let wrk = Workdir::new("complete_groupby_unit_mismatch");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["group", "date", "value"],
+            svec!["A", "2025-01", "foo"],
+            svec!["A", "2025-03", "bar"],
+            svec!["B", "2025", "baz"],
+            svec!["B", "2025-02", "baz"],
+            svec!["B", "2025-04", "qux"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("date")
+        .arg("data.csv")
+        .arg("--dates")
+        .arg("--groupby")
+        .arg("group");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
 fn complete_check() {
     let wrk = Workdir::new("complete_check");
     wrk.create("indexes_sorted_complete.csv", people_sorted_complete());
@@ -757,6 +878,32 @@ fn complete_check_panic() {
     wrk.create("indexes.csv", people_unsorted_uncomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes.csv").arg("--check");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
+#[should_panic(
+    expected = "Inconsistent value units: first seen was Date(Month) and then found Date(Day)"
+)]
+fn complete_check_unit_mismatch() {
+    let wrk = Workdir::new("complete_check_unit_mismatch");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["date", "event"],
+            svec!["2025-01", "event1"],
+            svec!["2025-05", "event5"],
+            svec!["2025-03", "event4"],
+            svec!["2025-04-01", "event3"],
+            svec!["2025-02", "event2"],
+            svec!["2025-06", "event3"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("date")
+        .arg("data.csv")
+        .arg("--dates")
+        .arg("--check");
     let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 }
 
@@ -796,6 +943,33 @@ fn complete_check_sorted_panic() {
     cmd.arg("--sorted")
         .arg("id")
         .arg("indexes.csv")
+        .arg("--check");
+    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+}
+
+#[test]
+#[should_panic(
+    expected = "Inconsistent value units: first seen was Date(Month) and then found Date(Day)"
+)]
+fn complete_check_sorted_unit_mismatch() {
+    let wrk = Workdir::new("complete_check_sorted_unit_mismatch");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["date", "event"],
+            svec!["2025-01", "event1"],
+            svec!["2025-02", "event2"],
+            svec!["2025-03", "event4"],
+            svec!["2025-04", "event5"],
+            svec!["2025-05-01", "event3"],
+            svec!["2025-06", "event3"],
+        ],
+    );
+    let mut cmd = wrk.command("complete");
+    cmd.arg("--sorted")
+        .arg("date")
+        .arg("data.csv")
+        .arg("--dates")
         .arg("--check");
     let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
 }

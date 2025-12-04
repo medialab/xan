@@ -1,3 +1,4 @@
+use jiff::Unit;
 use std::cmp::Ordering;
 use std::fmt;
 use std::io::{stdout, Write};
@@ -99,7 +100,7 @@ struct Args {
 }
 
 impl Args {
-    fn get_value_from_str(&self, cell: &str) -> ValuesType {
+    fn get_value_from_str(&self, cell: &str) -> CliResult<ValuesType> {
         if self.flag_dates {
             ValuesType::new_date(cell)
         } else {
@@ -107,9 +108,15 @@ impl Args {
         }
     }
 
-    fn get_value_from_bytes(&self, cell: &[u8]) -> ValuesType {
+    fn get_value_from_bytes(&self, cell: &[u8]) -> CliResult<ValuesType> {
         self.get_value_from_str(str::from_utf8(cell).unwrap())
     }
+}
+
+#[derive(Debug, PartialEq)]
+enum ValuesUnit {
+    Integer,
+    Date(Unit),
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -146,12 +153,19 @@ impl fmt::Debug for ValuesType {
 }
 
 impl ValuesType {
-    fn new_date(s: &str) -> Self {
-        ValuesType::Date(dates::parse_partial_date(s).unwrap())
+    fn new_date(s: &str) -> CliResult<Self> {
+        if !dates::could_be_date(s) {
+            Err(format!("Invalid date format: {}", s))?;
+        }
+        Ok(ValuesType::Date(dates::parse_partial_date(s).unwrap()))
     }
 
-    fn new_integer(s: &str) -> Self {
-        ValuesType::Integer(s.parse::<i64>().unwrap())
+    fn new_integer(s: &str) -> CliResult<Self> {
+        let v = ValuesType::Integer(
+            s.parse::<i64>()
+                .map_err(|_| format!("Invalid integer format: {}", s))?,
+        );
+        Ok(v)
     }
 
     fn next(&self) -> ValuesType {
@@ -188,6 +202,34 @@ impl ValuesType {
             ValuesType::Date(ref d) => {
                 dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes()
             }
+        }
+    }
+
+    fn as_unit(&self) -> ValuesUnit {
+        match self {
+            ValuesType::Integer(_) => ValuesUnit::Integer,
+            ValuesType::Date(d) => ValuesUnit::Date(d.as_unit()),
+        }
+    }
+
+    fn has_same_unit_as(&self, other: &ValuesType) -> bool {
+        self.as_unit() == other.as_unit()
+    }
+
+    fn verify_unit(&self, first_seen_value: &mut Option<ValuesType>) -> CliResult<()> {
+        if let Some(v) = first_seen_value {
+            if self.as_unit() == v.as_unit() {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Inconsistent value units: first seen was {:?} and then found {:?}",
+                    v.as_unit(),
+                    self.as_unit(),
+                ))?
+            }
+        } else {
+            *first_seen_value = Some(self.clone());
+            Ok(())
         }
     }
 }
@@ -230,16 +272,29 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let min: Option<ValuesType> = args
         .flag_min
         .clone()
-        .map(|m| args.get_value_from_str(m.as_str()));
+        .map(|m| args.get_value_from_str(m.as_str()))
+        .transpose()?;
     let max: Option<ValuesType> = args
         .flag_max
         .clone()
-        .map(|m| args.get_value_from_str(m.as_str()));
+        .map(|m| args.get_value_from_str(m.as_str()))
+        .transpose()?;
 
-    if matches!((&min, &max), (Some(min), Some(max))
-        if min > max)
-    {
-        Err("min cannot be greater than max")?;
+    let mut first_seen_value: Option<ValuesType> = None;
+
+    if let (Some(min_v), Some(max_v)) = (&min, &max) {
+        if !min_v.has_same_unit_as(max_v) {
+            Err(format!(
+                "min and max have different units: {:?} vs {:?}",
+                min_v.as_unit(),
+                max_v.as_unit()
+            ))?;
+        }
+
+        if min_v > max_v {
+            Err("min cannot be greater than max")?;
+        }
+        min_v.verify_unit(&mut first_seen_value)?;
     }
 
     let mut extent_builder = ExtentBuilder::<ValuesType>::new();
@@ -294,7 +349,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 );
 
                 if extent.is_none() {
-                    let value = args.get_value_from_bytes(&record[column_to_complete_index]);
+                    let value: ValuesType =
+                        args.get_value_from_bytes(&record[column_to_complete_index])?;
+                    value.verify_unit(&mut first_seen_value)?;
                     extent_builder.process(value);
                 }
             }
@@ -324,78 +381,38 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
 
     // closure to process ALREADY SORTED records in a group
-    let mut process_records_in_group =
-        |records: &mut dyn Iterator<Item = ByteRecord>, group_key: &ByteRecord| -> CliResult<()> {
-            let mut local_index: Option<ValuesType> = index;
+    let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
+                                        group_key: &ByteRecord|
+     -> CliResult<()> {
+        let mut local_index: Option<ValuesType> = index;
 
-            for record in records {
-                let value = args.get_value_from_bytes(&record[column_to_complete_index]);
+        for record in records {
+            let value: ValuesType = args.get_value_from_bytes(&record[column_to_complete_index])?;
+            value.verify_unit(&mut first_seen_value)?;
 
-                if min.is_some() && value < min.unwrap() {
-                    if args.flag_reverse {
-                        // stop completing or checking if we go below min of the range
-                        break;
-                    } else {
-                        // skip values below min of the range
-                        continue;
-                    }
-                }
-                if max.is_some() && value > max.unwrap() {
-                    if args.flag_reverse {
-                        // skip values over max of the range
-                        continue;
-                    } else {
-                        // stop completing or checking if we go over max of the range
-                        break;
-                    }
-                }
-
-                if local_index.is_some() {
-                    if let Some(wtr) = wtr_opt.as_mut() {
-                        while (args.flag_reverse && value < local_index.unwrap())
-                            || (!args.flag_reverse && value > local_index.unwrap())
-                        {
-                            wtr.write_byte_record(&new_record(
-                                headers.len(),
-                                column_to_complete_index,
-                                &sel_group_by,
-                                group_key,
-                                &local_index.unwrap().as_bytes(),
-                            ))?;
-
-                            local_index = Some(local_index.unwrap().advance(args.flag_reverse));
-                        }
-                    } else {
-                        // in case of using min flag (or max flag when flag_reverse is true)
-                        // or if there are repeated values
-                        if (args.flag_reverse && value > local_index.unwrap())
-                            || (!args.flag_reverse && value < local_index.unwrap())
-                        {
-                            continue;
-                        }
-                        if value != local_index.unwrap() {
-                            Err(format!(
-                                "file is not complete: missing value {:?}",
-                                local_index.unwrap()
-                            ))?;
-                        }
-                    }
+            if min.is_some() && value < min.unwrap() {
+                if args.flag_reverse {
+                    // stop completing or checking if we go below min of the range
+                    break;
                 } else {
-                    local_index = Some(value);
+                    // skip values below min of the range
+                    continue;
                 }
-
-                local_index = Some(local_index.unwrap().advance(args.flag_reverse));
-
-                if let Some(wtr) = wtr_opt.as_mut() {
-                    wtr.write_byte_record(&record)?;
+            }
+            if max.is_some() && value > max.unwrap() {
+                if args.flag_reverse {
+                    // skip values over max of the range
+                    continue;
+                } else {
+                    // stop completing or checking if we go over max of the range
+                    break;
                 }
             }
 
-            if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
+            if local_index.is_some() {
                 if let Some(wtr) = wtr_opt.as_mut() {
-                    while local_index.is_some()
-                        && ((args.flag_reverse && local_index.unwrap() >= min.unwrap())
-                            || (!args.flag_reverse && local_index.unwrap() <= max.unwrap()))
+                    while (args.flag_reverse && value < local_index.unwrap())
+                        || (!args.flag_reverse && value > local_index.unwrap())
                     {
                         wtr.write_byte_record(&new_record(
                             headers.len(),
@@ -407,18 +424,60 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                         local_index = Some(local_index.unwrap().advance(args.flag_reverse));
                     }
-                } else if (args.flag_reverse && local_index.unwrap() >= min.unwrap())
-                    || (!args.flag_reverse && local_index.unwrap() <= max.unwrap())
-                {
-                    Err(format!(
-                        "file is not complete: missing value {:?}",
-                        local_index.unwrap()
-                    ))?;
+                } else {
+                    // in case of using min flag (or max flag when flag_reverse is true)
+                    // or if there are repeated values
+                    if (args.flag_reverse && value > local_index.unwrap())
+                        || (!args.flag_reverse && value < local_index.unwrap())
+                    {
+                        continue;
+                    }
+                    if value != local_index.unwrap() {
+                        Err(format!(
+                            "file is not complete: missing value {:?}",
+                            local_index.unwrap()
+                        ))?;
+                    }
                 }
+            } else {
+                local_index = Some(value);
             }
 
-            Ok(())
-        };
+            local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+
+            if let Some(wtr) = wtr_opt.as_mut() {
+                wtr.write_byte_record(&record)?;
+            }
+        }
+
+        if (args.flag_reverse && min.is_some()) || (!args.flag_reverse && max.is_some()) {
+            if let Some(wtr) = wtr_opt.as_mut() {
+                while local_index.is_some()
+                    && ((args.flag_reverse && local_index.unwrap() >= min.unwrap())
+                        || (!args.flag_reverse && local_index.unwrap() <= max.unwrap()))
+                {
+                    wtr.write_byte_record(&new_record(
+                        headers.len(),
+                        column_to_complete_index,
+                        &sel_group_by,
+                        group_key,
+                        &local_index.unwrap().as_bytes(),
+                    ))?;
+
+                    local_index = Some(local_index.unwrap().advance(args.flag_reverse));
+                }
+            } else if (args.flag_reverse && local_index.unwrap() >= min.unwrap())
+                || (!args.flag_reverse && local_index.unwrap() <= max.unwrap())
+            {
+                Err(format!(
+                    "file is not complete: missing value {:?}",
+                    local_index.unwrap()
+                ))?;
+            }
+        }
+
+        Ok(())
+    };
 
     // process all records
     for (group_key, records) in records_per_group.iter() {
@@ -431,7 +490,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .iter()
                 .map(|record| -> CliResult<(ValuesType, ByteRecord)> {
                     let value_and_record = (
-                        args.get_value_from_bytes(&record[column_to_complete_index]),
+                        args.get_value_from_bytes(&record[column_to_complete_index])?,
                         record.clone(),
                     );
                     Ok(value_and_record)
