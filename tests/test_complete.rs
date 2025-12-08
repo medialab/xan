@@ -1,6 +1,6 @@
 use crate::workdir::Workdir;
 
-fn people_sorted_uncomplete() -> Vec<Vec<String>> {
+fn people_sorted_incomplete() -> Vec<Vec<String>> {
     vec![
         svec!["id", "name"],
         svec!["0", "alice"],
@@ -10,7 +10,7 @@ fn people_sorted_uncomplete() -> Vec<Vec<String>> {
     ]
 }
 
-fn people_sorted_uncomplete_reverse() -> Vec<Vec<String>> {
+fn people_sorted_incomplete_reverse() -> Vec<Vec<String>> {
     vec![
         svec!["id", "name"],
         svec!["7", "dave"],
@@ -20,7 +20,7 @@ fn people_sorted_uncomplete_reverse() -> Vec<Vec<String>> {
     ]
 }
 
-fn people_unsorted_uncomplete() -> Vec<Vec<String>> {
+fn people_unsorted_incomplete() -> Vec<Vec<String>> {
     vec![
         svec!["id", "name"],
         svec!["3", "charlie"],
@@ -60,7 +60,7 @@ fn people_unsorted_complete() -> Vec<Vec<String>> {
     ]
 }
 
-fn dates_sorted_uncomplete() -> Vec<Vec<String>> {
+fn dates_sorted_incomplete() -> Vec<Vec<String>> {
     vec![
         svec!["date", "event"],
         svec!["2025-01", "event1"],
@@ -69,7 +69,7 @@ fn dates_sorted_uncomplete() -> Vec<Vec<String>> {
     ]
 }
 
-fn dates_sorted_uncomplete_reverse() -> Vec<Vec<String>> {
+fn dates_sorted_incomplete_reverse() -> Vec<Vec<String>> {
     vec![
         svec!["date", "event"],
         svec!["2025-06", "event3"],
@@ -78,7 +78,7 @@ fn dates_sorted_uncomplete_reverse() -> Vec<Vec<String>> {
     ]
 }
 
-fn dates_unsorted_uncomplete() -> Vec<Vec<String>> {
+fn dates_unsorted_incomplete() -> Vec<Vec<String>> {
     vec![
         svec!["date", "event"],
         svec!["2025-06", "event3"],
@@ -150,7 +150,7 @@ fn dates_unsorted_almost_complete() -> Vec<Vec<String>> {
 #[test]
 fn complete() {
     let wrk = Workdir::new("complete");
-    wrk.create("indexes_sorted.csv", people_sorted_uncomplete());
+    wrk.create("indexes_sorted.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes_sorted.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -167,7 +167,7 @@ fn complete() {
     ];
     assert_eq!(got, expected);
 
-    wrk.create("indexes_unsorted.csv", people_unsorted_uncomplete());
+    wrk.create("indexes_unsorted.csv", people_unsorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes_unsorted.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -217,7 +217,7 @@ fn complete_type_mismatch() {
 #[test]
 fn complete_sorted() {
     let wrk = Workdir::new("complete_sorted");
-    wrk.create("indexes.csv", people_sorted_uncomplete());
+    wrk.create("indexes.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted").arg("id").arg("indexes.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -234,7 +234,7 @@ fn complete_sorted() {
     ];
     assert_eq!(got, expected);
 
-    wrk.create("indexes_reverse.csv", people_sorted_uncomplete_reverse());
+    wrk.create("indexes_reverse.csv", people_sorted_incomplete_reverse());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("--reverse")
@@ -258,7 +258,7 @@ fn complete_sorted() {
 #[test]
 fn complete_with_min_max() {
     let wrk = Workdir::new("complete_with_min_max");
-    wrk.create("indexes_sorted.csv", people_sorted_uncomplete());
+    wrk.create("indexes_sorted.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
         .arg("indexes_sorted.csv")
@@ -345,7 +345,7 @@ fn complete_with_min_max() {
     ];
     assert_eq!(got, expected);
 
-    wrk.create("indexes_unsorted.csv", people_unsorted_uncomplete());
+    wrk.create("indexes_unsorted.csv", people_unsorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
         .arg("indexes_unsorted.csv")
@@ -392,7 +392,7 @@ fn complete_with_min_max() {
 #[test]
 fn complete_sorted_with_min_max() {
     let wrk = Workdir::new("complete_sorted_with_min_max");
-    wrk.create("indexes.csv", people_sorted_uncomplete());
+    wrk.create("indexes.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("id")
@@ -437,7 +437,7 @@ fn complete_sorted_with_min_max() {
     ];
     assert_eq!(got, expected);
 
-    wrk.create("indexes_reverse.csv", people_sorted_uncomplete_reverse());
+    wrk.create("indexes_reverse.csv", people_sorted_incomplete_reverse());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("--reverse")
@@ -469,7 +469,7 @@ fn complete_sorted_with_min_max() {
 #[should_panic(expected = "Invalid integer format: 2025-01")]
 fn complete_with_min_max_type_mismatch() {
     let wrk = Workdir::new("complete_with_min_max_type_mismatch");
-    wrk.create("indexes_sorted.csv", people_sorted_uncomplete());
+    wrk.create("indexes_sorted.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
         .arg("indexes_sorted.csv")
@@ -481,10 +481,10 @@ fn complete_with_min_max_type_mismatch() {
 #[test]
 fn complete_dates() {
     let wrk = Workdir::new("complete_dates");
-    wrk.create("dates_sorted_uncomplete.csv", dates_sorted_uncomplete());
+    wrk.create("dates_sorted_incomplete.csv", dates_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_sorted_uncomplete.csv")
+        .arg("dates_sorted_incomplete.csv")
         .arg("--dates");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -498,17 +498,17 @@ fn complete_dates() {
     ];
     assert_eq!(got, expected);
 
-    wrk.create("dates_unsorted_uncomplete.csv", dates_unsorted_uncomplete());
+    wrk.create("dates_unsorted_incomplete.csv", dates_unsorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_unsorted_uncomplete.csv")
+        .arg("dates_unsorted_incomplete.csv")
         .arg("--dates");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_sorted_uncomplete.csv")
+        .arg("dates_sorted_incomplete.csv")
         .arg("--dates")
         .arg("--reverse");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -525,7 +525,7 @@ fn complete_dates() {
 
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_unsorted_uncomplete.csv")
+        .arg("dates_unsorted_incomplete.csv")
         .arg("--dates")
         .arg("--reverse");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -557,11 +557,11 @@ fn complete_dates_unit_mismatch() {
 #[test]
 fn complete_sorted_dates() {
     let wrk = Workdir::new("complete_sorted_dates");
-    wrk.create("dates_uncomplete.csv", dates_sorted_uncomplete());
+    wrk.create("dates_incomplete.csv", dates_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -604,10 +604,10 @@ fn complete_sorted_dates_unit_mismatch() {
 #[test]
 fn complete_dates_with_min_max() {
     let wrk = Workdir::new("complete_dates_with_min_max");
-    wrk.create("dates_sorted_uncomplete.csv", dates_sorted_uncomplete());
+    wrk.create("dates_sorted_incomplete.csv", dates_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_sorted_uncomplete.csv")
+        .arg("dates_sorted_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2024-11")
@@ -631,7 +631,7 @@ fn complete_dates_with_min_max() {
 
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_sorted_uncomplete.csv")
+        .arg("dates_sorted_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2025-02")
@@ -647,10 +647,10 @@ fn complete_dates_with_min_max() {
     ];
     assert_eq!(got, expected);
 
-    wrk.create("dates_unsorted_uncomplete.csv", dates_unsorted_uncomplete());
+    wrk.create("dates_unsorted_incomplete.csv", dates_unsorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_unsorted_uncomplete.csv")
+        .arg("dates_unsorted_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2024-11")
@@ -674,7 +674,7 @@ fn complete_dates_with_min_max() {
 
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_unsorted_uncomplete.csv")
+        .arg("dates_unsorted_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2025-02")
@@ -694,11 +694,11 @@ fn complete_dates_with_min_max() {
 #[test]
 fn complete_sorted_dates_with_min_max() {
     let wrk = Workdir::new("complete_sorted_dates_with_min_max");
-    wrk.create("dates_uncomplete.csv", dates_sorted_uncomplete());
+    wrk.create("dates_incomplete.csv", dates_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
         .arg("--sorted")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2024-11")
@@ -723,7 +723,7 @@ fn complete_sorted_dates_with_min_max() {
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
         .arg("--sorted")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2025-02")
@@ -744,10 +744,10 @@ fn complete_sorted_dates_with_min_max() {
 #[should_panic(expected = "min and max have different units: Date(Month) vs Date(Day)")]
 fn completed_dates_with_min_max_unit_mismach() {
     let wrk = Workdir::new("completed_dates_with_min_max_unit_mismatch");
-    wrk.create("dates_sorted_uncomplete.csv", dates_sorted_uncomplete());
+    wrk.create("dates_sorted_incomplete.csv", dates_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_sorted_uncomplete.csv")
+        .arg("dates_sorted_incomplete.csv")
         .arg("--dates")
         .arg("-m")
         .arg("2025-01")
@@ -872,13 +872,12 @@ fn complete_check() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_panic() {
     let wrk = Workdir::new("complete_check_panic");
-    wrk.create("indexes.csv", people_unsorted_uncomplete());
+    wrk.create("indexes.csv", people_unsorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id").arg("indexes.csv").arg("--check");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
@@ -935,16 +934,15 @@ fn complete_check_sorted() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_sorted_panic() {
     let wrk = Workdir::new("complete_check_sorted_panic");
-    wrk.create("indexes.csv", people_sorted_uncomplete());
+    wrk.create("indexes.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("id")
         .arg("indexes.csv")
         .arg("--check");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
@@ -975,7 +973,6 @@ fn complete_check_sorted_unit_mismatch() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_panic_min() {
     let wrk = Workdir::new("complete_check_panic_min");
     wrk.create("indexes.csv", people_unsorted_complete());
@@ -985,11 +982,10 @@ fn complete_check_panic_min() {
         .arg("--check")
         .arg("-m")
         .arg("-1");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
-#[should_panic]
 fn complete_check_panic_max() {
     let wrk = Workdir::new("complete_check_panic_max");
     wrk.create("indexes.csv", people_unsorted_complete());
@@ -999,16 +995,16 @@ fn complete_check_panic_max() {
         .arg("--check")
         .arg("-M")
         .arg("5");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
 fn complete_check_min_max() {
     let wrk = Workdir::new("complete_check_min_max");
-    wrk.create("indexes_sorted_uncomplete.csv", people_sorted_uncomplete());
+    wrk.create("indexes_sorted_incomplete.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
-        .arg("indexes_sorted_uncomplete.csv")
+        .arg("indexes_sorted_incomplete.csv")
         .arg("--check")
         .arg("-m")
         .arg("2")
@@ -1019,12 +1015,12 @@ fn complete_check_min_max() {
     assert_eq!(got, expected);
 
     wrk.create(
-        "indexes_unsorted_uncomplete.csv",
-        people_unsorted_uncomplete(),
+        "indexes_unsorted_incomplete.csv",
+        people_unsorted_incomplete(),
     );
     let mut cmd = wrk.command("complete");
     cmd.arg("id")
-        .arg("indexes_unsorted_uncomplete.csv")
+        .arg("indexes_unsorted_incomplete.csv")
         .arg("--check")
         .arg("-m")
         .arg("2")
@@ -1036,7 +1032,6 @@ fn complete_check_min_max() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_sorted_panic_min() {
     let wrk = Workdir::new("complete_check_sorted_panic_min");
     wrk.create("indexes.csv", people_sorted_complete());
@@ -1047,11 +1042,10 @@ fn complete_check_sorted_panic_min() {
         .arg("--check")
         .arg("-m")
         .arg("-1");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
-#[should_panic]
 fn complete_check_sorted_panic_max() {
     let wrk = Workdir::new("complete_check_sorted_panic_max");
     wrk.create("indexes.csv", people_sorted_complete());
@@ -1062,17 +1056,17 @@ fn complete_check_sorted_panic_max() {
         .arg("--check")
         .arg("-M")
         .arg("5");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
 fn complete_check_sorted_min_max() {
     let wrk = Workdir::new("complete_check_sorted_min_max");
-    wrk.create("indexes_uncomplete.csv", people_sorted_uncomplete());
+    wrk.create("indexes_incomplete.csv", people_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("id")
-        .arg("indexes_uncomplete.csv")
+        .arg("indexes_incomplete.csv")
         .arg("--check")
         .arg("-m")
         .arg("2")
@@ -1083,14 +1077,14 @@ fn complete_check_sorted_min_max() {
     assert_eq!(got, expected);
 
     wrk.create(
-        "indexes_uncomplete_reverse.csv",
-        people_sorted_uncomplete_reverse(),
+        "indexes_incomplete_reverse.csv",
+        people_sorted_incomplete_reverse(),
     );
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("--reverse")
         .arg("id")
-        .arg("indexes_uncomplete_reverse.csv")
+        .arg("indexes_incomplete_reverse.csv")
         .arg("--check")
         .arg("-m")
         .arg("2")
@@ -1124,16 +1118,15 @@ fn complete_check_dates() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_dates_panic() {
     let wrk = Workdir::new("complete_check_dates_panic");
-    wrk.create("dates_uncomplete.csv", dates_unsorted_uncomplete());
+    wrk.create("dates_incomplete.csv", dates_unsorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("--check");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
@@ -1152,47 +1145,44 @@ fn complete_check_sorted_dates() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_sorted_dates_panic() {
     let wrk = Workdir::new("complete_check_sorted_dates_panic");
-    wrk.create("dates_uncomplete.csv", dates_sorted_uncomplete());
+    wrk.create("dates_incomplete.csv", dates_sorted_incomplete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("--check");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
-#[should_panic]
 fn complete_check_dates_panic_min() {
     let wrk = Workdir::new("complete_check_dates_panic_min");
-    wrk.create("dates_uncomplete.csv", dates_unsorted_complete());
+    wrk.create("dates_incomplete.csv", dates_unsorted_complete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("--check")
         .arg("-m")
         .arg("2025-01");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
-#[should_panic]
 fn complete_check_dates_panic_max() {
     let wrk = Workdir::new("complete_check_dates_panic_max");
-    wrk.create("dates_uncomplete.csv", dates_unsorted_complete());
+    wrk.create("dates_incomplete.csv", dates_unsorted_complete());
     let mut cmd = wrk.command("complete");
     cmd.arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("--check")
         .arg("-M")
         .arg("2025-06");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
@@ -1231,35 +1221,33 @@ fn complete_check_dates_min_max() {
 }
 
 #[test]
-#[should_panic]
 fn complete_check_sorted_dates_panic_min() {
     let wrk = Workdir::new("complete_check_sorted_dates_panic_min");
-    wrk.create("dates_uncomplete.csv", dates_sorted_complete());
+    wrk.create("dates_incomplete.csv", dates_sorted_complete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("--check")
         .arg("-m")
         .arg("2025-01");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
-#[should_panic]
 fn complete_check_sorted_dates_panic_max() {
     let wrk = Workdir::new("complete_check_sorted_dates_panic_max");
-    wrk.create("dates_uncomplete.csv", dates_sorted_complete());
+    wrk.create("dates_incomplete.csv", dates_sorted_complete());
     let mut cmd = wrk.command("complete");
     cmd.arg("--sorted")
         .arg("date")
-        .arg("dates_uncomplete.csv")
+        .arg("dates_incomplete.csv")
         .arg("--dates")
         .arg("--check")
         .arg("-M")
         .arg("2025-06");
-    let _got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    wrk.assert_err(&mut cmd);
 }
 
 #[test]
