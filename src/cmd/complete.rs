@@ -393,12 +393,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let current_value: Option<ValuesType> = if args.flag_reverse { max } else { min };
 
     // closure to process ALREADY SORTED records in a group
-    let mut process_records_in_group = |records: &mut dyn Iterator<Item = ByteRecord>,
+    let mut process_records_in_group = |records: &mut dyn Iterator<
+        Item = Result<ByteRecord, simd_csv::Error>,
+    >,
                                         group_key: &ByteRecord|
      -> CliResult<()> {
         let mut local_current_value: Option<ValuesType> = current_value;
 
         for record in records {
+            let record = record?;
             let value: ValuesType = args.get_value_from_bytes(&record[column_to_complete_index])?;
             value.verify_unit(&mut first_seen_value)?;
 
@@ -523,7 +526,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_sorted && args.flag_groupby.is_none() {
             // NOTE: group_key is empty here, and will be ignored in the processing
             // QUESTION: Am I not allowing memory for every record here (in case input from stdin)?
-            process_records_in_group(&mut rdr.byte_records().map(|r| r.unwrap()), group_key)?;
+            process_records_in_group(&mut rdr.byte_records(), group_key)?;
         } else {
             // sorting records in the group
             let mut values_and_records = records
@@ -544,8 +547,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             });
             let records = values_and_records.iter().map(|(_, r)| r);
+            let mut records: &mut dyn Iterator<Item = Result<ByteRecord, simd_csv::Error>> =
+                &mut records.map(|r| Ok(r.clone()));
 
-            process_records_in_group(&mut records.cloned(), group_key)?;
+            process_records_in_group(&mut records, group_key)?;
         }
     }
 
