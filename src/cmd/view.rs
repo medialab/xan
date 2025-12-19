@@ -12,6 +12,20 @@ use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub enum RepeatHeadersMode {
+    #[default]
+    Auto,
+    Never,
+    Always,
+}
+
+impl RepeatHeadersMode {
+    fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+}
+
 fn prepend(record: &csv::StringRecord, cell_value: &str) -> csv::StringRecord {
     let mut new_record = csv::StringRecord::new();
     new_record.push_field(cell_value);
@@ -206,7 +220,7 @@ the -e/--expand and --color=always flags before piping like so:
 Finally, it is possible to customize the default behavior of this command through
 the \"XAN_VIEW_ARGS\" environment variable. This variable takes a series of
 supported flags: -t/--theme, -p/--pager, -l/--limit, -R/--rainbow, -E/--sanitize-emojis,
-and -S/--significance, -I/--hide-index & -M/--hide-info.
+and -S/--significance, -I/--hide-index, --color, --repeat-headers & -M/--hide-info.
 
 So if you want, for instance, to use the borderles theme, hide the index column and
 restrict the number of floating points decimals to be shown by default:
@@ -219,37 +233,42 @@ Usage:
     xan view --help
 
 view options:
-    -s, --select <arg>      Select the columns to visualize. See 'xan select -h'
-                            for the full syntax.
-    -t, --theme <name>      Theme for the table display, one of: \"table\", \"borderless\",
-                            \"compact\", \"rounded\", \"slim\" or \"striped\".
-                            [default: table]
-    -p, --pager             Automatically use the \"less\" command to page the results.
-                            This flag does not work on windows!
-    -A, --all               Remove the row limit and display everything.
-    -l, --limit <number>    Maximum of rows to read into memory. Use -A, --all or
-                            set to 0 to disable the limit.
-                            [default: 100]
-    -R, --rainbow           Alternating colors for columns, rather than color by value type.
-    --cols <num>            Width of the graph in terminal columns, i.e. characters.
-                            Defaults to using all your terminal's width or 80 if
-                            terminal's size cannot be found (i.e. when piping to file).
-                            Can also be given as a ratio of the terminal's width e.g. \"0.5\".
-    --color <when>          When to color the output using ANSI escape codes.
-                            Use `auto` for automatic detection, `never` to
-                            disable colors completely and `always` to force
-                            colors, even when the output could not handle them.
-                            [default: auto]
-    -e, --expand            Expand the table so that in can be easily piped to
-                            a pager such as \"less\", with larger width constraints.
-    -E, --sanitize-emojis   Replace emojis by their shortcode to avoid formatting issues.
-    -S, --significance <n>  Maximum floating point significance used to format numbers.
-    -I, --hide-index        Hide the row index on the left.
-    -H, --hide-headers      Hide the headers. Implied when -n, --no-headers is given.
-    -M, --hide-info         Hide information about number of displayed columns, rows etc.
-    -g, --groupby <cols>    Isolate and emphasize groups of rows, represented by consecutive
-                            rows with identical values in selected columns.
-    -r, --right <col>       Force right alignment of selected columns.
+    -s, --select <arg>       Select the columns to visualize. See 'xan select -h'
+                             for the full syntax.
+    -t, --theme <name>       Theme for the table display, one of: \"table\", \"borderless\",
+                             \"compact\", \"rounded\", \"slim\" or \"striped\".
+                             [default: table]
+    -p, --pager              Automatically use the \"less\" command to page the results.
+                             This flag does not work on windows!
+    -A, --all                Remove the row limit and display everything.
+    -l, --limit <number>     Maximum of rows to read into memory. Use -A, --all or
+                             set to 0 to disable the limit.
+                             [default: 100]
+    -R, --rainbow            Alternating colors for columns, rather than color by value type.
+    --cols <num>             Width of the graph in terminal columns, i.e. characters.
+                             Defaults to using all your terminal's width or 80 if
+                             terminal's size cannot be found (i.e. when piping to file).
+                             Can also be given as a ratio of the terminal's width e.g. \"0.5\".
+    --color <when>           When to color the output using ANSI escape codes.
+                             Use `auto` for automatic detection, `never` to
+                             disable colors completely and `always` to force
+                             colors, even when the output could not handle them.
+                             [default: auto]
+    -e, --expand             Expand the table so that in can be easily piped to
+                             a pager such as \"less\", with larger width constraints.
+    -E, --sanitize-emojis    Replace emojis by their shortcode to avoid formatting issues.
+    -S, --significance <n>   Maximum floating point significance used to format numbers.
+    -I, --hide-index         Hide the row index on the left.
+    -H, --hide-headers       Hide the headers. Implied when -n, --no-headers is given.
+    -M, --hide-info          Hide information about number of displayed columns, rows etc.
+    -g, --groupby <cols>     Isolate and emphasize groups of rows, represented by consecutive
+                             rows with identical values in selected columns.
+    -r, --right <col>        Force right alignment of selected columns.
+    --repeat-headers <when>  When to repeat headers at the bottom of the printed table. By default,
+                             the header is repeated when your terminal is too short to display the full data,
+                             meaning you will need to scroll up to see the headers.
+                             Use `auto` for automatic detection, `never` or `always`.
+                             [default: auto]
 
 Common options:
     -h, --help             Display this message
@@ -280,6 +299,7 @@ struct Args {
     flag_groupby: Option<SelectedColumns>,
     flag_right: Option<SelectedColumns>,
     flag_significance: Option<NonZeroUsize>,
+    flag_repeat_headers: RepeatHeadersMode,
 }
 
 impl Args {
@@ -334,6 +354,14 @@ impl Args {
             from_argv.flag_significance = from_env.flag_significance;
         }
 
+        if from_argv.flag_color.is_auto() && !from_env.flag_color.is_auto() {
+            from_argv.flag_color = from_env.flag_color;
+        }
+
+        if from_argv.flag_repeat_headers.is_auto() && !from_env.flag_repeat_headers.is_auto() {
+            from_argv.flag_repeat_headers = from_env.flag_repeat_headers;
+        }
+
         from_argv
     }
 }
@@ -341,7 +369,6 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
-    args.flag_color.apply();
 
     let mut env_var_argv = vec!["xan", "view"];
     let env_var_split =
@@ -355,6 +382,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     env_args.resolve();
 
     let mut args = Args::merge(env_args, args);
+    args.flag_color.apply();
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 
@@ -516,14 +544,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("either input is completely empty or piped process errored upstream!")?;
     }
 
-    let mut need_to_repeat_headers = match rows {
-        None => true,
-        Some(r) => records.len() + HEADERS_ROWS > r,
-    };
+    let need_to_repeat_headers = match args.flag_repeat_headers {
+        RepeatHeadersMode::Auto => {
+            let mut auto = match rows {
+                None => true,
+                Some(r) => records.len() + HEADERS_ROWS > r,
+            };
 
-    if args.flag_pager {
-        need_to_repeat_headers = false;
-    }
+            if args.flag_pager {
+                auto = false;
+            }
+
+            auto
+        }
+        RepeatHeadersMode::Always => true,
+        RepeatHeadersMode::Never => false,
+    };
 
     let max_column_widths: Vec<usize> = headers
         .iter()

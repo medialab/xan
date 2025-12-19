@@ -5,6 +5,8 @@
 *Features*
 
 * Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
+* Adding `xan view --repeat-headers`.
+* Adding `--color` support to `XAN_VIEW_ARGS`.
 
 *Quality of Life*
 
