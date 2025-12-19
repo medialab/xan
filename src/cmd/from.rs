@@ -106,6 +106,9 @@ Excel/OpenOffice-related options:
 
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.
+                           Set to -1 to sample ALL records before emitting headers.
+                           This may cost a lot of memory but will ensure all possible
+                           keys have been observed and no data is lost when converting.
                            [default: 64]
     --key-column <name>    Name for the key column when parsing a JSON map.
                            [default: key]
@@ -134,7 +137,7 @@ struct Args {
     flag_list_sheets: bool,
     flag_format: Option<SupportedFormat>,
     flag_output: Option<String>,
-    flag_sample_size: NonZeroUsize,
+    flag_sample_size: isize,
     flag_key_column: String,
     flag_value_column: String,
     flag_column: String,
@@ -144,6 +147,14 @@ struct Args {
 impl Args {
     fn writer(&self) -> io::Result<simd_csv::Writer<Box<dyn io::Write + Send>>> {
         Config::new(&self.flag_output).simd_writer()
+    }
+
+    fn sample_size(&self) -> Option<NonZeroUsize> {
+        if self.flag_sample_size <= 0 {
+            None
+        } else {
+            Some(NonZeroUsize::new(self.flag_sample_size as usize).unwrap())
+        }
     }
 
     fn convert_xls(&self) -> CliResult<()> {
@@ -253,7 +264,7 @@ impl Args {
 
         let wtr = self.writer()?;
         let mut rdr = simd_csv::LineReader::from_reader(Config::new(&self.arg_input).io_reader()?);
-        let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
+        let mut tabularizer = JSONTabularizer::from_writer(wtr, self.sample_size());
 
         while let Some(line) = rdr.read_line()? {
             // Sshhh... it's alright, really.
@@ -290,7 +301,7 @@ impl Args {
 
         if let Value::Array(array) = value {
             let wtr = self.writer()?;
-            let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
+            let mut tabularizer = JSONTabularizer::from_writer(wtr, self.sample_size());
 
             for item in array.into_iter() {
                 tabularizer.process(item)?;

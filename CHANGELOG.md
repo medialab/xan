@@ -8,6 +8,7 @@
 * Adding `xan view --repeat-headers=(auto|always|never)`.
 * Adding `xan view --reveal-whitespace=(auto|always|never)`.
 * Adding `--color` support to `XAN_VIEW_ARGS`.
+* Adding `xan from -f json --sample-size -1` to sample the complete file.
 
 *Quality of Life*
 

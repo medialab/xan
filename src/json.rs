@@ -286,7 +286,7 @@ fn merge(a: &mut Value, b: &Value) {
 pub struct JSONTabularizer<W: Write> {
     writer: simd_csv::Writer<W>,
     harmonized_value: Value,
-    sample_size: usize,
+    sample_size: Option<usize>,
     sample: Vec<Value>,
     flushed: bool,
     output_record: ByteRecord,
@@ -294,12 +294,15 @@ pub struct JSONTabularizer<W: Write> {
 }
 
 impl<W: Write> JSONTabularizer<W> {
-    pub fn from_writer(writer: simd_csv::Writer<W>, sample_size: NonZeroUsize) -> Self {
+    pub fn from_writer(writer: simd_csv::Writer<W>, sample_size: Option<NonZeroUsize>) -> Self {
         Self {
             writer,
             harmonized_value: Value::Null,
-            sample_size: sample_size.get(),
-            sample: Vec::with_capacity(sample_size.get()),
+            sample_size: sample_size.map(|limit| limit.get()),
+            sample: match sample_size {
+                Some(limit) => Vec::with_capacity(limit.get()),
+                None => Vec::new(),
+            },
             flushed: false,
             output_record: ByteRecord::new(),
             stack: JSONTraversalStack::new(),
@@ -329,7 +332,7 @@ impl<W: Write> JSONTabularizer<W> {
 
     pub fn process(&mut self, value: Value) -> simd_csv::Result<()> {
         // Sampling
-        if self.sample.len() < self.sample_size {
+        if self.sample_size.is_none() || self.sample.len() < self.sample_size.unwrap() {
             merge(&mut self.harmonized_value, &value);
             self.sample.push(value);
             return Ok(());

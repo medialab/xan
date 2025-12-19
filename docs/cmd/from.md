@@ -43,6 +43,9 @@ Excel/OpenOffice-related options:
 
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.
+                           Set to -1 to sample ALL records before emitting headers.
+                           This may cost a lot of memory but will ensure all possible
+                           keys have been observed and no data is lost when converting.
                            [default: 64]
     --key-column <name>    Name for the key column when parsing a JSON map.
                            [default: key]
