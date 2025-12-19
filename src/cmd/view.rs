@@ -516,10 +516,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("either input is completely empty or piped process errored upstream!")?;
     }
 
-    let need_to_repeat_headers = match rows {
+    let mut need_to_repeat_headers = match rows {
         None => true,
         Some(r) => records.len() + HEADERS_ROWS > r,
     };
+
+    if args.flag_pager {
+        need_to_repeat_headers = false;
+    }
 
     let max_column_widths: Vec<usize> = headers
         .iter()

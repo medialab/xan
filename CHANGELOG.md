@@ -6,6 +6,10 @@
 
 * Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
 
+*Quality of Life*
+
+* `xan view -p` will not print bottom header anymore by default.
+
 ## 0.54.1
 
 *Fixes*
