@@ -13,14 +13,14 @@ use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
-pub enum RepeatHeadersMode {
+pub enum ComplexToggle {
     #[default]
     Auto,
     Never,
     Always,
 }
 
-impl RepeatHeadersMode {
+impl ComplexToggle {
     fn is_auto(&self) -> bool {
         matches!(self, Self::Auto)
     }
@@ -299,7 +299,7 @@ struct Args {
     flag_groupby: Option<SelectedColumns>,
     flag_right: Option<SelectedColumns>,
     flag_significance: Option<NonZeroUsize>,
-    flag_repeat_headers: RepeatHeadersMode,
+    flag_repeat_headers: ComplexToggle,
 }
 
 impl Args {
@@ -545,7 +545,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let need_to_repeat_headers = match args.flag_repeat_headers {
-        RepeatHeadersMode::Auto => {
+        ComplexToggle::Auto => {
             let mut auto = match rows {
                 None => true,
                 Some(r) => records.len() + HEADERS_ROWS > r,
@@ -557,8 +557,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             auto
         }
-        RepeatHeadersMode::Always => true,
-        RepeatHeadersMode::Never => false,
+        ComplexToggle::Always => true,
+        ComplexToggle::Never => false,
     };
 
     let max_column_widths: Vec<usize> = headers
