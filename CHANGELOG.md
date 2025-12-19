@@ -5,12 +5,14 @@
 *Features*
 
 * Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
-* Adding `xan view --repeat-headers`.
+* Adding `xan view --repeat-headers=(auto|always|never)`.
+* Adding `xan view --reveal-whitespace=(auto|always|never)`.
 * Adding `--color` support to `XAN_VIEW_ARGS`.
 
 *Quality of Life*
 
 * `xan view -p` will not print bottom header anymore by default.
+* `xan view` will not reveal problematic whitespace if output is not colored anymore, by default.
 
 ## 0.54.1
 
