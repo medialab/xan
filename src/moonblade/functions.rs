@@ -82,8 +82,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "bytesize" => (bytesize, FunctionArguments::unary()),
         "carry_stemmer" => (carry_stemmer_fn, FunctionArguments::unary()),
         "ceil" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::ceil),
-            FunctionArguments::unary(),
+            |args| round_like_op(args, DynamicNumber::ceil),
+            FunctionArguments::with_range(1..=2),
         ),
         "cmd" => (cmd, FunctionArguments::binary()),
         "compact" => (compact, FunctionArguments::unary()),
@@ -122,8 +122,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "first" => (first, FunctionArguments::unary()),
         "float" => (parse_float, FunctionArguments::unary()),
         "floor" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::floor),
-            FunctionArguments::unary(),
+            |args| round_like_op(args, DynamicNumber::floor),
+            FunctionArguments::with_range(1..=2),
         ),
         "fmt" => (fmt, FunctionArguments::variadic(2)),
         "numfmt" => (
@@ -244,8 +244,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "regex" => (parse_regex, FunctionArguments::unary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::round),
-            FunctionArguments::unary(),
+            |args| round_like_op(args, DynamicNumber::round),
+            FunctionArguments::with_range(1..=2),
         ),
         "shell" => (shell, FunctionArguments::unary()),
         "shlex_split" => (shlex_split, FunctionArguments::unary()),
@@ -303,8 +303,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),
         "rtrim" => (rtrim, FunctionArguments::with_range(1..=2)),
         "trunc" => (
-            |args| unary_arithmetic_op(args, DynamicNumber::trunc),
-            FunctionArguments::unary(),
+            |args| round_like_op(args, DynamicNumber::trunc),
+            FunctionArguments::with_range(1..=2),
         ),
         "typeof" => (type_of, FunctionArguments::unary()),
         "unidecode" => (apply_unidecode, FunctionArguments::unary()),
@@ -1087,6 +1087,22 @@ where
     F: Fn(DynamicNumber) -> DynamicNumber,
 {
     Ok(DynamicValue::from(op(args.pop1_number()?)))
+}
+
+fn round_like_op<F>(mut args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber) -> DynamicNumber,
+{
+    if args.len() == 2 {
+        let unit = args.pop1_number()?;
+        let operand = args.pop1_number()?;
+
+        let result = op(operand / unit) * unit;
+
+        Ok(DynamicValue::from(result))
+    } else {
+        Ok(DynamicValue::from(op(args.pop1_number()?)))
+    }
 }
 
 fn binary_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult

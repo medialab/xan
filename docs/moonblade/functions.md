@@ -137,12 +137,12 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **add**(*x*, *y*, *\*n*) -> `number`: Add two or more numbers.
 - **argmax**(*numbers*, *labels?*) -> `any`: Return the index or label of the largest number in the list.
 - **argmin**(*numbers*, *labels?*) -> `any`: Return the index or label of the smallest number in the list.
-- **ceil**(*x*) -> `number`: Return the smallest integer greater than or equal to x.
+- **ceil**(*x*, *unit?*) -> `number`: Return the smallest integer greater than or equal to x. Optionally ceil to nearest given unit.
 - **div**(*x*, *y*, *\*n*) -> `number`: Divide two or more numbers.
 - **idiv**(*x*, *y*) -> `number`: Integer division of two numbers.
 - **int**(*any*) -> `int`: Cast value as int and raise an error if impossible.
 - **float**(*any*) -> `float`: Cast value as float and raise an error if impossible.
-- **floor**(*x*) -> `number`: Return the smallest integer lower than or equal to x.
+- **floor**(*x*, *unit?*) -> `number`: Return the smallest integer lower than or equal to x. Optionally floor to nearest given unit.
 - **log**(*x*, *base?*) -> `number`: Return the natural or custom base logarithm of x.
 - **log2**(*x*) -> `number`: Return the base 2 logarithm of x.
 - **log10**(*x*) -> `number`: Return the base 10 logarithm of x.
@@ -154,10 +154,10 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **mul**(*x*, *y*, *\*n*) -> `number`: Multiply two or more numbers.
 - **neg**(*x*) -> `number`: Return -x.
 - **pow**(*x*, *y*) -> `number`: Raise x to the power of y.
-- **round**(*x*) -> `number`: Return x rounded to the nearest integer.
+- **round**(*x*, *unit?*) -> `number`: Return x rounded to the nearest integer. Optionally round to nearest given unit.
 - **sqrt**(*x*) -> `number`: Return the square root of x.
 - **sub**(*x*, *y*, *\*n*) -> `number`: Subtract two or more numbers.
-- **trunc**(*x*) -> `number`: Truncate the number by removing its decimal part.
+- **trunc**(*x*, *unit?*) -> `number`: Truncate the number by removing its decimal part. Optionally trunc to nearest given unit.
 
 ## Formatting
 

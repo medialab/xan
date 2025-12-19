@@ -110,9 +110,9 @@
       },
       {
         "name": "ceil",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Return the smallest integer greater than or equal to x."
+        "help": "Return the smallest integer greater than or equal to x. Optionally ceil to nearest given unit."
       },
       {
         "name": "div",
@@ -140,9 +140,9 @@
       },
       {
         "name": "floor",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Return the smallest integer lower than or equal to x."
+        "help": "Return the smallest integer lower than or equal to x. Optionally floor to nearest given unit."
       },
       {
         "name": "log",
@@ -202,9 +202,9 @@
       },
       {
         "name": "round",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Return x rounded to the nearest integer."
+        "help": "Return x rounded to the nearest integer. Optionally round to nearest given unit."
       },
       {
         "name": "sqrt",
@@ -220,9 +220,9 @@
       },
       {
         "name": "trunc",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Truncate the number by removing its decimal part."
+        "help": "Truncate the number by removing its decimal part. Optionally trunc to nearest given unit."
       }
     ]
   },

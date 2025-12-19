@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.55.0 (provisional)
+
+*Features*
+
+* Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
+
 ## 0.54.1
 
 *Fixes*
