@@ -2962,6 +2962,7 @@ dependencies = [
  "pariter",
  "pest",
  "pest_derive",
+ "py_literal",
  "quick-xml",
  "rand 0.9.2",
  "rand_chacha",

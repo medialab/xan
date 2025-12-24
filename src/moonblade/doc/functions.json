@@ -802,6 +802,12 @@
         "help": "Parse the given string as JSON."
       },
       {
+        "name": "parse_py_literal",
+        "arguments": ["string"],
+        "returns": "any",
+        "help": "Parse the given string as a python literal."
+      },
+      {
         "name": "pathjoin",
         "aliases": ["pjoin"],
         "arguments": ["string", "*strings"],
