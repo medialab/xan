@@ -274,8 +274,10 @@ add(trim(name) | len, 2)    - Can be used anywhere
 ## IO & path wrangling
 
 - **abspath**(*string*) -> `string`: Return absolute & canonicalized path.
+- **basename**(*path*, *suffix?*) -> `string`: Return the final component of given path, usually the file name, all while stripping it of an optional suffix.
 - **cmd**(*string*, *list[string]*) -> `bytes`: Run a command using the provided list of arguments as a subprocess and return the resulting bytes trimmed of trailing whitespace.
 - **copy**(*source_path*, *target_path*) -> `string`: Copy a source to target path. Will create necessary directories on the way. Returns target path as a convenience.
+- **dirname**(*path*) -> `string`: Return target path without final component if any.
 - **ext**(*path*) -> `string?`: Return the path's extension, if any.
 - **filesize**(*string*) -> `int`: Return the size of given file in bytes.
 - **isfile**(*string*) -> `bool`: Return whether the given path is an existing file on disk.

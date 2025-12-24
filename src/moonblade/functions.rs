@@ -79,6 +79,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| argcompare(args, Ordering::is_lt),
             FunctionArguments::with_range(1..=2),
         ),
+        "basename" => (basename, FunctionArguments::with_range(1..=2)),
         "bytesize" => (bytesize, FunctionArguments::unary()),
         "carry_stemmer" => (carry_stemmer_fn, FunctionArguments::unary()),
         "ceil" => (
@@ -99,6 +100,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("timezone"),
             ]),
         ),
+        "dirname" => (dirname, FunctionArguments::unary()),
         "div" => (
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
@@ -1492,11 +1494,36 @@ fn copy_file(args: BoundArguments) -> FunctionResult {
 }
 
 fn ext(args: BoundArguments) -> FunctionResult {
-    let path = PathBuf::from(args.get1_str()?.as_ref());
+    let string = args.get1_str()?;
+    let path = Path::new(string.as_ref());
 
     Ok(DynamicValue::from(
         path.extension().and_then(|e| e.to_str()),
     ))
+}
+
+fn dirname(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+    let path = Path::new(string.as_ref());
+
+    Ok(DynamicValue::from(path.parent().and_then(|p| p.to_str())))
+}
+
+fn basename(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+    let path = Path::new(string.as_ref());
+
+    let name = path.file_name().and_then(|p| p.to_str());
+
+    if args.len() == 2 {
+        let suffix = args.get(1).unwrap().try_as_str()?;
+
+        Ok(DynamicValue::from(
+            name.and_then(|n| n.strip_suffix(suffix.as_ref()).or(Some(n))),
+        ))
+    } else {
+        Ok(DynamicValue::from(name))
+    }
 }
 
 fn filesize(args: BoundArguments) -> FunctionResult {
