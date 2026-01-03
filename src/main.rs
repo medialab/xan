@@ -84,6 +84,7 @@ macro_rules! command_list {
     enum        Enumerate CSV file by preprending an index column
     flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
     fill        Fill empty cells
+    complete    Add missing rows in a column of contiguous values
     blank       Blank down contiguous identical cell values
     separate    Split a single column into multiple ones
 
@@ -275,6 +276,7 @@ enum Command {
     Cat,
     Cluster,
     Compgen,
+    Complete,
     Completions,
     Count,
     Dedup,
@@ -364,6 +366,7 @@ impl Command {
                 cmd::compgen::run();
                 Ok(())
             }
+            Command::Complete => cmd::complete::run(argv),
             Command::Completions => cmd::completions::run(argv),
             Command::Count => cmd::count::run(argv),
             Command::Dedup => cmd::dedup::run(argv),
