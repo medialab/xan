@@ -1,6 +1,7 @@
 pub mod agg;
 pub mod behead;
 pub mod bins;
+pub mod bisect;
 pub mod blank;
 pub mod cat;
 pub mod cluster;
