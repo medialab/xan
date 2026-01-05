@@ -92,9 +92,15 @@ separate options:
                            By default, all possible splits are made.
     --into <column-names>  Specify names for the new columns created by the
                            splits. If not provided, new columns will be named
-                           split1, split2, etc. If used with --max,
+                           before the original column name ('text' column will
+                           be separated into 'text1', 'text2', etc.). If used with --max,
                            the number of names provided must be equal or lower
-                           than <n>.
+                           than <n>. Cannot be used with --prefix.
+    --prefix <prefix>      Specify a prefix for the new columns created by the
+                           splits. By default, no prefix is used and new columns
+                           are named before the original column name ('text'
+                           column will be separated into 'text1', 'text2', etc.).
+                           Cannot be used with --into.
     --too-many <option>    Specify how to handle extra cells when the number
                            of splitted cells exceeds --max, or
                            the number of provided names with --into.
@@ -130,6 +136,7 @@ struct Args {
     flag_keep: bool,
     flag_max: Option<usize>,
     flag_into: Option<String>,
+    flag_prefix: Option<String>,
     flag_too_many: TooManyMode,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -364,8 +371,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .as_ref()
         .map(|names| util::str_to_csv_byte_record(names));
 
-    match (args.flag_max, &new_column_names) {
-        (Some(max), Some(names)) if names.len() > max => {
+    match (args.flag_max, &new_column_names, &args.flag_prefix) {
+        (_, Some(_), Some(_)) => {
+            Err("--into and --prefix cannot be used together!")?;
+        }
+        (Some(max), Some(names), _) if names.len() > max => {
             Err(format!("--into cannot specify more column names than --max : got {} for --into and {} for --max", names.len(), max))?;
         }
         _ => (),
@@ -495,6 +505,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         let mut number_of_new_columns = max_splits;
+        let prefix = args.flag_prefix.unwrap_or(column_to_separate_name);
 
         if let Some(names) = &new_column_names {
             new_headers.extend(names);
@@ -502,7 +513,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for i in 1..=number_of_new_columns {
-            let header_name = format!("{}{}", column_to_separate_name, i);
+            let header_name = format!("{}{}", prefix, i);
             new_headers.push_field(header_name.as_bytes());
         }
 

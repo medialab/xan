@@ -69,6 +69,26 @@ fn separate() {
 }
 
 #[test]
+fn separate_prefix() {
+    let wrk = Workdir::new("separate_prefix");
+    wrk.create("data.csv", people());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("fullname")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--prefix")
+        .arg("name_");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name_1", "name_2", "birthdate"],
+        svec!["John", "Doe", "1990 05 15"],
+        svec!["Jane", "Smith", "1985 10 30"],
+        svec!["Alice", "Johnson", "2000 01 01"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn separate_too_many() {
     let wrk = Workdir::new("separate_too_many");
     wrk.create("data.csv", people());
