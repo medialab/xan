@@ -24,7 +24,8 @@ to some splitting algorithm that can be one of:
     * --offsets: extract byte slices
 
 Created columns can be given a name using the --into flag, else they will be
-given generic names like "split1",  "split2" and so forth.
+given generic names based on the original column name. For instance, splitting a
+column named "text" will produce columns named "text1", "text2"...
 
 It is also possible to limit the number of splits using the --max flag.
 
@@ -120,7 +121,7 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
-    arg_column: SelectedColumns,
+    arg_column: String,
     arg_separator: String,
     arg_input: Option<String>,
     flag_regex: bool,
@@ -370,9 +371,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => (),
     }
 
+    let column_to_separate_name = args.arg_column;
+
+    let column_to_separate_sel: SelectedColumns =
+        SelectedColumns::try_from(column_to_separate_name.clone())?;
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column)
+        .select(column_to_separate_sel)
         .delimiter(args.flag_delimiter);
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
@@ -496,7 +502,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for i in 1..=number_of_new_columns {
-            let header_name = format!("split{}", i);
+            let header_name = format!("{}{}", column_to_separate_name, i);
             new_headers.push_field(header_name.as_bytes());
         }
 
