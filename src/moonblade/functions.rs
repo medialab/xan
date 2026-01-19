@@ -100,6 +100,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("timezone"),
             ]),
         ),
+        "now" => (now, FunctionArguments::nullary()),
         "dirname" => (dirname, FunctionArguments::unary()),
         "div" => (
             |args| variadic_arithmetic_op(args, Div::div),
@@ -1569,6 +1570,10 @@ fn timestamp_ms(args: BoundArguments) -> FunctionResult {
             milliseconds
         ))),
     }
+}
+
+fn now(_args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(dates::now()))
 }
 
 fn datetime(args: BoundArguments) -> FunctionResult {
