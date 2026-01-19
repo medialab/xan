@@ -1582,7 +1582,7 @@ fn timestamp_ms(args: BoundArguments) -> FunctionResult {
 }
 
 fn now(_args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(dates::now()))
+    Ok(DynamicValue::from(Zoned::now()))
 }
 
 fn date_arith<F>(args: BoundArguments, op: F) -> FunctionResult

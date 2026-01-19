@@ -194,10 +194,6 @@ impl From<Error> for ZonedParseError {
     }
 }
 
-pub fn now() -> Zoned {
-    Zoned::now()
-}
-
 pub fn parse_zoned(
     value: &str,
     format: Option<&str>,
