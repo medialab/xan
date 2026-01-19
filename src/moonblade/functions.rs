@@ -100,6 +100,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
                 Argument::with_name("timezone"),
             ]),
         ),
+        "date_add" => (
+            |args| date_arith(args, |dt, span| dt.checked_add(span)),
+            FunctionArguments::binary(),
+        ),
+        "date_sub" => (
+            |args| date_arith(args, |dt, span| dt.checked_sub(span)),
+            FunctionArguments::binary(),
+        ),
         "now" => (now, FunctionArguments::nullary()),
         "dirname" => (dirname, FunctionArguments::unary()),
         "div" => (
@@ -1574,6 +1582,19 @@ fn timestamp_ms(args: BoundArguments) -> FunctionResult {
 
 fn now(_args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(dates::now()))
+}
+
+fn date_arith<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: FnOnce(Zoned, jiff::Span) -> Result<Zoned, jiff::Error>,
+{
+    let (arg1, arg2) = args.get2();
+    let dt = arg1.try_as_datetime()?;
+    let span = arg2.try_as_span()?;
+
+    op(dt.into_owned(), span)
+        .map(DynamicValue::from)
+        .map_err(|e| EvaluationError::DateTime(e.to_string()))
 }
 
 fn datetime(args: BoundArguments) -> FunctionResult {
