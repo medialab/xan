@@ -1599,9 +1599,7 @@ where
 }
 
 fn days(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2();
-    let dt1 = arg1.try_as_datetime()?;
-    let dt2 = arg2.try_as_datetime()?;
+    let (dt1, dt2) = args.get2_datetime()?;
     let delta = dt2
         .since(&*dt1)
         .map_err(|e| EvaluationError::DateTime(e.to_string()))?
