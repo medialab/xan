@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use jiff::Zoned;
 
 use arrayvec::ArrayVec;
 
@@ -91,6 +92,12 @@ impl BoundArguments {
         let (a, b) = self.get2();
 
         Ok((a.try_as_number()?, b.try_as_number()?))
+    }
+
+    pub fn get2_datetime(&self) -> Result<(Cow<Zoned>, Cow<Zoned>), EvaluationError> {
+        let (a, b) = self.get2();
+
+        Ok((a.try_as_datetime()?, b.try_as_datetime()?))
     }
 }
 
