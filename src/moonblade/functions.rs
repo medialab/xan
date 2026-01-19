@@ -108,6 +108,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| date_arith(args, |dt, span| dt.checked_sub(span)),
             FunctionArguments::binary(),
         ),
+        "days" => (days, FunctionArguments::binary()),
         "now" => (now, FunctionArguments::nullary()),
         "dirname" => (dirname, FunctionArguments::unary()),
         "div" => (
@@ -1596,6 +1597,19 @@ where
         .map(DynamicValue::from)
         .map_err(|e| EvaluationError::DateTime(e.to_string()))
 }
+
+fn days(args: BoundArguments) -> FunctionResult {
+    let (arg1, arg2) = args.get2();
+    let dt1 = arg1.try_as_datetime()?;
+    let dt2 = arg2.try_as_datetime()?;
+    let delta = dt2
+        .since(&*dt1)
+        .map_err(|e| EvaluationError::DateTime(e.to_string()))?
+        .total((jiff::Unit::Day, jiff::SpanRelativeTo::days_are_24_hours()))
+        .map_err(|e| EvaluationError::DateTime(e.to_string()))?;
+    Ok(DynamicValue::from(delta))
+}
+
 
 fn datetime(args: BoundArguments) -> FunctionResult {
     let datestring = args.get1().try_as_str()?;
