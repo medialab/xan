@@ -514,6 +514,12 @@
     "title": "Dates & time",
     "functions": [
       {
+        "name": "now",
+        "arguments": [],
+        "returns": "datetime",
+        "help": "Return the current datetime."
+      },
+      {
         "name": "datetime",
         "arguments": ["string", "format=?", "timezone=?"],
         "returns": "datetime",
@@ -532,6 +538,24 @@
         "alternatives": [["list_of_datetimes"]],
         "returns": "datetime",
         "help": "Return the latest datetime."
+      },
+      {
+        "name": "date_add",
+        "arguments": ["datetime", "span"],
+        "returns": "datetime",
+        "help": "Return the datetime after adding the given span. Span can be expressed as ISO 8601 format, e.g. `\"P3dT4h59m\"` or friendly span, e.g. `\"3 days\"`."
+      },
+      {
+        "name": "date_sub",
+        "arguments": ["datetime", "span"],
+        "returns": "datetime",
+        "help": "Return the datetime after subtracting the given span. Span can be expressed as ISO 8601 format, e.g. `\"P3dT4h59m\"` or friendly span, e.g. `\"3 days\"`."
+      },
+      {
+        "name": "days",
+        "arguments": ["datetime1", "datetime2"],
+        "returns": "float",
+        "help": "Return the number of days between the two dates. If datetime1 is before datetime2, the result will be positive."
       },
       {
         "name": "strftime",
