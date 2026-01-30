@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use bstr::BString;
 use btoi::btoi;
-use jiff::{tz::TimeZone, Zoned};
+use jiff::{tz::TimeZone, Span, Zoned};
 use regex::Regex;
 use serde::{
     de::{Deserializer, MapAccess, SeqAccess, Visitor},
@@ -36,6 +36,7 @@ pub enum DynamicValue {
     Boolean(bool),
     Regex(Arc<Regex>),
     DateTime(Box<Zoned>),
+    Span(Span),
     None,
 }
 
@@ -44,6 +45,12 @@ const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T%.f[%Z]";
 fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
     dates::parse_zoned(value, None, None)
         .map_err(|err| EvaluationError::from_zoned_parse_error(value, None, None, err))
+}
+
+fn parse_span(value: &str) -> Result<Span, EvaluationError> {
+    value
+        .parse::<Span>()
+        .map_err(|_| EvaluationError::DateTime(format!("\"{}\" is not a valid span", value)))
 }
 
 impl Default for DynamicValue {
@@ -70,6 +77,7 @@ impl Serialize for DynamicValue {
                 .strftime(DYNAMIC_VALUE_DATE_FORMAT)
                 .to_string()
                 .serialize(serializer),
+            Self::Span(v) => v.to_string().serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -198,6 +206,7 @@ impl DynamicValue {
             Self::Boolean(_) => "boolean",
             Self::DateTime(_) => "datetime",
             Self::Regex(_) => "regex",
+            Self::Span(_) => "span",
             Self::None => "none",
         }
     }
@@ -248,6 +257,7 @@ impl DynamicValue {
                     .into_bytes(),
             ),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
+            Self::Span(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
     }
@@ -274,6 +284,17 @@ impl DynamicValue {
             )
             .map(Cow::Owned),
             _ => Err(EvaluationError::from_cast(self, "datetime")),
+        }
+    }
+
+    pub fn try_as_span(&self) -> Result<Span, EvaluationError> {
+        match self {
+            DynamicValue::Span(value) => Ok(*value),
+            DynamicValue::String(value) => parse_span(value),
+            DynamicValue::Bytes(value) => parse_span(
+                std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?,
+            ),
+            _ => Err(EvaluationError::from_cast(self, "span")),
         }
     }
 
@@ -448,6 +469,7 @@ impl DynamicValue {
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
             Self::DateTime(_) => true,
+            Self::Span(_) => true,
             Self::None => false,
         }
     }
@@ -632,6 +654,12 @@ impl From<Zoned> for DynamicValue {
     }
 }
 
+impl From<Span> for DynamicValue {
+    fn from(value: Span) -> Self {
+        DynamicValue::Span(value)
+    }
+}
+
 impl<T> From<Option<T>> for DynamicValue
 where
     T: Into<DynamicValue>,
@@ -655,6 +683,7 @@ impl PartialEq for DynamicValue {
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
             (Self::DateTime(a), Self::DateTime(b)) => a == b,
+            (Self::Span(a), Self::Span(b)) => a.fieldwise() == b.fieldwise(),
             (Self::None, Self::None) => true,
             _ => false,
         }
