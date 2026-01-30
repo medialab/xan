@@ -51,8 +51,8 @@ Using the following command:
 Will produce the following result:
 
 user,count,total
-john,7,17
-marcy,10,17
+john,6,17
+marcy,11,17
 
 You can then pipe this into e.g. `xan select -e` and get a ratio:
 
