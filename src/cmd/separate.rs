@@ -382,9 +382,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let column_to_separate_name = args.arg_column;
-
-    let column_to_separate_sel: SelectedColumns =
-        SelectedColumns::try_from(column_to_separate_name.clone())?;
+    let column_to_separate_sel = SelectedColumns::try_from(column_to_separate_name.clone())?;
 
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)

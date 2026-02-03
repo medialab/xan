@@ -2,6 +2,10 @@
 
 ## 0.55.0 (provisional)
 
+*Breaking*
+
+* Changing how `xan separate` generates default column names.
+
 *Features*
 
 * Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
@@ -11,6 +15,7 @@
 * Adding `xan view --reveal-whitespace=(auto|always|never)`.
 * Adding `--color` support to `XAN_VIEW_ARGS`.
 * Adding `xan from -f json --sample-size -1` to sample the complete file.
+* Adding `xan separate --prefix`.
 
 *Quality of Life*
 
