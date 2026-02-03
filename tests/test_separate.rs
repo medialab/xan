@@ -38,7 +38,14 @@ fn separate() {
     cmd1.arg("locution").arg(" ").arg("data.csv");
     let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
-        svec!["id", "split1", "split2", "split3", "split4", "split5"],
+        svec![
+            "id",
+            "locution1",
+            "locution2",
+            "locution3",
+            "locution4",
+            "locution5"
+        ],
         svec!["0", "a", "priori", "", "", ""],
         svec!["1", "de", "", "", "facto", ""],
         svec!["2", "", "", "", "", ""],
@@ -53,12 +60,32 @@ fn separate() {
     cmd3.arg("fullname").arg(" ").arg("data.csv");
     let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
-        svec!["split1", "split2", "birthdate"],
+        svec!["fullname1", "fullname2", "birthdate"],
         svec!["John", "Doe", "1990 05 15"],
         svec!["Jane", "Smith", "1985 10 30"],
         svec!["Alice", "Johnson", "2000 01 01"],
     ];
     assert_eq!(got3, expected3);
+}
+
+#[test]
+fn separate_prefix() {
+    let wrk = Workdir::new("separate_prefix");
+    wrk.create("data.csv", people());
+    let mut cmd = wrk.command("separate");
+    cmd.arg("fullname")
+        .arg(" ")
+        .arg("data.csv")
+        .arg("--prefix")
+        .arg("name_");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name_1", "name_2", "birthdate"],
+        svec!["John", "Doe", "1990 05 15"],
+        svec!["Jane", "Smith", "1985 10 30"],
+        svec!["Alice", "Johnson", "2000 01 01"],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -74,7 +101,7 @@ fn separate_too_many() {
         .args(["--max", "2"]);
     let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
-        svec!["fullname", "split1", "split2"],
+        svec!["fullname", "birthdate1", "birthdate2"],
         svec!["John Doe", "1990", "05"],
         svec!["Jane Smith", "1985", "10"],
         svec!["Alice Johnson", "2000", "01"],
@@ -109,11 +136,11 @@ fn separate_too_many() {
     let got3: Vec<Vec<String>> = wrk.read_stdout(&mut cmd3);
     let expected3 = vec![
         svec![
-            "split1",
-            "split2",
-            "split3",
-            "split4",
-            "split5",
+            "fullname1",
+            "fullname2",
+            "fullname3",
+            "fullname4",
+            "fullname5",
             "birthdate"
         ],
         svec!["John", "Doe", "", "", "", "1990 05 15"],
@@ -149,7 +176,7 @@ fn separate_too_many() {
         .arg("2");
     let got5: Vec<Vec<String>> = wrk.read_stdout(&mut cmd5);
     let expected5 = vec![
-        svec!["fullname", "split1", "split2"],
+        svec!["fullname", "birthdate1", "birthdate2"],
         svec!["John Doe", "1990", "05 15"],
         svec!["Jane Smith", "1985", "10 30"],
         svec!["Alice Johnson", "2000", "01 01"],
@@ -167,11 +194,11 @@ fn separate_too_many() {
     let got6: Vec<Vec<String>> = wrk.read_stdout(&mut cmd6);
     let expected6 = vec![
         svec![
-            "split1",
-            "split2",
-            "split3",
-            "split4",
-            "split5",
+            "fullname1",
+            "fullname2",
+            "fullname3",
+            "fullname4",
+            "fullname5",
             "birthdate"
         ],
         svec!["John", "Doe", "", "", "", "1990 05 15"],
@@ -190,7 +217,15 @@ fn separate_keep_column() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["id", "locution", "split1", "split2", "split3", "split4", "split5"],
+        svec![
+            "id",
+            "locution",
+            "locution1",
+            "locution2",
+            "locution3",
+            "locution4",
+            "locution5"
+        ],
         svec!["0", "a priori", "a", "priori", "", "", ""],
         svec!["1", "de   facto", "de", "", "", "facto", ""],
         svec!["2", "", "", "", "", "", ""],
@@ -205,7 +240,7 @@ fn separate_keep_column() {
     cmd.arg("fullname").arg(" ").arg("data.csv").arg("--keep");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["fullname", "split1", "split2", "birthdate"],
+        svec!["fullname", "fullname1", "fullname2", "birthdate"],
         svec!["John Doe", "John", "Doe", "1990 05 15"],
         svec!["Jane Smith", "Jane", "Smith", "1985 10 30"],
         svec!["Alice Johnson", "Alice", "Johnson", "2000 01 01"],
@@ -221,7 +256,7 @@ fn separate_regex_sep() {
     cmd.arg("locution").arg(r"\s+").arg("data.csv").arg("-r");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["id", "split1", "split2", "split3"],
+        svec!["id", "locution1", "locution2", "locution3"],
         svec!["0", "a", "priori", ""],
         svec!["1", "de", "facto", ""],
         svec!["2", "", "", ""],
@@ -252,7 +287,7 @@ fn separate_regex_capture_groups() {
         .arg("-c");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["split1", "split2", "split3"],
+        svec!["path1", "path2", "path3"],
         svec!["path/to/foo", "54", "Blue Harvest"],
         svec![
             "path/to/bar",
@@ -284,7 +319,7 @@ fn separate_regex_match() {
         .arg("-m");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["split1", "split2"],
+        svec!["locution1", "locution2"],
         svec!["123", "456"],
         svec!["", ""],
         svec!["789", ""],
@@ -326,7 +361,7 @@ fn separate_named_and_known_max_splits() {
         .arg("year,month,day");
     let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
-        svec!["year", "month", "day", "split1"],
+        svec!["year", "month", "day", "date1"],
         svec!["2023", "01", "15", ""],
         svec!["1999", "12", "31", ""],
         svec!["2024", "07", "04", ""],
@@ -427,7 +462,7 @@ fn separate_fixed_width() {
         .arg("dates.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["split1", "split2", "split3", "split4"],
+        svec!["date1", "date2", "date3", "date4"],
         svec!["202", "3-0", "1-1", "5"],
         svec!["199", "9-1", "2-3", "1"],
         svec!["202", "4-0", "7-0", "4"],
@@ -441,7 +476,7 @@ fn separate_fixed_width() {
         .arg("dates.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["split1", "split2"],
+        svec!["date1", "date2"],
         svec!["2023-", "01-15"],
         svec!["1999-", "12-31"],
         svec!["2024-", "07-04"],

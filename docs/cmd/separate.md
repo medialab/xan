@@ -15,7 +15,8 @@ to some splitting algorithm that can be one of:
     * --offsets: extract byte slices
 
 Created columns can be given a name using the --into flag, else they will be
-given generic names like "split1",  "split2" and so forth.
+given generic names based on the original column name. For instance, splitting a
+column named "text" will produce columns named "text1", "text2"...
 
 It is also possible to limit the number of splits using the --max flag.
 
@@ -82,9 +83,15 @@ separate options:
                            By default, all possible splits are made.
     --into <column-names>  Specify names for the new columns created by the
                            splits. If not provided, new columns will be named
-                           split1, split2, etc. If used with --max,
+                           before the original column name ('text' column will
+                           be separated into 'text1', 'text2', etc.). If used with --max,
                            the number of names provided must be equal or lower
-                           than <n>.
+                           than <n>. Cannot be used with --prefix.
+    --prefix <prefix>      Specify a prefix for the new columns created by the
+                           splits. By default, no prefix is used and new columns
+                           are named before the original column name ('text'
+                           column will be separated into 'text1', 'text2', etc.).
+                           Cannot be used with --into.
     --too-many <option>    Specify how to handle extra cells when the number
                            of splitted cells exceeds --max, or
                            the number of provided names with --into.
