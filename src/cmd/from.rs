@@ -110,6 +110,9 @@ JSON options:
                            This may cost a lot of memory but will ensure all possible
                            keys have been observed and no data is lost when converting.
                            [default: 64]
+    --sort-keys            Sort JSON keys lexicographically to emit columns accordingly.
+                           This can be useful to harmonize different JSON sources with
+                           no consistent key ordering.
     --key-column <name>    Name for the key column when parsing a JSON map.
                            [default: key]
     --value-column <name>  Name for the value column when parsing a JSON map.
@@ -138,6 +141,7 @@ struct Args {
     flag_format: Option<SupportedFormat>,
     flag_output: Option<String>,
     flag_sample_size: isize,
+    flag_sort_keys: bool,
     flag_key_column: String,
     flag_value_column: String,
     flag_column: String,
@@ -266,6 +270,10 @@ impl Args {
         let mut rdr = simd_csv::LineReader::from_reader(Config::new(&self.arg_input).io_reader()?);
         let mut tabularizer = JSONTabularizer::from_writer(wtr, self.sample_size());
 
+        if self.flag_sort_keys {
+            tabularizer.reorder_keys();
+        }
+
         while let Some(line) = rdr.read_line()? {
             // Sshhh... it's alright, really.
             let line_mut =
@@ -302,6 +310,10 @@ impl Args {
         if let Value::Array(array) = value {
             let wtr = self.writer()?;
             let mut tabularizer = JSONTabularizer::from_writer(wtr, self.sample_size());
+
+            if self.flag_sort_keys {
+                tabularizer.reorder_keys();
+            }
 
             for item in array.into_iter() {
                 tabularizer.process(item)?;

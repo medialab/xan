@@ -5,6 +5,7 @@
 *Breaking*
 
 * Changing how `xan separate` generates default column names.
+* `xan from -f=(json|ndjson|jsonl)` will now emit column in input order by default.
 
 *Features*
 
@@ -15,6 +16,7 @@
 * Adding `xan view --reveal-whitespace=(auto|always|never)`.
 * Adding `--color` support to `XAN_VIEW_ARGS`.
 * Adding `xan from -f json --sample-size -1` to sample the complete file.
+* Adding `xan from --sort-keys`.
 * Adding `xan separate --prefix`.
 
 *Quality of Life*

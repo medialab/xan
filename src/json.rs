@@ -140,27 +140,34 @@ enum JSONTraversalState {
 
 type JSONTraversalStack = Vec<JSONTraversalState>;
 
-fn traverse_to_build_stack(value: &Value, stack: &mut JSONTraversalStack, depth: usize) {
+fn traverse_to_build_stack(
+    value: &Value,
+    stack: &mut JSONTraversalStack,
+    reorder_keys: bool,
+    depth: usize,
+) {
     match value {
         Value::Object(map) => {
             let mut items = map.iter().collect::<Vec<_>>();
 
             // NOTE: we put scalar values first, then nested ones and we also sort by key
-            items.sort_by_key(|i| {
-                (
-                    if matches!(i.1, Value::Object(_)) {
-                        1
-                    } else {
-                        0
-                    },
-                    i.0,
-                )
-            });
+            if reorder_keys {
+                items.sort_by_key(|i| {
+                    (
+                        if matches!(i.1, Value::Object(_)) {
+                            1
+                        } else {
+                            0
+                        },
+                        i.0,
+                    )
+                });
+            }
 
             for (k, v) in items {
                 stack.push(JSONTraversalState::Delve(k.to_string(), depth));
 
-                traverse_to_build_stack(v, stack, depth + 1);
+                traverse_to_build_stack(v, stack, reorder_keys, depth + 1);
 
                 stack.push(JSONTraversalState::Pop(depth));
             }
@@ -291,6 +298,7 @@ pub struct JSONTabularizer<W: Write> {
     flushed: bool,
     output_record: ByteRecord,
     stack: JSONTraversalStack,
+    reorder_keys: bool,
 }
 
 impl<W: Write> JSONTabularizer<W> {
@@ -306,7 +314,12 @@ impl<W: Write> JSONTabularizer<W> {
             flushed: false,
             output_record: ByteRecord::new(),
             stack: JSONTraversalStack::new(),
+            reorder_keys: false,
         }
+    }
+
+    pub fn reorder_keys(&mut self) {
+        self.reorder_keys = true;
     }
 
     pub fn flush(&mut self) -> simd_csv::Result<()> {
@@ -314,7 +327,12 @@ impl<W: Write> JSONTabularizer<W> {
             return Ok(());
         }
 
-        traverse_to_build_stack(&self.harmonized_value, &mut self.stack, 0);
+        traverse_to_build_stack(
+            &self.harmonized_value,
+            &mut self.stack,
+            self.reorder_keys,
+            0,
+        );
         self.writer
             .write_byte_record(&headers_from_stack(&self.stack))?;
 
