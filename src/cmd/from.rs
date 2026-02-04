@@ -117,6 +117,8 @@ JSON options:
                            [default: key]
     --value-column <name>  Name for the value column when parsing a JSON map.
                            [default: value]
+    --single-object        Use if JSON only represents a single object that you want
+                           to map to a single CSV row, instead of mapping to key,value columns.
 
 Text lines options:
     -c, --column <name>    Name of the column to create.
@@ -144,6 +146,7 @@ struct Args {
     flag_sort_keys: bool,
     flag_key_column: String,
     flag_value_column: String,
+    flag_single_object: bool,
     flag_column: String,
     flag_nth_table: isize,
 }
@@ -295,16 +298,20 @@ impl Args {
 
         // NOTE: recombobulating objects as collections
         if let Value::Object(object) = value {
-            let mut items = Vec::with_capacity(object.len());
+            if self.flag_single_object {
+                value = Value::Array(vec![Value::Object(object)]);
+            } else {
+                let mut items = Vec::with_capacity(object.len());
 
-            for (k, v) in object {
-                items.push(Value::Object(Map::from_iter([
-                    (self.flag_key_column.clone(), Value::String(k)),
-                    (self.flag_value_column.clone(), v),
-                ])));
+                for (k, v) in object {
+                    items.push(Value::Object(Map::from_iter([
+                        (self.flag_key_column.clone(), Value::String(k)),
+                        (self.flag_value_column.clone(), v),
+                    ])));
+                }
+
+                value = Value::Array(items);
             }
-
-            value = Value::Array(items);
         }
 
         if let Value::Array(array) = value {

@@ -19,6 +19,7 @@
 * Adding `xan from -f json --sample-size -1` to sample the complete file.
 * Adding `xan from --sort-keys`.
 * Adding `xan separate --prefix`.
+* Adding `xan from -f json --single-object`.
 
 *Quality of Life*
 

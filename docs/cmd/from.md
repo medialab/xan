@@ -54,6 +54,8 @@ JSON options:
                            [default: key]
     --value-column <name>  Name for the value column when parsing a JSON map.
                            [default: value]
+    --single-object        Use if JSON only represents a single object that you want
+                           to map to a single CSV row, instead of mapping to key,value columns.
 
 Text lines options:
     -c, --column <name>    Name of the column to create.
