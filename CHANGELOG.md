@@ -6,6 +6,7 @@
 
 * Changing how `xan separate` generates default column names.
 * `xan from -f=(json|ndjson|jsonl)` will now emit column in input order by default.
+* Changing `xan to -B/--buffer-size` to `--sample-size` to harmonize flag names with `xan from`.
 
 *Features*
 

@@ -24,10 +24,10 @@ memory.
 Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
-    -B, --buffer-size <size>  Number of CSV rows to sample to infer column types.
-                              [default: 512]
-    --nulls                   Convert empty string to a null value.
-    --omit                    Ignore the empty values.
+    --sample-size <size>  Number of CSV rows to sample to infer column types.
+                          [default: 512]
+    --nulls               Convert empty string to a null value.
+    --omit                Ignore the empty values.
 
 NPY options:
     --dtype <type>  Number type to use for the npy conversion. Must be one of "f32"
