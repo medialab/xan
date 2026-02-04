@@ -20,6 +20,8 @@
 * Adding `xan from --sort-keys`.
 * Adding `xan separate --prefix`.
 * Adding `xan from -f json --single-object`.
+* Adding `xan heatmap -C` short flag for `--cram`.
+* Adding `xan heatmap --repeat-headers`.
 
 *Quality of Life*
 
