@@ -129,12 +129,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = conf.reader()?;
     let headers = rdr.byte_headers()?.clone();
 
+    let err_msg = |err: String| {
+        format!("{}\nxan hist expects a field?,value,count CSV input (typically produced by `xan freq` or `xan bins`)!\nSee xan hist --help for more info.", err)
+    };
+
     let label_pos = args
         .flag_label
-        .single_selection(&headers, !conf.no_headers)?;
+        .single_selection(&headers, !conf.no_headers)
+        .map_err(err_msg)?;
+
     let value_pos = args
         .flag_value
-        .single_selection(&headers, !conf.no_headers)?;
+        .single_selection(&headers, !conf.no_headers)
+        .map_err(err_msg)?;
+
     let field_pos_option = args
         .flag_field
         .single_selection(&headers, !conf.no_headers)

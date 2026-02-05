@@ -30,6 +30,7 @@
 
 * `xan view -p` will not print bottom header anymore by default.
 * `xan view` will not reveal problematic whitespace if output is not colored anymore, by default.
+* Better `xan hist` error messages and help.
 
 ## 0.54.1
 
