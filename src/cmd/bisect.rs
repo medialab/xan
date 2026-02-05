@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use simd_csv::ByteRecord;
 
 use crate::cmd::sort::{compare_num, parse_num, Number};
@@ -44,65 +46,65 @@ struct Args {
 }
 
 impl Args {
-    fn get_value_from_bytes(&self, bytes: &[u8]) -> Result<ValuesType, String> {
+    fn get_value_from_bytes(&self, bytes: &[u8]) -> Result<Value, String> {
         if self.flag_numeric {
-            ValuesType::new_number(bytes)
+            Value::new_number(bytes)
         } else {
-            Ok(ValuesType::new_string(bytes))
+            Ok(Value::new_string(bytes))
         }
     }
 }
 
 #[derive(Clone, PartialEq, Debug)]
-enum ValuesType {
+enum Value {
     Number(Number),
     String(Vec<u8>),
 }
 
-impl Eq for ValuesType {}
+impl Eq for Value {}
 
-impl PartialOrd for ValuesType {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for ValuesType {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (ValuesType::Number(n1), ValuesType::Number(n2)) => compare_num(*n1, *n2),
-            (ValuesType::String(s1), ValuesType::String(s2)) => s1.cmp(s2),
+            (Self::Number(n1), Self::Number(n2)) => compare_num(*n1, *n2),
+            (Self::String(s1), Self::String(s2)) => s1.cmp(s2),
             _ => panic!("Cannot compare different value types"),
         }
     }
 }
 
-impl std::fmt::Display for ValuesType {
+impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ValuesType::Number(n) => match n {
+            Self::Number(n) => match n {
                 Number::Int(i) => write!(f, "{}", i),
                 Number::Float(fl) => write!(f, "{}", fl),
             },
-            ValuesType::String(s) => write!(f, "{}", std::str::from_utf8(s).unwrap()),
+            Self::String(s) => write!(f, "{}", std::str::from_utf8(s).unwrap()),
         }
     }
 }
 
-impl ValuesType {
+impl Value {
     fn new_string(s: &[u8]) -> Self {
-        ValuesType::String(s.to_vec())
+        Self::String(s.to_vec())
     }
 
     fn new_number(s: &[u8]) -> Result<Self, String> {
         match parse_num(s) {
-            Some(n) => Ok(ValuesType::Number(n)),
+            Some(n) => Ok(Self::Number(n)),
             None => Err("Failed to parse number from bytes".to_string()),
         }
     }
 }
 
-fn reversing_order_if_necessary(ord: std::cmp::Ordering, reverse: bool) -> std::cmp::Ordering {
+fn reversing_order_if_necessary(ord: Ordering, reverse: bool) -> Ordering {
     if reverse {
         ord.reverse()
     } else {
@@ -136,11 +138,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut previous_median: Option<u64> = None;
 
-    let mut value: ValuesType;
-    let mut previous_median_value: Option<ValuesType> = None;
+    let mut previous_median_value: Option<Value> = None;
     let mut being_in_first_half: bool = false;
 
-    let mut record: ByteRecord;
+    let mut record = ByteRecord::new();
     let mut record_pos: u64 = seek_rdr.first_record_position();
     let mut previously_found_record_pos: Option<u64> = None;
     let mut median_byte_for_first_occurrence: Option<u64> = None;
@@ -152,7 +153,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let last_value = args.get_value_from_bytes(&last_record[column_index])?;
 
     if reversing_order_if_necessary(first_value.cmp(&last_value), args.flag_reverse)
-        == std::cmp::Ordering::Greater
+        == Ordering::Greater
     {
         Err(
             format!("Input is not sorted in the specified order, first and last values are inconsistent: {} and {}", first_value, last_value)
@@ -160,11 +161,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     match reversing_order_if_necessary(target_value.cmp(&first_value), args.flag_reverse) {
-        std::cmp::Ordering::Equal => {
+        Ordering::Equal => {
             // No search needed, write first record and every next ones with the same value
             // record_pos = seek_rdr.first_record_position();
             let mut rdr = rconf.simd_reader()?;
-            record = ByteRecord::new();
 
             while rdr.read_byte_record(&mut record)? {
                 if args.get_value_from_bytes(&record[column_index])? == target_value {
@@ -176,10 +176,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             return Ok(wtr.flush()?);
         }
-        std::cmp::Ordering::Less => {
+        Ordering::Less => {
             // Target value is out of bounds, so it is not present
         }
-        std::cmp::Ordering::Greater => {
+        Ordering::Greater => {
             // checking the second record as it is skipped
             // by simd_csv::Seek::Seeker::find_record_after()
             // when records are too small
@@ -216,9 +216,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if let Some(sought) = sought {
                 (record_pos, record) = sought;
-                value = args.get_value_from_bytes(&record[column_index])?;
+                let value = args.get_value_from_bytes(&record[column_index])?;
                 match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse) {
-                    std::cmp::Ordering::Equal => {
+                    Ordering::Equal => {
                         // We need to find the first occurrence of the target value
                         end_byte = record_pos - 1;
                         being_in_first_half = true;
@@ -238,10 +238,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                     args.flag_reverse,
                                 ),
                             ) {
-                                (true, std::cmp::Ordering::Less) => {
+                                (true, Ordering::Less) => {
                                     Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
                                 }
-                                (false, std::cmp::Ordering::Greater) => {
+                                (false, Ordering::Greater) => {
                                     Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
                                 }
                                 _ => {}
@@ -249,12 +249,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
 
                         match ord {
-                            std::cmp::Ordering::Less => {
+                            Ordering::Less => {
                                 // move start byte up
                                 being_in_first_half = false;
                                 start_byte = median_byte;
                             }
-                            std::cmp::Ordering::Greater => {
+                            Ordering::Greater => {
                                 // move end byte down
                                 being_in_first_half = true;
                                 end_byte = median_byte;
@@ -308,7 +308,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 // Check if we have a new record and if we have not yet returned
                 // the first occurrence
                 if record_pos != old_record_pos || !returned_first_occurrence {
-                    value = args.get_value_from_bytes(&record[column_index])?;
+                    let value = args.get_value_from_bytes(&record[column_index])?;
 
                     if value == target_value {
                         wtr.write_byte_record(&record)?;
