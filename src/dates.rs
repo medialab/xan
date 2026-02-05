@@ -6,7 +6,7 @@ lazy_static! {
     static ref PARTIAL_DATE_REGEX: Regex = Regex::new(r"^[12]\d{3}(?:-(?:0\d|1[012]))?$").unwrap();
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Copy, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PartialDate {
     inner: Date,
     precision: Unit,
@@ -41,6 +41,24 @@ impl PartialDate {
     pub fn as_unit(&self) -> Unit {
         self.precision
     }
+
+    pub fn as_date(&self) -> &Date {
+        &self.inner
+    }
+
+    pub fn next(&self) -> Self {
+        Self {
+            inner: next_partial_date(self.precision, &self.inner),
+            precision: self.precision,
+        }
+    }
+
+    pub fn previous(&self) -> Self {
+        Self {
+            inner: previous_partial_date(self.precision, &self.inner),
+            precision: self.precision,
+        }
+    }
 }
 
 pub fn is_partial_date(string: &str) -> bool {
@@ -68,6 +86,15 @@ pub fn next_partial_date(unit: Unit, date: &Date) -> Date {
         Unit::Year => date.checked_add(1.year()).unwrap(),
         Unit::Month => date.checked_add(1.month()).unwrap(),
         Unit::Day => date.checked_add(1.day()).unwrap(),
+        _ => unimplemented!(),
+    }
+}
+
+pub fn previous_partial_date(unit: Unit, date: &Date) -> Date {
+    match unit {
+        Unit::Year => date.checked_sub(1.year()).unwrap(),
+        Unit::Month => date.checked_sub(1.month()).unwrap(),
+        Unit::Day => date.checked_sub(1.day()).unwrap(),
         _ => unimplemented!(),
     }
 }

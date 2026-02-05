@@ -10,6 +10,7 @@
 
 *Features*
 
+* Adding the `xan complete` command.
 * Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
 * Adding `basename` & `dirname` moonblade functions.
 * Adding `parse_py_literal` moonblade functions. Useful to deal with files dubiously serialized using `pandas`.
