@@ -2,11 +2,23 @@
 # xan hist
 
 ```txt
-Print a horizontal histogram for the given CSV file with each line
-representing a bar in the resulting graph.
+Print horizontal histograms for the given CSV file with each row representing
+a bar in the graph.
 
-This command is very useful when used in conjunction with the `frequency` or `bins`
-command.
+This command is often used with the `frequency` or `bins` commands:
+
+    $ xan freq -s username tweets.csv | xan hist
+
+    $ xan bins -s retweet_count,like_count tweets.csv | xan hist
+
+Else, this command expects a CSV file with the following columns:
+
+    - "field" (optional): the name of a histogram to print
+    - "value": a single bar's label
+    - "count": a single bar's represented numerical value
+
+You can always customize those column names through the -f/--field, -l/--label
+and -v/--value flags respectively.
 
 Usage:
     xan hist [options] [<input>]
