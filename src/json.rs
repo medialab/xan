@@ -419,6 +419,10 @@ impl JSONTypeInferrence {
         }
     }
 
+    fn set_string(&mut self, index: usize) {
+        self.json_types[index] = JSONType::String;
+    }
+
     fn infer(value: &str) -> JSONType {
         if value.is_empty() {
             return JSONType::Null;
@@ -508,6 +512,10 @@ impl JSONTypeInferrenceBuffer {
         empty_mode: JSONEmptyMode,
     ) -> Self {
         Self::new(Selection::full(columns), buffer_size, empty_mode)
+    }
+
+    pub fn set_string(&mut self, index: usize) {
+        self.inferrence.set_string(index);
     }
 
     pub fn read<R: Read>(&mut self, reader: &mut csv::Reader<R>) -> Result<(), csv::Error> {

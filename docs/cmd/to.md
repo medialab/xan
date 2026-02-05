@@ -29,6 +29,8 @@ JSON options:
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.
+    --strings <columns>   Force selected columns to be considered as raw strings
+                          instead of integers, floats etc.
 
 NPY options:
     --dtype <type>  Number type to use for the npy conversion. Must be one of "f32"

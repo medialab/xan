@@ -21,6 +21,7 @@
 * Adding `xan from -f json --single-object`.
 * Adding `xan from --sort-keys`.
 * Adding `xan to (json|ndjson|jsonl) --sample-size -1` to sample the whole file.
+* Adding `xan to (json|ndjson|jsonl) --strings` flag.
 * Adding `xan separate --prefix`.
 * Adding `xan heatmap -C` short flag for `--cram`.
 * Adding `xan heatmap --repeat-headers`.
