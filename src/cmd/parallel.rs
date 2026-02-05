@@ -670,8 +670,10 @@ parallel count options:
 
 parallel cat options:
     -B, --buffer-size <n>       Number of rows a thread is allowed to keep in memory
-                                before flushing to the output. Set <= 0 to flush only once per
-                                processed file. Keep in mind this could cost a lot of memory.
+                                before flushing to the output. Set to -1 for infinite buffer size,
+                                which means flushing only once per processed file. This can be
+                                useful to ensure resulting rows are grouped by input file in the output.
+                                But keep in mind this could also cost a lot of memory.
                                 [default: 1024]
     -S, --source-column <name>  Name of a column to prepend in the output of indicating the
                                 path to source file.

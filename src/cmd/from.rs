@@ -106,11 +106,19 @@ Excel/OpenOffice-related options:
 
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.
+                           Set to -1 to sample ALL records before emitting headers.
+                           This may cost a lot of memory but will ensure all possible
+                           keys have been observed and no data is lost when converting.
                            [default: 64]
+    --sort-keys            Sort JSON keys lexicographically to emit columns accordingly.
+                           This can be useful to harmonize different JSON sources with
+                           no consistent key ordering.
     --key-column <name>    Name for the key column when parsing a JSON map.
                            [default: key]
     --value-column <name>  Name for the value column when parsing a JSON map.
                            [default: value]
+    --single-object        Use if JSON only represents a single object that you want
+                           to map to a single CSV row, instead of mapping to key,value columns.
 
 Text lines options:
     -c, --column <name>    Name of the column to create.
@@ -134,9 +142,11 @@ struct Args {
     flag_list_sheets: bool,
     flag_format: Option<SupportedFormat>,
     flag_output: Option<String>,
-    flag_sample_size: NonZeroUsize,
+    flag_sample_size: isize,
+    flag_sort_keys: bool,
     flag_key_column: String,
     flag_value_column: String,
+    flag_single_object: bool,
     flag_column: String,
     flag_nth_table: isize,
 }
@@ -144,6 +154,14 @@ struct Args {
 impl Args {
     fn writer(&self) -> io::Result<simd_csv::Writer<Box<dyn io::Write + Send>>> {
         Config::new(&self.flag_output).simd_writer()
+    }
+
+    fn sample_size(&self) -> Option<NonZeroUsize> {
+        if self.flag_sample_size <= 0 {
+            None
+        } else {
+            Some(NonZeroUsize::new(self.flag_sample_size as usize).unwrap())
+        }
     }
 
     fn convert_xls(&self) -> CliResult<()> {
@@ -253,7 +271,11 @@ impl Args {
 
         let wtr = self.writer()?;
         let mut rdr = simd_csv::LineReader::from_reader(Config::new(&self.arg_input).io_reader()?);
-        let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
+        let mut tabularizer = JSONTabularizer::from_writer(wtr, self.sample_size());
+
+        if self.flag_sort_keys {
+            tabularizer.reorder_keys();
+        }
 
         while let Some(line) = rdr.read_line()? {
             // Sshhh... it's alright, really.
@@ -276,21 +298,29 @@ impl Args {
 
         // NOTE: recombobulating objects as collections
         if let Value::Object(object) = value {
-            let mut items = Vec::with_capacity(object.len());
+            if self.flag_single_object {
+                value = Value::Array(vec![Value::Object(object)]);
+            } else {
+                let mut items = Vec::with_capacity(object.len());
 
-            for (k, v) in object {
-                items.push(Value::Object(Map::from_iter([
-                    (self.flag_key_column.clone(), Value::String(k)),
-                    (self.flag_value_column.clone(), v),
-                ])));
+                for (k, v) in object {
+                    items.push(Value::Object(Map::from_iter([
+                        (self.flag_key_column.clone(), Value::String(k)),
+                        (self.flag_value_column.clone(), v),
+                    ])));
+                }
+
+                value = Value::Array(items);
             }
-
-            value = Value::Array(items);
         }
 
         if let Value::Array(array) = value {
             let wtr = self.writer()?;
-            let mut tabularizer = JSONTabularizer::from_writer(wtr, self.flag_sample_size);
+            let mut tabularizer = JSONTabularizer::from_writer(wtr, self.sample_size());
+
+            if self.flag_sort_keys {
+                tabularizer.reorder_keys();
+            }
 
             for item in array.into_iter() {
                 tabularizer.process(item)?;

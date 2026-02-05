@@ -104,6 +104,10 @@ pub enum ColorMode {
 }
 
 impl ColorMode {
+    pub fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+
     pub fn apply(&self) {
         match self {
             Self::Never => colored::control::set_override(false),

@@ -110,9 +110,9 @@
       },
       {
         "name": "ceil",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Return the smallest integer greater than or equal to x."
+        "help": "Return the smallest integer greater than or equal to x. Optionally ceil to nearest given unit."
       },
       {
         "name": "div",
@@ -140,9 +140,9 @@
       },
       {
         "name": "floor",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Return the smallest integer lower than or equal to x."
+        "help": "Return the smallest integer lower than or equal to x. Optionally floor to nearest given unit."
       },
       {
         "name": "log",
@@ -202,9 +202,9 @@
       },
       {
         "name": "round",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Return x rounded to the nearest integer."
+        "help": "Return x rounded to the nearest integer. Optionally round to nearest given unit."
       },
       {
         "name": "sqrt",
@@ -220,9 +220,9 @@
       },
       {
         "name": "trunc",
-        "arguments": ["x"],
+        "arguments": ["x", "unit?"],
         "returns": "number",
-        "help": "Truncate the number by removing its decimal part."
+        "help": "Truncate the number by removing its decimal part. Optionally trunc to nearest given unit."
       }
     ]
   },
@@ -748,6 +748,12 @@
         "help": "Return absolute & canonicalized path."
       },
       {
+        "name": "basename",
+        "arguments": ["path", "suffix?"],
+        "returns": "string",
+        "help": "Return the final component of given path, usually the file name, all while stripping it of an optional suffix."
+      },
+      {
         "name": "cmd",
         "arguments": ["string", "list[string]"],
         "returns": "bytes",
@@ -758,6 +764,12 @@
         "arguments": ["source_path", "target_path"],
         "returns": "string",
         "help": "Copy a source to target path. Will create necessary directories on the way. Returns target path as a convenience."
+      },
+      {
+        "name": "dirname",
+        "arguments": ["path"],
+        "returns": "string",
+        "help": "Return target path without final component if any."
       },
       {
         "name": "ext",
@@ -788,6 +800,12 @@
         "arguments": ["string"],
         "returns": "any",
         "help": "Parse the given string as JSON."
+      },
+      {
+        "name": "parse_py_literal",
+        "arguments": ["string"],
+        "returns": "any",
+        "help": "Parse the given string as a python literal."
       },
       {
         "name": "pathjoin",

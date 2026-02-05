@@ -163,7 +163,7 @@ heatmap options:
                            [default: 1]
     -D, --diverging        Use a diverging color gradient. Currently only shorthand
                            for \"--gradient rd_bu\".
-    --cram                 Attempt to cram column labels over the columns.
+    -C, --cram             Attempt to cram column labels over the columns.
                            Usually works better when -S, --scale > 1.
     -N, --show-numbers     Whether to attempt to show numbers in the cells.
                            Usually only useful when -S, --scale > 1.
@@ -172,6 +172,9 @@ heatmap options:
                            disable colors completely and `always` to force
                            colors, even when the output could not handle them.
                            [default: auto]
+    --repeat-headers <n>   Repeat headers every <n> heatmap rows. This can also
+                           be set to \"auto\" to choose a suitable number based
+                           on the height of your terminal.
     --show-gradients       Display a showcase of available gradients.
 
 Common options:
@@ -196,6 +199,7 @@ struct Args {
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_repeat_headers: Option<String>,
     flag_show_gradients: bool,
     flag_green_hills: bool,
 }
@@ -206,12 +210,36 @@ impl Args {
             self.flag_gradient = GradientName::RdBu;
         }
     }
+
+    fn resolve_repeat_headers(&self) -> CliResult<Option<usize>> {
+        match &self.flag_repeat_headers {
+            None => Ok(None),
+            Some(n) => {
+                if n == "auto" {
+                    Ok(Some(
+                        util::acquire_term_rows(&None).saturating_sub(2).max(1)
+                            / self.flag_size.get(),
+                    ))
+                } else {
+                    match n.parse::<NonZeroUsize>() {
+                        Ok(i) => Ok(Some(i.get())),
+                        Err(_) => Err(From::from(format!(
+                            "expected --repeat-headers to be \"auto\" or a positive integer but got {}!",
+                            n
+                        ))),
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
     args.flag_color.apply();
+
+    let repeat_headers_opt = args.resolve_repeat_headers()?;
 
     let mut out = stdout();
 
@@ -321,21 +349,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&mut out)?;
     }
 
-    write!(&mut out, "{}", left_padding)?;
-    for (i, col_label) in matrix.column_labels.iter().enumerate() {
-        let label = if !args.flag_cram {
-            (i + 1).to_string()
-        } else {
-            col_label.to_string()
-        };
+    let write_headers = || -> CliResult<()> {
+        write!(&out, "{}", left_padding)?;
+        for (i, col_label) in matrix.column_labels.iter().enumerate() {
+            let label = if !args.flag_cram {
+                (i + 1).to_string()
+            } else {
+                col_label.to_string()
+            };
 
-        write!(
-            &mut out,
-            "{}",
-            util::unicode_aware_rpad_with_ellipsis(&label, 2 * size, " "),
-        )?;
-    }
-    writeln!(&mut out)?;
+            write!(
+                &out,
+                "{}",
+                util::unicode_aware_rpad_with_ellipsis(&label, 2 * size, " "),
+            )?;
+        }
+        writeln!(&out)?;
+
+        Ok(())
+    };
+
+    write_headers()?;
 
     // Printing rows
     let midpoint = size / 2;
@@ -348,7 +382,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .collect::<Vec<_>>()
     });
 
-    for (row_label, row) in matrix.rows() {
+    for (row_i, (row_label, row)) in matrix.rows().enumerate() {
+        if let Some(repeat_headers_limit) = repeat_headers_opt {
+            if row_i > 0 && row_i % repeat_headers_limit == 0 {
+                write_headers()?;
+            }
+        }
+
         let row_scale = args
             .flag_normalize
             .is_row()
@@ -357,7 +397,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for i in 0..size {
             if i == 0 {
                 write!(
-                    &mut out,
+                    &out,
                     "{} ",
                     util::unicode_aware_rpad_with_ellipsis(
                         row_label,
@@ -366,12 +406,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     )
                 )?;
             } else {
-                write!(&mut out, "{}", left_padding)?;
+                write!(&out, "{}", left_padding)?;
             }
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => write!(&mut out, "{}", "  ".repeat(size))?,
+                    None => write!(&out, "{}", "  ".repeat(size))?,
                     Some(f) => {
                         let scale_opt = row_scale.clone().unwrap_or_else(|| {
                             col_scales
@@ -408,7 +448,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         };
 
                         write!(
-                            &mut out,
+                            &out,
                             "{}",
                             if let Some(color) = color_opt {
                                 body.on_truecolor(color[0], color[1], color[2])
@@ -419,11 +459,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
             }
-            writeln!(&mut out)?;
+            writeln!(&out)?;
         }
     }
 
-    writeln!(&mut out)?;
+    writeln!(&out)?;
 
     Ok(())
 }
