@@ -442,7 +442,7 @@ impl OneSelector {
                 if i < 0 {
                     if i.unsigned_abs() > first_record.len() {
                         Err(format!(
-                            "Selector index {} is out of \
+                            "Column index {} is out of \
                                  bounds. Index must be between -1 \
                                  and -{}.",
                             i,
@@ -455,7 +455,7 @@ impl OneSelector {
                     let i = i as usize;
                     if i >= first_record.len() {
                         Err(format!(
-                            "Selector index {} is out of \
+                            "Column index {} is out of \
                                  bounds. Index must be between 0 \
                                  and {}.",
                             i,
@@ -500,20 +500,20 @@ impl OneSelector {
 
                 if num_found == 0 {
                     Err(format!(
-                        "Selector name '{}' does not exist \
+                        "'{}' does not exist \
                                  as a named header in the given CSV \
                                  data.",
                         s
                     ))
                 } else if sidx < 0 {
                     Err(format!(
-                        "Selector index '{}' for name '{}' is \
+                        "index '{}' for '{}' is \
                                      out of bounds. Must be between -{} and -1.",
                         sidx, s, num_found
                     ))
                 } else {
                     Err(format!(
-                        "Selector index '{}' for name '{}' is \
+                        "index '{}' for name '{}' is \
                                  out of bounds. Must be between 0 and {}.",
                         sidx,
                         s,
