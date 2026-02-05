@@ -9,10 +9,10 @@ order per default, but you can specify numeric ordering using the -N or --numeri
 flag. You can also reverse the order using the -R/--reverse flag.
 
 Usage:
-    xan bisect [options] [--] <column> <value> [<input>]
+    xan bisect [options] [--] <column> <value> <input>
     xan bisect --help
 
-complete options:
+bisect options:
     -N, --numeric            Compare according to the numerical value of cells
                              instead of the default lexicographic order.
     -R, --reverse            Reverse sort order, i.e. descending order.

@@ -14,10 +14,10 @@ order per default, but you can specify numeric ordering using the -N or --numeri
 flag. You can also reverse the order using the -R/--reverse flag.
 
 Usage:
-    xan bisect [options] [--] <column> <value> [<input>]
+    xan bisect [options] [--] <column> <value> <input>
     xan bisect --help
 
-complete options:
+bisect options:
     -N, --numeric            Compare according to the numerical value of cells
                              instead of the default lexicographic order.
     -R, --reverse            Reverse sort order, i.e. descending order.
@@ -35,7 +35,7 @@ Common options:
 struct Args {
     arg_column: SelectedColumns,
     arg_value: String,
-    arg_input: Option<String>,
+    arg_input: String,
     flag_numeric: bool,
     flag_reverse: bool,
     flag_output: Option<String>,
@@ -115,7 +115,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let target_value = args.get_value_from_bytes(args.arg_value.as_bytes())?;
 
-    let rconf = Config::new(&args.arg_input)
+    let rconf = Config::new(&Some(args.arg_input.clone()))
         .no_headers(args.flag_no_headers)
         .select(args.arg_column.clone())
         .delimiter(args.flag_delimiter);
