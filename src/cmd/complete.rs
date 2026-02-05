@@ -1,7 +1,7 @@
-use jiff::Unit;
 use std::io::{stdout, Write};
 use std::str;
 
+use jiff::Unit;
 use simd_csv::ByteRecord;
 
 use crate::collections::ClusteredInsertHashmap;
@@ -9,34 +9,38 @@ use crate::config::{Config, Delimiter};
 use crate::dates;
 use crate::scales::{Extent, ExtentBuilder};
 use crate::select::SelectedColumns;
-use crate::select::Selection;
 use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"
-Complete or check on missing values in a column. Can handle integer or date values.
-A --min and/or --max flag can be used to specify a range to complete or check.
-Note that when completing, if the input contains values outside the specified
-range, those values will be removed from the output.
-You can specify that the input is already sorted in ascending order on the column
-to complete with the --sorted flag, and in descending order using both --sorted
-and --reverse, which will make the command faster.
-Will by default output in ascending order on the completed column, but you can
-use the --reverse flag to output in descending order.
-You can also complete values within groups defined by other columns using the --groupby
-flag, completing with the same range for each group.
+Complete CSV data by adding rows for missing values of a given column.
+
+This command is able to handle either integer or partial dates (year-month-date,
+year-month or just year).
+
+A --min and/or --max flag can be used to specify a range to complete. Note that
+if input contains values outside of the specified range, they will be filtered
+out from the output.
+
+If you know your input is already sorted on the column to complete, you can
+leverage the -S/--sorted flag to make the command work faster and use less
+memory.
+
+This command is also able to check whether the given column is complete using
+the --check flag.
 
 Examples:
-  Complete integer values in column named "score" from 1 to 10:
+
+Complete integer column named "score" from 1 to 10:
     $ xan complete -m 1 -M 10 score input.csv
 
-  Complete already sorted date values in column named "date":
+Complete already sorted date values in column named "date":
     $ xan complete -D --sorted date input.csv
 
-  Check that the values (already sorted in descending order) in column named "score" are complete:
+Check completeness of values (already sorted in descending order) in "score" column:
     $ xan complete --check --sorted --reverse score input.csv
 
-  Complete integer values in column named "score" within groups defined by columns "name" and "category":
+Complete integer column named "score" within groups defined by columns "name" and "category":
     $ xan complete --groupby name,category score input.csv
 
 Usage:
@@ -44,32 +48,21 @@ Usage:
     xan complete --help
 
 complete options:
-    -m, --min <value>        The minimum value to start completing from.
-                             Default is the first one. Note that if <value> is
-                             greater than the minimum value in the input, the
-                             rows with values lower than <value> will be removed
-                             from the output.
-    -M, --max <value>        The maximum value to complete to.
-                             Default is the last one. Note that if <value> is
-                             lower than the maximum value in the input, the rows
-                             with values greater than <value> will be removed
-                             from the output.
     --check                  Check that the input is complete. When used with
                              either --min or --max, only checks completeness
                              within the specified range.
+    -m, --min <value>        Minimum value of range to complete. Note that values
+                             less than this minimum value in the input will be
+                             filtered out.
+    -M, --max <value>        Maximum value of range to complete. Note that values
+                             greater than this maximum value in the input will be
+                             filtered out.
     -D, --dates              Set to indicate your values are dates (supporting
                              year, year-month or year-month-day).
-    -S, --sorted             Indicate that the input is already sorted. When
-                             used without --reverse, the input is sorted in
-                             ascending order. When used with --reverse, the
-                             input is sorted in descending order.
-    -R, --reverse            When used with --sorted, indicate that the input is
-                             sorted in descending order. When used
-                             without --sorted, the output will be sorted in
-                             descending order.
+    -S, --sorted             Indicate that the input is already sorted.
+    -R, --reverse            Whether to consider the data in reverse order.
     -g, --groupby <cols>     Select columns to group by. The completion will be
                              done independently within each group.
-
 
 Common options:
     -h, --help               Display this message
@@ -111,7 +104,7 @@ impl Args {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum ValueType {
     Integer,
     Date(Unit),
@@ -160,64 +153,58 @@ impl Value {
         }
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
+    fn to_bytes(self) -> Vec<u8> {
         match self {
             Self::Integer(i) => i.to_string().into_bytes(),
             Self::Date(ref d) => dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes(),
         }
     }
 
-    fn as_unit(&self) -> ValueType {
+    fn as_type(&self) -> ValueType {
         match self {
             Self::Integer(_) => ValueType::Integer,
             Self::Date(d) => ValueType::Date(d.as_unit()),
         }
     }
+}
 
-    fn has_same_unit_as(&self, other: &Self) -> bool {
-        self.as_unit() == other.as_unit()
-    }
-
-    fn check_type(&self, first_seen_value: &mut Option<Self>) -> CliResult<()> {
-        if let Some(v) = first_seen_value {
-            if self.as_unit() == v.as_unit() {
-                Ok(())
-            } else {
-                Err(format!(
-                    "Inconsistent value units: first seen was {:?} and then found {:?}",
-                    v.as_unit(),
-                    self.as_unit(),
-                ))?
-            }
-        } else {
-            *first_seen_value = Some(*self);
+fn check_type(expected_value_type: &mut Option<ValueType>, value_type: ValueType) -> CliResult<()> {
+    if let Some(expected) = expected_value_type {
+        if value_type == *expected {
             Ok(())
+        } else {
+            Err(format!(
+                "Inconsistent value units: first seen was {:?} and then found {:?}",
+                expected, value_type,
+            ))?
         }
+    } else {
+        *expected_value_type = Some(value_type);
+        Ok(())
     }
 }
 
-fn new_record(
-    headers_len: usize,
-    column_to_complete_index: usize,
-    sel_group_by: &Option<&Selection>,
-    groups: &ByteRecord,
-    index_value: &[u8],
-) -> ByteRecord {
-    let mut new_record = ByteRecord::new();
-    let mut group_index = 0;
+fn mutate_record_to_emit(
+    record: &mut ByteRecord,
+    len: usize,
+    completed: (usize, &[u8]),
+    group_mask: Option<&Vec<bool>>,
+    group_opt: Option<&ByteRecord>,
+) {
+    record.clear();
 
-    for i in 0..headers_len {
-        if i == column_to_complete_index {
-            new_record.push_field(index_value);
-        // i + 1 because Selection::mask(alignement) returns a mask of length alignement
-        } else if matches!(sel_group_by, Some(s) if s.mask(i+1)[i]) {
-            new_record.push_field(&groups[group_index]);
+    let mut group_index: usize = 0;
+
+    for i in 0..len {
+        if matches!(group_mask, Some(mask) if mask[i]) {
+            record.push_field(&group_opt.unwrap()[group_index]);
             group_index += 1;
+        } else if completed.0 == i {
+            record.push_field(completed.1);
         } else {
-            new_record.push_field(b"");
+            record.push_field(b"");
         }
     }
-    new_record
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -229,31 +216,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let min: Option<Value> = args
         .flag_min
-        .clone()
-        .map(|m| args.get_value_from_str(m.as_str()))
+        .as_ref()
+        .map(|m| args.get_value_from_str(m))
         .transpose()?;
     let max: Option<Value> = args
         .flag_max
-        .clone()
-        .map(|m| args.get_value_from_str(m.as_str()))
+        .as_ref()
+        .map(|m| args.get_value_from_str(m))
         .transpose()?;
 
-    // to verify that all values have the same unit and type
-    let mut first_seen_value: Option<Value> = None;
+    // All values must have a same type
+    let mut expected_value_type: Option<ValueType> = None;
 
     if let (Some(min_v), Some(max_v)) = (&min, &max) {
-        if !min_v.has_same_unit_as(max_v) {
+        if min_v.as_type() != max_v.as_type() {
             Err(format!(
                 "min and max have different units: {:?} vs {:?}",
-                min_v.as_unit(),
-                max_v.as_unit()
+                min_v.as_type(),
+                max_v.as_type(),
             ))?;
         }
 
         if min_v > max_v {
             Err("min cannot be greater than max")?;
         }
-        min_v.check_type(&mut first_seen_value)?;
+
+        check_type(&mut expected_value_type, min_v.as_type())?;
     }
 
     let mut extent_builder = ExtentBuilder::<Value>::new();
@@ -279,21 +267,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .then(|| Config::new(&args.flag_output).simd_writer())
         .transpose()?;
 
+    let mut output_record = ByteRecord::new();
+
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let column_to_complete_index = rconf.single_selection(&headers)?;
 
-    let sel_group_by_owned: Option<Selection> = if let Some(ref fgb) = args.flag_groupby {
-        Some(fgb.selection(&headers, !args.flag_no_headers)?)
-    } else {
-        None
-    };
-    let sel_group_by: Option<&Selection> = sel_group_by_owned.as_ref();
+    let groupby_sel_opt = args
+        .flag_groupby
+        .as_ref()
+        .map(|sel| sel.selection(&headers, !rconf.no_headers))
+        .transpose()?;
 
-    if matches!(sel_group_by, Some(s) if s.mask(column_to_complete_index + 1)[column_to_complete_index])
-    {
-        Err("Cannot complete on a column that is also used in --groupby")?;
+    let groupby_mask_opt = groupby_sel_opt.as_ref().map(|sel| sel.mask(headers.len()));
+
+    if matches!(&groupby_sel_opt, Some(sel) if sel.contains(column_to_complete_index)) {
+        Err("Cannot complete a column that is also used in --groupby!")?;
     }
 
     if !rconf.no_headers {
@@ -307,13 +297,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // reading records and grouping them if needed
     let mut records_per_group: ClusteredInsertHashmap<ByteRecord, Vec<ByteRecord>> =
         ClusteredInsertHashmap::new();
+
     if !args.flag_sorted {
         // Collecting records per group
         if let Some(flag_groupby) = &args.flag_groupby {
             let group_sel = flag_groupby.selection(&headers, !args.flag_no_headers)?;
             while rdr.read_byte_record(&mut record)? {
                 let value: Value = args.get_value_from_bytes(&record[column_to_complete_index])?;
-                value.check_type(&mut first_seen_value)?;
+                check_type(&mut expected_value_type, value.as_type())?;
                 // Meaning we need to find the extent from the input values
                 // (either min or max or both were not specified)
                 if extent.is_none() {
@@ -366,7 +357,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for record in records {
             let record = record?;
             let value: Value = args.get_value_from_bytes(&record[column_to_complete_index])?;
-            value.check_type(&mut first_seen_value)?;
+            check_type(&mut expected_value_type, value.as_type())?;
 
             if matches!(min, Some(m) if value < m) {
                 if args.flag_reverse {
@@ -396,13 +387,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         (false, Some(cv)) => cv < value,
                         _ => false,
                     } {
-                        wtr.write_byte_record(&new_record(
+                        mutate_record_to_emit(
+                            &mut output_record,
                             headers.len(),
-                            column_to_complete_index,
-                            &sel_group_by,
-                            group_key,
-                            &local_current_value.unwrap().as_bytes(),
-                        ))?;
+                            (
+                                column_to_complete_index,
+                                &local_current_value.unwrap().to_bytes(),
+                            ),
+                            groupby_mask_opt.as_ref(),
+                            Some(group_key),
+                        );
+
+                        wtr.write_byte_record(&output_record)?;
 
                         local_current_value =
                             local_current_value.map(|v| v.advance(args.flag_reverse));
@@ -455,13 +451,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         _ => false,
                     }
                 {
-                    wtr.write_byte_record(&new_record(
+                    mutate_record_to_emit(
+                        &mut output_record,
                         headers.len(),
-                        column_to_complete_index,
-                        &sel_group_by,
-                        group_key,
-                        &local_current_value.unwrap().as_bytes(),
-                    ))?;
+                        (
+                            column_to_complete_index,
+                            &local_current_value.unwrap().to_bytes(),
+                        ),
+                        groupby_mask_opt.as_ref(),
+                        Some(group_key),
+                    );
+
+                    wtr.write_byte_record(&output_record)?;
 
                     local_current_value = local_current_value.map(|v| v.advance(args.flag_reverse));
                 }
