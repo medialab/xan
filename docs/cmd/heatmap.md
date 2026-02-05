@@ -28,7 +28,7 @@ heatmap options:
                            [default: 1]
     -D, --diverging        Use a diverging color gradient. Currently only shorthand
                            for "--gradient rd_bu".
-    --cram                 Attempt to cram column labels over the columns.
+    -C, --cram             Attempt to cram column labels over the columns.
                            Usually works better when -S, --scale > 1.
     -N, --show-numbers     Whether to attempt to show numbers in the cells.
                            Usually only useful when -S, --scale > 1.
@@ -37,6 +37,9 @@ heatmap options:
                            disable colors completely and `always` to force
                            colors, even when the output could not handle them.
                            [default: auto]
+    --repeat-headers <n>   Repeat headers every <n> heatmap rows. This can also
+                           be set to "auto" to choose a suitable number based
+                           on the height of your terminal.
     --show-gradients       Display a showcase of available gradients.
 
 Common options:

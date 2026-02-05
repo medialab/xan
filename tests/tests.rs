@@ -19,6 +19,7 @@ mod test_agg;
 mod test_behead;
 mod test_bisect;
 mod test_cat;
+mod test_complete;
 mod test_count;
 mod test_dedup;
 mod test_enumerate;

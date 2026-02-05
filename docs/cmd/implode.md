@@ -18,7 +18,7 @@ Mary,red
 
 Can be imploded on the "color" column:
 
-    $ xan implode color --plural file.csv > imploded.csv
+    $ xan implode color --pluralize file.csv > imploded.csv
 
 To produce the following file:
 
@@ -37,7 +37,7 @@ implode options:
     -P, --pluralize      Pluralize (supporting only very simple English-centric cases)
                          the imploded column names. Does not work with -r, --rename.
     -r, --rename <name>  New name for the diverging column.
-                         Does not work with -P, --plural.
+                         Does not work with -P, --pluralize.
     --cmp <column>       Restrict the columns to compare to assert whether
                          consecutive rows must be merged. Be aware that this will
                          ignore all other columns to in the given selection so

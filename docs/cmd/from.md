@@ -43,11 +43,19 @@ Excel/OpenOffice-related options:
 
 JSON options:
     --sample-size <n>      Number of records to sample before emitting headers.
+                           Set to -1 to sample ALL records before emitting headers.
+                           This may cost a lot of memory but will ensure all possible
+                           keys have been observed and no data is lost when converting.
                            [default: 64]
+    --sort-keys            Sort JSON keys lexicographically to emit columns accordingly.
+                           This can be useful to harmonize different JSON sources with
+                           no consistent key ordering.
     --key-column <name>    Name for the key column when parsing a JSON map.
                            [default: key]
     --value-column <name>  Name for the value column when parsing a JSON map.
                            [default: value]
+    --single-object        Use if JSON only represents a single object that you want
+                           to map to a single CSV row, instead of mapping to key,value columns.
 
 Text lines options:
     -c, --column <name>    Name of the column to create.

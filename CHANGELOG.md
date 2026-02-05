@@ -1,10 +1,42 @@
 # Changelog
 
-## 0.54.1 (provisional)
+## 0.55.0 (provisional)
+
+*Breaking*
+
+* Changing how `xan separate` generates default column names.
+* `xan from -f=(json|ndjson|jsonl)` will now emit column in input order by default.
+* Changing `xan to -B/--buffer-size` to `--sample-size` to harmonize flag names with `xan from`.
+
+*Features*
+
+* Adding the `xan complete` command.
+* Adding an optional unit to `ceil`, `floor`, `round` & `trunc` moonblade function. E.g. floor to nearest decade: `floor(year, 10)`.
+* Adding `basename` & `dirname` moonblade functions.
+* Adding `parse_py_literal` moonblade functions. Useful to deal with files dubiously serialized using `pandas`.
+* Adding `xan view --repeat-headers=(auto|always|never)`.
+* Adding `xan view --reveal-whitespace=(auto|always|never)`.
+* Adding `--color` support to `XAN_VIEW_ARGS`.
+* Adding `xan from -f json --sample-size -1` to sample the complete file.
+* Adding `xan from --sort-keys`.
+* Adding `xan separate --prefix`.
+* Adding `xan from -f json --single-object`.
+* Adding `xan heatmap -C` short flag for `--cram`.
+* Adding `xan heatmap --repeat-headers`.
+
+*Quality of Life*
+
+* `xan view -p` will not print bottom header anymore by default.
+* `xan view` will not reveal problematic whitespace if output is not colored anymore, by default.
+
+## 0.54.1
 
 *Fixes*
 
 * Fixing `xan freq --groupby` incorrectly unescaping group cells.
+* Fixing help related to `xan pivot` & `xan unpivot`.
+* Upgrading `simd-csv` to get safety fixes.
+* Fixing evaluation of moonblade commands related to column indexing.
 
 ## 0.54.0
 

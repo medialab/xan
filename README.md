@@ -587,6 +587,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**enum**](./docs/cmd/enum.md): Enumerate CSV file by preprending an index column
 - [**flatmap**](./docs/cmd/flatmap.md): Emit one row per value yielded by an expression evaluated for each CSV row
 - [**fill**](./docs/cmd/fill.md): Fill empty cells
+- [**complete**](./docs/cmd/complete.md): Add missing rows in a column of contiguous values
 - [**blank**](./docs/cmd/blank.md): Blank down contiguous identical cell values
 - [**separate**](./docs/cmd/separate.md): Split a single column into multiple ones
 
@@ -607,8 +608,8 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 *Transpose & pivot*
 
 - [**transpose (t)**](./docs/cmd/transpose.md): Transpose CSV file
-- [**pivot**](./docs/cmd/pivot.md): Stack multiple columns into fewer columns
-- [**unpivot**](./docs/cmd/unpivot.md): Split distinct values of a column into their own columns
+- [**pivot**](./docs/cmd/pivot.md): Split distinct values of a column into their own columns columns
+- [**unpivot**](./docs/cmd/unpivot.md): Stack multiple columns into fewer
 
 *Split a CSV file into multiple*
 

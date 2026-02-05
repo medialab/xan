@@ -140,27 +140,34 @@ enum JSONTraversalState {
 
 type JSONTraversalStack = Vec<JSONTraversalState>;
 
-fn traverse_to_build_stack(value: &Value, stack: &mut JSONTraversalStack, depth: usize) {
+fn traverse_to_build_stack(
+    value: &Value,
+    stack: &mut JSONTraversalStack,
+    reorder_keys: bool,
+    depth: usize,
+) {
     match value {
         Value::Object(map) => {
             let mut items = map.iter().collect::<Vec<_>>();
 
             // NOTE: we put scalar values first, then nested ones and we also sort by key
-            items.sort_by_key(|i| {
-                (
-                    if matches!(i.1, Value::Object(_)) {
-                        1
-                    } else {
-                        0
-                    },
-                    i.0,
-                )
-            });
+            if reorder_keys {
+                items.sort_by_key(|i| {
+                    (
+                        if matches!(i.1, Value::Object(_)) {
+                            1
+                        } else {
+                            0
+                        },
+                        i.0,
+                    )
+                });
+            }
 
             for (k, v) in items {
                 stack.push(JSONTraversalState::Delve(k.to_string(), depth));
 
-                traverse_to_build_stack(v, stack, depth + 1);
+                traverse_to_build_stack(v, stack, reorder_keys, depth + 1);
 
                 stack.push(JSONTraversalState::Pop(depth));
             }
@@ -286,24 +293,33 @@ fn merge(a: &mut Value, b: &Value) {
 pub struct JSONTabularizer<W: Write> {
     writer: simd_csv::Writer<W>,
     harmonized_value: Value,
-    sample_size: usize,
+    sample_size: Option<usize>,
     sample: Vec<Value>,
     flushed: bool,
     output_record: ByteRecord,
     stack: JSONTraversalStack,
+    reorder_keys: bool,
 }
 
 impl<W: Write> JSONTabularizer<W> {
-    pub fn from_writer(writer: simd_csv::Writer<W>, sample_size: NonZeroUsize) -> Self {
+    pub fn from_writer(writer: simd_csv::Writer<W>, sample_size: Option<NonZeroUsize>) -> Self {
         Self {
             writer,
             harmonized_value: Value::Null,
-            sample_size: sample_size.get(),
-            sample: Vec::with_capacity(sample_size.get()),
+            sample_size: sample_size.map(|limit| limit.get()),
+            sample: match sample_size {
+                Some(limit) => Vec::with_capacity(limit.get()),
+                None => Vec::new(),
+            },
             flushed: false,
             output_record: ByteRecord::new(),
             stack: JSONTraversalStack::new(),
+            reorder_keys: false,
         }
+    }
+
+    pub fn reorder_keys(&mut self) {
+        self.reorder_keys = true;
     }
 
     pub fn flush(&mut self) -> simd_csv::Result<()> {
@@ -311,7 +327,12 @@ impl<W: Write> JSONTabularizer<W> {
             return Ok(());
         }
 
-        traverse_to_build_stack(&self.harmonized_value, &mut self.stack, 0);
+        traverse_to_build_stack(
+            &self.harmonized_value,
+            &mut self.stack,
+            self.reorder_keys,
+            0,
+        );
         self.writer
             .write_byte_record(&headers_from_stack(&self.stack))?;
 
@@ -329,7 +350,7 @@ impl<W: Write> JSONTabularizer<W> {
 
     pub fn process(&mut self, value: Value) -> simd_csv::Result<()> {
         // Sampling
-        if self.sample.len() < self.sample_size {
+        if self.sample_size.is_none() || self.sample.len() < self.sample_size.unwrap() {
             merge(&mut self.harmonized_value, &value);
             self.sample.push(value);
             return Ok(());
