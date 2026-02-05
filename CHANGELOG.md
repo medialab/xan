@@ -35,6 +35,7 @@
 * Fixing `xan freq --groupby` incorrectly unescaping group cells.
 * Fixing help related to `xan pivot` & `xan unpivot`.
 * Upgrading `simd-csv` to get safety fixes.
+* Fixing evaluation of moonblade commands related to column indexing.
 
 ## 0.54.0
 

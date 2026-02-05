@@ -184,19 +184,21 @@ impl HeadersIndex {
                 .and_then(|positions| positions.first())
                 .copied(),
             ColumIndexationBy::Pos(pos) => {
+                let len = self.headers.len();
+
                 if *pos < 0 {
                     // Negative indexing
                     let pos = pos.unsigned_abs();
 
-                    if pos > self.mapping.len() {
+                    if pos > len {
                         None
                     } else {
-                        Some(self.mapping.len() - pos)
+                        Some(len - pos)
                     }
                 } else {
                     let pos = *pos as usize;
 
-                    if pos >= self.mapping.len() {
+                    if pos >= len {
                         None
                     } else {
                         Some(pos)
