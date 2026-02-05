@@ -17,10 +17,11 @@
 * Adding `xan view --repeat-headers=(auto|always|never)`.
 * Adding `xan view --reveal-whitespace=(auto|always|never)`.
 * Adding `--color` support to `XAN_VIEW_ARGS`.
-* Adding `xan from -f json --sample-size -1` to sample the complete file.
-* Adding `xan from --sort-keys`.
-* Adding `xan separate --prefix`.
+* Adding `xan from -f json --sample-size -1` to sample the whole file.
 * Adding `xan from -f json --single-object`.
+* Adding `xan from --sort-keys`.
+* Adding `xan to (json|ndjson|jsonl) --sample-size -1` to sample the whole file.
+* Adding `xan separate --prefix`.
 * Adding `xan heatmap -C` short flag for `--cram`.
 * Adding `xan heatmap --repeat-headers`.
 

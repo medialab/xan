@@ -25,6 +25,7 @@ Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
+                          Set to -1 to sample whole JSON input.
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.

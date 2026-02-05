@@ -481,27 +481,47 @@ impl JSONTypeInferrence {
 pub struct JSONTypeInferrenceBuffer {
     inferrence: JSONTypeInferrence,
     buffer: Vec<StringRecord>,
-    capacity: usize,
+    capacity: Option<usize>,
     selection: Selection,
 }
 
 impl JSONTypeInferrenceBuffer {
-    pub fn new(selection: Selection, buffer_size: usize, empty_mode: JSONEmptyMode) -> Self {
+    pub fn new(
+        selection: Selection,
+        buffer_size: Option<usize>,
+        empty_mode: JSONEmptyMode,
+    ) -> Self {
         Self {
             inferrence: JSONTypeInferrence::new(selection.len(), empty_mode),
-            buffer: Vec::with_capacity(buffer_size),
+            buffer: match buffer_size {
+                Some(capacity) => Vec::with_capacity(capacity),
+                None => Vec::new(),
+            },
             capacity: buffer_size,
             selection,
         }
     }
 
-    pub fn with_columns(columns: usize, buffer_size: usize, empty_mode: JSONEmptyMode) -> Self {
+    pub fn with_columns(
+        columns: usize,
+        buffer_size: Option<usize>,
+        empty_mode: JSONEmptyMode,
+    ) -> Self {
         Self::new(Selection::full(columns), buffer_size, empty_mode)
     }
 
     pub fn read<R: Read>(&mut self, reader: &mut csv::Reader<R>) -> Result<(), csv::Error> {
-        for result in reader.records().take(self.capacity) {
-            self.process(result?);
+        match self.capacity {
+            Some(capacity) => {
+                for result in reader.records().take(capacity) {
+                    self.process(result?);
+                }
+            }
+            None => {
+                for result in reader.records() {
+                    self.process(result?);
+                }
+            }
         }
 
         Ok(())

@@ -1,6 +1,5 @@
 use std::io::{self, IsTerminal, Write};
 use std::iter;
-use std::num::NonZeroUsize;
 
 use npyz::WriterBuilder;
 use pad::PadStr;
@@ -38,6 +37,7 @@ Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
+                          Set to -1 to sample whole JSON input.
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.
@@ -68,7 +68,7 @@ struct Args {
     flag_no_headers: bool,
     flag_select: SelectedColumns,
     flag_delimiter: Option<Delimiter>,
-    flag_sample_size: NonZeroUsize,
+    flag_sample_size: isize,
     flag_nulls: bool,
     flag_omit: bool,
     flag_dtype: String,
@@ -77,6 +77,14 @@ struct Args {
 impl Args {
     fn is_writing_to_file(&self) -> bool {
         self.flag_output.is_some() || !io::stdout().is_terminal()
+    }
+
+    fn sample_size(&self) -> Option<usize> {
+        if self.flag_sample_size <= 0 {
+            None
+        } else {
+            Some(self.flag_sample_size as usize)
+        }
     }
 
     fn json_empty_mode(&self) -> JSONEmptyMode {
@@ -107,7 +115,7 @@ impl Args {
 
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
-            self.flag_sample_size.get(),
+            self.sample_size(),
             self.json_empty_mode(),
         );
 
@@ -139,9 +147,10 @@ impl Args {
         let mut writer = self.wconf().buf_io_writer()?;
 
         let headers = rdr.headers()?.clone();
+
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
-            self.flag_sample_size.get(),
+            self.sample_size(),
             self.json_empty_mode(),
         );
 
