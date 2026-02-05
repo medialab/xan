@@ -380,7 +380,20 @@ impl ConcreteSpecialFunctionCall {
         // NOTE: other special function are not suitable for late
         // statical evaluation.
         if [
-            "col", "cols", "headers", "index", "if", "unless", "warn", "and", "or",
+            "col",
+            "col?",
+            "col_index",
+            "col_index?",
+            "cols",
+            "header",
+            "header?",
+            "headers",
+            "index",
+            "if",
+            "unless",
+            "warn",
+            "and",
+            "or",
         ]
         .contains(&self.name.as_str())
         {
