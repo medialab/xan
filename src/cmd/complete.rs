@@ -1,6 +1,4 @@
 use jiff::Unit;
-use std::cmp::Ordering;
-use std::fmt;
 use std::io::{stdout, Write};
 use std::str;
 
@@ -61,7 +59,7 @@ complete options:
                              within the specified range.
     -D, --dates              Set to indicate your values are dates (supporting
                              year, year-month or year-month-day).
-    --sorted                 Indicate that the input is already sorted. When
+    -S, --sorted             Indicate that the input is already sorted. When
                              used without --reverse, the input is sorted in
                              ascending order. When used with --reverse, the
                              input is sorted in descending order.
@@ -100,92 +98,61 @@ struct Args {
 }
 
 impl Args {
-    fn get_value_from_str(&self, cell: &str) -> CliResult<ValuesType> {
+    fn get_value_from_str(&self, cell: &str) -> CliResult<Value> {
         if self.flag_dates {
-            ValuesType::new_date(cell)
+            Value::new_date(cell)
         } else {
-            ValuesType::new_integer(cell)
+            Value::new_integer(cell)
         }
     }
 
-    fn get_value_from_bytes(&self, cell: &[u8]) -> CliResult<ValuesType> {
+    fn get_value_from_bytes(&self, cell: &[u8]) -> CliResult<Value> {
         self.get_value_from_str(str::from_utf8(cell).unwrap())
     }
 }
 
 #[derive(Debug, PartialEq)]
-enum ValuesUnit {
+enum ValueType {
     Integer,
     Date(Unit),
 }
 
-#[derive(Copy, Clone, PartialEq)]
-enum ValuesType {
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+enum Value {
     Integer(i64),
     Date(dates::PartialDate),
 }
 
-impl Eq for ValuesType {}
-
-impl PartialOrd for ValuesType {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for ValuesType {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (ValuesType::Integer(a), ValuesType::Integer(b)) => a.cmp(b),
-            (ValuesType::Date(a), ValuesType::Date(b)) => a.cmp(b),
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl fmt::Debug for ValuesType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ValuesType::Integer(i) => write!(f, "{}", i),
-            ValuesType::Date(d) => write!(f, "{}", d.as_date()),
-        }
-    }
-}
-
-impl ValuesType {
+impl Value {
     fn new_date(s: &str) -> CliResult<Self> {
-        if !dates::could_be_date(s) {
-            Err(format!("Invalid date format: {}", s))?;
-        }
-        Ok(ValuesType::Date(dates::parse_partial_date(s).map_or_else(
+        Ok(Self::Date(dates::parse_partial_date(s).map_or_else(
             || Err(format!("Invalid date format: {}", s)),
             Ok,
         )?))
     }
 
     fn new_integer(s: &str) -> CliResult<Self> {
-        let v = ValuesType::Integer(
+        Ok(Self::Integer(
             s.parse::<i64>()
                 .map_err(|_| format!("Invalid integer format: {}", s))?,
-        );
-        Ok(v)
+        ))
     }
 
-    fn next(&self) -> ValuesType {
+    fn next(&self) -> Self {
         match self {
-            ValuesType::Integer(i) => ValuesType::Integer(i + 1),
-            ValuesType::Date(d) => ValuesType::Date(d.next()),
+            Self::Integer(i) => Self::Integer(i + 1),
+            Self::Date(d) => Self::Date(d.next()),
         }
     }
 
-    fn previous(&self) -> ValuesType {
+    fn previous(&self) -> Self {
         match self {
-            ValuesType::Integer(i) => ValuesType::Integer(i - 1),
-            ValuesType::Date(d) => ValuesType::Date(d.previous()),
+            Self::Integer(i) => Self::Integer(i - 1),
+            Self::Date(d) => Self::Date(d.previous()),
         }
     }
 
-    fn advance(&self, reverse: bool) -> ValuesType {
+    fn advance(&self, reverse: bool) -> Self {
         if reverse {
             self.previous()
         } else {
@@ -195,25 +162,23 @@ impl ValuesType {
 
     fn as_bytes(&self) -> Vec<u8> {
         match self {
-            ValuesType::Integer(i) => i.to_string().into_bytes(),
-            ValuesType::Date(ref d) => {
-                dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes()
-            }
+            Self::Integer(i) => i.to_string().into_bytes(),
+            Self::Date(ref d) => dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes(),
         }
     }
 
-    fn as_unit(&self) -> ValuesUnit {
+    fn as_unit(&self) -> ValueType {
         match self {
-            ValuesType::Integer(_) => ValuesUnit::Integer,
-            ValuesType::Date(d) => ValuesUnit::Date(d.as_unit()),
+            Self::Integer(_) => ValueType::Integer,
+            Self::Date(d) => ValueType::Date(d.as_unit()),
         }
     }
 
-    fn has_same_unit_as(&self, other: &ValuesType) -> bool {
+    fn has_same_unit_as(&self, other: &Self) -> bool {
         self.as_unit() == other.as_unit()
     }
 
-    fn verify_unit(&self, first_seen_value: &mut Option<ValuesType>) -> CliResult<()> {
+    fn check_type(&self, first_seen_value: &mut Option<Self>) -> CliResult<()> {
         if let Some(v) = first_seen_value {
             if self.as_unit() == v.as_unit() {
                 Ok(())
@@ -238,7 +203,6 @@ fn new_record(
     groups: &ByteRecord,
     index_value: &[u8],
 ) -> ByteRecord {
-    // let mut new_record = ByteRecord::new();
     let mut new_record = ByteRecord::new();
     let mut group_index = 0;
 
@@ -263,19 +227,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--groupby cannot be used with --sorted")?;
     }
 
-    let min: Option<ValuesType> = args
+    let min: Option<Value> = args
         .flag_min
         .clone()
         .map(|m| args.get_value_from_str(m.as_str()))
         .transpose()?;
-    let max: Option<ValuesType> = args
+    let max: Option<Value> = args
         .flag_max
         .clone()
         .map(|m| args.get_value_from_str(m.as_str()))
         .transpose()?;
 
     // to verify that all values have the same unit and type
-    let mut first_seen_value: Option<ValuesType> = None;
+    let mut first_seen_value: Option<Value> = None;
 
     if let (Some(min_v), Some(max_v)) = (&min, &max) {
         if !min_v.has_same_unit_as(max_v) {
@@ -289,10 +253,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if min_v > max_v {
             Err("min cannot be greater than max")?;
         }
-        min_v.verify_unit(&mut first_seen_value)?;
+        min_v.check_type(&mut first_seen_value)?;
     }
 
-    let mut extent_builder = ExtentBuilder::<ValuesType>::new();
+    let mut extent_builder = ExtentBuilder::<Value>::new();
 
     if let Some(m) = min {
         extent_builder.clamp_min(m);
@@ -304,7 +268,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Will be equal to None if either min or max is not specified.
     // If both min and max are specified, then when processing the input values,
     // there will be no need to found the extreme values of the input range.
-    let mut extent: Option<Extent<ValuesType>> = extent_builder.clone().build();
+    let mut extent: Option<Extent<Value>> = extent_builder.clone().build();
 
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
@@ -348,9 +312,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some(flag_groupby) = &args.flag_groupby {
             let group_sel = flag_groupby.selection(&headers, !args.flag_no_headers)?;
             while rdr.read_byte_record(&mut record)? {
-                let value: ValuesType =
-                    args.get_value_from_bytes(&record[column_to_complete_index])?;
-                value.verify_unit(&mut first_seen_value)?;
+                let value: Value = args.get_value_from_bytes(&record[column_to_complete_index])?;
+                value.check_type(&mut first_seen_value)?;
                 // Meaning we need to find the extent from the input values
                 // (either min or max or both were not specified)
                 if extent.is_none() {
@@ -390,7 +353,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // Can be None if min is None when not using --reverse or max is None when
     //using --reverse (with -S/--sorted), meaning we start completing
     // from the first value in the input
-    let current_value: Option<ValuesType> = if args.flag_reverse { max } else { min };
+    let current_value: Option<Value> = if args.flag_reverse { max } else { min };
 
     // closure to process ALREADY SORTED records in a group
     let mut process_records_in_group = |records: &mut dyn Iterator<
@@ -398,12 +361,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     >,
                                         group_key: &ByteRecord|
      -> CliResult<()> {
-        let mut local_current_value: Option<ValuesType> = current_value;
+        let mut local_current_value: Option<Value> = current_value;
 
         for record in records {
             let record = record?;
-            let value: ValuesType = args.get_value_from_bytes(&record[column_to_complete_index])?;
-            value.verify_unit(&mut first_seen_value)?;
+            let value: Value = args.get_value_from_bytes(&record[column_to_complete_index])?;
+            value.check_type(&mut first_seen_value)?;
 
             if matches!(min, Some(m) if value < m) {
                 if args.flag_reverse {
@@ -531,7 +494,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             // sorting records in the group
             let mut values_and_records = records
                 .iter()
-                .map(|record| -> CliResult<(ValuesType, ByteRecord)> {
+                .map(|record| -> CliResult<(Value, ByteRecord)> {
                     let value_and_record = (
                         args.get_value_from_bytes(&record[column_to_complete_index])?,
                         record.clone(),

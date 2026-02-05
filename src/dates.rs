@@ -46,13 +46,6 @@ impl PartialDate {
         &self.inner
     }
 
-    pub fn from_date(date: Date, unit: Unit) -> Self {
-        Self {
-            inner: date,
-            precision: unit,
-        }
-    }
-
     pub fn next(&self) -> Self {
         Self {
             inner: next_partial_date(self.precision, &self.inner),
