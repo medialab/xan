@@ -54,6 +54,12 @@
     "help": "Splits numbers yielded by given expression into `k` nearly equal-sized consecutive groups. This requires buffering whole file or group!"
   },
   {
+    "name": "percent_rank",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Normalized rank of numbers yielded by given expression. This requires buffering whole file or group!"
+  },
+  {
     "name": "rank",
     "arguments": ["<expr>"],
     "returns": "number",

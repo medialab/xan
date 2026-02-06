@@ -115,6 +115,7 @@ enum RankingKind {
     Arbitrary,
     Dense,
     CumulativeDistribution,
+    PercentRank,
     NTile(usize),
 }
 
@@ -124,6 +125,7 @@ impl RankingKind {
             Self::Arbitrary => "rank",
             Self::Dense => "dense_rank",
             Self::CumulativeDistribution => "cume_dist",
+            Self::PercentRank => "percent_rank",
             Self::NTile(_) => "ntile",
         }
     }
@@ -243,6 +245,8 @@ impl ConcreteWindowAggregation {
                 numbers.sort();
                 output.resize(numbers.len(), DynamicNumber::Integer(0));
 
+                let n = numbers.len();
+
                 match kind {
                     RankingKind::Dense => {
                         let mut rank: usize = 0;
@@ -273,8 +277,6 @@ impl ConcreteWindowAggregation {
                         }
                     }
                     RankingKind::CumulativeDistribution => {
-                        let n = numbers.len();
-
                         let mut i: usize = 0;
 
                         while i < n {
@@ -293,9 +295,32 @@ impl ConcreteWindowAggregation {
                             i = j;
                         }
                     }
+                    RankingKind::PercentRank => {
+                        let mut rank: usize = 1;
+                        let mut i: usize = 0;
+
+                        // Avoiding division by zero
+                        if n > 1 {
+                            while i < n {
+                                let mut j = i + 1;
+
+                                while j < n && numbers[i].0 == numbers[j].0 {
+                                    j += 1;
+                                }
+
+                                let p = (rank - 1) as f64 / (n - 1) as f64;
+
+                                for k in i..j {
+                                    output[numbers[k].1] = DynamicNumber::Float(p);
+                                }
+
+                                rank += j - i;
+                                i = j;
+                            }
+                        }
+                    }
                     RankingKind::NTile(k) => {
                         let k = *k;
-                        let n = numbers.len();
 
                         let q = n / k;
                         let r = n % k;
@@ -483,7 +508,7 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "frac" => FunctionArguments::with_range(1..=2),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" | "cume_dist" => {
+        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" | "cume_dist" | "percent_rank" => {
             FunctionArguments::unary()
         }
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev"
@@ -647,13 +672,14 @@ fn concretize_window_aggregations(
                     ConcreteWindowAggregation::Frac(expr, Sum::new(), decimals),
                 ));
             }
-            "dense_rank" | "rank" | "cume_dist" => {
+            "dense_rank" | "rank" | "cume_dist" | "percent_rank" => {
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
 
                 let kind = match func_name.as_str() {
                     "dense_rank" => RankingKind::Dense,
                     "rank" => RankingKind::Arbitrary,
                     "cume_dist" => RankingKind::CumulativeDistribution,
+                    "percent_rank" => RankingKind::PercentRank,
                     _ => unreachable!(),
                 };
 
