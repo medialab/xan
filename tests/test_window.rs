@@ -489,30 +489,42 @@ fn window_rank() {
 }
 
 #[test]
-fn window_cume_dist() {
-    let wrk = Workdir::new("window_cume_dist");
+fn window_advanced_ranking() {
+    let wrk = Workdir::new("window_advanced_ranking");
     wrk.create(
         "numbers.csv",
         vec![
-            svec!["n"],
-            svec!["-0.5"],
-            svec!["-0.5"],
-            svec!["-0.2"],
-            svec!["1"],
-            svec!["0.5"],
+            svec!["id", "n"],
+            svec!["1", "-0.5"],
+            svec!["1", "-0.5"],
+            svec!["1", "-0.2"],
+            svec!["1", "1"],
+            svec!["1", "0.5"],
+            svec!["2", "-0.3"],
+            svec!["2", "-0.2"],
+            svec!["2", "0.6"],
+            svec!["2", "-0.5"],
+            svec!["2", "-0.2"],
         ],
     );
     let mut cmd = wrk.command("window");
-    cmd.arg("cume_dist(n) as cume_dist").arg("numbers.csv");
+    cmd.arg("cume_dist(n) as cume_dist")
+        .args(["-g", "id"])
+        .arg("numbers.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        ["n", "cume_dist"],
-        ["-0.5", "0.4"],
-        ["-0.5", "0.4"],
-        ["-0.2", "0.6"],
-        ["1", "1"],
-        ["0.5", "0.8"],
+        ["id", "n", "cume_dist"],
+        ["1", "-0.5", "0.4"],
+        ["1", "-0.5", "0.4"],
+        ["1", "-0.2", "0.6"],
+        ["1", "1", "1"],
+        ["1", "0.5", "0.8"],
+        ["2", "-0.3", "0.4"],
+        ["2", "-0.2", "0.8"],
+        ["2", "0.6", "1"],
+        ["2", "-0.5", "0.2"],
+        ["2", "-0.2", "0.8"],
     ];
 
     assert_eq!(got, expected);
