@@ -115,6 +115,7 @@ enum RankingKind {
     Arbitrary,
     Dense,
     CumulativeDistribution,
+    NTile(usize),
 }
 
 impl RankingKind {
@@ -123,6 +124,7 @@ impl RankingKind {
             Self::Arbitrary => "rank",
             Self::Dense => "dense_rank",
             Self::CumulativeDistribution => "cume_dist",
+            Self::NTile(_) => "ntile",
         }
     }
 }
@@ -289,6 +291,28 @@ impl ConcreteWindowAggregation {
                             }
 
                             i = j;
+                        }
+                    }
+                    RankingKind::NTile(k) => {
+                        let k = *k;
+                        let n = numbers.len();
+
+                        let q = n / k;
+                        let r = n % k;
+
+                        let mut i: usize = 0;
+
+                        'main: for tile in 1..k + 1 {
+                            let size = q + (if tile <= r { 1 } else { 0 });
+
+                            for _ in 0..size {
+                                if i >= n {
+                                    break 'main;
+                                }
+
+                                output[numbers[i].1] = DynamicNumber::Integer(tile as i64);
+                                i += 1;
+                            }
                         }
                     }
                 }
@@ -462,9 +486,8 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" | "cume_dist" => {
             FunctionArguments::unary()
         }
-        "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
-            FunctionArguments::binary()
-        }
+        "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev"
+        | "ntile" => FunctionArguments::binary(),
         _ => return None,
     })
 }
@@ -637,6 +660,19 @@ fn concretize_window_aggregations(
                 concrete_aggs.push((
                     agg.agg_name,
                     ConcreteWindowAggregation::Ranking(Ranking::new(kind, expr)),
+                ));
+            }
+            "ntile" => {
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let k = cast_as_usize(&concretize_expression(
+                    agg.args.pop().unwrap(),
+                    headers,
+                    None,
+                )?)?;
+
+                concrete_aggs.push((
+                    agg.agg_name,
+                    ConcreteWindowAggregation::Ranking(Ranking::new(RankingKind::NTile(k), expr)),
                 ));
             }
             _ => unreachable!(),
