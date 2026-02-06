@@ -1,5 +1,11 @@
 [
   {
+    "name": "cume_dist",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Returns the cumulative distribution of numbers yielded by given expression. Beware, as this requires buffering whole file or group."
+  },
+  {
     "name": "cummax",
     "arguments": ["<expr>"],
     "returns": "number",

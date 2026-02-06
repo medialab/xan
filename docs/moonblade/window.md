@@ -1,5 +1,6 @@
 # Available window aggregation functions
 
+- **cume_dist**(*\<expr\>*) -> `number`: Returns the cumulative distribution of numbers yielded by given expression. Beware, as this requires buffering whole file or group.
 - **cummax**(*\<expr\>*) -> `number`: Returns the cumulative maximum of the numbers yielded by given expression.
 - **cummin**(*\<expr\>*) -> `number`: Returns the cumulative minimum of the numbers yielded by given expression.
 - **cumsum**(*\<expr\>*) -> `number`: Returns the cumulative sum of the numbers yielded by given expression.

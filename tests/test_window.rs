@@ -489,6 +489,36 @@ fn window_rank() {
 }
 
 #[test]
+fn window_cume_dist() {
+    let wrk = Workdir::new("window_cume_dist");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["n"],
+            svec!["-0.5"],
+            svec!["-0.5"],
+            svec!["-0.2"],
+            svec!["1"],
+            svec!["0.5"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("cume_dist(n) as cume_dist").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["n", "cume_dist"],
+        ["-0.5", "0.4"],
+        ["-0.5", "0.4"],
+        ["-0.2", "0.6"],
+        ["1", "1"],
+        ["0.5", "0.8"],
+    ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn window_generic_agg() {
     let wrk = Workdir::new("window_generic_agg");
     wrk.create(

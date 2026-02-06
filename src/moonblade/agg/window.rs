@@ -114,6 +114,7 @@ impl RollingWelford {
 enum RankingKind {
     Arbitrary,
     Dense,
+    CumulativeDistribution,
 }
 
 impl RankingKind {
@@ -121,6 +122,7 @@ impl RankingKind {
         match self {
             Self::Arbitrary => "rank",
             Self::Dense => "dense_rank",
+            Self::CumulativeDistribution => "cume_dist",
         }
     }
 }
@@ -130,7 +132,7 @@ struct Ranking {
     kind: RankingKind,
     expr: ConcreteExpr,
     numbers: Vec<(DynamicNumber, usize)>,
-    output: VecDeque<usize>,
+    output: VecDeque<DynamicNumber>,
 }
 
 impl Ranking {
@@ -237,7 +239,7 @@ impl ConcreteWindowAggregation {
                 ..
             }) => {
                 numbers.sort();
-                output.resize(numbers.len(), 0);
+                output.resize(numbers.len(), DynamicNumber::Integer(0));
 
                 match kind {
                     RankingKind::Dense => {
@@ -257,15 +259,36 @@ impl ConcreteWindowAggregation {
                                 _ => {}
                             };
 
-                            output[*i] = rank;
+                            output[*i] = DynamicNumber::Integer(rank as i64);
                         }
                     }
                     RankingKind::Arbitrary => {
                         let mut rank: usize = 1;
 
                         for (_, i) in numbers.iter() {
-                            output[*i] = rank;
+                            output[*i] = DynamicNumber::Integer(rank as i64);
                             rank += 1;
+                        }
+                    }
+                    RankingKind::CumulativeDistribution => {
+                        let n = numbers.len();
+
+                        let mut i: usize = 0;
+
+                        while i < n {
+                            let mut j = i + 1;
+
+                            while j < n && numbers[i].0 == numbers[j].0 {
+                                j += 1;
+                            }
+
+                            let c = j as f64 / n as f64;
+
+                            for k in i..j {
+                                output[numbers[k].1] = DynamicNumber::Float(c);
+                            }
+
+                            i = j;
                         }
                     }
                 }
@@ -436,7 +459,9 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "frac" => FunctionArguments::with_range(1..=2),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" => FunctionArguments::unary(),
+        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" | "cume_dist" => {
+            FunctionArguments::unary()
+        }
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
             FunctionArguments::binary()
         }
@@ -599,12 +624,13 @@ fn concretize_window_aggregations(
                     ConcreteWindowAggregation::Frac(expr, Sum::new(), decimals),
                 ));
             }
-            "dense_rank" | "rank" => {
+            "dense_rank" | "rank" | "cume_dist" => {
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
 
                 let kind = match func_name.as_str() {
                     "dense_rank" => RankingKind::Dense,
                     "rank" => RankingKind::Arbitrary,
+                    "cume_dist" => RankingKind::CumulativeDistribution,
                     _ => unreachable!(),
                 };
 
