@@ -25,6 +25,7 @@
 * Adding `xan separate --prefix`.
 * Adding `xan heatmap -C` short flag for `--cram`.
 * Adding `xan heatmap --repeat-headers`.
+* Adding `rank` window function.
 
 *Quality of Life*
 

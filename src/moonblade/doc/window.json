@@ -42,6 +42,12 @@
     "help": "Returns a value yielded by given expression, leading by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come after last lead value."
   },
   {
+    "name": "rank",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Returns the arbitrary rank (ties will will be broken in input order) of numbers yielded by given expression. Beware, as this requires buffering whole file or group."
+  },
+  {
     "name": "rolling_avg",
     "arguments": ["window_size", "<expr>"],
     "returns": "number",

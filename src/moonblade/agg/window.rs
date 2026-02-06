@@ -111,6 +111,45 @@ impl RollingWelford {
 }
 
 #[derive(Debug)]
+enum RankingKind {
+    Arbitrary,
+    Dense,
+}
+
+impl RankingKind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Arbitrary => "rank",
+            Self::Dense => "dense_rank",
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Ranking {
+    kind: RankingKind,
+    expr: ConcreteExpr,
+    numbers: Vec<(DynamicNumber, usize)>,
+    output: VecDeque<usize>,
+}
+
+impl Ranking {
+    fn new(kind: RankingKind, expr: ConcreteExpr) -> Self {
+        Self {
+            kind,
+            expr,
+            numbers: Vec::new(),
+            output: VecDeque::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.numbers.clear();
+        self.output.clear();
+    }
+}
+
+#[derive(Debug)]
 enum ConcreteWindowAggregation {
     Lead(ConcreteExpr, usize, ConcreteExpr),
     Lag(ConcreteExpr, usize, ConcreteExpr),
@@ -122,7 +161,7 @@ enum ConcreteWindowAggregation {
     RollingSum(ConcreteExpr, RollingSum),
     RollingWelford(ConcreteExpr, WelfordStat, RollingWelford),
     Frac(ConcreteExpr, Sum, Option<usize>),
-    DenseRank(ConcreteExpr, Vec<(DynamicNumber, usize)>, VecDeque<usize>),
+    Ranking(Ranking),
     TotalAggregation(AggregationProgram, DynamicValue),
 }
 
@@ -149,7 +188,7 @@ impl ConcreteWindowAggregation {
     fn requires_total_buffer(&self) -> bool {
         matches!(
             self,
-            Self::Frac(_, _, _) | Self::DenseRank(_, _, _) | Self::TotalAggregation(_, _)
+            Self::Frac(_, _, _) | Self::Ranking(_) | Self::TotalAggregation(_, _)
         )
     }
 
@@ -167,11 +206,16 @@ impl ConcreteWindowAggregation {
                     sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
                 }
             }
-            Self::DenseRank(expr, numbers, _) => {
+            Self::Ranking(Ranking {
+                expr,
+                numbers,
+                kind,
+                ..
+            }) => {
                 let value = eval_expression(expr, Some(index), record, headers_index)?;
                 let number = value
                     .try_as_number()
-                    .map_err(|err| err.specify("dense_rank"))?;
+                    .map_err(|err| err.specify(kind.as_str()))?;
 
                 numbers.push((number, numbers.len()));
             }
@@ -186,27 +230,44 @@ impl ConcreteWindowAggregation {
 
     fn finalize_total(&mut self) -> Result<(), SpecifiedEvaluationError> {
         match self {
-            Self::DenseRank(_, numbers, ranks) => {
+            Self::Ranking(Ranking {
+                numbers,
+                output,
+                kind,
+                ..
+            }) => {
                 numbers.sort();
-                ranks.resize(numbers.len(), 0);
+                output.resize(numbers.len(), 0);
 
-                let mut rank: usize = 0;
-                let mut last_number: Option<DynamicNumber> = None;
+                match kind {
+                    RankingKind::Dense => {
+                        let mut rank: usize = 0;
+                        let mut last_number: Option<DynamicNumber> = None;
 
-                for (n, i) in numbers.iter() {
-                    match last_number {
-                        None => {
-                            last_number = Some(*n);
+                        for (n, i) in numbers.iter() {
+                            match last_number {
+                                None => {
+                                    last_number = Some(*n);
+                                    rank += 1;
+                                }
+                                Some(l) if l != *n => {
+                                    last_number = Some(*n);
+                                    rank += 1;
+                                }
+                                _ => {}
+                            };
+
+                            output[*i] = rank;
+                        }
+                    }
+                    RankingKind::Arbitrary => {
+                        let mut rank: usize = 1;
+
+                        for (_, i) in numbers.iter() {
+                            output[*i] = rank;
                             rank += 1;
                         }
-                        Some(l) if l != *n => {
-                            last_number = Some(*n);
-                            rank += 1;
-                        }
-                        _ => {}
-                    };
-
-                    ranks[*i] = rank;
+                    }
                 }
             }
             Self::TotalAggregation(program, value) => {
@@ -328,7 +389,9 @@ impl ConcreteWindowAggregation {
                     Some(d) => DynamicValue::from(frac.map(|f| format!("{:.p$}", f, p = d))),
                 })
             }
-            Self::DenseRank(_, _, ranks) => Ok(DynamicValue::from(ranks.pop_front().unwrap())),
+            Self::Ranking(Ranking { output, .. }) => {
+                Ok(DynamicValue::from(output.pop_front().unwrap()))
+            }
             Self::TotalAggregation(_, value) => Ok(value.clone()),
         }
     }
@@ -357,9 +420,8 @@ impl ConcreteWindowAggregation {
             Self::Frac(_, sum, _) => {
                 sum.clear();
             }
-            Self::DenseRank(_, numbers, ranks) => {
-                numbers.clear();
-                ranks.clear();
+            Self::Ranking(ranking) => {
+                ranking.clear();
             }
             Self::TotalAggregation(program, value) => {
                 program.clear();
@@ -374,7 +436,7 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "frac" => FunctionArguments::with_range(1..=2),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" | "dense_rank" => FunctionArguments::unary(),
+        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" => FunctionArguments::unary(),
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
             FunctionArguments::binary()
         }
@@ -537,12 +599,18 @@ fn concretize_window_aggregations(
                     ConcreteWindowAggregation::Frac(expr, Sum::new(), decimals),
                 ));
             }
-            "dense_rank" => {
+            "dense_rank" | "rank" => {
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+
+                let kind = match func_name.as_str() {
+                    "dense_rank" => RankingKind::Dense,
+                    "rank" => RankingKind::Arbitrary,
+                    _ => unreachable!(),
+                };
 
                 concrete_aggs.push((
                     agg.agg_name,
-                    ConcreteWindowAggregation::DenseRank(expr, Vec::new(), VecDeque::new()),
+                    ConcreteWindowAggregation::Ranking(Ranking::new(kind, expr)),
                 ));
             }
             _ => unreachable!(),
