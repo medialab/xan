@@ -69,8 +69,8 @@ Usage:
     xan separate --help
 
 separate mode options:
-    -r, --regex           When using --separator, split cells using a regular
-                          expression instead of a simple substring.
+    -r, --regex           Split cells using a regular expression instead of using
+                          a simple substring.
     -m, --match           When using -r/--regex, extract parts of the cell matching
                           the regex pattern.
     -c, --capture-groups  When using -r/--regex, extract parts of the call matching
