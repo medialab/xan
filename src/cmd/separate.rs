@@ -302,10 +302,7 @@ impl Splitter {
                 }
             }
             TooManyMode::Merge => {
-                let mut remaining = max;
-
-                for sub_cell in self.splitn(remaining, cell) {
-                    remaining -= 1;
+                for sub_cell in self.splitn(max, cell) {
                     output_record.push_field(sub_cell);
                 }
             }
