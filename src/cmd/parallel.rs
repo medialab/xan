@@ -513,7 +513,7 @@ enum Input {
 }
 
 impl Input {
-    fn name(&self) -> Cow<str> {
+    fn name(&self) -> Cow<'_, str> {
         match self {
             Self::Path(p) => Cow::Borrowed(p),
             Self::FileChunk(chunk) => Cow::Owned(chunk.name()),

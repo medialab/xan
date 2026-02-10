@@ -91,7 +91,7 @@ lazy_static! {
             Op::infix(Rule::point, Assoc::Left));
 }
 
-fn parse_int(pair: Pair<Rule>) -> Result<i64, &str> {
+fn parse_int(pair: Pair<'_, Rule>) -> Result<i64, &str> {
     pair.as_str()
         .replace('_', "")
         .parse::<i64>()

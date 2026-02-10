@@ -25,7 +25,7 @@ fn get_row_key(sel: &Selection, row: &ByteRecord, case_insensitive: bool) -> Byt
         .collect()
 }
 
-fn transform(bs: &[u8], case_insensitive: bool) -> Cow<[u8]> {
+fn transform(bs: &[u8], case_insensitive: bool) -> Cow<'_, [u8]> {
     if !case_insensitive {
         Cow::Borrowed(bs)
     } else {

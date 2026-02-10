@@ -1038,7 +1038,7 @@ impl DisplayedColumns {
         }
     }
 
-    fn iter(&self) -> DisplayedColumnsIter {
+    fn iter(&self) -> DisplayedColumnsIter<'_> {
         DisplayedColumnsIter {
             iter_left: self.left.iter(),
             iter_right: self.right.iter(),

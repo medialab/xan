@@ -404,7 +404,7 @@ impl<V> LRUTrieMultiMap<V> {
     pub fn longest_matching_prefix_values(
         &self,
         url: &str,
-    ) -> Result<LongestMatchingPrefixValues<V>, ParseError> {
+    ) -> Result<LongestMatchingPrefixValues<'_, V>, ParseError> {
         self.trie
             .longest_matching_prefix_value(url)
             .map(|found| LongestMatchingPrefixValues {

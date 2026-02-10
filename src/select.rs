@@ -2,7 +2,7 @@ use std::borrow::ToOwned;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
-use std::iter::repeat;
+use std::iter::repeat_n;
 use std::ops;
 use std::str::FromStr;
 
@@ -318,11 +318,11 @@ impl SelectorParser {
     }
 
     fn is_end_of_field(&self) -> bool {
-        self.cur().map_or(true, |c| c == ',' || c == ':')
+        self.cur().is_none_or(|c| c == ',' || c == ':')
     }
 
     fn is_end_of_selector(&self) -> bool {
-        self.cur().map_or(true, |c| c == ',')
+        self.cur().is_none_or(|c| c == ',')
     }
 
     fn bump(&mut self) {
@@ -632,7 +632,7 @@ impl Selection {
     }
 
     pub fn indexed_mask(&self, alignment: usize) -> Vec<Option<usize>> {
-        let mut m = repeat(None).take(alignment).collect::<Vec<Option<usize>>>();
+        let mut m = repeat_n(None, alignment).collect::<Vec<Option<usize>>>();
 
         for (j, i) in self.iter().enumerate() {
             if *i < alignment {
@@ -659,7 +659,7 @@ impl Selection {
     }
 
     pub fn contains(&self, i: usize) -> bool {
-        self.0.iter().any(|j| i == *j)
+        self.0.contains(&i)
     }
 
     pub fn subtract(&mut self, other: &Self) {

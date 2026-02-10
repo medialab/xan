@@ -256,7 +256,7 @@ where
 }
 
 #[inline]
-fn serialize_json_value_to_csv_field(value: &Value) -> Cow<[u8]> {
+fn serialize_json_value_to_csv_field(value: &Value) -> Cow<'_, [u8]> {
     match value {
         Value::Null => Cow::Borrowed(b""),
         Value::Bool(b) => Cow::Borrowed(if *b { b"true" } else { b"false" }),
