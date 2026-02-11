@@ -50,6 +50,11 @@ help options:
                            query.
     --json                 Dump the help as JSON data.
     --md                   Dump the help as Markdown.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
 
 Common options:
     -h, --help             Display this message

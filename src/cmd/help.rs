@@ -777,6 +777,11 @@ help options:
                            query.
     --json                 Dump the help as JSON data.
     --md                   Dump the help as Markdown.
+    --color <when>         When to color the output using ANSI escape codes.
+                           Use `auto` for automatic detection, `never` to
+                           disable colors completely and `always` to force
+                           colors, even when the output could not handle them.
+                           [default: auto]
 
 Common options:
     -h, --help             Display this message
@@ -794,6 +799,7 @@ struct Args {
     flag_section: Option<String>,
     flag_json: bool,
     flag_md: bool,
+    flag_color: util::ColorMode,
 }
 
 impl Args {
@@ -839,6 +845,7 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+    args.flag_color.apply();
 
     if args.flag_open {
         args.open();

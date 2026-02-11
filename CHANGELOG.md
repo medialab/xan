@@ -26,6 +26,7 @@
 * Adding `xan heatmap -C` short flag for `--cram`.
 * Adding `xan heatmap --repeat-headers`.
 * Adding `rank`, `cume_dist`, `percent_rank` and `ntile` window functions.
+* Adding `xan help --color`.
 
 *Quality of Life*
 
