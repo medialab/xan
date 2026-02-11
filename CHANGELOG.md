@@ -28,6 +28,10 @@
 * Adding `rank`, `cume_dist`, `percent_rank` and `ntile` window functions.
 * Adding `xan help --color`.
 
+*Fixes*
+
+* Fixing `xan select -ne` incorrectly emitting headers.
+
 *Quality of Life*
 
 * `xan view -p` will not print bottom header anymore by default.
