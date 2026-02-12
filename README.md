@@ -42,6 +42,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [NetBSD](#netbsd)
   * [Nix](#nix)
   * [Pixi](#pixi-linux-macos-windows)
+  * [Conda Forge](#conda-forge)
   * [Pre-built binaries](#pre-built-binaries)
   * [Installing completions](#installing-completions)
 * [Quick tour](#quick-tour)
@@ -132,6 +133,14 @@ nix-shell -p xan
 
 ```bash
 pixi global install xan
+```
+
+### Conda Forge
+
+`xan` can be installed through [conda-forge](https://conda-forge.org/) thusly:
+
+```bash
+conda install conda-forge::xan
 ```
 
 ### Pre-built binaries
