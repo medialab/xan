@@ -4,11 +4,22 @@
   <img src="./img/csv-base-jumping.png" alt="csv-base-jumping">
 </p>
 
-TODO: tl;dr, xan link
+## TL;DR
+
+The [simd-csv](https://docs.rs/simd-csv) crate implements a somewhat novel [`Seeker`](https://docs.rs/simd-csv/latest/simd_csv/struct.Seeker.html) able to safely jump through CSV files.
+
+This enables the [`xan`](https://github.com/medialab/xan/) command line tool to perform wild stuff such as single-pass map-reduce parallelization over CSV files, fast sampling or even binary search in sorted CSV data.
 
 ## Summary
 
-TODO...
+- [Is that even dangerous?](#is-that-even-dangerous)
+- [Our lord and savior: statistics](#our-lord-and-savior-statistics)
+- [Donning the wingsuit](#donning-the-wingsuit)
+- [Why though?](#why-though)
+  - [Single-pass map-reduce parallelization over CSV files](#single-pass-map-reduce-parallelization-over-csv-files)
+  - [Cursed sampling](#cursed-sampling)
+  - [Binary search](#binary-search)
+- [Caveat emptor](#caveat-emptor)
 
 ## Is that even dangerous?
 
@@ -108,7 +119,7 @@ This seems helpless. But I would not be writing about this issue if I had no sol
 
 ## Our lord and savior: statistics
 
-Real-life CSV data is *usually* consistent. What I mean by that is that tabular data often has a fixed number of columns. Indeed, rows suddenly demonstrating an inconsistent number of columns are typically frowned upon. What's more, columns often hold homogeneous data types: integers, floating point numbers, raw text, dates etc. We can of course leverage this consistency.
+Real-life CSV data is *usually* consistent. What I mean by that is that tabular data often has a fixed number of columns. Indeed, rows suddenly demonstrating an inconsistent number of columns are typically frowned upon. What's more, columns often hold homogeneous data types: integers, floating point numbers, raw text, dates etc. Finally, rows tend to have a comparable size in number of bytes. We would be fools not to leverage all this consistency.
 
 So now, before doing any reckless jumping, let's start by analyzing the beginning of our CSV file to record some statistics that will be useful down the line.
 
@@ -116,7 +127,7 @@ We need to sample a fixed but sufficient number of rows (`128` is a good place t
 
 * the number of columns of the file
 * the maximum size, in bytes, of all sampled rows
-* a profile of the columns, that is to say a vector of the average size in bytes of all sampled cells from each column
+* a profile of the columns, that is to say a vector of the average size in bytes of all sampled cells for each column
 
 Here is an example of what you might get:
 
@@ -152,15 +163,41 @@ Anyway, we now have what we need to be able to jump safely.
 
 ## Donning the wingsuit
 
-jumping, reading normally up to n times, comparing columns, tie breaker cosine
+Armed with our sample, we can now jump to some random byte of our CSV file and assess the situation.
+
+The first thing that we need to do is to multiply the maximum byte size of our sampled rows by some constant (I recommend `32` to abide by the beforementioned fetichism). Using the above example, we would need to multiply `19131` by `32`, yielding `612192`.
+
+We will then proceed to read that many bytes following our landing point. But we will do so twice: one time reading from the stream as-is and one time pretending a double quote exists just before our landing point.
+
+The goal here is to test the only two hypothesis we have: either we landed in an unquoted section or we landed in a quoted one.
+
+We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to 1. skip the first parsed row because we don't know where we landed within it and 2. to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
+
+Then we have 3 cases to handle:
+
+1. both byte series are rejected: this should not be possible unless you are reaching the end of the stream and have not enough data to make a decision. Double check your code, there might be something wrong.
+2. only one of the byte series is rejected: this means we know whether we are in the unquoted or quoted scenario and we can correctly return the byte offset of next row.
+3. none of the byte series are rejected: this is improbable, but still happens in real-life, albeit rarely. This typically occurs when cells contain raw text and the sequence of commas and line breaks in this text matches the structure of your CSV file. In this case, we need a better tie-breaker.
+
+Here we will need the column profile from our sample and some similarity function (I recommend [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) here) to find the correct hypothesis. Just compute said similarity between the column profile (a vector of the average cell sizes in bytes from the sample) and a byte series' rows column profile.
+
+The result is usually clear-cut with some hypothesis over `0.9` and the other below `0.2`, but your mileage may vary.
+
+And this is it. This technique is reasonably robust and should let you jump safely.
+
+See the [simd-csv](https://docs.rs/simd-csv) crate implementation of this technique in its [`Seeker`](https://docs.rs/simd-csv/latest/simd_csv/struct.Seeker.html) struct, notably the [`find_record_after`](https://docs.rs/simd-csv/latest/simd_csv/struct.Seeker.html#method.find_record_after) method ([source](https://docs.rs/simd-csv/latest/src/simd_csv/seeker.rs.html#369-438)). It is currently being used in production already.
 
 ## Why though?
 
-TODO: subsections for toc
+Sure, we now understand how to safely jump through a CSV file. Great. But is this even useful?
+
+With some creativity, you will surely find a way to leverage this novel knowledge.
+
+Here are three ways [`xan`](https://github.com/medialab/xan/) uses a wingsuit to perform over-engineered CSV-adjacent prowesses:
 
 ### Single-pass map-reduce parallelization over CSV files
 
-indexing, gzi nod
+indexing, gzi nod, demonstrate chunking, IO vs. cpu time, bench xan count
 
 ### Cursed sampling
 
