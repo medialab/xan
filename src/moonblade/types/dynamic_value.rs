@@ -25,7 +25,7 @@ use super::DynamicNumber;
 // NOTE: a DynamicValue should always be:
 //   1. cheap to clone (notice the Arcs)
 //   2. 16 bytes large max
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
@@ -36,6 +36,7 @@ pub enum DynamicValue {
     Boolean(bool),
     Regex(Arc<Regex>),
     DateTime(Box<Zoned>),
+    #[default]
     None,
 }
 
@@ -44,12 +45,6 @@ const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T%.f[%Z]";
 fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
     dates::parse_zoned(value, None, None)
         .map_err(|err| EvaluationError::from_zoned_parse_error(value, None, None, err))
-}
-
-impl Default for DynamicValue {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl Serialize for DynamicValue {
@@ -206,7 +201,7 @@ impl DynamicValue {
         !matches!(self, Self::List(_) | Self::Map(_))
     }
 
-    pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<[u8]> {
+    pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<'_, [u8]> {
         match self {
             Self::List(list) => {
                 if list.is_empty() {
@@ -252,7 +247,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn serialize_as_bytes(&self) -> Cow<[u8]> {
+    pub fn serialize_as_bytes(&self) -> Cow<'_, [u8]> {
         self.serialize_as_bytes_with_options(b"|")
     }
 
@@ -265,7 +260,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn try_as_datetime(&self) -> Result<Cow<Zoned>, EvaluationError> {
+    pub fn try_as_datetime(&self) -> Result<Cow<'_, Zoned>, EvaluationError> {
         match self {
             DynamicValue::DateTime(value) => Ok(Cow::Borrowed(value)),
             DynamicValue::String(value) => parse_datetime(value).map(Cow::Owned),
@@ -295,7 +290,7 @@ impl DynamicValue {
             .map(|tagged_url| tagged_url.into_inner())
     }
 
-    pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
+    pub fn try_as_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
             Self::Bytes(value) => Cow::Borrowed(
@@ -465,7 +460,7 @@ impl DynamicValue {
         }
     }
 
-    pub fn flat_iter(&self) -> DynamicValueFlatIter {
+    pub fn flat_iter(&self) -> DynamicValueFlatIter<'_> {
         DynamicValueFlatIter::new(self)
     }
 

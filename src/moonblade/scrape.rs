@@ -16,11 +16,11 @@ use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
 use super::types::{Argument, DynamicValue, FunctionArguments, HeadersIndex};
 
 trait HtmlExt {
-    fn get_element(&self, id: NodeId) -> ElementRef;
+    fn get_element(&self, id: NodeId) -> ElementRef<'_>;
 }
 
 impl HtmlExt for Html {
-    fn get_element(&self, id: NodeId) -> ElementRef {
+    fn get_element(&self, id: NodeId) -> ElementRef<'_> {
         ElementRef::wrap(self.tree.get(id).unwrap()).unwrap()
     }
 }

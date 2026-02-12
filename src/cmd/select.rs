@@ -171,7 +171,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
 
-        wtr.write_record(program.headers())?;
+        if !rconfig.no_headers {
+            wtr.write_record(program.headers())?;
+        }
 
         let index: usize = 0;
         let mut output_record = simd_csv::ByteRecord::new();

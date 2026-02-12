@@ -25,9 +25,12 @@ Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
+                          Set to -1 to sample whole JSON input.
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.
+    --strings <columns>   Force selected columns to be considered as raw strings
+                          instead of integers, floats etc.
 
 NPY options:
     --dtype <type>  Number type to use for the npy conversion. Must be one of "f32"

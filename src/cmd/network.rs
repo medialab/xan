@@ -116,8 +116,11 @@ impl Args {
             let node_attr_sel =
                 Selection::without_indices(node_headers.len(), &[node_column_index]);
 
-            let mut node_attr_inferrence =
-                JSONTypeInferrenceBuffer::new(node_attr_sel.clone(), 512, JSONEmptyMode::Omit);
+            let mut node_attr_inferrence = JSONTypeInferrenceBuffer::new(
+                node_attr_sel.clone(),
+                Some(512),
+                JSONEmptyMode::Omit,
+            );
 
             node_attr_inferrence.read(&mut node_reader)?;
 
@@ -169,7 +172,7 @@ impl Args {
         );
 
         let mut edge_attr_inferrence =
-            JSONTypeInferrenceBuffer::new(edge_attr_sel.clone(), 512, JSONEmptyMode::Omit);
+            JSONTypeInferrenceBuffer::new(edge_attr_sel.clone(), Some(512), JSONEmptyMode::Omit);
 
         edge_attr_inferrence.read(&mut edge_reader)?;
 

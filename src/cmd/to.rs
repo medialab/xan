@@ -1,6 +1,5 @@
 use std::io::{self, IsTerminal, Write};
 use std::iter;
-use std::num::NonZeroUsize;
 
 use npyz::WriterBuilder;
 use pad::PadStr;
@@ -38,9 +37,12 @@ Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
+                          Set to -1 to sample whole JSON input.
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.
+    --strings <columns>   Force selected columns to be considered as raw strings
+                          instead of integers, floats etc.
 
 NPY options:
     --dtype <type>  Number type to use for the npy conversion. Must be one of \"f32\"
@@ -68,15 +70,24 @@ struct Args {
     flag_no_headers: bool,
     flag_select: SelectedColumns,
     flag_delimiter: Option<Delimiter>,
-    flag_sample_size: NonZeroUsize,
+    flag_sample_size: isize,
     flag_nulls: bool,
     flag_omit: bool,
+    flag_strings: Option<SelectedColumns>,
     flag_dtype: String,
 }
 
 impl Args {
     fn is_writing_to_file(&self) -> bool {
         self.flag_output.is_some() || !io::stdout().is_terminal()
+    }
+
+    fn sample_size(&self) -> Option<usize> {
+        if self.flag_sample_size <= 0 {
+            None
+        } else {
+            Some(self.flag_sample_size as usize)
+        }
     }
 
     fn json_empty_mode(&self) -> JSONEmptyMode {
@@ -100,16 +111,28 @@ impl Args {
     }
 
     fn convert_to_json(&self) -> CliResult<()> {
-        let mut rdr = self.rconf().reader()?;
+        let rconf = self.rconf();
+        let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
         let headers = rdr.headers()?.clone();
 
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
-            self.flag_sample_size.get(),
+            self.sample_size(),
             self.json_empty_mode(),
         );
+
+        if let Some(sel) = &self.flag_strings {
+            let indices = sel.selection(
+                headers.iter().map(|cell| cell.as_bytes()),
+                !rconf.no_headers,
+            )?;
+
+            for index in indices.iter() {
+                inferrence_buffer.set_string(*index);
+            }
+        }
 
         inferrence_buffer.read(&mut rdr)?;
 
@@ -135,15 +158,28 @@ impl Args {
     }
 
     fn convert_to_ndjson(&self) -> CliResult<()> {
-        let mut rdr = self.rconf().reader()?;
+        let rconf = self.rconf();
+        let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
         let headers = rdr.headers()?.clone();
+
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
-            self.flag_sample_size.get(),
+            self.sample_size(),
             self.json_empty_mode(),
         );
+
+        if let Some(sel) = &self.flag_strings {
+            let indices = sel.selection(
+                headers.iter().map(|cell| cell.as_bytes()),
+                !rconf.no_headers,
+            )?;
+
+            for index in indices.iter() {
+                inferrence_buffer.set_string(*index);
+            }
+        }
 
         inferrence_buffer.read(&mut rdr)?;
 

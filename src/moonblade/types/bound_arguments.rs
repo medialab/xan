@@ -69,7 +69,7 @@ impl BoundArguments {
         (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 
-    pub fn get1_str(&self) -> Result<Cow<str>, EvaluationError> {
+    pub fn get1_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
         self.get1().try_as_str()
     }
 
@@ -81,7 +81,7 @@ impl BoundArguments {
         self.pop1().try_as_number()
     }
 
-    pub fn get2_str(&self) -> Result<(Cow<str>, Cow<str>), EvaluationError> {
+    pub fn get2_str(&self) -> Result<(Cow<'_, str>, Cow<'_, str>), EvaluationError> {
         let (a, b) = self.get2();
 
         Ok((a.try_as_str()?, b.try_as_str()?))

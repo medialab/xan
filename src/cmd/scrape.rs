@@ -143,7 +143,7 @@ fn guard_invalid_html_cell(cell: &[u8]) -> CliResult<()> {
 }
 
 impl ScraperTarget<'_> {
-    fn prebuffer_up_to_head(&self) -> CliResult<Cow<[u8]>> {
+    fn prebuffer_up_to_head(&self) -> CliResult<Cow<'_, [u8]>> {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;
@@ -161,7 +161,7 @@ impl ScraperTarget<'_> {
         }
     }
 
-    fn read_bytes(&self) -> CliResult<Cow<[u8]>> {
+    fn read_bytes(&self) -> CliResult<Cow<'_, [u8]>> {
         match self {
             Self::HtmlCell(cell) => {
                 guard_invalid_html_cell(cell)?;

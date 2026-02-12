@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.55.0 (provisional)
+## 0.55.0
 
 *Breaking*
 
@@ -18,17 +18,27 @@
 * Adding `xan view --repeat-headers=(auto|always|never)`.
 * Adding `xan view --reveal-whitespace=(auto|always|never)`.
 * Adding `--color` support to `XAN_VIEW_ARGS`.
-* Adding `xan from -f json --sample-size -1` to sample the complete file.
-* Adding `xan from --sort-keys`.
-* Adding `xan separate --prefix`.
+* Adding `xan from -f json --sample-size -1` to sample the whole file.
 * Adding `xan from -f json --single-object`.
+* Adding `xan from --sort-keys`.
+* Adding `xan to (json|ndjson|jsonl) --sample-size -1` to sample the whole file.
+* Adding `xan to (json|ndjson|jsonl) --strings` flag.
+* Adding `xan separate --prefix`.
 * Adding `xan heatmap -C` short flag for `--cram`.
 * Adding `xan heatmap --repeat-headers`.
+* Adding `rank`, `cume_dist`, `percent_rank` and `ntile` window functions.
+* Adding `xan help --color`.
+
+*Fixes*
+
+* Fixing `xan select -ne` incorrectly emitting headers.
 
 *Quality of Life*
 
 * `xan view -p` will not print bottom header anymore by default.
 * `xan view` will not reveal problematic whitespace if output is not colored anymore, by default.
+* Better `xan hist` error messages and help.
+* Testing more file name variants when searching for a `.gzi` index.
 
 ## 0.54.1
 

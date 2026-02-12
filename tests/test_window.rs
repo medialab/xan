@@ -455,6 +455,82 @@ fn window_dense_rank() {
 }
 
 #[test]
+fn window_rank() {
+    let wrk = Workdir::new("window_rank");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["n"],
+            svec!["20"],
+            svec!["10"],
+            svec!["30"],
+            svec!["10"],
+            svec!["20"],
+            svec!["20"],
+            svec!["20"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("rank(n) as rank").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["n", "rank"],
+        svec!["20", "3"],
+        svec!["10", "1"],
+        svec!["30", "7"],
+        svec!["10", "2"],
+        svec!["20", "4"],
+        svec!["20", "5"],
+        svec!["20", "6"],
+    ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn window_advanced_ranking() {
+    let wrk = Workdir::new("window_advanced_ranking");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["id", "n"],
+            svec!["1", "-0.5"],
+            svec!["1", "-0.5"],
+            svec!["1", "-0.2"],
+            svec!["1", "1"],
+            svec!["1", "0.5"],
+            svec!["2", "-0.3"],
+            svec!["2", "-0.2"],
+            svec!["2", "0.6"],
+            svec!["2", "-0.5"],
+            svec!["2", "-0.2"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("cume_dist(n) as cume_dist, ntile(2, n) as ntile, percent_rank(n) as percent_rank")
+        .args(["-g", "id"])
+        .arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "n", "cume_dist", "ntile", "percent_rank"],
+        ["1", "-0.5", "0.4", "1", "0"],
+        ["1", "-0.5", "0.4", "1", "0"],
+        ["1", "-0.2", "0.6", "1", "0.5"],
+        ["1", "1", "1", "2", "1"],
+        ["1", "0.5", "0.8", "2", "0.75"],
+        ["2", "-0.3", "0.4", "1", "0.25"],
+        ["2", "-0.2", "0.8", "1", "0.5"],
+        ["2", "0.6", "1", "2", "1"],
+        ["2", "-0.5", "0.2", "1", "0"],
+        ["2", "-0.2", "0.8", "2", "0.5"],
+    ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn window_generic_agg() {
     let wrk = Workdir::new("window_generic_agg");
     wrk.create(

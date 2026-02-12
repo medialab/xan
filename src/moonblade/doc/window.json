@@ -1,5 +1,11 @@
 [
   {
+    "name": "cume_dist",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Returns the cumulative distribution of numbers yielded by given expression. This requires buffering whole file or group!"
+  },
+  {
     "name": "cummax",
     "arguments": ["<expr>"],
     "returns": "number",
@@ -21,13 +27,13 @@
     "name": "dense_rank",
     "arguments": ["<expr>"],
     "returns": "number",
-    "help": "Returns the dense rank (there will be no gaps, but ties remain possible for a same rank) of numbers yielded by given expression. Beware, as this requires buffering whole file or group."
+    "help": "Returns the dense rank (there will be no gaps, but ties remain possible for a same rank) of numbers yielded by given expression. This requires buffering whole file or group!"
   },
   {
     "name": "frac",
     "arguments": ["<expr>", "decimals?"],
     "returns": "number",
-    "help": "Returns the fraction represented by numbers yielded by given expression over the total sum of them. Beware, as this requires buffering whole file or group."
+    "help": "Returns the fraction represented by numbers yielded by given expression over the total sum of them. This requires buffering whole file or group!"
   },
   {
     "name": "lag",
@@ -40,6 +46,24 @@
     "arguments": ["<expr>", "steps?", "<expr>?"],
     "returns": "any",
     "help": "Returns a value yielded by given expression, leading by n steps or 1 step by default. Can take a second expression after the number of steps to return a default value for rows that come after last lead value."
+  },
+  {
+    "name": "ntile",
+    "arguments": ["k", "<expr>"],
+    "returns": "number",
+    "help": "Splits numbers yielded by given expression into `k` nearly equal-sized consecutive groups. This requires buffering whole file or group!"
+  },
+  {
+    "name": "percent_rank",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Normalized rank of numbers yielded by given expression. This requires buffering whole file or group!"
+  },
+  {
+    "name": "rank",
+    "arguments": ["<expr>"],
+    "returns": "number",
+    "help": "Returns the arbitrary rank (ties will will be broken in input order) of numbers yielded by given expression. This requires buffering whole file or group!"
   },
   {
     "name": "rolling_avg",

@@ -118,6 +118,29 @@ impl Compression {
 
         path.strip_suffix(suffix).unwrap_or(path)
     }
+
+    fn index_path(&self, path: &str) -> Option<String> {
+        match self {
+            Self::Gzip => {
+                let potential_path = path.to_string() + ".gzi";
+
+                if Path::new(&potential_path).is_file() {
+                    return Some(potential_path);
+                }
+
+                if let Some(stripped) = path.strip_suffix(".gz") {
+                    let potential_path = stripped.to_string() + ".gzi";
+
+                    if Path::new(&potential_path).is_file() {
+                        return Some(potential_path);
+                    }
+                }
+
+                None
+            }
+            _ => None,
+        }
+    }
 }
 
 pub trait SeekRead: Seek + Read {}
@@ -162,7 +185,7 @@ impl Config {
         }
 
         if path.ends_with(".gz") {
-            Self::new(&Some(path.to_string())).is_indexed_gzip()
+            Self::new(&Some(path.to_string())).has_seekable_index()
         } else {
             true
         }
@@ -543,10 +566,9 @@ impl Config {
             Some(ref p) => match fs::File::open(p) {
                 Ok(mut x) => {
                     if let Some(Compression::Gzip) = self.compression {
-                        let index_path_str = p.to_string_lossy() + ".gzi";
-                        let index_path = Path::new(index_path_str.as_ref());
-
-                        if index_path.is_file() {
+                        if let Some(index_path) =
+                            self.compression.unwrap().index_path(p.to_str().unwrap())
+                        {
                             let reader = BGZFReader::new(x)?;
                             let index = BGZFIndex::from_reader(fs::File::open(index_path)?)?;
                             let mut indexed_reader = IndexedBGZFReader::new(reader, index)?;
@@ -678,15 +700,12 @@ impl Config {
         )))
     }
 
-    pub fn is_indexed_gzip(&self) -> bool {
-        match self.path {
+    pub fn has_seekable_index(&self) -> bool {
+        match &self.path {
             None => false,
-            Some(ref p) => {
-                if matches!(self.compression, Some(Compression::Gzip)) {
-                    let index_path_str = p.to_string_lossy() + ".gzi";
-                    let index_path = Path::new(index_path_str.as_ref());
-
-                    index_path.is_file()
+            Some(path) => {
+                if let Some(compression) = self.compression {
+                    compression.index_path(path.to_str().unwrap()).is_some()
                 } else {
                     false
                 }

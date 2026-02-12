@@ -14,7 +14,7 @@ use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
 use crate::CliResult;
 
-fn serialize_value_to_csv(value: &Value) -> Cow<str> {
+fn serialize_value_to_csv(value: &Value) -> Cow<'_, str> {
     match value {
         Value::String(string) => Cow::Borrowed(string),
         Value::Bool(v) => Cow::Borrowed(if *v { "true" } else { "false" }),
