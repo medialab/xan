@@ -13,7 +13,7 @@ static USAGE: &str = r#"
 Search for rows where the value in <column> matches <value> using binary search,
 and flush all records after the target value.
 The default behavior is similar to a lower_bound bisection, but you can exclude
-records (equivalent to upper_bound) with the target value using the -e/--exclude
+records (equivalent to upper_bound) with the target value using the -E/--exclude
 flag. It is assumed that the INPUT IS SORTED according to the specified column.
 The ordering of the rows is assumed to be sorted according ascending lexicographic
 order per default, but you can specify numeric ordering using the -N or --numeric
@@ -26,7 +26,7 @@ Usage:
     xan bisect --help
 
 bisect options:
-    -e, --exclude            When set, the records with the target value will be
+    -E, --exclude            When set, the records with the target value will be
                              excluded from the output. By default, they are
                              included. Cannot be used with -S/--search.
     -N, --numeric            Compare according to the numerical value of cells
@@ -34,7 +34,11 @@ bisect options:
     -R, --reverse            Reverse sort order, i.e. descending order.
     -S, --search             Perform a search on the target value instead of
                              flushing all records after the value (included).
-                             Cannot be used with -e/--exclude.
+                             Cannot be used with -E/--exclude nor -e/--end.
+    -e, --end <end-value>    When set, the records after the target value will be
+                             flushed until <end-value> is reached (included).
+                             By default, all records after the target value are
+                             flushed. Cannot be used with -S/--search.
 
 Common options:
     -h, --help               Display this message
@@ -54,6 +58,7 @@ struct Args {
     flag_numeric: bool,
     flag_reverse: bool,
     flag_search: bool,
+    arg_end_value: Option<String>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -130,7 +135,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if args.flag_exclude && args.flag_search {
-        Err("The -e/--exclude and -S/--search flags cannot be used together")?;
+        Err("The -E/--exclude and -S/--search flags cannot be used together")?;
+    }
+
+    if args.flag_search && args.arg_end_value.is_some() {
+        Err("The -S/--search and -e/--end flags cannot be used together")?;
     }
 
     let target_value = args.get_value_from_bytes(args.arg_value.as_bytes())?;
@@ -178,47 +187,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         )?;
     }
 
+    let mut value_found_among_first_records = false;
+
     // Testing the first and second records before starting
     match reversing_order_if_necessary(first_value.cmp(&target_value), args.flag_reverse) {
         Ordering::Greater => {
             // Target value is out of bounds, so it is not present
         }
-        ord => {
-            // Will check first and second records (second too as it is skipped
-            // by simd_csv::Seek::Seeker::find_record_after()
-            // when records are too small)
+        Ordering::Equal => {
+            value_found_among_first_records = true;
+        }
+        Ordering::Less => {
             let mut rdr = rconf.simd_reader()?;
-            let mut value_found = false;
-
-            if ord == Ordering::Less {
-                // Skipping the first record as it is smaller than the target value
-                // will still check the second record afterwards in the loop
-                rdr.read_byte_record(&mut record)?;
-            }
-
-            while rdr.read_byte_record(&mut record)? {
-                match reversing_order_if_necessary(
-                    args.get_value_from_bytes(&record[column_index])?
-                        .cmp(&target_value),
-                    args.flag_reverse,
-                ) {
-                    Ordering::Equal => {
-                        value_found = true;
-                        if args.flag_exclude && !args.flag_search {
-                            continue;
-                        }
-                    }
-                    ord => {
-                        if args.flag_search || ord == Ordering::Less {
-                            break;
-                        }
-                    }
-                }
-                wtr.write_byte_record(&record)?;
-            }
-
-            if value_found {
-                return Ok(wtr.flush()?);
+            // Getting first record
+            rdr.read_byte_record(&mut record)?;
+            // Getting second one
+            let second_record_pos = rdr.position();
+            rdr.read_byte_record(&mut record)?;
+            if reversing_order_if_necessary(
+                args.get_value_from_bytes(&record[column_index])?
+                    .cmp(&target_value),
+                args.flag_reverse,
+            ) == Ordering::Equal
+            {
+                value_found_among_first_records = true;
+                record_pos = second_record_pos;
             }
         }
     }
@@ -227,163 +220,142 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         false => target_value >= first_value && target_value <= last_value,
         true => target_value <= first_value && target_value >= last_value,
     } {
-        while start_byte <= end_byte {
-            let sought = seek_rdr.find_record_after(median_byte)?;
+        if !value_found_among_first_records {
+            // Looking for the start byte of the first occurence
+            while start_byte <= end_byte {
+                let sought = seek_rdr.find_record_after(median_byte)?;
 
-            if let Some(sought) = sought {
-                (record_pos, record) = sought;
-                let value = args.get_value_from_bytes(&record[column_index])?;
-                match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse) {
-                    Ordering::Equal => {
-                        // We need to find the first occurrence of the target value
-                        end_byte = record_pos - 1;
-                        being_in_first_half = true;
-                        median_byte_for_first_occurrence =
-                            if let Some(pos) = median_byte_for_first_occurrence {
-                                Some(std::cmp::min(pos, median_byte))
-                            } else {
-                                Some(median_byte)
-                            };
-                    }
-                    ord => {
-                        if let Some(prev_value) = previous_median_value {
-                            match (
-                                being_in_first_half,
-                                reversing_order_if_necessary(
-                                    prev_value.cmp(&value),
-                                    args.flag_reverse,
-                                ),
-                            ) {
-                                (true, Ordering::Less) => {
-                                    Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
-                                }
-                                (false, Ordering::Greater) => {
-                                    Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
-                                }
-                                _ => {}
-                            }
-                        }
-
-                        match ord {
-                            Ordering::Less => {
-                                // meaning we're looking for a bigger value but the median value is actually the last one of the subset studied,
-                                // so the value isn't found
-                                if record_pos >= end_byte {
-                                    break;
-                                }
-                                // move start byte up
-                                being_in_first_half = false;
-                                start_byte = median_byte;
-                            }
-                            Ordering::Greater => {
-                                // move end byte down
-                                being_in_first_half = true;
-                                end_byte = median_byte;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                previous_median_value = Some(value);
-                previously_found_record_pos = Some(record_pos);
-
-                if let Some(prev) = previous_median {
-                    // We are not making any more progress
-                    // Meaning the target value is either found or not present
-                    if prev == median_byte {
-                        break;
-                    }
-                }
-            } else {
-                // Meaning we reached the last record or there are no more records
-                // after median_byte, so we try to find some before it
-                end_byte = median_byte;
-                being_in_first_half = true;
-                previous_median_value = None;
-                previously_found_record_pos = None;
-            }
-            previous_median = Some(median_byte);
-            median_byte = (start_byte + end_byte) / 2;
-        }
-
-        if args.flag_search {
-            // We found at least one (and the first) occurrence of
-            // the target value, so now we need to write only occurrences of the target value if search flag is set
-            if let Some(pos) = median_byte_for_first_occurrence {
-                let mut pos = pos;
-                let mut gap: u64;
-                let mut returned_first_occurrence = false;
-                loop {
-                    let sought = seek_rdr.find_record_after(pos)?;
-                    if sought.is_none() {
-                        break;
-                    }
-
-                    let old_record_pos = record_pos;
-                    (record_pos, record) = sought.unwrap();
-                    gap = if record_pos <= old_record_pos {
-                        record.as_slice().len() as u64 + 1
-                    } else {
-                        record_pos - old_record_pos
-                    };
-
-                    // Check if we have a new record and if we have not yet returned
-                    // the first occurrence
-                    if record_pos != old_record_pos || !returned_first_occurrence {
-                        let value = args.get_value_from_bytes(&record[column_index])?;
-
-                        if value == target_value {
-                            wtr.write_byte_record(&record)?;
-                            returned_first_occurrence = true;
-                        } else {
-                            break;
-                        }
-                    }
-                    pos += gap;
-                }
-            }
-
-            if target_value == last_value {
-                // Note: the '-1' is to account for the final newline
-                // record_pos = end_byte - last_record.as_slice().len() as u64 - 1;
-                wtr.write_byte_record(&last_record)?;
-            }
-        } else {
-            // No record found but this is becose only the last record has the target value, so we write it and return
-            if median_byte_for_first_occurrence.is_none()
-                && target_value == last_value
-                && !args.flag_exclude
-            {
-                // Note: the '-1' is to account for the final newline
-                // record_pos = end_byte - last_record.as_slice().len() as u64 - 1;
-                wtr.write_byte_record(&last_record)?;
-            } else {
-                let pos = if let Some(pos) = median_byte_for_first_occurrence {
-                    pos
-                } else {
-                    median_byte
-                };
-                // Writing every record after the first occurence
-                let record_pos = SeekFrom::Start(seek_rdr.find_record_after(pos)?.unwrap().0);
-                let mut reader = seek_rdr.into_reader_at_position(record_pos)?;
-                let mut record = ByteRecord::new();
-                while reader.read_byte_record(&mut record)? {
-                    dbg!(&record);
+                if let Some(sought) = sought {
+                    (record_pos, record) = sought;
                     let value = args.get_value_from_bytes(&record[column_index])?;
                     match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse)
                     {
                         Ordering::Equal => {
-                            if args.flag_exclude {
-                                continue;
+                            // We need to find the first occurrence of the target value
+                            end_byte = record_pos - 1;
+                            being_in_first_half = true;
+                            median_byte_for_first_occurrence =
+                                if let Some(pos) = median_byte_for_first_occurrence {
+                                    Some(std::cmp::min(pos, median_byte))
+                                } else {
+                                    Some(median_byte)
+                                };
+                        }
+                        ord => {
+                            if let Some(prev_value) = previous_median_value {
+                                match (
+                                    being_in_first_half,
+                                    reversing_order_if_necessary(
+                                        prev_value.cmp(&value),
+                                        args.flag_reverse,
+                                    ),
+                                ) {
+                                    (true, Ordering::Less) => {
+                                        Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
+                                    }
+                                    (false, Ordering::Greater) => {
+                                        Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            match ord {
+                                Ordering::Less => {
+                                    // meaning we're looking for a bigger value but the median value is actually the last one of the subset studied,
+                                    // so the value isn't found
+                                    if record_pos >= end_byte {
+                                        break;
+                                    }
+                                    // move start byte up
+                                    being_in_first_half = false;
+                                    start_byte = median_byte;
+                                }
+                                Ordering::Greater => {
+                                    // move end byte down
+                                    being_in_first_half = true;
+                                    end_byte = median_byte;
+                                }
+                                _ => {}
                             }
                         }
-                        Ordering::Greater => {}
-                        // meaning the first records aren't the target value,
-                        // happens sometimes
-                        Ordering::Less => continue,
-                    };
-                    wtr.write_byte_record(&record)?;
+                    }
+                    previous_median_value = Some(value);
+                    previously_found_record_pos = Some(record_pos);
+
+                    if let Some(prev) = previous_median {
+                        // We are not making any more progress
+                        // Meaning the target value is either found or not present
+                        if prev == median_byte {
+                            break;
+                        }
+                    }
+                } else {
+                    // Meaning we reached the last record or there are no more records
+                    // after median_byte, so we try to find some before it
+                    end_byte = median_byte;
+                    being_in_first_half = true;
+                    previous_median_value = None;
+                    previously_found_record_pos = None;
                 }
+                previous_median = Some(median_byte);
+                median_byte = (start_byte + end_byte) / 2;
+            }
+        }
+
+        // Writing output
+        if (!args.flag_exclude || args.flag_search)
+            && !value_found_among_first_records
+            && last_value == target_value
+            && median_byte_for_first_occurrence.is_none()
+        {
+            // No record found but this is because only the last record has the
+            // target value, so we write it and return
+            wtr.write_byte_record(&last_record)?;
+        } else {
+            let record_pos = if value_found_among_first_records {
+                SeekFrom::Start(record_pos)
+            } else {
+                let pos = if let Some(pos) = median_byte_for_first_occurrence {
+                    pos
+                } else if args.flag_search {
+                    unreachable!()
+                } else {
+                    median_byte
+                };
+                SeekFrom::Start(seek_rdr.find_record_after(pos)?.unwrap().0)
+            };
+
+            let mut reader = seek_rdr.into_reader_at_position(record_pos)?;
+            let mut record = ByteRecord::new();
+
+            while reader.read_byte_record(&mut record)? {
+                let value = args.get_value_from_bytes(&record[column_index])?;
+                match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse) {
+                    Ordering::Equal => {
+                        if args.flag_exclude {
+                            continue;
+                        }
+                    }
+                    Ordering::Greater => {
+                        // Writing records after target value only in default behavior
+                        if args.flag_search {
+                            break;
+                        }
+                    }
+                    Ordering::Less => {
+                        if value_found_among_first_records {
+                            // as value_found_among_first_records set to true means
+                            // that we didn't use the seeker, this case can't be reached
+                            unreachable!()
+                        } else {
+                            // meaning the first records haven't the target value,
+                            // happens sometimes when looking for it using the seeker
+                            continue;
+                        }
+                    }
+                }
+                wtr.write_byte_record(&record)?;
             }
         }
     }
