@@ -10,26 +10,31 @@ use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = r#"
-Search for rows where the value in <column> matches <value> using binary search.
-It is assumed that the INPUT IS SORTED according to the specified column.
+Search for rows where the value in <column> matches <value> using binary search,
+and flush all records after the target value.
+The default behavior is similar to a lower_bound bisection, but you can exclude
+records (equivalent to upper_bound) with the target value using the -e/--exclude
+flag. It is assumed that the INPUT IS SORTED according to the specified column.
 The ordering of the rows is assumed to be sorted according ascending lexicographic
 order per default, but you can specify numeric ordering using the -N or --numeric
 flag. You can also reverse the order using the -R/--reverse flag.
+Use the -S/--search flag to only flush records matching the target value instead
+of all records after it.
 
 Usage:
     xan bisect [options] [--] <column> <value> <input>
     xan bisect --help
 
 bisect options:
-    -I, --include            When set, the records with the target value will be
-                             included in the output. By default, it is not.
-                             Cannot be used with -S/--search.
+    -e, --exclude            When set, the records with the target value will be
+                             excluded from the output. By default, they are
+                             included. Cannot be used with -S/--search.
     -N, --numeric            Compare according to the numerical value of cells
                              instead of the default lexicographic order.
     -R, --reverse            Reverse sort order, i.e. descending order.
     -S, --search             Perform a search on the target value instead of
                              flushing all records after the value (included).
-                             Cannot be used with -I/--include.
+                             Cannot be used with -e/--exclude.
 
 Common options:
     -h, --help               Display this message
@@ -45,7 +50,7 @@ struct Args {
     arg_column: SelectedColumns,
     arg_value: String,
     arg_input: String,
-    flag_include: bool,
+    flag_exclude: bool,
     flag_numeric: bool,
     flag_reverse: bool,
     flag_search: bool,
@@ -124,8 +129,8 @@ fn reversing_order_if_necessary(ord: Ordering, reverse: bool) -> Ordering {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_include && args.flag_search {
-        Err("The -I/--include and -S/--search flags cannot be used together")?;
+    if args.flag_exclude && args.flag_search {
+        Err("The -e/--exclude and -S/--search flags cannot be used together")?;
     }
 
     let target_value = args.get_value_from_bytes(args.arg_value.as_bytes())?;
@@ -199,7 +204,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 ) {
                     Ordering::Equal => {
                         value_found = true;
-                        if !args.flag_include && !args.flag_search {
+                        if args.flag_exclude && !args.flag_search {
                             continue;
                         }
                     }
@@ -347,7 +352,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             // No record found but this is becose only the last record has the target value, so we write it and return
             if median_byte_for_first_occurrence.is_none()
                 && target_value == last_value
-                && args.flag_include
+                && !args.flag_exclude
             {
                 // Note: the '-1' is to account for the final newline
                 // record_pos = end_byte - last_record.as_slice().len() as u64 - 1;
@@ -368,7 +373,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse)
                     {
                         Ordering::Equal => {
-                            if !args.flag_include {
+                            if args.flag_exclude {
                                 continue;
                             }
                         }

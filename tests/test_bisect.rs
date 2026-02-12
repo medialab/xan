@@ -21,7 +21,7 @@ fn bisect_numeric() {
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
-    cmd.arg("n").arg("997").arg("range.csv").arg("-N");
+    cmd.arg("n").arg("997").arg("range.csv").arg("-Ne");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![svec!["n"], svec!["998"], svec!["999"], svec!["1000"]];
     assert_eq!(got, expected);
@@ -80,13 +80,13 @@ fn bisect() {
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
-    cmd.arg("letter").arg("b").arg("letters.csv");
+    cmd.arg("letter").arg("-e").arg("b").arg("letters.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["c"], svec!["d"], svec!["e"]];
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
-    cmd.arg("letter").arg("-I").arg("b").arg("letters.csv");
+    cmd.arg("letter").arg("b").arg("letters.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![
         svec!["letter"],
@@ -111,19 +111,19 @@ fn bisect() {
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
-    cmd.arg("-I").arg("letter").arg("e").arg("letters.csv");
+    cmd.arg("letter").arg("e").arg("letters.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["e"]];
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
-    cmd.arg("letter").arg("e").arg("letters.csv");
+    cmd.arg("letter").arg("-e").arg("e").arg("letters.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![svec!["letter"]];
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("bisect");
-    cmd.arg("-I").arg("letter").arg("a").arg("letters.csv");
+    cmd.arg("letter").arg("a").arg("letters.csv");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![
         svec!["letter"],
