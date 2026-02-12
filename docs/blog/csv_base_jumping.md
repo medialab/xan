@@ -194,11 +194,11 @@ Sure, we now understand how to safely jump through a CSV file. Great. But is thi
 
 With some creativity, you will surely find a way to leverage this novel knowledge.
 
-Here are three ways [`xan`](https://github.com/medialab/xan/) uses a wingsuit to perform over-engineered CSV-adjacent prowesses:
+Here are four ways [`xan`](https://github.com/medialab/xan/) uses a wingsuit to perform over-engineered CSV-adjacent prowesses:
 
 ### Constant time CSV file segmentation
 
-Being able to jump randomly through a CSV file means you are also able to segment it into chunks of comparable size. You can even do so very fast because you won't need to scan the whole file to find safe splitting points in order to avoid cutting rows haphazardly.
+Being able to jump randomly through a CSV file means you are also able to segment it into chunks of comparable size. You can even do so very fast because you won't need to scan the whole file to find safe splitting points and won't cut rows haphazardly.
 
 For instance, given a CSV file of `11307311996` bytes (~11GB), you can create 4 evenly-sized file segments with simple arithmetic, giving us those 4 `[start, end)` byte ranges:
 
@@ -218,12 +218,12 @@ Now, using the technique introduced in this article, you can "realign" those seg
 8480485897 to 11307311996
 ```
 
-All this in constant time, by finding the offset of the next rows found after byte `2826828123`, `5653656081` & `8480484038` respectively.
+All this in constant time, by finding the offset of the next rows found after bytes `2826828123`, `5653656081` & `8480484038` respectively.
 
 This is implemented by the [`xan split`](https://github.com/medialab/xan/blob/master/docs/cmd/split.md) command, using the `-c/--chunks <n>` flag:
 
 ```bash
-xan split -c 4 --segments articles.csv
+xan split --chunks 4 --segments articles.csv
 ```
 
 | from       | to          |
@@ -241,20 +241,20 @@ Traditionally, this was done by first precomputing an index or scanning the file
 
 What's more, CSV data processing is often more an IO-bound task than a CPU-bound one and being able to parallelize over chunks of a file like this is a boon for performance. Indeed, reading a CSV file linearly while broadcasting computations to multiple threads is usually counterproductive since the work performed by CPUs is not expensive enough to justify the cost of the communication between threads.
 
-As a consequence, the [`xan parallel`](https://github.com/medialab/xan/blob/master/docs/cmd/parallel.md) command is now able to parallelize computation over a single file. The same capability has been added to some other typical `xan` commands through the `-p/--parallel` or `-t/--threads <n>`. This includes `xan count`, `xan freq`, `xan stats`, `xan agg`, `xan groupby` etc.
+As a consequence, the [`xan parallel`](https://github.com/medialab/xan/blob/master/docs/cmd/parallel.md) command is now able to parallelize computation over a single file. The same capability has been added to some other typical `xan` commands through the `-p/--parallel` or `-t/--threads <n>` flags. This includes `xan count`, `xan freq`, `xan stats`, `xan agg`, `xan groupby` etc.
 
 ```bash
 # Computing the frequency table of the category column in parallel
 xan parallel freq -s category articles.csv
 
 # Couting number of rows in parallel
-xan count -p articles.csv
+xan count --parallel articles.csv
 
 # Performing custom aggregation in parallel using 16 threads
-xan agg -t 16 'sum(retweets) as retweet_sum' articles.csv
+xan agg --threads 16 'sum(retweets) as retweet_sum' articles.csv
 ```
 
-Using parallelization thusly can increase your performance greatly:
+Leveraging parallelization thusly is of course able to increase performance:
 
 ```bash
 # `articles.csv` is a ~3M rows ~11GB CSV file stored on SSD
@@ -268,11 +268,44 @@ time xan freq -t 4 -s section articles.csv
 2.21s user 2.20s system 685% cpu 0.643 total
 ```
 
-Of course the specifics of the used hardware and filesystem must be taken into account since they don't have the same scheduling/concurrency capabilities (SSD is of course at an advantage here).
+Note however that the specifics of the used hardware and filesystem must be taken into account since they don't have the same scheduling and concurrency capabilities (SSD is of course at an advantage here).
 
 Finding the optimal number of threads can also be a balancing act since using too many of them might put too much pressure on IO, counter-intuitively. Inter-thread communication and synchronization might also become a problem with too many threads.
 
+*About grep*
+
+Funnily enough, this logic (fast segmentation + parallelization) can very easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I am sure there are ways to deal with that). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could be great also to deal with newline-delimited JSON files etc.
+
+I don't know of a tool implementing this logic yet, but I am sure it must exist somewhere already.
+
 ### Cursed sampling
+
+So this one is a bit of a joke admittedly, but it remains useful nonetheless.
+
+```bash
+# Sampling 100 rows from a cursed distribution
+xan sample --cursed 100 articles.csv > sample.csv
+```
+
+See this new flag, added to the [`xan sample`](https://github.com/medialab/xan/blob/master/docs/cmd/sample.md) command:
+
+```txt
+    -§, --cursed           Return a c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀ sample from a Lovecraftian kinda-uniform
+                           distribution (source: trust me), without requiring to read
+                           the whole file. Instead, we will randomly jump through it
+                           like a dark wizard. This means the sampled file must
+                           be large enough and seekable, so no stdin nor gzipped files.
+                           Rows at the very end of the file might be discriminated against
+                           because they are not cool enough. If desired sample size is
+                           deemed too large for the estimated total number of rows, the
+                           c̵̱̝͆̓ṳ̷̔r̶̡͇͓̍̇š̷̠̎e̶̜̝̿́d̸͔̈́̀  routine will fallback to normal reservoir sampling to
+                           sidestep the pain of learning O(∞) is actually a thing.
+                           Does not work with -w/--weight nor -g/--groupby.
+```
+
+The gist of it is that if you know how to find the start of a row after a given byte in a CSV file, retrieving a sample of `k` rows can roughly be done by sampling `k` byte offsets within said file. This can be done very fast, in `O(k)` time instead of the usual `O(n)` time for reservoir sampling, `n` being the total number of rows in the file.
+
+Of course we are sampling from an untractable distribution that is far from uniform here, but it is good enough for some purposes such as debugging or when you don't care much about the quality of the sample. This is because the chance of a row to be picked in the sample is dependent on its size in bytes. So larger rows will be chosen more often than smaller ones.
 
 ### Binary search
 
@@ -297,6 +330,8 @@ robust, except adversarial inputs or very skewed not typically frequent, at wors
 links to seeker
 
 csv data is usually consistent, same number of columns, homegeneous data types
+
+why do I bother limiting reading a certain number of bytes? quoted unquoted might get you to the end of the file
 
 *Notes*
 
