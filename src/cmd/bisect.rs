@@ -178,6 +178,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let first_value = args.get_value_from_bytes(&first_record[column_index])?;
     let last_value = args.get_value_from_bytes(&last_record[column_index])?;
+    let end_value = if let Some(ref end) = args.arg_end_value {
+        args.get_value_from_bytes(end.as_bytes())?
+    } else if args.flag_search {
+        target_value.clone()
+    } else {
+        // Writing records after target value only in default behavior (flushing)
+        last_value.clone()
+    };
 
     if reversing_order_if_necessary(first_value.cmp(&last_value), args.flag_reverse)
         == Ordering::Greater
@@ -338,8 +346,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
                     }
                     Ordering::Greater => {
-                        // Writing records after target value only in default behavior
-                        if args.flag_search {
+                        if reversing_order_if_necessary(value.cmp(&end_value), args.flag_reverse)
+                            == Ordering::Greater
+                        {
                             break;
                         }
                     }
