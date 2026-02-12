@@ -16,6 +16,7 @@ This enables the [`xan`](https://github.com/medialab/xan/) command line tool to 
 - [Our lord and savior: statistics](#our-lord-and-savior-statistics)
 - [Donning the wingsuit](#donning-the-wingsuit)
 - [Why though?](#why-though)
+  - [Constant time CSV file segmentation](#constant-time-csv-file-segmentation)
   - [Single-pass map-reduce parallelization over CSV files](#single-pass-map-reduce-parallelization-over-csv-files)
   - [Cursed sampling](#cursed-sampling)
   - [Binary search](#binary-search)
@@ -23,7 +24,7 @@ This enables the [`xan`](https://github.com/medialab/xan/) command line tool to 
 
 ## Is that even dangerous?
 
-Let's say you have a big CSV file and you jump to a random byte within it, would you be able to find where next row will start?
+Let's say you have a big CSV file and you jump to a random byte within it, would you be able to find where the next row will start?
 
 At first glance you might think this is an easy problem, just read bytes until you find a line break and you are done, right?
 
@@ -175,15 +176,15 @@ We then parse both series of bytes using a regular CSV parser (this parser must 
 
 Then we have 3 cases to handle:
 
-1. both byte series are rejected: this should not be possible unless you are reaching the end of the stream and have not enough data to make a decision. Double check your code, there might be something wrong.
-2. only one of the byte series is rejected: this means we know whether we are in the unquoted or quoted scenario and we can correctly return the byte offset of next row.
+1. both byte series are rejected: this can happen when you are reaching the end of the stream because there is not enough data to make an informed decision. This
+2. only one of the byte series is rejected: this means we know whether we are in the unquoted or quoted scenario and we can correctly return the byte offset of the next row.
 3. none of the byte series are rejected: this is improbable, but still happens in real-life, albeit rarely. This typically occurs when cells contain raw text and the sequence of commas and line breaks in this text matches the structure of your CSV file. In this case, we need a better tie-breaker.
 
 Here we will need the column profile from our sample and some similarity function (I recommend [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) here) to find the correct hypothesis. Just compute said similarity between the column profile (a vector of the average cell sizes in bytes from the sample) and a byte series' rows column profile.
 
 The result is usually clear-cut with some hypothesis over `0.9` and the other below `0.2`, but your mileage may vary.
 
-And this is it. This technique is reasonably robust and should let you jump safely.
+And this is it. This technique is reasonably robust and will let you jump safely.
 
 See the [simd-csv](https://docs.rs/simd-csv) crate implementation of this technique in its [`Seeker`](https://docs.rs/simd-csv/latest/simd_csv/struct.Seeker.html) struct, notably the [`find_record_after`](https://docs.rs/simd-csv/latest/simd_csv/struct.Seeker.html#method.find_record_after) method ([source](https://docs.rs/simd-csv/latest/src/simd_csv/seeker.rs.html#369-438)). It is currently being used in production already.
 
@@ -195,9 +196,81 @@ With some creativity, you will surely find a way to leverage this novel knowledg
 
 Here are three ways [`xan`](https://github.com/medialab/xan/) uses a wingsuit to perform over-engineered CSV-adjacent prowesses:
 
+### Constant time CSV file segmentation
+
+Being able to jump randomly through a CSV file means you are also able to segment it into chunks of comparable size. You can even do so very fast because you won't need to scan the whole file to find safe splitting points in order to avoid cutting rows haphazardly.
+
+For instance, given a CSV file of `11307311996` bytes (~11GB), you can create 4 evenly-sized file segments with simple arithmetic, giving us those 4 `[start, end)` byte ranges:
+
+```txt
+0          to 2826828123
+2826828123 to 5653656081
+5653656081 to 8480484038
+8480484038 to 11307311996
+```
+
+Now, using the technique introduced in this article, you can "realign" those segments to make sure they fall on row boundaries like so:
+
+```txt
+0          to 2826828697
+2826828697 to 5653661242
+5653661242 to 8480485897
+8480485897 to 11307311996
+```
+
+All this in constant time, by finding the offset of the next rows found after byte `2826828123`, `5653656081` & `8480484038` respectively.
+
+This is implemented by the [`xan split`](https://github.com/medialab/xan/blob/master/docs/cmd/split.md) command, using the `-c/--chunks <n>` flag:
+
+```bash
+xan split -c 4 --segments articles.csv
+```
+
+| from       | to          |
+| ---------- | ----------- |
+| 0          | 2826828697  |
+| 2826828697 | 5653661242  |
+| 5653661242 | 8480485897  |
+| 8480485897 | 11307311996 |
+
 ### Single-pass map-reduce parallelization over CSV files
 
-indexing, gzi nod, demonstrate chunking, IO vs. cpu time, bench xan count
+Now that we are able to safely split CSV files in the blink of an eye, we can spawn one thread per segment in order to read & process the file in parallel, in typical map-reduce fashion.
+
+Traditionally, this was done by first precomputing an index or scanning the file to find safe splitting points, but this of course requires two passes over the data. Splitting a file, using the technique shown before, enables us to do so in a single pass over the file.
+
+What's more, CSV data processing is often more an IO-bound task than a CPU-bound one and being able to parallelize over chunks of a file like this is a boon for performance. Indeed, reading a CSV file linearly while broadcasting computations to multiple threads is usually counterproductive since the work performed by CPUs is not expensive enough to justify the cost of the communication between threads.
+
+As a consequence, the [`xan parallel`](https://github.com/medialab/xan/blob/master/docs/cmd/parallel.md) command is now able to parallelize computation over a single file. The same capability has been added to some other typical `xan` commands through the `-p/--parallel` or `-t/--threads <n>`. This includes `xan count`, `xan freq`, `xan stats`, `xan agg`, `xan groupby` etc.
+
+```bash
+# Computing the frequency table of the category column in parallel
+xan parallel freq -s category articles.csv
+
+# Couting number of rows in parallel
+xan count -p articles.csv
+
+# Performing custom aggregation in parallel using 16 threads
+xan agg -t 16 'sum(retweets) as retweet_sum' articles.csv
+```
+
+Using parallelization thusly can increase your performance greatly:
+
+```bash
+# `articles.csv` is a ~3M rows ~11GB CSV file stored on SSD
+
+# Computing the frequency table of the "section" column:
+time xan freq -s section articles.csv
+1.14s user 1.18s system 99% cpu 2.326 total
+
+# Doing the same using 4 threads:
+time xan freq -t 4 -s section articles.csv
+2.21s user 2.20s system 685% cpu 0.643 total
+```
+
+Of course the specifics of the used hardware and filesystem must be taken into account since they don't have the same scheduling/concurrency capabilities (SSD is of course at an advantage here).
+
+Finding the optimal number of threads can also be a balancing act since using too many of them might put too much pressure on IO, counter-intuitively. Inter-thread communication and synchronization might also become a problem with too many threads.
 
 ### Cursed sampling
 
@@ -212,8 +285,14 @@ refactor: les rows ont une taille homogene aussi
 complexity analysis, at least constant bound + seek-bound + constant memory
 only work if you can seek of course
 
+speak about gzi indices and bgzip
+
 caveat emptor
 caveats: does not work properly at the end of the file nor at the beginning (we have the sample anyway), does not work on small files, but eh..., there are silly cases where this method does not work, they are not useful for our purpose. probabilistic method, explain about the pyramid or holey file
+
+it can work in reverse also, but it is an exercise left to the reader
+
+robust, except adversarial inputs or very skewed not typically frequent, at worst the method can also fails with skewed
 
 links to seeker
 
@@ -221,6 +300,6 @@ csv data is usually consistent, same number of columns, homegeneous data types
 
 *Notes*
 
-- grep can emulate this also, this is easy
+- grep can emulate this also, this is easy, assuming lines are expected to be of comparable lengths
 - which `xan` commands benefited from this
 - link to the Seeker in simd-csv -->
