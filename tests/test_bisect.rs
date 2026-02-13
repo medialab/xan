@@ -218,6 +218,45 @@ fn bisect() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected: Vec<Vec<String>> = vec![svec!["sentence"], svec!["xan is great"]];
     assert_eq!(got, expected);
+
+    wrk.create(
+        "duplicates.csv",
+        vec![
+            svec!["letter"],
+            svec!["a"],
+            svec!["a"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["b"],
+            svec!["c"],
+        ],
+    );
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("-S").arg("letter").arg("b").arg("duplicates.csv");
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected: Vec<Vec<String>> = vec![
+        svec!["letter"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+        svec!["b"],
+    ];
+    assert_eq!(got, expected);
 }
 
 #[test]
