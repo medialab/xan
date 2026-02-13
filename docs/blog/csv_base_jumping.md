@@ -247,6 +247,9 @@ As a consequence, the [`xan parallel`](https://github.com/medialab/xan/blob/mast
 # Computing the frequency table of the category column in parallel
 xan parallel freq -s category articles.csv
 
+# Same as:
+xan freq --parallel -s category articles.csv
+
 # Couting number of rows in parallel
 xan count --parallel articles.csv
 
@@ -274,7 +277,7 @@ Finding the optimal number of threads can also be a balancing act since using to
 
 *About grep*
 
-Funnily enough, this logic (fast segmentation + parallelization) can very easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I am sure there are ways to deal with that). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could be great also to deal with newline-delimited JSON files etc.
+Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could be great also to deal with newline-delimited JSON files etc.
 
 I don't know of a tool implementing this logic yet, but I am sure it must exist somewhere already.
 
@@ -321,7 +324,9 @@ only work if you can seek of course
 speak about gzi indices and bgzip
 
 caveat emptor
-caveats: does not work properly at the end of the file nor at the beginning (we have the sample anyway), does not work on small files, but eh..., there are silly cases where this method does not work, they are not useful for our purpose. probabilistic method, explain about the pyramid or holey file
+caveats: does not work properly at the end of the file nor at the beginning (we have the sample anyway), does not work on small files, but eh..., there are silly cases where this method does not work, they are not useful for our purpose. probabilistic method, explain about the pyramid or holey file,
+
+retalk about csv not having consistent number of rows
 
 it can work in reverse also, but it is an exercise left to the reader
 
