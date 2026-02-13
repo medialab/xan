@@ -9,70 +9,7 @@ use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
-static USAGE: &str = r#"
-Search for rows where the value in <column> matches <value> using binary search,
-and flush all records after the target value.
-The default behavior is similar to a lower_bound bisection, but you can exclude
-records (equivalent to upper_bound) with the target value using the -E/--exclude
-flag. It is assumed that the INPUT IS SORTED according to the specified column.
-The ordering of the rows is assumed to be sorted according ascending lexicographic
-order per default, but you can specify numeric ordering using the -N or --numeric
-flag. You can also reverse the order using the -R/--reverse flag.
-Use the -S/--search flag to only flush records matching the target value instead
-of all records after it.
-
-Usage:
-    xan bisect [options] [--] <column> <value> <input>
-    xan bisect --help
-
-bisect options:
-    -E, --exclude            When set, the records with the target value will be
-                             excluded from the output. By default, they are
-                             included. Cannot be used with -S/--search.
-    -N, --numeric            Compare according to the numerical value of cells
-                             instead of the default lexicographic order.
-    -R, --reverse            Reverse sort order, i.e. descending order.
-    -S, --search             Perform a search on the target value instead of
-                             flushing all records after the value (included).
-                             Cannot be used with -E/--exclude nor -e/--end.
-    -e, --end <end-value>    When set, the records after the target value will be
-                             flushed until <end-value> is reached (included).
-                             By default, all records after the target value are
-                             flushed. Cannot be used with -S/--search.
-
-Common options:
-    -h, --help               Display this message
-    -o, --output <file>      Write output to <file> instead of stdout.
-    -n, --no-headers         When set, the first row will not be evaled
-                             as headers.
-    -d, --delimiter <arg>    The field delimiter for reading CSV data.
-                             Must be a single character.
-"#;
-
-#[derive(Deserialize, Debug)]
-struct Args {
-    arg_column: SelectedColumns,
-    arg_value: String,
-    arg_input: String,
-    flag_exclude: bool,
-    flag_numeric: bool,
-    flag_reverse: bool,
-    flag_search: bool,
-    arg_end_value: Option<String>,
-    flag_output: Option<String>,
-    flag_no_headers: bool,
-    flag_delimiter: Option<Delimiter>,
-}
-
-impl Args {
-    fn get_value_from_bytes(&self, bytes: &[u8]) -> Result<Value, String> {
-        if self.flag_numeric {
-            Value::new_number(bytes)
-        } else {
-            Ok(Value::new_string(bytes))
-        }
-    }
-}
+// TODO: verbose option to print jumps
 
 #[derive(Clone, PartialEq, Debug)]
 enum Value {
@@ -126,11 +63,78 @@ impl Value {
     }
 }
 
-fn reversing_order_if_necessary(ord: Ordering, reverse: bool) -> Ordering {
-    if reverse {
-        ord.reverse()
-    } else {
-        ord
+static USAGE: &str = r#"
+Search for rows where the value in <column> matches <value> using binary search,
+and flush all records after the target value.
+The default behavior is similar to a lower_bound bisection, but you can exclude
+records (equivalent to upper_bound) with the target value using the -E/--exclude
+flag. It is assumed that the INPUT IS SORTED according to the specified column.
+The ordering of the rows is assumed to be sorted according ascending lexicographic
+order per default, but you can specify numeric ordering using the -N or --numeric
+flag. You can also reverse the order using the -R/--reverse flag.
+Use the -S/--search flag to only flush records matching the target value instead
+of all records after it.
+
+Usage:
+    xan bisect [options] [--] <column> <value> <input>
+    xan bisect --help
+
+bisect options:
+    -E, --exclude            When set, the records with the target value will be
+                             excluded from the output. By default, they are
+                             included. Cannot be used with -S/--search.
+    -N, --numeric            Compare according to the numerical value of cells
+                             instead of the default lexicographic order.
+    -R, --reverse            Reverse sort order, i.e. descending order.
+    -S, --search             Perform a search on the target value instead of
+                             flushing all records after the value (included).
+                             Cannot be used with -E/--exclude nor -e/--end.
+    -e, --end <end-value>    When set, the records after the target value will be
+                             flushed until <end-value> is reached (included).
+                             By default, all records after the target value are
+                             flushed. Cannot be used with -S/--search.
+
+Common options:
+    -h, --help               Display this message
+    -o, --output <file>      Write output to <file> instead of stdout.
+    -n, --no-headers         When set, the first row will not be evaled
+                             as headers.
+    -d, --delimiter <arg>    The field delimiter for reading CSV data.
+                             Must be a single character.
+"#;
+
+#[derive(Deserialize, Debug)]
+struct Args {
+    arg_column: SelectedColumns,
+    arg_value: String,
+    arg_input: String,
+    flag_exclude: bool,
+    flag_numeric: bool,
+    flag_reverse: bool,
+    flag_search: bool,
+    flag_end_value: Option<String>,
+    flag_output: Option<String>,
+    flag_no_headers: bool,
+    flag_delimiter: Option<Delimiter>,
+}
+
+impl Args {
+    fn get_value_from_bytes(&self, bytes: &[u8]) -> Result<Value, String> {
+        if self.flag_numeric {
+            Value::new_number(bytes)
+        } else {
+            Ok(Value::new_string(bytes))
+        }
+    }
+
+    fn cmp(&self, v1: &Value, v2: &Value) -> Ordering {
+        let ordering = v1.cmp(v2);
+
+        if self.flag_reverse {
+            ordering.reverse()
+        } else {
+            ordering
+        }
     }
 }
 
@@ -141,7 +145,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("The -E/--exclude and -S/--search flags cannot be used together")?;
     }
 
-    if args.flag_search && args.arg_end_value.is_some() {
+    if args.flag_search && args.flag_end_value.is_some() {
         Err("The -S/--search and -e/--end flags cannot be used together")?;
     }
 
@@ -190,7 +194,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let last_value = args.get_value_from_bytes(&last_record[column_index])?;
 
     // TODO: optimize to avoid comparisons when flushing
-    let end_value = if let Some(ref end) = args.arg_end_value {
+    let end_value = if let Some(ref end) = args.flag_end_value {
         args.get_value_from_bytes(end.as_bytes())?
     } else if args.flag_search {
         target_value.clone()
@@ -199,18 +203,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         last_value.clone()
     };
 
-    if reversing_order_if_necessary(first_value.cmp(&last_value), args.flag_reverse)
-        == Ordering::Greater
-    {
+    if args.cmp(&first_value, &last_value) == Ordering::Greater {
         Err(
-            format!("Input is not sorted in the specified order, first and last values are inconsistent: {} and {}!", first_value, last_value)
+            format!("Input is not sorted in the specified order!\nFirst and last values are inconsistent: {} and {}!", first_value, last_value)
         )?;
     }
 
     let mut value_found_among_first_records = false;
 
     // Testing the first and second records before starting
-    match reversing_order_if_necessary(first_value.cmp(&target_value), args.flag_reverse) {
+    match args.cmp(&first_value, &target_value) {
         Ordering::Greater => {
             // Target value is out of bounds, so it is not present
         }
@@ -224,10 +226,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             // Getting second one
             let second_record_pos = rdr.position();
             rdr.read_byte_record(&mut record)?;
-            if reversing_order_if_necessary(
-                args.get_value_from_bytes(&record[column_index])?
-                    .cmp(&target_value),
-                args.flag_reverse,
+            if args.cmp(
+                &args.get_value_from_bytes(&record[column_index])?,
+                &target_value,
             ) == Ordering::Equal
             {
                 value_found_among_first_records = true;
@@ -248,8 +249,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if let Some(sought) = sought {
                     (record_pos, record) = sought;
                     let value = args.get_value_from_bytes(&record[column_index])?;
-                    match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse)
-                    {
+                    match args.cmp(&value, &target_value) {
                         Ordering::Equal => {
                             // We need to find the first occurrence of the target value
                             end_byte = record_pos - 1;
@@ -263,18 +263,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         }
                         ord => {
                             if let Some(prev_value) = previous_median_value {
-                                match (
-                                    went_left,
-                                    reversing_order_if_necessary(
-                                        prev_value.cmp(&value),
-                                        args.flag_reverse,
-                                    ),
-                                ) {
+                                match (went_left, args.cmp(&prev_value, &value)) {
                                     (true, Ordering::Less) => {
-                                        Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
+                                        Err(format!("Input is not sorted in the specified order!\nInconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
                                     }
                                     (false, Ordering::Greater) => {
-                                        Err(format!("Input is not sorted in the specified order, inconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
+                                        Err(format!("Input is not sorted in the specified order!\nInconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
                                     }
                                     _ => {}
                                 }
@@ -351,16 +345,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             while reader.read_byte_record(&mut record)? {
                 let value = args.get_value_from_bytes(&record[column_index])?;
-                match reversing_order_if_necessary(value.cmp(&target_value), args.flag_reverse) {
+                match args.cmp(&value, &target_value) {
                     Ordering::Equal => {
                         if args.flag_exclude {
                             continue;
                         }
                     }
                     Ordering::Greater => {
-                        if reversing_order_if_necessary(value.cmp(&end_value), args.flag_reverse)
-                            == Ordering::Greater
-                        {
+                        if args.cmp(&value, &end_value) == Ordering::Greater {
                             break;
                         }
                     }
