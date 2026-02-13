@@ -118,7 +118,10 @@ impl Value {
     fn new_number(s: &[u8]) -> Result<Self, String> {
         match parse_num(s) {
             Some(n) => Ok(Self::Number(n)),
-            None => Err("Failed to parse number from bytes".to_string()),
+            None => Err(format!(
+                "Failed to parse {} as a number!",
+                std::str::from_utf8(s).unwrap()
+            )),
         }
     }
 }
@@ -149,35 +152,44 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.arg_column.clone())
         .delimiter(args.flag_delimiter);
 
-    let mut seek_rdr = rconf.simd_seeker()?.unwrap();
-
+    let mut seeker = rconf.simd_seeker()?.ok_or("File cannot be seeked!")?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !rconf.no_headers {
-        wtr.write_byte_record(seek_rdr.byte_headers())?;
+        wtr.write_byte_record(seeker.byte_headers())?;
     }
 
-    let column_index = rconf.single_selection(seek_rdr.byte_headers())?;
+    let column_index = rconf.single_selection(seeker.byte_headers())?;
 
-    let mut start_byte = seek_rdr.first_record_position();
-    let mut end_byte = seek_rdr.stream_len();
+    let mut start_byte = seeker.first_record_position();
+    let mut end_byte = seeker.stream_len();
     let mut median_byte = (start_byte + end_byte) / 2;
 
     let mut previous_median: Option<u64> = None;
-
     let mut previous_median_value: Option<Value> = None;
-    let mut being_in_first_half: bool = false;
+
+    let mut went_left: bool = false;
 
     let mut record = ByteRecord::new();
-    let mut record_pos: u64 = seek_rdr.first_record_position();
+    let mut record_pos: u64 = seeker.first_record_position();
     let mut previously_found_record_pos: Option<u64> = None;
+
     let mut median_byte_for_first_occurrence: Option<u64> = None;
 
-    let first_record = seek_rdr.first_byte_record()?.unwrap();
-    let last_record = seek_rdr.last_byte_record()?.unwrap();
+    let first_record = match seeker.first_byte_record()? {
+        Some(r) => r,
+        None => {
+            // NOTE: file is empty!
+            return Ok(());
+        }
+    };
+
+    let last_record = seeker.last_byte_record()?.unwrap();
 
     let first_value = args.get_value_from_bytes(&first_record[column_index])?;
     let last_value = args.get_value_from_bytes(&last_record[column_index])?;
+
+    // TODO: optimize to avoid comparisons when flushing
     let end_value = if let Some(ref end) = args.arg_end_value {
         args.get_value_from_bytes(end.as_bytes())?
     } else if args.flag_search {
@@ -191,7 +203,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         == Ordering::Greater
     {
         Err(
-            format!("Input is not sorted in the specified order, first and last values are inconsistent: {} and {}", first_value, last_value)
+            format!("Input is not sorted in the specified order, first and last values are inconsistent: {} and {}!", first_value, last_value)
         )?;
     }
 
@@ -231,7 +243,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if !value_found_among_first_records {
             // Looking for the start byte of the first occurence
             while start_byte <= end_byte {
-                let sought = seek_rdr.find_record_after(median_byte)?;
+                let sought = seeker.find_record_after(median_byte)?;
 
                 if let Some(sought) = sought {
                     (record_pos, record) = sought;
@@ -241,7 +253,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         Ordering::Equal => {
                             // We need to find the first occurrence of the target value
                             end_byte = record_pos - 1;
-                            being_in_first_half = true;
+                            went_left = true;
                             median_byte_for_first_occurrence =
                                 if let Some(pos) = median_byte_for_first_occurrence {
                                     Some(std::cmp::min(pos, median_byte))
@@ -252,7 +264,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         ord => {
                             if let Some(prev_value) = previous_median_value {
                                 match (
-                                    being_in_first_half,
+                                    went_left,
                                     reversing_order_if_necessary(
                                         prev_value.cmp(&value),
                                         args.flag_reverse,
@@ -276,12 +288,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                         break;
                                     }
                                     // move start byte up
-                                    being_in_first_half = false;
+                                    went_left = false;
                                     start_byte = median_byte;
                                 }
                                 Ordering::Greater => {
                                     // move end byte down
-                                    being_in_first_half = true;
+                                    went_left = true;
                                     end_byte = median_byte;
                                 }
                                 _ => {}
@@ -302,7 +314,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     // Meaning we reached the last record or there are no more records
                     // after median_byte, so we try to find some before it
                     end_byte = median_byte;
-                    being_in_first_half = true;
+                    went_left = true;
                     previous_median_value = None;
                     previously_found_record_pos = None;
                 }
@@ -331,10 +343,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 } else {
                     median_byte
                 };
-                SeekFrom::Start(seek_rdr.find_record_after(pos)?.unwrap().0)
+                SeekFrom::Start(seeker.find_record_after(pos)?.unwrap().0)
             };
 
-            let mut reader = seek_rdr.into_reader_at_position(record_pos)?;
+            let mut reader = seeker.into_reader_at_position(record_pos)?;
             let mut record = ByteRecord::new();
 
             while reader.read_byte_record(&mut record)? {
