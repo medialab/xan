@@ -176,7 +176,7 @@ We then parse both series of bytes using a regular CSV parser (this parser must 
 
 Then we have 3 cases to handle:
 
-1. both byte series are rejected: this can happen when you are reaching the end of the stream because there is not enough data to make an informed decision. This
+1. both byte series are rejected: this can happen when you are reaching the end of the stream because there is not enough data to make an informed decision.
 2. only one of the byte series is rejected: this means we know whether we are in the unquoted or quoted scenario and we can correctly return the byte offset of the next row.
 3. none of the byte series are rejected: this is improbable, but still happens in real-life, albeit rarely. This typically occurs when cells contain raw text and the sequence of commas and line breaks in this text matches the structure of your CSV file. In this case, we need a better tie-breaker.
 
@@ -314,32 +314,46 @@ Of course we are sampling from an untractable distribution that is far from unif
 
 ## Caveat emptor
 
+The technique demonstrated by this article is far from a silver bullet and suffers from some drawbacks. Here is unabdridged list of those drawbacks:
+
+*Cannot work on streams & compressed data*
+
+You need to be able to seek through target CSV stream to be able to apply the technique. This ultimately means it cannot work on streams such as what is passed as `sdtin`, for instance. Your file must therefore exist on disk. It is also not able to work on compressed CSV data, since it is usually not possible to seek within a compressed file.
+
+This said, regarding compression there are some workarounds:
+
+* for `gzip`, the wonderful [`bgzip`](https://www.htslib.org/doc/bgzip.html) tool from bioinformatics knows how to produce seekable `.gz` archives using an auxiliary `.gzi` index that can be created when compressing your file. `xan` knows how to leverage `.gzi` indices for you.
+* `zst` compression has a seekable variant (documented [here](https://github.com/facebook/zstd/blob/dev/contrib/seekable_format/zstd_seekable_compression_format.md)), but is rarely supported yet and is not considered stable. `xan` does not know how to deal with it yet, but it might do so in the future.
+
+*Does not work if data is not consistent enough*
+
+The technique cannot work if the number of columns is dynamic and changes from row to row. It is somewhat seen as a bad practice to do so, but the CSV format certainly does not forbid it and files like this exist in the wild. It is sometimes used as a "compression" strategy when the file has a lot of distinct columns but the data is very sparse. In this case, data producer sometimes avoid writing commas to symbolize empty trailing columns.
+
+Also, the technique will not work if the distribution of row size in bytes is very skewed or multimodal in the file. For instance, a file where row size monotonically increases along the way (in the shape of a tabular pyramid, if you will) will defeat the technique. A file where a significant part of the beginning rows are sparse and the following ones are dense will also defeat the technique. Those cases are not *typical* of structured tabular data but they exist nonetheless. The technique can sometimes still work by increasing the size of the initial sample, but not always. This said, in those cases, a seeker will not hallucinate the wrong answer for next row byte offset and will be able to admit it cannot find it (we would end in the case where none of the consumed byte series are deemed plausible).
+
+*Does not work with the first row beyond headers nor final ones*
+
+Since we usually don't know where we landed in a row, we skip it to find the position of the next row. This means we can't use the technique to get the first row.
+
+Since we also need to consume a certain amount of bytes from the stream to make an informed decision, it is sometimes impossible to return next row's byte offset when landing at the very end of the stream.
+
+In practice, this is not an issue because: 1. the first row was sampled anyway and 2. we can jump further back for final rows and fallback to linear scanning.
+
+*Does not work on tiny files*
+
+This technique does not work on tiny files, since you don't have enough bytes nor rows to make informed decision.
+
+Once again, this is a non-issue: if the file is tiny, just read it linearly, alright?
+
 <!-- ---
-
-refactor: les rows ont une taille homogene aussi
-
-complexity analysis, at least constant bound + seek-bound + constant memory
-only work if you can seek of course
-
-speak about gzi indices and bgzip
 
 caveat emptor
 caveats: does not work properly at the end of the file nor at the beginning (we have the sample anyway), does not work on small files, but eh..., there are silly cases where this method does not work, they are not useful for our purpose. probabilistic method, explain about the pyramid or holey file,
-
-retalk about csv not having consistent number of rows
 
 it can work in reverse also, but it is an exercise left to the reader
 
 robust, except adversarial inputs or very skewed not typically frequent, at worst the method can also fails with skewed
 
-links to seeker
-
 csv data is usually consistent, same number of columns, homegeneous data types
 
 why do I bother limiting reading a certain number of bytes? quoted unquoted might get you to the end of the file
-
-*Notes*
-
-- grep can emulate this also, this is easy, assuming lines are expected to be of comparable lengths
-- which `xan` commands benefited from this
-- link to the Seeker in simd-csv -->
