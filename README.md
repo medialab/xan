@@ -751,6 +751,7 @@ For news about the tool's evolutions feel free to read:
 
 1. the [changelog](CHANGELOG.md)
 2. the [xan zines](./docs/XANZINE.md)
+3. the [roadmap](https://github.com/medialab/xan/discussions/910)
 
 ## How to cite?
 
