@@ -448,13 +448,13 @@ where
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Number {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Number {
     Int(i64),
     Float(f64),
 }
 
-fn compare_num(n1: Number, n2: Number) -> cmp::Ordering {
+pub fn compare_num(n1: Number, n2: Number) -> cmp::Ordering {
     match (n1, n2) {
         (Int(i1), Int(i2)) => i1.cmp(&i2),
         (Int(i1), Float(f2)) => compare_float(i1 as f64, f2),
@@ -467,7 +467,7 @@ fn compare_float(f1: f64, f2: f64) -> cmp::Ordering {
     f1.partial_cmp(&f2).unwrap_or(cmp::Ordering::Equal)
 }
 
-fn parse_num(bytes: &[u8]) -> Option<Number> {
+pub fn parse_num(bytes: &[u8]) -> Option<Number> {
     if let Ok(i) = btoi::btoi::<i64>(bytes) {
         Some(Number::Int(i))
     } else if let Ok(f) = fast_float::parse(bytes) {

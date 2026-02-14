@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.56.0 (provisional)
+
+*Features*
+
+* Adding the `xan bisect` command.
+
 ## 0.55.0
 
 *Breaking*

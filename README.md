@@ -563,6 +563,7 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 - [**slice**](./docs/cmd/slice.md): Slice rows of CSV file
 - [**top**](./docs/cmd/top.md): Find top rows of a CSV file according to some column
 - [**sample**](./docs/cmd/sample.md): Randomly sample CSV data
+- [**bisect**](./docs/cmd/bisect.md): Binary search on sorted CSV data
 
 *Sort & deduplicate*
 
