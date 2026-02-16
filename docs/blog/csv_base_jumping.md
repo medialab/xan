@@ -73,47 +73,47 @@ Would translate to the following table:
 Finally, to add insult to injury, notice how a CSV cell is perfectly able to encase perfectly valid CSV data through quoting. As an example, behold this shameful recursive beast of a CSV file:
 
 ```txt
-table,data
+table,data,name
 1,"name,surname
 john,landis
-lucy,gregor"
+lucy,gregor",people
 2,"id,color,score
 1,blue,56
 2,red,67
-3,yellow,6"
+3,yellow,6",colors
 ```
 
-| table | data                                            |
-| ----- | ----------------------------------------------- |
-| 1     | name,surname\njohn,landis\nlucy,gregor          |
-| 2     | id,color,score\n1,blue,56\n2,red,67\n3,yellow,6 |
+| table | data                                            | name   |
+| ----- | ----------------------------------------------- | ------ |
+| 1     | name,surname\njohn,landis\nlucy,gregor          | people |
+| 2     | id,color,score\n1,blue,56\n2,red,67\n3,yellow,6 | colors |
 
 Now let's come back to our jumping thought experiment: the issue here is that, if you jump to a random byte of a CSV file, you cannot know whether you landed in a quoted cell or not. So, if you read ahead and find a line break, is it delineating a CSV row, or is just allowed here because we stand in a quoted cell? And if you find a double quote? Are you opening a quoted cell or are you closing one?
 
 For instance, here we jumped into a quoted section:
 
 ```html
-table,data
+table,data,name
 1,"name,surname
-john,<there>landis
-lucy,gregor"
+john,la<there>ndis
+lucy,gregor",people
 2,"id,color,score
 1,blue,56
 2,red,67
-3,yellow,6"
+3,yellow,6",colors
 ```
 
 But here we jumped into an unquoted section:
 
 ```html
-table,data
+table,data,name
 1,"name,surname
 john,landis
-lucy,gregor"
+lucy,gregor",pe<there>ople
 2,"id,color,score
-1,blue,5<there>6
+1,blue,56
 2,red,67
-3,yellow,6"
+3,yellow,6",colors
 ```
 
 This seems helpless. But I would not be writing about this issue if I had no solution to offer, albeit a slightly unhinged one.
@@ -172,7 +172,7 @@ We will then proceed to read that many bytes following our landing point. But we
 
 The goal here is to test the only two hypothesis we have: either we landed in an unquoted section or we landed in a quoted one.
 
-We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to 1. skip the first parsed row because we don't know where we landed within it (it is also useful to forego issues related to `CRLF` lines) and 2. to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
+We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to skip the first parsed row because we don't know where we landed within it (it is also useful to skip it to forego issues related to `CRLF` lines) and to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
 
 The reason why we only read a fixed amount of bytes, instead of just reading the stream until we parse a certain amount of rows, is because reading an unquoted file as if we currently are in a quoted section will make us read until the end of the file, which is of course not ideal for performance.
 
@@ -266,11 +266,11 @@ Leveraging parallelization thusly is of course able to increase performance:
 
 # Computing the frequency table of the "section" column:
 time xan freq -s section articles.csv
-1.14s user 1.18s system 99% cpu 2.326 total
+2.326s
 
 # Doing the same using 4 threads:
 time xan freq -t 4 -s section articles.csv
-2.21s user 2.20s system 685% cpu 0.643 total
+0.643s
 ```
 
 Note however that the specifics of the used hardware and filesystem must be taken into account since they don't have the same scheduling and concurrency capabilities (SSD is of course at an advantage here).
