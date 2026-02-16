@@ -120,7 +120,7 @@ This seems helpless. But I would not be writing about this issue if I had no sol
 
 ## Our lord and savior: statistics
 
-Real-life CSV data is *usually* consistent. What I mean by that is that tabular data often has a fixed number of columns. Indeed, rows suddenly demonstrating an inconsistent number of columns are typically frowned upon. What's more, columns often hold homogeneous data types: integers, floating point numbers, raw text, dates etc. Finally, rows tend to have a comparable size in number of bytes. We would be fools not to leverage all this consistency.
+Real-life CSV data is *usually* consistent. What I mean is that tabular data often has a fixed number of columns. Indeed, rows suddenly demonstrating an inconsistent number of columns are typically frowned upon. What's more, columns often hold homogeneous data types: integers, floating point numbers, raw text, dates etc. Finally, rows tend to have a comparable size in number of bytes. We would be fools not to leverage this consistency.
 
 So now, before doing any reckless jumping, let's start by analyzing the beginning of our CSV file to record some statistics that will be useful down the line.
 
@@ -172,9 +172,11 @@ We will then proceed to read that many bytes following our landing point. But we
 
 The goal here is to test the only two hypothesis we have: either we landed in an unquoted section or we landed in a quoted one.
 
-We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to 1. skip the first parsed row because we don't know where we landed within it and 2. to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
+We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to 1. skip the first parsed row because we don't know where we landed within it (it is also useful to forego issues related to `CRLF` lines) and 2. to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
 
-Then we have 3 cases to handle:
+The reason why we only read a fixed amount of bytes, instead of just reading the stream until we parse a certain amount of rows, is because reading an unquoted file as if we currently are in a quoted section will make us read until the end of the file, which is of course not ideal for performance.
+
+Now that we have parsed both byte series, we have 3 cases to handle:
 
 1. both byte series are rejected: this can happen when you are reaching the end of the stream because there is not enough data to make an informed decision.
 2. only one of the byte series is rejected: this means we know whether we are in the unquoted or quoted scenario and we can correctly return the byte offset of the next row.
@@ -275,9 +277,9 @@ Note however that the specifics of the used hardware and filesystem must be take
 
 Finding the optimal number of threads can also be a balancing act since using too many of them might put too much pressure on IO, counter-intuitively. Inter-thread communication and synchronization might also become a problem with too many threads.
 
-*About grep*
+*Regarding grep*
 
-Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could be great also to deal with newline-delimited JSON files etc.
+Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could provide a nice boost also to process to newline-delimited JSON files etc.
 
 I don't know of a tool implementing this logic yet, but I am sure it must exist somewhere already.
 
@@ -312,13 +314,26 @@ Of course we are sampling from an untractable distribution that is far from unif
 
 ### Binary search
 
+Being able to safely jump through a CSV file means we can support approximate random access. We cannot jump exactly to the nth row of the file, but we can jump approximately near it.
+
+This ultimately means we can perform [binary search](https://en.wikipedia.org/wiki/Binary_search) on sorted CSV data in quasi-logarithmic time. Indeed, binary search is able to suffer approximate jumps in the data if you are careful enough about what you are doing to uphold the search's invariants.
+
+Sorted CSV data can therefore be seen as a read-only database index, in a sense.
+
+This is still experimental and will only be released in the near future but this is what the upcoming `xan bisect` command promises to do:
+
+```bash
+# Could be used thusly: xan bisect <column> <value> file.csv
+xan bisect id 4534 sorted-by-id.csv
+```
+
 ## Caveat emptor
 
 The technique demonstrated by this article is far from a silver bullet and suffers from some drawbacks. Here is unabdridged list of those drawbacks:
 
 *Cannot work on streams & compressed data*
 
-You need to be able to seek through target CSV stream to be able to apply the technique. This ultimately means it cannot work on streams such as what is passed as `sdtin`, for instance. Your file must therefore exist on disk. It is also not able to work on compressed CSV data, since it is usually not possible to seek within a compressed file.
+You need to be able to seek through target CSV stream to be able to apply the technique. This ultimately means it cannot work on streams such as what is passed as `sdtin`, for instance. Your file must therefore exist on disk or in memory. It is also not able to work on compressed CSV data, since it is usually not possible to seek within a compressed file.
 
 This said, regarding compression there are some workarounds:
 
@@ -339,21 +354,11 @@ Since we also need to consume a certain amount of bytes from the stream to make 
 
 In practice, this is not an issue because: 1. the first row was sampled anyway and 2. we can jump further back for final rows and fallback to linear scanning.
 
+Note that the technique can work in reverse, that is to say to find
+the byte offset of the record just before the one we landed in. This works because it is possible to read a seekable stream in reverse (with a little bit of creativity regarding buffering) and because of point 8 of our [love letter](https://github.com/medialab/xan/blob/master/docs/LOVE_LETTER.md#8-reverse-csv-is-still-valid-csv) to the CSV format (namely that CSV data is palindromic).
+
 *Does not work on tiny files*
 
 This technique does not work on tiny files, since you don't have enough bytes nor rows to make informed decision.
 
 Once again, this is a non-issue: if the file is tiny, just read it linearly, alright?
-
-<!-- ---
-
-caveat emptor
-caveats: does not work properly at the end of the file nor at the beginning (we have the sample anyway), does not work on small files, but eh..., there are silly cases where this method does not work, they are not useful for our purpose. probabilistic method, explain about the pyramid or holey file,
-
-it can work in reverse also, but it is an exercise left to the reader
-
-robust, except adversarial inputs or very skewed not typically frequent, at worst the method can also fails with skewed
-
-csv data is usually consistent, same number of columns, homegeneous data types
-
-why do I bother limiting reading a certain number of bytes? quoted unquoted might get you to the end of the file
