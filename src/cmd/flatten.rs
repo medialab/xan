@@ -59,6 +59,8 @@ flatten options:
     -H, --highlight <pat>  Highlight in red parts of text cells matching given regex
                            pattern. Will not work with -R/--rainbow.
     -i, --ignore-case      If given, pattern given to -H/--highlight will be case-insensitive.
+    -N, --non-empty        For each row, only show non-empty values. This can be useful
+                           when the data is sparse.
 
 Common options:
     -h, --help             Display this message
@@ -89,6 +91,7 @@ struct Args {
     flag_highlight: Option<String>,
     flag_ignore_case: bool,
     flag_no_headers: bool,
+    flag_non_empty: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
 }
@@ -214,7 +217,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let max_value_width = cols - max_header_width - 1;
 
     let prepare_cell = |i: usize, cell: &str, offset: usize| -> String {
-        let cell = match cell.trim() {
+        let cell = match cell {
             "" => "<empty>",
             _ => cell,
         };
@@ -294,6 +297,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         for (i, (header, cell)) in display_headers.iter().zip(sel.select(&record)).enumerate() {
+            if args.flag_non_empty && cell.is_empty() {
+                continue;
+            }
+
             // Split cell
             if matches!(&split_sel_opt, Some(split_sel) if !cell.is_empty() && split_sel.contains(i))
             {

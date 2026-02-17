@@ -898,7 +898,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
                 }
 
-                let cell = match cell.trim() {
+                let cell = match cell {
                     "" => "<empty>",
                     _ => cell,
                 };

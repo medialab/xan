@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.55.1 (provisional)
+## 0.56.0 (provisional)
+
+*Features*
+
+* Adding `xan flatten -N/--non-empty`.
 
 *Fixes*
 
@@ -9,6 +13,7 @@
 *Quality of Life*
 
 * Adding `xan to markdown` as an alias for `xan to md`.
+* `xan flatten` & `xan view` will stop masquerading trimmed empty cells as empty.
 
 ## 0.55.0
 
