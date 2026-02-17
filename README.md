@@ -753,6 +753,10 @@ For news about the tool's evolutions feel free to read:
 2. the [xan zines](./docs/XANZINE.md)
 3. the [roadmap](https://github.com/medialab/xan/discussions/910)
 
+See also blog posts related to the tool:
+
+* [Cursed engineering: jumping randomly through CSV files without hurting yourself](./docs/blog/csv_base_jumping.md)
+
 ## How to cite?
 
 `xan` is published on [Zenodo](https://zenodo.org/) as [10.5281/zenodo.15310200](https://doi.org/10.5281/zenodo.15310200).

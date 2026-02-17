@@ -172,7 +172,7 @@ We will then proceed to read that many bytes following our landing point. But we
 
 The goal here is to test the only two hypothesis we have: either we landed in an unquoted section or we landed in a quoted one.
 
-We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to skip the first parsed row because we don't know where we landed within it (it is also useful to skip it to forego issues related to `CRLF` lines) and to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
+We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to skip the first parsed row because we don't know where we landed within it (it is also useful to skip it to forego issues related to `CRLF` lines) and the last row (because it will most certainly be clamped) and to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
 
 The reason why we only read a fixed amount of bytes, instead of just reading the stream until we parse a certain amount of rows, is because reading an unquoted file as if we currently are in a quoted section will make us read until the end of the file, which is of course not ideal for performance.
 
