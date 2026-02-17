@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.55.1 (provisional)
+
+*Fixes*
+
+* Fixing `xan to (md|html) --no-headers`.
+
+*Quality of Life*
+
+* Adding `xan to markdown` as an alias for `xan to md`.
+
 ## 0.55.0
 
 *Breaking*
