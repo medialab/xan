@@ -8,6 +8,7 @@ use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
@@ -276,6 +277,7 @@ view options:
                                 revealed when color is enabled for the output. Use `auto` for
                                 automatic detection, `never` or `always`.
                                 [default: auto]
+    -T, --tee
 
 Common options:
     -h, --help             Display this message
@@ -308,6 +310,7 @@ struct Args {
     flag_significance: Option<NonZeroUsize>,
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
+    flag_tee: bool,
 }
 
 impl Args {
@@ -419,7 +422,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_hide_headers = true;
     }
 
-    let mut rdr = rconfig.reader()?;
+    let mut io_rdr = rconfig.io_reader()?;
+
+    if args.flag_tee {
+        io_rdr = Box::new(LeakySponge::new(io_rdr));
+    }
+
+    let mut rdr = rconfig.csv_reader_from_reader(io_rdr);
+
     let byte_headers = rdr.byte_headers()?.clone();
     let mut sel = rconfig.selection(&byte_headers)?;
 
@@ -959,6 +969,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         write_horizontal_ruler(HRPosition::Top)?;
         writeln!(&output)?;
     }
+
+    if args.flag_tee {}
 
     Ok(())
 }
