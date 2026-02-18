@@ -4,7 +4,16 @@
 
 *Features*
 
-* Adding the `xan bisect` command.
+* Adding `xan flatten -N/--non-empty`.
+
+*Fixes*
+
+* Fixing `xan to (md|html) --no-headers`.
+
+*Quality of Life*
+
+* Adding `xan to markdown` as an alias for `xan to md`.
+* `xan flatten` & `xan view` will stop masquerading trimmed empty cells as empty.
 
 ## 0.55.0
 

@@ -73,54 +73,54 @@ Would translate to the following table:
 Finally, to add insult to injury, notice how a CSV cell is perfectly able to encase perfectly valid CSV data through quoting. As an example, behold this shameful recursive beast of a CSV file:
 
 ```txt
-table,data
+table,data,name
 1,"name,surname
 john,landis
-lucy,gregor"
+lucy,gregor",people
 2,"id,color,score
 1,blue,56
 2,red,67
-3,yellow,6"
+3,yellow,6",colors
 ```
 
-| table | data                                            |
-| ----- | ----------------------------------------------- |
-| 1     | name,surname\njohn,landis\nlucy,gregor          |
-| 2     | id,color,score\n1,blue,56\n2,red,67\n3,yellow,6 |
+| table | data                                            | name   |
+| ----- | ----------------------------------------------- | ------ |
+| 1     | name,surname\njohn,landis\nlucy,gregor          | people |
+| 2     | id,color,score\n1,blue,56\n2,red,67\n3,yellow,6 | colors |
 
 Now let's come back to our jumping thought experiment: the issue here is that, if you jump to a random byte of a CSV file, you cannot know whether you landed in a quoted cell or not. So, if you read ahead and find a line break, is it delineating a CSV row, or is just allowed here because we stand in a quoted cell? And if you find a double quote? Are you opening a quoted cell or are you closing one?
 
 For instance, here we jumped into a quoted section:
 
 ```html
-table,data
+table,data,name
 1,"name,surname
-john,<there>landis
-lucy,gregor"
+john,la<there>ndis
+lucy,gregor",people
 2,"id,color,score
 1,blue,56
 2,red,67
-3,yellow,6"
+3,yellow,6",colors
 ```
 
 But here we jumped into an unquoted section:
 
 ```html
-table,data
+table,data,name
 1,"name,surname
 john,landis
-lucy,gregor"
+lucy,gregor",pe<there>ople
 2,"id,color,score
-1,blue,5<there>6
+1,blue,56
 2,red,67
-3,yellow,6"
+3,yellow,6",colors
 ```
 
 This seems helpless. But I would not be writing about this issue if I had no solution to offer, albeit a slightly unhinged one.
 
 ## Our lord and savior: statistics
 
-Real-life CSV data is *usually* consistent. What I mean by that is that tabular data often has a fixed number of columns. Indeed, rows suddenly demonstrating an inconsistent number of columns are typically frowned upon. What's more, columns often hold homogeneous data types: integers, floating point numbers, raw text, dates etc. Finally, rows tend to have a comparable size in number of bytes. We would be fools not to leverage all this consistency.
+Real-life CSV data is *usually* consistent. What I mean is that tabular data often has a fixed number of columns. Indeed, rows suddenly demonstrating an inconsistent number of columns are typically frowned upon. What's more, columns often hold homogeneous data types: integers, floating point numbers, raw text, dates etc. Finally, rows tend to have a comparable size in number of bytes. We would be fools not to leverage this consistency.
 
 So now, before doing any reckless jumping, let's start by analyzing the beginning of our CSV file to record some statistics that will be useful down the line.
 
@@ -172,11 +172,13 @@ We will then proceed to read that many bytes following our landing point. But we
 
 The goal here is to test the only two hypothesis we have: either we landed in an unquoted section or we landed in a quoted one.
 
-We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to 1. skip the first parsed row because we don't know where we landed within it and 2. to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
+We then parse both series of bytes using a regular CSV parser (this parser must be able to report at which byte a row started, though) and observe what happened. The idea here is always to skip the first parsed row because we don't know where we landed within it (it is also useful to skip it to forego issues related to `CRLF` lines) and the last row (because it will most certainly be clamped) and to count the number of columns of all subsequent rows. We do so because we can of course reject any series of bytes yielding rows having an inconsistent or unexpected number of columns.
 
-Then we have 3 cases to handle:
+The reason why we only read a fixed amount of bytes, instead of just reading the stream until we parse a certain amount of rows, is because reading an unquoted file as if we currently are in a quoted section will make us read until the end of the file, which is of course not ideal for performance.
 
-1. both byte series are rejected: this can happen when you are reaching the end of the stream because there is not enough data to make an informed decision. This
+Now that we have parsed both byte series, we have 3 cases to handle:
+
+1. both byte series are rejected: this can happen when you are reaching the end of the stream because there is not enough data to make an informed decision.
 2. only one of the byte series is rejected: this means we know whether we are in the unquoted or quoted scenario and we can correctly return the byte offset of the next row.
 3. none of the byte series are rejected: this is improbable, but still happens in real-life, albeit rarely. This typically occurs when cells contain raw text and the sequence of commas and line breaks in this text matches the structure of your CSV file. In this case, we need a better tie-breaker.
 
@@ -264,20 +266,20 @@ Leveraging parallelization thusly is of course able to increase performance:
 
 # Computing the frequency table of the "section" column:
 time xan freq -s section articles.csv
-1.14s user 1.18s system 99% cpu 2.326 total
+2.326s
 
 # Doing the same using 4 threads:
 time xan freq -t 4 -s section articles.csv
-2.21s user 2.20s system 685% cpu 0.643 total
+0.643s
 ```
 
 Note however that the specifics of the used hardware and filesystem must be taken into account since they don't have the same scheduling and concurrency capabilities (SSD is of course at an advantage here).
 
 Finding the optimal number of threads can also be a balancing act since using too many of them might put too much pressure on IO, counter-intuitively. Inter-thread communication and synchronization might also become a problem with too many threads.
 
-*About grep*
+*Regarding grep*
 
-Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could be great also to deal with newline-delimited JSON files etc.
+Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could provide a nice boost also to process to newline-delimited JSON files etc.
 
 I don't know of a tool implementing this logic yet, but I am sure it must exist somewhere already.
 
@@ -312,34 +314,51 @@ Of course we are sampling from an untractable distribution that is far from unif
 
 ### Binary search
 
+Being able to safely jump through a CSV file means we can support approximate random access. We cannot jump exactly to the nth row of the file, but we can jump approximately near it.
+
+This ultimately means we can perform [binary search](https://en.wikipedia.org/wiki/Binary_search) on sorted CSV data in quasi-logarithmic time. Indeed, binary search is able to suffer approximate jumps in the data if you are careful enough about what you are doing to uphold the search's invariants.
+
+Sorted CSV data can therefore be seen as a read-only database index, in a sense.
+
+This is still experimental and will only be released in the near future but this is what the upcoming `xan bisect` command promises to do:
+
+```bash
+# Could be used thusly: xan bisect <column> <value> file.csv
+xan bisect id 4534 sorted-by-id.csv
+```
+
 ## Caveat emptor
 
-<!-- ---
+The technique demonstrated by this article is far from a silver bullet and suffers from some drawbacks. Here is unabdridged list of those drawbacks:
 
-refactor: les rows ont une taille homogene aussi
+*Cannot work on streams & compressed data*
 
-complexity analysis, at least constant bound + seek-bound + constant memory
-only work if you can seek of course
+You need to be able to seek through target CSV stream to be able to apply the technique. This ultimately means it cannot work on streams such as what is passed as `sdtin`, for instance. Your file must therefore exist on disk or in memory. It is also not able to work on compressed CSV data, since it is usually not possible to seek within a compressed file.
 
-speak about gzi indices and bgzip
+This said, regarding compression there are some workarounds:
 
-caveat emptor
-caveats: does not work properly at the end of the file nor at the beginning (we have the sample anyway), does not work on small files, but eh..., there are silly cases where this method does not work, they are not useful for our purpose. probabilistic method, explain about the pyramid or holey file,
+* for `gzip`, the wonderful [`bgzip`](https://www.htslib.org/doc/bgzip.html) tool from bioinformatics knows how to produce seekable `.gz` archives using an auxiliary `.gzi` index that can be created when compressing your file. `xan` knows how to leverage `.gzi` indices for you.
+* `zst` compression has a seekable variant (documented [here](https://github.com/facebook/zstd/blob/dev/contrib/seekable_format/zstd_seekable_compression_format.md)), but is rarely supported yet and is not considered stable. `xan` does not know how to deal with it yet, but it might do so in the future.
 
-retalk about csv not having consistent number of rows
+*Does not work if data is not consistent enough*
 
-it can work in reverse also, but it is an exercise left to the reader
+The technique cannot work if the number of columns is dynamic and changes from row to row. It is somewhat seen as a bad practice to do so, but the CSV format certainly does not forbid it and files like this exist in the wild. It is sometimes used as a "compression" strategy when the file has a lot of distinct columns but the data is very sparse. In this case, data producer sometimes avoid writing commas to symbolize empty trailing columns.
 
-robust, except adversarial inputs or very skewed not typically frequent, at worst the method can also fails with skewed
+Also, the technique will not work if the distribution of row size in bytes is very skewed or multimodal in the file. For instance, a file where row size monotonically increases along the way (in the shape of a tabular pyramid, if you will) will defeat the technique. A file where a significant part of the beginning rows are sparse and the following ones are dense will also defeat the technique. Those cases are not *typical* of structured tabular data but they exist nonetheless. The technique can sometimes still work by increasing the size of the initial sample, but not always. This said, in those cases, a seeker will not hallucinate the wrong answer for next row byte offset and will be able to admit it cannot find it (we would end in the case where none of the consumed byte series are deemed plausible).
 
-links to seeker
+*Does not work with the first row beyond headers nor final ones*
 
-csv data is usually consistent, same number of columns, homegeneous data types
+Since we usually don't know where we landed in a row, we skip it to find the position of the next row. This means we can't use the technique to get the first row.
 
-why do I bother limiting reading a certain number of bytes? quoted unquoted might get you to the end of the file
+Since we also need to consume a certain amount of bytes from the stream to make an informed decision, it is sometimes impossible to return next row's byte offset when landing at the very end of the stream.
 
-*Notes*
+In practice, this is not an issue because: 1. the first row was sampled anyway and 2. we can jump further back for final rows and fallback to linear scanning.
 
-- grep can emulate this also, this is easy, assuming lines are expected to be of comparable lengths
-- which `xan` commands benefited from this
-- link to the Seeker in simd-csv -->
+Note that the technique can work in reverse, that is to say to find
+the byte offset of the record just before the one we landed in. This works because it is possible to read a seekable stream in reverse (with a little bit of creativity regarding buffering) and because of point 8 of our [love letter](https://github.com/medialab/xan/blob/master/docs/LOVE_LETTER.md#8-reverse-csv-is-still-valid-csv) to the CSV format (namely that CSV data is palindromic).
+
+*Does not work on tiny files*
+
+This technique does not work on tiny files, since you don't have enough bytes nor rows to make informed decision.
+
+Once again, this is a non-issue: if the file is tiny, just read it linearly, alright?

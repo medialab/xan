@@ -233,24 +233,28 @@ impl Args {
     }
 
     fn convert_to_html(&self) -> CliResult<()> {
-        let mut rdr = self.rconf().reader()?;
+        let rconf = self.rconf();
+        let mut rdr = rconf.reader()?;
         let writer = self.wconf().buf_io_writer()?;
 
         let mut xml_writer = XMLWriter::new(writer);
         let mut record = csv::StringRecord::new();
 
         xml_writer.open_no_attributes("table")?;
-        xml_writer.open_no_attributes("thead")?;
-        xml_writer.open_no_attributes("tr")?;
 
-        for header in rdr.headers()?.iter() {
-            xml_writer.open_no_attributes("th")?;
-            xml_writer.write_text(header)?;
-            xml_writer.close("th")?;
+        if !rconf.no_headers {
+            xml_writer.open_no_attributes("thead")?;
+            xml_writer.open_no_attributes("tr")?;
+
+            for header in rdr.headers()?.iter() {
+                xml_writer.open_no_attributes("th")?;
+                xml_writer.write_text(header)?;
+                xml_writer.close("th")?;
+            }
+
+            xml_writer.close("tr")?;
+            xml_writer.close("thead")?;
         }
-
-        xml_writer.close("tr")?;
-        xml_writer.close("thead")?;
 
         xml_writer.open_no_attributes("tbody")?;
 
@@ -275,7 +279,8 @@ impl Args {
     }
 
     fn convert_to_md(&self) -> CliResult<()> {
-        let mut rdr = self.rconf().reader()?;
+        let rconf = self.rconf();
+        let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
         fn escape_md_table_cell(cell: &str) -> String {
@@ -312,7 +317,15 @@ impl Args {
         write!(&mut writer, "|")?;
 
         for (header, width) in headers.iter().zip(widths.iter()) {
-            write!(&mut writer, " {} |", header.pad_to_width(*width))?;
+            write!(
+                &mut writer,
+                " {} |",
+                if rconf.no_headers {
+                    " ".repeat(*width)
+                } else {
+                    header.pad_to_width(*width)
+                }
+            )?;
         }
 
         writeln!(&mut writer)?;
@@ -406,7 +419,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "html" => args.convert_to_html(),
         "json" => args.convert_to_json(),
         "jsonl" | "ndjson" => args.convert_to_ndjson(),
-        "md" => args.convert_to_md(),
+        "md" | "markdown" => args.convert_to_md(),
         "npy" => args.convert_to_npy(),
         "txt" | "text" => args.convert_to_txt(),
         "xlsx" => args.convert_to_xlsx(),
