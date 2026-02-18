@@ -9,8 +9,6 @@ use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
-// TODO: verbose option to print jumps
-
 #[derive(Clone, PartialEq, Debug)]
 enum Value {
     Number(Number),
@@ -20,12 +18,14 @@ enum Value {
 impl Eq for Value {}
 
 impl PartialOrd for Value {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Value {
+    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Self::Number(n1), Self::Number(n2)) => compare_num(*n1, *n2),
@@ -83,6 +83,7 @@ bisect options:
     -E, --exclude            When set, the records with the target value will be
                              excluded from the output. By default, they are
                              included. Cannot be used with -S/--search.
+                             TODO: not equivalent to upper_bound
     -N, --numeric            Compare according to the numerical value of cells
                              instead of the default lexicographic order.
     -R, --reverse            Reverse sort order, i.e. descending order.
@@ -93,6 +94,7 @@ bisect options:
                              flushed until <end-value> is reached (included).
                              By default, all records after the target value are
                              flushed. Cannot be used with -S/--search.
+    -v, --verbose
 
 Common options:
     -h, --help               Display this message
@@ -116,9 +118,11 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_verbose: bool,
 }
 
 impl Args {
+    #[inline]
     fn get_value_from_bytes(&self, bytes: &[u8]) -> Result<Value, String> {
         if self.flag_numeric {
             Value::new_number(bytes)
@@ -127,6 +131,7 @@ impl Args {
         }
     }
 
+    #[inline]
     fn cmp(&self, v1: &Value, v2: &Value) -> Ordering {
         let ordering = v1.cmp(v2);
 
@@ -149,7 +154,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("The -S/--search and -e/--end flags cannot be used together")?;
     }
 
-    let target_value = args.get_value_from_bytes(args.arg_value.as_bytes())?;
+    macro_rules! log {
+        ($($arg:tt)*) => {
+            if args.flag_verbose {
+                eprintln!($($arg)*);
+            }
+        };
+    }
+
+    let searched_value = args.get_value_from_bytes(args.arg_value.as_bytes())?;
 
     let rconf = Config::new(&Some(args.arg_input.clone()))
         .no_headers(args.flag_no_headers)
@@ -157,28 +170,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter);
 
     let mut seeker = rconf.simd_seeker()?.ok_or("File cannot be seeked!")?;
+    let column_index = rconf.single_selection(seeker.byte_headers())?;
+
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     if !rconf.no_headers {
         wtr.write_byte_record(seeker.byte_headers())?;
     }
-
-    let column_index = rconf.single_selection(seeker.byte_headers())?;
-
-    let mut start_byte = seeker.first_record_position();
-    let mut end_byte = seeker.stream_len();
-    let mut median_byte = (start_byte + end_byte) / 2;
-
-    let mut previous_median: Option<u64> = None;
-    let mut previous_median_value: Option<Value> = None;
-
-    let mut went_left: bool = false;
-
-    let mut record = ByteRecord::new();
-    let mut record_pos: u64 = seeker.first_record_position();
-    let mut previously_found_record_pos: Option<u64> = None;
-
-    let mut median_byte_for_first_occurrence: Option<u64> = None;
 
     let first_record = match seeker.first_byte_record()? {
         Some(r) => r,
@@ -193,182 +191,127 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let first_value = args.get_value_from_bytes(&first_record[column_index])?;
     let last_value = args.get_value_from_bytes(&last_record[column_index])?;
 
-    // TODO: optimize to avoid comparisons when flushing
-    let end_value = if let Some(ref end) = args.flag_end_value {
-        args.get_value_from_bytes(end.as_bytes())?
-    } else if args.flag_search {
-        target_value.clone()
-    } else {
-        // Writing records after target value only in default behavior (flushing)
-        last_value.clone()
-    };
+    let mut lo = seeker.first_record_position();
+    let mut hi = seeker.stream_len();
 
+    log!("lo byte: {}", lo);
+    log!("hi byte: {}", hi);
+
+    // Early terminations
+
+    // File does not seem to be correctly sorted
     if args.cmp(&first_value, &last_value) == Ordering::Greater {
-        Err(
-            format!("Input is not sorted in the specified order!\nFirst and last values are inconsistent: {} and {}!", first_value, last_value)
-        )?;
+        Err(format!(
+            "input is not sorted in specified order!\nSee first and last values: {} and {}",
+            first_value, last_value
+        ))?;
     }
 
-    let mut value_found_among_first_records = false;
+    // Searched value is more than last value
+    // TODO...
 
-    // Testing the first and second records before starting
-    match args.cmp(&first_value, &target_value) {
-        Ordering::Greater => {
-            // Target value is out of bounds, so it is not present
-        }
-        Ordering::Equal => {
-            value_found_among_first_records = true;
-        }
-        Ordering::Less => {
-            let mut rdr = rconf.simd_reader()?;
-            // Getting first record
-            rdr.read_byte_record(&mut record)?;
-            // Getting second one
-            let second_record_pos = rdr.position();
-            rdr.read_byte_record(&mut record)?;
-            if args.cmp(
-                &args.get_value_from_bytes(&record[column_index])?,
-                &target_value,
-            ) == Ordering::Equal
-            {
-                value_found_among_first_records = true;
-                record_pos = second_record_pos;
-            }
-        }
-    }
+    // Searched value is less than first value
+    // TODO...
 
-    if match args.flag_reverse {
-        false => target_value >= first_value && target_value <= last_value,
-        true => target_value <= first_value && target_value >= last_value,
-    } {
-        if !value_found_among_first_records {
-            // Looking for the start byte of the first occurence
-            while start_byte <= end_byte {
-                let sought = seeker.find_record_after(median_byte)?;
+    // Searched value is one of first values
+    // TODO...
 
-                if let Some(sought) = sought {
-                    (record_pos, record) = sought;
-                    let value = args.get_value_from_bytes(&record[column_index])?;
-                    match args.cmp(&value, &target_value) {
-                        Ordering::Equal => {
-                            // We need to find the first occurrence of the target value
-                            end_byte = record_pos - 1;
-                            went_left = true;
-                            median_byte_for_first_occurrence =
-                                if let Some(pos) = median_byte_for_first_occurrence {
-                                    Some(std::cmp::min(pos, median_byte))
-                                } else {
-                                    Some(median_byte)
-                                };
-                        }
-                        ord => {
-                            if let Some(prev_value) = previous_median_value {
-                                match (went_left, args.cmp(&prev_value, &value)) {
-                                    (true, Ordering::Less) => {
-                                        Err(format!("Input is not sorted in the specified order!\nInconsistent values found during search: value {} in record on byte {} comes after {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
-                                    }
-                                    (false, Ordering::Greater) => {
-                                        Err(format!("Input is not sorted in the specified order!\nInconsistent values found during search: value {} in record on byte {} comes before {} in record on byte {}", prev_value, previously_found_record_pos.unwrap_or(0), value, record_pos))?;
-                                    }
-                                    _ => {}
-                                }
-                            }
+    // Searched value is one of last values
+    // TODO...
 
-                            match ord {
-                                Ordering::Less => {
-                                    // meaning we're looking for a bigger value but the median value is actually the last one of the subset studied,
-                                    // so the value isn't found
-                                    if record_pos >= end_byte {
-                                        break;
-                                    }
-                                    // move start byte up
-                                    went_left = false;
-                                    start_byte = median_byte;
-                                }
-                                Ordering::Greater => {
-                                    // move end byte down
-                                    went_left = true;
-                                    end_byte = median_byte;
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    previous_median_value = Some(value);
-                    previously_found_record_pos = Some(record_pos);
+    // `bisect_left`
+    // while lo < hi:
+    //     mid = (lo+hi)//2
+    //     if a[mid] < x: lo = mid+1
+    //     else: hi = mid
+    // return lo
 
-                    if let Some(prev) = previous_median {
-                        // We are not making any more progress
-                        // Meaning the target value is either found or not present
-                        if prev == median_byte {
-                            break;
-                        }
-                    }
-                } else {
-                    // Meaning we reached the last record or there are no more records
-                    // after median_byte, so we try to find some before it
-                    end_byte = median_byte;
-                    went_left = true;
-                    previous_median_value = None;
-                    previously_found_record_pos = None;
-                }
-                previous_median = Some(median_byte);
-                median_byte = (start_byte + end_byte) / 2;
-            }
-        }
+    let mut jumps: usize = 0;
 
-        // Writing output
-        if (!args.flag_exclude || args.flag_search)
-            && !value_found_among_first_records
-            && last_value == target_value
-            && median_byte_for_first_occurrence.is_none()
-        {
-            // No record found but this is because only the last record has the
-            // target value, so we write it and return
-            wtr.write_byte_record(&last_record)?;
-        } else {
-            let record_pos = if value_found_among_first_records {
-                SeekFrom::Start(record_pos)
-            } else {
-                let pos = if let Some(pos) = median_byte_for_first_occurrence {
-                    pos
-                } else if args.flag_search {
-                    unreachable!()
-                } else {
-                    median_byte
-                };
-                SeekFrom::Start(seeker.find_record_after(pos)?.unwrap().0)
-            };
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        log!("\nmid byte: {}", mid);
 
-            let mut reader = seeker.into_reader_at_position(record_pos)?;
-            let mut record = ByteRecord::new();
+        jumps += 1;
 
-            while reader.read_byte_record(&mut record)? {
+        match seeker.find_record_after(mid)? {
+            Some((pos, record)) => {
+                log!("successful jump n°{} to: {} (+{})", jumps, pos, pos - mid);
+
                 let value = args.get_value_from_bytes(&record[column_index])?;
-                match args.cmp(&value, &target_value) {
-                    Ordering::Equal => {
-                        if args.flag_exclude {
-                            continue;
-                        }
-                    }
-                    Ordering::Greater => {
-                        if args.cmp(&value, &end_value) == Ordering::Greater {
-                            break;
-                        }
-                    }
+
+                log!("found value: {}", value);
+
+                match args.cmp(&value, &searched_value) {
                     Ordering::Less => {
-                        if value_found_among_first_records {
-                            // as value_found_among_first_records set to true means
-                            // that we didn't use the seeker, this case can't be reached
-                            unreachable!()
-                        } else {
-                            // meaning the first records haven't the target value,
-                            // happens sometimes when looking for it using the seeker
-                            continue;
-                        }
+                        lo = mid + 1;
+                        log!("new lo (going right): {}", lo);
+                    }
+                    _ => {
+                        hi = mid;
+                        log!("new hi (going left): {}", hi);
                     }
                 }
-                wtr.write_byte_record(&record)?;
+
+                // Is there enough space for next jump to make sense?
+                let next_mid = (lo + hi) / 2;
+
+                if next_mid.abs_diff(mid) <= seeker.lookahead_len() * 2 {
+                    break;
+                }
+            }
+            None => {
+                // TODO: deal with end of file or declare search a failure.
+                // TODO: deal with start of file
+                todo!()
+            }
+        }
+    }
+
+    log!("\nfinal lo: {}", lo);
+    log!(
+        "made {} jumps vs. expected log(n) {}",
+        jumps,
+        (seeker.approx_count() as f64).log2().ceil() as usize
+    );
+
+    let final_pos = seeker.find_record_after(lo)?.unwrap().0;
+
+    let mut reader = seeker.into_reader_at_position(SeekFrom::Start(final_pos))?;
+
+    let mut record = ByteRecord::new();
+    let mut skipped: usize = 0;
+    let mut logged_skipped: bool = false;
+
+    while reader.read_byte_record(&mut record)? {
+        let value = args.get_value_from_bytes(&record[column_index])?;
+
+        match args.cmp(&value, &searched_value) {
+            Ordering::Less => {
+                skipped += 1;
+            }
+            Ordering::Equal => {
+                if !args.flag_exclude {
+                    if !logged_skipped {
+                        log!("skipped records before finding: {}", skipped);
+                        logged_skipped = true;
+                    }
+                    wtr.write_byte_record(&record)?;
+                } else {
+                    skipped += 1;
+                }
+            }
+            Ordering::Greater => {
+                if args.flag_exclude && !logged_skipped {
+                    log!("skipped records before finding: {}", skipped);
+                    logged_skipped = true;
+                }
+
+                if args.flag_search {
+                    break;
+                } else {
+                    wtr.write_byte_record(&record)?;
+                }
             }
         }
     }
