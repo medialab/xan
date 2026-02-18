@@ -114,13 +114,23 @@ pub fn consume_lines<R: Read>(
 pub struct LeakySponge<R> {
     inner: R,
     buffer: Vec<u8>,
+    holey: bool,
 }
 
 impl<R: Read> LeakySponge<R> {
+    pub fn holey(reader: R) -> Self {
+        Self {
+            inner: reader,
+            buffer: Vec::new(),
+            holey: true,
+        }
+    }
+
     pub fn new(reader: R) -> Self {
         Self {
             inner: reader,
             buffer: Vec::new(),
+            holey: false,
         }
     }
 
@@ -134,7 +144,9 @@ impl<R: Read> Read for LeakySponge<R> {
         match self.inner.read(buf) {
             Err(e) => Err(e),
             Ok(amount) => {
-                self.buffer.extend_from_slice(&buf[..amount]);
+                if !self.holey {
+                    self.buffer.extend_from_slice(&buf[..amount]);
+                }
                 Ok(amount)
             }
         }

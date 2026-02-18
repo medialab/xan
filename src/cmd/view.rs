@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::env;
 use std::io::{self, Write};
 use std::num::NonZeroUsize;
@@ -12,6 +13,59 @@ use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
+
+// NOTE: frankly, this would be unnecessary if my closures were less batshit...
+pub enum StdIo {
+    Stdout(RefCell<io::Stdout>),
+    Stderr(RefCell<io::Stderr>),
+}
+
+impl StdIo {
+    pub fn stdout() -> Self {
+        Self::Stdout(RefCell::new(io::stdout()))
+    }
+
+    pub fn stderr() -> Self {
+        Self::Stderr(RefCell::new(io::stderr()))
+    }
+
+    #[inline]
+    fn with_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut dyn Write) -> R,
+    {
+        match self {
+            Self::Stdout(cell) => {
+                let mut w = cell.borrow_mut();
+                f(&mut *w)
+            }
+            Self::Stderr(cell) => {
+                let mut w = cell.borrow_mut();
+                f(&mut *w)
+            }
+        }
+    }
+}
+
+impl Write for &StdIo {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.with_mut(|w| w.write(buf))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.with_mut(|w| w.flush())
+    }
+}
+
+impl Write for StdIo {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.with_mut(|w| w.write(buf))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.with_mut(|w| w.flush())
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 pub enum ComplexToggle {
@@ -326,6 +380,15 @@ impl Args {
         if self.flag_pager {
             self.flag_color = ColorMode::Always;
         }
+
+        if self.flag_tee {
+            // TODO: clamp limit to 5 also in this case
+            self.flag_repeat_headers = ComplexToggle::Never;
+
+            if self.flag_color.is_auto() {
+                self.flag_color = ColorMode::Always;
+            }
+        }
     }
 
     fn infer_expand(&self) -> bool {
@@ -402,7 +465,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 
-    let output = io::stdout();
+    let output = if args.flag_tee {
+        StdIo::stderr()
+    } else {
+        StdIo::stdout()
+    };
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
     let rows = termsize::get().map(|size| size.rows as usize);
@@ -422,13 +489,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_hide_headers = true;
     }
 
-    let mut io_rdr = rconfig.io_reader()?;
+    let io_rdr = rconfig.io_reader()?;
+    let mut sponge = if args.flag_tee {
+        LeakySponge::new(io_rdr)
+    } else {
+        LeakySponge::holey(io_rdr)
+    };
 
-    if args.flag_tee {
-        io_rdr = Box::new(LeakySponge::new(io_rdr));
-    }
-
-    let mut rdr = rconfig.csv_reader_from_reader(io_rdr);
+    let mut rdr = rconfig.csv_reader_from_reader(&mut sponge);
 
     let byte_headers = rdr.byte_headers()?.clone();
     let mut sel = rconfig.selection(&byte_headers)?;
@@ -970,7 +1038,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&output)?;
     }
 
-    if args.flag_tee {}
+    if args.flag_tee {
+        let mut leaked = sponge.leak();
+
+        io::copy(&mut leaked, &mut io::stdout())?;
+    }
 
     Ok(())
 }
