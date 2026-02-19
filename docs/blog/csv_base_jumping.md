@@ -362,3 +362,7 @@ the byte offset of the record just before the one we landed in. This works becau
 This technique does not work on tiny files, since you don't have enough bytes nor rows to make informed decision.
 
 Once again, this is a non-issue: if the file is tiny, just read it linearly, alright?
+
+---
+
+Signed: [xan](https://github.com/medialab/xan#readme), the CSV magician

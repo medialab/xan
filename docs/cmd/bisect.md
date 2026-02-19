@@ -2,37 +2,56 @@
 # xan bisect
 
 ```txt
-Search for rows where the value in <column> matches <value> using binary search,
-and flush all records after the target value.
-The default behavior is similar to a lower_bound bisection, but you can exclude
-records (equivalent to upper_bound) with the target value using the -E/--exclude
-flag. It is assumed that the INPUT IS SORTED according to the specified column.
-The ordering of the rows is assumed to be sorted according ascending lexicographic
-order per default, but you can specify numeric ordering using the -N or --numeric
-flag. You can also reverse the order using the -R/--reverse flag.
-Use the -S/--search flag to only flush records matching the target value instead
-of all records after it.
+Perform binary search on sorted CSV data.
+
+This command is one order of magnitude faster than relying on `xan filter` or
+`xan search` but only works if target file is sorted on searched column, exists
+on disk and is not compressed (unless the compressed file remains seekable,
+typically if some `.gzi` index can be found beside it).
+
+If CSV data is not properly sorted, result will be incorrect!
+
+By default this command executes the so-called "lower bound" operation: it
+positions itself in the file where one would insert the searched value and then
+proceeds to flush the file from this point. This can be useful when piping
+into other commands to perform range queries, for instance, or enumerate values
+starting with some prefix.
+
+Use the -S/--search flag if you only want to return rows matching your query
+exactly.
+
+Finally, use the -R/--reverse flag if data is sorted in descending order and
+the -N/--numeric flag if data is sorted numerically rather than lexicographically.
+
+Examples:
+
+Searching for rows matching exactly "Anna" in a "name" column:
+
+    $ xan bisect -S name Anna people.csv
+
+Finding all names starting with letter A:
+
+    $ xan bisect name A people.csv | xan slice -E '!name.startswith("A")'
 
 Usage:
     xan bisect [options] [--] <column> <value> <input>
     xan bisect --help
 
 bisect options:
-    -E, --exclude            When set, the records with the target value will be
-                             excluded from the output. By default, they are
-                             included. Cannot be used with -S/--search.
-                             TODO: not equivalent to upper_bound
-    -N, --numeric            Compare according to the numerical value of cells
-                             instead of the default lexicographic order.
-    -R, --reverse            Reverse sort order, i.e. descending order.
-    -S, --search             Perform a search on the target value instead of
-                             flushing all records after the value (included).
-                             Cannot be used with -E/--exclude nor -e/--end.
-    -e, --end <end-value>    When set, the records after the target value will be
-                             flushed until <end-value> is reached (included).
-                             By default, all records after the target value are
-                             flushed. Cannot be used with -S/--search.
-    -v, --verbose
+    -S, --search   Perform an exact search and only emit rows matching the
+                   query, instead of flushing all rows from found position.
+    -R, --reverse  Indicate that the file is sorted on <column> in descending
+                   order, instead of the default ascending order.
+    -N, --numeric  Indicate that searched values are numbers and that the order
+                   of the file is numerical instead of default lexicographic
+                   order.
+    -E, --exclude  When set, rows matching query exactly will be filtered out.
+                   It is equivalent to performing the "upper bound" operation
+                   but it does not come with the same performance guarantees
+                   in case there are many rows containing the searched values.
+                   Does not work with -S/--search.
+    -v, --verbose  Print some log detailing the search process in stderr, mostly
+                   for debugging purposes.
 
 Common options:
     -h, --help               Display this message
