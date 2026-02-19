@@ -314,17 +314,37 @@ Of course we are sampling from an untractable distribution that is far from unif
 
 ### Binary search
 
-Being able to safely jump through a CSV file means we can support approximate random access. We cannot jump exactly to the nth row of the file, but we can jump approximately near it.
+Being able to safely jump through CSV files means we have approximate random access. We cannot jump exactly to the nth row of the file, but we can jump near it, through byte offset arithmetics.
 
 This ultimately means we can perform [binary search](https://en.wikipedia.org/wiki/Binary_search) on sorted CSV data in quasi-logarithmic time. Indeed, binary search is able to suffer approximate jumps in the data if you are careful enough about what you are doing to uphold the search's invariants.
 
-Sorted CSV data can therefore be seen as a read-only database index, in a sense.
+Sorted CSV data can therefore be seen as a read-only database index, if you squint hard enough.
 
-This is still experimental and will only be released in the near future but this is what the upcoming `xan bisect` command promises to do:
+This is what the `xan bisect` command (available since version `0.56.0`) does:
 
 ```bash
-# Could be used thusly: xan bisect <column> <value> file.csv
-xan bisect id 4534 sorted-by-id.csv
+# Searching for rows with specific id:
+xan bisect --search id 4534 sorted-by-id.csv
+
+# Enumerating all rows with a name starting with A:
+xan bisect name A sorted-by-name.csv | xan slice -E '!name.startswith("A")'
+```
+
+Of course, since binary search is `O(log n)`, it is one order of magnitude faster than linear search using `xan search` or `xan filter`:
+
+```bash
+# `sorted-people.csv` is a ~12M rows ~1GB CSV file stored on SSD
+
+# Searching for a specific row using linear search through the
+# `xan search` command.
+# To remain fair, we search for a row in the first 20% of the file and stop
+# as soon as the row is found (using the --limit 1 flag):
+time xan search --exact --limit 1 -s name Chloe sorted-people.csv
+0.143s
+
+# The same, but using `xan bisect`:
+time xan bisect --search name Chloe sorted-people.csv
+0.017s
 ```
 
 ## Caveat emptor
