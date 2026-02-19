@@ -46,6 +46,7 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Pre-built binaries](#pre-built-binaries)
   * [Installing completions](#installing-completions)
 * [Quick tour](#quick-tour)
+* [Learning](#learning)
 * [Available commands](#available-commands)
 * [General flags and IO model](#general-flags-and-io-model)
   * [Getting help](#getting-help)
@@ -57,7 +58,6 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
   * [Compressed files](#compressed-files)
   * [Regarding color](#regarding-color)
 * [Expression language reference](#expression-language-reference)
-* [Cookbook](#cookbook)
 * [News](#news)
 * [How to cite?](#how-to-cite)
 * [Frequently Asked Questions](#frequently-asked-questions)
@@ -538,6 +538,18 @@ Displaying 1 col from 5 rows of <stdin>
 
 To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md), run `xan help cheatsheet`. To display the full list of available [functions](./docs/moonblade/functions.md), run `xan help functions`. Finally, to display the list of available [aggregation functions](./docs/moonblade/aggs.md), run `xan help aggs`.
 
+## Learning
+
+If you speak French, [here](https://ceres.sorbonne-universite.fr/test_outil_xan/) is a quick rundown of the tool by our friends from [CERES](https://ceres.sorbonne-universite.fr/).
+
+*Documented use-cases*
+
+* [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
+* [Parsing and visualizing dates with xan](./docs/cookbook/dates.md)
+* [Joining files by URL prefixes](./docs/cookbook/urls.md)
+
+For a sense of what can be achieved with `xan`, see this page summarizing a variety of complex but detailed pipelines that have been used in real-life by real people to solve their problems, using the tool: [PIPELINES](./docs/PIPELINES.md).
+
 ## Available commands
 
 - [**help**](./docs/cmd/help.md): Get help regarding the expression language
@@ -737,13 +749,6 @@ They also respect typical environment variables related to ANSI colouring, such 
 - [Comprehensive list of aggregation functions](./docs/moonblade/aggs.md)
 - [Comprehensive list of window aggregation functions](./docs/moonblade/window.md)
 - [Scraping DSL](./docs/moonblade/scraping.md)
-
-## Cookbook
-
-* [Merging frequency tables, three ways](./docs/cookbook/frequency_tables.md)
-* [Parsing and visualizing dates with xan](./docs/cookbook/dates.md)
-* [Joining files by URL prefixes](./docs/cookbook/urls.md)
-* [Miscellaneous](./docs/cookbook/misc.md)
 
 ## News
 

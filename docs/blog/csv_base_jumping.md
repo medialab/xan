@@ -347,6 +347,8 @@ time xan bisect --search name Chloe sorted-people.csv
 0.017s
 ```
 
+As an aside, this is very similar to what the [`look`](https://man7.org/linux/man-pages/man1/look.1.html) unix command does, but for lines instead of CSV data.
+
 ## Caveat emptor
 
 The technique demonstrated by this article is far from a silver bullet and suffers from some drawbacks. Here is unabdridged list of those drawbacks:
