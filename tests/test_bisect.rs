@@ -308,3 +308,67 @@ fn bisect_reverse() {
     let expected: Vec<Vec<String>> = vec![svec!["letter"], svec!["d"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn bisect_all() {
+    let wrk = Workdir::new("bisect_all");
+    let data = vec![
+        svec!["name", "surname"],
+        svec!["amelie", "earlhart"],
+        svec!["berenice", "bejo"],
+        svec!["carol", "denvers"],
+        svec!["dominique", "boutin"],
+        svec!["ereven", "nijoul"],
+        svec!["fareed", "hakmad"],
+        svec!["guillaume", "loris"],
+        svec!["horatio", "caine"],
+    ];
+
+    wrk.create("data.csv", data.clone());
+
+    for row in data.iter().skip(1) {
+        let mut cmd = wrk.command("bisect");
+        cmd.arg("name").arg(&row[0]).arg("-S").arg("data.csv");
+
+        let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+        let expected = vec![svec!["name", "surname"], row.clone()];
+        assert_eq!(got, expected);
+    }
+}
+
+#[test]
+fn bisect_no_headers() {
+    let wrk = Workdir::new("bisect_no_headers");
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["amelie", "earlhart"],
+            svec!["berenice", "bejo"],
+            svec!["carol", "denvers"],
+            svec!["dominique", "boutin"],
+            svec!["ereven", "nijoul"],
+            svec!["fareed", "hakmad"],
+            svec!["guillaume", "loris"],
+            svec!["horatio", "caine"],
+        ],
+    );
+
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("-n")
+        .arg("0")
+        .arg("fareed")
+        .arg("-S")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["fareed", "hakmad"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("bisect");
+    cmd.arg("-n").arg("0").arg("fo").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["guillaume", "loris"], ["horatio", "caine"]];
+    assert_eq!(got, expected);
+}
