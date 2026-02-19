@@ -197,27 +197,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     log!("lo byte: {}", lo);
     log!("hi byte: {}", hi);
 
-    // Early terminations
-
     // File does not seem to be correctly sorted
-    if args.cmp(&first_value, &last_value) == Ordering::Greater {
+    if args.cmp(&first_value, &last_value).is_gt() {
         Err(format!(
             "input is not sorted in specified order!\nSee first and last values: {} and {}",
             first_value, last_value
         ))?;
     }
 
-    // Searched value is more than last value
-    // TODO...
+    // Searched value is more than last value: we can stop right now
+    if args.cmp(&searched_value, &last_value).is_gt() {
+        log!("early exit: search value is after last value!");
+        return Ok(());
+    }
 
-    // Searched value is less than first value
-    // TODO...
+    // Searched value is less than first value or equal
+    let mut skip_search = false;
 
-    // Searched value is one of first values
-    // TODO...
-
-    // Searched value is one of last values
-    // TODO...
+    if args.cmp(&searched_value, &first_value).is_le() {
+        log!("skipping search: search value is before first value!");
+        skip_search = true;
+    }
 
     // `bisect_left`
     // while lo < hi:
@@ -228,42 +228,46 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut jumps: usize = 0;
 
-    while lo < hi {
-        let mid = (lo + hi) / 2;
-        log!("\nmid byte: {}", mid);
+    if !skip_search {
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            log!("\nmid byte: {}", mid);
 
-        jumps += 1;
+            jumps += 1;
 
-        match seeker.find_record_after(mid)? {
-            Some((pos, record)) => {
-                log!("successful jump n°{} to: {} (+{})", jumps, pos, pos - mid);
+            match seeker.find_record_after(mid)? {
+                Some((pos, record)) => {
+                    log!("successful jump n°{} to: {} (+{})", jumps, pos, pos - mid);
 
-                let value = args.get_value_from_bytes(&record[column_index])?;
+                    let value = args.get_value_from_bytes(&record[column_index])?;
 
-                log!("found value: {}", value);
+                    log!("found value: {}", value);
 
-                match args.cmp(&value, &searched_value) {
-                    Ordering::Less => {
-                        lo = mid + 1;
-                        log!("new lo (going right): {}", lo);
+                    match args.cmp(&value, &searched_value) {
+                        Ordering::Less => {
+                            lo = mid + 1;
+                            log!("new lo (going right): {}", lo);
+                        }
+                        _ => {
+                            hi = mid;
+                            log!("new hi (going left): {}", hi);
+                        }
                     }
-                    _ => {
-                        hi = mid;
-                        log!("new hi (going left): {}", hi);
+
+                    // Is there enough space for next jump to make sense?
+                    let next_mid = (lo + hi) / 2;
+
+                    if next_mid.abs_diff(mid) <= seeker.lookahead_len() * 2 {
+                        break;
                     }
                 }
-
-                // Is there enough space for next jump to make sense?
-                let next_mid = (lo + hi) / 2;
-
-                if next_mid.abs_diff(mid) <= seeker.lookahead_len() * 2 {
-                    break;
+                None => {
+                    Err(format!(
+                        "Seeker's lookahead failed (len: {}, pos: {})!",
+                        seeker.lookahead_len(),
+                        mid
+                    ))?;
                 }
-            }
-            None => {
-                // TODO: deal with end of file or declare search a failure.
-                // TODO: deal with start of file
-                todo!()
             }
         }
     }
@@ -275,7 +279,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         (seeker.approx_count() as f64).log2().ceil() as usize
     );
 
-    let final_pos = seeker.find_record_after(lo)?.unwrap().0;
+    let final_pos = if skip_search {
+        seeker.first_record_position()
+    } else {
+        seeker.find_record_after(lo)?.unwrap().0
+    };
 
     let mut reader = seeker.into_reader_at_position(SeekFrom::Start(final_pos))?;
 
