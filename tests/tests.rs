@@ -17,6 +17,7 @@ mod workdir;
 
 mod test_agg;
 mod test_behead;
+mod test_bisect;
 mod test_cat;
 mod test_complete;
 mod test_count;

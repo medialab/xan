@@ -56,6 +56,7 @@ macro_rules! command_list {
     slice       Slice rows of CSV file
     top         Find top rows of a CSV file according to some column
     sample      Randomly sample CSV data
+    bisect      Binary search on sorted CSV data
 
 ## Sort & deduplicate
     sort        Sort CSV data
@@ -272,6 +273,7 @@ enum Command {
     Agg,
     Behead,
     Bins,
+    Bisect,
     Blank,
     Cat,
     Cluster,
@@ -359,6 +361,7 @@ impl Command {
             Command::Agg => cmd::agg::run(argv),
             Command::Behead | Command::Guillotine => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
+            Command::Bisect => cmd::bisect::run(argv),
             Command::Blank => cmd::blank::run(argv),
             Command::Cat => cmd::cat::run(argv),
             Command::Cluster => cmd::cluster::run(argv),
