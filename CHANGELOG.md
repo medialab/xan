@@ -4,6 +4,7 @@
 
 *Features*
 
+* Adding `xan bisect`.
 * Adding `xan flatten -N/--non-empty`.
 
 *Fixes*

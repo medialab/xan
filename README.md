@@ -637,7 +637,6 @@ To access the expression language's [cheatsheet](./docs/moonblade/cheatsheet.md)
 
 - [**tokenize**](./docs/cmd/tokenize.md): Tokenize a text column
 - [**vocab**](./docs/cmd/vocab.md): Build a vocabulary over tokenized documents
-- [**cluster**](./docs/cmd/cluster.md): Cluster CSV data to find near-duplicates
 
 *Matrix & network-related commands*
 

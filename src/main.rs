@@ -120,7 +120,6 @@ macro_rules! command_list {
 ## Lexicometry & fuzzy matching
     tokenize    Tokenize a text column
     vocab       Build a vocabulary over tokenized documents
-    cluster     Cluster CSV data to find near-duplicates
 
 ## Matrix & network-related commands
     matrix      Convert CSV data to matrix data
