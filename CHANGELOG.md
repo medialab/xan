@@ -11,6 +11,7 @@
 *Fixes*
 
 * Fixing `xan to (md|html) --no-headers`.
+* Fixing `xan plot -R/--regression-line`.
 
 *Quality of Life*
 
