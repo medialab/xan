@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::convert::TryFrom;
+use std::fs::File;
 use std::num::NonZeroUsize;
 use std::{
     fs,
@@ -28,6 +30,7 @@ enum SupportedFormat {
     Npy,
     Tar,
     Md,
+    Parquet,
 }
 
 impl SupportedFormat {
@@ -40,6 +43,7 @@ impl SupportedFormat {
             "npy" => Self::Npy,
             "tar" | "tar.gz" => Self::Tar,
             "md" | "markdown" => Self::Md,
+            "parquet" => Self::Parquet,
             _ => return None,
         })
     }
@@ -80,9 +84,10 @@ Supported formats:
     - npy: numpy array
     - tar: tarball archive
     - md, markdown: Markdown table
+    - parquet: Parquet frame
 
 Some formats can be streamed, some others require the full file to be loaded into
-memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
+memory. The streamable formats are `ndjson`, `jsonl`, `parquet`, `tar`,`txt` and `npy`.
 
 Some formats will handle gzip decompression on the fly if the filename ends
 in `.gz`: `json`, `ndjson`, `jsonl`, `tar` and `txt`.
@@ -530,6 +535,72 @@ impl Args {
 
         Ok(wtr.flush()?)
     }
+
+    fn convert_parquet(&self) -> CliResult<()> {
+        use parquet::file::reader::{FileReader, SerializedFileReader};
+        use parquet::record::Field;
+
+        if self.arg_input.is_none() {
+            Err("xan from -f parquet does not work on stdin!")?;
+        }
+
+        let file = File::open(self.arg_input.as_ref().unwrap())?;
+        let reader =
+            SerializedFileReader::new(file).map_err(|_| "could not open a parquet reader!")?;
+
+        let mut wtr = self.writer()?;
+        let mut output_record = ByteRecord::new();
+
+        let schema = reader.metadata().file_metadata().schema_descr();
+
+        for column in schema.columns() {
+            output_record.push_field(column.name().as_bytes());
+        }
+
+        wtr.write_byte_record(&output_record)?;
+
+        let iter = reader
+            .get_row_iter(None)
+            .map_err(|_| "could not instantiate a parquet row iterator!")?;
+
+        for result in iter {
+            output_record.clear();
+
+            let row = result.map_err(|_| "could not deserialize parquet row!")?;
+
+            for (_, value) in row.get_column_iter() {
+                let serialized = match value {
+                    Field::Null => Cow::Borrowed("".as_bytes()),
+                    Field::Bool(b) => Cow::Borrowed((if *b { "true" } else { "false" }).as_bytes()),
+                    Field::Str(string) => Cow::Borrowed(string.as_bytes()),
+                    Field::Bytes(bytes) => Cow::Borrowed(
+                        bytes
+                            .as_utf8()
+                            .map_err(|_| "could not decode parquet byte array to utf-8!")?
+                            .as_bytes(),
+                    ),
+                    Field::UByte(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::UShort(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::UInt(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::ULong(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Byte(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Short(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Int(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Long(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Float(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Float16(f) => Cow::Owned(f.to_string().into_bytes()),
+                    Field::Double(f) => Cow::Owned(f.to_string().into_bytes()),
+                    _ => Err("unsupported parquet value type!")?,
+                };
+
+                output_record.push_field(&serialized);
+            }
+
+            wtr.write_byte_record(&output_record)?;
+        }
+
+        Ok(wtr.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -562,5 +633,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         SupportedFormat::Npy => args.convert_npy(),
         SupportedFormat::Tar => args.convert_tar(),
         SupportedFormat::Md => args.convert_markdown(),
+        SupportedFormat::Parquet => args.convert_parquet(),
     }
 }

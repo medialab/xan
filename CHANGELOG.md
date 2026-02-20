@@ -6,6 +6,7 @@
 
 * Adding `xan bisect`.
 * Adding `xan flatten -N/--non-empty`.
+* Adding `xan from -f parquet`.
 
 *Fixes*
 
