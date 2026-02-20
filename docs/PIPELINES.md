@@ -7,6 +7,7 @@ Curated collection of unhinged `xan` pipelines.
 * [Paginating urls to download](#paginating-urls-to-download)
 * [Making sure a crawler was logged in by reading files in parallel](#making-sure-a-crawler-was-logged-in-by-reading-files-in-parallel)
 * [Parsing logs using `xan separate`](#parsing-logs-using-xan-separate)
+* [Running subprocesses to extract raw text from PDF files](#running-subprocesses-to-extract-raw-text-from-pdf-files)
 
 ## Paginating urls to download
 
@@ -63,7 +64,7 @@ Let's do so with `xan`, in parallel, with a progress bar for flair (indeed, read
 
 ```bash
 xan progress crawl.csv | \
-xan filter --parallel '"downloaded".pathjoin(path).read() | !contains(_, /yomguithereal/i)' |
+xan filter --parallel '"downloaded".pathjoin(path).read() | !contains(_, /yomguithereal/i)' | \
 > not-crawled-correctly.csv
 ```
 
@@ -102,6 +103,8 @@ Now here is what a time series of all the logs look like:
 
 ```bash
 # We use --ignore because some records don't have a time
+# The --count flag means we don't have value for the y axis, we just
+# want to count number of rows for each time slot
 xan plot --line --time datetime --count logs.csv --ignore
 ```
 
@@ -116,9 +119,27 @@ xan search -s url --exact / logs.csv | xan plot -LT datetime --count
 
 ![separate-log2](./img/pipelines/separate-log2.png)
 
-<!--
+## Running subprocesses to extract raw text from PDF files
 
-xan filter 'http_status == 200 && col("path", 1).endswith(".pdf")' report-files.csv | xan map -p 'col("path", 1) | pjoin("files", _) | fmt("pdftotext {} -", _) | shell(_).trim() as text' | xan select ndoc,uid,title,lastModified,link,text | xan rename -s lastModified last_modified > final.csv
+Ok, let's go wild: we have downloaded a long list of PDF reports from some UN subcommittee. We will attempt to use the `pdftotext` command on them to extract their raw text so we can do proper NLP down the line. But there is an issue: we are very bad at using the `xargs` or `parallel` commands and never remember how to write a proper bash loop.
+
+Don't worry, `xan` is here for us:
+
+```bash
+xan filter 'http_status == 200 && col("path", 1).endswith(".pdf")' report-files.csv | \
+xan map --parallel 'col("path", 1) | pjoin("files", _) | fmt("pdftotext {} -", _) | shell(_).trim() as text' | \
+xan select ndoc,uid,title,lastModified,link,text | \
+xan rename -s lastModified last_modified > report-files-with-raw-text.csv
+```
+
+Here `xan` was able to manage `pdftotext` subprocesses (using the `shell` moonblade function), in parallel, for each row of our CSV file listing the reports on disk, so we can add the extracted text in a new column. Pretty rad, no?
+
+We need to use `col("path", 1)` in our expressions because of course there are two distinct columns with same name in our input CSV file.
+
+We also use the `xan rename` command in the end because mixing camelCase and snake_case is an unforgivable fashion *faux-pas*.
+
+
+<!--
 
 xan parallel cat \
   --progress \
