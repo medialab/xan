@@ -9,6 +9,7 @@ Curated collection of unhinged `xan` pipelines.
 * [Parsing logs using `xan separate`](#parsing-logs-using-xan-separate)
 * [Running subprocesses to extract raw text from PDF files](#running-subprocesses-to-extract-raw-text-from-pdf-files)
 * [Matching multiple queries in a press articles corpus, in parallel](#matching-multiple-queries-in-a-press-articles-corpus-in-parallel)
+* [Producing a heatmap of popularity profiles of top Twitter accounts](#producing-a-heatmap-of-popularity-profiles-of-top-twitter-accounts)
 
 ## Paginating urls to download
 
@@ -155,7 +156,7 @@ Here is our `queries.csv` file:
 | query_transition     | transitions?\s+(?:[ée]cologique\|[ée]n[ée]rg[ée]tique)       |
 | query_durable        | d[ée]veloppement\s+durable\|[ée]n[ée]rgies?\s+renouvelables? |
 
-Here is our `xan` pipeline:
+Here is our parallel `xan` pipeline:
 
 ```bash
 xan parallel cat \
@@ -182,13 +183,13 @@ xan transform media '_.split("/")[0]' > $BASE_DIR/matches.csv
   <img src="https://i.redd.it/io23lob82pp61.jpg" alt="parallel cats" width="250px" />
 </p>
 
-Then `--progress` means we want to display a progress bar, `--source-column` means we want to add a new column to the output tracing from which file a row came from (here each CSV file is in fact the collection of all articles from one media, so it is important to us to track from which media came each resulting row).
+The`--progress` flag means we want to display a progress bar, `--source-column` means we want to add a new column to the output tracking which file a row came from (here each CSV file is in fact the collection of all articles from one media, so it is important to remember from which file each row came from).
 
-When running a `xan parallel cat` command, output rows are flushed regularly to stdout to avoid overflowing memory. This means however that the command must lock an access to stdout to serialize the result and avoid race conditions between threads. This ultimately means that output rows might be in some arbitrary order. Here, because we are using `xan search --breakdown`, we know beforehand that each media will only get one row per month in the output. So we can afford holding all breakdown rows per media before flushing them, in order to ensure the output order is consistent (meaning that resulting rows per media are not interleaved in the output). We therefore use the `--buffer-size -1` flag.
+When running a `xan parallel cat` command, output rows are flushed regularly to stdout to avoid overflowing memory. This means however that the command must lock an access to stdout to serialize the result and avoid race conditions between threads. This ultimately means that output rows might be in some arbitrary order. Here, because we are using `xan search --breakdown`, we know beforehand that each media will only get one row per month in the output. We can therefore afford holding all breakdown rows per media before flushing them, in order to ensure that output order remains consistent (meaning that resulting rows per media are not interleaved in the output). To do so we use the `--buffer-size -1` flag.
 
-*Regarding the preprocessing*
+*Regarding preprocessing*
 
-Here is the preprocessing (the `xan` part can be omitted in a command fed to `--preprocess`):
+Here is our preprocessing (the `xan` part can be omitted in a command fed to `--preprocess`):
 
 ```bash
 map "date_published.ym().try() || `N/A` as month" |
@@ -200,9 +201,9 @@ groupby month --along-columns "query_*" "sum(_)" |
 sort -s month
 ```
 
-First we create a column indicating the month from an article date, because we are going to use it for aggregating search results. For instance `2023-01-01T02:45:07+01:00` will become `2023-01`.
+First we create a column by extracting the month from an article date, because we are going to use it for aggregating search results. For instance `2023-01-01T02:45:07+01:00` would become `2023-01`.
 
-Then we apply the search, feeding the patterns from `queries.csv` using the `--patterns` flag. `--pattern-column` lets us tell which column of `queries.csv` contain the actual regex pattern, while `--name-column` indicate an associated name that will be used by the `--breakdown` flag to produce output columns.
+Then we apply the `search` command, feeding patterns from `queries.csv` using the `--patterns` flag. `--pattern-column` lets us tell which column of `queries.csv` contain the actual regex pattern, while `--name-column` indicates an associated name that will be used by the `--breakdown` flag to produce output columns.
 
 Now let's consider the following file:
 
@@ -241,24 +242,29 @@ Finally we use the `sort` command to make sure rows are sorted by month, and tha
 
 The last `xan transform` invocation is here to transform a file path into a proper media name. For instance `lemonde/articles.csv.gz` will become `lemonde`.
 
-<!--
+## Producing a heatmap of popularity profiles of top Twitter accounts
 
-xan parallel cat \
-  --progress \
-  -S media \
-  -B -1 \
-  -P '
-    select -f scripts/harmonization.moonblade |
-    map "date_published.ym().try() || `N/A` as month" |
-    search -Bri -s headline,description,text
-      --patterns scripts/climate_week/queries.csv
-      --pattern-column pattern
-      --name-column name |
-    groupby month -C -5: "sum(_)" |
-    sort -s month' \
-  */articles.csv.gz | \
-xan transform media '_.split("/")[0]' > $BASE_DIR/matches.csv
+We have a CSV file of 3M tweets. We want to see a top 20 of most retweeted accounts and compare their popularity profiles in terms of number or retweets, replies and likes respectively.
 
-xan groupby into xan heatmap example
+Here is how to do that:
 
--->
+```bash
+xan groupby user_screen_name 'mean(retweet_count) as rt, mean(reply_count) as rp, mean(like_count) as lk' tweets.csv | \
+xan top rt --limit 20 | \
+xan heatmap --size 2 --cram --gradient inferno --show-numbers
+```
+
+Here is the result:
+
+![twitter-heatmap](./img/pipelines/twitter-heatmap.png)
+
+We first use `xan groupby` to aggregate the data per Twitter user. We use short names for output columns such as `rt` or `lk` because it will fit easier in the legend of the resulting heatmap.
+
+Then we rank Twitter users and keep the top 20 using `xan top`.
+
+Finally we pipe everything into `xan heatmap` using the following flags:
+
+* `--size 2` means we want our heatmap squares to be 2 characters tall
+* `--cram` means we want to cram ou x-axis labels on top of the heatmap squares (they are short enough to fit, else they would get truncated)
+* `--gradient inferno` means we want a stylish gradient for the colors because we are hipsters
+* `--show-numbers` means we want to display numbers within the heatmap squares
