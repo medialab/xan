@@ -324,7 +324,7 @@ This is what the `xan bisect` command (available since version `0.56.0`) does:
 
 ```bash
 # Searching for rows with specific id:
-xan bisect --search id 4534 sorted-by-id.csv
+xan bisect --search --numeric id 4534 sorted-by-id.csv
 
 # Enumerating all rows with a name starting with A:
 xan bisect name A sorted-by-name.csv | xan slice -E '!name.startswith("A")'
