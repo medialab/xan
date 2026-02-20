@@ -34,8 +34,8 @@ The `xan range` command produces a CSV looking like this:
 | 5   |
 | ... |
 
-Then the `xan select --evaluate` part use the following expression to transform the file on the fly:
-Matching multiple queries in a press articles corpus, in parallel
+Then the `xan select --evaluate` part uses the following expression to transform the file on the fly:
+
 ```python
 # We append the content of the "n" column to the given url
 "https://news.ycombinator.com/?p=" ++ n as url
