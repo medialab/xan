@@ -95,7 +95,7 @@ xan map --overwrite 'datetime.datetime("%d/%b/%Y:%H:%M:%S %z") as datetime, http
 > logs.csv
 ```
 
-First we use the `xan from` command to convert our log lines into proper CSV data (log lines can countain commas or quotes for instance and those must be dealt with properly).
+First we use the `xan from` command to convert our log lines into proper CSV data (log lines can contain commas or quotes for instance and those must be dealt with properly).
 
 Then we apply our unwieldy regex to create some new columns given to the `--into` flag. The `--keep` flag is here because we want to keep the original log line in the result, so we can add further processing later on if needed.
 
