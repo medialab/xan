@@ -6,6 +6,7 @@
 
 * Adding `xan bisect`.
 * Adding `xan flatten -N/--non-empty`.
+* Adding the `soundex`, `refined_soundex` & `phonogram` moonblade functions for phonetic encoding.
 
 *Fixes*
 

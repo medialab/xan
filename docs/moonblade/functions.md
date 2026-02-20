@@ -252,6 +252,9 @@ add(trim(name) | len, 2)    - Can be used anywhere
 ## Fuzzy matching & information retrieval
 
 - **fingerprint**(*string*) -> `string`: Fingerprint a string by normalizing characters, re-ordering and deduplicating its word tokens before re-joining them by spaces.
+- **soundex**(*name*) -> `string`: Compute the SOUNDEX code (a phonetic encoding) of given name.
+- **refined_soundex**(*name*) -> `string`: Compute the refined SOUNDEX code (a phonetic encoding) of given name.
+- **phonogram**(*name*) -> `string`: Compute the "phonogram" code (yomguithereal's own phonetic encoding) of given name.
 - **carry_stemmer**(*string*) -> `string`: Apply the "Carry" stemmer targeting the French language.
 - **s_stemmer**(*string*) -> `string`: Apply a very simple stemmer removing common plural inflexions in some languages.
 - **unidecode**(*string*) -> `string`: Convert string to ascii as well as possible.
