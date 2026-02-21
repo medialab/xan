@@ -279,7 +279,7 @@ Finding the optimal number of threads can also be a balancing act since using to
 
 *Regarding grep*
 
-Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could provide a nice boost also to process to newline-delimited JSON files etc.
+Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could provide a nice boost also to process newline-delimited JSON files etc.
 
 I don't know of a tool implementing this logic yet, but I am sure it must exist somewhere already.
 
