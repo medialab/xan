@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.57.0 (provisional)
+
+*Features*
+
+* Adding `front_coding` window function.
+
 ## 0.56.0
 
 *Features*

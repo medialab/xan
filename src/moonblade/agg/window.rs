@@ -159,6 +159,7 @@ impl Ranking {
 enum ConcreteWindowAggregation {
     Lead(ConcreteExpr, usize, ConcreteExpr),
     Lag(ConcreteExpr, usize, ConcreteExpr),
+    FrontCoding(ConcreteExpr, Option<String>),
     RowNumber(usize),
     RowIndex(usize),
     CumulativeSum(ConcreteExpr, Sum),
@@ -389,6 +390,43 @@ impl ConcreteWindowAggregation {
 
                 Ok(value)
             }
+            Self::FrontCoding(expr, last_string_opt) => {
+                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let string = value
+                    .try_as_str()
+                    .map_err(|err| err.anonymous())?
+                    .into_owned();
+
+                fn first_mismatch_index(a: &str, b: &str) -> usize {
+                    for (i, (ca, cb)) in a.chars().zip(b.chars()).enumerate() {
+                        if i == b.len() || ca != cb {
+                            return i;
+                        }
+                    }
+
+                    return a.len();
+                }
+
+                // TODO: try_into_string
+                match last_string_opt {
+                    None => {
+                        let result = DynamicValue::from("0 ".to_string() + &string);
+
+                        *last_string_opt = Some(string);
+
+                        Ok(result)
+                    }
+                    Some(last_string) => {
+                        let i = first_mismatch_index(&string, &last_string);
+
+                        let result = DynamicValue::from(format!("{} ", i) + &string[i..]);
+
+                        *last_string_opt = Some(string);
+
+                        Ok(result)
+                    }
+                }
+            }
             Self::RowNumber(counter) => {
                 *counter += 1;
                 Ok(DynamicValue::from(*counter))
@@ -489,6 +527,9 @@ impl ConcreteWindowAggregation {
                 welford.clear();
             }
             Self::Lag(_, _, _) | Self::Lead(_, _, _) => (),
+            Self::FrontCoding(_, string) => {
+                *string = None;
+            }
             Self::Frac(_, sum, _) => {
                 sum.clear();
             }
@@ -508,9 +549,8 @@ fn get_function(name: &str) -> Option<FunctionArguments> {
         "row_number" | "row_index" => FunctionArguments::nullary(),
         "frac" => FunctionArguments::with_range(1..=2),
         "lag" | "lead" => FunctionArguments::with_range(1..=3),
-        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" | "cume_dist" | "percent_rank" => {
-            FunctionArguments::unary()
-        }
+        "cumsum" | "cummin" | "cummax" | "dense_rank" | "rank" | "cume_dist" | "percent_rank"
+        | "front_coding" => FunctionArguments::unary(),
         "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev"
         | "ntile" => FunctionArguments::binary(),
         _ => return None,
@@ -605,7 +645,7 @@ fn concretize_window_aggregations(
 
                 concrete_aggs.push((agg.agg_name, concrete_agg));
             }
-            "cumsum" | "cummin" | "cummax" => {
+            "cumsum" | "cummin" | "cummax" | "front_coding" => {
                 let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
 
                 concrete_aggs.push((
@@ -614,6 +654,7 @@ fn concretize_window_aggregations(
                         "cumsum" => ConcreteWindowAggregation::CumulativeSum(expr, Sum::new()),
                         "cummin" => ConcreteWindowAggregation::CumulativeMin(expr, None),
                         "cummax" => ConcreteWindowAggregation::CumulativeMax(expr, None),
+                        "front_coding" => ConcreteWindowAggregation::FrontCoding(expr, None),
                         _ => unreachable!(),
                     },
                 ))
