@@ -8,12 +8,18 @@ static USAGE: &str = "
 Convert CSV data to matrix data.
 
 Supported modes:
-    corr: convert a selection of columns into a full
-          correlation matrix.
+    adj  - convert a pair of columns into a full adjacency
+           matrix.
+    corr - convert a selection of columns into a full
+           correlation matrix.
 
 Usage:
+    xan matrix adj [options] <source> <target> [<input>]
     xan matrix corr [options] [<input>]
     xan matrix --help
+
+matrix adj options:
+    -w, --weight <column>  Optional column containing a weight for edges.
 
 matrix corr options:
     -s, --select <columns>  Columns to consider for the correlation
@@ -32,6 +38,11 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
+    arg_source: Option<SelectedColumns>,
+    arg_target: Option<SelectedColumns>,
+    cmd_adj: bool,
+    cmd_corr: bool,
+    flag_weight: Option<SelectedColumns>,
     flag_select: SelectedColumns,
     flag_fill_diagonal: bool,
     flag_no_headers: bool,
@@ -40,7 +51,11 @@ struct Args {
 }
 
 impl Args {
-    fn correlation(&self) -> CliResult<()> {
+    fn adjacency(self) -> CliResult<()> {
+        todo!()
+    }
+
+    fn correlation(self) -> CliResult<()> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -155,5 +170,11 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    args.correlation()
+    if args.cmd_adj {
+        args.adjacency()
+    } else if args.cmd_corr {
+        args.correlation()
+    } else {
+        unreachable!()
+    }
 }
