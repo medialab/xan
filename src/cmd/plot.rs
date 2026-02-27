@@ -397,7 +397,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-R/--regression-line does not work with -B/--bars nor -L/--line!")?;
         }
 
-        if args.flag_category.is_some() || !has_added_series {
+        if args.flag_category.is_some() || has_added_series {
             Err("-R/--regression-line only works with single series (e.g. when using -c/--category or when selecting multiple columns with <y>)!")?;
         }
     }

@@ -36,6 +36,12 @@
     "help": "Returns the fraction represented by numbers yielded by given expression over the total sum of them. This requires buffering whole file or group!"
   },
   {
+    "name": "front_coding",
+    "arguments": ["<expr>"],
+    "returns": "string",
+    "help": "Compress string returned by given expression using incremental encoding (useful to compress sorted data).\nSee https://en.wikipedia.org/wiki/Incremental_encoding"
+  },
+  {
     "name": "lag",
     "arguments": ["<expr>", "steps?", "<expr>?"],
     "returns": "any",

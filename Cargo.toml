@@ -1,6 +1,6 @@
 [package]
 name = "xan"
-version = "0.55.0"
+version = "0.56.0"
 rust-version = "1.83.0"
 authors = [
   "Guillaume Plique <guillaume.plique@sciencespo.fr>",
@@ -100,7 +100,7 @@ npyz = "0.8.3"
 opener = "0.7.2"
 ordered-float = "5.0.0"
 pad = "0.1.6"
-paltoquet = "0.11.0"
+paltoquet = "0.12.0"
 pariter = "0.5.1"
 parquet = "55.2.0"
 pest = "2.7.15"

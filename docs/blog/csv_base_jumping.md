@@ -277,9 +277,16 @@ Note however that the specifics of the used hardware and filesystem must be take
 
 Finding the optimal number of threads can also be a balancing act since using too many of them might put too much pressure on IO, counter-intuitively. Inter-thread communication and synchronization might also become a problem with too many threads.
 
+*Prior work*
+
+As pointed out on [Lobste.rs](https://lobste.rs/s/tbsdd4/cursed_engineering_jumping_randomly), there are some others libs/tools using a similar technique as the one described in this article:
+
+* [CSV.jl](https://csv.juliadata.org), a CSV parsing library for `Julia`, has [CSV.Chunks](https://csv.juliadata.org/stable/reading.html#CSV.Chunks)
+* MySQL Shell has some parallel table import feature, as documented [here](https://dev.mysql.com/doc/mysql-shell/8.4/en/mysql-shell-utilities-parallel-table.html)
+
 *Regarding grep*
 
-Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could provide a nice boost also to process to newline-delimited JSON files etc.
+Funnily enough, this logic (fast segmentation + parallelization) can easily be ported to `grep`-like tools. Finding the next line in a stream is way easier than finding the next CSV row (unless you jumped right in the middle of a `CRLF` pair, but I don't think this is such an issue). In fact you don't even need to collect a sample at the beginning of the file since you don't need to mind thorny CSV quotation rules. This could provide a nice boost also to process newline-delimited JSON files etc.
 
 I don't know of a tool implementing this logic yet, but I am sure it must exist somewhere already.
 
@@ -324,7 +331,7 @@ This is what the `xan bisect` command (available since version `0.56.0`) does:
 
 ```bash
 # Searching for rows with specific id:
-xan bisect --search id 4534 sorted-by-id.csv
+xan bisect --search --numeric id 4534 sorted-by-id.csv
 
 # Enumerating all rows with a name starting with A:
 xan bisect name A sorted-by-name.csv | xan slice -E '!name.startswith("A")'

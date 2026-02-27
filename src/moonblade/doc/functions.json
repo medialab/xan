@@ -642,6 +642,24 @@
         "help": "Fingerprint a string by normalizing characters, re-ordering and deduplicating its word tokens before re-joining them by spaces."
       },
       {
+        "name": "soundex",
+        "arguments": ["name"],
+        "returns": "string",
+        "help": "Compute the SOUNDEX code (a phonetic encoding) of given name."
+      },
+      {
+        "name": "refined_soundex",
+        "arguments": ["name"],
+        "returns": "string",
+        "help": "Compute the refined SOUNDEX code (a phonetic encoding) of given name."
+      },
+      {
+        "name": "phonogram",
+        "arguments": ["name"],
+        "returns": "string",
+        "help": "Compute the \"phonogram\" code (yomguithereal's own phonetic encoding) of given name."
+      },
+      {
         "name": "carry_stemmer",
         "arguments": ["string"],
         "returns": "string",

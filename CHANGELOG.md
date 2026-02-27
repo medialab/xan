@@ -1,16 +1,24 @@
 # Changelog
 
-## 0.56.0 (provisional)
+## 0.57.0 (provisional)
+
+*Features*
+
+* Adding `front_coding` window function.
+* Adding `xan from -f parquet`.
+
+## 0.56.0
 
 *Features*
 
 * Adding `xan bisect`.
 * Adding `xan flatten -N/--non-empty`.
-* Adding `xan from -f parquet`.
+* Adding the `soundex`, `refined_soundex` & `phonogram` moonblade functions for phonetic encoding.
 
 *Fixes*
 
 * Fixing `xan to (md|html) --no-headers`.
+* Fixing `xan plot -R/--regression-line`.
 
 *Quality of Life*
 

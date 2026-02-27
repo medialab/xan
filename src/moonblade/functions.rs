@@ -17,6 +17,7 @@ use lazy_static::lazy_static;
 use mime2ext::mime2ext;
 use namedlock::{AutoCleanup, LockSpace};
 use paltoquet::{
+    phonetics::{phonogram, refined_soundex, soundex},
     stemmers::{fr::carry_stemmer, s_stemmer},
     tokenizers::FingerprintTokenizer,
 };
@@ -81,7 +82,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "basename" => (basename, FunctionArguments::with_range(1..=2)),
         "bytesize" => (bytesize, FunctionArguments::unary()),
-        "carry_stemmer" => (carry_stemmer_fn, FunctionArguments::unary()),
+        "carry_stemmer" => (
+            |args| abstract_unary_string_fn(args, |string| Cow::Owned(carry_stemmer(string))),
+            FunctionArguments::unary(),
+        ),
         "ceil" => (
             |args| round_like_op(args, DynamicNumber::ceil),
             FunctionArguments::with_range(1..=2),
@@ -227,6 +231,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "parse_dataurl" => (parse_dataurl, FunctionArguments::unary()),
         "parse_json" => (parse_json, FunctionArguments::unary()),
         "parse_py_literal" => (parse_py_literal, FunctionArguments::unary()),
+        "phonogram" => (
+            |args| abstract_unary_string_fn(args, |string| Cow::Owned(phonogram(string))),
+            FunctionArguments::unary(),
+        ),
         "pjoin" | "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
         "pow" => (
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
@@ -244,6 +252,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "read_csv" => (read_csv, FunctionArguments::unary()),
         "read_json" => (read_json, FunctionArguments::unary()),
+        "refined_soundex" => (
+            |args| abstract_unary_string_fn(args, |string| Cow::Owned(refined_soundex(string))),
+            FunctionArguments::unary(),
+        ),
         "regex" => (parse_regex, FunctionArguments::unary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
@@ -253,6 +265,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "shell" => (shell, FunctionArguments::unary()),
         "shlex_split" => (shlex_split, FunctionArguments::unary()),
         "slice" => (slice, FunctionArguments::with_range(2..=3)),
+        "soundex" => (
+            |args| abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
+            FunctionArguments::unary(),
+        ),
         "split" => (split, FunctionArguments::with_range(2..=3)),
         "sqrt" => (
             |args| unary_arithmetic_op(args, DynamicNumber::sqrt),
@@ -272,7 +288,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::variadic(2),
         ),
         "sum" => (sum, FunctionArguments::unary()),
-        "s_stemmer" => (s_stemmer_fn, FunctionArguments::unary()),
+        "s_stemmer" => (
+            |args| abstract_unary_string_fn(args, s_stemmer),
+            FunctionArguments::unary(),
+        ),
         "eq" => (
             |args| sequence_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
@@ -1702,16 +1721,13 @@ fn fingerprint(args: BoundArguments) -> FunctionResult {
     ))
 }
 
-fn s_stemmer_fn(args: BoundArguments) -> FunctionResult {
+fn abstract_unary_string_fn<F>(args: BoundArguments, function: F) -> FunctionResult
+where
+    F: FnOnce(&str) -> Cow<str>,
+{
     let string = args.get1().try_as_str()?;
 
-    Ok(DynamicValue::from(s_stemmer(&string)))
-}
-
-fn carry_stemmer_fn(args: BoundArguments) -> FunctionResult {
-    let string = args.get1().try_as_str()?;
-
-    Ok(DynamicValue::from(carry_stemmer(&string)))
+    Ok(DynamicValue::from(function(&string)))
 }
 
 // Utils

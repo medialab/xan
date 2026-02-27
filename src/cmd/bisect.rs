@@ -271,7 +271,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     // Is there enough space for next jump to make sense?
                     let next_mid = (lo + hi) / 2;
 
-                    if next_mid.abs_diff(mid) <= seeker.lookahead_len() * 2 {
+                    // NOTE: should we multiply lookahead len by 2?
+                    // The question is to balance the number of jumps vs.
+                    // the number of subsequent skips.
+                    if next_mid.abs_diff(mid) <= seeker.lookahead_len() {
                         break;
                     }
                 }
