@@ -5,6 +5,7 @@
 *Features*
 
 * Adding `front_coding` window function.
+* Timestamp support with `xan plot -LT`.
 
 ## 0.56.0
 

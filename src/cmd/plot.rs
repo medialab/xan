@@ -89,6 +89,16 @@ It is also possible to draw multiple series/lines, as well as drawing multiple
 series/lines as small multiples (sometimes also called a facet grid), by providing
 a -c/--category column or selecting multiple columns as <y> series.
 
+This command is also able to draw a temporal x axis when given the -T/--time flag
+and accepts the following formats:
+
+* A full ISO datetime or Z-terminated timestamp
+* A standard timestamp in seconds
+* A full or partial ISO date (e.g. 2025-03-12, 2025-03, 2025)
+
+Use `xan map`, `xan select -e` or `xan transform` to deal with other datetime
+formats ahead of the `xan plot` command.
+
 Drawing a simple scatter plot:
 
     $ xan plot sepal_width sepal_length iris.csv
@@ -108,6 +118,10 @@ As a line chart:
 Plotting time series:
 
     $ xan plot -LT datetime units sales.csv
+
+Plotting millisecond timestamps time series:
+
+    $ xan select -e 'timestamp_ms(time)' | xan plot -LT 0 --count
 
 Plotting multiple comparable times series at once:
 
@@ -843,6 +857,12 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
             String::from_utf8_lossy(cell)
         ))
     };
+
+    if let Ok(i) = btoi::btoi::<i64>(cell) {
+        return Ok(Timestamp::from_second(i)
+            .map_err(|_| format_error())?
+            .as_millisecond() as f64);
+    }
 
     let string = std::str::from_utf8(cell).map_err(|_| format_error())?;
 
