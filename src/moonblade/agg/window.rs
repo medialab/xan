@@ -404,7 +404,7 @@ impl ConcreteWindowAggregation {
                         }
                     }
 
-                    return a.len();
+                    a.len()
                 }
 
                 // TODO: try_into_string
@@ -417,7 +417,7 @@ impl ConcreteWindowAggregation {
                         Ok(result)
                     }
                     Some(last_string) => {
-                        let i = first_mismatch_index(&string, &last_string);
+                        let i = first_mismatch_index(&string, last_string);
 
                         let result = DynamicValue::from(format!("{} ", i) + &string[i..]);
 
