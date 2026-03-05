@@ -100,7 +100,7 @@ impl Args {
             target_set.insert(target_cell.clone());
             
             hash_matrix.entry(source_cell.clone()).and_modify(|src: &mut HashMap<Vec<u8>, f64>| {
-                src.entry(target_cell.clone()).and_modify(|trg| { *trg = *trg + weight }).or_insert(1.0);
+                src.entry(target_cell.clone()).and_modify(|trg| { *trg = *trg + weight }).or_insert(weight);
             }).or_insert(HashMap::from([(target_cell.clone(), weight)]));
 
         }
