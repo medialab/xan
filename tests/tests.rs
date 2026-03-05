@@ -36,6 +36,7 @@ mod test_headers;
 mod test_implode;
 mod test_join;
 mod test_map;
+mod test_matrix;
 mod test_merge;
 mod test_parallel;
 mod test_partition;
