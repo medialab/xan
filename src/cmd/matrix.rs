@@ -3,6 +3,8 @@ use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
+use indexmap::set::IndexSet;
+use std::collections::HashMap;
 
 static USAGE: &str = "
 Convert CSV data to matrix data.
@@ -52,7 +54,94 @@ struct Args {
 
 impl Args {
     fn adjacency(self) -> CliResult<()> {
-        todo!()
+        let rconf = Config::new(&self.arg_input)
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers)
+            .select(self.flag_select.clone());
+
+        let mut reader = rconf.simd_reader()?;
+        let headers = reader.byte_headers()?;
+        
+        let arg_source = self.arg_source.as_ref().unwrap();
+        let arg_target = self.arg_target.as_ref().unwrap();
+
+        let source_column_index = arg_source.single_selection(headers, !rconf.no_headers)?;
+        let target_column_index = arg_target.single_selection(headers, !rconf.no_headers)?;
+        let weight_column_index = match self.flag_weight.as_ref() {
+            Some(column) => Some(column.single_selection(headers, !rconf.no_headers)?),
+            None => None,
+        };
+        
+        let mut source_set = IndexSet::new();
+        let mut target_set = IndexSet::new();
+        let mut hash_matrix = HashMap::new();
+
+        let mut input_record = simd_csv::ByteRecord::new();
+        
+        while reader.read_byte_record(&mut input_record)? {
+            let source_cell = input_record[source_column_index].to_vec();
+            let target_cell = input_record[target_column_index].to_vec();
+
+            let weight = match weight_column_index.clone() {
+                Some(index) => {
+                    let weight_str = input_record.get(index).unwrap();
+
+                    fast_float::parse::<f64, &[u8]>(weight_str).map_err(|_| {
+                        format!(
+                            "could not parse cell \"{}\" as a float!",
+                            std::str::from_utf8(weight_str).unwrap()
+                        )
+                    }).unwrap()
+                },
+                None => 1.0,
+            };
+
+            source_set.insert(source_cell.clone());
+            target_set.insert(target_cell.clone());
+            
+            hash_matrix.entry(source_cell.clone()).and_modify(|src: &mut HashMap<Vec<u8>, f64>| {
+                src.entry(target_cell.clone()).and_modify(|trg| { *trg = *trg + weight }).or_insert(1.0);
+            }).or_insert(HashMap::from([(target_cell.clone(), weight)]));
+
+        }
+
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+        let mut output_record = simd_csv::ByteRecord::new();
+        output_record.push_field(b"");
+
+        for i in 0..target_set.len() {
+            let label = target_set[i].as_slice();
+            output_record.push_field(label);
+        }
+
+        writer.write_byte_record(&output_record)?;
+
+        for i in 0..source_set.len() {
+            let i_label = source_set[i].clone();
+
+            output_record.clear();
+            output_record.push_field(i_label.as_slice());
+            
+            for j in 0..target_set.len() {
+                let j_label = target_set[j].clone();
+                
+                match hash_matrix.get(&i_label) {
+                    Some(child) => {
+                        match child.get(&j_label) {
+                            Some(value) => {
+                                output_record.push_field(value.to_string().as_bytes());
+                            },
+                            None => output_record.push_field(0.to_string().as_bytes()),
+                        }
+                    },
+                    None => output_record.push_field(0.to_string().as_bytes()),
+                }
+            }
+
+            writer.write_byte_record(&output_record)?;
+        }
+
+        return Ok(());
     }
 
     fn correlation(self) -> CliResult<()> {
