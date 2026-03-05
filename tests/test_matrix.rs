@@ -47,7 +47,11 @@ fn adj_weight() {
     );
 
     let mut cmd = wrk.command("matrix");
-    cmd.arg("adj").arg("true").arg("pred").arg("data.csv").args(["--weight", "weight"]);
+    cmd.arg("adj")
+        .arg("true")
+        .arg("pred")
+        .arg("data.csv")
+        .args(["--weight", "weight"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
