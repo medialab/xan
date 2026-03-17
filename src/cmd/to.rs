@@ -338,7 +338,7 @@ impl Args {
                 write!(
                     &mut writer,
                     "\\textbf{{{}}}",
-                    escaped_h.pad_to_width(*width)
+                    escaped_h
                 )?;
             }
             writeln!(&mut writer, " \\\\")?;

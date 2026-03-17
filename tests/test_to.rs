@@ -182,7 +182,6 @@ fn to_latex() {
     cmd.arg("latex").arg("in.csv");
     let got: String = wrk.stdout(&mut cmd);
     
-    // Mise à jour de l'attendu pour inclure table[h], centrage, lignes verticales, caption et header gras
     let expected = "\\begin{table}[h]
 \\centering
 \\caption{}
