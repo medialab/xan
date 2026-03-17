@@ -24,6 +24,7 @@ Supported formats:
     html    - HTML table
     json    - JSON array or object
     jsonl   - JSON lines (same as `ndjson`)
+    latex   - LaTeX table
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
     npy     - Numpy array
@@ -278,6 +279,90 @@ impl Args {
         Ok(())
     }
 
+    fn convert_to_latex(&self) -> CliResult<()> {
+        let rconf = self.rconf();
+        let mut rdr = rconf.reader()?;
+        let mut writer = self.wconf().buf_io_writer()?;
+
+        fn escape_latex_table_cell(cell: &str) -> String {
+            cell.replace('&', "\\&")
+                .replace('%', "\\%")
+                .replace('$', "\\$")
+                .replace('#', "\\#")
+                .replace('_', "\\_")
+                .replace('{', "\\{")
+                .replace('}', "\\}")
+                .replace('~', "\\textasciitilde{}")
+                .replace('^', "\\textasciicircum{}")
+                .replace('\\', "\\textbackslash{}")
+        }
+
+        let headers = rdr.headers()?.clone();
+        let records = rdr
+            .into_records()
+            .map(|result| {
+                result.map(|record| {
+                    record
+                        .into_iter()
+                        .map(escape_latex_table_cell)
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let widths = headers.iter()
+            .enumerate()
+            .map(|(i, h)| {
+                let header_w = escape_latex_table_cell(h).width();
+                let max_record_w = records.iter().map(|r| r[i].width()).max().unwrap_or(0);
+                header_w.max(max_record_w)
+            })
+            .collect::<Vec<_>>();
+
+        writeln!(&mut writer, "\\begin{{table}}[h]")?;
+        writeln!(&mut writer, "\\centering")?;
+        writeln!(&mut writer, "\\caption{{}}")?;
+        writeln!(
+            &mut writer,
+            "\\begin{{tabular}}{{{}}}",
+            format!("|{}|", vec!["c"; headers.len()].join("|"))
+        )?;
+        writeln!(&mut writer, "\\hline")?;
+
+        if !rconf.no_headers {
+            for (i, (header, width)) in headers.iter().zip(widths.iter()).enumerate() {
+                let escaped_h = escape_latex_table_cell(header);
+                if i > 0 {
+                    write!(&mut writer, " & ")?;
+                }
+                write!(
+                    &mut writer,
+                    "\\textbf{{{}}}",
+                    escaped_h.pad_to_width(*width)
+                )?;
+            }
+            writeln!(&mut writer, " \\\\")?;
+            writeln!(&mut writer, "\\hline")?;
+        }
+
+        for record in records.into_iter() {
+            for (i, (cell, width)) in record.into_iter().zip(widths.iter()).enumerate() {
+                if i > 0 {
+                    write!(&mut writer, " & ")?;
+                }
+                write!(&mut writer, "{}", cell.pad_to_width(*width))?;
+            }
+
+            writeln!(&mut writer, " \\\\")?;
+        }
+
+        writeln!(&mut writer, "\\hline")?;
+        writeln!(&mut writer, "\\end{{tabular}}")?;
+        writeln!(&mut writer, "\\end{{table}}")?;
+
+        Ok(())
+    }
+
     fn convert_to_md(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
@@ -419,6 +504,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "html" => args.convert_to_html(),
         "json" => args.convert_to_json(),
         "jsonl" | "ndjson" => args.convert_to_ndjson(),
+        "latex" | "tex" => args.convert_to_latex(),
         "md" | "markdown" => args.convert_to_md(),
         "npy" => args.convert_to_npy(),
         "txt" | "text" => args.convert_to_txt(),
