@@ -46,6 +46,8 @@ Renaming a selection of columns:
 Adding a header to a headless file:
 
     $ xan rename -n name,surname file.csv
+    $ xan rename -n --prefix col_ file.csv
+    $ xan rename -n --suffix _col file.csv
 
 Prefixing column names:
 
@@ -67,8 +69,10 @@ rename options:
     -s, --select <arg>     Select the columns to rename. See 'xan select -h'
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
-    -p, --prefix <prefix>  Prefix to add to all column names.
-    -x, --suffix <suffix>  Suffix to add to all column names.
+    -p, --prefix <prefix>  Prefix to add to all column names. Will be used with
+                           0-based column indices when used with -n/--no-headers.
+    -x, --suffix <suffix>  Suffix to add to all column names. Will be used with
+                           0-based column indices when used with -n/--no-headers.
     -S, --slugify          Transform the column name so that they are safe to
                            be used as identifiers. Will typically replace
                            whitespace & dashes with underscores, drop accentuation
@@ -118,14 +122,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut record = simd_csv::ByteRecord::new();
 
     if args.flag_no_headers {
-        if args.flag_prefix.is_some() {
-            Err("Cannot use -p/--prefix with --no-headers!")?;
-        }
-
-        if args.flag_suffix.is_some() {
-            Err("Cannot use -x/--suffix with --no-headers!")?;
-        }
-
         if args.flag_slugify {
             Err("Cannot use -S/--slugify with -n/--no-headers!")?;
         }
@@ -134,12 +130,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("Cannot use -R/--replace with -n/--no-headers!")?;
         }
 
-        let rename_as = util::str_to_csv_byte_record(&args.arg_columns.unwrap());
-
         let expected_len = if rdr.read_byte_record(&mut record)? {
             record.len()
         } else {
             0
+        };
+
+        let rename_as = if let Some(prefix) = &args.flag_prefix {
+            (0..expected_len)
+                .map(|i| format!("{}{}", prefix, i))
+                .collect()
+        } else if let Some(suffix) = &args.flag_suffix {
+            (0..expected_len)
+                .map(|i| format!("{}{}", i, suffix))
+                .collect()
+        } else {
+            util::str_to_csv_byte_record(&args.arg_columns.unwrap())
         };
 
         if expected_len != rename_as.len() {
