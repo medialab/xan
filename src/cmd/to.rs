@@ -330,7 +330,7 @@ impl Args {
         writeln!(&mut writer, "\\hline")?;
 
         if !rconf.no_headers {
-            for (i, (header, width)) in headers.iter().zip(widths.iter()).enumerate() {
+            for (i, (header, _)) in headers.iter().zip(widths.iter()).enumerate() {
                 let escaped_h = escape_latex_table_cell(header);
                 if i > 0 {
                     write!(&mut writer, " & ")?;
