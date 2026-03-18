@@ -7,6 +7,7 @@
 * Adding `front_coding` window function.
 * Timestamp support with `xan plot -LT`.
 * Adding `xan rename -n/--no-headers` support for `-p/--prefix` & `-x/--suffix`.
+* Adding `xan from -f parquet` (requires the `parquet` feature).
 
 ## 0.56.0
 

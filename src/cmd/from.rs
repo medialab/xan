@@ -1,6 +1,4 @@
-use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::fs::File;
 use std::num::NonZeroUsize;
 use std::{
     fs,
@@ -84,7 +82,9 @@ Supported formats:
     - npy: numpy array
     - tar: tarball archive
     - md, markdown: Markdown table
-    - parquet: Parquet frame
+
+Optionally supported formats (requires `xan` to be compiled using optional features):
+    - parquet: Parquet frame (requires the `parquet` feature)
 
 Some formats can be streamed, some others require the full file to be loaded into
 memory. The streamable formats are `ndjson`, `jsonl`, `parquet`, `tar`,`txt` and `npy`.
@@ -536,7 +536,18 @@ impl Args {
         Ok(wtr.flush()?)
     }
 
+    #[cfg(not(feature = "parquet"))]
     fn convert_parquet(&self) -> CliResult<()> {
+        Err(CliError::Other(
+            "not compiled with the `parquet` feature!".to_string(),
+        ))
+    }
+
+    #[cfg(feature = "parquet")]
+    fn convert_parquet(&self) -> CliResult<()> {
+        use std::borrow::Cow;
+        use std::fs::File;
+
         use parquet::file::reader::{FileReader, SerializedFileReader};
         use parquet::record::Field;
 

@@ -18,8 +18,11 @@ Supported formats:
     - tar: tarball archive
     - md, markdown: Markdown table
 
+Optionally supported formats (requires `xan` to be compiled using optional features):
+    - parquet: Parquet frame (requires the `parquet` feature)
+
 Some formats can be streamed, some others require the full file to be loaded into
-memory. The streamable formats are `ndjson`, `jsonl`, `tar`, `txt` and `npy`.
+memory. The streamable formats are `ndjson`, `jsonl`, `parquet`, `tar`,`txt` and `npy`.
 
 Some formats will handle gzip decompression on the fly if the filename ends
 in `.gz`: `json`, `ndjson`, `jsonl`, `tar` and `txt`.
