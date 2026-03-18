@@ -54,6 +54,9 @@ TXT options:
                            to convert to text has multiple columns or if
                            selection yields more than a single column.
 
+LateX options:
+    --caption <caption>  Optionnal name of the caption set in the latex, will be empty if not specified.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -76,6 +79,7 @@ struct Args {
     flag_omit: bool,
     flag_strings: Option<SelectedColumns>,
     flag_dtype: String,
+    flag_caption: Option<String>
 }
 
 impl Args {
@@ -321,7 +325,7 @@ impl Args {
 
         writeln!(&mut writer, "\\begin{{table}}[h]")?;
         writeln!(&mut writer, "\\centering")?;
-        writeln!(&mut writer, "\\caption{{}}")?;
+        writeln!(&mut writer, "\\caption{{{}}}", self.flag_caption.as_deref().unwrap_or(""))?;
         writeln!(
             &mut writer,
             "\\begin{{tabular}}{{{}}}",
