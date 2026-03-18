@@ -2,6 +2,10 @@
 
 ## 0.57.0 (provisional)
 
+*Breaking*
+
+* `xan select -n` will not error anymore on empty inputs.
+
 *Features*
 
 * Adding `front_coding` window function.
