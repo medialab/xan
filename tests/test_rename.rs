@@ -156,7 +156,13 @@ fn rename_no_headers() {
 
     let mut cmd = wrk.command("rename");
     cmd.arg("-n").args(["--prefix", "test_"]).arg("data.csv");
-    wrk.assert_err(&mut cmd);
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["test_0", "test_1"],
+        svec!["John", "24"],
+        svec!["Lisa", "28"],
+    ];
+    assert_eq!(got, expected);
 
     let mut cmd = wrk.command("rename");
     cmd.arg("-n").arg("NAME").arg("data.csv");

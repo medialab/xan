@@ -23,6 +23,8 @@ Renaming a selection of columns:
 Adding a header to a headless file:
 
     $ xan rename -n name,surname file.csv
+    $ xan rename -n --prefix col_ file.csv
+    $ xan rename -n --suffix _col file.csv
 
 Prefixing column names:
 
@@ -44,8 +46,10 @@ rename options:
     -s, --select <arg>     Select the columns to rename. See 'xan select -h'
                            for the full syntax. Note that given selection must
                            not include a same column more than once.
-    -p, --prefix <prefix>  Prefix to add to all column names.
-    -x, --suffix <suffix>  Suffix to add to all column names.
+    -p, --prefix <prefix>  Prefix to add to all column names. Will be used with
+                           0-based column indices when used with -n/--no-headers.
+    -x, --suffix <suffix>  Suffix to add to all column names. Will be used with
+                           0-based column indices when used with -n/--no-headers.
     -S, --slugify          Transform the column name so that they are safe to
                            be used as identifiers. Will typically replace
                            whitespace & dashes with underscores, drop accentuation
