@@ -486,6 +486,15 @@
         "help": "Return the mean of the given numbers."
       },
       {
+        "name": "range",
+        "arguments": ["stop"],
+        "alternatives": [
+          ["start", "stop", "step=1"]
+        ],
+        "returns": "list[number]",
+        "help": "Return the specified range as a list of integers."
+      },
+      {
         "name": "sum",
         "arguments": ["numbers"],
         "returns": "number?",

@@ -242,6 +242,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "printf" => (printf, FunctionArguments::variadic(2)),
         "random" => (random, FunctionArguments::nullary()),
+        "range" => (range, FunctionArguments::with_range(1..=3)),
         "read" => (
             read,
             FunctionArguments::complex(vec![
@@ -787,6 +788,58 @@ fn get_subroutine<'a>(
         }
         value => return Err(EvaluationError::from_cast(value, "sequence")),
     })
+}
+
+fn range(args: BoundArguments) -> FunctionResult {
+    let (start, stop, step): (i64, i64, i64) = if args.len() == 3 {
+        (
+            args.get(0).unwrap().try_as_i64()?,
+            args.get(1).unwrap().try_as_i64()?,
+            args.get(2).unwrap().try_as_i64()?,
+        )
+    } else if args.len() == 2 {
+        (
+            args.get(0).unwrap().try_as_i64()?,
+            args.get(1).unwrap().try_as_i64()?,
+            1,
+        )
+    } else {
+        (0, args.get(0).unwrap().try_as_i64()?, 1)
+    };
+
+    if step == 0 {
+        return Err(EvaluationError::Custom("step cannot be 0".to_string()));
+    }
+
+    let len = if step > 0 {
+        if start >= stop {
+            0
+        } else {
+            ((stop - start - 1) / step + 1) as usize
+        }
+    } else if start <= stop {
+        0
+    } else {
+        ((start - stop - 1) / (-step) + 1) as usize
+    };
+
+    let mut indices = Vec::with_capacity(len);
+
+    let mut current = start;
+
+    if step > 0 {
+        while current < stop {
+            indices.push(DynamicValue::from(current));
+            current += step;
+        }
+    } else {
+        while current > stop {
+            indices.push(DynamicValue::from(current));
+            current += step;
+        }
+    }
+
+    Ok(DynamicValue::from(indices))
 }
 
 fn get(mut args: BoundArguments) -> FunctionResult {

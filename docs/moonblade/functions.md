@@ -216,6 +216,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **join**(*list*, *sep*) -> `string`: Join list by separator.
 - **map**(*list*, *lambda*) -> `list`: Return a list with elements transformed by given lambda.<br>For instance: `map(numbers, n => n + 3)`
 - **mean**(*numbers*) -> `number?`: Return the mean of the given numbers.
+- **range**(*stop*) -> `list[number]`: Return the specified range as a list of integers.
+- **range**(*start*, *stop*, *step=1*) -> `list[number]`: Return the specified range as a list of integers.
 - **sum**(*numbers*) -> `number?`: Return the sum of the given numbers, or nothing if the sum overflowed.
 
 ## Maps
