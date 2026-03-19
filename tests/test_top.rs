@@ -232,3 +232,32 @@ fn top_ties() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn top_lexicographic() {
+    let wrk = Workdir::new("top_lexicographic");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "age"],
+            svec!["Mary", "29"],
+            svec!["Harold", "12"],
+            svec!["Sven", "34"],
+            svec!["Anna", "31"],
+        ],
+    );
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("name").arg("-L").args(["-l", "2"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name", "age"], ["Sven", "34"], ["Mary", "29"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("top");
+    cmd.arg("name").arg("-RL").args(["-l", "2"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name", "age"], ["Anna", "31"], ["Harold", "12"]];
+    assert_eq!(got, expected);
+}

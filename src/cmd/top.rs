@@ -33,12 +33,53 @@ impl Value {
 }
 
 static USAGE: &str = "
-Find top k CSV rows according to some column values.
+Find top k values in selected column and return the associated CSV rows.
 
-Runs in O(N * log k) time, consuming only O(k) memory.
+Runs in O(n * log k) time, n being the number of rows in target CSV file, and
+consuming only O(k) memory, which is of course better than piping `xan sort`
+into `xan head`.
 
-Note that rows whose selected cell is empty or cannot be
-parsed as a number will be ignored.
+Note that rows having empty values or values that cannot be parsed as numbers
+in selected columns will be ignored along the way.
+
+This command can also return the first k values or last k values in lexicographic
+order using the -L/--lexicographic flag (note that the logic of the command is
+tailored for numerical values and is therefore the reverse of `xan sort` in this
+regard).
+
+Examples:
+
+Top 10 values in \"score\" column:
+
+    $ xan top score file.csv
+
+Top 50 values:
+
+    $ xan top -l 50 score file.csv
+
+Smallest 10 values:
+
+    $ xan top -R score file.csv
+
+Top 10 values with potential ties:
+
+    $ xan top -T score file.csv
+
+Top 10 values per distinct value of the \"category\" column:
+
+    $ xan top -g category score file.csv
+
+The same with a preprended \"rank\" column:
+
+    $ xan top -g category -r rank score file.csv
+
+Last 10 names in lexicographic order:
+
+    $ xan top -L name file.csv
+
+First 10 names in lexicographic order:
+
+    $ xan top -LR name file.csv
 
 Usage:
     xan top <column> [options] [<input>]
@@ -48,6 +89,8 @@ top options:
     -l, --limit <n>       Number of top items to return. Cannot be < 1.
                           [default: 10]
     -R, --reverse         Reverse order.
+    -L, --lexicographic   Rank values lexicographically instead of considering
+                          them as numbers.
     -g, --groupby <cols>  Return top n values per group, represented
                           by the values in given columns.
     -r, --rank <col>      Name of a rank column to prepend.
@@ -78,6 +121,17 @@ struct Args {
     flag_groupby: Option<SelectedColumns>,
     flag_rank: Option<String>,
     flag_ties: bool,
+    flag_lexicographic: bool,
+}
+
+impl Args {
+    fn new_value(&self, cell: &[u8]) -> Option<Value> {
+        if self.flag_lexicographic {
+            Value::new_string(cell)
+        } else {
+            Value::new_float(cell)
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -86,7 +140,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.arg_column);
+        .select(args.arg_column.clone());
 
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
@@ -94,6 +148,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let groupby_sel_opt = args
         .flag_groupby
+        .as_ref()
         .map(|cols| cols.selection(headers, !rconf.no_headers))
         .transpose()?;
 
@@ -110,15 +165,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! run {
         ($heap:ident, $type:ident) => {{
             let mut record = ByteRecord::new();
-            let mut heap = $heap::<$type<NotNan<f64>>, ByteRecord>::with_capacity(usize::from(
-                args.flag_limit,
-            ));
+            let mut heap =
+                $heap::<$type<Value>, ByteRecord>::with_capacity(usize::from(args.flag_limit));
 
             while rdr.read_byte_record(&mut record)? {
-                if let Ok(score) = std::str::from_utf8(&record[score_col])
-                    .unwrap_or("")
-                    .parse::<NotNan<f64>>()
-                {
+                if let Some(score) = args.new_value(&record[score_col]) {
                     heap.push_with($type(score), || record.clone());
                 }
             }
@@ -140,7 +191,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {
-                if let Some(score) = Value::new_float(&record[score_col]) {
+                if let Some(score) = args.new_value(&record[score_col]) {
                     let group = $sel.select(&record).collect();
 
                     let heap = groups

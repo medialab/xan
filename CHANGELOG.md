@@ -13,6 +13,7 @@
 * Adding `xan rename -n/--no-headers` support for `-p/--prefix` & `-x/--suffix`.
 * Adding `xan from -f parquet` (requires the `parquet` feature).
 * Adding `xan to latex`.
+* Adding `xan top -L/--lexicographic`.
 * Adding `range` moonblade function.
 
 *Performance*
