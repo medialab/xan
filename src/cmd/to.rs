@@ -57,7 +57,6 @@ TXT options:
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
 
-
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -80,7 +79,7 @@ struct Args {
     flag_omit: bool,
     flag_strings: Option<SelectedColumns>,
     flag_dtype: String,
-    flag_caption: Option<String>
+    flag_caption: Option<String>,
 }
 
 impl Args {
@@ -108,8 +107,8 @@ impl Args {
 
     fn rconf(&self) -> Config {
         Config::new(&self.arg_input)
-        .no_headers(self.flag_no_headers)
-        .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers)
+            .delimiter(self.flag_delimiter)
     }
 
     fn wconf(&self) -> Config {
@@ -294,60 +293,69 @@ impl Args {
             for c in cell.chars() {
                 match c {
                     '\\' => result.push_str("\\textbackslash{}"),
-                    '&'  => result.push_str("\\&"),
-                    '%'  => result.push_str("\\%"),
-                    '$'  => result.push_str("\\$"),
-                    '#'  => result.push_str("\\#"),
-                    '_'  => result.push_str("\\_"),
-                    '{'  => result.push_str("\\{"),
-                    '}'  => result.push_str("\\}"),
-                    '~'  => result.push_str("\\textasciitilde{}"),
-                    '^'  => result.push_str("\\textasciicircum{}"),
-                    c    => result.push(c),
+                    '&' => result.push_str("\\&"),
+                    '%' => result.push_str("\\%"),
+                    '$' => result.push_str("\\$"),
+                    '#' => result.push_str("\\#"),
+                    '_' => result.push_str("\\_"),
+                    '{' => result.push_str("\\{"),
+                    '}' => result.push_str("\\}"),
+                    '~' => result.push_str("\\textasciitilde{}"),
+                    '^' => result.push_str("\\textasciicircum{}"),
+                    c => result.push(c),
                 }
             }
             result
         }
+
         fn is_numeric_column(records: &[Vec<String>], col_index: usize) -> bool {
-            records.iter().all(|r| r[col_index].trim().parse::<f64>().is_ok())
+            records
+                .iter()
+                .all(|r| r[col_index].trim().parse::<f64>().is_ok())
         }
 
         let headers = rdr.headers()?.clone();
         let records = rdr
-        .into_records()
-        .map(|result| {
-            result.map(|record| {
-                record
-                .into_iter()
-                .map(escape_latex_table_cell)
-                .collect::<Vec<_>>()
+            .into_records()
+            .map(|result| {
+                result.map(|record| {
+                    record
+                        .into_iter()
+                        .map(escape_latex_table_cell)
+                        .collect::<Vec<_>>()
+                })
             })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let widths = headers.iter()
-        .enumerate()
-        .map(|(i, h)| {
-            let header_w = escape_latex_table_cell(h).width();
-            let max_record_w = records.iter().map(|r| r[i].width()).max().unwrap_or(0);
-            header_w.max(max_record_w)
-        })
-        .collect::<Vec<_>>();
-
+        let widths = headers
+            .iter()
+            .enumerate()
+            .map(|(i, h)| {
+                let header_w = escape_latex_table_cell(h).width();
+                let max_record_w = records.iter().map(|r| r[i].width()).max().unwrap_or(0);
+                header_w.max(max_record_w)
+            })
+            .collect::<Vec<_>>();
 
         let col_spec = (0..headers.len())
-        .map(|i| if is_numeric_column(&records, i) { "r" } else { "c" })
-        .collect::<Vec<_>>()
-        .join("|");
+            .map(|i| {
+                if is_numeric_column(&records, i) {
+                    "r"
+                } else {
+                    "c"
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("|");
 
         writeln!(&mut writer, "\\begin{{table}}[h]")?;
         writeln!(&mut writer, "\\centering")?;
-        writeln!(&mut writer, "\\caption{{{}}}", self.flag_caption.as_deref().unwrap_or(""))?;
         writeln!(
             &mut writer,
-            "\\begin{{tabular}}{{|{}|}}",
-            col_spec
+            "\\caption{{{}}}",
+            self.flag_caption.as_deref().unwrap_or("")
         )?;
+        writeln!(&mut writer, "\\begin{{tabular}}{{|{}|}}", col_spec)?;
         writeln!(&mut writer, "\\hline")?;
 
         if !rconf.no_headers {
@@ -356,11 +364,7 @@ impl Args {
                 if i > 0 {
                     write!(&mut writer, " & ")?;
                 }
-                write!(
-                    &mut writer,
-                    "\\textbf{{{}}}",
-                    escaped_h
-                )?;
+                write!(&mut writer, "\\textbf{{{}}}", escaped_h)?;
             }
             writeln!(&mut writer, " \\\\")?;
             writeln!(&mut writer, "\\hline")?;
@@ -391,34 +395,34 @@ impl Args {
 
         fn escape_md_table_cell(cell: &str) -> String {
             cell.replace("|", "\\|")
-            .replace("<", "\\<")
-            .replace(">", "\\>")
+                .replace("<", "\\<")
+                .replace(">", "\\>")
         }
 
         let headers = rdr.headers()?.clone();
         let records = rdr
-        .into_records()
-        .map(|result| {
-            result.map(|record| {
-                record
-                .into_iter()
-                .map(escape_md_table_cell)
-                .collect::<Vec<_>>()
+            .into_records()
+            .map(|result| {
+                result.map(|record| {
+                    record
+                        .into_iter()
+                        .map(escape_md_table_cell)
+                        .collect::<Vec<_>>()
+                })
             })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         let widths = headers
-        .iter()
-        .enumerate()
-        .map(|(i, h)| {
-            iter::once(h.width())
-            .chain(records.iter().map(move |r| r[i].width()))
-            .max()
-            .unwrap()
-            .max(3)
-        })
-        .collect::<Vec<_>>();
+            .iter()
+            .enumerate()
+            .map(|(i, h)| {
+                iter::once(h.width())
+                    .chain(records.iter().map(move |r| r[i].width()))
+                    .max()
+                    .unwrap()
+                    .max(3)
+            })
+            .collect::<Vec<_>>();
 
         write!(&mut writer, "|")?;
 
@@ -470,16 +474,16 @@ impl Args {
         macro_rules! write_floats {
             ($type: ty) => {{
                 let mut writer = npyz::WriteOptions::new()
-                .default_dtype()
-                .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
-                .writer(io_writer)
-                .begin_nd()?;
+                    .default_dtype()
+                    .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
+                    .writer(io_writer)
+                    .begin_nd()?;
 
                 for record in records.iter() {
                     for cell in record.iter() {
                         writer.push(
                             &fast_float::parse::<$type, &[u8]>(cell)
-                            .map_err(|_| "could not parse some cell as dtype number!")?,
+                                .map_err(|_| "could not parse some cell as dtype number!")?,
                         )?;
                     }
                 }

@@ -168,7 +168,6 @@ fn to_md() {
     assert_eq!(got, expected);
 }
 
-
 #[test]
 fn to_latex() {
     let wrk = Workdir::new("to_latex");
@@ -179,9 +178,12 @@ fn to_latex() {
     ];
     wrk.create("in.csv", rows);
     let mut cmd = wrk.command("to");
-    cmd.arg("latex").arg("--caption").arg("Un tableau mignon").arg("in.csv");
+    cmd.arg("latex")
+        .arg("--caption")
+        .arg("Un tableau mignon")
+        .arg("in.csv");
     let got: String = wrk.stdout(&mut cmd);
-    
+
     let expected = "\\begin{table}[h]
 \\centering
 \\caption{Un tableau mignon}
@@ -194,7 +196,7 @@ Lucy & 15  & 1.6  &            \\\\
 \\hline
 \\end{tabular}
 \\end{table}";
-    
+
     assert_eq!(got, expected);
 }
 
@@ -210,7 +212,7 @@ fn to_latex_no_caption() {
     let mut cmd = wrk.command("to");
     cmd.arg("latex").arg("in.csv");
     let got: String = wrk.stdout(&mut cmd);
-    
+
     let expected = "\\begin{table}[h]
 \\centering
 \\caption{}
@@ -223,6 +225,6 @@ Lucy & 15  \\\\
 \\hline
 \\end{tabular}
 \\end{table}";
-    
+
     assert_eq!(got, expected);
 }

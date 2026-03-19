@@ -12,6 +12,7 @@
 * Timestamp support with `xan plot -LT`.
 * Adding `xan rename -n/--no-headers` support for `-p/--prefix` & `-x/--suffix`.
 * Adding `xan from -f parquet` (requires the `parquet` feature).
+* Adding `xan to latex`.
 * Adding `range` moonblade function.
 
 ## 0.56.0

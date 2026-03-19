@@ -12,6 +12,7 @@ Supported formats:
     html    - HTML table
     json    - JSON array or object
     jsonl   - JSON lines (same as `ndjson`)
+    latex   - LaTeX table
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
     npy     - Numpy array
@@ -25,7 +26,7 @@ Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
-                          Set to -1 to sample whole JSON input.
+                          Set to -1 to sample whole CSV input.
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.
@@ -40,6 +41,10 @@ TXT options:
     -s, --select <column>  Column of file to emit as text. Will error if file
                            to convert to text has multiple columns or if
                            selection yields more than a single column.
+
+LateX options:
+    --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
+
 
 Common options:
     -h, --help             Display this message
