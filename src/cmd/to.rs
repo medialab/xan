@@ -290,6 +290,7 @@ impl Args {
 
         fn escape_latex_table_cell(cell: &str) -> String {
             let mut result = String::with_capacity(cell.len());
+
             for c in cell.chars() {
                 match c {
                     '\\' => result.push_str("\\textbackslash{}"),
@@ -302,9 +303,12 @@ impl Args {
                     '}' => result.push_str("\\}"),
                     '~' => result.push_str("\\textasciitilde{}"),
                     '^' => result.push_str("\\textasciicircum{}"),
+                    '<' => result.push_str("\\textless{}"),
+                    '>' => result.push_str("\\textgreater{}"),
                     c => result.push(c),
                 }
             }
+
             result
         }
 
