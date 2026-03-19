@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use std::iter::once;
 use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
@@ -8,7 +9,6 @@ use crate::collections::{
     ClusteredInsertHashmap, FixedReverseHeapMap, FixedReverseHeapMapWithTies,
 };
 use crate::config::{Config, Delimiter};
-use crate::record::Record;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
@@ -156,7 +156,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if !rconf.no_headers {
         if let Some(name) = &args.flag_rank {
-            wtr.write_byte_record(&headers.prepend(name.as_bytes()))?;
+            wtr.write_record(once(name.as_bytes()).chain(headers.iter()))?;
         } else {
             wtr.write_byte_record(headers)?;
         }
@@ -176,7 +176,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
                 if args.flag_rank.is_some() {
-                    wtr.write_byte_record(&record.prepend((i + 1).to_string().as_bytes()))?;
+                    wtr.write_record(once((i + 1).to_string().as_bytes()).chain(record.iter()))?;
                 } else {
                     wtr.write_byte_record(&record)?;
                 }
@@ -204,7 +204,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             for heap in groups.into_values() {
                 for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
                     if args.flag_rank.is_some() {
-                        wtr.write_byte_record(&record.prepend((i + 1).to_string().as_bytes()))?;
+                        wtr.write_record(
+                            once((i + 1).to_string().as_bytes()).chain(record.iter()),
+                        )?;
                     } else {
                         wtr.write_byte_record(&record)?;
                     }
