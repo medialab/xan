@@ -167,3 +167,62 @@ fn to_md() {
 | Lucy | 15  |";
     assert_eq!(got, expected);
 }
+
+
+#[test]
+fn to_latex() {
+    let wrk = Workdir::new("to_latex");
+    let rows = vec![
+        svec!["name", "age", "size", "empty_col"],
+        svec!["John", "12", "1.35", ""],
+        svec!["Lucy", "15", "1.6", ""],
+    ];
+    wrk.create("in.csv", rows);
+    let mut cmd = wrk.command("to");
+    cmd.arg("latex").arg("--caption").arg("Un tableau mignon").arg("in.csv");
+    let got: String = wrk.stdout(&mut cmd);
+    
+    let expected = "\\begin{table}[h]
+\\centering
+\\caption{Un tableau mignon}
+\\begin{tabular}{|c|r|r|c|}
+\\hline
+\\textbf{name} & \\textbf{age} & \\textbf{size} & \\textbf{empty\\_col} \\\\
+\\hline
+John & 12  & 1.35 &            \\\\
+Lucy & 15  & 1.6  &            \\\\
+\\hline
+\\end{tabular}
+\\end{table}";
+    
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn to_latex_no_caption() {
+    let wrk = Workdir::new("to_latex");
+    let rows = vec![
+        svec!["name", "age"],
+        svec!["John", "12"],
+        svec!["Lucy", "15"],
+    ];
+    wrk.create("in.csv", rows);
+    let mut cmd = wrk.command("to");
+    cmd.arg("latex").arg("in.csv");
+    let got: String = wrk.stdout(&mut cmd);
+    
+    let expected = "\\begin{table}[h]
+\\centering
+\\caption{}
+\\begin{tabular}{|c|r|}
+\\hline
+\\textbf{name} & \\textbf{age} \\\\
+\\hline
+John & 12  \\\\
+Lucy & 15  \\\\
+\\hline
+\\end{tabular}
+\\end{table}";
+    
+    assert_eq!(got, expected);
+}

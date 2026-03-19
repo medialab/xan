@@ -24,6 +24,7 @@ Supported formats:
     html    - HTML table
     json    - JSON array or object
     jsonl   - JSON lines (same as `ndjson`)
+    latex   - LaTeX table
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
     npy     - Numpy array
@@ -37,7 +38,7 @@ Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
-                          Set to -1 to sample whole JSON input.
+                          Set to -1 to sample whole CSV input.
                           [default: 512]
     --nulls               Convert empty string to a null value.
     --omit                Ignore the empty values.
@@ -52,6 +53,10 @@ TXT options:
     -s, --select <column>  Column of file to emit as text. Will error if file
                            to convert to text has multiple columns or if
                            selection yields more than a single column.
+
+LateX options:
+    --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
+
 
 Common options:
     -h, --help             Display this message
@@ -75,6 +80,7 @@ struct Args {
     flag_omit: bool,
     flag_strings: Option<SelectedColumns>,
     flag_dtype: String,
+    flag_caption: Option<String>
 }
 
 impl Args {
@@ -102,8 +108,8 @@ impl Args {
 
     fn rconf(&self) -> Config {
         Config::new(&self.arg_input)
-            .no_headers(self.flag_no_headers)
-            .delimiter(self.flag_delimiter)
+        .no_headers(self.flag_no_headers)
+        .delimiter(self.flag_delimiter)
     }
 
     fn wconf(&self) -> Config {
@@ -278,6 +284,106 @@ impl Args {
         Ok(())
     }
 
+    fn convert_to_latex(&self) -> CliResult<()> {
+        let rconf = self.rconf();
+        let mut rdr = rconf.reader()?;
+        let mut writer = self.wconf().buf_io_writer()?;
+
+        fn escape_latex_table_cell(cell: &str) -> String {
+            let mut result = String::with_capacity(cell.len());
+            for c in cell.chars() {
+                match c {
+                    '\\' => result.push_str("\\textbackslash{}"),
+                    '&'  => result.push_str("\\&"),
+                    '%'  => result.push_str("\\%"),
+                    '$'  => result.push_str("\\$"),
+                    '#'  => result.push_str("\\#"),
+                    '_'  => result.push_str("\\_"),
+                    '{'  => result.push_str("\\{"),
+                    '}'  => result.push_str("\\}"),
+                    '~'  => result.push_str("\\textasciitilde{}"),
+                    '^'  => result.push_str("\\textasciicircum{}"),
+                    c    => result.push(c),
+                }
+            }
+            result
+        }
+        fn is_numeric_column(records: &[Vec<String>], col_index: usize) -> bool {
+            records.iter().all(|r| r[col_index].trim().parse::<f64>().is_ok())
+        }
+
+        let headers = rdr.headers()?.clone();
+        let records = rdr
+        .into_records()
+        .map(|result| {
+            result.map(|record| {
+                record
+                .into_iter()
+                .map(escape_latex_table_cell)
+                .collect::<Vec<_>>()
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+        let widths = headers.iter()
+        .enumerate()
+        .map(|(i, h)| {
+            let header_w = escape_latex_table_cell(h).width();
+            let max_record_w = records.iter().map(|r| r[i].width()).max().unwrap_or(0);
+            header_w.max(max_record_w)
+        })
+        .collect::<Vec<_>>();
+
+
+        let col_spec = (0..headers.len())
+        .map(|i| if is_numeric_column(&records, i) { "r" } else { "c" })
+        .collect::<Vec<_>>()
+        .join("|");
+
+        writeln!(&mut writer, "\\begin{{table}}[h]")?;
+        writeln!(&mut writer, "\\centering")?;
+        writeln!(&mut writer, "\\caption{{{}}}", self.flag_caption.as_deref().unwrap_or(""))?;
+        writeln!(
+            &mut writer,
+            "\\begin{{tabular}}{{|{}|}}",
+            col_spec
+        )?;
+        writeln!(&mut writer, "\\hline")?;
+
+        if !rconf.no_headers {
+            for (i, (header, _)) in headers.iter().zip(widths.iter()).enumerate() {
+                let escaped_h = escape_latex_table_cell(header);
+                if i > 0 {
+                    write!(&mut writer, " & ")?;
+                }
+                write!(
+                    &mut writer,
+                    "\\textbf{{{}}}",
+                    escaped_h
+                )?;
+            }
+            writeln!(&mut writer, " \\\\")?;
+            writeln!(&mut writer, "\\hline")?;
+        }
+
+        for record in records.into_iter() {
+            for (i, (cell, width)) in record.into_iter().zip(widths.iter()).enumerate() {
+                if i > 0 {
+                    write!(&mut writer, " & ")?;
+                }
+                write!(&mut writer, "{}", cell.pad_to_width(*width))?;
+            }
+
+            writeln!(&mut writer, " \\\\")?;
+        }
+
+        writeln!(&mut writer, "\\hline")?;
+        writeln!(&mut writer, "\\end{{tabular}}")?;
+        writeln!(&mut writer, "\\end{{table}}")?;
+
+        Ok(())
+    }
+
     fn convert_to_md(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
@@ -285,34 +391,34 @@ impl Args {
 
         fn escape_md_table_cell(cell: &str) -> String {
             cell.replace("|", "\\|")
-                .replace("<", "\\<")
-                .replace(">", "\\>")
+            .replace("<", "\\<")
+            .replace(">", "\\>")
         }
 
         let headers = rdr.headers()?.clone();
         let records = rdr
-            .into_records()
-            .map(|result| {
-                result.map(|record| {
-                    record
-                        .into_iter()
-                        .map(escape_md_table_cell)
-                        .collect::<Vec<_>>()
-                })
+        .into_records()
+        .map(|result| {
+            result.map(|record| {
+                record
+                .into_iter()
+                .map(escape_md_table_cell)
+                .collect::<Vec<_>>()
             })
-            .collect::<Result<Vec<_>, _>>()?;
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
         let widths = headers
-            .iter()
-            .enumerate()
-            .map(|(i, h)| {
-                iter::once(h.width())
-                    .chain(records.iter().map(move |r| r[i].width()))
-                    .max()
-                    .unwrap()
-                    .max(3)
-            })
-            .collect::<Vec<_>>();
+        .iter()
+        .enumerate()
+        .map(|(i, h)| {
+            iter::once(h.width())
+            .chain(records.iter().map(move |r| r[i].width()))
+            .max()
+            .unwrap()
+            .max(3)
+        })
+        .collect::<Vec<_>>();
 
         write!(&mut writer, "|")?;
 
@@ -364,16 +470,16 @@ impl Args {
         macro_rules! write_floats {
             ($type: ty) => {{
                 let mut writer = npyz::WriteOptions::new()
-                    .default_dtype()
-                    .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
-                    .writer(io_writer)
-                    .begin_nd()?;
+                .default_dtype()
+                .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
+                .writer(io_writer)
+                .begin_nd()?;
 
                 for record in records.iter() {
                     for cell in record.iter() {
                         writer.push(
                             &fast_float::parse::<$type, &[u8]>(cell)
-                                .map_err(|_| "could not parse some cell as dtype number!")?,
+                            .map_err(|_| "could not parse some cell as dtype number!")?,
                         )?;
                     }
                 }
@@ -381,13 +487,11 @@ impl Args {
                 writer.finish()?;
             }};
         }
-
         match self.flag_dtype.as_str() {
             "float64" | "f64" => write_floats!(f64),
             "float32" | "f32" => write_floats!(f32),
             _ => Err(format!("unknown --dtype {}", self.flag_dtype))?,
         };
-
         Ok(())
     }
 
@@ -397,17 +501,16 @@ impl Args {
 
         let headers = rdr.byte_headers()?.clone();
         let column_index = self
-            .flag_select
-            .single_selection(&headers, rdr.has_headers()).map_err(|_| {
-                "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
-            })?;
+        .flag_select
+        .single_selection(&headers, rdr.has_headers()).map_err(|_| {
+            "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
+        })?;
 
         while let Some(record) = rdr.read_byte_record()? {
             let cell = record.unescape(column_index).unwrap();
             writer.write_all(&cell)?;
             writer.write_all(b"\n")?;
         }
-
         Ok(())
     }
 }
@@ -419,6 +522,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "html" => args.convert_to_html(),
         "json" => args.convert_to_json(),
         "jsonl" | "ndjson" => args.convert_to_ndjson(),
+        "latex" | "tex" => args.convert_to_latex(),
         "md" | "markdown" => args.convert_to_md(),
         "npy" => args.convert_to_npy(),
         "txt" | "text" => args.convert_to_txt(),
