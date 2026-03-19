@@ -197,3 +197,31 @@ Lucy & 15  \\\\
     
     assert_eq!(got, expected);
 }
+
+fn to_latex_no_caption() {
+    let wrk = Workdir::new("to_latex");
+    let rows = vec![
+        svec!["name", "age"],
+        svec!["John", "12"],
+        svec!["Lucy", "15"],
+    ];
+    wrk.create("in.csv", rows);
+    let mut cmd = wrk.command("to");
+    cmd.arg("latex").arg("in.csv");
+    let got: String = wrk.stdout(&mut cmd);
+    
+    let expected = "\\begin{table}[h]
+\\centering
+\\caption{}
+\\begin{tabular}{|c|c|}
+\\hline
+\\textbf{name} & \\textbf{age} \\\\
+\\hline
+John & 12  \\\\
+Lucy & 15  \\\\
+\\hline
+\\end{tabular}
+\\end{table}";
+    
+    assert_eq!(got, expected);
+}

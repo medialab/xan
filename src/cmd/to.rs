@@ -55,7 +55,7 @@ TXT options:
                            selection yields more than a single column.
 
 LateX options:
-    --caption <caption>  Optionnal name of the caption set in the latex, will be empty if not specified.
+    --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
 
 Common options:
     -h, --help             Display this message
