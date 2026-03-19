@@ -14,7 +14,7 @@
 * Adding `xan from -f parquet` (requires the `parquet` feature).
 * Adding `xan to latex`.
 * Adding `xan top -L/--lexicographic`.
-* Adding `range` moonblade function.
+* Adding `range` & `repeat` moonblade functions.
 
 *Performance*
 

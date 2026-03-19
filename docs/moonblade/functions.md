@@ -218,6 +218,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **mean**(*numbers*) -> `number?`: Return the mean of the given numbers.
 - **range**(*stop*) -> `list[number]`: Return the specified range as a list of integers.
 - **range**(*start*, *stop*, *step=1*) -> `list[number]`: Return the specified range as a list of integers.
+- **repeat**(*string_or_list*, *times*) -> `string_or_list`: Repeat target string or list n times.
 - **sum**(*numbers*) -> `number?`: Return the sum of the given numbers, or nothing if the sum overflowed.
 
 ## Maps

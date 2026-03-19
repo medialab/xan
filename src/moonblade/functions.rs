@@ -258,6 +258,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "regex" => (parse_regex, FunctionArguments::unary()),
+        "repeat" => (repeat, FunctionArguments::binary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
             |args| round_like_op(args, DynamicNumber::round),
@@ -840,6 +841,34 @@ fn range(args: BoundArguments) -> FunctionResult {
     }
 
     Ok(DynamicValue::from(indices))
+}
+
+fn repeat(args: BoundArguments) -> FunctionResult {
+    let (to_repeat_arg, times_arg) = args.get2();
+
+    let times = times_arg.try_as_usize()?;
+
+    if let DynamicValue::List(items) = to_repeat_arg {
+        let mut repeated = Vec::with_capacity(items.len() * times);
+
+        for _ in 0..times {
+            for item in items.iter() {
+                repeated.push(item.clone());
+            }
+        }
+
+        Ok(DynamicValue::from(repeated))
+    } else {
+        let to_repeat = to_repeat_arg.try_as_str()?;
+
+        let mut repeated = String::with_capacity(to_repeat.len() * times);
+
+        for _ in 0..times {
+            repeated.push_str(&to_repeat);
+        }
+
+        Ok(DynamicValue::from(repeated))
+    }
 }
 
 fn get(mut args: BoundArguments) -> FunctionResult {
