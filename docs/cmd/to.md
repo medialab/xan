@@ -45,7 +45,6 @@ TXT options:
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
 
-
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.

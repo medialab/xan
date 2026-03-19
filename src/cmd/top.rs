@@ -25,7 +25,7 @@ Usage:
     xan top <column> [options] [<input>]
     xan top --help
 
-dedup options:
+top options:
     -l, --limit <n>       Number of top items to return. Cannot be < 1.
                           [default: 10]
     -R, --reverse         Reverse order.
