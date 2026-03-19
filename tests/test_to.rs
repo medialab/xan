@@ -179,12 +179,12 @@ fn to_latex() {
     ];
     wrk.create("in.csv", rows);
     let mut cmd = wrk.command("to");
-    cmd.arg("latex").arg("--caption").arg("joli tableau").arg("in.csv");
+    cmd.arg("latex").arg("--caption").arg("Un tableau mignon").arg("in.csv");
     let got: String = wrk.stdout(&mut cmd);
     
     let expected = "\\begin{table}[h]
 \\centering
-\\caption{joli tableau}
+\\caption{Un tableau mignon}
 \\begin{tabular}{|c|r|r|c|}
 \\hline
 \\textbf{name} & \\textbf{age} & \\textbf{size} & \\textbf{empty\\_col} \\\\

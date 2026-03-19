@@ -56,9 +56,7 @@ TXT options:
 
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
-    --sample-size <size>  Number of CSV rows to sample to infer column types.
-                          Set to -1 to sample whole CSV input.
-                          [default: 512]
+
 
 Common options:
     -h, --help             Display this message
@@ -89,7 +87,7 @@ impl Args {
     fn is_writing_to_file(&self) -> bool {
         self.flag_output.is_some() || !io::stdout().is_terminal()
     }
-    
+
     fn sample_size(&self) -> Option<usize> {
         if self.flag_sample_size <= 0 {
             None
@@ -97,7 +95,7 @@ impl Args {
             Some(self.flag_sample_size as usize)
         }
     }
-    
+
     fn json_empty_mode(&self) -> JSONEmptyMode {
         if self.flag_nulls {
             JSONEmptyMode::Null
@@ -107,190 +105,190 @@ impl Args {
             JSONEmptyMode::Empty
         }
     }
-    
+
     fn rconf(&self) -> Config {
         Config::new(&self.arg_input)
         .no_headers(self.flag_no_headers)
         .delimiter(self.flag_delimiter)
     }
-    
+
     fn wconf(&self) -> Config {
         Config::new(&self.flag_output)
     }
-    
+
     fn convert_to_json(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
-        
+
         let headers = rdr.headers()?.clone();
-        
+
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
             self.sample_size(),
             self.json_empty_mode(),
         );
-        
+
         if let Some(sel) = &self.flag_strings {
             let indices = sel.selection(
                 headers.iter().map(|cell| cell.as_bytes()),
                 !rconf.no_headers,
             )?;
-            
+
             for index in indices.iter() {
                 inferrence_buffer.set_string(*index);
             }
         }
-        
+
         inferrence_buffer.read(&mut rdr)?;
-        
+
         let mut json_object = OmittableAttributes::from_headers(headers.iter());
         let mut json_array = Vec::new();
-        
+
         for record in inferrence_buffer.records() {
             inferrence_buffer.mutate_attributes(&mut json_object, record);
             json_array.push(json_object.clone());
         }
-        
+
         let mut record = csv::StringRecord::new();
-        
+
         while rdr.read_record(&mut record)? {
             inferrence_buffer.mutate_attributes(&mut json_object, &record);
             json_array.push(json_object.clone());
         }
-        
+
         serde_json::to_writer_pretty(&mut writer, &json_array)?;
         writeln!(&mut writer)?;
-        
+
         Ok(())
     }
-    
+
     fn convert_to_ndjson(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
-        
+
         let headers = rdr.headers()?.clone();
-        
+
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
             self.sample_size(),
             self.json_empty_mode(),
         );
-        
+
         if let Some(sel) = &self.flag_strings {
             let indices = sel.selection(
                 headers.iter().map(|cell| cell.as_bytes()),
                 !rconf.no_headers,
             )?;
-            
+
             for index in indices.iter() {
                 inferrence_buffer.set_string(*index);
             }
         }
-        
+
         inferrence_buffer.read(&mut rdr)?;
-        
+
         let mut json_object = OmittableAttributes::from_headers(headers.iter());
-        
+
         for record in inferrence_buffer.records() {
             inferrence_buffer.mutate_attributes(&mut json_object, record);
             writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
-        
+
         let mut record = csv::StringRecord::new();
-        
+
         while rdr.read_record(&mut record)? {
             inferrence_buffer.mutate_attributes(&mut json_object, &record);
             writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
-        
+
         Ok(())
     }
-    
+
     fn convert_to_xlsx(&self) -> CliResult<()> {
         if !self.is_writing_to_file() {
             Err("cannot export in xlsx without a path.\nUse -o, --output or pipe the result!")?;
         }
-        
+
         let mut rdr = self.rconf().reader()?;
         let mut writer = self.wconf().io_writer()?;
-        
+
         let mut workbook = Workbook::new();
         let headers = rdr.headers()?.clone();
         let worksheet = workbook.add_worksheet();
-        
+
         for (col, header) in headers.iter().enumerate() {
             worksheet.write_string(0, col as u16, header)?;
         }
-        
+
         for (row, value) in rdr.records().enumerate() {
             let record = value?;
             for (col, field) in record.iter().enumerate() {
                 worksheet.write_string((row + 1) as u32, col as u16, field)?;
             }
         }
-        
+
         let mut cursor = io::Cursor::new(Vec::new());
         workbook.save_to_writer(&mut cursor)?;
         let buf = cursor.into_inner();
         writer.write_all(&buf)?;
-        
+
         writer.flush()?;
         Ok(())
     }
-    
+
     fn convert_to_html(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
         let writer = self.wconf().buf_io_writer()?;
-        
+
         let mut xml_writer = XMLWriter::new(writer);
         let mut record = csv::StringRecord::new();
-        
+
         xml_writer.open_no_attributes("table")?;
-        
+
         if !rconf.no_headers {
             xml_writer.open_no_attributes("thead")?;
             xml_writer.open_no_attributes("tr")?;
-            
+
             for header in rdr.headers()?.iter() {
                 xml_writer.open_no_attributes("th")?;
                 xml_writer.write_text(header)?;
                 xml_writer.close("th")?;
             }
-            
+
             xml_writer.close("tr")?;
             xml_writer.close("thead")?;
         }
-        
+
         xml_writer.open_no_attributes("tbody")?;
-        
+
         while rdr.read_record(&mut record)? {
             xml_writer.open_no_attributes("tr")?;
-            
+
             for cell in record.iter() {
                 xml_writer.open_no_attributes("td")?;
                 xml_writer.write_text(cell)?;
                 xml_writer.close("td")?;
             }
-            
+
             xml_writer.close("tr")?;
         }
-        
+
         xml_writer.close("tbody")?;
-        
+
         xml_writer.close("table")?;
         xml_writer.finish()?;
-        
+
         Ok(())
     }
-    
+
     fn convert_to_latex(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
-        
+
         fn escape_latex_table_cell(cell: &str) -> String {
             let mut result = String::with_capacity(cell.len());
             for c in cell.chars() {
@@ -313,7 +311,7 @@ impl Args {
         fn is_numeric_column(records: &[Vec<String>], col_index: usize) -> bool {
             records.iter().all(|r| r[col_index].trim().parse::<f64>().is_ok())
         }
-        
+
         let headers = rdr.headers()?.clone();
         let records = rdr
         .into_records()
@@ -326,7 +324,7 @@ impl Args {
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-        
+
         let widths = headers.iter()
         .enumerate()
         .map(|(i, h)| {
@@ -335,18 +333,13 @@ impl Args {
             header_w.max(max_record_w)
         })
         .collect::<Vec<_>>();
-        
-        let sample = if self.flag_sample_size == -1 {
-            &records[..]
-        } else {
-            &records[..self.flag_sample_size.min(records.len() as isize) as usize]
-        };
-        
+
+
         let col_spec = (0..headers.len())
-        .map(|i| if is_numeric_column(sample, i) { "r" } else { "c" })
+        .map(|i| if is_numeric_column(&records, i) { "r" } else { "c" })
         .collect::<Vec<_>>()
         .join("|");
-        
+
         writeln!(&mut writer, "\\begin{{table}}[h]")?;
         writeln!(&mut writer, "\\centering")?;
         writeln!(&mut writer, "\\caption{{{}}}", self.flag_caption.as_deref().unwrap_or(""))?;
@@ -356,7 +349,7 @@ impl Args {
             col_spec
         )?;
         writeln!(&mut writer, "\\hline")?;
-        
+
         if !rconf.no_headers {
             for (i, (header, _)) in headers.iter().zip(widths.iter()).enumerate() {
                 let escaped_h = escape_latex_table_cell(header);
@@ -372,7 +365,7 @@ impl Args {
             writeln!(&mut writer, " \\\\")?;
             writeln!(&mut writer, "\\hline")?;
         }
-        
+
         for record in records.into_iter() {
             for (i, (cell, width)) in record.into_iter().zip(widths.iter()).enumerate() {
                 if i > 0 {
@@ -380,28 +373,28 @@ impl Args {
                 }
                 write!(&mut writer, "{}", cell.pad_to_width(*width))?;
             }
-            
+
             writeln!(&mut writer, " \\\\")?;
         }
-        
+
         writeln!(&mut writer, "\\hline")?;
         writeln!(&mut writer, "\\end{{tabular}}")?;
         writeln!(&mut writer, "\\end{{table}}")?;
-        
+
         Ok(())
     }
-    
+
     fn convert_to_md(&self) -> CliResult<()> {
         let rconf = self.rconf();
         let mut rdr = rconf.reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
-        
+
         fn escape_md_table_cell(cell: &str) -> String {
             cell.replace("|", "\\|")
             .replace("<", "\\<")
             .replace(">", "\\>")
         }
-        
+
         let headers = rdr.headers()?.clone();
         let records = rdr
         .into_records()
@@ -414,7 +407,7 @@ impl Args {
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-        
+
         let widths = headers
         .iter()
         .enumerate()
@@ -426,9 +419,9 @@ impl Args {
             .max(3)
         })
         .collect::<Vec<_>>();
-        
+
         write!(&mut writer, "|")?;
-        
+
         for (header, width) in headers.iter().zip(widths.iter()) {
             write!(
                 &mut writer,
@@ -440,40 +433,40 @@ impl Args {
                 }
             )?;
         }
-        
+
         writeln!(&mut writer)?;
-        
+
         write!(&mut writer, "|")?;
-        
+
         for width in widths.iter().copied() {
             write!(&mut writer, " {} |", "-".repeat(width))?;
         }
-        
+
         writeln!(&mut writer)?;
-        
+
         for record in records.into_iter() {
             write!(&mut writer, "|")?;
-            
+
             for (cell, width) in record.into_iter().zip(widths.iter()) {
                 write!(&mut writer, " {} |", cell.pad_to_width(*width))?;
             }
-            
+
             writeln!(&mut writer)?;
         }
-        
+
         Ok(())
     }
-    
+
     fn convert_to_npy(&self) -> CliResult<()> {
         if !self.is_writing_to_file() {
             Err("cannot export in npy without a path.\nUse -o, --output or pipe the result!")?;
         }
-        
+
         let mut rdr = self.rconf().reader()?;
         let io_writer = self.wconf().io_writer()?;
-        
+
         let records = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
-        
+
         macro_rules! write_floats {
             ($type: ty) => {{
                 let mut writer = npyz::WriteOptions::new()
@@ -481,7 +474,7 @@ impl Args {
                 .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
                 .writer(io_writer)
                 .begin_nd()?;
-                
+
                 for record in records.iter() {
                     for cell in record.iter() {
                         writer.push(
@@ -490,44 +483,41 @@ impl Args {
                         )?;
                     }
                 }
-                
+
                 writer.finish()?;
             }};
         }
-        
         match self.flag_dtype.as_str() {
             "float64" | "f64" => write_floats!(f64),
             "float32" | "f32" => write_floats!(f32),
             _ => Err(format!("unknown --dtype {}", self.flag_dtype))?,
         };
-        
         Ok(())
     }
-    
+
     fn convert_to_txt(&self) -> CliResult<()> {
         let mut rdr = self.rconf().simd_zero_copy_reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
-        
+
         let headers = rdr.byte_headers()?.clone();
         let column_index = self
         .flag_select
         .single_selection(&headers, rdr.has_headers()).map_err(|_| {
             "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
         })?;
-        
+
         while let Some(record) = rdr.read_byte_record()? {
             let cell = record.unescape(column_index).unwrap();
             writer.write_all(&cell)?;
             writer.write_all(b"\n")?;
         }
-        
         Ok(())
     }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    
+
     match args.arg_format.as_str() {
         "html" => args.convert_to_html(),
         "json" => args.convert_to_json(),
