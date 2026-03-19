@@ -15,6 +15,10 @@
 * Adding `xan to latex`.
 * Adding `range` moonblade function.
 
+*Performance*
+
+* Faster `xan top`.
+
 ## 0.56.0
 
 *Features*

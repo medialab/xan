@@ -13,6 +13,25 @@ use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
+enum Value {
+    Float(NotNan<f64>),
+    String(Vec<u8>),
+}
+
+impl Value {
+    fn new_float(cell: &[u8]) -> Option<Self> {
+        fast_float::parse::<f64, &[u8]>(cell)
+            .ok()
+            .and_then(|f| NotNan::new(f).ok())
+            .map(Self::Float)
+    }
+
+    fn new_string(cell: &[u8]) -> Option<Self> {
+        Some(Self::String(cell.to_vec()))
+    }
+}
+
 static USAGE: &str = "
 Find top k CSV rows according to some column values.
 
@@ -117,29 +136,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     macro_rules! run_groupby {
         ($heap:ident, $type:ident, $sel:ident) => {{
             let mut record = ByteRecord::new();
-            let mut groups: ClusteredInsertHashmap<
-                ByteRecord,
-                $heap<$type<NotNan<f64>>, ByteRecord>,
-            > = ClusteredInsertHashmap::new();
+            let mut groups: ClusteredInsertHashmap<ByteRecord, $heap<$type<Value>, ByteRecord>> =
+                ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {
-                if let Ok(score) = std::str::from_utf8(&record[score_col])
-                    .unwrap_or("")
-                    .parse::<NotNan<f64>>()
-                {
+                if let Some(score) = Value::new_float(&record[score_col]) {
                     let group = $sel.select(&record).collect();
 
-                    groups.insert_with_or_else(
-                        group,
-                        || {
-                            let mut heap = $heap::with_capacity(usize::from(args.flag_limit));
-                            heap.push_with($type(score), || record.clone());
-                            heap
-                        },
-                        |heap| {
-                            heap.push_with($type(score), || record.clone());
-                        },
-                    );
+                    let heap = groups
+                        .insert_with(group, || $heap::with_capacity(usize::from(args.flag_limit)));
+
+                    heap.push_with($type(score), || record.clone());
                 }
             }
 
