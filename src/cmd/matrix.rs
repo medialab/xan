@@ -140,7 +140,7 @@ impl Args {
 
             for cell in row {
                 match cell {
-                    None => record.push_field(if self.flag_fill_diagonal { b"1" } else { b"" }),
+                    None => record.push_field(if self.flag_fill_diagonal { b"1.0" } else { b"" }),
                     Some(f) => record.push_field(f.to_string().as_bytes()),
                 }
             }
