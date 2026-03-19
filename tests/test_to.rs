@@ -173,9 +173,9 @@ fn to_md() {
 fn to_latex() {
     let wrk = Workdir::new("to_latex");
     let rows = vec![
-        svec!["name", "age"],
-        svec!["John", "12"],
-        svec!["Lucy", "15"],
+        svec!["name", "age", "size", "empty_col"],
+        svec!["John", "12", "1.35", ""],
+        svec!["Lucy", "15", "1.6", ""],
     ];
     wrk.create("in.csv", rows);
     let mut cmd = wrk.command("to");
@@ -185,12 +185,12 @@ fn to_latex() {
     let expected = "\\begin{table}[h]
 \\centering
 \\caption{joli tableau}
-\\begin{tabular}{|c|c|}
+\\begin{tabular}{|c|r|r|c|}
 \\hline
-\\textbf{name} & \\textbf{age} \\\\
+\\textbf{name} & \\textbf{age} & \\textbf{size} & \\textbf{empty\\_col} \\\\
 \\hline
-John & 12  \\\\
-Lucy & 15  \\\\
+John & 12  & 1.35 &            \\\\
+Lucy & 15  & 1.6  &            \\\\
 \\hline
 \\end{tabular}
 \\end{table}";
@@ -198,6 +198,7 @@ Lucy & 15  \\\\
     assert_eq!(got, expected);
 }
 
+#[test]
 fn to_latex_no_caption() {
     let wrk = Workdir::new("to_latex");
     let rows = vec![
@@ -213,7 +214,7 @@ fn to_latex_no_caption() {
     let expected = "\\begin{table}[h]
 \\centering
 \\caption{}
-\\begin{tabular}{|c|c|}
+\\begin{tabular}{|c|r|}
 \\hline
 \\textbf{name} & \\textbf{age} \\\\
 \\hline
