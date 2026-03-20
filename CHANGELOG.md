@@ -15,6 +15,7 @@
 * Adding `xan to latex`.
 * Adding `xan top -L/--lexicographic`.
 * Adding `xan heatmap` flags: `-U/--unit`, `-l/--label` & `-v/--values`.
+* Adding new gradients to `xan heatmap`.
 * Adding `range` & `repeat` moonblade functions.
 
 *Performance*

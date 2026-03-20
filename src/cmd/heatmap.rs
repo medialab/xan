@@ -298,9 +298,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut out = stdout();
 
     if args.flag_show_gradients {
-        writeln!(&mut out, "{}", "Sequential scales".bold())?;
+        writeln!(&mut out, "{}", "Sequential scales (Single-Hue)".bold())?;
         writeln!(&mut out)?;
-        for gradient_name in GradientName::sequential_iter() {
+        for gradient_name in GradientName::single_hue_sequential_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Sequential scales (Multi-Hue)".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::multi_hue_sequential_iter() {
             writeln!(&mut out, "{}", gradient_name.as_str())?;
             writeln!(&mut out, "{}", gradient_name.sample())?;
         }
@@ -309,6 +317,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&mut out, "{}", "Diverging scales".bold())?;
         writeln!(&mut out)?;
         for gradient_name in GradientName::diverging_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Cyclical scales".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::cyclical_iter() {
             writeln!(&mut out, "{}", gradient_name.as_str())?;
             writeln!(&mut out, "{}", gradient_name.sample())?;
         }

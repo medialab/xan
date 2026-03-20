@@ -4,7 +4,7 @@ use std::mem;
 use std::ops::Sub;
 
 use colored::Colorize;
-use colorgrad::{BasisGradient, Color, Gradient};
+use colorgrad::{Color, Gradient};
 use jiff::{tz::TimeZone, Timestamp, Unit};
 
 use crate::util;
@@ -301,69 +301,99 @@ impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {
     }
 }
 
-#[derive(Clone, Copy, Deserialize)]
-#[serde(try_from = "String")]
-pub enum GradientName {
-    // Sequential
-    OrRd,
-    Viridis,
-    Inferno,
-    Magma,
-    Plasma,
+macro_rules! build_gradient_name {
+    ($(($enum_name: ident, $name: ident, $string: literal),)*) => {
+
+        #[derive(Clone, Copy, Deserialize)]
+        #[serde(try_from = "String")]
+        pub enum GradientName {
+            $(
+                $enum_name,
+            )*
+        }
+
+        impl GradientName {
+            pub fn as_str(&self) -> &str {
+                match self {
+                    $(
+                        Self::$enum_name => $string,
+                    )*
+                }
+            }
+
+            pub fn build(&self) -> Box<dyn Gradient> {
+                match self {
+                    $(
+                        Self::$enum_name => Box::new(colorgrad::preset::$name()),
+                    )*
+                }
+            }
+        }
+
+        impl TryFrom<String> for GradientName {
+            type Error = String;
+
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                Ok(match value.as_str() {
+                    $(
+                        $string => Self::$enum_name,
+                    )*
+                    _ => return Err(format!("unknown gradient \"{}\"", &value)),
+                })
+            }
+        }
+    };
+}
+
+build_gradient_name! {
+    // Sequential (Single-Hue)
+    (Blues, blues, "blues"),
+    (Greens, greens, "greens"),
+    (Greys, greys, "greys"),
+    (Oranges, oranges, "oranges"),
+    (Purples, purples, "purples"),
+    (Reds, reds, "reds"),
+
+    // Sequential (Multi-Hue)
+    (Turbo, turbo, "turbo"),
+    (Viridis, viridis, "viridis"),
+    (Inferno, inferno, "inferno"),
+    (Magma, magma, "magma"),
+    (Plasma, plasma, "plasma"),
+    (Cividis, cividis, "cividis"),
+    (Warm, warm, "warm"),
+    (Cool, cool, "cool"),
+    (CubehelixDefault, cubehelix_default, "cubehelix_default"),
+    (BuGn, bu_gn, "bu_gn"),
+    (BuPu, bu_pu, "bu_pu"),
+    (GnBu, gn_bu, "gn_bu"),
+    (OrRd, or_rd, "or_rd"),
+    (PuBuGn, pu_bu_gn, "pu_bu_gn"),
+    (PuBu, pu_bu, "pu_bu"),
+    (PuRd, pu_rd, "pu_rd"),
+    (RdPu, rd_pu, "rd_pu"),
+    (YlGnBu, yl_gn_bu, "yl_gn_bu"),
+    (YlGn, yl_gn, "yl_gn"),
+    (YlOrBr, yl_or_br, "yl_or_br"),
+    (YlOrRd, yl_or_rd, "yl_or_rd"),
 
     // Diverging
-    BrBg,
-    PiYg,
-    PuOr,
-    RdBu,
-    RdGy,
-    RdYlBu,
-    RdYlGn,
-    Spectral,
+    (BrBg, br_bg, "br_bg"),
+    (PrGn, pr_gn, "pr_gn"),
+    (PiYg, pi_yg, "pi_yg"),
+    (PuOr, pu_or, "pu_or"),
+    (RdBu, rd_bu, "rd_bu"),
+    (RdGy, rd_gy, "rd_gy"),
+    (RdYlBu, rd_yl_bu, "rd_yl_bu"),
+    (RdYlGn, rd_yl_gn, "rd_yl_gn"),
+    (Spectral, spectral, "spectral"),
+
+    // Cyclical
+    (Rainbow, rainbow, "rainbow"),
+    (Sinebow, sinebow, "sinebow"),
 }
 
 impl GradientName {
-    pub fn as_str(&self) -> &str {
-        use GradientName::*;
-
-        match self {
-            OrRd => "or_rd",
-            Viridis => "viridis",
-            Inferno => "inferno",
-            Magma => "magma",
-            Plasma => "plasma",
-            BrBg => "br_bg",
-            PiYg => "pi_yg",
-            PuOr => "pu_or",
-            RdBu => "rd_bu",
-            RdGy => "rd_gy",
-            RdYlBu => "rd_yl_bu",
-            RdYlGn => "rd_yl_gn",
-            Spectral => "spectral",
-        }
-    }
-
-    pub fn build(&self) -> BasisGradient {
-        use colorgrad::preset::*;
-        use GradientName::*;
-
-        match self {
-            OrRd => or_rd(),
-            Viridis => viridis(),
-            Inferno => inferno(),
-            Magma => magma(),
-            Plasma => plasma(),
-            BrBg => br_bg(),
-            PiYg => pi_yg(),
-            PuOr => pu_or(),
-            RdBu => rd_bu(),
-            RdGy => rd_gy(),
-            RdYlBu => rd_yl_bu(),
-            RdYlGn => rd_yl_gn(),
-            Spectral => spectral(),
-        }
-    }
-
     pub fn sample(&self) -> String {
         self.build()
             .colors(30)
@@ -376,40 +406,52 @@ impl GradientName {
             .join("")
     }
 
-    pub fn sequential_iter() -> impl Iterator<Item = Self> {
+    pub fn single_hue_sequential_iter() -> impl Iterator<Item = Self> {
         use GradientName::*;
-        [OrRd, Viridis, Inferno, Magma, Plasma].iter().copied()
+        [Blues, Greens, Greys, Oranges, Purples, Reds]
+            .iter()
+            .copied()
+    }
+
+    pub fn multi_hue_sequential_iter() -> impl Iterator<Item = Self> {
+        use GradientName::*;
+        [
+            Turbo,
+            Viridis,
+            Inferno,
+            Magma,
+            Plasma,
+            Cividis,
+            Warm,
+            Cool,
+            CubehelixDefault,
+            BuGn,
+            BuPu,
+            GnBu,
+            OrRd,
+            PuBuGn,
+            PuBu,
+            PuRd,
+            RdPu,
+            YlGnBu,
+            YlGn,
+            YlOrBr,
+            YlOrRd,
+        ]
+        .iter()
+        .copied()
     }
 
     pub fn diverging_iter() -> impl Iterator<Item = Self> {
         use GradientName::*;
-        [BrBg, PiYg, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral]
+        [BrBg, PrGn, PiYg, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, Spectral]
             .iter()
             .copied()
     }
-}
 
-impl TryFrom<String> for GradientName {
-    type Error = String;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    pub fn cyclical_iter() -> impl Iterator<Item = Self> {
         use GradientName::*;
-
-        Ok(match value.as_str() {
-            "or_rd" => OrRd,
-            "viridis" => Viridis,
-            "inferno" => Inferno,
-            "magma" => Magma,
-            "plasma" => Plasma,
-            "pi_yg" => PiYg,
-            "pu_or" => PuOr,
-            "rd_bu" => RdBu,
-            "rd_gy" => RdGy,
-            "rd_yl_bu" => RdYlBu,
-            "rd_yl_gn" => RdYlGn,
-            "spectral" => Spectral,
-            _ => return Err(format!("unknown gradient \"{}\"", &value)),
-        })
+        [Rainbow, Sinebow].iter().copied()
     }
 }
 
@@ -557,7 +599,7 @@ impl LinearScale {
         percent * self.output_range.width() + self.output_range.min()
     }
 
-    pub fn map_color(&self, gradient: &BasisGradient, value: f64) -> Color {
+    pub fn map_color<G: Gradient>(&self, gradient: &G, value: f64) -> Color {
         gradient.at(self.percent(value) as f32)
     }
 
