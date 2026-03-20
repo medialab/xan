@@ -498,12 +498,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 match cell {
                     None => write!(&out, "{}", "  ".repeat(size))?,
                     Some(f) => {
-                        let scale_opt = row_scale.clone().unwrap_or_else(|| {
-                            col_scales
-                                .as_ref()
-                                .and_then(|scales| scales[col_i].clone())
-                                .or_else(|| full_scale.clone())
-                        });
+                        let scale_opt = match &row_scale {
+                            Some(s) => s.as_ref(),
+                            None => match &col_scales {
+                                Some(ss) => ss[col_i].as_ref(),
+                                None => full_scale.as_ref(),
+                            },
+                        };
 
                         let color_opt =
                             scale_opt.map(|scale| scale.map_color(&gradient, *f).to_rgba8());
