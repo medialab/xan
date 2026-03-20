@@ -21,6 +21,10 @@
 
 * Faster `xan top`.
 
+*Quality of Life*
+
+* Adding proper help to `xan heatmap`.
+
 ## 0.56.0
 
 *Features*
