@@ -10,13 +10,13 @@ static USAGE: &str = "
 Convert CSV data to matrix data.
 
 Supported modes:
-    adj  - convert a pair of columns into a full adjacency
-           matrix.
-    corr - convert a selection of columns into a full
-           correlation matrix.
+    count   - convert a pair of columns into a full count
+            matrix.
+    corr    - convert a selection of columns into a full
+            correlation matrix.
 
 Usage:
-    xan matrix adj [options] <source> <target> [<input>]
+    xan matrix count [options] <source> <target> [<input>]
     xan matrix corr [options] [<input>]
     xan matrix --help
 
@@ -42,7 +42,7 @@ struct Args {
     arg_input: Option<String>,
     arg_source: Option<SelectedColumns>,
     arg_target: Option<SelectedColumns>,
-    cmd_adj: bool,
+    cmd_count: bool,
     cmd_corr: bool,
     flag_weight: Option<SelectedColumns>,
     flag_select: SelectedColumns,
@@ -53,7 +53,7 @@ struct Args {
 }
 
 impl Args {
-    fn adjacency(self) -> CliResult<()> {
+    fn count(self) -> CliResult<()> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -268,8 +268,8 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.cmd_adj {
-        args.adjacency()
+    if args.cmd_count {
+        args.count()
     } else if args.cmd_corr {
         args.correlation()
     } else {

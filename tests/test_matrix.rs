@@ -1,8 +1,8 @@
 use crate::workdir::Workdir;
 
 #[test]
-fn adj() {
-    let wrk = Workdir::new("sample");
+fn matrix_count() {
+    let wrk = Workdir::new("matrix_count");
     wrk.create(
         "data.csv",
         vec![
@@ -18,7 +18,7 @@ fn adj() {
     );
 
     let mut cmd = wrk.command("matrix");
-    cmd.arg("adj").arg("true").arg("pred").arg("data.csv");
+    cmd.arg("count").arg("true").arg("pred").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -30,8 +30,8 @@ fn adj() {
 }
 
 #[test]
-fn adj_weight() {
-    let wrk = Workdir::new("sample");
+fn matrix_count_weight() {
+    let wrk = Workdir::new("matrix_count_weight");
     wrk.create(
         "data.csv",
         vec![
@@ -47,7 +47,7 @@ fn adj_weight() {
     );
 
     let mut cmd = wrk.command("matrix");
-    cmd.arg("adj")
+    cmd.arg("count")
         .arg("true")
         .arg("pred")
         .arg("data.csv")
