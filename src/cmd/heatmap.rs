@@ -208,9 +208,13 @@ heatmap options:
     -D, --diverging         Use a diverging color gradient. Currently only shorthand
                             for \"--gradient rd_bu\".
     -C, --cram              Attempt to cram column labels over the columns.
-                            Usually works better when -S, --size > 1.
+                            Usually works better when -S/--size > 1.
     -N, --show-numbers      Whether to attempt to show numbers in the cells.
-                            Usually only useful when -S, --size > 1.
+                            Usually only useful when -S/--size > 1.
+                            Cannot be used with -Z/--show-normalized.
+    -Z, --show-normalized   Whether to attempt to show normalized numbers in the
+                            cells. Usually only useful when -S/--size > 1.
+                            Cannot be used with -N/--show-numbers.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
@@ -243,6 +247,7 @@ struct Args {
     flag_diverging: bool,
     flag_cram: bool,
     flag_show_numbers: bool,
+    flag_show_normalized: bool,
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -294,6 +299,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     args.flag_color.apply();
 
     let repeat_headers_opt = args.resolve_repeat_headers()?;
+
+    if args.flag_show_numbers && args.flag_show_normalized {
+        Err("only one of -N/--show-numbers or -Z/--show-normalized must be given!")?;
+    }
 
     let mut out = stdout();
 
@@ -372,8 +381,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|cell| String::from_utf8_lossy(cell).into_owned())
         .collect::<Vec<_>>();
 
-    let mut formatter = args
-        .flag_show_numbers
+    let mut formatter = (args.flag_show_numbers || args.flag_show_normalized)
         .then(|| Formatter::new().precision(Precision::Significance(args.flag_size.get() as u8)));
 
     let mut matrix = Matrix::new(column_labels, forced_extent);
@@ -506,13 +514,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             },
                         };
 
+                        let percent_opt = scale_opt.map(|scale| scale.percent(*f));
                         let color_opt =
-                            scale_opt.map(|scale| scale.map_color(&gradient, *f).to_rgba8());
+                            percent_opt.map(|percent| gradient.at(percent as f32).to_rgba8());
 
                         let body = match formatter.as_mut() {
                             Some(fmt) if i == midpoint => {
                                 let formatted = util::unicode_aware_ellipsis(
-                                    &util::format_number_with_formatter(fmt, *f),
+                                    &util::format_number_with_formatter(
+                                        fmt,
+                                        if args.flag_show_normalized {
+                                            percent_opt.unwrap()
+                                        } else {
+                                            *f
+                                        },
+                                    ),
                                     size * 2,
                                 );
 

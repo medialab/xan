@@ -4,7 +4,7 @@ use std::mem;
 use std::ops::Sub;
 
 use colored::Colorize;
-use colorgrad::{Color, Gradient};
+use colorgrad::Gradient;
 use jiff::{tz::TimeZone, Timestamp, Unit};
 
 use crate::util;
@@ -589,7 +589,7 @@ impl LinearScale {
     }
 
     #[inline]
-    fn percent(&self, value: f64) -> f64 {
+    pub fn percent(&self, value: f64) -> f64 {
         (value - self.input_domain.min()) / self.input_domain.width()
     }
 
@@ -597,10 +597,6 @@ impl LinearScale {
         let percent = self.percent(value);
 
         percent * self.output_range.width() + self.output_range.min()
-    }
-
-    pub fn map_color<G: Gradient>(&self, gradient: &G, value: f64) -> Color {
-        gradient.at(self.percent(value) as f32)
     }
 
     pub fn ticks(&self, count: usize) -> Vec<f64> {

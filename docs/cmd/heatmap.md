@@ -34,7 +34,7 @@ account popularity profiles wrt retweets, replies and likes:
 
 Note that, by default, since there is not enough place on the x-axis, labels will be
 printed in a legend before the heatmap itself. If you can afford the space, feel
-free to use a -S/--size greater then 1 and to toggle the -C/--cram flag to fit the
+free to use a -S/--size greater then 1 and toggle the -C/--cram flag to fit the
 labels on top of the x-axis instead.
 
 Increasing -S/--size also means you can try fitting the numbers within the heatmap's
@@ -72,9 +72,13 @@ heatmap options:
     -D, --diverging         Use a diverging color gradient. Currently only shorthand
                             for "--gradient rd_bu".
     -C, --cram              Attempt to cram column labels over the columns.
-                            Usually works better when -S, --size > 1.
+                            Usually works better when -S/--size > 1.
     -N, --show-numbers      Whether to attempt to show numbers in the cells.
-                            Usually only useful when -S, --size > 1.
+                            Usually only useful when -S/--size > 1.
+                            Cannot be used with -Z/--show-normalized.
+    -Z, --show-normalized   Whether to attempt to show normalized numbers in the
+                            cells. Usually only useful when -S/--size > 1.
+                            Cannot be used with -N/--show-numbers.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
