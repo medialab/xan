@@ -5,6 +5,7 @@ use crate::util;
 use crate::CliResult;
 use indexmap::set::IndexSet;
 use std::collections::HashMap;
+use std::ops::Index;
 
 static USAGE: &str = "
 Convert CSV data to matrix data.
@@ -84,7 +85,7 @@ impl Args {
 
             let weight = match weight_column_index {
                 Some(index) => {
-                    let weight_str = input_record.get(index).unwrap();
+                    let weight_str = &input_record[index];
 
                     fast_float::parse::<f64, &[u8]>(weight_str)
                         .map_err(|_| {
@@ -101,14 +102,13 @@ impl Args {
             source_set.insert(source_cell.clone());
             target_set.insert(target_cell.clone());
 
+            let tuple = (source_cell.clone(), target_cell.clone());
+
             hash_matrix
-                .entry(source_cell.clone())
-                .and_modify(|src: &mut HashMap<Vec<u8>, f64>| {
-                    src.entry(target_cell.clone())
-                        .and_modify(|trg| *trg += weight)
-                        .or_insert(weight);
-                })
-                .or_insert(HashMap::from([(target_cell.clone(), weight)]));
+                .entry(tuple)
+                .and_modify(|key|  *key += weight)
+                .or_insert(weight);
+
         }
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
@@ -120,26 +120,32 @@ impl Args {
             output_record.push_field(label);
         }
 
+        let mut values_vector = vec![0.0; &source_set.len() * &target_set.len()];
+
+        for (key, val) in hash_matrix.iter() {
+            let (value_source, value_target) = key;
+            
+            let coord_source = source_set.iter().position(|n| n == value_source).unwrap();
+            let coord_target = target_set.iter().position(|n| n == value_target).unwrap();
+
+            let index = coord_source * target_set.len() + coord_target;
+            values_vector[index] += val.clone();
+        }
+
         writer.write_byte_record(&output_record)?;
 
         for i in 0..source_set.len() {
             let i_label = source_set[i].clone();
 
+            let index_start = i * target_set.clone().len();
+            let index_stop = (i + 1) * target_set.clone().len();
+            let values_row = &values_vector[index_start..index_stop];
+
             output_record.clear();
             output_record.push_field(i_label.as_slice());
 
-            for j in 0..target_set.len() {
-                let j_label = target_set[j].clone();
-
-                match hash_matrix.get(&i_label) {
-                    Some(child) => match child.get(&j_label) {
-                        Some(value) => {
-                            output_record.push_field(value.to_string().as_bytes());
-                        }
-                        None => output_record.push_field(0.to_string().as_bytes()),
-                    },
-                    None => output_record.push_field(0.to_string().as_bytes()),
-                }
+            for v in values_row.iter() { 
+                output_record.push_field(v.to_string().as_bytes());
             }
 
             writer.write_byte_record(&output_record)?;
