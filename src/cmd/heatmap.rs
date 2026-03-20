@@ -8,6 +8,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
+use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -149,35 +150,40 @@ Usage:
     xan heatmap --help
 
 heatmap options:
-    -G, --gradient <name>  Gradient to use. Use --show-gradients to see what is
-                           available.
-                           [default: or_rd]
-    -m, --min <n>          Minimum value for a cell in the heatmap. Will clamp
-                           irrelevant values and use this min for normalization.
-    -M, --max <n>          Maximum value for a cell in the heatmap. Will clamp
-                           irrelevant values and use this max for normalization.
-    -U, --unit             Shorthand for --min 0, --max 1 or --min -1, --max 1 when
-                           using -D/--diverging.
-    --normalize <mode>     How to normalize the heatmap's values. Can be one of
-                           \"full\", \"row\" or \"col\".
-                           [default: full]
-    -S, --size <n>         Size of the heatmap square in terminal rows.
-                           [default: 1]
-    -D, --diverging        Use a diverging color gradient. Currently only shorthand
-                           for \"--gradient rd_bu\".
-    -C, --cram             Attempt to cram column labels over the columns.
-                           Usually works better when -S, --scale > 1.
-    -N, --show-numbers     Whether to attempt to show numbers in the cells.
-                           Usually only useful when -S, --scale > 1.
-    --color <when>         When to color the output using ANSI escape codes.
-                           Use `auto` for automatic detection, `never` to
-                           disable colors completely and `always` to force
-                           colors, even when the output could not handle them.
-                           [default: auto]
-    --repeat-headers <n>   Repeat headers every <n> heatmap rows. This can also
-                           be set to \"auto\" to choose a suitable number based
-                           on the height of your terminal.
-    --show-gradients       Display a showcase of available gradients.
+    -l, --label <column>    Column containing the y-axis labels. Defaults to
+                            the first column of the file.
+    -v, --values <columns>  Columns containing numerical values to display in the
+                            heatmap. Defaults to all columns of the file beyond
+                            the first one.
+    -G, --gradient <name>   Gradient to use. Use --show-gradients to see what is
+                            available.
+                            [default: or_rd]
+    -m, --min <n>           Minimum value for a cell in the heatmap. Will clamp
+                            irrelevant values and use this min for normalization.
+    -M, --max <n>           Maximum value for a cell in the heatmap. Will clamp
+                            irrelevant values and use this max for normalization.
+    -U, --unit              Shorthand for --min 0, --max 1 or --min -1, --max 1 when
+                            using -D/--diverging.
+    --normalize <mode>      How to normalize the heatmap's values. Can be one of
+                            \"full\", \"row\" or \"col\".
+                            [default: full]
+    -S, --size <n>          Size of the heatmap square in terminal rows.
+                            [default: 1]
+    -D, --diverging         Use a diverging color gradient. Currently only shorthand
+                            for \"--gradient rd_bu\".
+    -C, --cram              Attempt to cram column labels over the columns.
+                            Usually works better when -S, --scale > 1.
+    -N, --show-numbers      Whether to attempt to show numbers in the cells.
+                            Usually only useful when -S, --scale > 1.
+    --color <when>          When to color the output using ANSI escape codes.
+                            Use `auto` for automatic detection, `never` to
+                            disable colors completely and `always` to force
+                            colors, even when the output could not handle them.
+                            [default: auto]
+    --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
+                            be set to \"auto\" to choose a suitable number based
+                            on the height of your terminal.
+    --show-gradients        Display a showcase of available gradients.
 
 Common options:
     -h, --help             Display this message
@@ -190,6 +196,8 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_label: Option<SelectedColumns>,
+    flag_values: Option<SelectedColumns>,
     flag_gradient: GradientName,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
@@ -287,12 +295,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.simd_reader()?;
+    let headers = rdr.byte_headers()?.clone();
+
+    let label_column_index = match &args.flag_label {
+        Some(flag_label) => flag_label.single_selection(&headers, !conf.no_headers)?,
+        None => 0,
+    };
+
+    let mut values_sel = match &args.flag_values {
+        Some(flag_values) => flag_values.selection(&headers, !conf.no_headers)?,
+        None => Selection::without_indices(headers.len(), &[label_column_index]),
+    };
+
+    values_sel.dedup();
+
+    if values_sel.contains(label_column_index) {
+        Err("-l/--label column must not be part of columns selected by -v/--values!")?;
+    }
+
     let mut record = simd_csv::ByteRecord::new();
 
-    let column_labels = rdr
-        .byte_headers()?
-        .iter()
-        .skip(1)
+    let column_labels = values_sel
+        .select(&headers)
         .map(|cell| String::from_utf8_lossy(cell).into_owned())
         .collect::<Vec<_>>();
 
@@ -304,12 +328,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_byte_record(&mut record)? {
         let label = util::sanitize_text_for_single_line_printing(
-            std::str::from_utf8(&record[0]).expect("could not decode utf8"),
+            std::str::from_utf8(&record[label_column_index]).expect("could not decode utf8"),
         );
 
-        let row = record
-            .iter()
-            .skip(1)
+        let row = values_sel
+            .select(&record)
             .map(|cell| match fast_float::parse::<f64, &[u8]>(cell) {
                 Ok(f) => match args.flag_min {
                     Some(min) if f < min => None,

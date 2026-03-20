@@ -14,7 +14,7 @@
 * Adding `xan from -f parquet` (requires the `parquet` feature).
 * Adding `xan to latex`.
 * Adding `xan top -L/--lexicographic`.
-* Adding `xan heatmap -U/--unit`.
+* Adding `xan heatmap` flags: `-U/--unit`, `-l/--label` & `-v/--values`.
 * Adding `range` & `repeat` moonblade functions.
 
 *Performance*
