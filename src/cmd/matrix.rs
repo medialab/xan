@@ -119,7 +119,7 @@ impl Args {
             output_record.push_field(label);
         }
 
-        let mut values_vector = vec![0.0; &source_set.len() * &target_set.len()];
+        let mut values_vector = vec![0.0; source_set.len() * target_set.len()];
 
         for (key, val) in hash_matrix.iter() {
             let (value_source, value_target) = key;
@@ -128,7 +128,7 @@ impl Args {
             let coord_target = target_set.iter().position(|n| n == value_target).unwrap();
 
             let index = coord_source * target_set.len() + coord_target;
-            values_vector[index] += val.clone();
+            values_vector[index] += *val;
         }
 
         writer.write_byte_record(&output_record)?;
