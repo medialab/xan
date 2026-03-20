@@ -156,6 +156,8 @@ heatmap options:
                            irrelevant values and use this min for normalization.
     -M, --max <n>          Maximum value for a cell in the heatmap. Will clamp
                            irrelevant values and use this max for normalization.
+    -U, --unit             Shorthand for --min 0, --max 1 or --min -1, --max 1 when
+                           using -D/--diverging.
     --normalize <mode>     How to normalize the heatmap's values. Can be one of
                            \"full\", \"row\" or \"col\".
                            [default: full]
@@ -191,6 +193,7 @@ struct Args {
     flag_gradient: GradientName,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
+    flag_unit: bool,
     flag_size: NonZeroUsize,
     flag_normalize: Normalization,
     flag_diverging: bool,
@@ -206,6 +209,13 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
+        if self.flag_unit {
+            self.flag_min = self
+                .flag_min
+                .or(Some(if self.flag_diverging { -1.0 } else { 0.0 }));
+            self.flag_max = self.flag_max.or(Some(1.0));
+        }
+
         if self.flag_diverging && self.flag_gradient.as_str() == "or_rd" {
             self.flag_gradient = GradientName::RdBu;
         }
