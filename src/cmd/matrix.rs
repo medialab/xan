@@ -3,9 +3,8 @@ use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
+use crate::collections::HashMap;
 use indexmap::set::IndexSet;
-use std::collections::HashMap;
-use std::ops::Index;
 
 static USAGE: &str = "
 Convert CSV data to matrix data.
