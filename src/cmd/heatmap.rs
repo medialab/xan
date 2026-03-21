@@ -168,6 +168,11 @@ account popularity profiles wrt retweets, replies and likes:
     $   tweets.csv | \\
     $ xan heatmap --size 2 --cram --show-numbers
 
+You can also achieve a result similar to conditional formatting in a spreadsheet
+by leveraging the -w/--width flag and showing numbers thusly:
+
+    $ xan matrix count lang1 lang2 data.csv | xan heatmap -w 6 --show-numbers
+
 Note that, by default, since there is not enough place on the x-axis, labels will be
 printed in a legend before the heatmap itself. If you can afford the space, feel
 free to use a -S/--size greater then 1 and toggle the -C/--cram flag to fit the
@@ -205,6 +210,10 @@ heatmap options:
                             [default: full]
     -S, --size <n>          Size of the heatmap square in terminal rows.
                             [default: 1]
+    -w, --width <n>         Use this to set heatmap grid cells width if you want
+                            rectangles instead of squares and want to have more
+                            space to display cell numbers with -N/--show-numbers
+                            or -Z/--show-normalized.
     -D, --diverging         Use a diverging color gradient. Currently only shorthand
                             for \"--gradient rd_bu\".
     -C, --cram              Attempt to cram column labels over the columns.
@@ -243,6 +252,7 @@ struct Args {
     flag_max: Option<f64>,
     flag_unit: bool,
     flag_size: NonZeroUsize,
+    flag_width: Option<NonZeroUsize>,
     flag_normalize: Normalization,
     flag_diverging: bool,
     flag_cram: bool,
@@ -381,9 +391,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|cell| String::from_utf8_lossy(cell).into_owned())
         .collect::<Vec<_>>();
 
-    let mut formatter = (args.flag_show_numbers || args.flag_show_normalized)
-        .then(|| Formatter::new().precision(Precision::Significance(args.flag_size.get() as u8)));
-
     let mut matrix = Matrix::new(column_labels, forced_extent);
 
     while rdr.read_byte_record(&mut record)? {
@@ -422,6 +429,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let full_scale = matrix.extent.map(LinearScale::from_extent);
 
     let size = args.flag_size.get();
+    let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size);
+
+    let mut formatter = (args.flag_show_numbers || args.flag_show_normalized)
+        .then(|| Formatter::new().precision(Precision::Significance(width as u8)));
 
     // Printing column info
     let column_info = matrix
@@ -454,7 +465,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write!(
                 &out,
                 "{}",
-                util::unicode_aware_rpad_with_ellipsis(&label, 2 * size, " "),
+                util::unicode_aware_rpad_with_ellipsis(&label, 2 * width, " "),
             )?;
         }
         writeln!(&out)?;
@@ -504,7 +515,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => write!(&out, "{}", "  ".repeat(size))?,
+                    None => write!(&out, "{}", "  ".repeat(width))?,
                     Some(f) => {
                         let scale_opt = match &row_scale {
                             Some(s) => s.as_ref(),
@@ -529,7 +540,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                             *f
                                         },
                                     ),
-                                    size * 2,
+                                    width * 2,
                                 );
 
                                 format!(
@@ -543,10 +554,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                             },
                                         None => formatted.normal(),
                                     },
-                                    width = size * 2
+                                    width = width * 2
                                 )
                             }
-                            _ => " ".repeat(size * 2),
+                            _ => " ".repeat(width * 2),
                         };
 
                         write!(

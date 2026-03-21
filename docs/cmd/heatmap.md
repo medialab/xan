@@ -32,6 +32,11 @@ account popularity profiles wrt retweets, replies and likes:
     $   tweets.csv | \
     $ xan heatmap --size 2 --cram --show-numbers
 
+You can also achieve a result similar to conditional formatting in a spreadsheet
+by leveraging the -w/--width flag and showing numbers thusly:
+
+    $ xan matrix count lang1 lang2 data.csv | xan heatmap -w 6 --show-numbers
+
 Note that, by default, since there is not enough place on the x-axis, labels will be
 printed in a legend before the heatmap itself. If you can afford the space, feel
 free to use a -S/--size greater then 1 and toggle the -C/--cram flag to fit the
@@ -69,6 +74,10 @@ heatmap options:
                             [default: full]
     -S, --size <n>          Size of the heatmap square in terminal rows.
                             [default: 1]
+    -w, --width <n>         Use this to set heatmap grid cells width if you want
+                            rectangles instead of squares and want to have more
+                            space to display cell numbers with -N/--show-numbers
+                            or -Z/--show-normalized.
     -D, --diverging         Use a diverging color gradient. Currently only shorthand
                             for "--gradient rd_bu".
     -C, --cram              Attempt to cram column labels over the columns.
