@@ -88,6 +88,9 @@ heatmap options:
     -Z, --show-normalized   Whether to attempt to show normalized numbers in the
                             cells. Usually only useful when -S/--size > 1.
                             Cannot be used with -N/--show-numbers.
+    -a, --align <choice>    How to align numbers in the cell when shown. Can be
+                            either "left", "center" or "right".
+                            [default: center]
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force

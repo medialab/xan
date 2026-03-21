@@ -17,12 +17,12 @@ fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
 }
 
-// #[derive(Deserialize)]
-// enum Alignment {
-//     Left,
-//     Center,
-//     Right,
-// }
+#[derive(Deserialize)]
+enum Alignment {
+    Left,
+    Center,
+    Right,
+}
 
 #[derive(Deserialize)]
 #[serde(try_from = "String")]
@@ -231,6 +231,9 @@ heatmap options:
     -Z, --show-normalized   Whether to attempt to show normalized numbers in the
                             cells. Usually only useful when -S/--size > 1.
                             Cannot be used with -N/--show-numbers.
+    -a, --align <choice>    How to align numbers in the cell when shown. Can be
+                            either \"left\", \"center\" or \"right\".
+                            [default: center]
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
@@ -265,6 +268,7 @@ struct Args {
     flag_cram: bool,
     flag_show_numbers: bool,
     flag_show_normalized: bool,
+    flag_align: Alignment,
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -551,19 +555,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                     width,
                                 );
 
-                                format!(
-                                    "{:^width$}",
-                                    match color_opt {
-                                        Some(color) =>
-                                            if text_should_be_black(&color) {
-                                                formatted.black()
-                                            } else {
-                                                formatted.normal()
-                                            },
-                                        None => formatted.normal(),
-                                    },
-                                    width = width
-                                )
+                                let colored_number = match color_opt {
+                                    Some(color) => {
+                                        if text_should_be_black(&color) {
+                                            formatted.black()
+                                        } else {
+                                            formatted.normal()
+                                        }
+                                    }
+                                    None => formatted.normal(),
+                                };
+
+                                match args.flag_align {
+                                    Alignment::Left => {
+                                        format!("{:<width$}", colored_number, width = width)
+                                    }
+                                    Alignment::Center => {
+                                        format!("{:^width$}", colored_number, width = width)
+                                    }
+                                    Alignment::Right => {
+                                        format!("{:>width$}", colored_number, width = width)
+                                    }
+                                }
                             }
                             _ => " ".repeat(width),
                         };
