@@ -17,6 +17,13 @@ fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
 }
 
+// #[derive(Deserialize)]
+// enum Alignment {
+//     Left,
+//     Center,
+//     Right,
+// }
+
 #[derive(Deserialize)]
 #[serde(try_from = "String")]
 enum Normalization {
@@ -429,10 +436,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let full_scale = matrix.extent.map(LinearScale::from_extent);
 
     let size = args.flag_size.get();
-    let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size);
+    let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size * 2);
 
-    let mut formatter = (args.flag_show_numbers || args.flag_show_normalized)
-        .then(|| Formatter::new().precision(Precision::Significance(width as u8)));
+    let mut formatter = (args.flag_show_numbers || args.flag_show_normalized).then(|| {
+        Formatter::new().precision(Precision::Significance(width.saturating_sub(3).max(1) as u8))
+    });
 
     // Printing column info
     let column_info = matrix
@@ -465,7 +473,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write!(
                 &out,
                 "{}",
-                util::unicode_aware_rpad_with_ellipsis(&label, 2 * width, " "),
+                util::unicode_aware_rpad_with_ellipsis(&label, width, " "),
             )?;
         }
         writeln!(&out)?;
@@ -515,7 +523,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => write!(&out, "{}", "  ".repeat(width))?,
+                    None => write!(&out, "{}", " ".repeat(width))?,
                     Some(f) => {
                         let scale_opt = match &row_scale {
                             Some(s) => s.as_ref(),
@@ -540,7 +548,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                             *f
                                         },
                                     ),
-                                    width * 2,
+                                    width,
                                 );
 
                                 format!(
@@ -554,10 +562,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                             },
                                         None => formatted.normal(),
                                     },
-                                    width = width * 2
+                                    width = width
                                 )
                             }
-                            _ => " ".repeat(width * 2),
+                            _ => " ".repeat(width),
                         };
 
                         write!(
