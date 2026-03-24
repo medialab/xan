@@ -128,3 +128,40 @@ fn matrix_adj() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn matrix_adj_undirected() {
+    let wrk = Workdir::new("matrix_adj_undirected");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b", "weight"],
+            svec!["one", "deux", "1"],
+            svec!["one", "trois", "5"],
+            svec!["two", "un", "2"],
+            svec!["one", "deux", "7"],
+            svec!["one", "one", "4"],
+            svec!["two", "two", "1"],
+            svec!["two", "one", "5"],
+        ],
+    );
+
+    let mut cmd = wrk.command("matrix");
+    cmd.arg("adj")
+        .arg("a")
+        .arg("b")
+        .args(["-w", "weight"])
+        .arg("-U")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["", "deux", "one", "trois", "two", "un"],
+        ["deux", "", "8", "", "", ""],
+        ["one", "8", "4", "5", "5", ""],
+        ["trois", "", "5", "", "", ""],
+        ["two", "", "5", "", "1", "2"],
+        ["un", "", "", "", "2", ""],
+    ];
+    assert_eq!(got, expected);
+}

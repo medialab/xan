@@ -26,6 +26,10 @@ Usage:
 matrix adj/count options:
     -w, --weight <column>  Optional column containing a weight for edges.
 
+matrix adj options:
+    -U, --undirected  Indicates that edges are undirected and that produced
+                      matrix should be symmetric.
+
 matrix corr options:
     -s, --select <columns>  Columns to consider for the correlation
                             matrix.

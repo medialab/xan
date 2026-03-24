@@ -90,6 +90,10 @@ Usage:
 matrix adj/count options:
     -w, --weight <column>  Optional column containing a weight for edges.
 
+matrix adj options:
+    -U, --undirected  Indicates that edges are undirected and that produced
+                      matrix should be symmetric.
+
 matrix corr options:
     -s, --select <columns>  Columns to consider for the correlation
                             matrix.
@@ -116,6 +120,7 @@ struct Args {
     arg_target: Option<SelectedColumns>,
     flag_weight: Option<SelectedColumns>,
     flag_select: SelectedColumns,
+    flag_undirected: bool,
     flag_fill_diagonal: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -124,6 +129,10 @@ struct Args {
 
 impl Args {
     fn adj_or_count(self) -> CliResult<()> {
+        if self.cmd_count && self.flag_undirected {
+            Err("-U/--undirected does not make sense with `count` mode!")?;
+        }
+
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -150,8 +159,12 @@ impl Args {
         let mut input_record = ByteRecord::new();
 
         while reader.read_byte_record(&mut input_record)? {
-            let source = input_record[source_column_index].to_vec();
-            let target = input_record[target_column_index].to_vec();
+            let mut source = input_record[source_column_index].to_vec();
+            let mut target = input_record[target_column_index].to_vec();
+
+            if self.flag_undirected && source > target {
+                std::mem::swap(&mut source, &mut target);
+            }
 
             let weight = match weight_column_index {
                 Some(index) => {
@@ -194,6 +207,12 @@ impl Args {
         for ((x, y), val) in hash_matrix.iter() {
             let index = y * cols + x;
             flat_matrix[index] = Some(*val);
+
+            if self.flag_undirected {
+                // NOTE: no need to have a special case for diagonal.
+                let other_index = x * cols + y;
+                flat_matrix[other_index] = Some(*val);
+            }
         }
 
         for (index, row) in flat_matrix.chunks_exact(cols).enumerate() {
