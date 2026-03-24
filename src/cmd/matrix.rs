@@ -9,6 +9,62 @@ use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
+enum Axes {
+    Homogeneous(IndexSet<Vec<u8>, RandomState>),
+    Heterogeneous {
+        x: IndexSet<Vec<u8>, RandomState>,
+        y: IndexSet<Vec<u8>, RandomState>,
+    },
+}
+
+impl Axes {
+    fn new(heterogeneous: bool) -> Self {
+        if heterogeneous {
+            Self::Heterogeneous {
+                x: IndexSet::with_hasher(RandomState::new()),
+                y: IndexSet::with_hasher(RandomState::new()),
+            }
+        } else {
+            Self::Homogeneous(IndexSet::with_hasher(RandomState::new()))
+        }
+    }
+
+    fn insert_x(&mut self, label: Vec<u8>) -> usize {
+        match self {
+            Self::Homogeneous(labels) => labels.insert_full(label).0,
+            Self::Heterogeneous { x, .. } => x.insert_full(label).0,
+        }
+    }
+
+    fn insert_y(&mut self, label: Vec<u8>) -> usize {
+        match self {
+            Self::Homogeneous(labels) => labels.insert_full(label).0,
+            Self::Heterogeneous { y, .. } => y.insert_full(label).0,
+        }
+    }
+
+    fn shape(&self) -> (usize, usize) {
+        match self {
+            Self::Homogeneous(labels) => (labels.len(), labels.len()),
+            Self::Heterogeneous { x, y } => (x.len(), y.len()),
+        }
+    }
+
+    fn x_labels(&self) -> impl Iterator<Item = &Vec<u8>> {
+        match self {
+            Self::Homogeneous(labels) => labels.iter(),
+            Self::Heterogeneous { x, .. } => x.iter(),
+        }
+    }
+
+    fn get_y_label(&self, index: usize) -> &Vec<u8> {
+        match self {
+            Self::Homogeneous(labels) => labels.get_index(index).unwrap(),
+            Self::Heterogeneous { y, .. } => y.get_index(index).unwrap(),
+        }
+    }
+}
+
 static USAGE: &str = "
 Convert CSV data to matrix data.
 
@@ -88,8 +144,7 @@ impl Args {
             .map(|weight_col| weight_col.single_selection(headers, !rconf.no_headers))
             .transpose()?;
 
-        let mut source_set = IndexSet::with_hasher(RandomState::new());
-        let mut target_set = IndexSet::with_hasher(RandomState::new());
+        let mut axes = Axes::new(self.cmd_count);
         let mut hash_matrix: HashMap<(usize, usize), f64> = HashMap::new();
 
         let mut input_record = ByteRecord::new();
@@ -112,25 +167,22 @@ impl Args {
                 None => 1.0,
             };
 
-            let (source_idx, _) = source_set.insert_full(source);
-            let (target_idx, _) = target_set.insert_full(target);
-
-            let tuple = (source_idx, target_idx);
+            let source_idx = axes.insert_x(source);
+            let target_idx = axes.insert_y(target);
 
             hash_matrix
-                .entry(tuple)
+                .entry((source_idx, target_idx))
                 .and_modify(|key| *key += weight)
                 .or_insert(weight);
         }
 
-        let cols = source_set.len();
-        let rows = target_set.len();
+        let (cols, rows) = axes.shape();
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
         let mut output_record = ByteRecord::new();
         output_record.push_field(b"");
 
-        for value in source_set.iter() {
+        for value in axes.x_labels() {
             let label = value.as_slice();
             output_record.push_field(label);
         }
@@ -145,7 +197,7 @@ impl Args {
         }
 
         for (index, row) in flat_matrix.chunks_exact(cols).enumerate() {
-            let row_label = target_set.get_index(index).unwrap();
+            let row_label = axes.get_y_label(index);
             output_record.clear();
             output_record.push_field(row_label);
 
