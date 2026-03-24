@@ -59,6 +59,10 @@ strip = false
 debug = true
 lto = false
 
+[features]
+default = []
+parquet = ["dep:parquet"]
+
 [dependencies]
 ahash = "0.8.12"
 aho-corasick = "1.1.3"
@@ -88,7 +92,7 @@ html-escape = "0.2.13"
 hyperloglogplus = "0.4.1"
 indexmap = "2.7.1"
 indicatif = "0.18.0"
-jiff = "0.2.18"
+jiff = "0.2.23"
 lazy_static = "1.4.0"
 md5 = "0.7.0"
 memmap2 = "0.9.8"
@@ -102,6 +106,7 @@ ordered-float = "5.0.0"
 pad = "0.1.6"
 paltoquet = "0.12.0"
 pariter = "0.5.1"
+parquet = { version = "55.2.0", default-features = false, features = ["flate2", "brotli", "snap", "zstd", "lz4"], optional = true}
 pest = "2.7.15"
 pest_derive = "2.7.15"
 py_literal = "0.4.0"

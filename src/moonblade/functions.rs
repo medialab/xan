@@ -242,6 +242,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "printf" => (printf, FunctionArguments::variadic(2)),
         "random" => (random, FunctionArguments::nullary()),
+        "range" => (range, FunctionArguments::with_range(1..=3)),
         "read" => (
             read,
             FunctionArguments::complex(vec![
@@ -257,6 +258,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "regex" => (parse_regex, FunctionArguments::unary()),
+        "repeat" => (repeat, FunctionArguments::binary()),
         "replace" => (replace, FunctionArguments::nary(3)),
         "round" => (
             |args| round_like_op(args, DynamicNumber::round),
@@ -787,6 +789,86 @@ fn get_subroutine<'a>(
         }
         value => return Err(EvaluationError::from_cast(value, "sequence")),
     })
+}
+
+fn range(args: BoundArguments) -> FunctionResult {
+    let (start, stop, step): (i64, i64, i64) = if args.len() == 3 {
+        (
+            args.get(0).unwrap().try_as_i64()?,
+            args.get(1).unwrap().try_as_i64()?,
+            args.get(2).unwrap().try_as_i64()?,
+        )
+    } else if args.len() == 2 {
+        (
+            args.get(0).unwrap().try_as_i64()?,
+            args.get(1).unwrap().try_as_i64()?,
+            1,
+        )
+    } else {
+        (0, args.get(0).unwrap().try_as_i64()?, 1)
+    };
+
+    if step == 0 {
+        return Err(EvaluationError::Custom("step cannot be 0".to_string()));
+    }
+
+    let len = if step > 0 {
+        if start >= stop {
+            0
+        } else {
+            ((stop - start - 1) / step + 1) as usize
+        }
+    } else if start <= stop {
+        0
+    } else {
+        ((start - stop - 1) / (-step) + 1) as usize
+    };
+
+    let mut indices = Vec::with_capacity(len);
+
+    let mut current = start;
+
+    if step > 0 {
+        while current < stop {
+            indices.push(DynamicValue::from(current));
+            current += step;
+        }
+    } else {
+        while current > stop {
+            indices.push(DynamicValue::from(current));
+            current += step;
+        }
+    }
+
+    Ok(DynamicValue::from(indices))
+}
+
+fn repeat(args: BoundArguments) -> FunctionResult {
+    let (to_repeat_arg, times_arg) = args.get2();
+
+    let times = times_arg.try_as_usize()?;
+
+    if let DynamicValue::List(items) = to_repeat_arg {
+        let mut repeated = Vec::with_capacity(items.len() * times);
+
+        for _ in 0..times {
+            for item in items.iter() {
+                repeated.push(item.clone());
+            }
+        }
+
+        Ok(DynamicValue::from(repeated))
+    } else {
+        let to_repeat = to_repeat_arg.try_as_str()?;
+
+        let mut repeated = String::with_capacity(to_repeat.len() * times);
+
+        for _ in 0..times {
+            repeated.push_str(&to_repeat);
+        }
+
+        Ok(DynamicValue::from(repeated))
+    }
 }
 
 fn get(mut args: BoundArguments) -> FunctionResult {

@@ -8,12 +8,20 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
+use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
 fn text_should_be_black(color: &[u8; 4]) -> bool {
     (color[0] as f32 * 0.299 + color[1] as f32 * 0.587 + color[2] as f32 * 0.114) > 150.0
+}
+
+#[derive(Deserialize)]
+enum Alignment {
+    Left,
+    Center,
+    Right,
 }
 
 #[derive(Deserialize)]
@@ -137,10 +145,51 @@ fn compute_row_extent(
 }
 
 static USAGE: &str = "
-Draw a heatmap from CSV data.
+Render CSV data as a heatmap grid. x-axis labels will be taken from file's headers
+(or 0-based column indices when used with -n/--no-headers). While y-axis labels
+will be taken from the file's first column by default. All columns beyond the
+first one will be considered as numerical and used to draw the heatmap grid.
 
-Use the --show-gradients flag to display a showcase of available
-color gradients.
+If your file is not organized thusly, you can still use the -l/--label flag
+to select the y-axis label column and/or the -v/--values flag to select columns
+to be considered to draw the heatmap grid.
+
+This command is typically used to display the results of `xan matrix`. For instance,
+here is how to draw a correlation matrix:
+
+    $ xan matrix corr -s 'sepal_*,petal_*' iris.csv | xan heatmap --diverging --unit
+
+Here is another example drawing an adjacency matrix:
+
+    $ xan matrix adj source target edges.csv | xan heatmap
+
+Note that drawn matrices do not have to be square and can really be anything.
+It is possible to think of the result as the symbolic representation of given
+tabular data where each cell is represented by a square with a continuous color.
+
+Consider the following example, for instance, where we draw a heatmap of Twitter
+account popularity profiles wrt retweets, replies and likes:
+
+    $ xan groupby user_screen_name \\
+    $   'mean(retweet_count) as rt, mean(reply_count) as rp, mean(like_count) as lk' \\
+    $   tweets.csv | \\
+    $ xan heatmap --size 2 --cram --show-numbers
+
+You can also achieve a result similar to conditional formatting in a spreadsheet
+by leveraging the -w/--width flag and showing numbers thusly:
+
+    $ xan matrix count lang1 lang2 data.csv | xan heatmap -w 6 --show-numbers
+
+Note that, by default, since there is not enough place on the x-axis, labels will be
+printed in a legend before the heatmap itself. If you can afford the space, feel
+free to use a -S/--size greater then 1 and toggle the -C/--cram flag to fit the
+labels on top of the x-axis instead.
+
+Increasing -S/--size also means you can try fitting the numbers within the heatmap's
+cells themselves using -N/--show-numbers.
+
+Finally, if you want a showcase of available color gradients, use the --show-gradients
+flag.
 
 Usage:
     xan heatmap [options] [<input>]
@@ -149,33 +198,51 @@ Usage:
     xan heatmap --help
 
 heatmap options:
-    -G, --gradient <name>  Gradient to use. Use --show-gradients to see what is
-                           available.
-                           [default: or_rd]
-    -m, --min <n>          Minimum value for a cell in the heatmap. Will clamp
-                           irrelevant values and use this min for normalization.
-    -M, --max <n>          Maximum value for a cell in the heatmap. Will clamp
-                           irrelevant values and use this max for normalization.
-    --normalize <mode>     How to normalize the heatmap's values. Can be one of
-                           \"full\", \"row\" or \"col\".
-                           [default: full]
-    -S, --size <n>         Size of the heatmap square in terminal rows.
-                           [default: 1]
-    -D, --diverging        Use a diverging color gradient. Currently only shorthand
-                           for \"--gradient rd_bu\".
-    -C, --cram             Attempt to cram column labels over the columns.
-                           Usually works better when -S, --scale > 1.
-    -N, --show-numbers     Whether to attempt to show numbers in the cells.
-                           Usually only useful when -S, --scale > 1.
-    --color <when>         When to color the output using ANSI escape codes.
-                           Use `auto` for automatic detection, `never` to
-                           disable colors completely and `always` to force
-                           colors, even when the output could not handle them.
-                           [default: auto]
-    --repeat-headers <n>   Repeat headers every <n> heatmap rows. This can also
-                           be set to \"auto\" to choose a suitable number based
-                           on the height of your terminal.
-    --show-gradients       Display a showcase of available gradients.
+    -l, --label <column>    Column containing the y-axis labels. Defaults to
+                            the first column of the file.
+    -v, --values <columns>  Columns containing numerical values to display in the
+                            heatmap. Defaults to all columns of the file beyond
+                            the first one.
+    -G, --gradient <name>   Gradient to use. Use --show-gradients to see what is
+                            available.
+                            [default: or_rd]
+    -m, --min <n>           Minimum value for a cell in the heatmap. Will clamp
+                            irrelevant values and use this min for normalization.
+    -M, --max <n>           Maximum value for a cell in the heatmap. Will clamp
+                            irrelevant values and use this max for normalization.
+    -U, --unit              Shorthand for --min 0, --max 1 or --min -1, --max 1 when
+                            using -D/--diverging.
+    --normalize <mode>      How to normalize the heatmap's values. Can be one of
+                            \"full\", \"row\" or \"col\".
+                            [default: full]
+    -S, --size <n>          Size of the heatmap square in terminal rows.
+                            [default: 1]
+    -w, --width <n>         Use this to set heatmap grid cells width if you want
+                            rectangles instead of squares and want to have more
+                            space to display cell numbers with -N/--show-numbers
+                            or -Z/--show-normalized.
+    -D, --diverging         Use a diverging color gradient. Currently only shorthand
+                            for \"--gradient rd_bu\".
+    -C, --cram              Attempt to cram column labels over the columns.
+                            Usually works better when -S/--size > 1.
+    -N, --show-numbers      Whether to attempt to show numbers in the cells.
+                            Usually only useful when -S/--size > 1.
+                            Cannot be used with -Z/--show-normalized.
+    -Z, --show-normalized   Whether to attempt to show normalized numbers in the
+                            cells. Usually only useful when -S/--size > 1.
+                            Cannot be used with -N/--show-numbers.
+    -a, --align <choice>    How to align numbers in the cell when shown. Can be
+                            either \"left\", \"center\" or \"right\".
+                            [default: center]
+    --color <when>          When to color the output using ANSI escape codes.
+                            Use `auto` for automatic detection, `never` to
+                            disable colors completely and `always` to force
+                            colors, even when the output could not handle them.
+                            [default: auto]
+    --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
+                            be set to \"auto\" to choose a suitable number based
+                            on the height of your terminal.
+    --show-gradients        Display a showcase of available gradients.
 
 Common options:
     -h, --help             Display this message
@@ -188,14 +255,20 @@ Common options:
 #[derive(Deserialize)]
 struct Args {
     arg_input: Option<String>,
+    flag_label: Option<SelectedColumns>,
+    flag_values: Option<SelectedColumns>,
     flag_gradient: GradientName,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
+    flag_unit: bool,
     flag_size: NonZeroUsize,
+    flag_width: Option<NonZeroUsize>,
     flag_normalize: Normalization,
     flag_diverging: bool,
     flag_cram: bool,
     flag_show_numbers: bool,
+    flag_show_normalized: bool,
+    flag_align: Alignment,
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -206,6 +279,13 @@ struct Args {
 
 impl Args {
     fn resolve(&mut self) {
+        if self.flag_unit {
+            self.flag_min = self
+                .flag_min
+                .or(Some(if self.flag_diverging { -1.0 } else { 0.0 }));
+            self.flag_max = self.flag_max.or(Some(1.0));
+        }
+
         if self.flag_diverging && self.flag_gradient.as_str() == "or_rd" {
             self.flag_gradient = GradientName::RdBu;
         }
@@ -241,12 +321,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let repeat_headers_opt = args.resolve_repeat_headers()?;
 
+    if args.flag_show_numbers && args.flag_show_normalized {
+        Err("only one of -N/--show-numbers or -Z/--show-normalized must be given!")?;
+    }
+
     let mut out = stdout();
 
     if args.flag_show_gradients {
-        writeln!(&mut out, "{}", "Sequential scales".bold())?;
+        writeln!(&mut out, "{}", "Sequential scales (Single-Hue)".bold())?;
         writeln!(&mut out)?;
-        for gradient_name in GradientName::sequential_iter() {
+        for gradient_name in GradientName::single_hue_sequential_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Sequential scales (Multi-Hue)".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::multi_hue_sequential_iter() {
             writeln!(&mut out, "{}", gradient_name.as_str())?;
             writeln!(&mut out, "{}", gradient_name.sample())?;
         }
@@ -255,6 +347,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writeln!(&mut out, "{}", "Diverging scales".bold())?;
         writeln!(&mut out)?;
         for gradient_name in GradientName::diverging_iter() {
+            writeln!(&mut out, "{}", gradient_name.as_str())?;
+            writeln!(&mut out, "{}", gradient_name.sample())?;
+        }
+        writeln!(&mut out, "\n")?;
+
+        writeln!(&mut out, "{}", "Cyclical scales".bold())?;
+        writeln!(&mut out)?;
+        for gradient_name in GradientName::cyclical_iter() {
             writeln!(&mut out, "{}", gradient_name.as_str())?;
             writeln!(&mut out, "{}", gradient_name.sample())?;
         }
@@ -277,29 +377,40 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let gradient = args.flag_gradient.build();
 
     let mut rdr = conf.simd_reader()?;
+    let headers = rdr.byte_headers()?.clone();
+
+    let label_column_index = match &args.flag_label {
+        Some(flag_label) => flag_label.single_selection(&headers, !conf.no_headers)?,
+        None => 0,
+    };
+
+    let mut values_sel = match &args.flag_values {
+        Some(flag_values) => flag_values.selection(&headers, !conf.no_headers)?,
+        None => Selection::without_indices(headers.len(), &[label_column_index]),
+    };
+
+    values_sel.dedup();
+
+    if values_sel.contains(label_column_index) {
+        Err("-l/--label column must not be part of columns selected by -v/--values!")?;
+    }
+
     let mut record = simd_csv::ByteRecord::new();
 
-    let column_labels = rdr
-        .byte_headers()?
-        .iter()
-        .skip(1)
+    let column_labels = values_sel
+        .select(&headers)
         .map(|cell| String::from_utf8_lossy(cell).into_owned())
         .collect::<Vec<_>>();
-
-    let mut formatter = args
-        .flag_show_numbers
-        .then(|| Formatter::new().precision(Precision::Significance(args.flag_size.get() as u8)));
 
     let mut matrix = Matrix::new(column_labels, forced_extent);
 
     while rdr.read_byte_record(&mut record)? {
         let label = util::sanitize_text_for_single_line_printing(
-            std::str::from_utf8(&record[0]).expect("could not decode utf8"),
+            std::str::from_utf8(&record[label_column_index]).expect("could not decode utf8"),
         );
 
-        let row = record
-            .iter()
-            .skip(1)
+        let row = values_sel
+            .select(&record)
             .map(|cell| match fast_float::parse::<f64, &[u8]>(cell) {
                 Ok(f) => match args.flag_min {
                     Some(min) if f < min => None,
@@ -329,6 +440,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let full_scale = matrix.extent.map(LinearScale::from_extent);
 
     let size = args.flag_size.get();
+    let width = args.flag_width.map(NonZeroUsize::get).unwrap_or(size * 2);
+
+    let mut formatter = (args.flag_show_numbers || args.flag_show_normalized).then(|| {
+        Formatter::new().precision(Precision::Significance(width.saturating_sub(3).max(1) as u8))
+    });
 
     // Printing column info
     let column_info = matrix
@@ -361,7 +477,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             write!(
                 &out,
                 "{}",
-                util::unicode_aware_rpad_with_ellipsis(&label, 2 * size, " "),
+                util::unicode_aware_rpad_with_ellipsis(&label, width, " "),
             )?;
         }
         writeln!(&out)?;
@@ -411,40 +527,58 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => write!(&out, "{}", "  ".repeat(size))?,
+                    None => write!(&out, "{}", " ".repeat(width))?,
                     Some(f) => {
-                        let scale_opt = row_scale.clone().unwrap_or_else(|| {
-                            col_scales
-                                .as_ref()
-                                .and_then(|scales| scales[col_i].clone())
-                                .or_else(|| full_scale.clone())
-                        });
+                        let scale_opt = match &row_scale {
+                            Some(s) => s.as_ref(),
+                            None => match &col_scales {
+                                Some(ss) => ss[col_i].as_ref(),
+                                None => full_scale.as_ref(),
+                            },
+                        };
 
+                        let percent_opt = scale_opt.map(|scale| scale.percent(*f));
                         let color_opt =
-                            scale_opt.map(|scale| scale.map_color(&gradient, *f).to_rgba8());
+                            percent_opt.map(|percent| gradient.at(percent as f32).to_rgba8());
 
                         let body = match formatter.as_mut() {
                             Some(fmt) if i == midpoint => {
                                 let formatted = util::unicode_aware_ellipsis(
-                                    &util::format_number_with_formatter(fmt, *f),
-                                    size * 2,
+                                    &util::format_number_with_formatter(
+                                        fmt,
+                                        if args.flag_show_normalized {
+                                            percent_opt.unwrap()
+                                        } else {
+                                            *f
+                                        },
+                                    ),
+                                    width,
                                 );
 
-                                format!(
-                                    "{:^width$}",
-                                    match color_opt {
-                                        Some(color) =>
-                                            if text_should_be_black(&color) {
-                                                formatted.black()
-                                            } else {
-                                                formatted.normal()
-                                            },
-                                        None => formatted.normal(),
-                                    },
-                                    width = size * 2
-                                )
+                                let colored_number = match color_opt {
+                                    Some(color) => {
+                                        if text_should_be_black(&color) {
+                                            formatted.black()
+                                        } else {
+                                            formatted.normal()
+                                        }
+                                    }
+                                    None => formatted.normal(),
+                                };
+
+                                match args.flag_align {
+                                    Alignment::Left => {
+                                        format!("{:<width$}", colored_number, width = width)
+                                    }
+                                    Alignment::Center => {
+                                        format!("{:^width$}", colored_number, width = width)
+                                    }
+                                    Alignment::Right => {
+                                        format!("{:>width$}", colored_number, width = width)
+                                    }
+                                }
                             }
-                            _ => " ".repeat(size * 2),
+                            _ => " ".repeat(width),
                         };
 
                         write!(

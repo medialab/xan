@@ -1,9 +1,9 @@
+use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
-use crate::collections::HashMap;
 use indexmap::set::IndexSet;
 
 static USAGE: &str = "
@@ -86,13 +86,12 @@ impl Args {
                 Some(index) => {
                     let weight_str = &input_record[index];
 
-                    fast_float::parse::<f64, &[u8]>(weight_str)
-                        .map_err(|_| {
-                            format!(
-                                "could not parse cell \"{}\" as a float!",
-                                std::str::from_utf8(weight_str).unwrap()
-                            )
-                        })?
+                    fast_float::parse::<f64, &[u8]>(weight_str).map_err(|_| {
+                        format!(
+                            "could not parse cell \"{}\" as a float!",
+                            std::str::from_utf8(weight_str).unwrap()
+                        )
+                    })?
                 }
                 None => 1.0,
             };
@@ -104,9 +103,8 @@ impl Args {
 
             hash_matrix
                 .entry(tuple)
-                .and_modify(|key|  *key += weight)
+                .and_modify(|key| *key += weight)
                 .or_insert(weight);
-
         }
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
@@ -124,7 +122,7 @@ impl Args {
 
         for (key, val) in hash_matrix.iter() {
             let (coord_source, coord_target) = key;
-            
+
             let index = coord_source * target_set.len() + coord_target;
             values_vector[index] = *val;
         }
@@ -134,7 +132,7 @@ impl Args {
             let row_label = source_set[index].clone();
             output_record.clear();
             output_record.push_field(&row_label);
-            
+
             for v in window {
                 output_record.push_field(v.to_string().as_bytes());
             }
@@ -245,7 +243,7 @@ impl Args {
 
             for cell in row {
                 match cell {
-                    None => record.push_field(if self.flag_fill_diagonal { b"1" } else { b"" }),
+                    None => record.push_field(if self.flag_fill_diagonal { b"1.0" } else { b"" }),
                     Some(f) => record.push_field(f.to_string().as_bytes()),
                 }
             }

@@ -72,6 +72,21 @@ Finally, `xan` can be used to display CSV files in the terminal, for easy explor
 cargo install xan --locked
 ```
 
+*Optional features*
+
+Some features are not built by default because they cost too much in compilation time or in executable size. Here is a list of those optional features:
+
+* `parquet`: enables `xan from -f parquet`
+
+You can specify which optional features you want thusly:
+
+```bash
+# To enable all optional features
+cargo install xan --locked --all-features
+# To enable only specific features
+cargo install xan --locked --features parquet
+```
+
 You can also tweak the build flags to make sure the Rust compiler is able to leverage all your CPU's features:
 
 ```bash

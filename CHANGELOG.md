@@ -2,9 +2,29 @@
 
 ## 0.57.0 (provisional)
 
+*Breaking*
+
+* `xan select -n` will not error anymore on empty inputs.
+
 *Features*
 
 * Adding `front_coding` window function.
+* Timestamp support with `xan plot -LT`.
+* Adding `xan rename -n/--no-headers` support for `-p/--prefix` & `-x/--suffix`.
+* Adding `xan from -f parquet` (requires the `parquet` feature).
+* Adding `xan to latex`.
+* Adding `xan top -L/--lexicographic`.
+* Adding `xan heatmap` flags: `-w/--width`, `-a/--align`, `-U/--unit`, `-Z/--show-normalized`, `-l/--label` & `-v/--values`.
+* Adding new gradients to `xan heatmap`.
+* Adding `range` & `repeat` moonblade functions.
+
+*Performance*
+
+* Faster `xan top`.
+
+*Quality of Life*
+
+* Adding proper help to `xan heatmap`.
 
 ## 0.56.0
 

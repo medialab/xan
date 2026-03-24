@@ -486,6 +486,21 @@
         "help": "Return the mean of the given numbers."
       },
       {
+        "name": "range",
+        "arguments": ["stop"],
+        "alternatives": [
+          ["start", "stop", "step=1"]
+        ],
+        "returns": "list[number]",
+        "help": "Return the specified range as a list of integers."
+      },
+      {
+        "name": "repeat",
+        "arguments": ["string_or_list", "times"],
+        "returns": "string_or_list",
+        "help": "Repeat target string or list n times."
+      },
+      {
         "name": "sum",
         "arguments": ["numbers"],
         "returns": "number?",

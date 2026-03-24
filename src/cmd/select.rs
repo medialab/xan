@@ -192,6 +192,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let headers = rdr.byte_headers()?.clone();
 
+        // A completly empty file is valid if --no-headers was passed, so we
+        // don't need to yell.
+        if rconfig.no_headers && headers.is_empty() {
+            return Ok(());
+        }
+
         rconfig = rconfig.select(SelectedColumns::parse(&args.arg_selection)?);
 
         let sel = rconfig.selection(&headers)?;

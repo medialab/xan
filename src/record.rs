@@ -1,7 +1,7 @@
 use std::ops::Index;
 
 pub trait Record: Clone + Index<usize, Output = [u8]> {
-    fn new() -> Self;
+    // fn new() -> Self;
     // fn len(&self) -> usize;
     fn iter(&self) -> impl DoubleEndedIterator<Item = &[u8]> + ExactSizeIterator;
     // fn get(&self, index: usize) -> Option<&[u8]>;
@@ -25,17 +25,17 @@ pub trait Record: Clone + Index<usize, Output = [u8]> {
             .collect()
     }
 
-    #[must_use]
-    fn prepend<'a>(&'a self, cell_value: &[u8]) -> Self
-    where
-        Self: Extend<&'a [u8]>,
-    {
-        let mut new_record = Self::new();
-        new_record.push_field(cell_value);
-        new_record.extend(self.iter());
+    // #[must_use]
+    // fn prepend<'a>(&'a self, cell_value: &[u8]) -> Self
+    // where
+    //     Self: Extend<&'a [u8]>,
+    // {
+    //     let mut new_record = Self::new();
+    //     new_record.push_field(cell_value);
+    //     new_record.extend(self.iter());
 
-        new_record
-    }
+    //     new_record
+    // }
 
     #[must_use]
     fn append(&self, cell_value: &[u8]) -> Self {
@@ -57,10 +57,10 @@ pub trait Record: Clone + Index<usize, Output = [u8]> {
 }
 
 impl Record for csv::ByteRecord {
-    #[inline(always)]
-    fn new() -> Self {
-        Self::new()
-    }
+    // #[inline(always)]
+    // fn new() -> Self {
+    //     Self::new()
+    // }
 
     // #[inline(always)]
     // fn len(&self) -> usize {
@@ -94,10 +94,10 @@ impl Record for csv::ByteRecord {
 }
 
 impl Record for simd_csv::ByteRecord {
-    #[inline(always)]
-    fn new() -> Self {
-        Self::new()
-    }
+    // #[inline(always)]
+    // fn new() -> Self {
+    //     Self::new()
+    // }
 
     // #[inline(always)]
     // fn len(&self) -> usize {
