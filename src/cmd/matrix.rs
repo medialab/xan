@@ -137,11 +137,11 @@ impl Args {
 
         writer.write_byte_record(&output_record)?;
 
-        let mut flat_matrix = vec![0.0; cols * rows];
+        let mut flat_matrix: Vec<Option<f64>> = vec![None; cols * rows];
 
         for ((x, y), val) in hash_matrix.iter() {
             let index = y * cols + x;
-            flat_matrix[index] = *val;
+            flat_matrix[index] = Some(*val);
         }
 
         for (index, row) in flat_matrix.chunks_exact(cols).enumerate() {
@@ -149,8 +149,11 @@ impl Args {
             output_record.clear();
             output_record.push_field(row_label);
 
-            for v in row {
-                output_record.push_field(v.to_string().as_bytes());
+            for v_opt in row {
+                match v_opt {
+                    Some(v) => output_record.push_field(v.to_string().as_bytes()),
+                    None => output_record.push_field(b""),
+                };
             }
 
             writer.write_byte_record(&output_record)?;
