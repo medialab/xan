@@ -1,3 +1,8 @@
+use ahash::RandomState;
+use indexmap::set::IndexSet;
+use simd_csv::ByteRecord;
+
+use crate::collections::HashMap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
@@ -8,12 +13,18 @@ static USAGE: &str = "
 Convert CSV data to matrix data.
 
 Supported modes:
-    corr: convert a selection of columns into a full
-          correlation matrix.
+    count - convert a pair of columns into a full count
+            matrix.
+    corr  - convert a selection of columns into a full
+            correlation matrix.
 
 Usage:
+    xan matrix count [options] <source> <target> [<input>]
     xan matrix corr [options] [<input>]
     xan matrix --help
+
+matrix adj/count options:
+    -w, --weight <column>  Optional column containing a weight for edges.
 
 matrix corr options:
     -s, --select <columns>  Columns to consider for the correlation
@@ -32,6 +43,11 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
+    arg_source: Option<SelectedColumns>,
+    arg_target: Option<SelectedColumns>,
+    cmd_count: bool,
+    cmd_corr: bool,
+    flag_weight: Option<SelectedColumns>,
     flag_select: SelectedColumns,
     flag_fill_diagonal: bool,
     flag_no_headers: bool,
@@ -40,7 +56,98 @@ struct Args {
 }
 
 impl Args {
-    fn correlation(&self) -> CliResult<()> {
+    fn count(self) -> CliResult<()> {
+        let rconf = Config::new(&self.arg_input)
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers)
+            .select(self.flag_select.clone());
+
+        let mut reader = rconf.simd_reader()?;
+        let headers = reader.byte_headers()?;
+
+        let arg_source = self.arg_source.as_ref().unwrap();
+        let arg_target = self.arg_target.as_ref().unwrap();
+
+        let source_column_index = arg_source.single_selection(headers, !rconf.no_headers)?;
+        let target_column_index = arg_target.single_selection(headers, !rconf.no_headers)?;
+
+        let weight_column_index = self
+            .flag_weight
+            .as_ref()
+            .map(|weight_col| weight_col.single_selection(headers, !rconf.no_headers))
+            .transpose()?;
+
+        let mut source_set = IndexSet::with_hasher(RandomState::new());
+        let mut target_set = IndexSet::with_hasher(RandomState::new());
+        let mut hash_matrix: HashMap<(usize, usize), f64> = HashMap::new();
+
+        let mut input_record = ByteRecord::new();
+
+        while reader.read_byte_record(&mut input_record)? {
+            let source = input_record[source_column_index].to_vec();
+            let target = input_record[target_column_index].to_vec();
+
+            let weight = match weight_column_index {
+                Some(index) => {
+                    let weight_str = &input_record[index];
+
+                    fast_float::parse::<f64, &[u8]>(weight_str).map_err(|_| {
+                        format!(
+                            "could not parse cell \"{}\" as a float!",
+                            std::str::from_utf8(weight_str).unwrap()
+                        )
+                    })?
+                }
+                None => 1.0,
+            };
+
+            let (source_idx, _) = source_set.insert_full(source.clone());
+            let (target_idx, _) = target_set.insert_full(target.clone());
+
+            let tuple = (source_idx, target_idx);
+
+            hash_matrix
+                .entry(tuple)
+                .and_modify(|key| *key += weight)
+                .or_insert(weight);
+        }
+
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+        let mut output_record = ByteRecord::new();
+        output_record.push_field(b"");
+
+        for value in target_set.iter() {
+            let label = value.as_slice();
+            output_record.push_field(label);
+        }
+
+        writer.write_byte_record(&output_record)?;
+
+        let mut flat_matrix = vec![0.0; source_set.len() * target_set.len()];
+
+        for ((x, y), val) in hash_matrix.iter() {
+            let index = x * target_set.len() + y;
+            flat_matrix[index] = *val;
+        }
+
+        let row_size = source_set.len();
+
+        for (index, window) in flat_matrix.chunks_exact(row_size).enumerate() {
+            let row_label = source_set[index].clone();
+            output_record.clear();
+            output_record.push_field(&row_label);
+
+            for v in window {
+                output_record.push_field(v.to_string().as_bytes());
+            }
+
+            writer.write_byte_record(&output_record)?;
+        }
+
+        Ok(())
+    }
+
+    fn correlation(self) -> CliResult<()> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -56,7 +163,7 @@ impl Args {
         }
 
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
-        let mut output_headers = simd_csv::ByteRecord::new();
+        let mut output_headers = ByteRecord::new();
         output_headers.push_field(b"");
         output_headers.extend(sel.select(&headers));
 
@@ -81,7 +188,7 @@ impl Args {
             welfords.push(CovarianceWelford::new());
         }
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut k: usize;
 
         while reader.read_byte_record(&mut record)? {
@@ -155,5 +262,11 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    args.correlation()
+    if args.cmd_count {
+        args.count()
+    } else if args.cmd_corr {
+        args.correlation()
+    } else {
+        unreachable!()
+    }
 }
