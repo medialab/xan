@@ -92,16 +92,15 @@ impl Args {
                                 "could not parse cell \"{}\" as a float!",
                                 std::str::from_utf8(weight_str).unwrap()
                             )
-                        })
-                        .unwrap()
+                        })?
                 }
                 None => 1.0,
             };
 
-            source_set.insert(source_cell.clone());
-            target_set.insert(target_cell.clone());
+            let (source_idx, _) = source_set.insert_full(source_cell.clone());
+            let (target_idx, _) = target_set.insert_full(target_cell.clone());
 
-            let tuple = (source_cell.clone(), target_cell.clone());
+            let tuple = (source_idx, target_idx);
 
             hash_matrix
                 .entry(tuple)
@@ -114,36 +113,29 @@ impl Args {
         let mut output_record = simd_csv::ByteRecord::new();
         output_record.push_field(b"");
 
-        for i in 0..target_set.len() {
-            let label = target_set[i].as_slice();
+        for value in target_set.iter() {
+            let label = value.as_slice();
             output_record.push_field(label);
-        }
-
-        let mut values_vector = vec![0.0; source_set.len() * target_set.len()];
-
-        for (key, val) in hash_matrix.iter() {
-            let (value_source, value_target) = key;
-            
-            let coord_source = source_set.iter().position(|n| n == value_source).unwrap();
-            let coord_target = target_set.iter().position(|n| n == value_target).unwrap();
-
-            let index = coord_source * target_set.len() + coord_target;
-            values_vector[index] += *val;
         }
 
         writer.write_byte_record(&output_record)?;
 
-        for i in 0..source_set.len() {
-            let i_label = source_set[i].clone();
+        let mut values_vector = vec![0.0; source_set.len() * target_set.len()];
 
-            let index_start = i * target_set.clone().len();
-            let index_stop = (i + 1) * target_set.clone().len();
-            let values_row = &values_vector[index_start..index_stop];
+        for (key, val) in hash_matrix.iter() {
+            let (coord_source, coord_target) = key;
+            
+            let index = coord_source * target_set.len() + coord_target;
+            values_vector[index] = *val;
+        }
 
+        let row_size = source_set.len();
+        for (index, window) in values_vector.chunks_exact(row_size).enumerate() {
+            let row_label = source_set[index].clone();
             output_record.clear();
-            output_record.push_field(i_label.as_slice());
-
-            for v in values_row.iter() { 
+            output_record.push_field(&row_label);
+            
+            for v in window {
                 output_record.push_field(v.to_string().as_bytes());
             }
 
