@@ -537,7 +537,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             },
                         };
 
-                        let percent_opt = scale_opt.map(|scale| scale.percent(*f));
+                        let percent_opt = scale_opt.map(|scale| {
+                            let p = scale.percent(*f);
+
+                            // NOTE: for now, if scale's domain is constant,
+                            // we fallback to the midpoint. We might revise this
+                            // in the future.
+                            if p.is_nan() {
+                                0.5
+                            } else {
+                                p
+                            }
+                        });
                         let color_opt =
                             percent_opt.map(|percent| gradient.at(percent as f32).to_rgba8());
 
