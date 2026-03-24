@@ -13,13 +13,21 @@ static USAGE: &str = "
 Convert CSV data to matrix data.
 
 Supported modes:
-    count - convert a pair of columns into a full count
-            matrix.
+    adj   - convert a column of sources & a column of targets into
+            an adjacency matrix.
+    count - convert a pair of columns into a full count matrix (a bipartite
+            adjacency matrix, or co-occurrence matrix, if you will).
     corr  - convert a selection of columns into a full
             correlation matrix.
 
+Note that the difference between the `adj` and `count` mode is that `count`
+considers its `x` & `y` labels as two separate sets while `adj` considers `source`
+and `target` labels as parts of the same set. This also means `adj` produces a
+square matrix while `count` produces a rectangular one.
+
 Usage:
-    xan matrix count [options] <source> <target> [<input>]
+    xan matrix adj [options] <source> <target> [<input>]
+    xan matrix count [options] <x> <y> [<input>]
     xan matrix corr [options] [<input>]
     xan matrix --help
 
@@ -42,11 +50,14 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
-    arg_input: Option<String>,
-    arg_source: Option<SelectedColumns>,
-    arg_target: Option<SelectedColumns>,
+    cmd_adj: bool,
     cmd_count: bool,
     cmd_corr: bool,
+    arg_input: Option<String>,
+    arg_x: Option<SelectedColumns>,
+    arg_y: Option<SelectedColumns>,
+    arg_source: Option<SelectedColumns>,
+    arg_target: Option<SelectedColumns>,
     flag_weight: Option<SelectedColumns>,
     flag_select: SelectedColumns,
     flag_fill_diagonal: bool,
@@ -56,7 +67,7 @@ struct Args {
 }
 
 impl Args {
-    fn count(self) -> CliResult<()> {
+    fn adj_or_count(self) -> CliResult<()> {
         let rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers)
@@ -65,8 +76,8 @@ impl Args {
         let mut reader = rconf.simd_reader()?;
         let headers = reader.byte_headers()?;
 
-        let arg_source = self.arg_source.as_ref().unwrap();
-        let arg_target = self.arg_target.as_ref().unwrap();
+        let arg_source = self.arg_source.as_ref().or(self.arg_x.as_ref()).unwrap();
+        let arg_target = self.arg_target.as_ref().or(self.arg_y.as_ref()).unwrap();
 
         let source_column_index = arg_source.single_selection(headers, !rconf.no_headers)?;
         let target_column_index = arg_target.single_selection(headers, !rconf.no_headers)?;
@@ -101,8 +112,8 @@ impl Args {
                 None => 1.0,
             };
 
-            let (source_idx, _) = source_set.insert_full(source.clone());
-            let (target_idx, _) = target_set.insert_full(target.clone());
+            let (source_idx, _) = source_set.insert_full(source);
+            let (target_idx, _) = target_set.insert_full(target);
 
             let tuple = (source_idx, target_idx);
 
@@ -112,32 +123,33 @@ impl Args {
                 .or_insert(weight);
         }
 
+        let cols = source_set.len();
+        let rows = target_set.len();
+
         let mut writer = Config::new(&self.flag_output).simd_writer()?;
         let mut output_record = ByteRecord::new();
         output_record.push_field(b"");
 
-        for value in target_set.iter() {
+        for value in source_set.iter() {
             let label = value.as_slice();
             output_record.push_field(label);
         }
 
         writer.write_byte_record(&output_record)?;
 
-        let mut flat_matrix = vec![0.0; source_set.len() * target_set.len()];
+        let mut flat_matrix = vec![0.0; cols * rows];
 
         for ((x, y), val) in hash_matrix.iter() {
-            let index = x * target_set.len() + y;
+            let index = y * cols + x;
             flat_matrix[index] = *val;
         }
 
-        let row_size = source_set.len();
-
-        for (index, window) in flat_matrix.chunks_exact(row_size).enumerate() {
-            let row_label = source_set[index].clone();
+        for (index, row) in flat_matrix.chunks_exact(cols).enumerate() {
+            let row_label = target_set.get_index(index).unwrap();
             output_record.clear();
-            output_record.push_field(&row_label);
+            output_record.push_field(row_label);
 
-            for v in window {
+            for v in row {
                 output_record.push_field(v.to_string().as_bytes());
             }
 
@@ -262,8 +274,8 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.cmd_count {
-        args.count()
+    if args.cmd_adj || args.cmd_count {
+        args.adj_or_count()
     } else if args.cmd_corr {
         args.correlation()
     } else {

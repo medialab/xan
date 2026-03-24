@@ -69,7 +69,7 @@ static COMMANDS: [&str; 60] = [
 
 static HELP_SUBCOMMANDS: [&str; 5] = ["cheatsheet", "functions", "aggs", "scraping", "window"];
 static CAT_SUBCOMMANDS: [&str; 2] = ["rows", "columns"];
-static MATRIX_SUBCOMMANDS: [&str; 1] = ["corr"];
+static MATRIX_SUBCOMMANDS: [&str; 3] = ["adj", "count", "corr"];
 static NETWORK_SUBCOMMANDS: [&str; 2] = ["edgelist", "bipartite"];
 static PARALLEL_SUBCOMMANDS: [&str; 7] = ["count", "cat", "freq", "stats", "agg", "groupby", "map"];
 static SCRAPE_SUBCOMMANDS: [&str; 5] = ["title", "canonical", "links", "urls", "images"];

@@ -22,9 +22,9 @@ fn matrix_count() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["", "true", "false"],
-        svec!["true", "2", "4"],
-        svec!["false", "1", "0"],
+        ["", "true", "false"],
+        ["true", "2", "1"],
+        ["false", "4", "0"],
     ];
     assert_eq!(got, expected);
 }
@@ -55,9 +55,40 @@ fn matrix_count_weight() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["", "true", "false"],
-        svec!["true", "2", "2"],
-        svec!["false", "0.5", "0"],
+        ["", "true", "false"],
+        ["true", "2", "0.5"],
+        ["false", "2", "0"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn matrix_count_rectangular() {
+    let wrk = Workdir::new("matrix_count_rectangular");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b", "weight"],
+            svec!["one", "deux", "1"],
+            svec!["one", "trois", "5"],
+            svec!["tow", "un", "2"],
+            svec!["one", "deux", "7"],
+        ],
+    );
+
+    let mut cmd = wrk.command("matrix");
+    cmd.arg("count")
+        .arg("a")
+        .arg("b")
+        .args(["-w", "weight"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["", "one", "tow"],
+        ["deux", "8", "0"],
+        ["trois", "5", "0"],
+        ["un", "0", "2"],
     ];
     assert_eq!(got, expected);
 }
