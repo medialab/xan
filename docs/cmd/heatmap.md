@@ -91,15 +91,16 @@ heatmap options:
     -a, --align <choice>    How to align numbers in the cell when shown. Can be
                             either "left", "center" or "right".
                             [default: center]
+    -F, --fill              Whether to fill empty cells with the "⡪" character.
+    --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
+                            be set to "auto" to choose a suitable number based
+                            on the height of your terminal.
+    --show-gradients        Display a showcase of available gradients.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
                             colors, even when the output could not handle them.
                             [default: auto]
-    --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
-                            be set to "auto" to choose a suitable number based
-                            on the height of your terminal.
-    --show-gradients        Display a showcase of available gradients.
 
 Common options:
     -h, --help             Display this message

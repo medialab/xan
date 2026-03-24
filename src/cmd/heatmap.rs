@@ -234,15 +234,16 @@ heatmap options:
     -a, --align <choice>    How to align numbers in the cell when shown. Can be
                             either \"left\", \"center\" or \"right\".
                             [default: center]
+    -F, --fill              Whether to fill empty cells with the \"⡪\" character.
+    --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
+                            be set to \"auto\" to choose a suitable number based
+                            on the height of your terminal.
+    --show-gradients        Display a showcase of available gradients.
     --color <when>          When to color the output using ANSI escape codes.
                             Use `auto` for automatic detection, `never` to
                             disable colors completely and `always` to force
                             colors, even when the output could not handle them.
                             [default: auto]
-    --repeat-headers <n>    Repeat headers every <n> heatmap rows. This can also
-                            be set to \"auto\" to choose a suitable number based
-                            on the height of your terminal.
-    --show-gradients        Display a showcase of available gradients.
 
 Common options:
     -h, --help             Display this message
@@ -269,6 +270,7 @@ struct Args {
     flag_show_numbers: bool,
     flag_show_normalized: bool,
     flag_align: Alignment,
+    flag_fill: bool,
     flag_color: ColorMode,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -527,7 +529,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (col_i, cell) in row.iter().enumerate() {
                 match cell {
-                    None => write!(&out, "{}", " ".repeat(width))?,
+                    None => write!(
+                        &out,
+                        "{}",
+                        (if args.flag_fill { "⡪" } else { " " })
+                            .repeat(width)
+                            .dimmed()
+                    )?,
                     Some(f) => {
                         let scale_opt = match &row_scale {
                             Some(s) => s.as_ref(),
