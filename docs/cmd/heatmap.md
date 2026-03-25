@@ -63,6 +63,10 @@ heatmap options:
     -G, --gradient <name>   Gradient to use. Use --show-gradients to see what is
                             available.
                             [default: or_rd]
+    -A, --ascii             Use ascii shade characters (░▒▓█) to draw the heatmap instead
+                            of coloring cell backgrounds. The output can therefore
+                            be copy-pasted, but is restricted to a 4 steps gradient.
+                            Does not work with -N/--show-numbers nor -Z/--show-normalized.
     -m, --min <n>           Minimum value for a cell in the heatmap. Will clamp
                             irrelevant values and use this min for normalization.
     -M, --max <n>           Maximum value for a cell in the heatmap. Will clamp

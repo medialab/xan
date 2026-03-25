@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::io::{stdout, Write};
+use std::iter::repeat_n;
 use std::num::NonZeroUsize;
 
 use colored::{ColoredString, Colorize};
@@ -11,6 +12,8 @@ use crate::scales::{Extent, ExtentBuilder, GradientName, LinearScale};
 use crate::select::{SelectedColumns, Selection};
 use crate::util::{self, ColorMode};
 use crate::CliResult;
+
+static ASCII_GRADIENT: [char; 4] = ['░', '▒', '▓', '█'];
 
 // Taken from: https://stackoverflow.com/questions/3942878/how-to-decide-font-color-in-white-or-black-depending-on-background-color
 fn text_should_be_black(color: &[u8; 4]) -> bool {
@@ -206,6 +209,10 @@ heatmap options:
     -G, --gradient <name>   Gradient to use. Use --show-gradients to see what is
                             available.
                             [default: or_rd]
+    -A, --ascii             Use ascii shade characters (░▒▓█) to draw the heatmap instead
+                            of coloring cell backgrounds. The output can therefore
+                            be copy-pasted, but is restricted to a 4 steps gradient.
+                            Does not work with -N/--show-numbers nor -Z/--show-normalized.
     -m, --min <n>           Minimum value for a cell in the heatmap. Will clamp
                             irrelevant values and use this min for normalization.
     -M, --max <n>           Maximum value for a cell in the heatmap. Will clamp
@@ -259,6 +266,7 @@ struct Args {
     flag_label: Option<SelectedColumns>,
     flag_values: Option<SelectedColumns>,
     flag_gradient: GradientName,
+    flag_ascii: bool,
     flag_min: Option<f64>,
     flag_max: Option<f64>,
     flag_unit: bool,
@@ -322,6 +330,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     args.flag_color.apply();
 
     let repeat_headers_opt = args.resolve_repeat_headers()?;
+
+    if args.flag_ascii && (args.flag_show_numbers || args.flag_show_normalized) {
+        Err("-A/--ascii does not work with -N/--show-numbers nor -Z/--show-normalized!")?;
+    }
 
     if args.flag_show_numbers && args.flag_show_normalized {
         Err("only one of -N/--show-numbers or -Z/--show-normalized must be given!")?;
@@ -548,7 +560,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let percent_opt = scale_opt.map(|scale| {
                             let p = scale.percent(*f);
 
-                            // NOTE: for now, if scale's domain is constant,
+                            // NOTE: f  or now, if scale's domain is constant,
                             // we fallback to the midpoint. We might revise this
                             // in the future.
                             if p.is_nan() {
@@ -557,58 +569,73 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                                 p
                             }
                         });
-                        let color_opt =
-                            percent_opt.map(|percent| gradient.at(percent as f32).to_rgba8());
 
-                        let body = match formatter.as_mut() {
-                            Some(fmt) if i == midpoint => {
-                                let formatted = util::unicode_aware_ellipsis(
-                                    &util::format_number_with_formatter(
-                                        fmt,
-                                        if args.flag_show_normalized {
-                                            percent_opt.unwrap()
-                                        } else {
-                                            *f
-                                        },
-                                    ),
-                                    width,
-                                );
+                        if args.flag_ascii {
+                            let ascii_gradient_index =
+                                ((percent_opt.unwrap() * 4.0).floor() as usize).min(3);
 
-                                let colored_number = match color_opt {
-                                    Some(color) => {
-                                        if text_should_be_black(&color) {
-                                            formatted.black()
-                                        } else {
-                                            formatted.normal()
+                            debug_assert!(ascii_gradient_index < 4);
+
+                            write!(
+                                &out,
+                                "{}",
+                                repeat_n(ASCII_GRADIENT[ascii_gradient_index], width)
+                                    .collect::<String>()
+                            )?;
+                        } else {
+                            let color_opt =
+                                percent_opt.map(|percent| gradient.at(percent as f32).to_rgba8());
+
+                            let body = match formatter.as_mut() {
+                                Some(fmt) if i == midpoint => {
+                                    let formatted = util::unicode_aware_ellipsis(
+                                        &util::format_number_with_formatter(
+                                            fmt,
+                                            if args.flag_show_normalized {
+                                                percent_opt.unwrap()
+                                            } else {
+                                                *f
+                                            },
+                                        ),
+                                        width,
+                                    );
+
+                                    let colored_number = match color_opt {
+                                        Some(color) => {
+                                            if text_should_be_black(&color) {
+                                                formatted.black()
+                                            } else {
+                                                formatted.normal()
+                                            }
+                                        }
+                                        None => formatted.normal(),
+                                    };
+
+                                    match args.flag_align {
+                                        Alignment::Left => {
+                                            format!("{:<width$}", colored_number, width = width)
+                                        }
+                                        Alignment::Center => {
+                                            format!("{:^width$}", colored_number, width = width)
+                                        }
+                                        Alignment::Right => {
+                                            format!("{:>width$}", colored_number, width = width)
                                         }
                                     }
-                                    None => formatted.normal(),
-                                };
-
-                                match args.flag_align {
-                                    Alignment::Left => {
-                                        format!("{:<width$}", colored_number, width = width)
-                                    }
-                                    Alignment::Center => {
-                                        format!("{:^width$}", colored_number, width = width)
-                                    }
-                                    Alignment::Right => {
-                                        format!("{:>width$}", colored_number, width = width)
-                                    }
                                 }
-                            }
-                            _ => " ".repeat(width),
-                        };
+                                _ => " ".repeat(width),
+                            };
 
-                        write!(
-                            &out,
-                            "{}",
-                            if let Some(color) = color_opt {
-                                body.on_truecolor(color[0], color[1], color[2])
-                            } else {
-                                body.normal()
-                            }
-                        )?;
+                            write!(
+                                &out,
+                                "{}",
+                                if let Some(color) = color_opt {
+                                    body.on_truecolor(color[0], color[1], color[2])
+                                } else {
+                                    body.normal()
+                                }
+                            )?;
+                        }
                     }
                 }
             }
