@@ -1,21 +1,12 @@
 use std::borrow::Cow;
 use std::cmp::{max, Ordering, PartialOrd};
-use std::fs::{self, File};
-use std::io::Read;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Arc;
 
 use base64::prelude::*;
 use bstr::ByteSlice;
-use bytesize::ByteSize;
-use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
-use flate2::read::MultiGzDecoder;
-use jiff::{fmt::strtime, tz::TimeZone, Timestamp, Zoned};
 use lazy_static::lazy_static;
 use mime2ext::mime2ext;
-use namedlock::{AutoCleanup, LockSpace};
 use paltoquet::{
     phonetics::{phonogram, refined_soundex, soundex},
     stemmers::{fr::carry_stemmer, s_stemmer},
@@ -27,16 +18,17 @@ use unidecode::unidecode;
 use uuid::Uuid;
 
 use crate::collections::HashMap;
-use crate::dates;
-use crate::urls::LRUStems;
 
 use super::agg::aggregators::{Sum, Welford};
 use super::error::EvaluationError;
 use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
+mod io;
 pub mod special;
+mod time;
+mod urls;
 
-type FunctionResult = Result<DynamicValue, EvaluationError>;
+pub type FunctionResult = Result<DynamicValue, EvaluationError>;
 pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
@@ -69,7 +61,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| unary_arithmetic_op(args, DynamicNumber::abs),
             FunctionArguments::unary(),
         ),
-        "abspath" => (abspath, FunctionArguments::unary()),
+        "abspath" => (io::abspath, FunctionArguments::unary()),
         "add" => (
             |args| variadic_arithmetic_op(args, Add::add),
             FunctionArguments::variadic(2),
@@ -82,8 +74,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| argcompare(args, Ordering::is_lt),
             FunctionArguments::with_range(1..=2),
         ),
-        "basename" => (basename, FunctionArguments::with_range(1..=2)),
-        "bytesize" => (bytesize, FunctionArguments::unary()),
+        "basename" => (io::basename, FunctionArguments::with_range(1..=2)),
+        "bytesize" => (io::bytesize, FunctionArguments::unary()),
         "carry_stemmer" => (
             |args| abstract_unary_string_fn(args, |string| Cow::Owned(carry_stemmer(string))),
             FunctionArguments::unary(),
@@ -92,21 +84,21 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| round_like_op(args, DynamicNumber::ceil),
             FunctionArguments::with_range(1..=2),
         ),
-        "cmd" => (cmd, FunctionArguments::binary()),
+        "cmd" => (io::cmd, FunctionArguments::binary()),
         "compact" => (compact, FunctionArguments::unary()),
         "concat" => (concat, FunctionArguments::variadic(2)),
         "contains" => (contains, FunctionArguments::binary()),
-        "copy" => (copy_file, FunctionArguments::binary()),
+        "copy" => (io::copy_file, FunctionArguments::binary()),
         "count" => (count, FunctionArguments::binary()),
         "datetime" => (
-            datetime,
+            time::datetime,
             FunctionArguments::complex(vec![
                 Argument::Positional,
                 Argument::with_name("format"),
                 Argument::with_name("timezone"),
             ]),
         ),
-        "dirname" => (dirname, FunctionArguments::unary()),
+        "dirname" => (io::dirname, FunctionArguments::unary()),
         "div" => (
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
@@ -124,8 +116,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "endswith" => (endswith, FunctionArguments::binary()),
         "err" => (err, FunctionArguments::unary()),
         "escape_regex" => (escape_regex, FunctionArguments::unary()),
-        "ext" => (ext, FunctionArguments::unary()),
-        "filesize" => (filesize, FunctionArguments::unary()),
+        "ext" => (io::ext, FunctionArguments::unary()),
+        "filesize" => (io::filesize, FunctionArguments::unary()),
         "fingerprint" => (fingerprint, FunctionArguments::unary()),
         "first" => (first, FunctionArguments::unary()),
         "float" => (parse_float, FunctionArguments::unary()),
@@ -151,7 +143,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "index_by" => (index_by, FunctionArguments::binary()),
         "int" => (parse_int, FunctionArguments::unary()),
-        "isfile" => (isfile, FunctionArguments::unary()),
+        "isfile" => (io::isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "keys" => (keys, FunctionArguments::unary()),
         "latest" => (
@@ -183,7 +175,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "lower" => (lower, FunctionArguments::unary()),
-        "lru" => (lru, FunctionArguments::unary()),
+        "lru" => (urls::lru, FunctionArguments::unary()),
         "match" => (regex_match, FunctionArguments::with_range(2..=3)),
         "max" => (
             |args| variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_gt),
@@ -201,14 +193,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::binary(),
         ),
         "month" => (
-            |args| custom_strftime(args, "%m"),
+            |args| time::custom_strftime(args, "%m"),
             FunctionArguments::unary(),
         ),
         "month_day" => (
-            |args| custom_strftime(args, "%m-%d"),
+            |args| time::custom_strftime(args, "%m-%d"),
             FunctionArguments::unary(),
         ),
-        "move" => (move_file, FunctionArguments::binary()),
+        "move" => (io::move_file, FunctionArguments::binary()),
         "mul" => (
             |args| variadic_arithmetic_op(args, Mul::mul),
             FunctionArguments::variadic(2),
@@ -237,7 +229,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| abstract_unary_string_fn(args, |string| Cow::Owned(phonogram(string))),
             FunctionArguments::unary(),
         ),
-        "pjoin" | "pathjoin" => (pathjoin, FunctionArguments::variadic(2)),
+        "pjoin" | "pathjoin" => (io::pathjoin, FunctionArguments::variadic(2)),
         "pow" => (
             |args| binary_arithmetic_op(args, DynamicNumber::pow),
             FunctionArguments::binary(),
@@ -246,15 +238,15 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "random" => (random, FunctionArguments::nullary()),
         "range" => (range, FunctionArguments::with_range(1..=3)),
         "read" => (
-            read,
+            io::read,
             FunctionArguments::complex(vec![
                 Argument::Positional,
                 Argument::with_name("encoding"),
                 Argument::with_name("errors"),
             ]),
         ),
-        "read_csv" => (read_csv, FunctionArguments::unary()),
-        "read_json" => (read_json, FunctionArguments::unary()),
+        "read_csv" => (io::read_csv, FunctionArguments::unary()),
+        "read_json" => (io::read_json, FunctionArguments::unary()),
         "refined_soundex" => (
             |args| abstract_unary_string_fn(args, |string| Cow::Owned(refined_soundex(string))),
             FunctionArguments::unary(),
@@ -266,8 +258,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| round_like_op(args, DynamicNumber::round),
             FunctionArguments::with_range(1..=2),
         ),
-        "shell" => (shell, FunctionArguments::unary()),
-        "shlex_split" => (shlex_split, FunctionArguments::unary()),
+        "shell" => (io::shell, FunctionArguments::unary()),
+        "shlex_split" => (io::shlex_split, FunctionArguments::unary()),
         "slice" => (slice, FunctionArguments::with_range(2..=3)),
         "soundex" => (
             |args| abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
@@ -280,7 +272,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
         "strftime" => (
-            strftime,
+            time::strftime,
             FunctionArguments::complex(vec![
                 Argument::Positional,
                 Argument::Positional,
@@ -320,11 +312,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| sequence_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
-        "timestamp" => (timestamp, FunctionArguments::unary()),
-        "timestamp_ms" => (timestamp_ms, FunctionArguments::unary()),
+        "timestamp" => (time::timestamp, FunctionArguments::unary()),
+        "timestamp_ms" => (time::timestamp_ms, FunctionArguments::unary()),
         "to_fixed" => (to_fixed, FunctionArguments::binary()),
-        "to_timezone" => (to_timezone, FunctionArguments::nary(3)),
-        "to_local_timezone" => (to_local_timezone, FunctionArguments::binary()),
+        "to_timezone" => (time::to_timezone, FunctionArguments::nary(3)),
+        "to_local_timezone" => (time::to_local_timezone, FunctionArguments::binary()),
         "trim" => (trim, FunctionArguments::with_range(1..=2)),
         "ltrim" => (ltrim, FunctionArguments::with_range(1..=2)),
         "rtrim" => (rtrim, FunctionArguments::with_range(1..=2)),
@@ -335,20 +327,20 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "typeof" => (type_of, FunctionArguments::unary()),
         "unidecode" => (apply_unidecode, FunctionArguments::unary()),
         "upper" => (upper, FunctionArguments::unary()),
-        "urljoin" => (urljoin, FunctionArguments::binary()),
+        "urljoin" => (urls::urljoin, FunctionArguments::binary()),
         "uuid" => (uuid, FunctionArguments::nullary()),
         "values" => (values, FunctionArguments::unary()),
-        "write" => (write, FunctionArguments::binary()),
+        "write" => (io::write, FunctionArguments::binary()),
         "year" => (
-            |args| custom_strftime(args, "%Y"),
+            |args| time::custom_strftime(args, "%Y"),
             FunctionArguments::unary(),
         ),
         "year_month_day" | "ymd" => (
-            |args| custom_strftime(args, "%F"),
+            |args| time::custom_strftime(args, "%F"),
             FunctionArguments::unary(),
         ),
         "year_month" | "ym" => (
-            |args| custom_strftime(args, "%Y-%m"),
+            |args| time::custom_strftime(args, "%Y-%m"),
             FunctionArguments::unary(),
         ),
         _ => return None,
@@ -1371,411 +1363,6 @@ fn sum(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(sum.get()))
 }
 
-// IO
-fn abspath(args: BoundArguments) -> FunctionResult {
-    let arg = args.get1_str()?;
-    let mut path = PathBuf::new();
-    path.push(arg.as_ref());
-    let path = path.canonicalize().unwrap();
-    let path = String::from(path.to_str().ok_or(EvaluationError::InvalidPath)?);
-
-    Ok(DynamicValue::from(path))
-}
-
-fn pathjoin(args: BoundArguments) -> FunctionResult {
-    let mut path = PathBuf::new();
-
-    for arg in args {
-        path.push(arg.try_as_str()?.as_ref());
-    }
-
-    let path = String::from(path.to_str().ok_or(EvaluationError::InvalidPath)?);
-
-    Ok(DynamicValue::from(path))
-}
-
-fn decoder_trap_from_str(name: &str) -> Result<DecoderTrap, EvaluationError> {
-    Ok(match name {
-        "strict" => DecoderTrap::Strict,
-        "replace" => DecoderTrap::Replace,
-        "ignore" => DecoderTrap::Ignore,
-        _ => return Err(EvaluationError::UnsupportedDecoderTrap(name.to_string())),
-    })
-}
-
-fn isfile(args: BoundArguments) -> FunctionResult {
-    let path = args.get1_str()?;
-    let path = Path::new(path.as_ref());
-
-    Ok(DynamicValue::Boolean(path.is_file()))
-}
-
-fn abstract_read(
-    path: &DynamicValue,
-    encoding: Option<&DynamicValue>,
-    errors: Option<&DynamicValue>,
-) -> Result<String, EvaluationError> {
-    let path = path.try_as_str()?;
-
-    let mut file = match File::open(path.as_ref()) {
-        Err(_) => return Err(EvaluationError::IO(format!("cannot read file {}", path))),
-        Ok(f) => f,
-    };
-
-    let contents = match encoding {
-        Some(encoding_value) => {
-            let encoding_name = encoding_value.try_as_str()?.replace('_', "-");
-            let encoding = encoding_from_whatwg_label(&encoding_name);
-            let encoding = encoding
-                .ok_or_else(|| EvaluationError::UnsupportedEncoding(encoding_name.to_string()))?;
-
-            let decoder_trap = match errors {
-                Some(trap) => decoder_trap_from_str(&trap.try_as_str()?)?,
-                None => DecoderTrap::Replace,
-            };
-
-            let mut buffer: Vec<u8> = Vec::new();
-
-            if path.ends_with(".gz") {
-                let mut gz = MultiGzDecoder::new(file);
-                gz.read_to_end(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
-            } else {
-                file.read_to_end(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
-            }
-
-            encoding
-                .decode(&buffer, decoder_trap)
-                .map_err(|_| EvaluationError::DecodeError)?
-        }
-        None => {
-            let mut buffer = String::new();
-
-            if path.ends_with(".gz") {
-                let mut gz = MultiGzDecoder::new(file);
-                gz.read_to_string(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
-            } else {
-                file.read_to_string(&mut buffer)
-                    .map_err(|_| EvaluationError::IO(format!("cannot read file {}", path)))?;
-            }
-
-            buffer
-        }
-    };
-
-    Ok(contents)
-}
-
-fn read(args: BoundArguments) -> FunctionResult {
-    Ok(DynamicValue::from(abstract_read(
-        args.get1(),
-        args.get_not_none(1),
-        args.get_not_none(2),
-    )?))
-}
-
-fn read_json(args: BoundArguments) -> FunctionResult {
-    let contents = abstract_read(args.get1(), None, None)?;
-    serde_json::from_str(&contents)
-        .map_err(|_| EvaluationError::JSONParseError(format!("{:?}", contents)))
-}
-
-fn read_csv(args: BoundArguments) -> FunctionResult {
-    let contents = abstract_read(args.get1(), None, None)?;
-
-    let mut reader = csv::Reader::from_reader(contents.as_bytes());
-    let headers = reader
-        .headers()
-        .map_err(|_| EvaluationError::IO("error while reading CSV header row".to_string()))?
-        .clone();
-
-    let mut record = csv::StringRecord::new();
-    let mut rows: Vec<DynamicValue> = Vec::new();
-
-    loop {
-        match reader.read_record(&mut record) {
-            Err(_) => {
-                return Err(EvaluationError::IO(
-                    "error while reading CSV row".to_string(),
-                ))
-            }
-            Ok(has_row) => {
-                if !has_row {
-                    break;
-                }
-
-                let mut map: HashMap<String, DynamicValue> = HashMap::with_capacity(headers.len());
-
-                for (cell, header) in record.iter().zip(headers.iter()) {
-                    map.insert(header.to_string(), DynamicValue::from(cell));
-                }
-
-                rows.push(DynamicValue::from(map));
-            }
-        }
-    }
-
-    Ok(DynamicValue::from(rows))
-}
-
-lazy_static! {
-    static ref WRITE_FILE_LOCKS: LockSpace<PathBuf, ()> = LockSpace::new(AutoCleanup);
-}
-
-fn write(args: BoundArguments) -> FunctionResult {
-    let data = args.get1();
-    let path = PathBuf::from(args.get(1).unwrap().try_as_str()?.as_ref());
-
-    // mkdir -p
-    if let Some(dir) = path.parent() {
-        // NOTE: fs::create_dir_all is threadsafe
-        fs::create_dir_all(dir).map_err(|_| {
-            EvaluationError::IO(format!("cannot create dir {}", dir.to_string_lossy()))
-        })?;
-    }
-
-    WRITE_FILE_LOCKS
-        .lock(path.clone(), || ())
-        .map_err(|_| EvaluationError::Custom("write file lock is poisoned".to_string()))?;
-
-    fs::write(&path, data.try_as_bytes()?).map_err(|_| {
-        EvaluationError::IO(format!("cannot write file {}", path.to_string_lossy()))
-    })?;
-
-    Ok(DynamicValue::from(path.to_string_lossy()))
-}
-
-fn move_file(args: BoundArguments) -> FunctionResult {
-    let (source, target) = args.get2_str()?;
-
-    let source_path = PathBuf::from(source.as_ref());
-    let target_path = PathBuf::from(target.as_ref());
-
-    // mkdir -p
-    if let Some(dir) = target_path.parent() {
-        // NOTE: fs::create_dir_all is threadsafe
-        fs::create_dir_all(dir).map_err(|_| {
-            EvaluationError::IO(format!("cannot create dir {}", dir.to_string_lossy()))
-        })?;
-    }
-
-    fs::rename(&source_path, &target_path).map_err(|_| {
-        EvaluationError::IO(format!(
-            "cannot move from {} to {}",
-            source_path.to_string_lossy(),
-            target_path.to_string_lossy()
-        ))
-    })?;
-
-    Ok(DynamicValue::from(target_path.to_string_lossy()))
-}
-
-fn copy_file(args: BoundArguments) -> FunctionResult {
-    let (source, target) = args.get2_str()?;
-
-    let source_path = PathBuf::from(source.as_ref());
-    let target_path = PathBuf::from(target.as_ref());
-
-    // mkdir -p
-    if let Some(dir) = target_path.parent() {
-        // NOTE: fs::create_dir_all is threadsafe
-        fs::create_dir_all(dir).map_err(|_| {
-            EvaluationError::IO(format!("cannot create dir {}", dir.to_string_lossy()))
-        })?;
-    }
-
-    fs::copy(&source_path, &target_path).map_err(|_| {
-        EvaluationError::IO(format!(
-            "cannot copy {} to {}",
-            source_path.to_string_lossy(),
-            target_path.to_string_lossy()
-        ))
-    })?;
-
-    Ok(DynamicValue::from(target_path.to_string_lossy()))
-}
-
-fn ext(args: BoundArguments) -> FunctionResult {
-    let string = args.get1_str()?;
-    let path = Path::new(string.as_ref());
-
-    Ok(DynamicValue::from(
-        path.extension().and_then(|e| e.to_str()),
-    ))
-}
-
-fn dirname(args: BoundArguments) -> FunctionResult {
-    let string = args.get1_str()?;
-    let path = Path::new(string.as_ref());
-
-    Ok(DynamicValue::from(path.parent().and_then(|p| p.to_str())))
-}
-
-fn basename(args: BoundArguments) -> FunctionResult {
-    let string = args.get1_str()?;
-    let path = Path::new(string.as_ref());
-
-    let name = path.file_name().and_then(|p| p.to_str());
-
-    if args.len() == 2 {
-        let suffix = args.get(1).unwrap().try_as_str()?;
-
-        Ok(DynamicValue::from(
-            name.and_then(|n| n.strip_suffix(suffix.as_ref()).or(Some(n))),
-        ))
-    } else {
-        Ok(DynamicValue::from(name))
-    }
-}
-
-fn filesize(args: BoundArguments) -> FunctionResult {
-    let path = args.get1_str()?;
-
-    match fs::metadata(path.as_ref()) {
-        Ok(size) => Ok(DynamicValue::from(size.len() as i64)),
-        Err(_) => Err(EvaluationError::IO(format!(
-            "cannot access file metadata for {}",
-            path
-        ))),
-    }
-}
-
-fn bytesize(args: BoundArguments) -> FunctionResult {
-    let bytes = args.get1().try_as_usize()? as u64;
-    let human_readable = ByteSize::b(bytes).display().si().to_string();
-
-    Ok(DynamicValue::from(human_readable))
-}
-
-// Dates
-fn timestamp(args: BoundArguments) -> FunctionResult {
-    let seconds = args.get1().try_as_i64()?;
-    let utc = TimeZone::UTC;
-    match Timestamp::from_second(seconds) {
-        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(utc))),
-        Err(_) => Err(EvaluationError::DateTime(format!(
-            "cannot parse \"{}\" as timestamp",
-            seconds
-        ))),
-    }
-}
-
-fn timestamp_ms(args: BoundArguments) -> FunctionResult {
-    let milliseconds = args.get1().try_as_i64()?;
-    let utc = TimeZone::UTC;
-    match Timestamp::from_millisecond(milliseconds) {
-        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(utc))),
-        Err(_) => Err(EvaluationError::DateTime(format!(
-            "cannot parse \"{}\" as timestamp",
-            milliseconds
-        ))),
-    }
-}
-
-fn datetime(args: BoundArguments) -> FunctionResult {
-    let datestring = args.get1().try_as_str()?;
-    let format = args.get_not_none(1).map(|f| f.try_as_str()).transpose()?;
-    let timezone = args.get_not_none(2);
-
-    dates::parse_zoned(
-        &datestring,
-        format.as_deref(),
-        timezone.map(|tz| tz.try_as_timezone()).transpose()?,
-    )
-    .map_err(|err| {
-        EvaluationError::from_zoned_parse_error(
-            &datestring,
-            format.as_deref(),
-            timezone.map(|tz| tz.try_as_str().unwrap()).as_deref(),
-            err,
-        )
-    })
-    .map(DynamicValue::from)
-}
-
-fn to_timezone(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2, arg3) = args.get3();
-    // We could check if arg1 is a datetime before parsing it as str
-    let datestring = arg1.try_as_str()?;
-    let timezone_in = arg2.try_as_timezone()?;
-    let timezone_out = arg3.try_as_timezone()?;
-
-    dates::parse_zoned(&datestring, None, Some(timezone_in))
-        .map_err(|err| {
-            EvaluationError::from_zoned_parse_error(
-                &datestring,
-                None,
-                Some(arg2.try_as_str().unwrap().as_ref()),
-                err,
-            )
-        })
-        .map(|dt| DynamicValue::from(dt.with_time_zone(timezone_out)))
-}
-
-fn to_local_timezone(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2();
-    // We could check if arg1 is a datetime before parsing it as str
-    let datestring = arg1.try_as_str()?;
-    let timezone_in = arg2.try_as_timezone()?;
-
-    dates::parse_zoned(&datestring, None, Some(timezone_in))
-        .map_err(|err| {
-            EvaluationError::from_zoned_parse_error(
-                &datestring,
-                None,
-                Some(arg2.try_as_str().unwrap().as_ref()),
-                err,
-            )
-        })
-        .map(|dt| DynamicValue::from(dt.with_time_zone(TimeZone::system())))
-}
-
-fn abstract_strftime(datetime: &Zoned, format: &str) -> FunctionResult {
-    match strtime::format(format, datetime) {
-        Ok(formatted) => Ok(DynamicValue::from(formatted)),
-        Err(_) => Err(EvaluationError::DateTime(format!(
-            "\"{}\" is not a valid format",
-            format
-        ))),
-    }
-}
-
-fn strftime(args: BoundArguments) -> FunctionResult {
-    let (arg1, arg2) = args.get2();
-    let datetime = arg1.try_as_datetime()?;
-    let format = arg2.try_as_str()?;
-
-    abstract_strftime(&datetime, &format)
-}
-
-fn custom_strftime(args: BoundArguments, format: &str) -> FunctionResult {
-    let target = args.get1();
-    let datetime = target.try_as_datetime()?;
-
-    abstract_strftime(&datetime, format)
-}
-
-// Urls
-fn urljoin(args: BoundArguments) -> FunctionResult {
-    let mut url = args.get(0).unwrap().try_as_url()?;
-    let addendum = args.get(1).unwrap().try_as_str()?;
-
-    url = url
-        .join(&addendum)
-        .map_err(|_| EvaluationError::Custom("invalid url part to join".to_string()))?;
-
-    // TODO: canonicalize
-    Ok(DynamicValue::from(url.to_string()))
-}
-
-fn lru(args: BoundArguments) -> FunctionResult {
-    let tagged_url = args.get1().try_as_tagged_url()?;
-
-    Ok(DynamicValue::from(LRUStems::from(&tagged_url).to_string()))
-}
-
 // Introspection
 fn type_of(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(args.pop1().type_of()))
@@ -1932,86 +1519,4 @@ fn parse_regex(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(Regex::new(&string).map_err(|_| {
         EvaluationError::Custom(format!("could not parse \"{}\" as regex", string))
     })?))
-}
-
-fn shlex_split(args: BoundArguments) -> FunctionResult {
-    let string = args.get1_str()?;
-
-    if let Some(splitted) = shlex::split(&string) {
-        Ok(DynamicValue::from(
-            splitted
-                .into_iter()
-                .map(DynamicValue::from)
-                .collect::<Vec<_>>(),
-        ))
-    } else {
-        Err(EvaluationError::Custom(format!(
-            "could not split {:?}",
-            args.get1()
-        )))
-    }
-}
-
-fn cmd(mut args: BoundArguments) -> FunctionResult {
-    let (command_name_arg, command_args) = args.pop2();
-
-    let command_name = command_name_arg.try_as_str()?;
-
-    let mut command = Command::new(command_name.as_ref());
-
-    for command_arg in command_args.try_as_list()? {
-        command.arg(command_arg.try_as_str()?.as_ref());
-    }
-
-    if let Ok(mut output) = command.output() {
-        if output.status.success() {
-            let result = &mut output.stdout;
-            result.truncate(result.trim_ascii_end().len());
-
-            Ok(DynamicValue::from_owned_bytes(output.stdout))
-        } else {
-            Err(EvaluationError::Custom(format!(
-                "\"{}\" failed!",
-                command_name
-            )))
-        }
-    } else {
-        Err(EvaluationError::Custom(format!(
-            "error while spawning \"{}\"",
-            command_name
-        )))
-    }
-}
-
-fn shell(args: BoundArguments) -> FunctionResult {
-    let pipeline = args.get1_str()?;
-
-    let mut command = if cfg!(target_os = "windows") {
-        let mut command = Command::new("cmd");
-        command.args(["/C", pipeline.as_ref()]);
-        command
-    } else {
-        let mut command = Command::new(std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string()));
-        command.args(["-c", pipeline.as_ref()]);
-        command
-    };
-
-    if let Ok(mut output) = command.output() {
-        if output.status.success() {
-            let result = &mut output.stdout;
-            result.truncate(result.trim_ascii_end().len());
-
-            Ok(DynamicValue::from_owned_bytes(output.stdout))
-        } else {
-            Err(EvaluationError::Custom(format!(
-                "shell pipeline \"{}\" failed!",
-                pipeline
-            )))
-        }
-    } else {
-        Err(EvaluationError::Custom(format!(
-            "error while running shell pipeline \"{}\"",
-            pipeline
-        )))
-    }
 }
