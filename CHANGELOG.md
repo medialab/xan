@@ -5,6 +5,7 @@
 *Breaking*
 
 * `xan select -n` will not error anymore on empty inputs.
+* `xan heatmap -C/--cram` becomes a flag accepting either `auto`, `always` or `never`.
 
 *Features*
 
@@ -22,6 +23,7 @@
 *Fixes*
 
 * Fixing `xan separate` automatic column prefix extraction.
+* Fixing `xan heatmap -n`.
 
 *Performance*
 

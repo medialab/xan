@@ -21,6 +21,13 @@ fn text_should_be_black(color: &[u8; 4]) -> bool {
 }
 
 #[derive(Deserialize)]
+enum CramMode {
+    Auto,
+    Always,
+    Never,
+}
+
+#[derive(Deserialize)]
 enum Alignment {
     Left,
     Center,
@@ -230,8 +237,9 @@ heatmap options:
                             or -Z/--show-normalized.
     -D, --diverging         Use a diverging color gradient. Currently only shorthand
                             for \"--gradient rd_bu\".
-    -C, --cram              Attempt to cram column labels over the columns.
-                            Usually works better when -S/--size > 1.
+    -C, --cram <choice>     Whether to cram x-axis labels over the heatmap grid columns.
+                            Can be either \"auto\", \"always\" or \"never\".
+                            [default: auto]
     -N, --show-numbers      Whether to attempt to show numbers in the cells.
                             Usually only useful when -S/--size > 1.
                             Cannot be used with -Z/--show-normalized.
@@ -274,7 +282,7 @@ struct Args {
     flag_width: Option<NonZeroUsize>,
     flag_normalize: Normalization,
     flag_diverging: bool,
-    flag_cram: bool,
+    flag_cram: CramMode,
     flag_show_numbers: bool,
     flag_show_normalized: bool,
     flag_align: Alignment,
@@ -411,10 +419,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = simd_csv::ByteRecord::new();
 
-    let column_labels = values_sel
+    let mut column_labels = values_sel
         .select(&headers)
         .map(|cell| String::from_utf8_lossy(cell).into_owned())
         .collect::<Vec<_>>();
+
+    if conf.no_headers {
+        column_labels = (0..column_labels.len()).map(|i| i.to_string()).collect();
+    }
 
     let mut matrix = Matrix::new(column_labels, forced_extent);
 
@@ -469,7 +481,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .collect::<Vec<_>>()
         .join(" ");
 
-    if !args.flag_cram {
+    let actually_cram = match args.flag_cram {
+        CramMode::Always => true,
+        CramMode::Never => false,
+        CramMode::Auto => {
+            matrix
+                .column_labels
+                .iter()
+                .map(|label| label.width())
+                .max()
+                .unwrap()
+                <= width
+        }
+    };
+
+    if !actually_cram {
         writeln!(
             &mut out,
             "{}{}",
@@ -482,7 +508,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let write_headers = || -> CliResult<()> {
         write!(&out, "{}", left_padding)?;
         for (i, col_label) in matrix.column_labels.iter().enumerate() {
-            let label = if !args.flag_cram {
+            let label = if !actually_cram {
                 (i + 1).to_string()
             } else {
                 col_label.to_string()

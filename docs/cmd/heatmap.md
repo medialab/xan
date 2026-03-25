@@ -84,8 +84,9 @@ heatmap options:
                             or -Z/--show-normalized.
     -D, --diverging         Use a diverging color gradient. Currently only shorthand
                             for "--gradient rd_bu".
-    -C, --cram              Attempt to cram column labels over the columns.
-                            Usually works better when -S/--size > 1.
+    -C, --cram <choice>     Whether to cram x-axis labels over the heatmap grid columns.
+                            Can be either "auto", "always" or "never".
+                            [default: auto]
     -N, --show-numbers      Whether to attempt to show numbers in the cells.
                             Usually only useful when -S/--size > 1.
                             Cannot be used with -Z/--show-normalized.
