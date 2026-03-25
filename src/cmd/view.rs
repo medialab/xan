@@ -399,7 +399,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let emoji_sanitizer = util::EmojiSanitizer::new();
 
-    let output = io::stdout();
+    let mut output: Box<dyn Write> = Box::new(io::stdout());
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
     let rows = termsize::get().map(|size| size.rows as usize);
@@ -647,7 +647,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let write_info = || -> Result<(), io::Error> {
+    let write_info = |out: &mut Box<dyn Write>| -> Result<(), io::Error> {
         if args.flag_hide_info {
             return Ok(());
         }
@@ -660,7 +660,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             util::format_number(displayed_columns.len() - len_offset);
 
         writeln!(
-            &output,
+            out,
             "Displaying {} col{} from {} of {}",
             if all_columns_shown {
                 format!("{}", pretty_headers_len.cyan())
@@ -693,69 +693,73 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Bottom,
     }
 
-    let write_horizontal_ruler = |pos: HRPosition| -> Result<(), io::Error> {
-        let mut s = String::new();
+    let write_horizontal_ruler =
+        |out: &mut Box<dyn Write>, pos: HRPosition| -> Result<(), io::Error> {
+            let mut s = String::new();
 
-        if theme.external_borders {
-            s.push(match pos {
-                HRPosition::Bottom => theme.corner_up_left(),
-                HRPosition::Top => theme.corner_bottom_left(),
-                HRPosition::Middle => theme.cross_right(),
-            });
-        }
+            if theme.external_borders {
+                s.push(match pos {
+                    HRPosition::Bottom => theme.corner_up_left(),
+                    HRPosition::Top => theme.corner_bottom_left(),
+                    HRPosition::Middle => theme.cross_right(),
+                });
+            }
 
-        displayed_columns.iter().enumerate().for_each(|(i, col)| {
-            s.push_str(&horizontal_box.repeat(
-                col.allowed_width + 2 * padding.len()
-                    - (if i == 0 && !theme.external_borders {
-                        1
-                    } else {
-                        0
-                    }),
-            ));
+            displayed_columns.iter().enumerate().for_each(|(i, col)| {
+                s.push_str(&horizontal_box.repeat(
+                    col.allowed_width + 2 * padding.len()
+                        - (if i == 0 && !theme.external_borders {
+                            1
+                        } else {
+                            0
+                        }),
+                ));
 
-            if !all_columns_shown && Some(i) == displayed_columns.split_point() {
+                if !all_columns_shown && Some(i) == displayed_columns.split_point() {
+                    s.push(match pos {
+                        HRPosition::Bottom => theme.cross_bottom(),
+                        HRPosition::Top => theme.cross_up(),
+                        HRPosition::Middle => theme.cross_full(),
+                    });
+
+                    s.push_str(&horizontal_box.repeat(1 + 2 * padding.len()));
+                }
+
+                if i == displayed_columns.len() - 1 {
+                    return;
+                }
+
                 s.push(match pos {
                     HRPosition::Bottom => theme.cross_bottom(),
                     HRPosition::Top => theme.cross_up(),
                     HRPosition::Middle => theme.cross_full(),
                 });
+            });
 
-                s.push_str(&horizontal_box.repeat(1 + 2 * padding.len()));
+            if theme.external_borders {
+                s.push(match pos {
+                    HRPosition::Bottom => theme.corner_up_right(),
+                    HRPosition::Top => theme.corner_bottom_right(),
+                    HRPosition::Middle => theme.cross_left(),
+                });
             }
 
-            if i == displayed_columns.len() - 1 {
-                return;
-            }
+            writeln!(out, "{}", s.dimmed())?;
 
-            s.push(match pos {
-                HRPosition::Bottom => theme.cross_bottom(),
-                HRPosition::Top => theme.cross_up(),
-                HRPosition::Middle => theme.cross_full(),
-            });
-        });
+            Ok(())
+        };
 
-        if theme.external_borders {
-            s.push(match pos {
-                HRPosition::Bottom => theme.corner_up_right(),
-                HRPosition::Top => theme.corner_bottom_right(),
-                HRPosition::Middle => theme.cross_left(),
-            });
-        }
-
-        writeln!(&output, "{}", s.dimmed())?;
-
-        Ok(())
-    };
-
-    let write_row = |row: Vec<colored::ColoredString>, mut dimmed: bool| -> Result<(), io::Error> {
+    let write_row = |out: &mut Box<dyn Write>,
+                     row: Vec<colored::ColoredString>,
+                     mut dimmed: bool|
+     -> Result<(), io::Error> {
         if !theme.striped {
             dimmed = false;
         }
 
         if theme.external_borders {
             write!(
-                &output,
+                out,
                 "{}",
                 format!("{}{}", theme.vertical(), padding).dimmed()
             )?;
@@ -764,21 +768,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for (i, cell) in row.iter().enumerate() {
             if i != 0 {
                 write!(
-                    &output,
+                    out,
                     "{}",
                     format!("{}{}{}", padding, theme.vertical(), padding).dimmed()
                 )?;
             }
 
             if dimmed {
-                write!(&output, "{}", cell.clone().reversed())?;
+                write!(out, "{}", cell.clone().reversed())?;
             } else {
-                write!(&output, "{}", cell)?;
+                write!(out, "{}", cell)?;
             }
 
             if !all_columns_shown && Some(i) == displayed_columns.split_point() {
                 write!(
-                    &output,
+                    out,
                     "{}",
                     format!("{}{}{}…", padding, theme.vertical(), padding).dimmed(),
                 )?;
@@ -787,24 +791,27 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if theme.external_borders {
             write!(
-                &output,
+                out,
                 "{}",
                 format!("{}{}", padding, theme.vertical()).dimmed()
             )?;
         }
 
-        writeln!(&output)?;
+        writeln!(out)?;
 
         Ok(())
     };
 
-    let write_headers = |above: bool| -> Result<(), io::Error> {
+    let write_headers = |out: &mut Box<dyn Write>, above: bool| -> Result<(), io::Error> {
         if above || theme.hr_under_headers {
-            write_horizontal_ruler(if above {
-                HRPosition::Bottom
-            } else {
-                HRPosition::Middle
-            })?;
+            write_horizontal_ruler(
+                out,
+                if above {
+                    HRPosition::Bottom
+                } else {
+                    HRPosition::Middle
+                },
+            )?;
         }
 
         let headers_row: Vec<colored::ColoredString> = displayed_columns
@@ -828,21 +835,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(headers_row, false)?;
+        write_row(out, headers_row, false)?;
 
         if !above || theme.hr_under_headers {
-            write_horizontal_ruler(if above {
-                HRPosition::Middle
-            } else {
-                HRPosition::Top
-            })?;
+            write_horizontal_ruler(
+                out,
+                if above {
+                    HRPosition::Middle
+                } else {
+                    HRPosition::Top
+                },
+            )?;
         }
 
         Ok(())
     };
 
-    writeln!(&output)?;
-    write_info()?;
+    writeln!(&mut output)?;
+    write_info(&mut output)?;
 
     // NOTE: we stop if there is nothing to show
     let nothing_to_show =
@@ -853,9 +863,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.flag_hide_headers {
-        write_horizontal_ruler(HRPosition::Bottom)?;
+        write_horizontal_ruler(&mut output, HRPosition::Bottom)?;
     } else {
-        write_headers(true)?;
+        write_headers(&mut output, true)?;
     }
 
     let mut last_group: Option<Vec<String>> = None;
@@ -884,7 +894,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         if need_to_draw_hr {
-            write_horizontal_ruler(HRPosition::Middle)?;
+            write_horizontal_ruler(&mut output, HRPosition::Middle)?;
         }
 
         let row: Vec<colored::ColoredString> = displayed_columns
@@ -926,7 +936,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(row, record_i % 2 == 0)?;
+        write_row(&mut output, row, record_i % 2 == 0)?;
         record_i += 1;
     }
 
@@ -944,20 +954,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             })
             .collect();
 
-        write_row(row, record_i % 2 == 0)?;
+        write_row(&mut output, row, record_i % 2 == 0)?;
     }
 
     if need_to_repeat_headers {
         if args.flag_hide_headers {
-            write_horizontal_ruler(HRPosition::Top)?;
+            write_horizontal_ruler(&mut output, HRPosition::Top)?;
         } else {
-            write_headers(false)?;
+            write_headers(&mut output, false)?;
         }
-        write_info()?;
-        writeln!(&output)?;
+        write_info(&mut output)?;
+        writeln!(&mut output)?;
     } else {
-        write_horizontal_ruler(HRPosition::Top)?;
-        writeln!(&output)?;
+        write_horizontal_ruler(&mut output, HRPosition::Top)?;
+        writeln!(&mut output)?;
     }
 
     Ok(())
