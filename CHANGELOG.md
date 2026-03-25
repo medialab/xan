@@ -21,6 +21,7 @@
 * Adding new gradients to `xan heatmap`.
 * Adding `range` & `repeat` moonblade functions.
 * Adding `xan sort --columns`.
+* Adding `xan view -T/--tee`.
 
 *Fixes*
 

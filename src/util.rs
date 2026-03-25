@@ -108,6 +108,10 @@ impl ColorMode {
         matches!(self, Self::Auto)
     }
 
+    pub fn is_never(&self) -> bool {
+        matches!(self, Self::Never)
+    }
+
     pub fn apply(&self) {
         match self {
             Self::Never => colored::control::set_override(false),

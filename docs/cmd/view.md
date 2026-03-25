@@ -44,8 +44,8 @@ view options:
                                 This flag does not work on windows!
     -A, --all                   Remove the row limit and display everything.
     -l, --limit <number>        Maximum of rows to read into memory. Use -A, --all or
-                                set to 0 to disable the limit.
-                                [default: 100]
+                                set to 0 to disable the limit. Defaults to 100 rows, or 5 rows
+                                when -T/--tee is set.
     -R, --rainbow               Alternating colors for columns, rather than color by value type.
     --cols <num>                Width of the graph in terminal columns, i.e. characters.
                                 Defaults to using all your terminal's width or 80 if
@@ -76,6 +76,10 @@ view options:
                                 revealed when color is enabled for the output. Use `auto` for
                                 automatic detection, `never` or `always`.
                                 [default: auto]
+    -T, --tee                   When used, will print the table to stderr and forward given stream
+                                to stdout. Very useful to print transitional tables in pipes.
+                                Default --limit will be set to 5 and implies --color=always
+                                as well as --repeat-headers=never. Incompatible with -p/--pager.
 
 Common options:
     -h, --help             Display this message

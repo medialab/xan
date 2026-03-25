@@ -8,6 +8,7 @@ use numfmt::{Formatter, Precision};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
+use crate::read::LeakySponge;
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
@@ -244,8 +245,8 @@ view options:
                                 This flag does not work on windows!
     -A, --all                   Remove the row limit and display everything.
     -l, --limit <number>        Maximum of rows to read into memory. Use -A, --all or
-                                set to 0 to disable the limit.
-                                [default: 100]
+                                set to 0 to disable the limit. Defaults to 100 rows, or 5 rows
+                                when -T/--tee is set.
     -R, --rainbow               Alternating colors for columns, rather than color by value type.
     --cols <num>                Width of the graph in terminal columns, i.e. characters.
                                 Defaults to using all your terminal's width or 80 if
@@ -276,6 +277,10 @@ view options:
                                 revealed when color is enabled for the output. Use `auto` for
                                 automatic detection, `never` or `always`.
                                 [default: auto]
+    -T, --tee                   When used, will print the table to stderr and forward given stream
+                                to stdout. Very useful to print transitional tables in pipes.
+                                Default --limit will be set to 5 and implies --color=always
+                                as well as --repeat-headers=never. Incompatible with -p/--pager.
 
 Common options:
     -h, --help             Display this message
@@ -296,7 +301,7 @@ struct Args {
     flag_no_headers: bool,
     flag_color: ColorMode,
     flag_all: bool,
-    flag_limit: usize,
+    flag_limit: Option<usize>,
     flag_rainbow: bool,
     flag_expand: bool,
     flag_sanitize_emojis: bool,
@@ -308,20 +313,25 @@ struct Args {
     flag_significance: Option<NonZeroUsize>,
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
+    flag_tee: bool,
 }
 
 impl Args {
     fn resolve(&mut self) {
         if self.flag_all {
-            self.flag_limit = 0;
+            self.flag_limit = Some(0);
         }
 
         if self.flag_no_headers {
             self.flag_hide_headers = true;
         }
 
-        if self.flag_pager {
+        if (self.flag_pager || self.flag_tee) && !self.flag_color.is_never() {
             self.flag_color = ColorMode::Always;
+        }
+
+        if self.flag_limit.is_none() {
+            self.flag_limit = Some(if self.flag_tee { 5 } else { 100 });
         }
     }
 
@@ -354,7 +364,7 @@ impl Args {
             from_argv.flag_sanitize_emojis = true;
         }
 
-        if from_argv.flag_limit == 100 && from_env.flag_limit != 100 {
+        if from_argv.flag_limit.is_none() && from_env.flag_limit.is_some() {
             from_argv.flag_limit = from_env.flag_limit;
         }
 
@@ -380,8 +390,7 @@ impl Args {
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let mut args: Args = util::get_args(USAGE, argv)?;
-    args.resolve();
+    let cli_args: Args = util::get_args(USAGE, argv)?;
 
     let mut env_var_argv = vec!["xan", "view"];
     let env_var_split =
@@ -391,15 +400,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         env_var_argv.push(env_arg);
     }
 
-    let mut env_args: Args = util::get_args(USAGE, &env_var_argv)?;
-    env_args.resolve();
+    let env_args: Args = util::get_args(USAGE, &env_var_argv)?;
 
-    let mut args = Args::merge(env_args, args);
+    let mut args = Args::merge(env_args, cli_args);
+    args.resolve();
     args.flag_color.apply();
 
-    let emoji_sanitizer = util::EmojiSanitizer::new();
+    if args.flag_tee && args.flag_pager {
+        Err("-T/--tee does not work with -p/--pager!")?;
+    }
 
-    let mut output: Box<dyn Write> = Box::new(io::stdout());
+    let emoji_sanitizer_opt = args.flag_sanitize_emojis.then(util::EmojiSanitizer::new);
+
+    let mut output: Box<dyn Write> = if args.flag_tee {
+        Box::new(io::stderr())
+    } else {
+        Box::new(io::stdout())
+    };
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
     let rows = termsize::get().map(|size| size.rows as usize);
@@ -419,7 +436,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.flag_hide_headers = true;
     }
 
-    let mut rdr = rconfig.reader()?;
+    let io_rdr = rconfig.io_reader()?;
+
+    let mut sponge = LeakySponge::new(io_rdr, !args.flag_tee);
+    let mut rdr = rconfig.csv_reader_from_reader(&mut sponge);
+
     let byte_headers = rdr.byte_headers()?.clone();
     let mut sel = rconfig.selection(&byte_headers)?;
 
@@ -502,7 +523,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     });
 
     let records = {
-        let limit = args.flag_limit;
+        let limit = args.flag_limit.unwrap();
 
         let mut r_iter = rdr.into_records().enumerate();
 
@@ -519,8 +540,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                             cell = util::sanitize_text_for_single_line_printing(&cell);
 
-                            if args.flag_sanitize_emojis {
-                                cell = emoji_sanitizer.sanitize(&cell);
+                            if let Some(sanitizer) = &emoji_sanitizer_opt {
+                                cell = sanitizer.sanitize(&cell);
                             }
 
                             if let Some(fmt) = number_formatter.as_mut() {
@@ -564,7 +585,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 Some(r) => records.len() + HEADERS_ROWS > r,
             };
 
-            if args.flag_pager {
+            if args.flag_pager || args.flag_tee {
                 auto = false;
             }
 
@@ -968,6 +989,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         write_horizontal_ruler(&mut output, HRPosition::Top)?;
         writeln!(&mut output)?;
+    }
+
+    if args.flag_tee {
+        let mut leaked = sponge.leak();
+
+        io::copy(&mut leaked, &mut io::stdout())?;
     }
 
     Ok(())

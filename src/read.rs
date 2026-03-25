@@ -1,4 +1,4 @@
-use std::io::{self, Cursor, Read};
+use std::io::{self, Chain, Cursor, Read};
 
 use regex::bytes::Regex;
 
@@ -108,5 +108,40 @@ pub fn consume_lines<R: Read>(
         Ok(Some((pos, fixed_reader)))
     } else {
         Ok(None)
+    }
+}
+
+pub struct LeakySponge<R> {
+    inner: R,
+    buffer: Vec<u8>,
+    holey: bool,
+}
+
+impl<R: Read> LeakySponge<R> {
+    pub fn new(reader: R, holey: bool) -> Self {
+        Self {
+            inner: reader,
+            buffer: Vec::new(),
+            holey,
+        }
+    }
+
+    pub fn leak(self) -> Chain<Cursor<Vec<u8>>, R> {
+        Cursor::new(self.buffer).chain(self.inner)
+    }
+}
+
+impl<R: Read> Read for LeakySponge<R> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self.inner.read(buf) {
+            Err(e) => Err(e),
+            Ok(amount) => {
+                if !self.holey {
+                    self.buffer.extend_from_slice(&buf[..amount]);
+                }
+                Ok(amount)
+            }
+        }
     }
 }
