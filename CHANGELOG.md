@@ -24,6 +24,7 @@
 
 * Fixing `xan separate` automatic column prefix extraction.
 * Fixing `xan heatmap -n`.
+* Fixing `xan heatmap --repeat-headers --cram always` not repeating x-axis legend.
 
 *Performance*
 

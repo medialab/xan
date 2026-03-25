@@ -495,14 +495,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     };
 
-    if !actually_cram {
+    let print_legend = || -> CliResult<()> {
         writeln!(
-            &mut out,
+            &out,
             "{}{}",
             left_padding,
             util::wrap(&column_info, cols.saturating_sub(label_cols), label_cols)
         )?;
-        writeln!(&mut out)?;
+        writeln!(&out)?;
+
+        Ok(())
+    };
+
+    if !actually_cram {
+        print_legend()?;
     }
 
     let write_headers = || -> CliResult<()> {
@@ -541,6 +547,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     for (row_i, (row_label, row)) in matrix.rows().enumerate() {
         if let Some(repeat_headers_limit) = repeat_headers_opt {
             if row_i > 0 && row_i % repeat_headers_limit == 0 {
+                if !actually_cram {
+                    writeln!(&out)?;
+                    print_legend()?;
+                }
+
                 write_headers()?;
             }
         }
