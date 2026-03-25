@@ -7,9 +7,9 @@ use simd_csv::ByteRecord;
 use crate::collections::HashMap;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
+use super::functions::special::{get_special_function, RuntimeFunction as SpecialFunction};
 use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
-use super::special_functions::{get_special_function, RuntimeFunction as SpecialFunction};
 use super::types::{
     BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments,
     HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,

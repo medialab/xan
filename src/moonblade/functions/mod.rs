@@ -34,6 +34,8 @@ use super::agg::aggregators::{Sum, Welford};
 use super::error::EvaluationError;
 use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
+pub mod special;
+
 type FunctionResult = Result<DynamicValue, EvaluationError>;
 pub type Function = fn(BoundArguments) -> FunctionResult;
 
