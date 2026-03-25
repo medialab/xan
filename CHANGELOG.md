@@ -6,6 +6,7 @@
 
 * `xan select -n` will not error anymore on empty inputs.
 * `xan heatmap -C/--cram` becomes a flag accepting either `auto`, `always` or `never`.
+* Dropping `-C` short flag for `xan sort --cells` (it could be confused with `--columns` or `--check`).
 
 *Features*
 
@@ -19,6 +20,7 @@
 * Adding `xan heatmap` flags: `-w/--width`, `-F/--fill`, `-a/--align`, `-U/--unit`, `-Z/--show-normalized`, `-A/--ascii`, `-l/--label` & `-v/--values`.
 * Adding new gradients to `xan heatmap`.
 * Adding `range` & `repeat` moonblade functions.
+* Adding `xan sort --columns`.
 
 *Fixes*
 

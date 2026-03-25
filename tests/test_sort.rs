@@ -415,3 +415,35 @@ fn sort_cells() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn sort_columns() {
+    let wrk = Workdir::new("sort_columns");
+    wrk.create(
+        "in.csv",
+        vec![svec!["c", "a", "d", "b"], svec!["1", "2", "3", "4"]],
+    );
+
+    let mut cmd = wrk.command("sort");
+    cmd.arg("--columns").arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["a", "b", "c", "d"], svec!["2", "4", "1", "3"]];
+    assert_eq!(got, expected);
+
+    // --reverse
+    let mut cmd = wrk.command("sort");
+    cmd.arg("--columns").arg("-R").arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["d", "c", "b", "a"], svec!["3", "1", "4", "2"]];
+    assert_eq!(got, expected);
+
+    // --select
+    let mut cmd = wrk.command("sort");
+    cmd.arg("--columns").args(["-s", "c,b"]).arg("in.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["b", "a", "d", "c"], svec!["4", "2", "3", "1"]];
+    assert_eq!(got, expected);
+}

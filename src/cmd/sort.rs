@@ -80,7 +80,9 @@ sort options:
                               sorting an incoming stream.
     -m, --memory-limit <arg>  Maximum allowed memory when using external sorting, in
                               megabytes. [default: 512].
-    -C, --cells               Sort the selected cell values instead of the file itself,
+    --columns                 Sort selected columns alphabetically by their names. Runs in
+                              constant memory and can be streamed.
+    --cells                   Sort the selected cell values instead of the file itself,
                               without re-ordering the columns. Runs in constant memory,
                               can be streamed and can be used to e.g. make sure an
                               edgelist always has the source & target keys in a consistent
@@ -115,6 +117,7 @@ struct Args {
     flag_tmp_dir: Option<String>,
     flag_memory_limit: u64,
     flag_cells: bool,
+    flag_columns: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -125,6 +128,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
         .select(args.flag_select);
+
+    let modes = args.flag_check as u8 + args.flag_cells as u8 + args.flag_columns as u8;
+
+    if modes > 1 {
+        Err("only one of --check, --cells or --columns must be selected!")?;
+    }
+
     let count = &args.flag_count;
 
     if !count.is_none() && !args.flag_uniq {
@@ -138,7 +148,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconfig.simd_reader()?;
 
     let mut headers = rdr.byte_headers()?.clone();
-    let sel = rconfig.selection(&headers)?;
+    let mut sel = rconfig.selection(&headers)?;
+    sel.dedup();
 
     // Checking order
     if args.flag_check {
@@ -283,6 +294,52 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             wtr.write_byte_record(&output_record)?;
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Sorting columns
+    if args.flag_columns {
+        if args.flag_no_headers {
+            Err("--columns does not work with -n/--no-headers!")?;
+        }
+
+        if args.flag_numeric {
+            Err("--columns does not work with -N/--numeric!")?;
+        }
+
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+
+        let mut record = ByteRecord::new();
+
+        let mut argsort = sel
+            .select(&headers)
+            .zip(sel.iter().copied())
+            .collect::<Vec<_>>();
+
+        if args.flag_reverse {
+            argsort.sort_by(|a, b| b.cmp(a));
+        } else {
+            argsort.sort();
+        }
+
+        let mut reordering = vec![];
+        let mut j: usize = 0;
+
+        for i in 0..headers.len() {
+            if sel.contains(i) {
+                reordering.push(argsort[j].1);
+                j += 1;
+            } else {
+                reordering.push(i);
+            }
+        }
+
+        wtr.write_record(reordering.iter().map(|i| &headers[*i]))?;
+
+        while rdr.read_byte_record(&mut record)? {
+            wtr.write_record(reordering.iter().map(|i| &record[*i]))?;
         }
 
         return Ok(wtr.flush()?);
