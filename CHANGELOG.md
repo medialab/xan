@@ -19,6 +19,10 @@
 * Adding new gradients to `xan heatmap`.
 * Adding `range` & `repeat` moonblade functions.
 
+*Fixes*
+
+* Fixing `xan separate` automatic column prefix extraction.
+
 *Performance*
 
 * Faster `xan top`.

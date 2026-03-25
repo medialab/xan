@@ -127,7 +127,7 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
-    arg_column: String,
+    arg_column: SelectedColumns,
     arg_separator: String,
     arg_input: Option<String>,
     flag_regex: bool,
@@ -378,12 +378,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         _ => (),
     }
 
-    let column_to_separate_name = args.arg_column;
-    let column_to_separate_sel = SelectedColumns::try_from(column_to_separate_name.clone())?;
-
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
-        .select(column_to_separate_sel)
+        .select(args.arg_column.clone())
         .delimiter(args.flag_delimiter);
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
@@ -500,7 +497,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         let mut number_of_new_columns = max_splits;
-        let prefix = args.flag_prefix.unwrap_or(column_to_separate_name);
+
+        let prefix = args
+            .flag_prefix
+            .unwrap_or(String::from_utf8_lossy(&headers[separated_column_index]).into_owned());
 
         if let Some(names) = &new_column_names {
             new_headers.extend(names);
