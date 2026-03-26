@@ -18,20 +18,20 @@ impl ZonedExtent {
         self.extent = None;
     }
 
-    pub fn add(&mut self, value: &Zoned) {
-        match &mut self.extent {
-            None => self.extent = Some((value.clone(), value.clone())),
-            Some((min, max)) => {
-                if value < *min {
-                    *min = value.clone();
-                }
+    // pub fn add(&mut self, value: &Zoned) {
+    //     match &mut self.extent {
+    //         None => self.extent = Some((value.clone(), value.clone())),
+    //         Some((min, max)) => {
+    //             if value < *min {
+    //                 *min = value.clone();
+    //             }
 
-                if value > *max {
-                    *max = value.clone();
-                }
-            }
-        }
-    }
+    //             if value > *max {
+    //                 *max = value.clone();
+    //             }
+    //         }
+    //     }
+    // }
 
     pub fn earliest(&self) -> Option<Zoned> {
         self.extent.as_ref().map(|(z, _)| z.clone())

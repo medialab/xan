@@ -19,7 +19,6 @@ use serde::{
 use url::Url;
 
 use crate::collections::HashMap;
-use crate::dates;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::utils::downgrade_float;
 use crate::urls::TaggedUrl;
@@ -45,13 +44,6 @@ pub enum DynamicValue {
     Time(Time),
     #[default]
     None,
-}
-
-// const DEFAULT_ZONED_FORMAT: &str = "%FT%T%.f[%Z]";
-
-fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
-    dates::parse_zoned(value, None, None)
-        .map_err(|err| EvaluationError::from_zoned_parse_error(value, None, None, err))
 }
 
 impl Serialize for DynamicValue {

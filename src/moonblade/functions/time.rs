@@ -167,7 +167,7 @@ pub fn with_timezone(mut args: BoundArguments) -> FunctionResult {
             let tz = tz_arg.try_as_timezone()?;
 
             datetime.to_zoned(tz).map_err(|_| EvaluationError::TimeRelated(
-                format!("could not solve ambiguity")
+                "could not solve ambiguity".to_string()
             )).map(DynamicValue::from)
         },
         _ => Err(EvaluationError::TimeRelated(format!(
@@ -183,7 +183,7 @@ pub fn with_local_timezone(mut args: BoundArguments) -> FunctionResult {
     match arg {
         DynamicValue::DateTime(datetime) => {
             datetime.to_zoned(TimeZone::system()).map_err(|_| EvaluationError::TimeRelated(
-                format!("could not solve ambiguity")
+                "could not solve ambiguity".to_string()
             )).map(DynamicValue::from)
         },
         _ => Err(EvaluationError::TimeRelated(format!(
@@ -202,9 +202,9 @@ pub fn to_timezone(mut args: BoundArguments) -> FunctionResult {
 
             Ok(DynamicValue::from(zoned.with_time_zone(tz)))
         },
-        DynamicValue::DateTime(_) => Err(EvaluationError::TimeRelated(format!(
-            "cannot convert timezone of a datetime having no timezone. Use `with_timezone` or `with_local_timezone` to indicate its timezone instead.",
-        ))),
+        DynamicValue::DateTime(_) => Err(EvaluationError::TimeRelated(
+            "cannot convert timezone of a datetime having no timezone. Use `with_timezone` or `with_local_timezone` to indicate its timezone instead.".to_string()
+        )),
         _ => Err(EvaluationError::TimeRelated(format!(
             "cannot convert timezone of a \"{}\"",
             arg.type_of()
@@ -219,9 +219,9 @@ pub fn to_local_timezone(mut args: BoundArguments) -> FunctionResult {
         DynamicValue::Zoned(zoned) => {
             Ok(DynamicValue::from(zoned.with_time_zone(TimeZone::system())))
         },
-        DynamicValue::DateTime(_) => Err(EvaluationError::TimeRelated(format!(
-            "cannot convert timezone of a datetime having no timezone. Use `with_timezone` or `with_local_timezone` to indicate its timezone instead.",
-        ))),
+        DynamicValue::DateTime(_) => Err(EvaluationError::TimeRelated(
+            "cannot convert timezone of a datetime having no timezone. Use `with_timezone` or `with_local_timezone` to indicate its timezone instead.".to_string()
+        )),
         _ => Err(EvaluationError::TimeRelated(format!(
             "cannot convert timezone of a \"{}\"",
             arg.type_of()
