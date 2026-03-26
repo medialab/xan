@@ -631,6 +631,7 @@ impl PartialEq for DynamicValue {
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
             (Self::Zoned(a), Self::Zoned(b)) => a == b,
+            (Self::DateTime(a), Self::DateTime(b)) => a == b,
             (Self::None, Self::None) => true,
             _ => false,
         }

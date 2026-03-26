@@ -25,13 +25,38 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
     };
 
     match format_arg_opt {
-        Some(format_arg) => todo!(),
+        Some(format_arg) => {
+            // Early returns mapping to errors
+            if matches!(arg, DynamicValue::Zoned(_) | DynamicValue::DateTime(_)) {
+                return Err(EvaluationError::Custom(
+                    "cannot call on a value that is already a datetime".to_string(),
+                ));
+            }
+
+            // Using a strptime format
+            let format = format_arg.try_as_bytes()?;
+            let string = arg.try_as_bytes()?;
+
+            match strtime::parse(format, string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "cannot parse {:?} as a datetime using this format {:?}",
+                    arg, format_arg
+                ))),
+                Ok(broken_down_time) => match broken_down_time.to_zoned() {
+                    Err(_) => match broken_down_time.to_datetime() {
+                        Err(_) => Err(EvaluationError::TimeRelated(format!(
+                            "cannot parse {:?} as a datetime using this format {:?}",
+                            arg, format_arg
+                        ))),
+                        Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                    },
+                    Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                },
+            }
+        }
         None => {
             // Early returns mapping to no-ops
-            if let DynamicValue::Zoned(_) = arg {
-                return Ok(arg);
-            }
-            if let DynamicValue::DateTime(_) = arg {
+            if matches!(arg, DynamicValue::Zoned(_) | DynamicValue::DateTime(_)) {
                 return Ok(arg);
             }
 
@@ -85,6 +110,11 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
         }
     }
 }
+
+// pub fn to_timezone(mut args: BoundArguments) -> FunctionResult {
+//     let (datetime_arg, tz_arg) = args.pop2();
+
+// }
 
 // pub fn timestamp(args: BoundArguments) -> FunctionResult {
 //     let seconds = args.get1().try_as_i64()?;
