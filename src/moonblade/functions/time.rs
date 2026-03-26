@@ -171,7 +171,7 @@ pub fn with_timezone(mut args: BoundArguments) -> FunctionResult {
             )).map(DynamicValue::from)
         },
         _ => Err(EvaluationError::TimeRelated(format!(
-            "can only add a timezone to a datetime that does not have one already {:?}. To convert a date to another timezone use `to_timezone` instead",
+            "can only add a timezone to a datetime that does not have one already {:?}. To convert a date to another timezone use `to_timezone` or `to_local_timezone` instead",
             arg
         ))),
     }
@@ -189,6 +189,42 @@ pub fn with_local_timezone(mut args: BoundArguments) -> FunctionResult {
         _ => Err(EvaluationError::TimeRelated(format!(
             "can only add a timezone to a datetime that does not have one already {:?}. To convert a date to another timezone use `to_timezone` instead",
             arg
+        ))),
+    }
+}
+
+pub fn to_timezone(mut args: BoundArguments) -> FunctionResult {
+    let (arg, tz_arg) = args.pop2();
+
+    match arg {
+        DynamicValue::Zoned(zoned) => {
+            let tz = tz_arg.try_as_timezone()?;
+
+            Ok(DynamicValue::from(zoned.with_time_zone(tz)))
+        },
+        DynamicValue::DateTime(_) => Err(EvaluationError::TimeRelated(format!(
+            "cannot convert timezone of a datetime having no timezone. Use `with_timezone` or `with_local_timezone` to indicate its timezone instead.",
+        ))),
+        _ => Err(EvaluationError::TimeRelated(format!(
+            "cannot convert timezone of a \"{}\"",
+            arg.type_of()
+        ))),
+    }
+}
+
+pub fn to_local_timezone(mut args: BoundArguments) -> FunctionResult {
+    let arg = args.pop1();
+
+    match arg {
+        DynamicValue::Zoned(zoned) => {
+            Ok(DynamicValue::from(zoned.with_time_zone(TimeZone::system())))
+        },
+        DynamicValue::DateTime(_) => Err(EvaluationError::TimeRelated(format!(
+            "cannot convert timezone of a datetime having no timezone. Use `with_timezone` or `with_local_timezone` to indicate its timezone instead.",
+        ))),
+        _ => Err(EvaluationError::TimeRelated(format!(
+            "cannot convert timezone of a \"{}\"",
+            arg.type_of()
         ))),
     }
 }

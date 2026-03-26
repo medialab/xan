@@ -1498,6 +1498,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_to_timezone() {
+        assert!(eval_code("'2024-07-11T03:14:00'.datetime().to_timezone('UTC')").is_err());
+        assert_eq!(
+            eval_code("'2024-07-11T03:14:00[Europe/Paris]'.datetime().to_timezone('UTC')"),
+            Ok(DynamicValue::from(
+                "2024-07-11T01:14:00[UTC]".parse::<Zoned>().unwrap()
+            ))
+        );
+    }
+
     // #[test]
     // fn test_year_month_day() {
     //     assert_eq!(
