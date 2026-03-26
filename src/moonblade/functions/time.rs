@@ -1,11 +1,4 @@
-use jiff::{
-    civil::DateTime,
-    fmt::{
-        strtime,
-        temporal::{DateTimeParser, PiecesOffset},
-    },
-    tz::{OffsetConflict, TimeZone},
-};
+use jiff::tz::TimeZone;
 
 use crate::dates::{
     parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, MaybeZonedParseError,
@@ -14,8 +7,6 @@ use crate::dates::{
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::types::{BoundArguments, DynamicValue};
-
-static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
 
 pub fn datetime(mut args: BoundArguments) -> FunctionResult {
     let (arg, format_arg_opt) = if args.len() == 2 {
@@ -61,73 +52,28 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
             // Attempting to parse
             let string = arg.try_as_bytes()?;
 
-            match DEFAULT_DATETIME_PARSER.parse_pieces(string) {
-                Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "cannot parse {:?} as a datetime",
-                    arg
-                ))),
-                Ok(pieces) => match pieces.time() {
-                    None => Err(EvaluationError::TimeRelated(format!(
-                        "{:?} does not contain a time",
-                        arg,
-                    ))),
-                    Some(time) => {
-                        let datetime = DateTime::from_parts(pieces.date(), time);
-
-                        if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
-                            // We have a civil datetime
-                            Ok(DynamicValue::from(datetime))
-                        } else {
-                            // We have a timestamp
-                            if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
-                                return Ok(DynamicValue::from(
-                                    datetime.to_zoned(TimeZone::UTC).unwrap(),
-                                ));
-                            }
-
-                            let conflict_resolution = OffsetConflict::Reject;
-
-                            // We might have a correct zoned
-                            let ambiguous = match pieces.to_time_zone() {
-                                Ok(None) => {
-                                    let Some(offset) = pieces.to_numeric_offset() else {
-                                        return Err(EvaluationError::TimeRelated(format!(
-                                            "{:?} has no timezone nor offset",
-                                            arg
-                                        )));
-                                    };
-
-                                    TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
-                                }
-                                Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                                    None => tz.into_ambiguous_zoned(datetime),
-                                    Some(offset) => conflict_resolution
-                                        .resolve(datetime, offset, tz)
-                                        .map_err(|_| {
-                                            EvaluationError::TimeRelated(format!(
-                                                "{:?} has conflicting timezone & offset",
-                                                arg
-                                            ))
-                                        })?,
-                                },
-                                Err(_) => {
-                                    return Err(EvaluationError::TimeRelated(format!(
-                                        "{:?} timezone information is invalid",
-                                        arg,
-                                    )));
-                                }
-                            };
-
-                            match ambiguous.compatible() {
-                                Err(_) => Err(EvaluationError::TimeRelated(format!(
-                                        "{:?} datetime cannot be parsed because of unresolved unambiguity",
-                                        arg,
-                                    ))),
-                                Ok(zoned) => Ok(DynamicValue::from(zoned))
-                            }
-                        }
+            match parse_maybe_zoned(string) {
+                Err(err) => Err(EvaluationError::TimeRelated(match err {
+                    MaybeZonedParseError::CannotParse(_) => {
+                        format!("cannot parse {:?} as a datetime", arg)
                     }
-                },
+                    MaybeZonedParseError::DoesNotContainTime => {
+                        format!("{:?} does not contain a time", arg)
+                    }
+                    MaybeZonedParseError::NoValidTimezoneInfo => {
+                        format!("{:?} does not contain valid timezone information", arg)
+                    }
+                    MaybeZonedParseError::ConflictingTimezoneAndOffset => {
+                        format!("{:?} has conflicting timezone & offset", arg)
+                    }
+                    MaybeZonedParseError::UnresolvedAmbiguity => {
+                        format!("{:?} contains some unresolved ambiguity", arg)
+                    }
+                })),
+                Ok(maybe) => Ok(match maybe {
+                    MaybeZoned::Civil(datetime) => DynamicValue::from(datetime),
+                    MaybeZoned::Zoned(zoned) => DynamicValue::from(zoned),
+                }),
             }
         }
     }

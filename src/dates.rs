@@ -313,6 +313,7 @@ pub enum MaybeZoned {
 }
 
 pub enum MaybeZonedParseError {
+    #[allow(dead_code)]
     CannotParse(Error),
     DoesNotContainTime,
     NoValidTimezoneInfo,
