@@ -4,7 +4,7 @@ use jiff::{
         strtime,
         temporal::{DateTimeParser, PiecesOffset},
     },
-    tz::TimeZone,
+    tz::{OffsetConflict, TimeZone},
 };
 
 use super::FunctionResult;
@@ -99,19 +99,45 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
                                 ));
                             }
 
-                            // We have a zoned
-                            match pieces.to_time_zone() {
-                                Ok(Some(tz)) => match datetime.to_zoned(tz) {
-                                    Err(_) => Err(EvaluationError::TimeRelated(format!(
-                                        "{:?} is ambiguous",
+                            let conflict_resolution = OffsetConflict::Reject;
+
+                            // We might have a correct zoned
+                            let ambiguous = match pieces.to_time_zone() {
+                                Ok(None) => {
+                                    let Some(offset) = pieces.to_numeric_offset() else {
+                                        return Err(EvaluationError::TimeRelated(format!(
+                                            "{:?} has no timezone nor offset",
+                                            arg
+                                        )));
+                                    };
+
+                                    TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                                }
+                                Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                                    None => tz.into_ambiguous_zoned(datetime),
+                                    Some(offset) => conflict_resolution
+                                        .resolve(datetime, offset, tz)
+                                        .map_err(|_| {
+                                            EvaluationError::TimeRelated(format!(
+                                                "{:?} has conflicting timezone & offset",
+                                                arg
+                                            ))
+                                        })?,
+                                },
+                                Err(_) => {
+                                    return Err(EvaluationError::TimeRelated(format!(
+                                        "{:?} timezone information is invalid",
+                                        arg,
+                                    )));
+                                }
+                            };
+
+                            match ambiguous.compatible() {
+                                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                                        "{:?} datetime cannot be parsed because of unresolved unambiguity",
                                         arg,
                                     ))),
-                                    Ok(zoned) => Ok(DynamicValue::from(zoned)),
-                                },
-                                _ => Err(EvaluationError::TimeRelated(format!(
-                                    "{:?} timezone information is invalid",
-                                    arg,
-                                ))),
+                                Ok(zoned) => Ok(DynamicValue::from(zoned))
                             }
                         }
                     }
