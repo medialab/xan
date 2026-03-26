@@ -5,10 +5,7 @@ use jiff::{
         temporal::{DateTimeParser, PiecesOffset},
     },
     tz::TimeZone,
-    Timestamp, Zoned,
 };
-
-use crate::dates;
 
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
@@ -33,25 +30,38 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
                 ));
             }
 
+            let err = || -> Result<DynamicValue, EvaluationError> {
+                Err(EvaluationError::TimeRelated(format!(
+                    "cannot parse {:?} as a datetime using this format {:?}",
+                    arg, format_arg
+                )))
+            };
+
             // Using a strptime format
             let format = format_arg.try_as_bytes()?;
             let string = arg.try_as_bytes()?;
 
             match strtime::parse(format, string) {
-                Err(_) => Err(EvaluationError::TimeRelated(format!(
-                    "cannot parse {:?} as a datetime using this format {:?}",
-                    arg, format_arg
-                ))),
-                Ok(broken_down_time) => match broken_down_time.to_zoned() {
-                    Err(_) => match broken_down_time.to_datetime() {
-                        Err(_) => Err(EvaluationError::TimeRelated(format!(
-                            "cannot parse {:?} as a datetime using this format {:?}",
-                            arg, format_arg
-                        ))),
-                        Ok(datetime) => Ok(DynamicValue::from(datetime)),
-                    },
-                    Ok(zoned) => Ok(DynamicValue::from(zoned)),
-                },
+                Err(_) => err(),
+                Ok(broken_down_time) => {
+                    // If parsed time does not have any timezone info we attempt
+                    // to parse it a simple datetime
+                    if broken_down_time.offset().is_none()
+                        && broken_down_time.iana_time_zone().is_none()
+                    {
+                        match broken_down_time.to_datetime() {
+                            Err(_) => err(),
+                            Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                        }
+                    }
+                    // Else we can attempt to parse it as a zoned
+                    else {
+                        match broken_down_time.to_zoned() {
+                            Err(_) => err(),
+                            Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                        }
+                    }
+                }
             }
         }
         None => {
@@ -79,17 +89,17 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
                         let datetime = DateTime::from_parts(pieces.date(), time);
 
                         if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
-                            // We are a civil datetime
+                            // We have a civil datetime
                             Ok(DynamicValue::from(datetime))
                         } else {
-                            // We are a timestamp
+                            // We have a timestamp
                             if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
                                 return Ok(DynamicValue::from(
                                     datetime.to_zoned(TimeZone::UTC).unwrap(),
                                 ));
                             }
 
-                            // We are a zoned
+                            // We have a zoned
                             match pieces.to_time_zone() {
                                 Ok(Some(tz)) => match datetime.to_zoned(tz) {
                                     Err(_) => Err(EvaluationError::TimeRelated(format!(
