@@ -612,6 +612,18 @@ impl From<DateTime> for DynamicValue {
     }
 }
 
+impl From<Date> for DynamicValue {
+    fn from(value: Date) -> Self {
+        DynamicValue::Date(value)
+    }
+}
+
+impl From<Time> for DynamicValue {
+    fn from(value: Time) -> Self {
+        DynamicValue::Time(value)
+    }
+}
+
 impl<T> From<Option<T>> for DynamicValue
 where
     T: Into<DynamicValue>,
