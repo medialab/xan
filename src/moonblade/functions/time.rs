@@ -1,8 +1,6 @@
 use jiff::tz::TimeZone;
 
-use crate::dates::{
-    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, MaybeZonedParseError,
-};
+use crate::dates::{parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned};
 
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
@@ -30,10 +28,12 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
             let string = arg.try_as_bytes()?;
 
             parse_maybe_zoned_with_format(format, string)
-                .map_err(|_| {
+                .map_err(|err| {
                     EvaluationError::TimeRelated(format!(
-                        "cannot parse {:?} as a datetime using this format {:?}",
-                        arg, format_arg
+                        "{} (value: {:?}, format: {:?})",
+                        err.as_str(),
+                        arg,
+                        format_arg
                     ))
                 })
                 .map(|maybe| match maybe {
@@ -53,23 +53,11 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
             let string = arg.try_as_bytes()?;
 
             match parse_maybe_zoned(string) {
-                Err(err) => Err(EvaluationError::TimeRelated(match err {
-                    MaybeZonedParseError::CannotParse(_) => {
-                        format!("cannot parse {:?} as a datetime", arg)
-                    }
-                    MaybeZonedParseError::DoesNotContainTime => {
-                        format!("{:?} does not contain a time", arg)
-                    }
-                    MaybeZonedParseError::NoValidTimezoneInfo => {
-                        format!("{:?} does not contain valid timezone information", arg)
-                    }
-                    MaybeZonedParseError::ConflictingTimezoneAndOffset => {
-                        format!("{:?} has conflicting timezone & offset", arg)
-                    }
-                    MaybeZonedParseError::UnresolvedAmbiguity => {
-                        format!("{:?} contains some unresolved ambiguity", arg)
-                    }
-                })),
+                Err(err) => Err(EvaluationError::TimeRelated(format!(
+                    "{} (value: {:?})",
+                    err.as_str(),
+                    arg,
+                ))),
                 Ok(maybe) => Ok(match maybe {
                     MaybeZoned::Civil(datetime) => DynamicValue::from(datetime),
                     MaybeZoned::Zoned(zoned) => DynamicValue::from(zoned),

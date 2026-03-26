@@ -321,6 +321,18 @@ pub enum MaybeZonedParseError {
     UnresolvedAmbiguity,
 }
 
+impl MaybeZonedParseError {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::CannotParse(_) => "cannot parse as a datetime",
+            Self::DoesNotContainTime => "does not contain a time",
+            Self::NoValidTimezoneInfo => "does not contain valid timezone info",
+            Self::ConflictingTimezoneAndOffset => "contains conflicting timezone and offset",
+            Self::UnresolvedAmbiguity => "contains an unresolved ambiguity",
+        }
+    }
+}
+
 static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
 
 pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, MaybeZonedParseError> {
