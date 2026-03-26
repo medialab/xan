@@ -1,4 +1,10 @@
-use jiff::{civil::Date, civil::DateTime, tz::TimeZone, Error, Timestamp, ToSpan, Unit, Zoned};
+use jiff::{
+    civil::{Date, DateTime},
+    fmt::strtime,
+    fmt::temporal::{DateTimeParser, PiecesOffset},
+    tz::{OffsetConflict, TimeZone},
+    Error, Timestamp, ToSpan, Unit, Zoned,
+};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -295,6 +301,100 @@ pub fn parse_zoned(
                     }
                 } else {
                     Err(ZonedParseError::from(err_kind))
+                }
+            }
+        }
+    }
+}
+
+pub enum MaybeZoned {
+    Civil(DateTime),
+    Zoned(Zoned),
+}
+
+pub enum MaybeZonedParseError {
+    CannotParse(Error),
+    DoesNotContainTime,
+    NoValidTimezoneInfo,
+    ConflictingTimezoneAndOffset,
+    UnresolvedAmbiguity,
+}
+
+static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
+
+pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, MaybeZonedParseError> {
+    use MaybeZonedParseError::*;
+
+    match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
+        Err(err) => Err(CannotParse(err)),
+        Ok(pieces) => match pieces.time() {
+            None => Err(DoesNotContainTime),
+            Some(time) => {
+                let datetime = DateTime::from_parts(pieces.date(), time);
+
+                if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
+                    // We have a civil datetime
+                    Ok(MaybeZoned::Civil(datetime))
+                } else {
+                    // We have a timestamp
+                    if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
+                        return Ok(MaybeZoned::Zoned(datetime.to_zoned(TimeZone::UTC).unwrap()));
+                    }
+
+                    let conflict_resolution = OffsetConflict::Reject;
+
+                    // We might have a correct zoned
+                    let ambiguous = match pieces.to_time_zone() {
+                        Ok(None) => {
+                            let Some(offset) = pieces.to_numeric_offset() else {
+                                return Err(NoValidTimezoneInfo);
+                            };
+
+                            TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                        }
+                        Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                            None => tz.into_ambiguous_zoned(datetime),
+                            Some(offset) => conflict_resolution
+                                .resolve(datetime, offset, tz)
+                                .map_err(|_| ConflictingTimezoneAndOffset)?,
+                        },
+                        Err(_) => {
+                            return Err(NoValidTimezoneInfo);
+                        }
+                    };
+
+                    match ambiguous.compatible() {
+                        Err(_) => Err(UnresolvedAmbiguity),
+                        Ok(zoned) => Ok(MaybeZoned::Zoned(zoned)),
+                    }
+                }
+            }
+        },
+    }
+}
+
+pub fn parse_maybe_zoned_with_format(
+    format: impl AsRef<[u8]>,
+    input: impl AsRef<[u8]>,
+) -> Result<MaybeZoned, MaybeZonedParseError> {
+    use MaybeZonedParseError::*;
+
+    match strtime::parse(format, input) {
+        Err(err) => Err(CannotParse(err)),
+        Ok(broken_down_time) => {
+            // If parsed time does not have any timezone info we attempt
+            // to parse it a simple datetime
+            if broken_down_time.offset().is_none() && broken_down_time.iana_time_zone().is_none() {
+                match broken_down_time.to_datetime() {
+                    Err(err) => Err(CannotParse(err)),
+                    Ok(datetime) => Ok(MaybeZoned::Civil(datetime)),
+                }
+            }
+            // Else we can attempt to parse it as a zoned
+            else {
+                match broken_down_time.to_zoned() {
+                    Err(err) => Err(CannotParse(err)),
+                    Ok(zoned) => Ok(MaybeZoned::Zoned(zoned)),
                 }
             }
         }

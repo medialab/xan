@@ -7,6 +7,10 @@ use jiff::{
     tz::{OffsetConflict, TimeZone},
 };
 
+use crate::dates::{
+    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, MaybeZonedParseError,
+};
+
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::types::{BoundArguments, DynamicValue};
@@ -30,39 +34,21 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
                 ));
             }
 
-            let err = || -> Result<DynamicValue, EvaluationError> {
-                Err(EvaluationError::TimeRelated(format!(
-                    "cannot parse {:?} as a datetime using this format {:?}",
-                    arg, format_arg
-                )))
-            };
-
             // Using a strptime format
             let format = format_arg.try_as_bytes()?;
             let string = arg.try_as_bytes()?;
 
-            match strtime::parse(format, string) {
-                Err(_) => err(),
-                Ok(broken_down_time) => {
-                    // If parsed time does not have any timezone info we attempt
-                    // to parse it a simple datetime
-                    if broken_down_time.offset().is_none()
-                        && broken_down_time.iana_time_zone().is_none()
-                    {
-                        match broken_down_time.to_datetime() {
-                            Err(_) => err(),
-                            Ok(datetime) => Ok(DynamicValue::from(datetime)),
-                        }
-                    }
-                    // Else we can attempt to parse it as a zoned
-                    else {
-                        match broken_down_time.to_zoned() {
-                            Err(_) => err(),
-                            Ok(zoned) => Ok(DynamicValue::from(zoned)),
-                        }
-                    }
-                }
-            }
+            parse_maybe_zoned_with_format(format, string)
+                .map_err(|_| {
+                    EvaluationError::TimeRelated(format!(
+                        "cannot parse {:?} as a datetime using this format {:?}",
+                        arg, format_arg
+                    ))
+                })
+                .map(|maybe| match maybe {
+                    MaybeZoned::Civil(datetime) => DynamicValue::from(datetime),
+                    MaybeZoned::Zoned(zoned) => DynamicValue::from(zoned),
+                })
         }
         None => {
             // Early returns mapping to no-ops
@@ -146,6 +132,10 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
         }
     }
 }
+
+// TODO: all functions below should be able to work by try_as
+// TODO: add local_datetime
+// TODO: what to do with timestamps
 
 pub fn without_timezone(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
