@@ -1439,6 +1439,11 @@ mod tests {
         );
 
         assert_eq!(
+            eval_code("'2024-07-11T01:14:00Z'.datetime()"),
+            Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC)))
+        );
+
+        assert_eq!(
             eval_code("'2024-07-11T01:14:00'.datetime()"),
             Ok(DynamicValue::from(datetime))
         );
