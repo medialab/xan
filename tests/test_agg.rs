@@ -485,25 +485,25 @@ fn agg_argtop() {
     assert_eq!(got, expected);
 }
 
-#[test]
-fn agg_dates() {
-    let wrk = Workdir::new("agg_dates");
-    wrk.create(
-        "data.csv",
-        vec![svec!["date"], svec!["2023-01-12"], svec!["2020-10-22"]],
-    );
+// #[test]
+// fn agg_dates() {
+//     let wrk = Workdir::new("agg_dates");
+//     wrk.create(
+//         "data.csv",
+//         vec![svec!["date"], svec!["2023-01-12"], svec!["2020-10-22"]],
+//     );
 
-    let mut cmd = wrk.command("agg");
-    cmd.arg("earliest(datetime(date, timezone='UTC')) as earliest, latest(datetime(date, timezone='UTC')) as latest")
-        .arg("data.csv");
+//     let mut cmd = wrk.command("agg");
+//     cmd.arg("earliest(datetime(date, timezone='UTC')) as earliest, latest(datetime(date, timezone='UTC')) as latest")
+//         .arg("data.csv");
 
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["earliest", "latest"],
-        svec!["2020-10-22T00:00:00[UTC]", "2023-01-12T00:00:00[UTC]"],
-    ];
-    assert_eq!(got, expected);
-}
+//     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+//     let expected = vec![
+//         svec!["earliest", "latest"],
+//         svec!["2020-10-22T00:00:00[UTC]", "2023-01-12T00:00:00[UTC]"],
+//     ];
+//     assert_eq!(got, expected);
+// }
 
 #[test]
 fn agg_correlation() {

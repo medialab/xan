@@ -132,7 +132,7 @@ pub enum EvaluationError {
     InvalidLambda,
     NotImplemented(String),
     IO(String),
-    DateTime(String),
+    TimeRelated(String),
     Cast {
         from_value: DynamicValue,
         to_type: String,
@@ -167,7 +167,7 @@ impl EvaluationError {
         timezone: Option<&str>,
         error: ZonedParseError,
     ) -> Self {
-        Self::DateTime(match error {
+        Self::TimeRelated(match error {
             ZonedParseError::CannotParse => format!(
                 "cannot parse \"{}\" as a datetime, consider using datetime() with a custom format",
                 value
@@ -212,7 +212,7 @@ impl Display for EvaluationError {
             Self::InvalidArity(arity) => arity.fmt(f),
             Self::InvalidLambda => write!(f, "provided argument is not a lambda"),
             Self::IO(msg) => write!(f, "{}", msg),
-            Self::DateTime(msg) => write!(f, "{}", msg),
+            Self::TimeRelated(msg) => write!(f, "{}", msg),
             Self::Custom(msg) => write!(f, "{}", msg),
             Self::Cast {
                 from_value,

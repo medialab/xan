@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use bstr::BString;
 use btoi::btoi;
-use jiff::{tz::TimeZone, Zoned};
+use jiff::{civil::DateTime, tz::TimeZone, Zoned};
 use regex::Regex;
 use serde::{
     de::{Deserializer, MapAccess, SeqAccess, Visitor},
@@ -35,12 +35,13 @@ pub enum DynamicValue {
     Integer(i64),
     Boolean(bool),
     Regex(Arc<Regex>),
-    DateTime(Box<Zoned>),
+    Zoned(Box<Zoned>),
+    DateTime(DateTime),
     #[default]
     None,
 }
 
-const DYNAMIC_VALUE_DATE_FORMAT: &str = "%FT%T%.f[%Z]";
+// const DEFAULT_ZONED_FORMAT: &str = "%FT%T%.f[%Z]";
 
 fn parse_datetime(value: &str) -> Result<Zoned, EvaluationError> {
     dates::parse_zoned(value, None, None)
@@ -61,10 +62,8 @@ impl Serialize for DynamicValue {
             Self::List(v) => v.serialize(serializer),
             Self::Map(v) => v.serialize(serializer),
             Self::Regex(v) => v.to_string().serialize(serializer),
-            Self::DateTime(v) => v
-                .strftime(DYNAMIC_VALUE_DATE_FORMAT)
-                .to_string()
-                .serialize(serializer),
+            Self::Zoned(v) => v.to_string().serialize(serializer),
+            Self::DateTime(v) => v.to_string().serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -191,6 +190,7 @@ impl DynamicValue {
             Self::Float(_) => "float",
             Self::Integer(_) => "integer",
             Self::Boolean(_) => "boolean",
+            Self::Zoned(_) => "zoned",
             Self::DateTime(_) => "datetime",
             Self::Regex(_) => "regex",
             Self::None => "none",
@@ -236,12 +236,8 @@ impl DynamicValue {
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Integer(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Boolean(value) => Cow::Borrowed(if *value { b"true" } else { b"false" }),
-            Self::DateTime(value) => Cow::Owned(
-                value
-                    .strftime(DYNAMIC_VALUE_DATE_FORMAT)
-                    .to_string()
-                    .into_bytes(),
-            ),
+            Self::Zoned(value) => Cow::Owned(value.to_string().into_bytes()),
+            Self::DateTime(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
@@ -251,32 +247,11 @@ impl DynamicValue {
         self.serialize_as_bytes_with_options(b"|")
     }
 
-    pub fn try_into_datetime(self) -> Result<Zoned, EvaluationError> {
-        match self {
-            DynamicValue::DateTime(value) => Ok(*value),
-            DynamicValue::Bytes(value) => parse_datetime(std::str::from_utf8(&value).unwrap()),
-            DynamicValue::String(value) => parse_datetime(&value),
-            _ => Err(EvaluationError::from_cast(&self, "datetime")),
-        }
-    }
-
-    pub fn try_as_datetime(&self) -> Result<Cow<'_, Zoned>, EvaluationError> {
-        match self {
-            DynamicValue::DateTime(value) => Ok(Cow::Borrowed(value)),
-            DynamicValue::String(value) => parse_datetime(value).map(Cow::Owned),
-            DynamicValue::Bytes(value) => parse_datetime(
-                std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?,
-            )
-            .map(Cow::Owned),
-            _ => Err(EvaluationError::from_cast(self, "datetime")),
-        }
-    }
-
     pub fn try_as_timezone(&self) -> Result<TimeZone, EvaluationError> {
         let name = self.try_as_str()?;
 
         TimeZone::get(&name)
-            .map_err(|_| EvaluationError::DateTime(format!("{} is not a valid timezone", name)))
+            .map_err(|_| EvaluationError::TimeRelated(format!("{} is not a valid timezone", name)))
     }
 
     pub fn try_as_tagged_url(&self) -> Result<TaggedUrl, EvaluationError> {
@@ -298,7 +273,7 @@ impl DynamicValue {
             ),
             Self::Float(value) => Cow::Owned(value.to_string()),
             Self::Integer(value) => Cow::Owned(value.to_string()),
-            Self::DateTime(value) => Cow::Owned(value.to_string()),
+            Self::Zoned(value) => Cow::Owned(value.to_string()),
             Self::Boolean(value) => Cow::Borrowed(if *value { "true" } else { "false" }),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str()),
             Self::None => Cow::Borrowed(""),
@@ -442,7 +417,7 @@ impl DynamicValue {
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
-            Self::DateTime(_) => true,
+            Self::Zoned(_) | Self::DateTime(_) => true,
             Self::None => false,
         }
     }
@@ -623,7 +598,13 @@ impl From<DynamicNumber> for DynamicValue {
 
 impl From<Zoned> for DynamicValue {
     fn from(value: Zoned) -> Self {
-        DynamicValue::DateTime(Box::new(value))
+        DynamicValue::Zoned(Box::new(value))
+    }
+}
+
+impl From<DateTime> for DynamicValue {
+    fn from(value: DateTime) -> Self {
+        DynamicValue::DateTime(value)
     }
 }
 
@@ -649,7 +630,7 @@ impl PartialEq for DynamicValue {
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
-            (Self::DateTime(a), Self::DateTime(b)) => a == b,
+            (Self::Zoned(a), Self::Zoned(b)) => a == b,
             (Self::None, Self::None) => true,
             _ => false,
         }

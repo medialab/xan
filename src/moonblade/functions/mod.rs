@@ -91,29 +91,22 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "contains" => (contains, FunctionArguments::binary()),
         "copy" => (io::copy_file, FunctionArguments::binary()),
         "count" => (count, FunctionArguments::binary()),
-        "datetime" => (
-            time::datetime,
-            FunctionArguments::complex(vec![
-                Argument::Positional,
-                Argument::with_name("format"),
-                Argument::with_name("timezone"),
-            ]),
-        ),
+        "datetime" => (time::datetime, FunctionArguments::with_range(1..=2)),
         "dirname" => (io::dirname, FunctionArguments::unary()),
         "div" => (
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
         ),
-        "earliest" => (
-            |args| {
-                variadic_optimum(
-                    args,
-                    |value| value.try_as_datetime().map(Cow::into_owned),
-                    Ordering::is_lt,
-                )
-            },
-            FunctionArguments::variadic(1),
-        ),
+        // "earliest" => (
+        //     |args| {
+        //         variadic_optimum(
+        //             args,
+        //             |value| value.try_as_datetime().map(Cow::into_owned),
+        //             Ordering::is_lt,
+        //         )
+        //     },
+        //     FunctionArguments::variadic(1),
+        // ),
         "endswith" => (endswith, FunctionArguments::binary()),
         "err" => (err, FunctionArguments::unary()),
         "escape_regex" => (escape_regex, FunctionArguments::unary()),
@@ -147,16 +140,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "isfile" => (io::isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "keys" => (keys, FunctionArguments::unary()),
-        "latest" => (
-            |args| {
-                variadic_optimum(
-                    args,
-                    |value| value.try_as_datetime().map(Cow::into_owned),
-                    Ordering::is_gt,
-                )
-            },
-            FunctionArguments::variadic(1),
-        ),
+        // "latest" => (
+        //     |args| {
+        //         variadic_optimum(
+        //             args,
+        //             |value| value.try_as_datetime().map(Cow::into_owned),
+        //             Ordering::is_gt,
+        //         )
+        //     },
+        //     FunctionArguments::variadic(1),
+        // ),
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
         "log" => (
@@ -193,14 +186,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| binary_arithmetic_op(args, Rem::rem),
             FunctionArguments::binary(),
         ),
-        "month" => (
-            |args| time::custom_strftime(args, "%m"),
-            FunctionArguments::unary(),
-        ),
-        "month_day" => (
-            |args| time::custom_strftime(args, "%m-%d"),
-            FunctionArguments::unary(),
-        ),
+        // "month" => (
+        //     |args| time::custom_strftime(args, "%m"),
+        //     FunctionArguments::unary(),
+        // ),
+        // "month_day" => (
+        //     |args| time::custom_strftime(args, "%m-%d"),
+        //     FunctionArguments::unary(),
+        // ),
         "move" => (io::move_file, FunctionArguments::binary()),
         "mul" => (
             |args| variadic_arithmetic_op(args, Mul::mul),
@@ -272,14 +265,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
-        "strftime" => (
-            time::strftime,
-            FunctionArguments::complex(vec![
-                Argument::Positional,
-                Argument::Positional,
-                Argument::with_name("timezone"),
-            ]),
-        ),
+        // "strftime" => (
+        //     time::strftime,
+        //     FunctionArguments::complex(vec![
+        //         Argument::Positional,
+        //         Argument::Positional,
+        //         Argument::with_name("timezone"),
+        //     ]),
+        // ),
         "sub" => (
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
@@ -313,11 +306,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| sequence_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
-        "timestamp" => (time::timestamp, FunctionArguments::unary()),
-        "timestamp_ms" => (time::timestamp_ms, FunctionArguments::unary()),
-        "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
-        "to_timezone" => (time::to_timezone, FunctionArguments::nary(3)),
-        "to_local_timezone" => (time::to_local_timezone, FunctionArguments::binary()),
+        // "timestamp" => (time::timestamp, FunctionArguments::unary()),
+        // "timestamp_ms" => (time::timestamp_ms, FunctionArguments::unary()),
+        // "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
+        // "to_timezone" => (time::to_timezone, FunctionArguments::nary(3)),
+        // "to_local_timezone" => (time::to_local_timezone, FunctionArguments::binary()),
         "trim" => (fmt::trim, FunctionArguments::with_range(1..=2)),
         "ltrim" => (fmt::ltrim, FunctionArguments::with_range(1..=2)),
         "rtrim" => (fmt::rtrim, FunctionArguments::with_range(1..=2)),
@@ -332,18 +325,18 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "uuid" => (uuid, FunctionArguments::nullary()),
         "values" => (values, FunctionArguments::unary()),
         "write" => (io::write, FunctionArguments::binary()),
-        "year" => (
-            |args| time::custom_strftime(args, "%Y"),
-            FunctionArguments::unary(),
-        ),
-        "year_month_day" | "ymd" => (
-            |args| time::custom_strftime(args, "%F"),
-            FunctionArguments::unary(),
-        ),
-        "year_month" | "ym" => (
-            |args| time::custom_strftime(args, "%Y-%m"),
-            FunctionArguments::unary(),
-        ),
+        // "year" => (
+        //     |args| time::custom_strftime(args, "%Y"),
+        //     FunctionArguments::unary(),
+        // ),
+        // "year_month_day" | "ymd" => (
+        //     |args| time::custom_strftime(args, "%F"),
+        //     FunctionArguments::unary(),
+        // ),
+        // "year_month" | "ym" => (
+        //     |args| time::custom_strftime(args, "%Y-%m"),
+        //     FunctionArguments::unary(),
+        // ),
         _ => return None,
     })
 }
@@ -1101,9 +1094,10 @@ where
 {
     let (a, b) = args.pop2();
 
+    // TODO...
     let ordering = match (a, b) {
-        (DynamicValue::DateTime(a), b) => (*a).partial_cmp(&b.try_into_datetime()?),
-        (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
+        // (DynamicValue::DateTime(a), b) => (*a).partial_cmp(&b.try_into_datetime()?),
+        // (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
         (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
     };
 

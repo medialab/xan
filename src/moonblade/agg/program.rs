@@ -583,10 +583,11 @@ impl CompositeAggregator {
                             extent.add(&value.try_as_str()?);
                         }
                     }
-                    Aggregator::ZonedExtent(extent) => {
-                        if !value.is_nullish() {
-                            extent.add(value.try_as_datetime()?.as_ref());
-                        }
+                    Aggregator::ZonedExtent(_extent) => {
+                        todo!()
+                        // if !value.is_nullish() {
+                        //     extent.add(value.try_as_datetime()?.as_ref());
+                        // }
                     }
                     Aggregator::Frequencies(frequencies) => {
                         if !value.is_nullish() {
