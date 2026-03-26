@@ -308,7 +308,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         // "timestamp" => (time::timestamp, FunctionArguments::unary()),
         // "timestamp_ms" => (time::timestamp_ms, FunctionArguments::unary()),
-        // "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
+        "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
         // "to_timezone" => (time::to_timezone, FunctionArguments::nary(3)),
         // "to_local_timezone" => (time::to_local_timezone, FunctionArguments::binary()),
         "trim" => (fmt::trim, FunctionArguments::with_range(1..=2)),
@@ -324,6 +324,9 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "urljoin" => (urls::urljoin, FunctionArguments::binary()),
         "uuid" => (uuid, FunctionArguments::nullary()),
         "values" => (values, FunctionArguments::unary()),
+        "with_timezone" => (time::with_timezone, FunctionArguments::binary()),
+        "with_local_timezone" => (time::with_local_timezone, FunctionArguments::unary()),
+        "without_timezone" => (time::without_timezone, FunctionArguments::unary()),
         "write" => (io::write, FunctionArguments::binary()),
         // "year" => (
         //     |args| time::custom_strftime(args, "%Y"),

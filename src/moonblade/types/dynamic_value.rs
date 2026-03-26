@@ -6,7 +6,11 @@ use std::sync::Arc;
 
 use bstr::BString;
 use btoi::btoi;
-use jiff::{civil::DateTime, tz::TimeZone, Zoned};
+use jiff::{
+    civil::{Date, DateTime, Time},
+    tz::TimeZone,
+    Zoned,
+};
 use regex::Regex;
 use serde::{
     de::{Deserializer, MapAccess, SeqAccess, Visitor},
@@ -37,6 +41,8 @@ pub enum DynamicValue {
     Regex(Arc<Regex>),
     Zoned(Box<Zoned>),
     DateTime(DateTime),
+    Date(Date),
+    Time(Time),
     #[default]
     None,
 }
@@ -64,6 +70,8 @@ impl Serialize for DynamicValue {
             Self::Regex(v) => v.to_string().serialize(serializer),
             Self::Zoned(v) => v.to_string().serialize(serializer),
             Self::DateTime(v) => v.to_string().serialize(serializer),
+            Self::Date(v) => v.to_string().serialize(serializer),
+            Self::Time(v) => v.to_string().serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -192,6 +200,8 @@ impl DynamicValue {
             Self::Boolean(_) => "boolean",
             Self::Zoned(_) => "zoned",
             Self::DateTime(_) => "datetime",
+            Self::Date(_) => "date",
+            Self::Time(_) => "time",
             Self::Regex(_) => "regex",
             Self::None => "none",
         }
@@ -238,6 +248,8 @@ impl DynamicValue {
             Self::Boolean(value) => Cow::Borrowed(if *value { b"true" } else { b"false" }),
             Self::Zoned(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::DateTime(value) => Cow::Owned(value.to_string().into_bytes()),
+            Self::Date(value) => Cow::Owned(value.to_string().into_bytes()),
+            Self::Time(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
@@ -417,7 +429,7 @@ impl DynamicValue {
             Self::Integer(value) => value != &0,
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
-            Self::Zoned(_) | Self::DateTime(_) => true,
+            Self::Zoned(_) | Self::DateTime(_) | Self::Date(_) | Self::Time(_) => true,
             Self::None => false,
         }
     }
@@ -632,6 +644,8 @@ impl PartialEq for DynamicValue {
             (Self::List(a), Self::List(b)) => a == b,
             (Self::Zoned(a), Self::Zoned(b)) => a == b,
             (Self::DateTime(a), Self::DateTime(b)) => a == b,
+            (Self::Date(a), Self::Date(b)) => a == b,
+            (Self::Time(a), Self::Time(b)) => a == b,
             (Self::None, Self::None) => true,
             _ => false,
         }

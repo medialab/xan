@@ -813,7 +813,7 @@ impl Program {
 mod tests {
     use super::super::error::RunError;
     use super::*;
-    use jiff::{civil::DateTime, tz::TimeZone, Timestamp};
+    use jiff::{civil::DateTime, tz::TimeZone, Timestamp, Zoned};
 
     type TestResult = Result<DynamicValue, RunError>;
 
@@ -1470,6 +1470,31 @@ mod tests {
         assert_eq!(
             eval_code("datetime('2024-07-11 01h14', '%F %Hh%M')",),
             Ok(DynamicValue::from(datetime))
+        );
+    }
+
+    #[test]
+    fn test_without_timezone() {
+        assert!(eval_code("'2024-07-11T03:14:00'.datetime().without_timezone()").is_err());
+        assert_eq!(
+            eval_code("'2024-07-11T03:14:00[Europe/Paris]'.datetime().without_timezone()",),
+            Ok(DynamicValue::from(
+                "2024-07-11T03:14:00".parse::<DateTime>().unwrap()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_with_timezone() {
+        assert!(
+            eval_code("'2024-07-11T03:14:00[Europe/Paris]'.datetime().with_timezone('UTC')")
+                .is_err()
+        );
+        assert_eq!(
+            eval_code("'2024-07-11T03:14:00'.datetime().with_timezone('UTC')",),
+            Ok(DynamicValue::from(
+                "2024-07-11T03:14:00[UTC]".parse::<Zoned>().unwrap()
+            ))
         );
     }
 
