@@ -148,6 +148,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(1..=2),
         ),
         "fmt" => (fmt::fmt, FunctionArguments::variadic(2)),
+        "from_timestamp" => (time::from_timestamp, FunctionArguments::unary()),
+        "from_timestamp_ms" => (time::from_timestamp_ms, FunctionArguments::unary()),
         "numfmt" => (
             fmt::fmt_number,
             FunctionArguments::complex(vec![
@@ -305,8 +307,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "time" => (time::time, FunctionArguments::with_range(1..=2)),
-        // "timestamp" => (time::timestamp, FunctionArguments::unary()),
-        // "timestamp_ms" => (time::timestamp_ms, FunctionArguments::unary()),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
         "to_timezone" => (time::to_timezone, FunctionArguments::binary()),
         "to_local_timezone" => (time::to_local_timezone, FunctionArguments::unary()),

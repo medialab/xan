@@ -1,7 +1,7 @@
 use jiff::{
     civil::{Date, Time},
     tz::TimeZone,
-    Zoned,
+    SignedDuration, Timestamp, Zoned,
 };
 
 use crate::dates::{
@@ -10,7 +10,7 @@ use crate::dates::{
 
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
-use crate::moonblade::types::{BoundArguments, DynamicValue};
+use crate::moonblade::types::{BoundArguments, DynamicNumber, DynamicValue};
 
 pub fn datetime(mut args: BoundArguments) -> FunctionResult {
     let (arg, format_arg_opt) = if args.len() == 2 {
@@ -287,4 +287,41 @@ pub fn strftime(mut args: BoundArguments) -> FunctionResult {
 
 pub fn now(_args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(Zoned::now()))
+}
+
+pub fn from_timestamp(mut args: BoundArguments) -> FunctionResult {
+    let number = args.pop1().try_as_number()?;
+
+    match number {
+        DynamicNumber::Integer(seconds) => match Timestamp::from_second(seconds) {
+            Err(_) => Err(EvaluationError::TimeRelated(format!(
+                "invalid timestamp {}",
+                seconds
+            ))),
+            Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
+        },
+        DynamicNumber::Float(fractional_seconds) => {
+            let duration = SignedDuration::from_secs_f64(fractional_seconds);
+
+            match Timestamp::from_duration(duration) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "invalid timestamp {}",
+                    fractional_seconds
+                ))),
+                Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
+            }
+        }
+    }
+}
+
+pub fn from_timestamp_ms(mut args: BoundArguments) -> FunctionResult {
+    let milliseconds = args.pop1().try_as_i64()?;
+
+    match Timestamp::from_millisecond(milliseconds) {
+        Err(_) => Err(EvaluationError::TimeRelated(format!(
+            "invalid timestamp {}",
+            milliseconds
+        ))),
+        Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
+    }
 }
