@@ -457,9 +457,16 @@ pub fn parse_maybe_zoned_with_format(
     }
 }
 
-// TODO: add support for timestamp & partial date later on
 pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, AnyTemporalParseError> {
     use AnyTemporalParseError::*;
+
+    // Early exit matching a bare time
+    if matches!(input.as_ref().get(2), Some(b':')) {
+        return match DEFAULT_DATETIME_PARSER.parse_time(&input) {
+            Err(err) => Err(CannotParse(err)),
+            Ok(time) => Ok(AnyTemporal::Time(time)),
+        };
+    }
 
     match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
         Err(err) => Err(CannotParse(err)),
