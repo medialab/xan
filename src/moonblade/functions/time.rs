@@ -1,7 +1,7 @@
 use jiff::{
     civil::{Date, Time},
     tz::TimeZone,
-    SignedDuration, Timestamp, Zoned,
+    SignedDuration, Span, Timestamp, Zoned,
 };
 
 use crate::dates::{
@@ -178,6 +178,18 @@ pub fn time(mut args: BoundArguments) -> FunctionResult {
                 Ok(time) => Ok(DynamicValue::from(time)),
             }
         }
+    }
+}
+
+pub fn span(args: BoundArguments) -> FunctionResult {
+    let string = args.get1_str()?;
+
+    match string.parse::<Span>() {
+        Err(_) => Err(EvaluationError::Custom(format!(
+            "could not parse {} as a span",
+            string
+        ))),
+        Ok(span) => Ok(DynamicValue::from(span)),
     }
 }
 

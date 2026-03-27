@@ -171,6 +171,9 @@ date("2026-03-27")
 
 # Civil time
 time("16:00:40")
+
+# Time span
+span("P1Y9M")
 ```
 
 ## Operators & calling functions

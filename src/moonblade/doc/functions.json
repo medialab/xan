@@ -532,19 +532,25 @@
         "name": "datetime",
         "arguments": ["string", "format=?"],
         "returns": "zoned?_datetime",
-        "help": "Attempt to parse a datetime with or without timezone info from given string. If no format is provided, string is parsed using ISO 8601 date format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+        "help": "Attempt to parse a datetime with or without timezone info from given string. If no format is provided, string is parsed using ISO 8601 date format.\n\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
       },
       {
         "name": "date",
         "arguments": ["string_or_datetime", "format=?"],
         "returns": "date",
-        "help": "If given a datetime, will return its date component. Else, attempt to parse a date from given string. If no format is provided, string is parsed using ISO 8601 date format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+        "help": "If given a datetime, will return its date component. Else, attempt to parse a date from given string. If no format is provided, string is parsed using ISO 8601 date format.\n\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
       },
       {
         "name": "time",
         "arguments": ["string_or_datetime", "format=?"],
         "returns": "time",
-        "help": "If given a datetime, will return its time component. Else, attempt to parse a time from given string. If no format is provided, string is parsed using ISO 8601 time format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+        "help": "If given a datetime, will return its time component. Else, attempt to parse a time from given string. If no format is provided, string is parsed using ISO 8601 time format.\n\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+      },
+      {
+        "name": "span",
+        "arguments": ["string"],
+        "returns": "span",
+        "help": "Parse given string as a time span that can be added or subtracted to temporal elements.\n\nFormat: https://docs.rs/jiff/latest/jiff/struct.Span.html#parsing-and-printing"
       },
       {
         "name": "now",
@@ -594,7 +600,7 @@
         "name": "strftime",
         "arguments": ["target", "format"],
         "returns": "string",
-        "help": "Format temporal value according to format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+        "help": "Format temporal value according to format.\n\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
       },
       {
         "name": "to_timezone",

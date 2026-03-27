@@ -278,6 +278,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
             FunctionArguments::unary(),
         ),
+        "span" => (time::span, FunctionArguments::unary()),
         "split" => (split, FunctionArguments::with_range(2..=3)),
         "sqrt" => (
             |args| unary_arithmetic_op(args, DynamicNumber::sqrt),

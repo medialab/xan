@@ -9,7 +9,7 @@ use btoi::btoi;
 use jiff::{
     civil::{Date, DateTime, Time},
     tz::TimeZone,
-    Zoned,
+    Span, Zoned,
 };
 use regex::Regex;
 use serde::{
@@ -46,6 +46,7 @@ pub enum DynamicValue {
     DateTime(DateTime),
     Date(Date),
     Time(Time),
+    Span(Box<Span>),
     #[default]
     None,
 }
@@ -68,6 +69,7 @@ impl Serialize for DynamicValue {
             Self::DateTime(v) => v.to_string().serialize(serializer),
             Self::Date(v) => v.to_string().serialize(serializer),
             Self::Time(v) => v.to_string().serialize(serializer),
+            Self::Span(v) => v.to_string().serialize(serializer),
             Self::None => serializer.serialize_none(),
         }
     }
@@ -198,6 +200,7 @@ impl DynamicValue {
             Self::DateTime(_) => "datetime",
             Self::Date(_) => "date",
             Self::Time(_) => "time",
+            Self::Span(_) => "span",
             Self::Regex(_) => "regex",
             Self::None => "none",
         }
@@ -246,6 +249,7 @@ impl DynamicValue {
             Self::DateTime(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Date(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Time(value) => Cow::Owned(value.to_string().into_bytes()),
+            Self::Span(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
@@ -550,6 +554,7 @@ impl DynamicValue {
             Self::Boolean(value) => *value,
             Self::Regex(pattern) => !pattern.as_str().is_empty(),
             Self::Zoned(_) | Self::DateTime(_) | Self::Date(_) | Self::Time(_) => true,
+            Self::Span(span) => !span.is_zero(),
             Self::None => false,
         }
     }
@@ -791,6 +796,13 @@ impl From<Time> for DynamicValue {
     }
 }
 
+impl From<Span> for DynamicValue {
+    #[inline]
+    fn from(value: Span) -> Self {
+        DynamicValue::Span(Box::new(value))
+    }
+}
+
 impl<T> From<Option<T>> for DynamicValue
 where
     T: Into<DynamicValue>,
@@ -818,6 +830,7 @@ impl PartialEq for DynamicValue {
             (Self::DateTime(a), Self::DateTime(b)) => a == b,
             (Self::Date(a), Self::Date(b)) => a == b,
             (Self::Time(a), Self::Time(b)) => a == b,
+            (Self::Span(a), Self::Span(b)) => a.fieldwise() == b.fieldwise(),
             (Self::None, Self::None) => true,
             _ => false,
         }

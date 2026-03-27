@@ -231,6 +231,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **datetime**(*string*, *format=?*) -> `zoned?_datetime`: Attempt to parse a datetime with or without timezone info from given string. If no format is provided, string is parsed using ISO 8601 date format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
 - **date**(*string_or_datetime*, *format=?*) -> `date`: If given a datetime, will return its date component. Else, attempt to parse a date from given string. If no format is provided, string is parsed using ISO 8601 date format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
 - **time**(*string_or_datetime*, *format=?*) -> `time`: If given a datetime, will return its time component. Else, attempt to parse a time from given string. If no format is provided, string is parsed using ISO 8601 time format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
+- **span**(*string*) -> `span`: Parse given string as a time span that can be added or subtracted to temporal elements.<br>Format: https://docs.rs/jiff/latest/jiff/struct.Span.html#parsing-and-printing
 - **now**() -> `zoned_datetime`: Return current datetime in local timezone.
 - **from_timestamp**(*int_or_float*) -> `zoned_datetime`: Interpret given int as seconds timestamp, or given float as seconds timestamp with fractional subseconds component.
 - **from_timestamp_ms**(*int*) -> `zoned_datetime`: Interpret given int as milliseconds timestamp.
