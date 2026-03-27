@@ -6,12 +6,6 @@ use jiff::{
     tz::{OffsetConflict, TimeZone},
     Error, Timestamp, ToSpan, Unit, Zoned,
 };
-use lazy_static::lazy_static;
-use regex::Regex;
-
-lazy_static! {
-    static ref PARTIAL_DATE_REGEX: Regex = Regex::new(r"^[12]\d{3}(?:-(?:0\d|1[012]))?$").unwrap();
-}
 
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PartialDate {
@@ -68,15 +62,21 @@ impl PartialDate {
     }
 }
 
-pub fn is_partial_date(string: &str) -> bool {
-    PARTIAL_DATE_REGEX.is_match(string)
+pub fn is_partial_date(input: impl AsRef<[u8]>) -> bool {
+    parse_partial_date(input).is_some()
 }
 
 pub fn parse_partial_date(input: impl AsRef<[u8]>) -> Option<PartialDate> {
     let bytes = input.as_ref();
 
     match bytes.len() {
-        4 => PartialDate::year(btoi::<i16>(bytes).ok()?),
+        4 => {
+            if bytes[0] != b'1' && bytes[0] != b'2' {
+                return None;
+            }
+
+            PartialDate::year(btoi::<i16>(bytes).ok()?)
+        }
         7 => {
             if bytes[4] != b'-' {
                 return None;
