@@ -257,3 +257,26 @@ pub fn to_local_timezone(mut args: BoundArguments) -> FunctionResult {
         Err(err) => Err(err)
     }
 }
+
+pub fn strftime(mut args: BoundArguments) -> FunctionResult {
+    let (arg, format_arg) = args.pop2();
+
+    let format = format_arg.try_as_bytes()?;
+
+    // TODO: handle the case when we have a string
+
+    Ok(match arg {
+        DynamicValue::Zoned(zoned) => DynamicValue::from(zoned.strftime(format).to_string()),
+        DynamicValue::DateTime(datetime) => {
+            DynamicValue::from(datetime.strftime(format).to_string())
+        }
+        DynamicValue::Date(date) => DynamicValue::from(date.strftime(format).to_string()),
+        DynamicValue::Time(time) => DynamicValue::from(time.strftime(format).to_string()),
+        _ => {
+            return Err(EvaluationError::TimeRelated(format!(
+                "expected a temporal argument but got {}",
+                arg.type_of()
+            )));
+        }
+    })
+}

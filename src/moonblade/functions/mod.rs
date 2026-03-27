@@ -266,14 +266,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
-        // "strftime" => (
-        //     time::strftime,
-        //     FunctionArguments::complex(vec![
-        //         Argument::Positional,
-        //         Argument::Positional,
-        //         Argument::with_name("timezone"),
-        //     ]),
-        // ),
+        "strftime" => (time::strftime, FunctionArguments::binary()),
         "sub" => (
             |args| variadic_arithmetic_op(args, Sub::sub),
             FunctionArguments::variadic(2),
