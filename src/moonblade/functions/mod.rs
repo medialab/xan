@@ -125,16 +125,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| variadic_arithmetic_op(args, Div::div),
             FunctionArguments::variadic(2),
         ),
-        // "earliest" => (
-        //     |args| {
-        //         variadic_optimum(
-        //             args,
-        //             |value| value.try_as_datetime().map(Cow::into_owned),
-        //             Ordering::is_lt,
-        //         )
-        //     },
-        //     FunctionArguments::variadic(1),
-        // ),
+        "earliest" => (
+            |args| variadic_optimum(args, DynamicValue::try_as_any_temporal, Ordering::is_lt),
+            FunctionArguments::variadic(1),
+        ),
         "endswith" => (endswith, FunctionArguments::binary()),
         "err" => (err, FunctionArguments::unary()),
         "escape_regex" => (escape_regex, FunctionArguments::unary()),
@@ -170,16 +164,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "isfile" => (io::isfile, FunctionArguments::unary()),
         "join" => (join, FunctionArguments::binary()),
         "keys" => (keys, FunctionArguments::unary()),
-        // "latest" => (
-        //     |args| {
-        //         variadic_optimum(
-        //             args,
-        //             |value| value.try_as_datetime().map(Cow::into_owned),
-        //             Ordering::is_gt,
-        //         )
-        //     },
-        //     FunctionArguments::variadic(1),
-        // ),
+        "latest" => (
+            |args| variadic_optimum(args, DynamicValue::try_as_any_temporal, Ordering::is_gt),
+            FunctionArguments::variadic(1),
+        ),
         "last" => (last, FunctionArguments::unary()),
         "len" => (len, FunctionArguments::unary()),
         "log" => (
@@ -1010,7 +998,7 @@ fn variadic_optimum<F, V, T>(args: BoundArguments, convert: F, validate: V) -> F
 where
     F: Fn(&DynamicValue) -> Result<T, EvaluationError>,
     V: Fn(Ordering) -> bool,
-    T: Ord,
+    T: PartialOrd,
     DynamicValue: From<T>,
 {
     if args.len() == 1 {
@@ -1026,8 +1014,17 @@ where
         for value in values_iter {
             let other = convert(value)?;
 
-            if validate(other.cmp(&best_value)) {
-                best_value = other;
+            match other.partial_cmp(&best_value) {
+                None => {
+                    return Err(EvaluationError::Custom(
+                        "trying to compare heterogenous types".to_string(),
+                    ));
+                }
+                Some(ordering) => {
+                    if validate(ordering) {
+                        best_value = other;
+                    }
+                }
             }
         }
 
@@ -1040,8 +1037,17 @@ where
     for arg in args_iter {
         let other_value = convert(&arg)?;
 
-        if validate(other_value.cmp(&best_value)) {
-            best_value = other_value;
+        match other_value.partial_cmp(&best_value) {
+            None => {
+                return Err(EvaluationError::Custom(
+                    "trying to compare heterogenous types".to_string(),
+                ));
+            }
+            Some(ordering) => {
+                if validate(ordering) {
+                    best_value = other_value;
+                }
+            }
         }
     }
 

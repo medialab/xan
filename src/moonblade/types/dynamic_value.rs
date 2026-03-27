@@ -581,96 +581,112 @@ impl<'a> Iterator for DynamicValueFlatIter<'a> {
 }
 
 impl From<&[u8]> for DynamicValue {
+    #[inline]
     fn from(value: &[u8]) -> Self {
         DynamicValue::from_owned_bytes(value.to_vec())
     }
 }
 
 impl From<&str> for DynamicValue {
+    #[inline]
     fn from(value: &str) -> Self {
         DynamicValue::String(Arc::new(value.to_string()))
     }
 }
 
 impl From<Cow<'_, str>> for DynamicValue {
+    #[inline]
     fn from(value: Cow<str>) -> Self {
         DynamicValue::String(Arc::new(value.into_owned()))
     }
 }
 
 impl From<String> for DynamicValue {
+    #[inline]
     fn from(value: String) -> Self {
         DynamicValue::String(Arc::new(value))
     }
 }
 
 impl From<char> for DynamicValue {
+    #[inline]
     fn from(value: char) -> Self {
         DynamicValue::String(Arc::new(value.to_string()))
     }
 }
 
 impl From<Regex> for DynamicValue {
+    #[inline]
     fn from(value: Regex) -> Self {
         DynamicValue::Regex(Arc::new(value))
     }
 }
 
 impl From<Vec<DynamicValue>> for DynamicValue {
+    #[inline]
     fn from(value: Vec<DynamicValue>) -> Self {
         DynamicValue::List(Arc::new(value))
     }
 }
 
 impl From<Arc<Vec<DynamicValue>>> for DynamicValue {
+    #[inline]
     fn from(value: Arc<Vec<DynamicValue>>) -> Self {
         DynamicValue::List(value)
     }
 }
 
 impl From<HashMap<String, DynamicValue>> for DynamicValue {
+    #[inline]
     fn from(value: HashMap<String, DynamicValue>) -> Self {
         DynamicValue::Map(Arc::new(value))
     }
 }
 
 impl From<Arc<HashMap<String, DynamicValue>>> for DynamicValue {
+    #[inline]
     fn from(value: Arc<HashMap<String, DynamicValue>>) -> Self {
         DynamicValue::Map(value)
     }
 }
 
 impl From<bool> for DynamicValue {
+    #[inline]
     fn from(value: bool) -> Self {
         DynamicValue::Boolean(value)
     }
 }
 
 impl From<usize> for DynamicValue {
+    #[inline]
     fn from(value: usize) -> Self {
         DynamicValue::Integer(value as i64)
     }
 }
 
 impl From<i32> for DynamicValue {
+    #[inline]
     fn from(value: i32) -> Self {
         DynamicValue::Integer(value as i64)
     }
 }
 
 impl From<i64> for DynamicValue {
+    #[inline]
     fn from(value: i64) -> Self {
         DynamicValue::Integer(value)
     }
 }
 
 impl From<f64> for DynamicValue {
+    #[inline]
     fn from(value: f64) -> Self {
         DynamicValue::Float(value)
     }
 }
 
 impl From<DynamicNumber> for DynamicValue {
+    #[inline]
     fn from(value: DynamicNumber) -> Self {
         match value {
             DynamicNumber::Integer(value) => DynamicValue::Integer(value),
@@ -679,25 +695,41 @@ impl From<DynamicNumber> for DynamicValue {
     }
 }
 
+impl From<AnyTemporal> for DynamicValue {
+    #[inline]
+    fn from(value: AnyTemporal) -> Self {
+        match value {
+            AnyTemporal::Zoned(zoned) => Self::from(zoned),
+            AnyTemporal::DateTime(datetime) => Self::from(datetime),
+            AnyTemporal::Date(date) => Self::from(date),
+            AnyTemporal::Time(time) => Self::from(time),
+        }
+    }
+}
+
 impl From<Zoned> for DynamicValue {
+    #[inline]
     fn from(value: Zoned) -> Self {
         DynamicValue::Zoned(Box::new(value))
     }
 }
 
 impl From<DateTime> for DynamicValue {
+    #[inline]
     fn from(value: DateTime) -> Self {
         DynamicValue::DateTime(value)
     }
 }
 
 impl From<Date> for DynamicValue {
+    #[inline]
     fn from(value: Date) -> Self {
         DynamicValue::Date(value)
     }
 }
 
 impl From<Time> for DynamicValue {
+    #[inline]
     fn from(value: Time) -> Self {
         DynamicValue::Time(value)
     }
@@ -707,6 +739,7 @@ impl<T> From<Option<T>> for DynamicValue
 where
     T: Into<DynamicValue>,
 {
+    #[inline]
     fn from(option: Option<T>) -> Self {
         match option {
             None => DynamicValue::None,

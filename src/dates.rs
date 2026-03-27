@@ -327,6 +327,7 @@ pub enum MaybeZoned {
     Zoned(Zoned),
 }
 
+#[derive(PartialEq, PartialOrd)]
 pub enum AnyTemporal {
     Zoned(Zoned),
     DateTime(DateTime),
