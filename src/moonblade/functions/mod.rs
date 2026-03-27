@@ -34,6 +34,7 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
     Some(match name {
+        // Operators
         "==" => (
             |args| abstract_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
@@ -58,6 +59,32 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| abstract_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
+        "eq" => (
+            |args| sequence_compare(args, Ordering::is_eq),
+            FunctionArguments::binary(),
+        ),
+        "gt" => (
+            |args| sequence_compare(args, Ordering::is_gt),
+            FunctionArguments::binary(),
+        ),
+        "ge" => (
+            |args| sequence_compare(args, Ordering::is_ge),
+            FunctionArguments::binary(),
+        ),
+        "lt" => (
+            |args| sequence_compare(args, Ordering::is_lt),
+            FunctionArguments::binary(),
+        ),
+        "le" => (
+            |args| sequence_compare(args, Ordering::is_le),
+            FunctionArguments::binary(),
+        ),
+        "ne" => (
+            |args| sequence_compare(args, Ordering::is_ne),
+            FunctionArguments::binary(),
+        ),
+
+        // Functions
         "abs" => (
             |args| unary_arithmetic_op(args, DynamicNumber::abs),
             FunctionArguments::unary(),
@@ -205,6 +232,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "not" => (not, FunctionArguments::unary()),
+        "now" => (time::now, FunctionArguments::nullary()),
         "pad" => (
             |args| fmt::pad(pad::Alignment::Middle, args),
             FunctionArguments::with_range(2..=3),
@@ -275,30 +303,6 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "s_stemmer" => (
             |args| abstract_unary_string_fn(args, s_stemmer),
             FunctionArguments::unary(),
-        ),
-        "eq" => (
-            |args| sequence_compare(args, Ordering::is_eq),
-            FunctionArguments::binary(),
-        ),
-        "gt" => (
-            |args| sequence_compare(args, Ordering::is_gt),
-            FunctionArguments::binary(),
-        ),
-        "ge" => (
-            |args| sequence_compare(args, Ordering::is_ge),
-            FunctionArguments::binary(),
-        ),
-        "lt" => (
-            |args| sequence_compare(args, Ordering::is_lt),
-            FunctionArguments::binary(),
-        ),
-        "le" => (
-            |args| sequence_compare(args, Ordering::is_le),
-            FunctionArguments::binary(),
-        ),
-        "ne" => (
-            |args| sequence_compare(args, Ordering::is_ne),
-            FunctionArguments::binary(),
         ),
         "time" => (time::time, FunctionArguments::with_range(1..=2)),
         // "timestamp" => (time::timestamp, FunctionArguments::unary()),

@@ -1,6 +1,7 @@
 use jiff::{
     civil::{Date, Time},
     tz::TimeZone,
+    Zoned,
 };
 
 use crate::dates::{
@@ -282,4 +283,8 @@ pub fn strftime(mut args: BoundArguments) -> FunctionResult {
             arg, format_arg, reason
         ))),
     }
+}
+
+pub fn now(_args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(Zoned::now()))
 }
