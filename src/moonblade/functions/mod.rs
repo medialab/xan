@@ -18,6 +18,7 @@ use unidecode::unidecode;
 use uuid::Uuid;
 
 use crate::collections::HashMap;
+use crate::dates::AnyTemporal;
 
 use super::agg::aggregators::{Sum, Welford};
 use super::error::EvaluationError;
@@ -90,10 +91,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "abspath" => (io::abspath, FunctionArguments::unary()),
-        "add" => (
-            |args| variadic_arithmetic_op(args, Add::add),
-            FunctionArguments::variadic(2),
-        ),
+        "add" => (add, FunctionArguments::variadic(2)),
         "argmax" => (
             |args| argcompare(args, Ordering::is_gt),
             FunctionArguments::with_range(1..=2),
@@ -286,10 +284,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "startswith" => (startswith, FunctionArguments::binary()),
         "strftime" => (time::strftime, FunctionArguments::binary()),
-        "sub" => (
-            |args| variadic_arithmetic_op(args, Sub::sub),
-            FunctionArguments::variadic(2),
-        ),
+        "sub" => (sub, FunctionArguments::variadic(2)),
         "sum" => (sum, FunctionArguments::unary()),
         "s_stemmer" => (
             |args| abstract_unary_string_fn(args, s_stemmer),
@@ -945,6 +940,68 @@ where
 {
     let (a, b) = args.get2_number()?;
     Ok(DynamicValue::from(op(a, b)))
+}
+
+fn add(args: BoundArguments) -> FunctionResult {
+    if args.len() == 2 {
+        match args.get2() {
+            (operand, DynamicValue::Span(span)) | (DynamicValue::Span(span), operand) => {
+                return match operand.try_as_any_temporal()? {
+                    AnyTemporal::Zoned(zoned) => match zoned.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                    },
+                    AnyTemporal::DateTime(datetime) => match datetime.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                    },
+                    AnyTemporal::Date(date) => match date.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(date) => Ok(DynamicValue::from(date)),
+                    },
+                    AnyTemporal::Time(time) => match time.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(time) => Ok(DynamicValue::from(time)),
+                    },
+                }
+            }
+
+            _ => (),
+        };
+    }
+
+    variadic_arithmetic_op(args, Add::add)
+}
+
+fn sub(args: BoundArguments) -> FunctionResult {
+    if args.len() == 2 {
+        match args.get2() {
+            (operand, DynamicValue::Span(span)) | (DynamicValue::Span(span), operand) => {
+                return match operand.try_as_any_temporal()? {
+                    AnyTemporal::Zoned(zoned) => match zoned.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                    },
+                    AnyTemporal::DateTime(datetime) => match datetime.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                    },
+                    AnyTemporal::Date(date) => match date.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(date) => Ok(DynamicValue::from(date)),
+                    },
+                    AnyTemporal::Time(time) => match time.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(time) => Ok(DynamicValue::from(time)),
+                    },
+                }
+            }
+
+            _ => (),
+        };
+    }
+
+    variadic_arithmetic_op(args, Sub::sub)
 }
 
 fn variadic_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
