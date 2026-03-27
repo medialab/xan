@@ -254,8 +254,9 @@ impl DynamicValue {
     pub fn try_as_timezone(&self) -> Result<TimeZone, EvaluationError> {
         let name = self.try_as_str()?;
 
-        TimeZone::get(&name)
-            .map_err(|_| EvaluationError::TimeRelated(format!("{} is not a valid timezone", name)))
+        TimeZone::get(&name).map_err(|_| {
+            EvaluationError::TimeRelated(format!("\"{}\" is not a valid timezone", name))
+        })
     }
 
     pub fn try_as_tagged_url(&self) -> Result<TaggedUrl, EvaluationError> {
@@ -437,6 +438,13 @@ impl DynamicValue {
             Self::None => true,
             _ => false,
         }
+    }
+
+    pub fn is_temporal(&self) -> bool {
+        matches!(
+            self,
+            Self::Zoned(_) | Self::DateTime(_) | Self::Time(_) | Self::Date(_)
+        )
     }
 
     pub fn flat_iter(&self) -> DynamicValueFlatIter<'_> {
