@@ -241,6 +241,7 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **earliest**(*list_of_temporals*) -> `temporal`: Return the earliest point in time. Expects homogeneous types (all dates, all datetimes etc.).
 - **latest**(*t1*, *t2*, *\*tn*) -> `temporal`: Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.).
 - **latest**(*list_of_temporals*) -> `temporal`: Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.).
+- **fractional_days**(*t1*, *t2*) -> `float`: Returns number of days between two points in time, as a signed float. Expect homogenous types (2 dates, 2 datetimes etc.).
 - **strftime**(*target*, *format*) -> `string`: Format temporal value according to format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
 - **to_timezone**(*zoned_datetime*, *timezone*) -> `zoned_datetime`: Convert given datetime to given timezone. Will error if given datetime has no timezone info.
 - **to_local_timezone**(*zoned_datetime*) -> `zoned_datetime`: Convert given datetime to local timezone. Will error if given datetime has no timezone info.

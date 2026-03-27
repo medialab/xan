@@ -344,6 +344,15 @@ impl AnyTemporal {
             Self::Time(time) => strtime::format(format, *time),
         }
     }
+
+    pub fn kind_as_str(&self) -> &'static str {
+        match self {
+            Self::Zoned(_) => "zoned",
+            Self::DateTime(_) => "datetime",
+            Self::Date(_) => "date",
+            Self::Time(_) => "time",
+        }
+    }
 }
 
 pub enum AnyTemporalParseError {

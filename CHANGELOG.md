@@ -7,6 +7,7 @@
 * `xan select -n` will not error anymore on empty inputs.
 * `xan heatmap -C/--cram` becomes a flag accepting either `auto`, `always` or `never`.
 * Dropping `-C` short flag for `xan sort --cells` (it could be confused with `--columns` or `--check`).
+* Completely overhauled how datetimes work in moonblade.
 
 *Features*
 
@@ -22,6 +23,7 @@
 * Adding `range` & `repeat` moonblade functions.
 * Adding `xan sort --columns`.
 * Adding `xan view -T/--tee`.
+* Adding `now`, `fractional_days`, `to_timezone`, `to_local_timezone`, `with_timezone`, `with_local_timezone`, `without_timezone`, `to_timestamp`, `to_timestamp_ms`, `from_timestamp`, `from_timestamp_ms`, `span`, `date` & `time` moonblade functions.
 
 *Fixes*
 

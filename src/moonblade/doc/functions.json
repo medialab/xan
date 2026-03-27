@@ -597,6 +597,12 @@
         "help": "Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.)."
       },
       {
+        "name": "fractional_days",
+        "arguments": ["t1", "t2"],
+        "returns": "float",
+        "help": "Returns number of days between two points in time, as a signed float. Expect homogenous types (2 dates, 2 datetimes etc.)."
+      },
+      {
         "name": "strftime",
         "arguments": ["target", "format"],
         "returns": "string",

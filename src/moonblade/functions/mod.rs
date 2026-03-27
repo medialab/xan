@@ -140,17 +140,9 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(1..=2),
         ),
         "fmt" => (fmt::fmt, FunctionArguments::variadic(2)),
+        "fractional_days" => (time::fractional_days, FunctionArguments::binary()),
         "from_timestamp" => (time::from_timestamp, FunctionArguments::unary()),
         "from_timestamp_ms" => (time::from_timestamp_ms, FunctionArguments::unary()),
-        "numfmt" => (
-            fmt::fmt_number,
-            FunctionArguments::complex(vec![
-                Argument::Positional,
-                Argument::with_name("thousands_sep"),
-                Argument::with_name("comma"),
-                Argument::with_name("significance"),
-            ]),
-        ),
         "get" => (get, FunctionArguments::with_range(2..=3)),
         "html_unescape" => (html_unescape, FunctionArguments::unary()),
         "idiv" => (
@@ -221,6 +213,15 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "not" => (not, FunctionArguments::unary()),
         "now" => (time::now, FunctionArguments::nullary()),
+        "numfmt" => (
+            fmt::fmt_number,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("thousands_sep"),
+                Argument::with_name("comma"),
+                Argument::with_name("significance"),
+            ]),
+        ),
         "pad" => (
             |args| fmt::pad(pad::Alignment::Middle, args),
             FunctionArguments::with_range(2..=3),
