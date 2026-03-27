@@ -325,3 +325,21 @@ pub fn from_timestamp_ms(mut args: BoundArguments) -> FunctionResult {
         Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
     }
 }
+
+pub fn to_timestamp(mut args: BoundArguments) -> FunctionResult {
+    let zoned = args.pop1().try_into_zoned()?;
+    let timestamp = zoned.timestamp();
+
+    if timestamp.subsec_nanosecond() == 0 {
+        Ok(DynamicValue::from(timestamp.as_second()))
+    } else {
+        Ok(DynamicValue::from(timestamp.as_duration().as_secs_f64()))
+    }
+}
+
+pub fn to_timestamp_ms(mut args: BoundArguments) -> FunctionResult {
+    let zoned = args.pop1().try_into_zoned()?;
+    let timestamp = zoned.timestamp();
+
+    Ok(DynamicValue::from(timestamp.as_millisecond()))
+}

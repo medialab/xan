@@ -308,6 +308,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "time" => (time::time, FunctionArguments::with_range(1..=2)),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
+        "to_timestamp" => (time::to_timestamp, FunctionArguments::unary()),
+        "to_timestamp_ms" => (time::to_timestamp_ms, FunctionArguments::unary()),
         "to_timezone" => (time::to_timezone, FunctionArguments::binary()),
         "to_local_timezone" => (time::to_local_timezone, FunctionArguments::unary()),
         "trim" => (fmt::trim, FunctionArguments::with_range(1..=2)),

@@ -310,45 +310,25 @@ impl DynamicValue {
         })
     }
 
-    // fn try_into_zoned(self) -> Result<Zoned, EvaluationError> {
-    //     if let Self::Zoned(zoned) = self {
-    //         return Ok(*zoned);
-    //     }
+    pub fn try_into_zoned(self) -> Result<Zoned, EvaluationError> {
+        if let Self::Zoned(zoned) = self {
+            return Ok(*zoned);
+        }
 
-    //     if self.is_temporal() {
-    //         return Err(EvaluationError::from_cast(&self, "zoned"));
-    //     }
+        if self.is_temporal() {
+            return Err(EvaluationError::from_cast(&self, "zoned"));
+        }
 
-    //     let bytes = self.try_as_bytes()?;matches!(arg, DynamicValue::Zoned(_) | DynamicValue::DateTime(_))
+        let bytes = self.try_as_bytes()?;
 
-    //     match parse_maybe_zoned(bytes) {
-    //         Err(_) => Err(EvaluationError::from_cast(&self, "zoned")),
-    //         Ok(maybe) => match maybe {
-    //             MaybeZoned::Civil(_) => Err(EvaluationError::from_cast(&self, "zoned")),
-    //             MaybeZoned::Zoned(zoned) => Ok(zoned),
-    //         },
-    //     }
-    // }
-
-    // fn try_into_datetime(self) -> Result<DateTime, EvaluationError> {
-    //     if let Self::DateTime(datetime) = self {
-    //         return Ok(datetime);
-    //     }
-
-    //     if self.is_temporal() {
-    //         return Err(EvaluationError::from_cast(&self, "datetime"));
-    //     }
-
-    //     let bytes = self.try_as_bytes()?;
-
-    //     match parse_maybe_zoned(bytes) {
-    //         Err(_) => Err(EvaluationError::from_cast(&self, "datetime")),
-    //         Ok(maybe) => match maybe {
-    //             MaybeZoned::Civil(datetime) => Ok(datetime),
-    //             MaybeZoned::Zoned(_) => Err(EvaluationError::from_cast(&self, "datetime")),
-    //         },
-    //     }
-    // }
+        match parse_maybe_zoned(bytes) {
+            Err(_) => Err(EvaluationError::from_cast(&self, "zoned")),
+            Ok(maybe) => match maybe {
+                MaybeZoned::Civil(_) => Err(EvaluationError::from_cast(&self, "zoned")),
+                MaybeZoned::Zoned(zoned) => Ok(zoned),
+            },
+        }
+    }
 
     pub fn try_as_tagged_url(&self) -> Result<TaggedUrl, EvaluationError> {
         self.try_as_str()?
