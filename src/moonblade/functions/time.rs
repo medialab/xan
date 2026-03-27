@@ -258,6 +258,18 @@ pub fn to_local_timezone(mut args: BoundArguments) -> FunctionResult {
     }
 }
 
+pub fn custom_strftime(mut args: BoundArguments, format: &str) -> FunctionResult {
+    let arg = args.pop1();
+
+    match arg.try_as_any_temporal()?.try_strftime(format) {
+        Ok(string) => Ok(DynamicValue::from(string)),
+        Err(reason) => Err(EvaluationError::TimeRelated(format!(
+            "could not format {:?} using {:?} format. {}",
+            arg, format, reason
+        ))),
+    }
+}
+
 pub fn strftime(mut args: BoundArguments) -> FunctionResult {
     let (arg, format_arg) = args.pop2();
 

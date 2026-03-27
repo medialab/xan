@@ -187,14 +187,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| binary_arithmetic_op(args, Rem::rem),
             FunctionArguments::binary(),
         ),
-        // "month" => (
-        //     |args| time::custom_strftime(args, "%m"),
-        //     FunctionArguments::unary(),
-        // ),
-        // "month_day" => (
-        //     |args| time::custom_strftime(args, "%m-%d"),
-        //     FunctionArguments::unary(),
-        // ),
+        "month" => (
+            |args| time::custom_strftime(args, "%m"),
+            FunctionArguments::unary(),
+        ),
+        "month_day" => (
+            |args| time::custom_strftime(args, "%m-%d"),
+            FunctionArguments::unary(),
+        ),
         "move" => (io::move_file, FunctionArguments::binary()),
         "mul" => (
             |args| variadic_arithmetic_op(args, Mul::mul),
@@ -323,18 +323,18 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "with_local_timezone" => (time::with_local_timezone, FunctionArguments::unary()),
         "without_timezone" => (time::without_timezone, FunctionArguments::unary()),
         "write" => (io::write, FunctionArguments::binary()),
-        // "year" => (
-        //     |args| time::custom_strftime(args, "%Y"),
-        //     FunctionArguments::unary(),
-        // ),
-        // "year_month_day" | "ymd" => (
-        //     |args| time::custom_strftime(args, "%F"),
-        //     FunctionArguments::unary(),
-        // ),
-        // "year_month" | "ym" => (
-        //     |args| time::custom_strftime(args, "%Y-%m"),
-        //     FunctionArguments::unary(),
-        // ),
+        "year" => (
+            |args| time::custom_strftime(args, "%Y"),
+            FunctionArguments::unary(),
+        ),
+        "year_month_day" | "ymd" => (
+            |args| time::custom_strftime(args, "%F"),
+            FunctionArguments::unary(),
+        ),
+        "year_month" | "ym" => (
+            |args| time::custom_strftime(args, "%Y-%m"),
+            FunctionArguments::unary(),
+        ),
         _ => return None,
     })
 }
