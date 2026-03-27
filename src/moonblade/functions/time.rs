@@ -4,8 +4,7 @@ use jiff::{
 };
 
 use crate::dates::{
-    parse_any_temporal, parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned,
-    DEFAULT_DATETIME_PARSER,
+    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, DEFAULT_DATETIME_PARSER,
 };
 
 use super::FunctionResult;
@@ -264,15 +263,11 @@ pub fn strftime(mut args: BoundArguments) -> FunctionResult {
 
     let format = format_arg.try_as_bytes()?;
 
-    if let Ok(bytes) = arg.try_as_bytes() {
-        return parse_any_temporal(bytes)
-            .map_err(|err| {
-                EvaluationError::TimeRelated(format!("{} (value: {:?})", err.as_str(), arg))
-            })
-            .map(|temporal| DynamicValue::from(temporal.strftime(format).to_string()));
+    match arg.try_as_any_temporal()?.try_strftime(format) {
+        Ok(string) => Ok(DynamicValue::from(string)),
+        Err(reason) => Err(EvaluationError::TimeRelated(format!(
+            "could not format {:?} using {:?} format. {}",
+            arg, format_arg, reason
+        ))),
     }
-
-    Ok(DynamicValue::from(
-        arg.try_into_any_temporal()?.strftime(format).to_string(),
-    ))
 }

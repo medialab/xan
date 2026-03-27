@@ -18,7 +18,7 @@ use serde::{
 };
 use url::Url;
 
-use crate::dates::{parse_maybe_zoned, AnyTemporal, MaybeZoned};
+use crate::dates::{parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned};
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
@@ -282,12 +282,30 @@ impl DynamicValue {
         }
     }
 
-    pub fn try_into_any_temporal(self) -> Result<AnyTemporal, EvaluationError> {
+    pub fn try_as_any_temporal(&self) -> Result<AnyTemporal, EvaluationError> {
         Ok(match self {
-            Self::Zoned(zoned) => AnyTemporal::Zoned(*zoned),
-            Self::DateTime(datetime) => AnyTemporal::DateTime(datetime),
-            Self::Date(date) => AnyTemporal::Date(date),
-            Self::Time(time) => AnyTemporal::Time(time),
+            Self::Zoned(zoned) => AnyTemporal::Zoned(*zoned.clone()),
+            Self::DateTime(datetime) => AnyTemporal::DateTime(*datetime),
+            Self::Date(date) => AnyTemporal::Date(*date),
+            Self::Time(time) => AnyTemporal::Time(*time),
+            Self::String(string) => match parse_any_temporal(string.as_bytes()) {
+                Ok(temporal) => temporal,
+                Err(_) => {
+                    return Err(EvaluationError::TimeRelated(format!(
+                        "could not parse {} as a temporal value",
+                        string
+                    )))
+                }
+            },
+            Self::Bytes(bytes) => match parse_any_temporal(bytes.as_ref()) {
+                Ok(temporal) => temporal,
+                Err(_) => {
+                    return Err(EvaluationError::TimeRelated(format!(
+                        "could not parse {} as a temporal value",
+                        bytes
+                    )))
+                }
+            },
             _ => return Err(EvaluationError::from_cast(&self, "temporal")),
         })
     }

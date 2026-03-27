@@ -1,7 +1,7 @@
 use btoi::btoi;
 use jiff::{
     civil::{Date, DateTime, Time},
-    fmt::strtime::{self, Display},
+    fmt::strtime,
     fmt::temporal::{DateTimeParser, PiecesOffset},
     tz::{OffsetConflict, TimeZone},
     Error, Timestamp, ToSpan, Unit, Zoned,
@@ -335,15 +335,12 @@ pub enum AnyTemporal {
 }
 
 impl AnyTemporal {
-    pub fn strftime<'f, F>(&self, format: &'f F) -> Display<'f>
-    where
-        F: 'f + ?Sized + AsRef<[u8]>,
-    {
+    pub fn try_strftime(&self, format: impl AsRef<[u8]>) -> Result<String, Error> {
         match self {
-            Self::Zoned(zoned) => zoned.strftime(format),
-            Self::DateTime(datetime) => datetime.strftime(format),
-            Self::Date(date) => date.strftime(format),
-            Self::Time(time) => time.strftime(format),
+            Self::Zoned(zoned) => strtime::format(format, zoned),
+            Self::DateTime(datetime) => strtime::format(format, *datetime),
+            Self::Date(date) => strtime::format(format, *date),
+            Self::Time(time) => strtime::format(format, *time),
         }
     }
 }
