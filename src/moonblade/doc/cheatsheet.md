@@ -159,6 +159,18 @@ b`hello`
 {"one": 1, "two": 2}
 {one: 1, two: 2}
 {leaf: "hello", nested: [1, 2, 3]}
+
+# Datetime with timezone info
+datetime("2026-03-27T16:00:40+01:00[Europe/Paris]")
+
+# Civil datetime
+datetime("2026-03-27T16:00:40")
+
+# Civil date
+date("2026-03-27")
+
+# Civil time
+time("16:00:40")
 ```
 
 ## Operators & calling functions

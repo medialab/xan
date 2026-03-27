@@ -530,53 +530,101 @@
     "functions": [
       {
         "name": "datetime",
-        "arguments": ["string", "format=?", "timezone=?"],
-        "returns": "datetime",
-        "help": "Parse a string as a datetime according to format and timezone. If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+        "arguments": ["string", "format=?"],
+        "returns": "zoned?_datetime",
+        "help": "Attempt to parse a datetime with or without timezone info from given string. If no format is provided, string is parsed using ISO 8601 date format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+      },
+      {
+        "name": "date",
+        "arguments": ["string_or_datetime", "format=?"],
+        "returns": "date",
+        "help": "If given a datetime, will return its date component. Else, attempt to parse a date from given string. If no format is provided, string is parsed using ISO 8601 date format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+      },
+      {
+        "name": "time",
+        "arguments": ["string_or_datetime", "format=?"],
+        "returns": "time",
+        "help": "If given a datetime, will return its time component. Else, attempt to parse a time from given string. If no format is provided, string is parsed using ISO 8601 time format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
+      },
+      {
+        "name": "now",
+        "returns": "zoned_datetime",
+        "arguments": [],
+        "help": "Return current datetime in local timezone."
+      },
+      {
+        "name": "from_timestamp",
+        "arguments": ["int_or_float"],
+        "returns": "zoned_datetime",
+        "help": "Interpret given int as seconds timestamp, or given float as seconds timestamp with fractional subseconds component."
+      },
+       {
+        "name": "from_timestamp_ms",
+        "arguments": ["int"],
+        "returns": "zoned_datetime",
+        "help": "Interpret given int as milliseconds timestamp."
+      },
+      {
+        "name": "to_timestamp",
+        "arguments": ["zoned_datetime"],
+        "returns": "int_or_float",
+        "help": "Convert given datetime to seconds timestamp or seconds with fractional subseconds timestamp if datetime has enough precision. Will error if given datetime has no timezone info."
+      },
+      {
+        "name": "to_timestamp_ms",
+        "arguments": ["zoned_datetime"],
+        "returns": "int",
+        "help": "Convert given datetime to milliseconds timestamp. Will error if given datetime has no timezone info."
       },
       {
         "name": "earliest",
-        "arguments": ["datetime1", "datetime2", "*datetimen"],
-        "alternatives": [["list_of_datetimes"]],
-        "returns": "datetime",
-        "help": "Return the earliest datetime."
+        "arguments": ["t1", "t2", "*tn"],
+        "alternatives": [["list_of_temporals"]],
+        "returns": "temporal",
+        "help": "Return the earliest point in time. Expects homogeneous types (all dates, all datetimes etc.)."
       },
       {
         "name": "latest",
-        "arguments": ["datetime1", "datetime2", "*datetimen"],
-        "alternatives": [["list_of_datetimes"]],
-        "returns": "datetime",
-        "help": "Return the latest datetime."
+        "arguments": ["t1", "t2", "*tn"],
+        "alternatives": [["list_of_temporals"]],
+        "returns": "temporal",
+        "help": "Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.)."
       },
       {
         "name": "strftime",
         "arguments": ["target", "format"],
         "returns": "string",
-        "help": "Format target (a time in ISO 8601 format, or the result of datetime() function) according to format."
-      },
-      {
-        "name": "timestamp",
-        "arguments": ["number"],
-        "returns": "datetime",
-        "help": "Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time."
-      },
-      {
-        "name": "timestamp_ms",
-        "arguments": ["number"],
-        "returns": "datetime",
-        "help": "Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time."
+        "help": "Format temporal value according to format.\nhttps://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications"
       },
       {
         "name": "to_timezone",
-        "arguments": ["target", "timezone_in", "timezone_out"],
-        "returns": "datetime",
-        "help": "Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to timezone_out."
+        "arguments": ["zoned_datetime", "timezone"],
+        "returns": "zoned_datetime",
+        "help": "Convert given datetime to given timezone. Will error if given datetime has no timezone info."
       },
       {
         "name": "to_local_timezone",
-        "arguments": ["target"],
+        "arguments": ["zoned_datetime"],
+        "returns": "zoned_datetime",
+        "help": "Convert given datetime to local timezone. Will error if given datetime has no timezone info."
+      },
+      {
+        "name": "with_timezone",
+        "arguments": ["datetime", "timezone"],
+        "returns": "zoned_datetime",
+        "help": "Arbitrarily indicate that given civil datetime should be understood as being in given timezone. Will error if given datetime already has timezone info."
+      },
+      {
+        "name": "with_local_timezone",
+        "arguments": ["datetime"],
+        "returns": "zoned_datetime",
+        "help": "Arbitrarily indicate that given civil datetime should be understood as being in local timezone. Will error if given datetime already has timezone info."
+      },
+      {
+        "name": "without_timezone",
+        "arguments": ["zoned_datetime"],
         "returns": "datetime",
-        "help": "Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to the system's local timezone."
+        "help": "Return the civil datetime of a datetime with timezone info. Will error if given datetime has no timezone info."
       },
       {
         "name": "year_month_day",

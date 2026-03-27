@@ -228,16 +228,24 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Dates & time
 
-- **datetime**(*string*, *format=?*, *timezone=?*) -> `datetime`: Parse a string as a datetime according to format and timezone. If no format is provided, string is parsed as ISO 8601 date format. Default timezone is the system timezone.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
-- **earliest**(*datetime1*, *datetime2*, *\*datetimen*) -> `datetime`: Return the earliest datetime.
-- **earliest**(*list_of_datetimes*) -> `datetime`: Return the earliest datetime.
-- **latest**(*datetime1*, *datetime2*, *\*datetimen*) -> `datetime`: Return the latest datetime.
-- **latest**(*list_of_datetimes*) -> `datetime`: Return the latest datetime.
-- **strftime**(*target*, *format*) -> `string`: Format target (a time in ISO 8601 format, or the result of datetime() function) according to format.
-- **timestamp**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in seconds (nb of seconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
-- **timestamp_ms**(*number*) -> `datetime`: Parse a number as a POSIX timestamp in milliseconds (nb of milliseconds since 1970-01-01 00:00:00 UTC), and convert it to a datetime in local time.
-- **to_timezone**(*target*, *timezone_in*, *timezone_out*) -> `datetime`: Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to timezone_out.
-- **to_local_timezone**(*target*) -> `datetime`: Parse target (a time in ISO 8601 format, or the result of datetime() function) in timezone_in, and convert it to the system's local timezone.
+- **datetime**(*string*, *format=?*) -> `zoned?_datetime`: Attempt to parse a datetime with or without timezone info from given string. If no format is provided, string is parsed using ISO 8601 date format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
+- **date**(*string_or_datetime*, *format=?*) -> `date`: If given a datetime, will return its date component. Else, attempt to parse a date from given string. If no format is provided, string is parsed using ISO 8601 date format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
+- **time**(*string_or_datetime*, *format=?*) -> `time`: If given a datetime, will return its time component. Else, attempt to parse a time from given string. If no format is provided, string is parsed using ISO 8601 time format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
+- **now**() -> `zoned_datetime`: Return current datetime in local timezone.
+- **from_timestamp**(*int_or_float*) -> `zoned_datetime`: Interpret given int as seconds timestamp, or given float as seconds timestamp with fractional subseconds component.
+- **from_timestamp_ms**(*int*) -> `zoned_datetime`: Interpret given int as milliseconds timestamp.
+- **to_timestamp**(*zoned_datetime*) -> `int_or_float`: Convert given datetime to seconds timestamp or seconds with fractional subseconds timestamp if datetime has enough precision. Will error if given datetime has no timezone info.
+- **to_timestamp_ms**(*zoned_datetime*) -> `int`: Convert given datetime to milliseconds timestamp. Will error if given datetime has no timezone info.
+- **earliest**(*t1*, *t2*, *\*tn*) -> `temporal`: Return the earliest point in time. Expects homogeneous types (all dates, all datetimes etc.).
+- **earliest**(*list_of_temporals*) -> `temporal`: Return the earliest point in time. Expects homogeneous types (all dates, all datetimes etc.).
+- **latest**(*t1*, *t2*, *\*tn*) -> `temporal`: Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.).
+- **latest**(*list_of_temporals*) -> `temporal`: Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.).
+- **strftime**(*target*, *format*) -> `string`: Format temporal value according to format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
+- **to_timezone**(*zoned_datetime*, *timezone*) -> `zoned_datetime`: Convert given datetime to given timezone. Will error if given datetime has no timezone info.
+- **to_local_timezone**(*zoned_datetime*) -> `zoned_datetime`: Convert given datetime to local timezone. Will error if given datetime has no timezone info.
+- **with_timezone**(*datetime*, *timezone*) -> `zoned_datetime`: Arbitrarily indicate that given civil datetime should be understood as being in given timezone. Will error if given datetime already has timezone info.
+- **with_local_timezone**(*datetime*) -> `zoned_datetime`: Arbitrarily indicate that given civil datetime should be understood as being in local timezone. Will error if given datetime already has timezone info.
+- **without_timezone**(*zoned_datetime*) -> `datetime`: Return the civil datetime of a datetime with timezone info. Will error if given datetime has no timezone info.
 - **year_month_day**(*target*) -> `string` (aliases: **ymd**): Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.<br>Equivalent to `strftime(string, format="%Y-%m-%d")`.
 - **month_day**(*target*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.<br>Equivalent to `strftime(string, format="%m-%d")`.
 - **month**(*target*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.
