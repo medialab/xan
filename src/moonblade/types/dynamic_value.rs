@@ -18,7 +18,7 @@ use serde::{
 };
 use url::Url;
 
-use crate::dates::{parse_maybe_zoned, MaybeZoned};
+use crate::dates::{parse_maybe_zoned, AnyTemporal, MaybeZoned};
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
@@ -280,6 +280,16 @@ impl DynamicValue {
             Err(_) => Err(EvaluationError::from_cast(&self, "maybe_zoned")),
             Ok(maybe) => Ok(maybe),
         }
+    }
+
+    pub fn try_into_any_temporal(self) -> Result<AnyTemporal, EvaluationError> {
+        Ok(match self {
+            Self::Zoned(zoned) => AnyTemporal::Zoned(*zoned),
+            Self::DateTime(datetime) => AnyTemporal::DateTime(datetime),
+            Self::Date(date) => AnyTemporal::Date(date),
+            Self::Time(time) => AnyTemporal::Time(time),
+            _ => return Err(EvaluationError::from_cast(&self, "temporal")),
+        })
     }
 
     // fn try_into_zoned(self) -> Result<Zoned, EvaluationError> {

@@ -1,6 +1,7 @@
+use btoi::btoi;
 use jiff::{
-    civil::{Date, DateTime},
-    fmt::strtime,
+    civil::{Date, DateTime, Time},
+    fmt::strtime::{self, Display},
     fmt::temporal::{DateTimeParser, PiecesOffset},
     tz::{OffsetConflict, TimeZone},
     Error, Timestamp, ToSpan, Unit, Zoned,
@@ -71,18 +72,32 @@ pub fn is_partial_date(string: &str) -> bool {
     PARTIAL_DATE_REGEX.is_match(string)
 }
 
-pub fn parse_partial_date(string: &str) -> Option<PartialDate> {
-    match string.len() {
-        4 => PartialDate::year(string.parse::<i16>().ok()?),
-        7 => PartialDate::month(
-            string[..4].parse::<i16>().ok()?,
-            string[5..].parse::<i8>().ok()?,
-        ),
-        10 => PartialDate::day(
-            string[..4].parse::<i16>().ok()?,
-            string[5..7].parse::<i8>().ok()?,
-            string[8..].parse::<i8>().ok()?,
-        ),
+pub fn parse_partial_date(input: impl AsRef<[u8]>) -> Option<PartialDate> {
+    let bytes = input.as_ref();
+
+    match bytes.len() {
+        4 => PartialDate::year(btoi::<i16>(bytes).ok()?),
+        7 => {
+            if bytes[4] != b'-' {
+                return None;
+            }
+
+            PartialDate::month(
+                btoi::<i16>(&bytes[..4]).ok()?,
+                btoi::<i8>(&bytes[5..]).ok()?,
+            )
+        }
+        10 => {
+            if bytes[4] != b'-' || bytes[7] != b'-' {
+                return None;
+            }
+
+            PartialDate::day(
+                btoi::<i16>(&bytes[..4]).ok()?,
+                btoi::<i8>(&bytes[5..7]).ok()?,
+                btoi::<i8>(&bytes[8..]).ok()?,
+            )
+        }
         _ => None,
     }
 }
@@ -312,7 +327,28 @@ pub enum MaybeZoned {
     Zoned(Zoned),
 }
 
-pub enum MaybeZonedParseError {
+pub enum AnyTemporal {
+    Zoned(Zoned),
+    DateTime(DateTime),
+    Date(Date),
+    Time(Time),
+}
+
+impl AnyTemporal {
+    pub fn strftime<'f, F>(&self, format: &'f F) -> Display<'f>
+    where
+        F: 'f + ?Sized + AsRef<[u8]>,
+    {
+        match self {
+            Self::Zoned(zoned) => zoned.strftime(format),
+            Self::DateTime(datetime) => datetime.strftime(format),
+            Self::Date(date) => date.strftime(format),
+            Self::Time(time) => time.strftime(format),
+        }
+    }
+}
+
+pub enum AnyTemporalParseError {
     #[allow(dead_code)]
     CannotParse(Error),
     DoesNotContainTime,
@@ -321,7 +357,7 @@ pub enum MaybeZonedParseError {
     UnresolvedAmbiguity,
 }
 
-impl MaybeZonedParseError {
+impl AnyTemporalParseError {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::CannotParse(_) => "cannot parse as a datetime",
@@ -335,8 +371,8 @@ impl MaybeZonedParseError {
 
 pub static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
 
-pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, MaybeZonedParseError> {
-    use MaybeZonedParseError::*;
+pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, AnyTemporalParseError> {
+    use AnyTemporalParseError::*;
 
     match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
         Err(err) => Err(CannotParse(err)),
@@ -389,8 +425,8 @@ pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, MaybeZon
 pub fn parse_maybe_zoned_with_format(
     format: impl AsRef<[u8]>,
     input: impl AsRef<[u8]>,
-) -> Result<MaybeZoned, MaybeZonedParseError> {
-    use MaybeZonedParseError::*;
+) -> Result<MaybeZoned, AnyTemporalParseError> {
+    use AnyTemporalParseError::*;
 
     match strtime::parse(format, input) {
         Err(err) => Err(CannotParse(err)),
@@ -411,6 +447,60 @@ pub fn parse_maybe_zoned_with_format(
                 }
             }
         }
+    }
+}
+
+// TODO: add support for timestamp & partial date later on
+pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, AnyTemporalParseError> {
+    use AnyTemporalParseError::*;
+
+    match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
+        Err(err) => Err(CannotParse(err)),
+        Ok(pieces) => match pieces.time() {
+            None => Ok(AnyTemporal::Date(pieces.date())),
+            Some(time) => {
+                let datetime = DateTime::from_parts(pieces.date(), time);
+
+                if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
+                    // We have a civil datetime
+                    Ok(AnyTemporal::DateTime(datetime))
+                } else {
+                    // We have a timestamp
+                    if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
+                        return Ok(AnyTemporal::Zoned(
+                            datetime.to_zoned(TimeZone::UTC).unwrap(),
+                        ));
+                    }
+
+                    let conflict_resolution = OffsetConflict::Reject;
+
+                    // We might have a correct zoned
+                    let ambiguous = match pieces.to_time_zone() {
+                        Ok(None) => {
+                            let Some(offset) = pieces.to_numeric_offset() else {
+                                return Err(NoValidTimezoneInfo);
+                            };
+
+                            TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                        }
+                        Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                            None => tz.into_ambiguous_zoned(datetime),
+                            Some(offset) => conflict_resolution
+                                .resolve(datetime, offset, tz)
+                                .map_err(|_| ConflictingTimezoneAndOffset)?,
+                        },
+                        Err(_) => {
+                            return Err(NoValidTimezoneInfo);
+                        }
+                    };
+
+                    match ambiguous.compatible() {
+                        Err(_) => Err(UnresolvedAmbiguity),
+                        Ok(zoned) => Ok(AnyTemporal::Zoned(zoned)),
+                    }
+                }
+            }
+        },
     }
 }
 
@@ -444,6 +534,7 @@ mod tests {
             ("1998-10", PartialDate::month(1998, 10)),
             ("1998-10-34", None),
             ("1998-10-22", PartialDate::day(1998, 10, 22)),
+            ("1998/10/22", None),
         ];
 
         for (string, expected) in tests {

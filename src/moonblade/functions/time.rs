@@ -4,7 +4,8 @@ use jiff::{
 };
 
 use crate::dates::{
-    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, DEFAULT_DATETIME_PARSER,
+    parse_any_temporal, parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned,
+    DEFAULT_DATETIME_PARSER,
 };
 
 use super::FunctionResult;
@@ -263,20 +264,15 @@ pub fn strftime(mut args: BoundArguments) -> FunctionResult {
 
     let format = format_arg.try_as_bytes()?;
 
-    // TODO: handle the case when we have a string
+    if let Ok(bytes) = arg.try_as_bytes() {
+        return parse_any_temporal(bytes)
+            .map_err(|err| {
+                EvaluationError::TimeRelated(format!("{} (value: {:?})", err.as_str(), arg))
+            })
+            .map(|temporal| DynamicValue::from(temporal.strftime(format).to_string()));
+    }
 
-    Ok(match arg {
-        DynamicValue::Zoned(zoned) => DynamicValue::from(zoned.strftime(format).to_string()),
-        DynamicValue::DateTime(datetime) => {
-            DynamicValue::from(datetime.strftime(format).to_string())
-        }
-        DynamicValue::Date(date) => DynamicValue::from(date.strftime(format).to_string()),
-        DynamicValue::Time(time) => DynamicValue::from(time.strftime(format).to_string()),
-        _ => {
-            return Err(EvaluationError::TimeRelated(format!(
-                "expected a temporal argument but got {}",
-                arg.type_of()
-            )));
-        }
-    })
+    Ok(DynamicValue::from(
+        arg.try_into_any_temporal()?.strftime(format).to_string(),
+    ))
 }
