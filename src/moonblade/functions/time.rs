@@ -1,73 +1,15 @@
-use jiff::tz::TimeZone;
+use jiff::{
+    civil::{Date, Time},
+    tz::TimeZone,
+};
 
-use crate::dates::{parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned};
+use crate::dates::{
+    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, DEFAULT_DATETIME_PARSER,
+};
 
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
 use crate::moonblade::types::{BoundArguments, DynamicValue};
-
-impl DynamicValue {
-    fn try_into_maybe_zoned(self) -> Result<MaybeZoned, EvaluationError> {
-        if let Self::Zoned(zoned) = self {
-            return Ok(MaybeZoned::Zoned(*zoned));
-        }
-
-        if let Self::DateTime(datetime) = self {
-            return Ok(MaybeZoned::Civil(datetime));
-        }
-
-        if self.is_temporal() {
-            return Err(EvaluationError::from_cast(&self, "maybe_zoned"));
-        }
-
-        let bytes = self.try_as_bytes()?;
-
-        match parse_maybe_zoned(bytes) {
-            Err(_) => Err(EvaluationError::from_cast(&self, "maybe_zoned")),
-            Ok(maybe) => Ok(maybe),
-        }
-    }
-
-    // fn try_into_zoned(self) -> Result<Zoned, EvaluationError> {
-    //     if let Self::Zoned(zoned) = self {
-    //         return Ok(*zoned);
-    //     }
-
-    //     if self.is_temporal() {
-    //         return Err(EvaluationError::from_cast(&self, "zoned"));
-    //     }
-
-    //     let bytes = self.try_as_bytes()?;
-
-    //     match parse_maybe_zoned(bytes) {
-    //         Err(_) => Err(EvaluationError::from_cast(&self, "zoned")),
-    //         Ok(maybe) => match maybe {
-    //             MaybeZoned::Civil(_) => Err(EvaluationError::from_cast(&self, "zoned")),
-    //             MaybeZoned::Zoned(zoned) => Ok(zoned),
-    //         },
-    //     }
-    // }
-
-    // fn try_into_datetime(self) -> Result<DateTime, EvaluationError> {
-    //     if let Self::DateTime(datetime) = self {
-    //         return Ok(datetime);
-    //     }
-
-    //     if self.is_temporal() {
-    //         return Err(EvaluationError::from_cast(&self, "datetime"));
-    //     }
-
-    //     let bytes = self.try_as_bytes()?;
-
-    //     match parse_maybe_zoned(bytes) {
-    //         Err(_) => Err(EvaluationError::from_cast(&self, "datetime")),
-    //         Ok(maybe) => match maybe {
-    //             MaybeZoned::Civil(datetime) => Ok(datetime),
-    //             MaybeZoned::Zoned(_) => Err(EvaluationError::from_cast(&self, "datetime")),
-    //         },
-    //     }
-    // }
-}
 
 pub fn datetime(mut args: BoundArguments) -> FunctionResult {
     let (arg, format_arg_opt) = if args.len() == 2 {
@@ -80,9 +22,9 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
     match format_arg_opt {
         Some(format_arg) => {
             // Early returns mapping to errors
-            if matches!(arg, DynamicValue::Zoned(_) | DynamicValue::DateTime(_)) {
+            if arg.is_temporal() {
                 return Err(EvaluationError::Custom(
-                    "cannot parse a value that is already a datetime using a format".to_string(),
+                    "cannot parse an already parsed temporal value using a format".to_string(),
                 ));
             }
 
@@ -110,8 +52,6 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
                 return Ok(arg);
             }
 
-            // TODO: deal with other temporal types flowcharts
-
             // Attempting to parse
             let string = arg.try_as_bytes()?;
 
@@ -130,8 +70,115 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
     }
 }
 
-// TODO: add local_datetime?
-// TODO: what to do with timestamps
+pub fn date(mut args: BoundArguments) -> FunctionResult {
+    let (arg, format_arg_opt) = if args.len() == 2 {
+        let (a, b) = args.pop2();
+        (a, Some(b))
+    } else {
+        (args.pop1(), None)
+    };
+
+    match format_arg_opt {
+        Some(format_arg) => {
+            // Early returns mapping to errors
+            if arg.is_temporal() {
+                return Err(EvaluationError::Custom(
+                    "cannot parse an already parsed temporal value using a format".to_string(),
+                ));
+            }
+
+            // Using a strptime format
+            let format = format_arg.try_as_bytes()?;
+            let string = arg.try_as_bytes()?;
+
+            match Date::strptime(format, string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {:?} as a date using format {:?}",
+                    arg, format_arg
+                ))),
+                Ok(date) => Ok(DynamicValue::from(date)),
+            }
+        }
+        None => {
+            // Early returns mapping to no-ops
+            if matches!(arg, DynamicValue::Date(_)) {
+                return Ok(arg);
+            }
+
+            match arg {
+                DynamicValue::Zoned(zoned) => return Ok(DynamicValue::from(zoned.date())),
+                DynamicValue::DateTime(datetime) => return Ok(DynamicValue::from(datetime.date())),
+                _ => (),
+            };
+
+            // Attempting to parse
+            let string = arg.try_as_bytes()?;
+
+            match DEFAULT_DATETIME_PARSER.parse_date(string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {:?} as a date",
+                    arg
+                ))),
+                Ok(date) => Ok(DynamicValue::from(date)),
+            }
+        }
+    }
+}
+
+pub fn time(mut args: BoundArguments) -> FunctionResult {
+    let (arg, format_arg_opt) = if args.len() == 2 {
+        let (a, b) = args.pop2();
+        (a, Some(b))
+    } else {
+        (args.pop1(), None)
+    };
+
+    match format_arg_opt {
+        Some(format_arg) => {
+            // Early returns mapping to errors
+            if arg.is_temporal() {
+                return Err(EvaluationError::Custom(
+                    "cannot parse an already parsed temporal value using a format".to_string(),
+                ));
+            }
+
+            // Using a strptime format
+            let format = format_arg.try_as_bytes()?;
+            let string = arg.try_as_bytes()?;
+
+            match Time::strptime(format, string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {:?} as a time using format {:?}",
+                    arg, format_arg
+                ))),
+                Ok(time) => Ok(DynamicValue::from(time)),
+            }
+        }
+        None => {
+            // Early returns mapping to no-ops
+            if matches!(arg, DynamicValue::Time(_)) {
+                return Ok(arg);
+            }
+
+            match arg {
+                DynamicValue::Zoned(zoned) => return Ok(DynamicValue::from(zoned.time())),
+                DynamicValue::DateTime(datetime) => return Ok(DynamicValue::from(datetime.time())),
+                _ => (),
+            };
+
+            // Attempting to parse
+            let string = arg.try_as_bytes()?;
+
+            match DEFAULT_DATETIME_PARSER.parse_time(string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {:?} as a time",
+                    arg
+                ))),
+                Ok(time) => Ok(DynamicValue::from(time)),
+            }
+        }
+    }
+}
 
 pub fn without_timezone(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();

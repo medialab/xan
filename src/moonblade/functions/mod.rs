@@ -91,6 +91,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "contains" => (contains, FunctionArguments::binary()),
         "copy" => (io::copy_file, FunctionArguments::binary()),
         "count" => (count, FunctionArguments::binary()),
+        "date" => (time::date, FunctionArguments::with_range(1..=2)),
         "datetime" => (time::datetime, FunctionArguments::with_range(1..=2)),
         "dirname" => (io::dirname, FunctionArguments::unary()),
         "div" => (
@@ -306,6 +307,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| sequence_compare(args, Ordering::is_ne),
             FunctionArguments::binary(),
         ),
+        "time" => (time::time, FunctionArguments::with_range(1..=2)),
         // "timestamp" => (time::timestamp, FunctionArguments::unary()),
         // "timestamp_ms" => (time::timestamp_ms, FunctionArguments::unary()),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),

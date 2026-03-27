@@ -813,7 +813,11 @@ impl Program {
 mod tests {
     use super::super::error::RunError;
     use super::*;
-    use jiff::{civil::DateTime, tz::TimeZone, Timestamp, Zoned};
+    use jiff::{
+        civil::{Date, DateTime, Time},
+        tz::TimeZone,
+        Timestamp, Zoned,
+    };
 
     type TestResult = Result<DynamicValue, RunError>;
 
@@ -1470,6 +1474,37 @@ mod tests {
         assert_eq!(
             eval_code("datetime('2024-07-11 01h14', '%F %Hh%M')",),
             Ok(DynamicValue::from(datetime))
+        );
+    }
+
+    #[test]
+    fn test_date() {
+        let date: Date = "1999-01-31".parse().unwrap();
+
+        assert!(eval_code("'20'.date()").is_err());
+
+        assert_eq!(
+            eval_code("'1999-01-31'.date()"),
+            Ok(DynamicValue::from(date))
+        );
+
+        assert_eq!(
+            eval_code("'99/01/31'.date('%y/%m/%d')"),
+            Ok(DynamicValue::from(date))
+        );
+    }
+
+    #[test]
+    fn test_time() {
+        let time: Time = "01:45".parse().unwrap();
+
+        assert!(eval_code("'test'.time()").is_err());
+
+        assert_eq!(eval_code("'01:45'.time()"), Ok(DynamicValue::from(time)));
+
+        assert_eq!(
+            eval_code("'01/45'.time('%H/%M')"),
+            Ok(DynamicValue::from(time))
         );
     }
 

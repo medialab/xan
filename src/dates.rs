@@ -333,7 +333,7 @@ impl MaybeZonedParseError {
     }
 }
 
-static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
+pub static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
 
 pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, MaybeZonedParseError> {
     use MaybeZonedParseError::*;
