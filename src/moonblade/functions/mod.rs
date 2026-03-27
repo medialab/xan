@@ -1104,10 +1104,19 @@ where
 {
     let (a, b) = args.pop2();
 
-    // TODO...
     let ordering = match (a, b) {
-        // (DynamicValue::DateTime(a), b) => (*a).partial_cmp(&b.try_into_datetime()?),
-        // (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
+        (DynamicValue::Zoned(a), b) => (*a).partial_cmp(&b.try_into_zoned()?),
+        (a, DynamicValue::Zoned(b)) => a.try_into_zoned()?.partial_cmp(&b),
+
+        (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
+        (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
+
+        (DynamicValue::Date(a), b) => a.partial_cmp(&b.try_into_date()?),
+        (a, DynamicValue::Date(b)) => a.try_into_date()?.partial_cmp(&b),
+
+        (DynamicValue::Time(a), b) => a.partial_cmp(&b.try_into_time()?),
+        (a, DynamicValue::Time(b)) => a.try_into_time()?.partial_cmp(&b),
+
         (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
     };
 

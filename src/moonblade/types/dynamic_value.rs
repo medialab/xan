@@ -18,7 +18,9 @@ use serde::{
 };
 use url::Url;
 
-use crate::dates::{parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned};
+use crate::dates::{
+    parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned, DEFAULT_DATETIME_PARSER,
+};
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
@@ -306,7 +308,7 @@ impl DynamicValue {
                     )))
                 }
             },
-            _ => return Err(EvaluationError::from_cast(&self, "temporal")),
+            _ => return Err(EvaluationError::from_cast(self, "temporal")),
         })
     }
 
@@ -327,6 +329,60 @@ impl DynamicValue {
                 MaybeZoned::Civil(_) => Err(EvaluationError::from_cast(&self, "zoned")),
                 MaybeZoned::Zoned(zoned) => Ok(zoned),
             },
+        }
+    }
+
+    pub fn try_into_datetime(self) -> Result<DateTime, EvaluationError> {
+        if let Self::DateTime(datetime) = self {
+            return Ok(datetime);
+        }
+
+        if self.is_temporal() {
+            return Err(EvaluationError::from_cast(&self, "datetime"));
+        }
+
+        let bytes = self.try_as_bytes()?;
+
+        match parse_maybe_zoned(bytes) {
+            Err(_) => Err(EvaluationError::from_cast(&self, "datetime")),
+            Ok(maybe) => match maybe {
+                MaybeZoned::Zoned(_) => Err(EvaluationError::from_cast(&self, "datetime")),
+                MaybeZoned::Civil(datetime) => Ok(datetime),
+            },
+        }
+    }
+
+    pub fn try_into_date(self) -> Result<Date, EvaluationError> {
+        if let Self::Date(date) = self {
+            return Ok(date);
+        }
+
+        if self.is_temporal() {
+            return Err(EvaluationError::from_cast(&self, "date"));
+        }
+
+        let bytes = self.try_as_bytes()?;
+
+        match DEFAULT_DATETIME_PARSER.parse_date(bytes) {
+            Err(_) => Err(EvaluationError::from_cast(&self, "date")),
+            Ok(date) => Ok(date),
+        }
+    }
+
+    pub fn try_into_time(self) -> Result<Time, EvaluationError> {
+        if let Self::Time(time) = self {
+            return Ok(time);
+        }
+
+        if self.is_temporal() {
+            return Err(EvaluationError::from_cast(&self, "time"));
+        }
+
+        let bytes = self.try_as_bytes()?;
+
+        match DEFAULT_DATETIME_PARSER.parse_time(bytes) {
+            Err(_) => Err(EvaluationError::from_cast(&self, "time")),
+            Ok(time) => Ok(time),
         }
     }
 
