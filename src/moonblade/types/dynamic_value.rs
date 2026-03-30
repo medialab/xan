@@ -321,16 +321,35 @@ impl DynamicValue {
             return Ok(*zoned);
         }
 
-        if self.is_temporal() {
-            return Err(EvaluationError::from_cast(&self, "zoned"));
-        }
+        let mismatch_err = || {
+            EvaluationError::TimeRelated(format!(
+                "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.", self
+            ))
+        };
+
+        match self {
+            Self::DateTime(_) => return Err(mismatch_err()),
+            Self::Date(date) => {
+                return Err(EvaluationError::TimeRelated(format!(
+                    "this operation cannot work on a bare date ({})",
+                    date
+                )))
+            }
+            Self::Time(time) => {
+                return Err(EvaluationError::TimeRelated(format!(
+                    "this operation cannot work on a bare time ({})",
+                    time
+                )))
+            }
+            _ => (),
+        };
 
         let bytes = self.try_as_bytes()?;
 
         match parse_maybe_zoned(bytes) {
             Err(_) => Err(EvaluationError::from_cast(&self, "zoned")),
             Ok(maybe) => match maybe {
-                MaybeZoned::Civil(_) => Err(EvaluationError::from_cast(&self, "zoned")),
+                MaybeZoned::Civil(_) => Err(mismatch_err()),
                 MaybeZoned::Zoned(zoned) => Ok(zoned),
             },
         }
