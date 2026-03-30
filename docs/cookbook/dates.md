@@ -328,7 +328,22 @@ xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("
 
 ### without_timezone() / without_tz()
 
-If you want to discard the timezone information, it is always possible to use `without_timezone()`/`without_tz()`
+If you want to discard the timezone information, it is always possible to use `without_timezone()`/`without_tz()`:
+```
+xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("UTC").without_tz()' --rename utc_time july_data.csv | xan v
+```
+
+| utc_time            |
+| ------------------- |
+| 2022-07-01T09:55:06 |
+| 2022-07-01T13:50:02 |
+| 2022-07-01T14:07:11 |
+| 2022-07-01T14:07:38 |
+| 2022-07-01T14:07:54 |
+| 2022-07-01T14:07:58 |
+| 2022-07-02T06:35:08 |
+| 2022-07-02T09:20:20 |
+| 2022-07-02T09:23:04 |
 
 ## Dealing with timestamps
 
