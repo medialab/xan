@@ -84,7 +84,7 @@ xan map 'local_time.ym() as formatted_time' dates.csv | xan view
 | 2022-03-01T14:39:03 | 2022-03        |
 | 2022-03-01T17:42:13 | 2022-03        |
 
-Other formatting functions, such as `year()` or `year_month_day()` exist.
+Other formatting functions, such as `year()` or `year_month_day()`/`ymd()` exist.
 The list of all date-related functions is available
 [here](https://github.com/medialab/xan/blob/master/docs/moonblade/functions.md#dates) and can also be displayed using:
 
@@ -180,16 +180,16 @@ and as second argument the desired format (we will see the third argument in the
 xan map 'initial_date.datetime("%d/%m/%y") as parsed_date' strange_dates.csv | xan v
 ```
 
-| initial_date     | parsed_date              |
-| ---------------- | ------------------------ |
-| 25/02/22         | 2022-02-25T00:00:00[CET] |
-| 25/02/22         | 2022-02-25T00:00:00[CET] |
-| 26/02/22         | 2022-02-26T00:00:00[CET] |
-| 27/02/22         | 2022-02-27T00:00:00[CET] |
-| 27/02/22         | 2022-02-27T00:00:00[CET] |
-| 28/02/22         | 2022-02-28T00:00:00[CET] |
-| 01/03/22         | 2022-03-01T00:00:00[CET] |
-| 01/03/22         | 2022-03-01T00:00:00[CET] |
+| initial_date     | parsed_date         |
+| ---------------- | ------------------- |
+| 25/02/22         | 2022-02-25T00:00:00 |
+| 25/02/22         | 2022-02-25T00:00:00 |
+| 26/02/22         | 2022-02-26T00:00:00 |
+| 27/02/22         | 2022-02-27T00:00:00 |
+| 27/02/22         | 2022-02-27T00:00:00 |
+| 28/02/22         | 2022-02-28T00:00:00 |
+| 01/03/22         | 2022-03-01T00:00:00 |
+| 01/03/22         | 2022-03-01T00:00:00 |
 
  Of course, you can combine `datetime()` with other formatting functions to print your output in the desired format.
  Below an example with `month_day()`:
@@ -247,109 +247,130 @@ xan map 'local_time.strftime("%A") as day_of_week' dates.csv | xan v
 
 ## Dealing with timezones
 
-### datetime()
+### with_timezone() / with_tz()
 Let's say you live in Mexico City and your colleague in Paris sends you a file
-called `july_data.csv` containing a `local_time` column.
-When using xan's `datetime()` function, the tool assumes by default that dates are in the same time zone as your computer.
-So you probably get the following result, with dates in CDT (Central Daylight Time):
+called `july_data.csv` containing a `local_time` column without timezones.
 
-```bash
-xan map 'local_time.datetime() as parsed_time' july_data.csv | xan v
-```
+| local_time          |
+| ------------------- |
+| 2022-07-01T11:55:06 |
+| 2022-07-01T15:50:02 |
+| 2022-07-01T16:07:11 |
+| 2022-07-01T16:07:38 |
+| 2022-07-01T16:07:54 |
+| 2022-07-01T16:07:58 |
+| 2022-07-02T08:35:08 |
+| 2022-07-02T11:20:20 |
+| 2022-07-02T11:23:04 |
 
-| local_time          | parsed_time              |
-| ------------------- | ------------------------ |
-| 2022-07-01T11:55:06 | 2022-07-01T11:55:06[CDT] |
-| 2022-07-01T15:50:02 | 2022-07-01T15:50:02[CDT] |
-| 2022-07-01T16:07:11 | 2022-07-01T16:07:11[CDT] |
-| 2022-07-01T16:07:38 | 2022-07-01T16:07:38[CDT] |
-| 2022-07-01T16:07:54 | 2022-07-01T16:07:54[CDT] |
-| 2022-07-01T16:07:58 | 2022-07-01T16:07:58[CDT] |
-| 2022-07-02T08:35:08 | 2022-07-02T08:35:08[CDT] |
-| 2022-07-02T11:20:20 | 2022-07-02T11:20:20[CDT] |
-| 2022-07-02T11:23:04 | 2022-07-02T11:23:04[CDT] |
-
+When using xan's `datetime()` function, the tool does not assume any timezone information.
 You want to tell xan to parse dates according to the Paris time zone,
 and probably rename your column to remove the `local_time` header which could be misleading.
-To do this you use the `xan transform` command associated with the `datetime()` function:
+To do this you use the `xan transform` command associated with the `with_timezone()`/`with_tz()` function:
 
 ```
-xan transform local_time 'local_time.datetime(timezone="Europe/Paris")' --rename paris_time july_data.csv | xan v
+xan transform local_time 'local_time.with_timezone("Europe/Paris")' --rename paris_time july_data.csv | xan v
 ```
 
-| paris_time                |
-| ------------------------- |
-| 2022-07-01T11:55:06[CEST] |
-| 2022-07-01T15:50:02[CEST] |
-| 2022-07-01T16:07:11[CEST] |
-| 2022-07-01T16:07:38[CEST] |
-| 2022-07-01T16:07:54[CEST] |
-| 2022-07-01T16:07:58[CEST] |
-| 2022-07-02T08:35:08[CEST] |
-| 2022-07-02T11:20:20[CEST] |
-| 2022-07-02T11:23:04[CEST] |
+| paris_time                              |
+| --------------------------------------- |
+| 2022-07-01T11:55:06+02:00[Europe/Paris] |
+| 2022-07-01T15:50:02+02:00[Europe/Paris] |
+| 2022-07-01T16:07:11+02:00[Europe/Paris] |
+| 2022-07-01T16:07:38+02:00[Europe/Paris] |
+| 2022-07-01T16:07:54+02:00[Europe/Paris] |
+| 2022-07-01T16:07:58+02:00[Europe/Paris] |
+| 2022-07-02T08:35:08+02:00[Europe/Paris] |
+| 2022-07-02T11:20:20+02:00[Europe/Paris] |
+| 2022-07-02T11:23:04+02:00[Europe/Paris] |
 
-### to_local_timezone()
+### to_local_timezone() / to_local_tz()
 Or maybe you would prefer to write the dates directly in your local timezone.
 In that case you need to tell xan to parse the data in Paris time and
 then convert it to your computer's timezone.
-This is what the `to_local_timezone()` function is for:
+This is what the `to_local_timezone()`/`to_local_tz()` function is for:
 
 ```
-xan transform local_time 'local_time.to_local_timezone("Europe/Paris")' --rename mexico_time july_data.csv | xan v
+xan transform local_time 'local_time.with_timezone("Europe/Paris").to_local_timezone()' --rename mexico_time july_data.csv | xan v
 ```
 
-| mexico_time              |
-| ------------------------ |
-| 2022-07-01T04:55:06[CDT] |
-| 2022-07-01T08:50:02[CDT] |
-| 2022-07-01T09:07:11[CDT] |
-| 2022-07-01T09:07:38[CDT] |
-| 2022-07-01T09:07:54[CDT] |
-| 2022-07-01T09:07:58[CDT] |
-| 2022-07-02T01:35:08[CDT] |
-| 2022-07-02T04:20:20[CDT] |
-| 2022-07-02T04:23:04[CDT] |
+| mexico_time                                    |
+| ---------------------------------------------- |
+| 2022-07-01T04:55:06-05:00[America/Mexico_City] |
+| 2022-07-01T08:50:02-05:00[America/Mexico_City] |
+| 2022-07-01T09:07:11-05:00[America/Mexico_City] |
+| 2022-07-01T09:07:38-05:00[America/Mexico_City] |
+| 2022-07-01T09:07:54-05:00[America/Mexico_City] |
+| 2022-07-01T09:07:58-05:00[America/Mexico_City] |
+| 2022-07-02T01:35:08-05:00[America/Mexico_City] |
+| 2022-07-02T04:20:20-05:00[America/Mexico_City] |
+| 2022-07-02T04:23:04-05:00[America/Mexico_City] |
 
-### to_timezone()
+### to_timezone() / to_tz()
 If you prefer to convert dates to a time zone other than your computer's (UTC, maybe?),
-you can use the `to_timestamp()` function
+you can use the `to_timezone()`/`to_tz()`  function
 
 ```
-xan transform local_time 'local_time.to_timezone("Europe/Paris", "UTC")' --rename utc_time july_data.csv | xan v
+xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("UTC")' --rename utc_time july_data.csv | xan v
 ```
 
-| utc_time                 |
-| ------------------------ |
-| 2022-07-01T09:55:06[UTC] |
-| 2022-07-01T13:50:02[UTC] |
-| 2022-07-01T14:07:11[UTC] |
-| 2022-07-01T14:07:38[UTC] |
-| 2022-07-01T14:07:54[UTC] |
-| 2022-07-01T14:07:58[UTC] |
-| 2022-07-02T06:35:08[UTC] |
-| 2022-07-02T09:20:20[UTC] |
-| 2022-07-02T09:23:04[UTC] |
+| utc_time                       |
+| ------------------------------ |
+| 2022-07-01T09:55:06+00:00[UTC] |
+| 2022-07-01T13:50:02+00:00[UTC] |
+| 2022-07-01T14:07:11+00:00[UTC] |
+| 2022-07-01T14:07:38+00:00[UTC] |
+| 2022-07-01T14:07:54+00:00[UTC] |
+| 2022-07-01T14:07:58+00:00[UTC] |
+| 2022-07-02T06:35:08+00:00[UTC] |
+| 2022-07-02T09:20:20+00:00[UTC] |
+| 2022-07-02T09:23:04+00:00[UTC] |
 
+### without_timezone() / without_tz()
 
-### timestamp() and timestamp_ms()
+If you want to discard the timezone information, it is always possible to use `without_timezone()`/`without_tz()`
 
-The `timestamp()` and `timestamp_ms()` functions, which are used to parse Unix timestamps,
-convert them to UTC dates, unlike `datetime()`, `ymd()`, etc., which use your computer's timezone.
-If the file your colleague sent contained Unix timestamps instead of dates, you could convert them like this:
+## Dealing with timestamps
+
+### to_timestamp() and to_timestamp_ms()
+
+The `to_timestamp()` and `to_timestamp_ms()` functions, are used to convert dates to Unix timestamps.
+Since timestamps are always in UTC, `to_timestamp()` and `to_timestamp_ms()` can only read dates containing a timezone information. In the file your colleague sent from Paris, dates should therefore be parsed with
+`with_timezone("Europe/Paris")` before using `to_timestamp()`:
 
 ```
-xan map 'timestamp_utc.timestamp().to_local_timezone("UTC") as mexico_time' july_data.csv | xan v
+xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timestamp()' --rename timestamp_utc
+july_data.csv | xan v
 ```
 
-| timestamp_utc | mexico_time         |
-| ------------- | ------------------- |
-| 1656669306    | 2022-07-01 04:55:06 |
-| 1656683402    | 2022-07-01 08:50:02 |
-| 1656684431    | 2022-07-01 09:07:11 |
-| 1656684458    | 2022-07-01 09:07:38 |
-| 1656684474    | 2022-07-01 09:07:54 |
-| 1656684478    | 2022-07-01 09:07:58 |
-| 1656743708    | 2022-07-02 01:35:08 |
-| 1656753620    | 2022-07-02 04:20:20 |
-| 1656753784    | 2022-07-02 04:23:04 |
+| timestamp_utc |
+| ------------- |
+| 1656669306    |
+| 1656683402    |
+| 1656684431    |
+| 1656684458    |
+| 1656684474    |
+| 1656684478    |
+| 1656743708    |
+| 1656753620    |
+| 1656753784    |
+
+### from_timestamp() and from_timestamp_ms()
+
+ Conversely, dates obtained by parsing a timestamp with `from_timestamp()` are always presented in UTC. If the file your colleague sent contained Unix timestamps instead of dates, you could convert them like this:
+
+```
+xan map 'timestamp_utc.from_timestamp() as UTC_time' july_data.csv | xan v
+```
+
+| timestamp_utc | UTC_time                       |
+| ------------- | ------------------------------ |
+| 1656669306    | 2022-07-01T09:55:06+00:00[UTC] |
+| 1656683402    | 2022-07-01T13:50:02+00:00[UTC] |
+| 1656684431    | 2022-07-01T14:07:11+00:00[UTC] |
+| 1656684458    | 2022-07-01T14:07:38+00:00[UTC] |
+| 1656684474    | 2022-07-01T14:07:54+00:00[UTC] |
+| 1656684478    | 2022-07-01T14:07:58+00:00[UTC] |
+| 1656743708    | 2022-07-02T06:35:08+00:00[UTC] |
+| 1656753620    | 2022-07-02T09:20:20+00:00[UTC] |
+| 1656753784    | 2022-07-02T09:23:04+00:00[UTC] |
