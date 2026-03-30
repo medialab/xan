@@ -244,8 +244,8 @@ impl Stats {
                     approx_quantiles.add(float);
                 }
             }
-        } else if dates::looks_temporal(cell) {
-            self.types.set(Type::Date);
+        } else if let Ok(t) = dates::parse_any_temporal(cell) {
+            self.types.set_from_any_temporal(&t);
         } else if util::could_be_url(cell) {
             self.types.set(Type::Url);
         } else {

@@ -1,12 +1,17 @@
 use enumset::{EnumSet, EnumSetType};
 
+use crate::dates::AnyTemporal;
+
 #[derive(Debug, EnumSetType)]
 pub enum Type {
     String,
     Float,
     Int,
     Url,
+    Zoned,
+    DateTime,
     Date,
+    Time,
     Empty,
 }
 
@@ -17,7 +22,10 @@ impl Type {
             Self::Float => "float",
             Self::Int => "int",
             Self::Url => "url",
+            Self::Zoned => "zoned_datetime",
+            Self::DateTime => "datetime",
             Self::Date => "date",
+            Self::Time => "time",
             Self::Empty => "empty",
         }
     }
@@ -38,6 +46,15 @@ impl Types {
     #[inline(always)]
     pub fn set(&mut self, t: Type) {
         self.set.insert(t);
+    }
+
+    pub fn set_from_any_temporal(&mut self, t: &AnyTemporal) {
+        self.set.insert(match t {
+            AnyTemporal::Zoned(_) => Type::Zoned,
+            AnyTemporal::DateTime(_) => Type::DateTime,
+            AnyTemporal::Date(_) => Type::Date,
+            AnyTemporal::Time(_) => Type::Time,
+        });
     }
 
     pub fn most_likely_type(&self) -> Option<&str> {

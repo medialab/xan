@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ahash::RandomState;
 use indexmap::IndexMap;
-use jiff::{civil::DateTime, Unit};
+use jiff::Unit;
 use simd_csv::ByteRecord;
 
 use super::aggregators::{
@@ -622,10 +622,13 @@ impl CompositeAggregator {
                                 DynamicNumber::Float(_) => types.set(Type::Float),
                                 DynamicNumber::Integer(_) => types.set(Type::Int),
                             };
+                        } else if let Ok(t) = value.try_as_any_temporal() {
+                            types.set_from_any_temporal(&t);
                         } else {
-                            match value.try_as_str() {
-                                Ok(s) if s.parse::<DateTime>().is_ok() => types.set(Type::Date),
-                                Ok(s) if s.starts_with("http://") || s.starts_with("https://") => {
+                            match value.try_as_bytes() {
+                                Ok(s)
+                                    if s.starts_with(b"http://") || s.starts_with(b"https://") =>
+                                {
                                     types.set(Type::Url)
                                 }
                                 _ => types.set(Type::String),
