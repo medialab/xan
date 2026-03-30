@@ -25,6 +25,7 @@
 * Adding `xan view -T/--tee`.
 * Adding `now`, `fractional_days`, `to_timezone`, `to_local_timezone`, `with_timezone`, `with_local_timezone`, `without_timezone`, `to_timestamp`, `to_timestamp_ms`, `from_timestamp`, `from_timestamp_ms`, `span`, `date` & `time` moonblade functions.
 * Better type inference with `xan stats`, and the `type` & `types` aggregation functions, now including more types for temporal values (`zoned_datetime`, `datetime`, `date` & `time`).
+* Adding `xan input -T/--tolerant`.
 
 *Fixes*
 

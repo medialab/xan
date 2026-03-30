@@ -10,7 +10,8 @@ Read unusually formatted CSV data.
 
 This means being able to process CSV data with peculiar quoting rules
 using --quote or --no-quoting, or dealing with character escaping, typically
-files with backslash escaping, with --escape.
+files with backslash escaping, with --escape. This can also mean dealing with
+badly quoted cells using a slower CSV parser using -T/--tolerant.
 
 This command is also able to skip metadata headers sometimes found at the beginning
 of CSV-adjacent formats with the -L/--skip-lines, -U/--skip-until & -W/--skip-while
@@ -33,6 +34,8 @@ formatting options:
     --no-quoting      Disable quoting completely.
     --comment <char>  Skip records starting with this character.
     --trim            Whether to trim cell values.
+    -T, --tolerant    Whether to use a slower but more tolerant CSV parser able
+                      to handle badly quoted cells.
 
 header skipping options:
     -L, --skip-lines <n>        Skip the first <n> lines of the file.
@@ -90,6 +93,7 @@ struct Args {
     flag_quote: Delimiter,
     flag_escape: Option<Delimiter>,
     flag_no_quoting: bool,
+    flag_tolerant: bool,
     flag_skip_lines: Option<usize>,
     flag_skip_until: Option<String>,
     flag_skip_while: Option<String>,
@@ -122,6 +126,10 @@ impl Args {
     }
 
     fn can_use_simd(&self) -> bool {
+        if self.flag_tolerant {
+            return false;
+        }
+
         self.flag_comment.is_none()
             && !self.flag_trim
             && self.flag_escape.is_none()
