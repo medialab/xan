@@ -243,11 +243,11 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **latest**(*list_of_temporals*) -> `temporal`: Return the latest point in time. Expects homogeneous types (all dates, all datetimes etc.).
 - **fractional_days**(*t1*, *t2*) -> `float`: Returns number of days between two points in time, as a signed float. Expect homogenous types (2 dates, 2 datetimes etc.).
 - **strftime**(*target*, *format*) -> `string`: Format temporal value according to format.<br>https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications
-- **to_timezone**(*zoned_datetime*, *timezone*) -> `zoned_datetime`: Convert given datetime to given timezone. Will error if given datetime has no timezone info.
-- **to_local_timezone**(*zoned_datetime*) -> `zoned_datetime`: Convert given datetime to local timezone. Will error if given datetime has no timezone info.
-- **with_timezone**(*datetime*, *timezone*) -> `zoned_datetime`: Arbitrarily indicate that given civil datetime should be understood as being in given timezone. Will error if given datetime already has timezone info.
-- **with_local_timezone**(*datetime*) -> `zoned_datetime`: Arbitrarily indicate that given civil datetime should be understood as being in local timezone. Will error if given datetime already has timezone info.
-- **without_timezone**(*zoned_datetime*) -> `datetime`: Return the civil datetime of a datetime with timezone info. Will error if given datetime has no timezone info.
+- **to_timezone**(*zoned_datetime*, *timezone*) -> `zoned_datetime` (aliases: **to_tz**): Convert given datetime to given timezone. Will error if given datetime has no timezone info.
+- **to_local_timezone**(*zoned_datetime*) -> `zoned_datetime` (aliases: **to_local_tz**): Convert given datetime to local timezone. Will error if given datetime has no timezone info.
+- **with_timezone**(*datetime*, *timezone*) -> `zoned_datetime` (aliases: **with_tz**): Arbitrarily indicate that given civil datetime should be understood as being in given timezone. Will error if given datetime already has timezone info.
+- **with_local_timezone**(*datetime*) -> `zoned_datetime` (aliases: **with_local_tz**): Arbitrarily indicate that given civil datetime should be understood as being in local timezone. Will error if given datetime already has timezone info.
+- **without_timezone**(*zoned_datetime*) -> `datetime` (aliases: **without_tz**): Return the civil datetime of a datetime with timezone info. Will error if given datetime has no timezone info.
 - **year_month_day**(*target*) -> `string` (aliases: **ymd**): Extract the year, month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the year, month and day.<br>Equivalent to `strftime(string, format="%Y-%m-%d")`.
 - **month_day**(*target*) -> `string`: Extract the month and day of a datetime. If the input is a string, first parse it into datetime, and then extract the month and day.<br>Equivalent to `strftime(string, format="%m-%d")`.
 - **month**(*target*) -> `string`: Extract the month of a datetime. If the input is a string, first parse it into datetime, and then extract the month.<br>Equivalent to `strftime(string, format="%m")`.

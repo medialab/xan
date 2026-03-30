@@ -610,30 +610,35 @@
       },
       {
         "name": "to_timezone",
+        "aliases": ["to_tz"],
         "arguments": ["zoned_datetime", "timezone"],
         "returns": "zoned_datetime",
         "help": "Convert given datetime to given timezone. Will error if given datetime has no timezone info."
       },
       {
         "name": "to_local_timezone",
+        "aliases": ["to_local_tz"],
         "arguments": ["zoned_datetime"],
         "returns": "zoned_datetime",
         "help": "Convert given datetime to local timezone. Will error if given datetime has no timezone info."
       },
       {
         "name": "with_timezone",
+        "aliases": ["with_tz"],
         "arguments": ["datetime", "timezone"],
         "returns": "zoned_datetime",
         "help": "Arbitrarily indicate that given civil datetime should be understood as being in given timezone. Will error if given datetime already has timezone info."
       },
       {
         "name": "with_local_timezone",
+        "aliases": ["with_local_tz"],
         "arguments": ["datetime"],
         "returns": "zoned_datetime",
         "help": "Arbitrarily indicate that given civil datetime should be understood as being in local timezone. Will error if given datetime already has timezone info."
       },
       {
         "name": "without_timezone",
+        "aliases": ["without_tz"],
         "arguments": ["zoned_datetime"],
         "returns": "datetime",
         "help": "Return the civil datetime of a datetime with timezone info. Will error if given datetime has no timezone info."
