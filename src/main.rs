@@ -7,6 +7,7 @@ use std::env;
 use std::fmt;
 use std::io;
 use std::process;
+use std::str::Utf8Error;
 
 use colored::Colorize;
 use docopt::Docopt;
@@ -489,6 +490,12 @@ impl From<docopt::Error> for CliError {
             }
             _ => CliError::Flag(err),
         }
+    }
+}
+
+impl From<Utf8Error> for CliError {
+    fn from(value: Utf8Error) -> Self {
+        CliError::Other(value.to_string())
     }
 }
 
