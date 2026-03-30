@@ -1435,7 +1435,12 @@ mod tests {
         let datetime: DateTime = "2024-07-11T01:14:00".parse().unwrap();
         let zoned = timestamp.in_tz("Europe/Paris").unwrap();
 
-        assert!(eval_code("'2024-07-11'.datetime()").is_err());
+        assert_eq!(
+            eval_code("'2024-07-11'.datetime()"),
+            Ok(DynamicValue::from(
+                datetime.with().time(Time::default()).build().unwrap()
+            ))
+        );
 
         assert_eq!(
             eval_code("'2024-07-11T01:14:00'.datetime()"),
