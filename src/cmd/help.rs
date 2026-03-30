@@ -602,7 +602,7 @@ impl ScrapingHelp {
 lazy_static! {
     static ref LINK_REGEX: Regex = Regex::new(r"- \[([^\]]+)\]\(#[^)]+\)").unwrap();
     static ref CODE_FENCE_REGEX: Regex =
-        Regex::new(r"```(?:python|scss|javascript)(\n[^`]+)```").unwrap();
+        Regex::new(r"```(?:python|scss|javascript)\n([\s\S]*?)```").unwrap();
     static ref COMMENT_REGEX: Regex = Regex::new(r"(?m)^    (?:\x1b\[[0-9;]*m)?#.+").unwrap();
     static ref NUMBER_REGEX: Regex = Regex::new(r"(?m)\b-?[0-9][0-9._]*\b").unwrap();
     static ref SPECIAL_REGEX: Regex = Regex::new(r"true|false|null|/john/i?").unwrap();
@@ -662,7 +662,9 @@ lazy_static! {
 }
 
 fn colorize_functions_help(help: &str) -> String {
-    let help = QUOTE_REGEX.replace_all(help, |caps: &Captures| caps[0].green().to_string());
+    let help = QUOTE_REGEX.replace_all(help, |caps: &Captures| {
+        strip_ansi_colors(&caps[0]).green().to_string()
+    });
 
     let help =
         MAIN_SECTION_REGEX.replace_all(&help, |caps: &Captures| caps[0].yellow().to_string());
