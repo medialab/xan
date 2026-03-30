@@ -34,9 +34,7 @@
 
 *Performance*
 
-* Faster `xan top`.
-* Improving performance of `xan complete`.
-* Improving performance of `xan plot -T`.
+* Improving performance of `xan complete`, `xan top`, `xan plot -T` & `xan hist`.
 
 *Quality of Life*
 

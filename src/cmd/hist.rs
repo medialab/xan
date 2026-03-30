@@ -5,6 +5,7 @@ use ahash::RandomState;
 use colored::Colorize;
 use indexmap::{map::Entry, IndexMap};
 use jiff::{civil::Date, Unit};
+use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -126,7 +127,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut out = stdout();
 
-    let mut rdr = conf.reader()?;
+    let mut rdr = conf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
     let err_msg = |err: String| {
@@ -150,7 +151,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut histograms = Histograms::new();
 
-    let mut record = csv::StringRecord::new();
+    let mut record = ByteRecord::new();
 
     let category_column_index = args
         .flag_category
@@ -162,14 +163,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         IndexMap::with_hasher(RandomState::new());
     let mut categories_overflow: Vec<String> = Vec::new();
 
-    while rdr.read_record(&mut record)? {
+    while rdr.read_byte_record(&mut record)? {
         let field = match field_pos_option {
-            Some(field_pos) => record[field_pos].to_string(),
+            Some(field_pos) => String::from_utf8_lossy(&record[field_pos]).into_owned(),
             None => args.flag_name.clone(),
         };
-        let label = util::sanitize_text_for_single_line_printing(&record[label_pos]);
-        let value = record[value_pos]
-            .parse::<f64>()
+        let label = util::sanitize_text_for_single_line_printing(&String::from_utf8_lossy(
+            &record[label_pos],
+        ));
+        let value = fast_float::parse::<f64, &[u8]>(&record[value_pos])
             .map_err(|_| "could not parse value")?;
 
         if args.flag_scale.is_logarithmic() && (value < 0.0 || (value > 0.0 && value < 1.0)) {
@@ -180,7 +182,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         if let Some(category_col) = category_column_index {
-            let category = record[category_col].to_string();
+            let category = String::from_utf8_lossy(&record[category_col]).into_owned();
 
             if !category.is_empty() {
                 let next_index = category_colors.len();
