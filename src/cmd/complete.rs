@@ -1,6 +1,7 @@
 use std::io::{stdout, Write};
 use std::str;
 
+use bstr::BStr;
 use jiff::Unit;
 use simd_csv::ByteRecord;
 
@@ -91,16 +92,12 @@ struct Args {
 }
 
 impl Args {
-    fn get_value_from_str(&self, cell: &str) -> CliResult<Value> {
+    fn new_value(&self, cell: impl AsRef<[u8]>) -> CliResult<Value> {
         if self.flag_dates {
-            Value::new_date(cell)
+            Value::new_date(cell.as_ref())
         } else {
-            Value::new_integer(cell)
+            Value::new_integer(cell.as_ref())
         }
-    }
-
-    fn get_value_from_bytes(&self, cell: &[u8]) -> CliResult<Value> {
-        self.get_value_from_str(str::from_utf8(cell).unwrap())
     }
 }
 
@@ -117,18 +114,17 @@ enum Value {
 }
 
 impl Value {
-    fn new_date(s: &str) -> CliResult<Self> {
+    fn new_date(s: &[u8]) -> CliResult<Self> {
         Ok(Self::Date(dates::parse_partial_date(s).map_or_else(
-            || Err(format!("Invalid date format: {}", s)),
+            || Err(format!("Invalid date format: {}", BStr::new(s))),
             Ok,
         )?))
     }
 
-    fn new_integer(s: &str) -> CliResult<Self> {
-        Ok(Self::Integer(
-            s.parse::<i64>()
-                .map_err(|_| format!("Invalid integer format: {}", s))?,
-        ))
+    fn new_integer(s: &[u8]) -> CliResult<Self> {
+        Ok(Self::Integer(btoi::btoi::<i64>(s).map_err(|_| {
+            format!("Invalid integer format: {}", BStr::new(s))
+        })?))
     }
 
     fn next(&self) -> Self {
@@ -217,12 +213,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let min: Option<Value> = args
         .flag_min
         .as_ref()
-        .map(|m| args.get_value_from_str(m))
+        .map(|m| args.new_value(m))
         .transpose()?;
     let max: Option<Value> = args
         .flag_max
         .as_ref()
-        .map(|m| args.get_value_from_str(m))
+        .map(|m| args.new_value(m))
         .transpose()?;
 
     // All values must have a same type
@@ -303,7 +299,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if let Some(flag_groupby) = &args.flag_groupby {
             let group_sel = flag_groupby.selection(&headers, !args.flag_no_headers)?;
             while rdr.read_byte_record(&mut record)? {
-                let value: Value = args.get_value_from_bytes(&record[column_to_complete_index])?;
+                let value: Value = args.new_value(&record[column_to_complete_index])?;
                 check_type(&mut expected_value_type, value.as_type())?;
                 // Meaning we need to find the extent from the input values
                 // (either min or max or both were not specified)
@@ -356,7 +352,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         for record in records {
             let record = record?;
-            let value: Value = args.get_value_from_bytes(&record[column_to_complete_index])?;
+            let value: Value = args.new_value(&record[column_to_complete_index])?;
             check_type(&mut expected_value_type, value.as_type())?;
 
             if matches!(min, Some(m) if value < m) {
@@ -497,7 +493,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .iter()
                 .map(|record| -> CliResult<(Value, ByteRecord)> {
                     let value_and_record = (
-                        args.get_value_from_bytes(&record[column_to_complete_index])?,
+                        args.new_value(&record[column_to_complete_index])?,
                         record.clone(),
                     );
                     Ok(value_and_record)
