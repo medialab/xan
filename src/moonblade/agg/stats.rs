@@ -244,7 +244,7 @@ impl Stats {
                     approx_quantiles.add(float);
                 }
             }
-        } else if dates::could_be_date(cell) {
+        } else if dates::looks_temporal(cell) {
             self.types.set_date();
         } else if util::could_be_url(cell) {
             self.types.set_url();

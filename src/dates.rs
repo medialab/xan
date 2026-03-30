@@ -4,7 +4,7 @@ use jiff::{
     fmt::strtime,
     fmt::temporal::{DateTimeParser, PiecesOffset},
     tz::{OffsetConflict, TimeZone},
-    Error, Timestamp, ToSpan, Unit, Zoned,
+    Error, SignedDuration, Timestamp, ToSpan, Unit, Zoned,
 };
 
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -60,10 +60,6 @@ impl PartialDate {
             precision: self.precision,
         }
     }
-}
-
-pub fn is_partial_date(input: impl AsRef<[u8]>) -> bool {
-    parse_partial_date(input).is_some()
 }
 
 pub fn parse_partial_date(input: impl AsRef<[u8]>) -> Option<PartialDate> {
@@ -174,14 +170,6 @@ pub fn infer_temporal_granularity(earliest: &Zoned, latest: &Zoned, graduations:
     };
 
     granularity.max(smallest)
-}
-
-pub fn could_be_date(string: &str) -> bool {
-    if string.ends_with('Z') {
-        return string.parse::<Timestamp>().is_ok();
-    }
-
-    string.parse::<DateTime>().is_ok() || is_partial_date(string)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -327,7 +315,7 @@ pub enum MaybeZoned {
     Zoned(Zoned),
 }
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum AnyTemporal {
     Zoned(Zoned),
     DateTime(DateTime),
@@ -355,7 +343,15 @@ impl AnyTemporal {
     }
 }
 
-pub enum AnyTemporalParseError {
+#[derive(Debug, PartialEq)]
+pub enum FuzzyTemporal {
+    Any(AnyTemporal),
+    PartialDate(PartialDate),
+    Timestamp(Timestamp),
+}
+
+#[derive(Debug)]
+pub enum TemporalParseError {
     #[allow(dead_code)]
     CannotParse(Error),
     DoesNotContainTime,
@@ -364,7 +360,7 @@ pub enum AnyTemporalParseError {
     UnresolvedAmbiguity,
 }
 
-impl AnyTemporalParseError {
+impl TemporalParseError {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::CannotParse(_) => "cannot parse as a datetime",
@@ -378,8 +374,8 @@ impl AnyTemporalParseError {
 
 pub static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
 
-pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, AnyTemporalParseError> {
-    use AnyTemporalParseError::*;
+pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, TemporalParseError> {
+    use TemporalParseError::*;
 
     match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
         Err(err) => Err(CannotParse(err)),
@@ -394,7 +390,9 @@ pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, AnyTempo
                 } else {
                     // We have a timestamp
                     if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
-                        return Ok(MaybeZoned::Zoned(datetime.to_zoned(TimeZone::UTC).unwrap()));
+                        return Ok(MaybeZoned::Zoned(
+                            datetime.to_zoned(TimeZone::UTC).map_err(CannotParse)?,
+                        ));
                     }
 
                     let conflict_resolution = OffsetConflict::Reject;
@@ -432,8 +430,8 @@ pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, AnyTempo
 pub fn parse_maybe_zoned_with_format(
     format: impl AsRef<[u8]>,
     input: impl AsRef<[u8]>,
-) -> Result<MaybeZoned, AnyTemporalParseError> {
-    use AnyTemporalParseError::*;
+) -> Result<MaybeZoned, TemporalParseError> {
+    use TemporalParseError::*;
 
     match strtime::parse(format, input) {
         Err(err) => Err(CannotParse(err)),
@@ -457,8 +455,8 @@ pub fn parse_maybe_zoned_with_format(
     }
 }
 
-pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, AnyTemporalParseError> {
-    use AnyTemporalParseError::*;
+pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, TemporalParseError> {
+    use TemporalParseError::*;
 
     // Early exit matching a bare time
     if matches!(input.as_ref().get(2), Some(b':')) {
@@ -482,7 +480,7 @@ pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, AnyTem
                     // We have a timestamp
                     if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
                         return Ok(AnyTemporal::Zoned(
-                            datetime.to_zoned(TimeZone::UTC).unwrap(),
+                            datetime.to_zoned(TimeZone::UTC).map_err(CannotParse)?,
                         ));
                     }
 
@@ -518,26 +516,100 @@ pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, AnyTem
     }
 }
 
+// TODO: deal with ints/floats
+pub fn parse_fuzzy_temporal(
+    input: impl AsRef<[u8]>,
+    parse_float: bool,
+) -> Result<FuzzyTemporal, TemporalParseError> {
+    use TemporalParseError::*;
+
+    let bytes = input.as_ref();
+
+    // Early exit matching a bare time
+    if matches!(bytes.get(2), Some(b':')) {
+        return match DEFAULT_DATETIME_PARSER.parse_time(&input) {
+            Err(err) => Err(CannotParse(err)),
+            Ok(time) => Ok(FuzzyTemporal::Any(AnyTemporal::Time(time))),
+        };
+    }
+
+    // Early exit for float timestamp
+    if parse_float {
+        if let Ok(f) = fast_float::parse::<f64, &[u8]>(bytes) {
+            let duration = SignedDuration::from_secs_f64(f);
+            return Timestamp::from_duration(duration)
+                .map_err(CannotParse)
+                .map(FuzzyTemporal::Timestamp);
+        }
+    }
+
+    // Early exit for year or month
+    if bytes.len() == 4 || bytes.len() == 7 {
+        if let Some(partial_date) = parse_partial_date(bytes) {
+            return Ok(FuzzyTemporal::PartialDate(partial_date));
+        }
+    }
+
+    match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
+        Err(err) => Err(CannotParse(err)),
+        Ok(pieces) => match pieces.time() {
+            None => Ok(FuzzyTemporal::Any(AnyTemporal::Date(pieces.date()))),
+            Some(time) => {
+                let datetime = DateTime::from_parts(pieces.date(), time);
+
+                if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
+                    // We have a civil datetime
+                    Ok(FuzzyTemporal::Any(AnyTemporal::DateTime(datetime)))
+                } else {
+                    // We have a timestamp
+                    if let Some(PiecesOffset::Zulu) = pieces.offset() {
+                        return Ok(FuzzyTemporal::Timestamp(
+                            PiecesOffset::Zulu
+                                .to_numeric_offset()
+                                .to_timestamp(datetime)
+                                .map_err(CannotParse)?,
+                        ));
+                    }
+
+                    let conflict_resolution = OffsetConflict::Reject;
+
+                    // We might have a correct zoned
+                    let ambiguous = match pieces.to_time_zone() {
+                        Ok(None) => {
+                            let Some(offset) = pieces.to_numeric_offset() else {
+                                return Err(NoValidTimezoneInfo);
+                            };
+
+                            TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                        }
+                        Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                            None => tz.into_ambiguous_zoned(datetime),
+                            Some(offset) => conflict_resolution
+                                .resolve(datetime, offset, tz)
+                                .map_err(|_| ConflictingTimezoneAndOffset)?,
+                        },
+                        Err(_) => {
+                            return Err(NoValidTimezoneInfo);
+                        }
+                    };
+
+                    match ambiguous.compatible() {
+                        Err(_) => Err(UnresolvedAmbiguity),
+                        Ok(zoned) => Ok(FuzzyTemporal::Any(AnyTemporal::Zoned(zoned))),
+                    }
+                }
+            }
+        },
+    }
+}
+
+pub fn looks_temporal(input: impl AsRef<[u8]>) -> bool {
+    parse_fuzzy_temporal(input, false).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_partial_date() {
-        let tests = [
-            ("2023", true),
-            ("999", false),
-            ("3412", false),
-            ("2023-01", true),
-            ("999-45", false),
-            ("2024-45", false),
-            ("1999-01", true),
-        ];
-
-        for (string, expected) in tests {
-            assert_eq!(is_partial_date(string), expected, "{}", string);
-        }
-    }
 
     #[test]
     fn test_parse_partial_date() {
@@ -554,5 +626,14 @@ mod tests {
         for (string, expected) in tests {
             assert_eq!(parse_partial_date(string), expected, "{}", string);
         }
+    }
+
+    #[test]
+    fn test_parse_fuzzy_temporal() {
+        assert!(parse_fuzzy_temporal("-28800", false).is_err());
+        assert_eq!(
+            parse_fuzzy_temporal("-28800", true).unwrap(),
+            FuzzyTemporal::Timestamp(Timestamp::from_second(-28800).unwrap())
+        );
     }
 }

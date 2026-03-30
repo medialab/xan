@@ -427,7 +427,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         Err(_) => {
             if could_be_url(string) {
                 ColorOrStyles::Color(Color::Blue)
-            } else if dates::could_be_date(string) {
+            } else if dates::looks_temporal(string) {
                 ColorOrStyles::Color(Color::Magenta)
             } else {
                 ColorOrStyles::Color(Color::Green)
