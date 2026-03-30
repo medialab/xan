@@ -7,7 +7,7 @@ use std::num::NonZeroUsize;
 
 use ahash::RandomState;
 use indexmap::IndexMap;
-use jiff::{tz::TimeZone, SignedDuration, Timestamp, Unit, Zoned, ZonedRound};
+use jiff::{tz::TimeZone, SignedDuration, Timestamp, TimestampRound, Unit, Zoned, ZonedRound};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -882,16 +882,32 @@ fn float_to_zoned(float: f64) -> Zoned {
 }
 
 fn floor_timestamp(seconds: f64, unit: Unit) -> i64 {
-    let mut zoned = float_to_zoned(seconds);
+    let timestamp = float_to_timestamp(seconds);
 
-    // TODO: we could optimize some computations by foregoing
-    zoned = match unit {
-        Unit::Year => zoned.start_of_day().unwrap().first_of_year().unwrap(),
-        Unit::Month => zoned.start_of_day().unwrap().first_of_month().unwrap(),
-        _ => zoned.round(ZonedRound::new().smallest(unit)).unwrap(),
-    };
+    match unit {
+        Unit::Year | Unit::Month => {
+            let mut zoned = timestamp.to_zoned(TimeZone::UTC);
 
-    zoned.timestamp().as_millisecond()
+            zoned = if unit == Unit::Year {
+                zoned.start_of_day().unwrap().first_of_year().unwrap()
+            } else {
+                zoned.start_of_day().unwrap().first_of_month().unwrap()
+            };
+
+            zoned.timestamp().as_microsecond()
+        }
+        Unit::Day => {
+            let mut zoned = timestamp.to_zoned(TimeZone::UTC);
+
+            zoned = zoned.round(ZonedRound::new().smallest(unit)).unwrap();
+
+            zoned.timestamp().as_microsecond()
+        }
+        _ => timestamp
+            .round(TimestampRound::new().smallest(unit))
+            .unwrap()
+            .as_microsecond(),
+    }
 }
 
 fn get_series_color(i: usize) -> Style {

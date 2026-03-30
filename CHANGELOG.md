@@ -30,7 +30,7 @@
 * Fixing `xan separate` automatic column prefix extraction.
 * Fixing `xan heatmap -n`.
 * Fixing `xan heatmap --repeat-headers --cram always` not repeating x-axis legend.
-* Fixing correctness of `xan plot -T`.
+* Fixing correctness of `xan plot -T` and increase resolution to microseconds.
 
 *Performance*
 

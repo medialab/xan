@@ -5,7 +5,7 @@ use std::ops::Sub;
 
 use colored::Colorize;
 use colorgrad::Gradient;
-use jiff::{tz::TimeZone, Timestamp, Unit};
+use jiff::{Timestamp, Unit};
 
 use crate::util;
 
@@ -615,10 +615,8 @@ impl LinearScale {
     }
 }
 
-fn format_timestamp(milliseconds: i64, unit: Unit) -> String {
-    let timestamp = Timestamp::from_millisecond(milliseconds)
-        .unwrap()
-        .to_zoned(TimeZone::system());
+fn format_timestamp(microseconds: i64, unit: Unit) -> String {
+    let timestamp = Timestamp::from_microsecond(microseconds).unwrap();
 
     timestamp
         .strftime(match unit {
