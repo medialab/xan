@@ -172,144 +172,6 @@ pub fn infer_temporal_granularity(earliest: &Zoned, latest: &Zoned, graduations:
     granularity.max(smallest)
 }
 
-#[derive(Debug, Clone, Copy)]
-enum JiffParseFailureKind {
-    InvalidFormat,
-    InvalidDate,
-    NoTimezoneInfo,
-    Unknown,
-}
-
-impl From<Error> for JiffParseFailureKind {
-    fn from(value: Error) -> Self {
-        let message = value.to_string();
-
-        if message.contains("unrecognized directive") {
-            return JiffParseFailureKind::InvalidFormat;
-        }
-
-        if message.contains("%Q") || message.contains("failed to find time zone") {
-            return JiffParseFailureKind::NoTimezoneInfo;
-        }
-
-        if message.contains("parsing failed") {
-            return JiffParseFailureKind::InvalidDate;
-        }
-
-        JiffParseFailureKind::Unknown
-    }
-}
-
-impl JiffParseFailureKind {
-    fn has_no_timezone_info(&self) -> bool {
-        matches!(self, Self::NoTimezoneInfo)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum ZonedParseError {
-    CannotParse,
-    InvalidFormat,
-    TimezoneMismatch,
-}
-
-impl From<JiffParseFailureKind> for ZonedParseError {
-    fn from(value: JiffParseFailureKind) -> Self {
-        match value {
-            JiffParseFailureKind::InvalidDate => Self::CannotParse,
-            JiffParseFailureKind::InvalidFormat => Self::InvalidFormat,
-            JiffParseFailureKind::Unknown => Self::CannotParse,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl From<Error> for ZonedParseError {
-    fn from(value: Error) -> Self {
-        Self::from(JiffParseFailureKind::from(value))
-    }
-}
-
-pub fn parse_zoned(
-    value: &str,
-    format: Option<&str>,
-    timezone: Option<TimeZone>,
-) -> Result<Zoned, ZonedParseError> {
-    // With format
-    if let Some(f) = format {
-        return match Zoned::strptime(f, value) {
-            Ok(zoned) => {
-                // Matching the timezone
-                if let Some(tz) = timezone.as_ref() {
-                    if zoned.time_zone() != tz {
-                        return Err(ZonedParseError::TimezoneMismatch);
-                    }
-                }
-
-                Ok(zoned)
-            }
-            Err(err) => {
-                let err_kind = JiffParseFailureKind::from(err);
-
-                // We only attempt to parse as DateTime if no tzinfo was found by jiff
-                if err_kind.has_no_timezone_info() {
-                    match DateTime::strptime(f, value) {
-                        Ok(datetime) => Ok(datetime
-                            .to_zoned(timezone.unwrap_or_else(TimeZone::system))
-                            .unwrap()),
-                        Err(_) => Err(ZonedParseError::CannotParse),
-                    }
-                } else {
-                    Err(ZonedParseError::from(err_kind))
-                }
-            }
-        };
-    }
-
-    // Special case: timestamp formats
-    if value.ends_with('Z') {
-        if let Some(tz) = timezone.as_ref() {
-            if tz != &TimeZone::UTC {
-                return Err(ZonedParseError::TimezoneMismatch);
-            }
-        }
-
-        match value.parse::<Timestamp>() {
-            Ok(timestamp) => Ok(timestamp.to_zoned(TimeZone::UTC)),
-            Err(err) => Err(ZonedParseError::from(err)),
-        }
-    } else {
-        // Without format
-        match value.parse::<Zoned>() {
-            Ok(zoned) => {
-                // Matching the timezone
-                if let Some(tz) = timezone.as_ref() {
-                    if zoned.time_zone() != tz {
-                        return Err(ZonedParseError::TimezoneMismatch);
-                    }
-                }
-
-                Ok(zoned)
-            }
-            Err(err) => {
-                let err_kind = JiffParseFailureKind::from(err);
-
-                // We only attempt to parse as DateTime if no tzinfo was found by jiff
-                if err_kind.has_no_timezone_info() {
-                    match value.parse::<DateTime>() {
-                        Ok(datetime) => Ok(datetime
-                            .to_zoned(timezone.unwrap_or_else(TimeZone::system))
-                            .unwrap()),
-                        Err(err) => Err(ZonedParseError::from(err)),
-                    }
-                } else {
-                    Err(ZonedParseError::from(err_kind))
-                }
-            }
-        }
-    }
-}
-
 pub enum MaybeZoned {
     Civil(DateTime),
     Zoned(Zoned),
@@ -348,6 +210,32 @@ pub enum FuzzyTemporal {
     Any(AnyTemporal),
     PartialDate(PartialDate),
     Timestamp(Timestamp),
+}
+
+impl FuzzyTemporal {
+    pub fn to_lower_bound_timestamp(&self, unified_timezone: TimeZone) -> Result<Timestamp, Error> {
+        Ok(match self {
+            Self::Any(temporal) => match temporal {
+                AnyTemporal::Zoned(zoned) => zoned.with_time_zone(unified_timezone).timestamp(),
+                AnyTemporal::DateTime(datetime) => datetime.to_zoned(unified_timezone)?.timestamp(),
+                AnyTemporal::Date(date) => date
+                    .to_datetime(Time::default())
+                    .to_zoned(unified_timezone)?
+                    .timestamp(),
+                AnyTemporal::Time(_contains_) => {
+                    return Err(Error::from_args(format_args!(
+                        "cannot convert a bare time to a lower bound timestamp"
+                    )))
+                }
+            },
+            Self::PartialDate(partial_date) => partial_date
+                .as_date()
+                .to_datetime(Time::default())
+                .to_zoned(unified_timezone)?
+                .timestamp(),
+            Self::Timestamp(timestamp) => *timestamp,
+        })
+    }
 }
 
 #[derive(Debug)]

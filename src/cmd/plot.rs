@@ -7,11 +7,7 @@ use std::num::NonZeroUsize;
 
 use ahash::RandomState;
 use indexmap::IndexMap;
-use jiff::{
-    civil::{Date, Time},
-    tz::TimeZone,
-    Timestamp, Unit, Zoned, ZonedRound,
-};
+use jiff::{tz::TimeZone, SignedDuration, Timestamp, Unit, Zoned, ZonedRound};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -21,7 +17,7 @@ use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
 use crate::config::{Config, Delimiter};
-use crate::dates::{infer_temporal_granularity, parse_partial_date, parse_zoned};
+use crate::dates::{infer_temporal_granularity, parse_fuzzy_temporal};
 use crate::moonblade::GroupAggregationProgram;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
@@ -851,38 +847,20 @@ fn is_int(float: f64) -> bool {
 }
 
 fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
-    let format_error = || {
-        CliError::Other(format!(
+    let err = || {
+        Err(CliError::Other(format!(
             "could not parse \"{}\" as date!",
             String::from_utf8_lossy(cell)
-        ))
+        )))
     };
 
-    if let Ok(i) = btoi::btoi::<i64>(cell) {
-        return Ok(Timestamp::from_second(i)
-            .map_err(|_| format_error())?
-            .as_millisecond() as f64);
+    match parse_fuzzy_temporal(cell, true) {
+        Ok(temporal) => match temporal.to_lower_bound_timestamp(TimeZone::system()) {
+            Ok(timestamp) => Ok(timestamp.as_duration().as_secs_f64()),
+            Err(_) => err(),
+        },
+        Err(_) => err(),
     }
-
-    let string = std::str::from_utf8(cell).map_err(|_| format_error())?;
-
-    let zoned = if let Ok(z) = parse_zoned(string, None, None) {
-        z
-    } else if let Ok(date) = string.parse::<Date>() {
-        date.to_datetime(Time::default())
-            .to_zoned(TimeZone::system())
-            .map_err(|_| format_error())?
-    } else if let Some(partial_date) = parse_partial_date(string) {
-        partial_date
-            .into_inner()
-            .to_datetime(Time::default())
-            .to_zoned(TimeZone::system())
-            .map_err(|_| format_error())?
-    } else {
-        return Err(format_error());
-    };
-
-    Ok(zoned.timestamp().as_millisecond() as f64)
 }
 
 fn parse_as_float(cell: &[u8]) -> Result<f64, CliError> {
@@ -895,15 +873,16 @@ fn parse_as_float(cell: &[u8]) -> Result<f64, CliError> {
 }
 
 fn float_to_timestamp(float: f64) -> Timestamp {
-    Timestamp::from_millisecond(float as i64).unwrap()
+    let duration = SignedDuration::from_secs_f64(float);
+    Timestamp::from_duration(duration).unwrap()
 }
 
 fn float_to_zoned(float: f64) -> Zoned {
-    float_to_timestamp(float).to_zoned(TimeZone::system())
+    float_to_timestamp(float).to_zoned(TimeZone::UTC)
 }
 
-fn floor_timestamp(milliseconds: f64, unit: Unit) -> i64 {
-    let mut zoned = float_to_zoned(milliseconds);
+fn floor_timestamp(seconds: f64, unit: Unit) -> i64 {
+    let mut zoned = float_to_zoned(seconds);
 
     // TODO: we could optimize some computations by foregoing
     zoned = match unit {
