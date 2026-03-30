@@ -11,7 +11,7 @@ use simd_csv::ByteRecord;
 use super::aggregators::{
     AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
     Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, RMSWelford, Sum,
-    Types, Values, Welford, ZonedExtent,
+    Type, Types, Values, Welford, ZonedExtent,
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
@@ -616,19 +616,19 @@ impl CompositeAggregator {
                     }
                     Aggregator::Types(types) => {
                         if value.is_nullish() {
-                            types.set_empty();
+                            types.set(Type::Empty);
                         } else if let Ok(n) = value.try_as_number() {
                             match n {
-                                DynamicNumber::Float(_) => types.set_float(),
-                                DynamicNumber::Integer(_) => types.set_int(),
+                                DynamicNumber::Float(_) => types.set(Type::Float),
+                                DynamicNumber::Integer(_) => types.set(Type::Int),
                             };
                         } else {
                             match value.try_as_str() {
-                                Ok(s) if s.parse::<DateTime>().is_ok() => types.set_date(),
+                                Ok(s) if s.parse::<DateTime>().is_ok() => types.set(Type::Date),
                                 Ok(s) if s.starts_with("http://") || s.starts_with("https://") => {
-                                    types.set_url()
+                                    types.set(Type::Url)
                                 }
-                                _ => types.set_string(),
+                                _ => types.set(Type::String),
                             };
                         }
                     }

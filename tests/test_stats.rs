@@ -117,15 +117,15 @@ stats_tests!(stats_infer_float_null, "type", &["1.2", ""], "float");
 stats_tests!(stats_infer_null_unicode, "type", &["", "a"], "string");
 stats_tests!(stats_infer_null_int, "type", &["", "1"], "int");
 stats_tests!(stats_infer_null_float, "type", &["", "1.2"], "float");
-stats_tests!(stats_infer_int_unicode, "type", &["1", "a"], "string");
-stats_tests!(stats_infer_unicode_int, "type", &["a", "1"], "string");
+stats_tests!(stats_infer_int_unicode, "type", &["1", "a"], "mixed");
+stats_tests!(stats_infer_unicode_int, "type", &["a", "1"], "mixed");
 stats_tests!(stats_infer_int_float, "type", &["1", "1.2"], "float");
 stats_tests!(stats_infer_float_int, "type", &["1.2", "1"], "float");
 stats_tests!(
     stats_infer_null_int_float_unicode,
     "type",
     &["", "1", "1.2", "a"],
-    "string"
+    "mixed"
 );
 
 stats_tests!(stats_no_mean, "mean", &["a"], "");

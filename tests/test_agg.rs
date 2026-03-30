@@ -200,39 +200,42 @@ fn agg_types() {
     wrk.create(
         "data.csv",
         vec![
-            svec!["I", "E", "S", "M", "F"],
-            svec!["1", "", "test1", "", "2"],
-            svec!["2", "", "test2", "3", "2.5"],
-            svec!["", "", "test3", "3.5", "1"],
-            svec!["4", "", "4", "test", ""],
-            svec!["5", "", "test5", "string", "5.6"],
+            svec!["I", "E", "S", "M", "F", "A"],
+            svec!["1", "", "test1", "", "2", "test"],
+            svec!["2", "", "test2", "3", "2.5", "test"],
+            svec!["", "", "test3", "3.5", "1", "test"],
+            svec!["4", "", "4", "test", "", "test"],
+            svec!["5", "", "test5", "string", "5.6", "test"],
         ],
     );
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("type(I) as I, type(E) as E, type(S) as S, type(M) as M, type(F) as F")
+    cmd.arg("type(I) as I, type(E) as E, type(S) as S, type(M) as M, type(F) as F, type(A) as A")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["I", "E", "S", "M", "F"],
-        svec!["int", "empty", "string", "string", "float"],
+        svec!["I", "E", "S", "M", "F", "A"],
+        svec!["int", "empty", "mixed", "mixed", "float", "string"],
     ];
     assert_eq!(got, expected);
 
     let mut cmd = wrk.command("agg");
-    cmd.arg("types(I) as I, types(E) as E, types(S) as S, types(M) as M, types(F) as F")
-        .arg("data.csv");
+    cmd.arg(
+        "types(I) as I, types(E) as E, types(S) as S, types(M) as M, types(F) as F, types(A) as A",
+    )
+    .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
-        svec!["I", "E", "S", "M", "F"],
+        svec!["I", "E", "S", "M", "F", "A"],
         svec![
             "int|empty",
             "empty",
-            "int|string",
-            "int|float|string|empty",
-            "int|float|empty"
+            "string|int",
+            "string|float|int|empty",
+            "float|int|empty",
+            "string"
         ],
     ];
     assert_eq!(got, expected);

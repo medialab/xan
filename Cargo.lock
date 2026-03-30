@@ -3239,6 +3239,7 @@ dependencies = [
  "ego-tree",
  "emojis",
  "encoding",
+ "enumset",
  "ext-sort",
  "fast-float2",
  "flate2",

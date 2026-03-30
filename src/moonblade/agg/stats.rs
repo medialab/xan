@@ -2,7 +2,7 @@ use simd_csv::ByteRecord;
 
 use super::aggregators::{
     ApproxCardinality, ApproxQuantiles, Count, Extent, Frequencies, LexicographicExtent, Numbers,
-    NumericExtent, Sum, Types, Welford,
+    NumericExtent, Sum, Type, Types, Welford,
 };
 use crate::dates;
 use crate::moonblade::types::DynamicNumber;
@@ -204,7 +204,7 @@ impl Stats {
         self.length_extent.add(cell.len());
 
         if cell.is_empty() {
-            self.types.set_empty();
+            self.types.set(Type::Empty);
             self.count.add_falsey();
 
             if self.nulls {
@@ -224,9 +224,9 @@ impl Stats {
 
         if let Ok(number) = cell.parse::<DynamicNumber>() {
             if number.is_float() {
-                self.types.set_float();
+                self.types.set(Type::Float);
             } else {
-                self.types.set_int();
+                self.types.set(Type::Int);
             }
 
             if !number.is_nan() {
@@ -245,11 +245,11 @@ impl Stats {
                 }
             }
         } else if dates::looks_temporal(cell) {
-            self.types.set_date();
+            self.types.set(Type::Date);
         } else if util::could_be_url(cell) {
-            self.types.set_url();
+            self.types.set(Type::Url);
         } else {
-            self.types.set_string();
+            self.types.set(Type::String);
         }
 
         if let Some(frequencies) = self.frequencies.as_mut() {

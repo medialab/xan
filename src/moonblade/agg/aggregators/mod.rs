@@ -22,6 +22,6 @@ pub use first_last::{First, Last};
 pub use frequencies::Frequencies;
 pub use numbers::{MedianType, Numbers};
 pub use sum::Sum;
-pub use types::Types;
+pub use types::{Type, Types};
 pub use values::Values;
 pub use welford::{CovarianceWelford, RMSWelford, Welford};

@@ -84,6 +84,7 @@ docopt = "1"
 ego-tree = "0.10.0"
 emojis = "0.6.4"
 encoding = "0.2.33"
+enumset = "1.1.10"
 ext-sort = { version = "0.1.5", features = ["memory-limit"] }
 fast-float2 = "0.2.3"
 flate2 = { version = "1.1.2", default-features = false, features = ["zlib-rs"] }

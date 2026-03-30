@@ -39,6 +39,7 @@
 *Quality of Life*
 
 * Adding proper help to `xan heatmap`.
+* Better type inference with `xan stats`, and the `type` & `types` aggregation functions.
 
 ## 0.56.0
 

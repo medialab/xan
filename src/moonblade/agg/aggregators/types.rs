@@ -1,126 +1,84 @@
-const TYPE_EMPTY: u8 = 0;
-const TYPE_STRING: u8 = 1;
-const TYPE_FLOAT: u8 = 2;
-const TYPE_INT: u8 = 3;
-const TYPE_DATE: u8 = 4;
-const TYPE_URL: u8 = 5;
+use enumset::{EnumSet, EnumSetType};
+
+#[derive(Debug, EnumSetType)]
+pub enum Type {
+    String,
+    Float,
+    Int,
+    Url,
+    Date,
+    Empty,
+}
+
+impl Type {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::String => "string",
+            Self::Float => "float",
+            Self::Int => "int",
+            Self::Url => "url",
+            Self::Date => "date",
+            Self::Empty => "empty",
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Types {
-    bitset: u8,
+    set: EnumSet<Type>,
 }
 
 impl Types {
     pub fn new() -> Self {
-        Self { bitset: 0 }
+        Self {
+            set: EnumSet::empty(),
+        }
     }
 
-    pub fn set(&mut self, pos: u8) {
-        self.bitset |= 1 << pos;
-    }
-
-    pub fn set_empty(&mut self) {
-        self.set(TYPE_EMPTY);
-    }
-
-    pub fn set_string(&mut self) {
-        self.set(TYPE_STRING);
-    }
-
-    pub fn set_float(&mut self) {
-        self.set(TYPE_FLOAT);
-    }
-
-    pub fn set_int(&mut self) {
-        self.set(TYPE_INT);
-    }
-
-    pub fn set_date(&mut self) {
-        self.set(TYPE_DATE);
-    }
-
-    pub fn set_url(&mut self) {
-        self.set(TYPE_URL);
-    }
-
-    pub fn has(&self, pos: u8) -> bool {
-        ((self.bitset >> pos) & 1) == 1
-    }
-
-    pub fn has_empty(&self) -> bool {
-        self.has(TYPE_EMPTY)
-    }
-
-    pub fn has_string(&self) -> bool {
-        self.has(TYPE_STRING)
-    }
-
-    pub fn has_float(&self) -> bool {
-        self.has(TYPE_FLOAT)
-    }
-
-    pub fn has_int(&self) -> bool {
-        self.has(TYPE_INT)
-    }
-
-    pub fn has_date(&self) -> bool {
-        self.has(TYPE_DATE)
-    }
-
-    pub fn has_url(&self) -> bool {
-        self.has(TYPE_URL)
+    #[inline(always)]
+    pub fn set(&mut self, t: Type) {
+        self.set.insert(t);
     }
 
     pub fn most_likely_type(&self) -> Option<&str> {
-        Some(if self.has_string() {
-            "string"
-        } else if self.has_float() {
-            "float"
-        } else if self.has_int() {
-            "int"
-        } else if self.has_url() {
-            "url"
-        } else if self.has_date() {
-            "date"
-        } else if self.has_empty() {
-            "empty"
-        } else {
-            return None;
-        })
+        let mut working_set = self.set;
+
+        if working_set.len() > 1 && working_set.contains(Type::Empty) {
+            working_set.remove(Type::Empty);
+        }
+
+        if working_set.contains(Type::Float) && working_set.contains(Type::Int) {
+            working_set.remove(Type::Int);
+        }
+
+        if working_set.contains(Type::String) {
+            working_set.remove(Type::Url);
+            working_set.remove(Type::Date);
+        }
+
+        match working_set.len() {
+            0 => None,
+            1 => working_set.iter().next().map(|s| s.as_str()),
+            _ => Some("mixed"),
+        }
     }
 
     pub fn sorted_types(&self) -> Vec<&str> {
         let mut result = Vec::new();
 
-        if self.has_int() {
-            result.push("int");
-        }
-        if self.has_float() {
-            result.push("float");
-        }
-        if self.has_string() {
-            result.push("string");
-        }
-        if self.has_date() {
-            result.push("date");
-        }
-        if self.has_url() {
-            result.push("url");
-        }
-        if self.has_empty() {
-            result.push("empty");
+        for t in self.set {
+            result.push(t.as_str());
         }
 
         result
     }
 
     pub fn clear(&mut self) {
-        self.bitset = 0;
-        self.set_empty();
+        self.set.clear();
     }
 
     pub fn merge(&mut self, other: Self) {
-        self.bitset |= other.bitset;
+        self.set |= other.set;
     }
 }
 
@@ -135,19 +93,19 @@ mod tests {
         assert_eq!(types.sorted_types(), Vec::<&str>::new());
         assert_eq!(types.most_likely_type(), None);
 
-        types.set_int();
+        types.set(Type::Int);
 
         assert_eq!(types.sorted_types(), vec!["int"]);
         assert_eq!(types.most_likely_type(), Some("int"));
 
-        types.set_float();
+        types.set(Type::Float);
 
-        assert_eq!(types.sorted_types(), vec!["int", "float"]);
+        assert_eq!(types.sorted_types(), vec!["float", "int"]);
         assert_eq!(types.most_likely_type(), Some("float"));
 
-        types.set_string();
+        types.set(Type::String);
 
-        assert_eq!(types.sorted_types(), vec!["int", "float", "string"]);
-        assert_eq!(types.most_likely_type(), Some("string"));
+        assert_eq!(types.sorted_types(), vec!["string", "float", "int"]);
+        assert_eq!(types.most_likely_type(), Some("mixed"));
     }
 }
