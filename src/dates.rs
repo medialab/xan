@@ -242,7 +242,7 @@ impl FuzzyTemporal {
 pub enum TemporalParseError {
     #[allow(dead_code)]
     CannotParse(Error),
-    DoesNotContainTime,
+    // DoesNotContainTime,
     NoValidTimezoneInfo,
     ConflictingTimezoneAndOffset,
     UnresolvedAmbiguity,
@@ -252,7 +252,7 @@ impl TemporalParseError {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::CannotParse(_) => "cannot parse as a datetime",
-            Self::DoesNotContainTime => "does not contain a time",
+            // Self::DoesNotContainTime => "does not contain a time",
             Self::NoValidTimezoneInfo => "does not contain valid timezone info",
             Self::ConflictingTimezoneAndOffset => "contains conflicting timezone and offset",
             Self::UnresolvedAmbiguity => "contains an unresolved ambiguity",
@@ -268,7 +268,10 @@ pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, Temporal
     match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
         Err(err) => Err(CannotParse(err)),
         Ok(pieces) => match pieces.time() {
-            None => Err(DoesNotContainTime),
+            None => Ok(MaybeZoned::Civil(DateTime::from_parts(
+                pieces.date(),
+                Time::default(),
+            ))),
             Some(time) => {
                 let datetime = DateTime::from_parts(pieces.date(), time);
 
