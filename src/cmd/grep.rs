@@ -95,6 +95,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut count: u64 = 0;
 
+    macro_rules! process_record {
+        ($record: expr) => {
+            let mut is_match = matcher.is_match($record);
+
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
+
+            if !is_match {
+                continue;
+            }
+
+            if let Some(writer) = writer_opt.as_mut() {
+                writer.write_splitted_record($record)?;
+            } else {
+                count += 1;
+            }
+        };
+    }
+
     if args.flag_mmap {
         let map = rconf.mmap()?.ok_or("Cannot use --mmap on target!")?;
 
@@ -112,21 +132,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         while let Some(record) = reader.split_record() {
-            let mut is_match = matcher.is_match(record);
-
-            if args.flag_invert_match {
-                is_match = !is_match;
-            }
-
-            if !is_match {
-                continue;
-            }
-
-            if let Some(writer) = writer_opt.as_mut() {
-                writer.write_splitted_record(record)?;
-            } else {
-                count += 1;
-            }
+            process_record!(record);
         }
     } else {
         let mut splitter = rconf.simd_splitter()?;
@@ -138,21 +144,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         while let Some(record) = splitter.split_record()? {
-            let mut is_match = matcher.is_match(record);
-
-            if args.flag_invert_match {
-                is_match = !is_match;
-            }
-
-            if !is_match {
-                continue;
-            }
-
-            if let Some(writer) = writer_opt.as_mut() {
-                writer.write_splitted_record(record)?;
-            } else {
-                count += 1;
-            }
+            process_record!(record);
         }
     }
 
