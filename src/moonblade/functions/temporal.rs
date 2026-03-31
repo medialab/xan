@@ -4,7 +4,7 @@ use jiff::{
     SignedDuration, Span, SpanRelativeTo, Timestamp, Unit, Zoned,
 };
 
-use crate::dates::{
+use crate::temporal::{
     parse_maybe_zoned, parse_maybe_zoned_with_format, AnyTemporal, MaybeZoned,
     DEFAULT_DATETIME_PARSER,
 };

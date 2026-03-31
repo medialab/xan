@@ -1,0 +1,300 @@
+use std::cmp::max;
+use std::sync::Arc;
+
+use crate::moonblade::error::EvaluationError;
+use crate::moonblade::types::{BoundArguments, DynamicValue};
+
+use super::FunctionResult;
+
+pub fn len(mut args: BoundArguments) -> FunctionResult {
+    let arg = args.pop1();
+
+    Ok(DynamicValue::from(match arg {
+        DynamicValue::List(list) => list.len(),
+        DynamicValue::Map(map) => map.len(),
+        _ => arg.try_as_str()?.chars().count(),
+    }))
+}
+
+pub fn range(args: BoundArguments) -> FunctionResult {
+    let (start, stop, step): (i64, i64, i64) = if args.len() == 3 {
+        (
+            args.get(0).unwrap().try_as_i64()?,
+            args.get(1).unwrap().try_as_i64()?,
+            args.get(2).unwrap().try_as_i64()?,
+        )
+    } else if args.len() == 2 {
+        (
+            args.get(0).unwrap().try_as_i64()?,
+            args.get(1).unwrap().try_as_i64()?,
+            1,
+        )
+    } else {
+        (0, args.get(0).unwrap().try_as_i64()?, 1)
+    };
+
+    if step == 0 {
+        return Err(EvaluationError::Custom("step cannot be 0".to_string()));
+    }
+
+    let len = if step > 0 {
+        if start >= stop {
+            0
+        } else {
+            ((stop - start - 1) / step + 1) as usize
+        }
+    } else if start <= stop {
+        0
+    } else {
+        ((start - stop - 1) / (-step) + 1) as usize
+    };
+
+    let mut indices = Vec::with_capacity(len);
+
+    let mut current = start;
+
+    if step > 0 {
+        while current < stop {
+            indices.push(DynamicValue::from(current));
+            current += step;
+        }
+    } else {
+        while current > stop {
+            indices.push(DynamicValue::from(current));
+            current += step;
+        }
+    }
+
+    Ok(DynamicValue::from(indices))
+}
+
+pub fn repeat(args: BoundArguments) -> FunctionResult {
+    let (to_repeat_arg, times_arg) = args.get2();
+
+    let times = times_arg.try_as_usize()?;
+
+    if let DynamicValue::List(items) = to_repeat_arg {
+        let mut repeated = Vec::with_capacity(items.len() * times);
+
+        for _ in 0..times {
+            for item in items.iter() {
+                repeated.push(item.clone());
+            }
+        }
+
+        Ok(DynamicValue::from(repeated))
+    } else {
+        let to_repeat = to_repeat_arg.try_as_str()?;
+
+        let mut repeated = String::with_capacity(to_repeat.len() * times);
+
+        for _ in 0..times {
+            repeated.push_str(&to_repeat);
+        }
+
+        Ok(DynamicValue::from(repeated))
+    }
+}
+
+pub fn first(mut args: BoundArguments) -> FunctionResult {
+    let arg = args.pop1();
+
+    Ok(match arg {
+        DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
+        DynamicValue::Bytes(bytes) => DynamicValue::from(
+            std::str::from_utf8(&bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .chars()
+                .next(),
+        ),
+        DynamicValue::List(list) => match list.first() {
+            None => DynamicValue::None,
+            Some(value) => value.clone(),
+        },
+        _ => return Err(EvaluationError::from_cast(&arg, "sequence")),
+    })
+}
+
+pub fn last(mut args: BoundArguments) -> FunctionResult {
+    let arg = args.pop1();
+
+    Ok(match arg {
+        DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
+        DynamicValue::Bytes(bytes) => DynamicValue::from(
+            std::str::from_utf8(&bytes)
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
+                .chars()
+                .next_back(),
+        ),
+        DynamicValue::List(list) => match list.last() {
+            None => DynamicValue::None,
+            Some(value) => value.clone(),
+        },
+        _ => return Err(EvaluationError::from_cast(&arg, "sequence")),
+    })
+}
+
+pub fn slice(args: BoundArguments) -> FunctionResult {
+    let target = args.get(0).unwrap();
+
+    if let DynamicValue::List(list) = target {
+        // TODO: can be implemented through Arc::try_unwrap
+        let mut lo = args.get(1).unwrap().try_as_i64()?;
+        let opt_hi = args.get(2);
+
+        let sublist: Vec<DynamicValue> = match opt_hi {
+            None => {
+                if lo < 0 {
+                    let l = list.len();
+                    lo = max(0, l as i64 + lo);
+
+                    list[..lo as usize].to_vec()
+                } else if lo >= list.len() as i64 {
+                    Vec::new()
+                } else {
+                    list[..lo as usize].to_vec()
+                }
+            }
+            Some(hi_value) => {
+                let mut hi = hi_value.try_as_i64()?;
+
+                if lo >= list.len() as i64 {
+                    Vec::new()
+                } else if lo < 0 {
+                    let l = list.len();
+
+                    lo = max(0, l as i64 + lo);
+
+                    if hi < 0 {
+                        hi = max(0, l as i64 + hi);
+                    }
+
+                    if hi <= lo {
+                        Vec::new()
+                    } else {
+                        list[lo as usize..hi.min(list.len() as i64) as usize].to_vec()
+                    }
+                } else {
+                    if hi < 0 {
+                        let l = list.len();
+                        hi = max(0, l as i64 + hi);
+                    }
+
+                    if hi <= lo {
+                        Vec::new()
+                    } else {
+                        list[lo as usize..hi.min(list.len() as i64) as usize].to_vec()
+                    }
+                }
+            }
+        };
+
+        return Ok(DynamicValue::from(sublist));
+    }
+
+    let string = target.try_as_str()?;
+
+    let mut lo = args.get(1).unwrap().try_as_i64()?;
+    let opt_hi = args.get(2);
+
+    let chars = string.chars();
+
+    let substring: String = match opt_hi {
+        None => {
+            if lo < 0 {
+                let l = string.chars().count();
+                lo = max(0, l as i64 + lo);
+
+                chars.skip(lo as usize).collect()
+            } else {
+                chars.skip(lo as usize).collect()
+            }
+        }
+        Some(hi_value) => {
+            let mut hi = hi_value.try_as_i64()?;
+
+            if lo < 0 {
+                let l = string.chars().count();
+                lo = max(0, l as i64 + lo);
+
+                if hi < 0 {
+                    hi = max(0, l as i64 + hi);
+                }
+
+                if hi <= lo {
+                    "".to_string()
+                } else {
+                    chars.skip(lo as usize).take((hi - lo) as usize).collect()
+                }
+            } else {
+                if hi < 0 {
+                    let l = string.chars().count();
+                    hi = max(0, l as i64 + hi);
+                }
+
+                chars.skip(lo as usize).take((hi - lo) as usize).collect()
+            }
+        }
+    };
+
+    Ok(DynamicValue::from(substring))
+}
+
+pub fn concat(args: BoundArguments) -> FunctionResult {
+    let mut args_iter = args.into_iter();
+    let first = args_iter.next().unwrap();
+
+    match first {
+        // NOTE: if the list's arc has a single reference, we can safely
+        // mutate it because it belongs to the pipeline
+        DynamicValue::List(list) => match Arc::try_unwrap(list) {
+            Ok(mut owned_list) => {
+                for arg in args_iter {
+                    owned_list.push(arg);
+                }
+
+                Ok(DynamicValue::from(owned_list))
+            }
+            Err(borrowed_list) => {
+                let mut result = Vec::clone(&borrowed_list);
+
+                for arg in args_iter {
+                    result.push(arg);
+                }
+
+                Ok(DynamicValue::from(result))
+            }
+        },
+        value => {
+            let first_part = value.try_as_str()?;
+
+            let mut result = String::with_capacity(first_part.len());
+            result.push_str(&first_part);
+
+            for arg in args_iter {
+                result.push_str(&arg.try_as_str()?);
+            }
+
+            Ok(DynamicValue::from(result))
+        }
+    }
+}
+
+pub fn compact(mut args: BoundArguments) -> FunctionResult {
+    let arg = args.pop1();
+    let list = arg.try_into_arc_list()?;
+
+    Ok(match Arc::try_unwrap(list) {
+        Err(borrowed_list) => DynamicValue::from(
+            borrowed_list
+                .iter()
+                .filter(|value| value.is_truthy())
+                .cloned()
+                .collect::<Vec<_>>(),
+        ),
+        Ok(mut owned_list) => {
+            owned_list.retain(|v| v.is_truthy());
+            DynamicValue::from(owned_list)
+        }
+    })
+}

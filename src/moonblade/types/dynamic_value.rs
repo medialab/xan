@@ -18,7 +18,7 @@ use serde::{
 };
 use url::Url;
 
-use crate::dates::{
+use crate::temporal::{
     parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned, DEFAULT_DATETIME_PARSER,
 };
 

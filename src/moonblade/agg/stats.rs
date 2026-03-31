@@ -4,7 +4,7 @@ use super::aggregators::{
     ApproxCardinality, ApproxQuantiles, Count, Extent, Frequencies, LexicographicExtent, Numbers,
     NumericExtent, Sum, Type, Types, Welford,
 };
-use crate::dates;
+use crate::temporal;
 use crate::moonblade::types::DynamicNumber;
 use crate::util;
 
@@ -244,7 +244,7 @@ impl Stats {
                     approx_quantiles.add(float);
                 }
             }
-        } else if let Ok(t) = dates::parse_any_temporal(cell) {
+        } else if let Ok(t) = temporal::parse_any_temporal(cell) {
             self.types.set_from_any_temporal(&t);
         } else if util::could_be_url(cell) {
             self.types.set(Type::Url);

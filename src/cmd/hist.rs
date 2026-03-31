@@ -9,7 +9,7 @@ use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::dates;
+use crate::temporal;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
@@ -551,7 +551,7 @@ impl Histogram {
         let mut current_unit_opt: Option<Unit> = None;
 
         for bar in self.bars.drain(0..) {
-            if let Some(partial_date) = dates::parse_partial_date(&bar.label) {
+            if let Some(partial_date) = temporal::parse_partial_date(&bar.label) {
                 match current_unit_opt {
                     None => {
                         current_unit_opt = Some(partial_date.as_unit());
@@ -587,14 +587,14 @@ impl Histogram {
                     }
 
                     loop {
-                        let expected_date = dates::next_partial_date(unit, &previous_date);
+                        let expected_date = temporal::next_partial_date(unit, &previous_date);
 
                         if expected_date == date {
                             break;
                         }
 
                         self.bars.push(Bar {
-                            label: dates::format_partial_date(unit, &expected_date),
+                            label: temporal::format_partial_date(unit, &expected_date),
                             value: 0.0,
                             category: None,
                         });

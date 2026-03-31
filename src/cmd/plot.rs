@@ -17,11 +17,11 @@ use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
 use crate::config::{Config, Delimiter};
-use crate::dates::{infer_temporal_granularity, parse_fuzzy_temporal};
 use crate::moonblade::GroupAggregationProgram;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
+use crate::temporal::{infer_temporal_granularity, parse_fuzzy_temporal};
 use crate::util::{self, ColorMode};
 use crate::{CliError, CliResult};
 

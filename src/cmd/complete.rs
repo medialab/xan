@@ -7,9 +7,9 @@ use simd_csv::ByteRecord;
 
 use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
-use crate::dates;
 use crate::scales::{Extent, ExtentBuilder};
 use crate::select::SelectedColumns;
+use crate::temporal;
 use crate::util;
 use crate::CliResult;
 
@@ -110,12 +110,12 @@ enum ValueType {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 enum Value {
     Integer(i64),
-    Date(dates::PartialDate),
+    Date(temporal::PartialDate),
 }
 
 impl Value {
     fn new_date(s: &[u8]) -> CliResult<Self> {
-        Ok(Self::Date(dates::parse_partial_date(s).map_or_else(
+        Ok(Self::Date(temporal::parse_partial_date(s).map_or_else(
             || Err(format!("Invalid date format: {}", BStr::new(s))),
             Ok,
         )?))
@@ -152,7 +152,9 @@ impl Value {
     fn to_bytes(self) -> Vec<u8> {
         match self {
             Self::Integer(i) => i.to_string().into_bytes(),
-            Self::Date(ref d) => dates::format_partial_date(d.as_unit(), d.as_date()).into_bytes(),
+            Self::Date(ref d) => {
+                temporal::format_partial_date(d.as_unit(), d.as_date()).into_bytes()
+            }
         }
     }
 

@@ -208,3 +208,7 @@ pub fn to_fixed(mut args: BoundArguments) -> FunctionResult {
 
     Ok(DynamicValue::from(formatted))
 }
+
+pub fn escape_regex(args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(regex::escape(args.get1_str()?.as_ref())))
+}

@@ -373,3 +373,59 @@ pub fn shell(args: BoundArguments) -> FunctionResult {
         )))
     }
 }
+
+pub fn parse_json(args: BoundArguments) -> FunctionResult {
+    let arg = args.get1();
+
+    serde_json::from_slice(arg.try_as_bytes()?)
+        .map_err(|_| EvaluationError::JSONParseError(format!("{:?}", args.get1())))
+}
+
+pub fn parse_py_literal(args: BoundArguments) -> FunctionResult {
+    let parsed: py_literal::Value = args
+        .get1_str()?
+        .parse()
+        .map_err(|err: py_literal::ParseError| EvaluationError::Custom(err.to_string()))?;
+
+    fn map_to_dynamic_value(value: py_literal::Value) -> FunctionResult {
+        Ok(match value {
+            py_literal::Value::None => DynamicValue::None,
+            py_literal::Value::Boolean(v) => DynamicValue::Boolean(v),
+            py_literal::Value::Float(f) => DynamicValue::Float(f),
+            py_literal::Value::Integer(bi) => match bi.try_into() {
+                Ok(i) => DynamicValue::Integer(i),
+                Err(err) => return Err(EvaluationError::Custom(err.to_string())),
+            },
+            py_literal::Value::Bytes(b) => DynamicValue::from_owned_bytes(b),
+            py_literal::Value::String(s) => DynamicValue::from(s),
+            py_literal::Value::List(l)
+            | py_literal::Value::Tuple(l)
+            | py_literal::Value::Set(l) => {
+                let mut list = Vec::new();
+
+                for item in l {
+                    list.push(map_to_dynamic_value(item)?);
+                }
+
+                DynamicValue::from(list)
+            }
+            py_literal::Value::Dict(d) => {
+                let mut dict = HashMap::new();
+
+                for (key, value) in d {
+                    dict.insert(
+                        map_to_dynamic_value(key)?.try_as_str()?.into_owned(),
+                        map_to_dynamic_value(value)?,
+                    );
+                }
+
+                DynamicValue::from(dict)
+            }
+            py_literal::Value::Complex(c) => {
+                DynamicValue::from(vec![DynamicValue::Float(c.re), DynamicValue::Float(c.im)])
+            }
+        })
+    }
+
+    map_to_dynamic_value(parsed)
+}

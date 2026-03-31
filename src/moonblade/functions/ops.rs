@@ -1,0 +1,322 @@
+use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::ops::{Add, Sub};
+
+use crate::temporal::AnyTemporal;
+
+use crate::moonblade::agg::aggregators::{Sum, Welford};
+use crate::moonblade::error::EvaluationError;
+use crate::moonblade::types::{BoundArguments, DynamicNumber, DynamicValue};
+
+use super::FunctionResult;
+
+pub fn parse_int(args: BoundArguments) -> FunctionResult {
+    args.get1().try_as_i64().map(DynamicValue::from)
+}
+
+pub fn parse_float(args: BoundArguments) -> FunctionResult {
+    args.get1().try_as_f64().map(DynamicValue::from)
+}
+
+pub fn not(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(!args.pop1_bool()))
+}
+
+pub fn arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: FnOnce(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let (a, b) = args.get2_number()?;
+    Ok(DynamicValue::from(op(a, b)))
+}
+
+pub fn add(args: BoundArguments) -> FunctionResult {
+    if args.len() == 2 {
+        match args.get2() {
+            (operand, DynamicValue::Span(span)) | (DynamicValue::Span(span), operand) => {
+                return match operand.try_as_any_temporal()? {
+                    AnyTemporal::Zoned(zoned) => match zoned.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                    },
+                    AnyTemporal::DateTime(datetime) => match datetime.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                    },
+                    AnyTemporal::Date(date) => match date.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(date) => Ok(DynamicValue::from(date)),
+                    },
+                    AnyTemporal::Time(time) => match time.checked_add(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(time) => Ok(DynamicValue::from(time)),
+                    },
+                }
+            }
+
+            _ => (),
+        };
+    }
+
+    variadic_arithmetic_op(args, Add::add)
+}
+
+pub fn sub(args: BoundArguments) -> FunctionResult {
+    if args.len() == 2 {
+        match args.get2() {
+            (operand, DynamicValue::Span(span)) | (DynamicValue::Span(span), operand) => {
+                return match operand.try_as_any_temporal()? {
+                    AnyTemporal::Zoned(zoned) => match zoned.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                    },
+                    AnyTemporal::DateTime(datetime) => match datetime.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                    },
+                    AnyTemporal::Date(date) => match date.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(date) => Ok(DynamicValue::from(date)),
+                    },
+                    AnyTemporal::Time(time) => match time.checked_sub(span.as_ref()) {
+                        Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                        Ok(time) => Ok(DynamicValue::from(time)),
+                    },
+                }
+            }
+
+            _ => (),
+        };
+    }
+
+    variadic_arithmetic_op(args, Sub::sub)
+}
+
+pub fn abstract_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: FnOnce(Ordering) -> bool,
+{
+    let (a, b) = args.pop2();
+
+    let ordering = match (a, b) {
+        (DynamicValue::Zoned(a), b) => (*a).partial_cmp(&b.try_into_zoned()?),
+        (a, DynamicValue::Zoned(b)) => a.try_into_zoned()?.partial_cmp(&b),
+
+        (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
+        (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
+
+        (DynamicValue::Date(a), b) => a.partial_cmp(&b.try_into_date()?),
+        (a, DynamicValue::Date(b)) => a.try_into_date()?.partial_cmp(&b),
+
+        (DynamicValue::Time(a), b) => a.partial_cmp(&b.try_into_time()?),
+        (a, DynamicValue::Time(b)) => a.try_into_time()?.partial_cmp(&b),
+
+        (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
+    };
+
+    Ok(DynamicValue::from(match ordering {
+        Some(ordering) => validate(ordering),
+        None => false,
+    }))
+}
+
+pub fn sequence_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: FnOnce(Ordering) -> bool,
+{
+    // TODO: deal with lists
+    let ordering = match args.get2() {
+        (DynamicValue::Bytes(b1), DynamicValue::Bytes(b2)) => b1.partial_cmp(b2),
+        (DynamicValue::String(s1), DynamicValue::String(s2)) => s1.partial_cmp(s2),
+        (DynamicValue::Bytes(b1), DynamicValue::String(s2)) => std::str::from_utf8(b1)
+            .map_err(|_| EvaluationError::UnicodeDecodeError)?
+            .partial_cmp(s2.as_str()),
+        (DynamicValue::String(s1), DynamicValue::Bytes(b2)) => s1
+            .as_str()
+            .partial_cmp(std::str::from_utf8(b2).map_err(|_| EvaluationError::UnicodeDecodeError)?),
+        (u1, u2) => u1.try_as_str()?.partial_cmp(&u2.try_as_str()?),
+    };
+
+    Ok(DynamicValue::from(match ordering {
+        Some(ordering) => validate(ordering),
+        None => false,
+    }))
+}
+
+pub fn abstract_unary_string_fn<F>(args: BoundArguments, function: F) -> FunctionResult
+where
+    F: FnOnce(&str) -> Cow<str>,
+{
+    let string = args.get1().try_as_str()?;
+
+    Ok(DynamicValue::from(function(&string)))
+}
+
+pub fn mean(args: BoundArguments) -> FunctionResult {
+    let items = args.get1().try_as_list()?;
+    let mut welford = Welford::new();
+
+    for item in items {
+        let n = item.try_as_f64()?;
+        welford.add(n);
+    }
+
+    Ok(DynamicValue::from(welford.mean()))
+}
+
+pub fn sum(args: BoundArguments) -> FunctionResult {
+    let items = args.get1().try_as_list()?;
+    let mut sum = Sum::new();
+
+    for item in items {
+        sum.add(item.try_as_number()?);
+    }
+
+    Ok(DynamicValue::from(sum.get()))
+}
+
+pub fn variadic_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let mut args_iter = args.into_iter();
+
+    let mut acc = args_iter.next().unwrap().try_as_number()?;
+
+    for arg in args_iter {
+        let cur = arg.try_as_number()?;
+        acc = op(acc, cur);
+    }
+
+    Ok(DynamicValue::from(acc))
+}
+
+pub fn unary_arithmetic_op<F>(mut args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber) -> DynamicNumber,
+{
+    Ok(DynamicValue::from(op(args.pop1_number()?)))
+}
+
+pub fn round_like_op<F>(mut args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber) -> DynamicNumber,
+{
+    if args.len() == 2 {
+        let unit = args.pop1_number()?;
+        let operand = args.pop1_number()?;
+
+        let result = op(operand / unit) * unit;
+
+        Ok(DynamicValue::from(result))
+    } else {
+        Ok(DynamicValue::from(op(args.pop1_number()?)))
+    }
+}
+
+pub fn binary_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let (n1, n2) = args.get2_number()?;
+
+    Ok(DynamicValue::from(op(n1, n2)))
+}
+
+pub fn variadic_optimum<F, V, T>(args: BoundArguments, convert: F, validate: V) -> FunctionResult
+where
+    F: Fn(&DynamicValue) -> Result<T, EvaluationError>,
+    V: Fn(Ordering) -> bool,
+    T: PartialOrd,
+    DynamicValue: From<T>,
+{
+    if args.len() == 1 {
+        let values = args.get1().try_as_list()?;
+
+        if values.is_empty() {
+            return Ok(DynamicValue::None);
+        }
+
+        let mut values_iter = values.iter();
+        let mut best_value = convert(values_iter.next().unwrap())?;
+
+        for value in values_iter {
+            let other = convert(value)?;
+
+            match other.partial_cmp(&best_value) {
+                None => {
+                    return Err(EvaluationError::Custom(
+                        "trying to compare heterogenous types".to_string(),
+                    ));
+                }
+                Some(ordering) => {
+                    if validate(ordering) {
+                        best_value = other;
+                    }
+                }
+            }
+        }
+
+        return Ok(DynamicValue::from(best_value));
+    }
+
+    let mut args_iter = args.into_iter();
+    let mut best_value = convert(&args_iter.next().unwrap())?;
+
+    for arg in args_iter {
+        let other_value = convert(&arg)?;
+
+        match other_value.partial_cmp(&best_value) {
+            None => {
+                return Err(EvaluationError::Custom(
+                    "trying to compare heterogenous types".to_string(),
+                ));
+            }
+            Some(ordering) => {
+                if validate(ordering) {
+                    best_value = other_value;
+                }
+            }
+        }
+    }
+
+    Ok(DynamicValue::from(best_value))
+}
+
+pub fn argcompare<F>(args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: Fn(Ordering) -> bool,
+{
+    let values = args.get(0).unwrap().try_as_list()?;
+    let labels = args.get(1).map(|arg| arg.try_as_list()).transpose()?;
+    let mut min_item: Option<(DynamicNumber, DynamicValue)> = None;
+
+    for (i, value) in values.iter().enumerate() {
+        let n = value.try_as_number()?;
+
+        match min_item {
+            None => {
+                min_item = Some((
+                    n,
+                    match labels {
+                        None => DynamicValue::from(i),
+                        Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
+                    },
+                ));
+            }
+            Some((current, _)) => {
+                if validate(n.partial_cmp(&current).unwrap()) {
+                    min_item = Some((
+                        n,
+                        match labels {
+                            None => DynamicValue::from(i),
+                            Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
+                        },
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(DynamicValue::from(min_item.map(|t| t.1)))
+}

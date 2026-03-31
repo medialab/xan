@@ -1,6 +1,6 @@
 use enumset::{EnumSet, EnumSetType};
 
-use crate::dates::AnyTemporal;
+use crate::temporal::AnyTemporal;
 
 #[derive(Debug, EnumSetType)]
 pub enum Type {

@@ -24,7 +24,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::dates;
+use crate::temporal;
 use crate::select::SelectedColumns;
 use crate::CliResult;
 
@@ -427,7 +427,7 @@ pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
         Err(_) => {
             if could_be_url(string) {
                 ColorOrStyles::Color(Color::Blue)
-            } else if dates::looks_temporal(string) {
+            } else if temporal::looks_temporal(string) {
                 ColorOrStyles::Color(Color::Magenta)
             } else {
                 ColorOrStyles::Color(Color::Green)

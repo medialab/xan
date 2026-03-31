@@ -15,7 +15,7 @@ use docopt::Docopt;
 mod cmd;
 mod collections;
 mod config;
-mod dates;
+mod temporal;
 mod graph;
 mod json;
 mod moonblade;
