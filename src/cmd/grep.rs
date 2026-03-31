@@ -1,4 +1,6 @@
+use std::collections::VecDeque;
 use std::io::Write;
+use std::num::NonZeroUsize;
 
 use aho_corasick::AhoCorasick;
 use regex::bytes::RegexBuilder;
@@ -8,6 +10,32 @@ use crate::util;
 use crate::CliResult;
 
 use crate::cmd::search::Matcher;
+
+struct BeforeContextBuffer {
+    buffer: VecDeque<Vec<u8>>,
+}
+
+impl BeforeContextBuffer {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            buffer: VecDeque::with_capacity(capacity),
+        }
+    }
+
+    #[inline]
+    fn push(&mut self, record: &[u8]) {
+        if self.buffer.len() == self.buffer.capacity() {
+            self.buffer.pop_front();
+        }
+
+        self.buffer.push_back(record.to_vec());
+    }
+
+    #[inline(always)]
+    fn flush(&mut self) -> impl Iterator<Item = Vec<u8>> + '_ {
+        self.buffer.drain(..)
+    }
+}
 
 static USAGE: &str = "
 Keep rows of a CSV file matching a given pattern. It can be thought of as
@@ -33,14 +61,16 @@ Usage:
     xan grep --help
 
 grep options:
-    -c, --count         Only return the number of matching rows.
-    -r, --regex         Matches the given pattern as a regex.
-    -i, --ignore-case   Ignore case while matching rows.
-    -v, --invert-match  Only return or count rows that did not match
-                        given pattern.
-    --mmap              Use a memory map to speed up computations. Only
-                        works if the file is on disk (no streams) and if the
-                        file is uncompressed. Usually a bad idea on macOS.
+    -c, --count               Only return the number of matching rows.
+    -r, --regex               Matches the given pattern as a regex.
+    -i, --ignore-case         Ignore case while matching rows.
+    -v, --invert-match        Only return or count rows that did not match
+                              given pattern.
+    -B, --before-context <n>  Number of rows to keep before a matching one.
+    -A, --after-context <n>   Number of rows to keep after a matching one.
+    --mmap                    Use a memory map to speed up computations. Only
+                              works if the file is on disk (no streams) and if the
+                              file is uncompressed. Usually a bad idea on macOS.
 
 Common options:
     -h, --help             Display this message
@@ -60,6 +90,8 @@ struct Args {
     flag_regex: bool,
     flag_ignore_case: bool,
     flag_invert_match: bool,
+    flag_before_context: Option<NonZeroUsize>,
+    flag_after_context: Option<NonZeroUsize>,
     flag_mmap: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -68,9 +100,16 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if (args.flag_before_context.is_some() || args.flag_after_context.is_some()) && args.flag_count
+    {
+        Err("-c/--count does not work with -B/--before-context nor -A/--after-context!")?;
+    }
+
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+
     let wconf = Config::new(&args.flag_output);
 
     let mut writer_opt = (!args.flag_count)
@@ -94,6 +133,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     let mut count: u64 = 0;
+    let mut after_context_count: usize = 0;
+
+    let mut before_context_buffer_opt = args
+        .flag_before_context
+        .map(|n| BeforeContextBuffer::with_capacity(n.get()));
 
     macro_rules! process_record {
         ($record: expr) => {
@@ -103,14 +147,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match = !is_match;
             }
 
-            if !is_match {
-                continue;
-            }
+            if is_match {
+                if let Some(writer) = writer_opt.as_mut() {
+                    if let Some(buffer) = before_context_buffer_opt.as_mut() {
+                        for past_record in buffer.flush() {
+                            writer.write_splitted_record(&past_record)?;
+                        }
+                    }
 
-            if let Some(writer) = writer_opt.as_mut() {
-                writer.write_splitted_record($record)?;
+                    writer.write_splitted_record($record)?;
+                } else {
+                    count += 1;
+                }
+
+                if let Some(n) = args.flag_after_context {
+                    after_context_count = n.get();
+                }
             } else {
-                count += 1;
+                if after_context_count > 0 {
+                    after_context_count -= 1;
+                    writer_opt
+                        .as_mut()
+                        .unwrap()
+                        .write_splitted_record($record)?;
+                } else {
+                    if let Some(buffer) = before_context_buffer_opt.as_mut() {
+                        buffer.push($record);
+                    }
+                }
             }
         };
     }

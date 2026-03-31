@@ -28,6 +28,7 @@
 * Better type inference with `xan stats`, and the `type` & `types` aggregation functions, now including more types for temporal values (`zoned_datetime`, `datetime`, `date` & `time`).
 * Adding `xan input -T/--tolerant`.
 * Adding `xan separate --trim`.
+* Adding `xan grep -B/--before-context & -A/--after-context`.
 
 *Fixes*
 

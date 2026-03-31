@@ -25,14 +25,16 @@ Usage:
     xan grep --help
 
 grep options:
-    -c, --count         Only return the number of matching rows.
-    -r, --regex         Matches the given pattern as a regex.
-    -i, --ignore-case   Ignore case while matching rows.
-    -v, --invert-match  Only return or count rows that did not match
-                        given pattern.
-    --mmap              Use a memory map to speed up computations. Only
-                        works if the file is on disk (no streams) and if the
-                        file is uncompressed. Usually a bad idea on macOS.
+    -c, --count               Only return the number of matching rows.
+    -r, --regex               Matches the given pattern as a regex.
+    -i, --ignore-case         Ignore case while matching rows.
+    -v, --invert-match        Only return or count rows that did not match
+                              given pattern.
+    -B, --before-context <n>  Number of rows to keep before a matching one.
+    -A, --after-context <n>   Number of rows to keep after a matching one.
+    --mmap                    Use a memory map to speed up computations. Only
+                              works if the file is on disk (no streams) and if the
+                              file is uncompressed. Usually a bad idea on macOS.
 
 Common options:
     -h, --help             Display this message
