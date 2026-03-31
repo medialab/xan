@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU8, NonZeroUsize};
 use std::str::from_utf8;
 use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use bstr::{ByteSlice, ByteVec};
 use indexmap::IndexMap;
+use levenshtein_automata::{Distance as LevenshteinDistance, LevenshteinAutomatonBuilder, DFA};
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
@@ -18,6 +19,16 @@ use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
+
+trait LevenshteinDistanceExt {
+    fn is_match(&self) -> bool;
+}
+
+impl LevenshteinDistanceExt for LevenshteinDistance {
+    fn is_match(&self) -> bool {
+        matches!(self, LevenshteinDistance::Exact(_))
+    }
+}
 
 fn count_overlapping_matches(regex: &Regex, haystack: &[u8]) -> usize {
     let mut count: usize = 0;
@@ -72,7 +83,6 @@ fn regex_set_replace_all<'a>(
     Cow::Owned(bytes)
 }
 
-#[derive(Debug)]
 pub enum Matcher {
     Empty,
     NonEmpty,
@@ -84,6 +94,7 @@ pub enum Matcher {
     HashMap(HashMap<Vec<u8>, usize>, bool),
     UrlPrefix(LRUStems),
     UrlTrie(LRUTrieMap<usize>),
+    Levenshtein(DFA, bool),
 }
 
 impl Matcher {
@@ -122,6 +133,16 @@ impl Matcher {
             Self::UrlTrie(trie) => match from_utf8(cell).ok() {
                 None => false,
                 Some(url) => trie.is_match(url).unwrap_or(false),
+            },
+            Self::Levenshtein(dfa, case_insenstive) => match from_utf8(cell).ok() {
+                None => false,
+                Some(value) => {
+                    if *case_insenstive {
+                        dfa.eval(value.to_lowercase()).is_match()
+                    } else {
+                        dfa.eval(value).is_match()
+                    }
+                }
             },
         }
     }
@@ -211,6 +232,7 @@ impl Matcher {
                     }
                 }
             },
+            Self::Levenshtein(_, _) => todo!(),
         }
     }
 
@@ -222,7 +244,8 @@ impl Matcher {
             | Self::NonEmpty
             | Self::Regex(_)
             | Self::Exact(_, _)
-            | Self::UrlPrefix(_) => {
+            | Self::UrlPrefix(_)
+            | Self::Levenshtein(_, _) => {
                 unreachable!()
             }
 
@@ -298,7 +321,8 @@ impl Matcher {
             | Self::NonEmpty
             | Self::Regex(_)
             | Self::Exact(_, _)
-            | Self::UrlPrefix(_) => {
+            | Self::UrlPrefix(_)
+            | Self::Levenshtein(_, _) => {
                 unreachable!()
             }
 
@@ -431,6 +455,7 @@ impl Matcher {
                     }
                 }
             },
+            Self::Levenshtein(_, _) => todo!(),
         }
     }
 }
@@ -448,6 +473,7 @@ This command has several flags to select the way to perform a match:
     * -e, --exact: exact match
     * -r, --regex: using a regular expression
     * -u, --url-prefix: matching by url prefix (e.g. \"lemonde.fr/business\")
+    * -L, --levenshtein <k>: matching using Levenshtein distance
     * -N, --non-empty: finding non-empty cells (does not need a pattern)
     * -E, --empty: finding empty cells (does not need a pattern)
 
@@ -577,17 +603,21 @@ Usage:
     xan search --help
 
 search mode options:
-    -e, --exact       Perform an exact match.
-    -r, --regex       Use a regex to perform the match.
-    -E, --empty       Search for empty cells, i.e. filter out
-                      any completely non-empty selection.
-    -N, --non-empty   Search for non-empty cells, i.e. filter out
-                      any completely empty selection.
-    -u, --url-prefix  Match by url prefix, i.e. cells must contain urls
-                      matching the searched url prefix. Urls are first
-                      reordered using a scheme called a LRU, that you can
-                      read about here:
-                      https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+    -e, --exact            Perform an exact match.
+    -r, --regex            Use a regex to perform the match.
+    -E, --empty            Search for empty cells, i.e. filter out
+                           any completely non-empty selection.
+    -N, --non-empty        Search for non-empty cells, i.e. filter out
+                           any completely empty selection.
+    -u, --url-prefix       Match by url prefix, i.e. cells must contain urls
+                           matching the searched url prefix. Urls are first
+                           reordered using a scheme called a LRU, that you can
+                           read about here:
+                           https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+    -L, --levenshtein <k>  Match if Levensthein distance between cell & pattern is
+                           less than or equal to given <k> threshold. For performance
+                           reasons and to avoid absurd memory consumption, <k> is
+                           disallowed to be greater than 4.
 
 search options:
     -i, --ignore-case        Case insensitive search.
@@ -681,6 +711,7 @@ struct Args {
     flag_exact: bool,
     flag_regex: bool,
     flag_url_prefix: bool,
+    flag_levenshtein: Option<NonZeroU8>,
     flag_flag: Option<String>,
     flag_count: Option<String>,
     flag_replace: Option<String>,
@@ -728,6 +759,17 @@ impl Args {
                     let tagged_url = pattern.parse::<TaggedUrl>()?;
 
                     Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
+                } else if let Some(k) = self.flag_levenshtein {
+                    Matcher::Levenshtein(
+                        LevenshteinAutomatonBuilder::new(k.get(), false).build_dfa(
+                            &(if self.flag_ignore_case {
+                                pattern.to_lowercase()
+                            } else {
+                                pattern.to_string()
+                            }),
+                        ),
+                        self.flag_ignore_case,
+                    )
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new([if self.flag_ignore_case {
@@ -810,10 +852,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_regex as u8
         + args.flag_non_empty as u8
         + args.flag_empty as u8
-        + args.flag_url_prefix as u8;
+        + args.flag_url_prefix as u8
+        + args.flag_levenshtein.is_some() as u8;
 
     if matchers_count > 1 {
-        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix or -r/--regex!")?;
+        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix, -L/--levenshtein or -r/--regex!")?;
     }
 
     if args.flag_overlapping
@@ -858,6 +901,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if !args.flag_add_pattern.is_empty() && args.flag_patterns.is_some() {
         Err("-P/--add-pattern is incompatible with --patterns!")?;
+    }
+
+    if matches!(args.flag_levenshtein, Some(n) if n.get() > 4) {
+        Err("for performance reason, -L/--levenshtein does not allow k to be greater than 4 yet!")?;
     }
 
     let actions_count: u8 = args.flag_count.is_some() as u8
