@@ -8,6 +8,7 @@
 * `xan heatmap -C/--cram` becomes a flag accepting either `auto`, `always` or `never`.
 * Dropping `-C` short flag for `xan sort --cells` (it could be confused with `--columns` or `--check`).
 * Completely overhauled how datetimes work in moonblade.
+* `xan separate` will not trim splitted values with some modes by default anymore.
 
 *Features*
 
@@ -26,6 +27,7 @@
 * Adding `now`, `fractional_days`, `to_timezone`, `to_local_timezone`, `with_timezone`, `with_local_timezone`, `without_timezone`, `to_timestamp`, `to_timestamp_ms`, `from_timestamp`, `from_timestamp_ms`, `span`, `date` & `time` moonblade functions.
 * Better type inference with `xan stats`, and the `type` & `types` aggregation functions, now including more types for temporal values (`zoned_datetime`, `datetime`, `date` & `time`).
 * Adding `xan input -T/--tolerant`.
+* Adding `xan separate --trim`.
 
 *Fixes*
 

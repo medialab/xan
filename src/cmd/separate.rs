@@ -75,17 +75,13 @@ separate mode options:
                           the regex pattern.
     -c, --capture-groups  When using -r/--regex, extract parts of the call matching
                           the regex pattern's capture groups.
-    --fixed-width         Split cells every <separator> bytes. Each resulting part
-                          will then be trimmed of leading/trailing whitespace.
+    --fixed-width         Split cells every <separator> bytes.
     --widths              Split cells using the given widths (given as a comma-separated
-                          list of integers). Each resulting part will then be trimmed of
-                          leading/trailing whitespace.
+                          list of integers).
     --cuts                Split cells on the given bytes (given as a comma-separated
-                          list of increasing, non-repeating integers). Each resulting part
-                          will then be trimmed of leading/trailing whitespace.
+                          list of increasing, non-repeating integers).
     --offsets             Split cells according to the specified byte offsets (given as a
                           comma-separated list of increasing, non-repeating integers).
-                          Each resulting part will then be trimmed of leading/trailing whitespace.
 
 separate options:
     -M, --max <n>          Limit the number of cells splitted to at most <n>.
@@ -115,6 +111,8 @@ separate options:
                            [default: error]
     -k, --keep             Keep the separated column after splitting, instead of
                            discarding it.
+    --trim                 Whether to trim splitted values of leading/trailing
+                           whitespace.
 
 Common options:
     -h, --help               Display this message
@@ -145,6 +143,7 @@ struct Args {
     flag_widths: bool,
     flag_cuts: bool,
     flag_offsets: bool,
+    flag_trim: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -158,6 +157,13 @@ impl TooManyMode {
     fn requires_splitn(&self) -> bool {
         matches!(self, Self::Merge | Self::Drop)
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SplitOptions {
+    max: usize,
+    too_many_mode: TooManyMode,
+    trim: bool,
 }
 
 #[derive(Debug)]
@@ -223,7 +229,7 @@ impl Splitter {
                 }
                 RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
             },
-            Self::FixedWidth(width) => Box::new(cell.chunks(*width).map(|chunk| chunk.trim())),
+            Self::FixedWidth(width) => Box::new(cell.chunks(*width)),
             Self::Offsets(offsets, has_implicit_end) => {
                 let mut splits = Vec::<&[u8]>::with_capacity(
                     offsets.len() - (if *has_implicit_end { 0 } else { 1 }),
@@ -240,14 +246,14 @@ impl Splitter {
                         break;
                     }
 
-                    splits.push(cell[start..end].trim());
+                    splits.push(&cell[start..end]);
                 }
 
                 if must_add_implicit_end {
                     let start = *offsets.last().unwrap();
 
                     if start < cell.len() {
-                        splits.push(cell[start..].trim())
+                        splits.push(&cell[start..])
                     }
                 }
 
@@ -278,18 +284,19 @@ impl Splitter {
         }
     }
 
-    fn split_cell(
-        &self,
-        cell: &[u8],
-        max: usize,
-        too_many_mode: TooManyMode,
-    ) -> CliResult<ByteRecord> {
+    fn split_cell(&self, cell: &[u8], options: SplitOptions) -> CliResult<ByteRecord> {
+        let SplitOptions {
+            max,
+            too_many_mode,
+            trim,
+        } = options;
+
         let mut output_record = ByteRecord::new();
 
         match too_many_mode {
             TooManyMode::Error => {
                 for sub_cell in self.split(cell) {
-                    output_record.push_field(sub_cell);
+                    output_record.push_field(if trim { sub_cell.trim() } else { sub_cell });
                 }
 
                 if output_record.len() > max {
@@ -298,12 +305,12 @@ impl Splitter {
             }
             TooManyMode::Drop => {
                 for sub_cell in self.split(cell).take(max) {
-                    output_record.push_field(sub_cell);
+                    output_record.push_field(if trim { sub_cell.trim() } else { sub_cell });
                 }
             }
             TooManyMode::Merge => {
                 for sub_cell in self.splitn(max, cell) {
-                    output_record.push_field(sub_cell);
+                    output_record.push_field(if trim { sub_cell.trim() } else { sub_cell });
                 }
             }
         };
@@ -517,10 +524,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&new_headers)?;
     }
 
+    let split_options = SplitOptions {
+        too_many_mode,
+        max: max_splits,
+        trim: args.flag_trim,
+    };
+
     // Flushing
     let mut process_record = |record: &ByteRecord| -> CliResult<()> {
-        let splitted =
-            splitter.split_cell(&record[separated_column_index], max_splits, too_many_mode)?;
+        let splitted = splitter.split_cell(&record[separated_column_index], split_options)?;
 
         wtr.write_record(
             record

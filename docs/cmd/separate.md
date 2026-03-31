@@ -66,17 +66,13 @@ separate mode options:
                           the regex pattern.
     -c, --capture-groups  When using -r/--regex, extract parts of the call matching
                           the regex pattern's capture groups.
-    --fixed-width         Split cells every <separator> bytes. Each resulting part
-                          will then be trimmed of leading/trailing whitespace.
+    --fixed-width         Split cells every <separator> bytes.
     --widths              Split cells using the given widths (given as a comma-separated
-                          list of integers). Each resulting part will then be trimmed of
-                          leading/trailing whitespace.
+                          list of integers).
     --cuts                Split cells on the given bytes (given as a comma-separated
-                          list of increasing, non-repeating integers). Each resulting part
-                          will then be trimmed of leading/trailing whitespace.
+                          list of increasing, non-repeating integers).
     --offsets             Split cells according to the specified byte offsets (given as a
                           comma-separated list of increasing, non-repeating integers).
-                          Each resulting part will then be trimmed of leading/trailing whitespace.
 
 separate options:
     -M, --max <n>          Limit the number of cells splitted to at most <n>.
@@ -106,6 +102,8 @@ separate options:
                            [default: error]
     -k, --keep             Keep the separated column after splitting, instead of
                            discarding it.
+    --trim                 Whether to trim splitted values of leading/trailing
+                           whitespace.
 
 Common options:
     -h, --help               Display this message

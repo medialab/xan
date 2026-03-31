@@ -565,7 +565,7 @@ fn separate_segment_bytes() {
 
 #[test]
 fn separate_no_headers() {
-    let wrk = Workdir::new("map");
+    let wrk = Workdir::new("separate_no_headers");
     wrk.create(
         "data.csv",
         vec![svec!["john landis", "1"], svec!["evan babka", "2"]],
@@ -575,5 +575,28 @@ fn separate_no_headers() {
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["john", "landis", "1"], svec!["evan", "babka", "2"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn separate_trim() {
+    let wrk = Workdir::new("separate_trim");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "id"],
+            svec!["   john,    landis ", "1"],
+            svec!["evan,babka", "2"],
+        ],
+    );
+    let mut cmd = wrk.command("separate");
+    cmd.arg("0").arg(",").arg("--trim").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name1", "name2", "id"],
+        ["john", "landis", "1"],
+        ["evan", "babka", "2"],
+    ];
     assert_eq!(got, expected);
 }
