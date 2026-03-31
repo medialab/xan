@@ -11,6 +11,7 @@ This command has several flags to select the way to perform a match:
     * -e, --exact: exact match
     * -r, --regex: using a regular expression
     * -u, --url-prefix: matching by url prefix (e.g. "lemonde.fr/business")
+    * -L, --levenshtein <k>: matching using Levenshtein distance
     * -N, --non-empty: finding non-empty cells (does not need a pattern)
     * -E, --empty: finding empty cells (does not need a pattern)
 
@@ -140,17 +141,21 @@ Usage:
     xan search --help
 
 search mode options:
-    -e, --exact       Perform an exact match.
-    -r, --regex       Use a regex to perform the match.
-    -E, --empty       Search for empty cells, i.e. filter out
-                      any completely non-empty selection.
-    -N, --non-empty   Search for non-empty cells, i.e. filter out
-                      any completely empty selection.
-    -u, --url-prefix  Match by url prefix, i.e. cells must contain urls
-                      matching the searched url prefix. Urls are first
-                      reordered using a scheme called a LRU, that you can
-                      read about here:
-                      https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+    -e, --exact            Perform an exact match.
+    -r, --regex            Use a regex to perform the match.
+    -E, --empty            Search for empty cells, i.e. filter out
+                           any completely non-empty selection.
+    -N, --non-empty        Search for non-empty cells, i.e. filter out
+                           any completely empty selection.
+    -u, --url-prefix       Match by url prefix, i.e. cells must contain urls
+                           matching the searched url prefix. Urls are first
+                           reordered using a scheme called a LRU, that you can
+                           read about here:
+                           https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+    -L, --levenshtein <k>  Match if Levensthein distance between cell & pattern is
+                           less than or equal to given <k> threshold. For performance
+                           reasons and to avoid absurd memory consumption, <k> is
+                           disallowed to be greater than 5.
 
 search options:
     -i, --ignore-case        Case insensitive search.

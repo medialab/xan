@@ -193,6 +193,7 @@ impl Matcher {
                 if overlapping {
                     unreachable!()
                 }
+
                 set.find_iter(cell).count()
             }
             Self::Regexes(patterns) => patterns
@@ -201,38 +202,29 @@ impl Matcher {
                 .sum(),
             Self::HashMap(patterns, case_insensitive) => {
                 if *case_insensitive {
-                    if patterns.contains_key(&cell.to_lowercase()) {
-                        1
-                    } else {
-                        0
-                    }
-                } else if patterns.contains_key(cell) {
-                    1
+                    patterns.contains_key(&cell.to_lowercase()) as usize
                 } else {
-                    0
+                    patterns.contains_key(cell) as usize
                 }
             }
             Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
                 None => 0,
-                Some(url) => {
-                    if stems.is_simplified_match(url) {
-                        1
-                    } else {
-                        0
-                    }
-                }
+                Some(url) => stems.is_simplified_match(url) as usize,
             },
             Self::UrlTrie(trie) => match from_utf8(cell).ok() {
                 None => 0,
-                Some(url) => {
-                    if trie.is_match(url).unwrap_or(false) {
-                        1
+                Some(url) => trie.is_match(url).unwrap_or(false) as usize,
+            },
+            Self::Levenshtein(dfa, case_insenstive) => match from_utf8(cell).ok() {
+                None => 0,
+                Some(value) => {
+                    if *case_insenstive {
+                        dfa.eval(value.to_lowercase()).is_match() as usize
                     } else {
-                        0
+                        dfa.eval(value).is_match() as usize
                     }
                 }
             },
-            Self::Levenshtein(_, _) => todo!(),
         }
     }
 
@@ -455,7 +447,22 @@ impl Matcher {
                     }
                 }
             },
-            Self::Levenshtein(_, _) => todo!(),
+            Self::Levenshtein(dfa, case_insenstive) => match from_utf8(cell).ok() {
+                None => Cow::Borrowed(cell),
+                Some(value) => {
+                    if *case_insenstive {
+                        if dfa.eval(value.to_lowercase()).is_match() {
+                            Cow::Borrowed(&replacements[0])
+                        } else {
+                            Cow::Borrowed(cell)
+                        }
+                    } else if dfa.eval(value).is_match() {
+                        Cow::Borrowed(&replacements[0])
+                    } else {
+                        Cow::Borrowed(cell)
+                    }
+                }
+            },
         }
     }
 }
@@ -617,7 +624,7 @@ search mode options:
     -L, --levenshtein <k>  Match if Levensthein distance between cell & pattern is
                            less than or equal to given <k> threshold. For performance
                            reasons and to avoid absurd memory consumption, <k> is
-                           disallowed to be greater than 4.
+                           disallowed to be greater than 5.
 
 search options:
     -i, --ignore-case        Case insensitive search.
@@ -903,8 +910,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-P/--add-pattern is incompatible with --patterns!")?;
     }
 
-    if matches!(args.flag_levenshtein, Some(n) if n.get() > 4) {
-        Err("for performance reason, -L/--levenshtein does not allow k to be greater than 4 yet!")?;
+    if matches!(args.flag_levenshtein, Some(n) if n.get() > 5) {
+        Err(
+            "for performance reasons, -L/--levenshtein does not allow k to be greater than 5 yet!",
+        )?;
+    }
+
+    if args.flag_levenshtein.is_some() && args.flag_patterns.is_some() {
+        Err("-L/--levenshtein does not work yet with --patterns!")?;
     }
 
     let actions_count: u8 = args.flag_count.is_some() as u8
