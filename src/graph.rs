@@ -193,6 +193,11 @@ enum NodeExtremityType {
 }
 
 #[derive(Default)]
+pub struct GraphBuilderOptions {
+    pub track_largest_component: bool,
+}
+
+#[derive(Default)]
 pub struct GraphBuilder {
     options: GraphOptions,
     disjoint_sets: Option<UnionFind>,
@@ -205,10 +210,10 @@ pub struct GraphBuilder {
 }
 
 impl GraphBuilder {
-    pub fn new(track_largest_component: bool) -> Self {
+    pub fn new(options: GraphBuilderOptions) -> Self {
         let mut builder = Self::default();
 
-        if track_largest_component {
+        if options.track_largest_component {
             builder.disjoint_sets = Some(UnionFind::new());
         }
 

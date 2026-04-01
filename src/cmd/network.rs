@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
-use crate::graph::GraphBuilder;
+use crate::graph::{GraphBuilder, GraphBuilderOptions};
 use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
@@ -92,12 +92,20 @@ struct Args {
 }
 
 impl Args {
+    fn graph_builder(&self) -> GraphBuilder {
+        let options = GraphBuilderOptions {
+            track_largest_component: self.flag_largest_component,
+        };
+
+        GraphBuilder::new(options)
+    }
+
     fn edgelist(&self) -> CliResult<GraphBuilder> {
         let edges_rconf = Config::new(&self.arg_input)
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
 
-        let mut graph_builder = GraphBuilder::new(self.flag_largest_component);
+        let mut graph_builder = self.graph_builder();
 
         let mut record = csv::StringRecord::new();
 
@@ -219,7 +227,7 @@ impl Args {
             .delimiter(self.flag_delimiter)
             .no_headers(self.flag_no_headers);
 
-        let mut graph_builder = GraphBuilder::new(self.flag_largest_component);
+        let mut graph_builder = self.graph_builder();
 
         graph_builder.mark_as_undirected();
 
