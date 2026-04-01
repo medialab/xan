@@ -8,7 +8,7 @@ use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use jiff::Zoned;
 use serde_json::Value;
 
-use crate::collections::{HashMap, UnionFind};
+use crate::collections::UnionFind;
 use crate::config::Config;
 use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
@@ -193,7 +193,7 @@ pub struct GraphBuilder {
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
     nodes: IndexMap<Rc<String>, Node, RandomState>,
-    edges: HashMap<(usize, usize), Edge>,
+    edges: IndexMap<(usize, usize), Edge, RandomState>,
 }
 
 impl GraphBuilder {
