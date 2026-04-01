@@ -186,10 +186,18 @@ impl DegreeMap {
     }
 }
 
+enum NodeExtremityType {
+    None,
+    Source,
+    Target,
+}
+
 #[derive(Default)]
 pub struct GraphBuilder {
     options: GraphOptions,
     disjoint_sets: Option<UnionFind>,
+    last_source_index: Option<usize>,
+    last_target_index: Option<usize>,
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
     nodes: IndexMap<Rc<String>, Node, RandomState>,
@@ -247,14 +255,37 @@ impl GraphBuilder {
             .collect();
     }
 
-    pub fn add_node(&mut self, key: String, attributes: Attributes) -> usize {
+    fn add_node_impl(
+        &mut self,
+        extremity_type: NodeExtremityType,
+        key: String,
+        attributes: Attributes,
+    ) -> usize {
         use IndexMapEntry::*;
+
+        let cache = match extremity_type {
+            NodeExtremityType::None => None,
+            NodeExtremityType::Source => self.last_source_index,
+            NodeExtremityType::Target => self.last_target_index,
+        };
+
+        if let Some(cached_index) = cache {
+            let node = self.nodes.get_index_mut(cached_index).unwrap().1;
+
+            if key == *node.key {
+                // TODO: should we merge attributes?
+                return cached_index;
+            }
+        }
 
         let rc_key = Rc::new(key);
         let next_id = self.nodes.len();
 
-        match self.nodes.entry(rc_key.clone()) {
-            Occupied(entry) => entry.index(),
+        let node_id = match self.nodes.entry(rc_key.clone()) {
+            Occupied(entry) => {
+                // TODO: should we merge attributes?
+                entry.index()
+            }
             Vacant(entry) => {
                 entry.insert(Node {
                     key: rc_key,
@@ -267,7 +298,34 @@ impl GraphBuilder {
 
                 next_id
             }
-        }
+        };
+
+        match extremity_type {
+            NodeExtremityType::None => (),
+            NodeExtremityType::Source => {
+                self.last_source_index = Some(node_id);
+            }
+            NodeExtremityType::Target => {
+                self.last_target_index = Some(node_id);
+            }
+        };
+
+        node_id
+    }
+
+    #[inline(always)]
+    pub fn add_node(&mut self, key: String, attributes: Attributes) -> usize {
+        self.add_node_impl(NodeExtremityType::None, key, attributes)
+    }
+
+    #[inline(always)]
+    pub fn add_source_node(&mut self, key: String, attributes: Attributes) -> usize {
+        self.add_node_impl(NodeExtremityType::Source, key, attributes)
+    }
+
+    #[inline(always)]
+    pub fn add_target_node(&mut self, key: String, attributes: Attributes) -> usize {
+        self.add_node_impl(NodeExtremityType::Target, key, attributes)
     }
 
     pub fn add_edge(&mut self, source: usize, target: usize, attributes: Attributes) {

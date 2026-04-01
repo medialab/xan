@@ -191,8 +191,8 @@ impl Args {
             let source = record[source_column_index].to_string();
             let target = record[target_column_index].to_string();
 
-            let source_id = graph_builder.add_node(source, Attributes::default());
-            let target_id = graph_builder.add_node(target, Attributes::default());
+            let source_id = graph_builder.add_source_node(source, Attributes::default());
+            let target_id = graph_builder.add_target_node(target, Attributes::default());
 
             let mut attributes = Attributes::with_capacity(edge_attr_sel.len());
 
@@ -252,9 +252,11 @@ impl Args {
                 second_part_node = id.get((1, second_part_node)).to_string();
             }
 
-            let first_part_node_id = graph_builder.add_node(first_part_node, Attributes::default());
+            let first_part_node_id =
+                graph_builder.add_source_node(first_part_node, Attributes::default());
+
             let second_part_node_id =
-                graph_builder.add_node(second_part_node, Attributes::default());
+                graph_builder.add_target_node(second_part_node, Attributes::default());
 
             graph_builder.add_edge(
                 first_part_node_id,
