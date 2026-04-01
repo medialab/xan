@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::io::SeekFrom;
+use std::io::{stderr, SeekFrom, Write};
 
 use simd_csv::ByteRecord;
 
@@ -168,10 +168,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("The -E/--exclude and -S/--search flags cannot be used together")?;
     }
 
+    let mut verbose_out = stderr();
+
     macro_rules! log {
         ($($arg:tt)*) => {
             if args.flag_verbose {
-                eprintln!($($arg)*);
+                writeln!(&mut verbose_out, $($arg)*)?;
             }
         };
     }
