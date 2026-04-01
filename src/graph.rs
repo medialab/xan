@@ -273,17 +273,27 @@ impl GraphBuilder {
     pub fn add_edge(&mut self, source: usize, target: usize, attributes: Attributes) {
         let undirected = self.is_undirected();
 
-        let (source, target) = if source == target {
+        let (source_node, target_node) = if source == target {
             self.options.allow_self_loops = true;
-            (source, target)
-        } else if undirected && source > target {
-            (target, source)
-        } else {
-            (source, target)
-        };
+            let single_node = self.nodes.get_index(source).unwrap().1;
 
-        let source_node = self.nodes.get_index(source).unwrap().1;
-        let target_node = self.nodes.get_index(target).unwrap().1;
+            (single_node, single_node)
+        } else {
+            let (source, target) = if undirected && source > target {
+                (target, source)
+            } else {
+                (source, target)
+            };
+
+            if let Some(sets) = self.disjoint_sets.as_mut() {
+                sets.union(source, target);
+            }
+
+            let source_node = self.nodes.get_index(source).unwrap().1;
+            let target_node = self.nodes.get_index(target).unwrap().1;
+
+            (source_node, target_node)
+        };
 
         let edge = Edge {
             source: source_node.key.clone(),
@@ -294,10 +304,6 @@ impl GraphBuilder {
 
         if self.edges.insert((source, target), edge).is_some() {
             self.options.multi = true;
-        }
-
-        if let Some(sets) = self.disjoint_sets.as_mut() {
-            sets.union(source, target);
         }
     }
 
