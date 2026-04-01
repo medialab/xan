@@ -285,7 +285,7 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-    let mut writer = Config::new(&args.flag_output).io_writer()?;
+    let wconf = Config::new(&args.flag_output);
 
     if !["1.2", "1.3"].contains(&args.flag_gexf_version.as_str()) {
         Err(format!(
@@ -351,9 +351,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     match args.flag_format.as_str() {
-        "gexf" => graph.write_gexf(&mut writer, &args.flag_gexf_version),
-        "json" => graph.write_json(&mut writer),
-        "nodelist" => graph.write_csv_nodelist(&mut writer, degree_map),
-        _ => Err(format!("unsupported format: {}!", &args.flag_format))?,
+        "gexf" => graph.write_gexf(wconf.buf_io_writer()?, &args.flag_gexf_version),
+        "json" => graph.write_json(wconf.buf_io_writer()?),
+        "nodelist" => graph.write_csv_nodelist(&wconf, degree_map),
+        _ => Err(format!("unsupported output format: {}!", &args.flag_format))?,
     }
 }

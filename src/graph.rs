@@ -653,14 +653,14 @@ impl Graph {
         Ok(())
     }
 
-    pub fn write_csv_nodelist<W: Write>(
+    pub fn write_csv_nodelist(
         &self,
-        writer: W,
+        writer_config: &Config,
         degree_map: Option<DegreeMap>,
     ) -> CliResult<()> {
-        let mut writer = Config::new(&None).csv_writer_from_writer(writer);
+        let mut writer = writer_config.simd_writer()?;
 
-        let mut record = csv::ByteRecord::new();
+        let mut record = simd_csv::ByteRecord::new();
         record.push_field(b"node");
 
         for attr in self.node_model.iter() {
