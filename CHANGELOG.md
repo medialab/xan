@@ -29,6 +29,7 @@
 * Adding `xan input -T/--tolerant`.
 * Adding `xan separate --trim`.
 * Adding `xan grep -B/--before-context & -A/--after-context`.
+* Adding `xan network -S/--simple`.
 
 *Fixes*
 
@@ -40,6 +41,7 @@
 *Performance*
 
 * Improving performance of `xan complete`, `xan top`, `xan plot -T` & `xan hist`.
+* Improving overall performance of `xan network`.
 
 *Quality of Life*
 

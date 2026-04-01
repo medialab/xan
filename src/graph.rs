@@ -186,6 +186,49 @@ impl DegreeMap {
     }
 }
 
+enum EdgeStore {
+    Hash(IndexMap<(usize, usize), Edge, RandomState>),
+    Linear(Vec<(usize, usize, Edge)>),
+}
+
+impl EdgeStore {
+    fn insert(&mut self, source: usize, target: usize, edge: Edge) -> bool {
+        match self {
+            Self::Hash(index) => index.insert((source, target), edge).is_some(),
+            Self::Linear(list) => {
+                list.push((source, target, edge));
+                false
+            }
+        }
+    }
+
+    fn keys(&self) -> Box<dyn Iterator<Item = (usize, usize)> + '_> {
+        match self {
+            Self::Hash(index) => Box::new(index.keys().copied()),
+            Self::Linear(list) => {
+                Box::new(list.iter().map(|(source, target, _)| (*source, *target)))
+            }
+        }
+    }
+
+    fn into_values(self) -> Box<dyn Iterator<Item = Edge>> {
+        match self {
+            Self::Hash(index) => Box::new(index.into_values()),
+            Self::Linear(list) => Box::new(list.into_iter().map(|(_, _, edge)| edge)),
+        }
+    }
+
+    fn into_iter(self) -> Box<dyn Iterator<Item = ((usize, usize), Edge)>> {
+        match self {
+            Self::Hash(index) => Box::new(index.into_iter()),
+            Self::Linear(list) => Box::new(
+                list.into_iter()
+                    .map(|(source, target, edge)| ((source, target), edge)),
+            ),
+        }
+    }
+}
+
 enum NodeExtremityType {
     None,
     Source,
@@ -195,9 +238,9 @@ enum NodeExtremityType {
 #[derive(Default)]
 pub struct GraphBuilderOptions {
     pub track_largest_component: bool,
+    pub linear_edge_store: bool,
 }
 
-#[derive(Default)]
 pub struct GraphBuilder {
     options: GraphOptions,
     disjoint_sets: Option<UnionFind>,
@@ -206,18 +249,25 @@ pub struct GraphBuilder {
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
     nodes: IndexMap<Rc<String>, Node, RandomState>,
-    edges: IndexMap<(usize, usize), Edge, RandomState>,
+    edges: EdgeStore,
 }
 
 impl GraphBuilder {
     pub fn new(options: GraphBuilderOptions) -> Self {
-        let mut builder = Self::default();
-
-        if options.track_largest_component {
-            builder.disjoint_sets = Some(UnionFind::new());
+        Self {
+            options: GraphOptions::default(),
+            disjoint_sets: options.track_largest_component.then(UnionFind::new),
+            last_source_index: None,
+            last_target_index: None,
+            node_model: Vec::new(),
+            edge_model: Vec::new(),
+            nodes: IndexMap::with_hasher(RandomState::new()),
+            edges: if options.linear_edge_store {
+                EdgeStore::Linear(Vec::new())
+            } else {
+                EdgeStore::Hash(IndexMap::with_hasher(RandomState::new()))
+            },
         }
-
-        builder
     }
 
     fn is_undirected(&self) -> bool {
@@ -365,7 +415,8 @@ impl GraphBuilder {
             attributes,
         };
 
-        if self.edges.insert((source, target), edge).is_some() {
+        if self.edges.insert(source, target, edge) {
+            // TODO: merge attributes here?
             self.options.multi = true;
         }
     }
@@ -373,7 +424,7 @@ impl GraphBuilder {
     pub fn compute_degrees(&self) -> DegreeMap {
         let mut degree_map = DegreeMap::new(self.is_undirected(), self.nodes.len());
 
-        for (source, target) in self.edges.keys().copied() {
+        for (source, target) in self.edges.keys() {
             degree_map.add(source, target);
         }
 

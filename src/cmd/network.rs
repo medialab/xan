@@ -31,7 +31,7 @@ Usage:
     xan network bipartite [options] <part1> <part2> [<input>]
     xan network --help
 
-xan network options:
+xan network output format options:
     -f, --format <format>     One of \"json\", \"gexf\" or \"nodelist\".
                               [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
@@ -39,6 +39,10 @@ xan network options:
                               [default: 1.2]
     -L, --largest-component   Only keep the largest connected component
                               in the resulting graph.
+    -S, --simple              Use to indicate you know beforehand that processed
+                              graph is simple, i.e. it does not contains multiple
+                              edges for a same (source, target) pair. This can
+                              improve performance of the overall process.
     --stats                   Print useful statistics about the generated graph
                               in stderr.
 
@@ -81,6 +85,7 @@ struct Args {
     flag_gexf_version: String,
     flag_largest_component: bool,
     flag_stats: bool,
+    flag_simple: bool,
     flag_undirected: bool,
     flag_nodes: Option<String>,
     flag_node_column: SelectedColumns,
@@ -95,6 +100,7 @@ impl Args {
     fn graph_builder(&self) -> GraphBuilder {
         let options = GraphBuilderOptions {
             track_largest_component: self.flag_largest_component,
+            linear_edge_store: self.flag_simple,
         };
 
         GraphBuilder::new(options)
