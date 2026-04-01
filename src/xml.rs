@@ -16,6 +16,12 @@ impl<W: Write> XMLWriter<W> {
         }
     }
 
+    pub fn new_minified(writer: W) -> Self {
+        Self {
+            writer: Writer::new(writer),
+        }
+    }
+
     pub fn write_declaration(&mut self) -> Result<()> {
         self.writer
             .write_event(Event::Decl(BytesDecl::new("1.0", Some("utf-8"), None)))?;

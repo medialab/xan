@@ -38,6 +38,7 @@ output format options:
     --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
                               or \"1.3\".
                               [default: 1.2]
+    --minify                  Whether to minify json or gexf output.
 
 xan network options:
     -L, --largest-component   Only keep the largest connected component
@@ -83,6 +84,7 @@ struct Args {
     arg_part2: Option<SelectedColumns>,
     flag_format: String,
     flag_gexf_version: String,
+    flag_minify: bool,
     flag_largest_component: bool,
     flag_simple: bool,
     flag_undirected: bool,
@@ -284,6 +286,15 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_degrees && args.flag_format != "nodelist" {
+        Err("-D/--degrees is only relevant with -f nodelist!")?;
+    }
+
+    if args.flag_minify && !(args.flag_format == "json" || args.flag_format == "gexf") {
+        Err("--minify is only relevant with -f (json|gexf)!")?;
+    }
+
     let wconf = Config::new(&args.flag_output);
 
     if !["1.2", "1.3"].contains(&args.flag_gexf_version.as_str()) {
@@ -306,8 +317,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let graph = builder.build();
 
     match args.flag_format.as_str() {
-        "gexf" => graph.write_gexf(wconf.buf_io_writer()?, &args.flag_gexf_version),
-        "json" => graph.write_json(wconf.buf_io_writer()?),
+        "gexf" => graph.write_gexf(
+            wconf.buf_io_writer()?,
+            &args.flag_gexf_version,
+            args.flag_minify,
+        ),
+        "json" => graph.write_json(wconf.buf_io_writer()?, args.flag_minify),
         "nodelist" => graph.write_csv_nodelist(&wconf, degree_map),
         "stats" => graph.write_csv_stats(&wconf),
         _ => Err(format!("unsupported output format: {}!", &args.flag_format))?,

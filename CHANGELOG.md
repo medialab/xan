@@ -31,7 +31,7 @@
 * Adding `xan input -T/--tolerant`.
 * Adding `xan separate --trim`.
 * Adding `xan grep -B/--before-context & -A/--after-context`.
-* Adding `xan network -S/--simple`.
+* Adding `xan network -S/--simple & --minify`.
 
 *Fixes*
 

@@ -476,15 +476,24 @@ impl GraphBuilder {
 }
 
 impl Graph {
-    pub fn write_json<W: Write>(&self, mut writer: W) -> CliResult<()> {
-        serde_json::to_writer_pretty(&mut writer, &self)?;
+    pub fn write_json<W: Write>(&self, mut writer: W, minify: bool) -> CliResult<()> {
+        if minify {
+            serde_json::to_writer(&mut writer, &self)?;
+        } else {
+            serde_json::to_writer_pretty(&mut writer, &self)?;
+        }
+
         writeln!(&mut writer)?;
 
         Ok(())
     }
 
-    pub fn write_gexf<W: Write>(&self, writer: W, version: &str) -> CliResult<()> {
-        let mut xml_writer = XMLWriter::new(writer);
+    pub fn write_gexf<W: Write>(&self, writer: W, version: &str, minify: bool) -> CliResult<()> {
+        let mut xml_writer = if minify {
+            XMLWriter::new_minified(writer)
+        } else {
+            XMLWriter::new(writer)
+        };
 
         xml_writer.write_declaration()?;
 
