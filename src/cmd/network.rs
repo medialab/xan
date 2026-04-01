@@ -1,7 +1,3 @@
-use std::io::{stderr, Write};
-
-use colored::Colorize;
-
 use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
 use crate::graph::{GraphBuilder, GraphBuilderOptions};
@@ -11,57 +7,61 @@ use crate::util;
 use crate::CliResult;
 
 static USAGE: &str = "
-Convert CSV data to graph data.
+Process CSV data to build a network (nodes & edges) so you can produce a variety
+of output ranging from graph data formats (e.g. json or gexf) or other CSV
+outputs that can be useful to interpret network information easily when piped
+into other xan commands.
 
-Supported input types:
-    edgelist:  converts a CSV of edges with a column representing
-               sources and another column targets.
-    bipartite: converts a CSV with two columns representing the
-               edges between both parts of a bipartite graph.
+Supported input modes:
+    `edgelist`:  converts a CSV of edges with a column representing
+                 sources and another column targets.
+    `bipartite`: converts a CSV with two columns representing the
+                 edges between both parts of a bipartite graph.
 
-Supported output formats:
-    json - Graphology JSON serialization format
-           ref: https://graphology.github.io/serialization.html
-    gexf - Graph eXchange XML Format
-           ref: https://gexf.net/
-    nodelist - CSV nodelist
+Supported output formats (-f, --format):
+    `json`     - Graphology JSON serialization format
+                 ref: https://graphology.github.io/serialization.html
+    `gexf`     - Graph eXchange XML Format
+                 ref: https://gexf.net/
+    `nodelist` - CSV nodelist, with optional degrees if using -D/--degrees
+    `stats`    - Single CSV row of useful graph statistics (number of nodes, edges,
+                 graph type, density etc.)
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network bipartite [options] <part1> <part2> [<input>]
     xan network --help
 
-xan network output format options:
-    -f, --format <format>     One of \"json\", \"gexf\" or \"nodelist\".
+output format options:
+    -f, --format <format>     One of \"json\", \"gexf\", \"stats\" or \"nodelist\".
                               [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
                               or \"1.3\".
                               [default: 1.2]
+
+xan network options:
     -L, --largest-component   Only keep the largest connected component
                               in the resulting graph.
     -S, --simple              Use to indicate you know beforehand that processed
                               graph is simple, i.e. it does not contains multiple
                               edges for a same (source, target) pair. This can
                               improve performance of the overall process.
-    --stats                   Print useful statistics about the generated graph
-                              in stderr.
+    -D, --degrees             Whether to compute node degrees so it can be added
+                              to relevant outputs. Currently only relevant
+                              when using -f \"nodelist\".
 
-network edgelist options:
+edgelist options:
     -U, --undirected       Whether the graph is undirected.
     --nodes <path>         Path to a CSV file containing node metadata
                            (use \"-\" to feed the file from stdin).
     --node-column <name>   Name of the column containing node keys.
                            [default: node]
 
-network bipartite options:
-    -D, --disjoint-keys  Pass this if you know both partitions of the graph
+bipartite options:
+    --disjoint-keys  Pass this if you know both partitions of the graph
                          use disjoint sets of keys (i.e. if you know they share
                          no common keys at all). Incorrect graphs will be produced
                          if some keys are used by both partitions!
-
-network -f \"nodelist\" options:
-    --degrees  Whether to compute node degrees and add relevant columns to the
-               CSV output.
 
 Common options:
     -h, --help             Display this message
@@ -84,7 +84,6 @@ struct Args {
     flag_format: String,
     flag_gexf_version: String,
     flag_largest_component: bool,
-    flag_stats: bool,
     flag_simple: bool,
     flag_undirected: bool,
     flag_nodes: Option<String>,
@@ -306,54 +305,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let graph = builder.build();
 
-    if args.flag_stats {
-        colored::control::set_override(true);
-
-        let stats = graph.compute_stats();
-
-        let mut out = stderr();
-
-        writeln!(
-            &mut out,
-            "{} {}",
-            "type       ".cyan(),
-            graph.options.graph_type.as_str()
-        )?;
-        writeln!(
-            &mut out,
-            "{} {}",
-            "self-loops?".cyan(),
-            if graph.options.allow_self_loops {
-                "yes"
-            } else {
-                "no"
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{} {}",
-            "multi?     ".cyan(),
-            if graph.options.multi { "yes" } else { "no" }
-        )?;
-        writeln!(
-            &mut out,
-            "{} {}",
-            "nodes      ".cyan(),
-            util::format_number(stats.nodes)
-        )?;
-        writeln!(
-            &mut out,
-            "{} {}",
-            "edges      ".cyan(),
-            util::format_number(stats.edges)
-        )?;
-        writeln!(&mut out, "{} {}", "density    ".cyan(), stats.density)?;
-    }
-
     match args.flag_format.as_str() {
         "gexf" => graph.write_gexf(wconf.buf_io_writer()?, &args.flag_gexf_version),
         "json" => graph.write_json(wconf.buf_io_writer()?),
         "nodelist" => graph.write_csv_nodelist(&wconf, degree_map),
+        "stats" => graph.write_csv_stats(&wconf),
         _ => Err(format!("unsupported output format: {}!", &args.flag_format))?,
     }
 }

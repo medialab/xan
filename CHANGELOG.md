@@ -9,6 +9,8 @@
 * Dropping `-C` short flag for `xan sort --cells` (it could be confused with `--columns` or `--check`).
 * Completely overhauled how datetimes work in moonblade.
 * `xan separate` will not trim splitted values with some modes by default anymore.
+* Dropping `xan network --stats` in favor of `-f stats`.
+* `-D` becomes short flag for `xan network --degrees` instead of `--disjoint-keys`.
 
 *Features*
 

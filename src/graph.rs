@@ -653,6 +653,36 @@ impl Graph {
         Ok(())
     }
 
+    pub fn write_csv_stats(&self, writer_config: &Config) -> CliResult<()> {
+        let mut writer = writer_config.simd_writer()?;
+
+        let stats = self.compute_stats();
+
+        writer.write_record([
+            "type",
+            "nodes",
+            "edges",
+            "is_multi",
+            "has_self_loops",
+            "density",
+        ])?;
+
+        writer.write_record([
+            self.options.graph_type.as_str(),
+            &stats.edges.to_string(),
+            &stats.nodes.to_string(),
+            if self.options.multi { "yes" } else { "no" },
+            if self.options.allow_self_loops {
+                "yes"
+            } else {
+                "no"
+            },
+            &stats.density.to_string(),
+        ])?;
+
+        Ok(writer.flush()?)
+    }
+
     pub fn write_csv_nodelist(
         &self,
         writer_config: &Config,
@@ -709,6 +739,6 @@ impl Graph {
             writer.write_byte_record(&record)?;
         }
 
-        Ok(())
+        Ok(writer.flush()?)
     }
 }
