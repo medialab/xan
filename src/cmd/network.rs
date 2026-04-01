@@ -100,11 +100,17 @@ struct Args {
 impl Args {
     fn graph_builder(&self) -> GraphBuilder {
         let options = GraphBuilderOptions {
-            track_largest_component: self.flag_largest_component,
+            union_find: self.flag_largest_component || self.flag_format == "stats",
             linear_edge_store: self.flag_simple,
         };
 
-        GraphBuilder::new(options)
+        let mut builder = GraphBuilder::new(options);
+
+        if self.flag_undirected {
+            builder.mark_as_undirected();
+        }
+
+        builder
     }
 
     fn edgelist(&self) -> CliResult<GraphBuilder> {
@@ -190,10 +196,6 @@ impl Args {
             JSONTypeInferrenceBuffer::new(edge_attr_sel.clone(), Some(512), JSONEmptyMode::Omit);
 
         edge_attr_inferrence.read(&mut edge_reader)?;
-
-        if self.flag_undirected {
-            graph_builder.mark_as_undirected();
-        }
 
         let edge_headers = edge_reader.headers()?.clone();
 
@@ -314,7 +316,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let degree_map = args.flag_degrees.then(|| builder.compute_degrees());
 
-    let graph = builder.build();
+    let graph = builder.build(args.flag_largest_component);
 
     match args.flag_format.as_str() {
         "gexf" => graph.write_gexf(
@@ -324,7 +326,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ),
         "json" => graph.write_json(wconf.buf_io_writer()?, args.flag_minify),
         "nodelist" => graph.write_csv_nodelist(&wconf, degree_map),
-        "stats" => graph.write_csv_stats(&wconf),
+        "stats" => graph.write_csv_stats(&wconf, args.flag_largest_component),
         _ => Err(format!("unsupported output format: {}!", &args.flag_format))?,
     }
 }

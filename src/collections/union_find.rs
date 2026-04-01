@@ -121,9 +121,9 @@ impl UnionFind {
         max.map(|entry| entry.parent)
     }
 
-    // fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
-    //     self.leaders().map(|entry| entry.size)
-    // }
+    pub fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.leaders().map(|entry| entry.size)
+    }
 }
 
 // #[derive(Debug)]

@@ -111,6 +111,8 @@ pub struct Graph {
     edge_model: Vec<ModelAttribute>,
     nodes: Vec<Node>,
     edges: Vec<Edge>,
+    #[serde(skip_serializing)]
+    disjoint_set: Option<UnionFind>,
 }
 
 #[derive(Debug)]
@@ -237,7 +239,7 @@ enum NodeExtremityType {
 
 #[derive(Default)]
 pub struct GraphBuilderOptions {
-    pub track_largest_component: bool,
+    pub union_find: bool,
     pub linear_edge_store: bool,
 }
 
@@ -256,7 +258,7 @@ impl GraphBuilder {
     pub fn new(options: GraphBuilderOptions) -> Self {
         Self {
             options: GraphOptions::default(),
-            disjoint_sets: options.track_largest_component.then(UnionFind::new),
+            disjoint_sets: options.union_find.then(UnionFind::new),
             last_source_index: None,
             last_target_index: None,
             node_model: Vec::new(),
@@ -431,8 +433,10 @@ impl GraphBuilder {
         degree_map
     }
 
-    pub fn build(self) -> Graph {
-        let (nodes, edges) = if let Some(sets) = self.disjoint_sets {
+    pub fn build(self, only_largest_component: bool) -> Graph {
+        let (nodes, edges) = if only_largest_component {
+            let sets = self.disjoint_sets.as_ref().unwrap();
+
             let largest_component = sets.largest();
 
             (
@@ -471,6 +475,7 @@ impl GraphBuilder {
             edge_model: self.edge_model,
             nodes,
             edges,
+            disjoint_set: self.disjoint_sets,
         }
     }
 }
@@ -662,10 +667,31 @@ impl Graph {
         Ok(())
     }
 
-    pub fn write_csv_stats(&self, writer_config: &Config) -> CliResult<()> {
+    pub fn write_csv_stats(
+        &self,
+        writer_config: &Config,
+        only_largest_component: bool,
+    ) -> CliResult<()> {
         let mut writer = writer_config.simd_writer()?;
 
         let stats = self.compute_stats();
+
+        let sets = self.disjoint_set.as_ref().unwrap();
+
+        let mut components: usize = 0;
+        let mut max_component_size: usize = 0;
+
+        for size in sets.sizes() {
+            components += 1;
+
+            if size > max_component_size {
+                max_component_size = size;
+            }
+        }
+
+        if only_largest_component {
+            components = 1;
+        }
 
         writer.write_record([
             "type",
@@ -674,12 +700,14 @@ impl Graph {
             "is_multi",
             "has_self_loops",
             "density",
+            "connected_components",
+            "largest_connected_component",
         ])?;
 
         writer.write_record([
             self.options.graph_type.as_str(),
-            &stats.edges.to_string(),
             &stats.nodes.to_string(),
+            &stats.edges.to_string(),
             if self.options.multi { "yes" } else { "no" },
             if self.options.allow_self_loops {
                 "yes"
@@ -687,6 +715,8 @@ impl Graph {
                 "no"
             },
             &stats.density.to_string(),
+            &components.to_string(),
+            &max_component_size.to_string(),
         ])?;
 
         Ok(writer.flush()?)

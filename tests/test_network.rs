@@ -60,8 +60,19 @@ fn network_stats() {
             "is_multi",
             "has_self_loops",
             "density",
+            "connected_components",
+            "largest_connected_component",
         ],
-        ["undirected", "2", "3", "no", "no", "0.6666666666666666"],
+        [
+            "undirected",
+            "3",
+            "2",
+            "no",
+            "no",
+            "0.6666666666666666",
+            "1",
+            "3",
+        ],
     ];
     assert_eq!(got, expected);
 }
