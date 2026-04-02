@@ -12,7 +12,7 @@ use serde_json::{
     Value,
 };
 
-use crate::collections::UnionFind;
+use crate::collections::{hash_map::Entry, HashMap, UnionFind};
 use crate::config::Config;
 use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
@@ -145,7 +145,10 @@ impl DegreeMap {
 }
 
 enum EdgeStore {
-    Hash(IndexMap<(usize, usize), Attributes, RandomState>),
+    Hash(
+        HashMap<(usize, usize), usize>,
+        Vec<(usize, usize, Attributes)>,
+    ),
     Linear(Vec<(usize, usize, Attributes)>),
 }
 
@@ -153,25 +156,28 @@ impl EdgeStore {
     #[inline]
     fn len(&self) -> usize {
         match self {
-            Self::Hash(index) => index.len(),
+            Self::Hash(_, list) => list.len(),
             Self::Linear(list) => list.len(),
         }
     }
 
     fn insert(&mut self, source: usize, target: usize, attributes_opt: Option<Attributes>) -> bool {
         match self {
-            Self::Hash(index) => match index.entry((source, target)) {
-                IndexMapEntry::Occupied(mut entry) => {
-                    if let Some(attributes) = attributes_opt {
-                        entry.insert(attributes);
+            Self::Hash(index, list) => {
+                let next_id = list.len();
+
+                let already_exist = match index.entry((source, target)) {
+                    Entry::Occupied(_) => true,
+                    Entry::Vacant(entry) => {
+                        entry.insert(next_id);
+                        false
                     }
-                    true
-                }
-                IndexMapEntry::Vacant(entry) => {
-                    entry.insert(attributes_opt.unwrap_or_default());
-                    false
-                }
-            },
+                };
+
+                list.push((source, target, attributes_opt.unwrap_or_default()));
+
+                already_exist
+            }
             Self::Linear(list) => {
                 list.push((source, target, attributes_opt.unwrap_or_default()));
                 false
@@ -179,45 +185,24 @@ impl EdgeStore {
         }
     }
 
-    fn pairs(&self) -> Box<dyn Iterator<Item = (usize, usize)> + '_> {
+    fn as_list(&self) -> &[(usize, usize, Attributes)] {
         match self {
-            Self::Hash(index) => Box::new(index.keys().copied()),
-            Self::Linear(list) => {
-                Box::new(list.iter().map(|(source, target, _)| (*source, *target)))
-            }
+            Self::Hash(_, list) => list,
+            Self::Linear(list) => list,
         }
     }
 
-    // fn into_values(self) -> Box<dyn Iterator<Item = Attributes>> {
-    //     match self {
-    //         Self::Hash(index) => Box::new(index.into_values()),
-    //         Self::Linear(list) => Box::new(list.into_iter().map(|(_, _, attributes)| attributes)),
-    //     }
-    // }
-
-    fn iter(&self) -> Box<dyn Iterator<Item = ((usize, usize), &Attributes)> + '_> {
-        match self {
-            Self::Hash(index) => Box::new(
-                index
-                    .iter()
-                    .map(|((source, target), attributes)| ((*source, *target), attributes)),
-            ),
-            Self::Linear(list) => Box::new(
-                list.iter()
-                    .map(|(source, target, attributes)| ((*source, *target), attributes)),
-            ),
-        }
+    fn pairs(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.as_list()
+            .iter()
+            .map(|(source, target, _)| (*source, *target))
     }
 
-    // fn into_iter(self) -> Box<dyn Iterator<Item = ((usize, usize), Attributes)>> {
-    //     match self {
-    //         Self::Hash(index) => Box::new(index.into_iter()),
-    //         Self::Linear(list) => Box::new(
-    //             list.into_iter()
-    //                 .map(|(source, target, attributes)| ((source, target), attributes)),
-    //         ),
-    //     }
-    // }
+    fn iter(&self) -> impl Iterator<Item = ((usize, usize), &Attributes)> + '_ {
+        self.as_list()
+            .iter()
+            .map(|(source, target, attributes)| ((*source, *target), attributes))
+    }
 }
 
 enum NodeExtremityType {
@@ -260,7 +245,7 @@ impl GraphBuilder {
             edges: if options.linear_edge_store {
                 EdgeStore::Linear(Vec::new())
             } else {
-                EdgeStore::Hash(IndexMap::with_hasher(RandomState::new()))
+                EdgeStore::Hash(HashMap::new(), Vec::new())
             },
         }
     }

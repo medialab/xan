@@ -29,6 +29,22 @@ Supported output formats (-f, --format):
     `stats`      - Single CSV row of useful graph statistics (number of nodes, edges,
                    graph type, density etc.)
 
+Tips & tricks:
+
+You can restrict node and/or edge attributes by using `xan select` ahead
+of this command:
+
+    $ xan select source,target,weight edges.csv | xan network edgelist source target
+
+You can merge edges of a multiple graph using `xan groubpy` etc. ahead of this
+command:
+
+    $ xan groupby source,target 'sum(weight) as weight' edges.csv | xan network edgelist source target
+
+You can easily find duplicated (source, target) pairs using `xan dedup`:
+
+    $ xan dedup -s source,target --keep-duplicates edges.csv
+
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network bipartite [options] <part1> <part2> [<input>]
@@ -80,7 +96,7 @@ Common options:
     -o, --output <file>    Write output to <file> instead of stdout.
     -n, --no-headers       When set, the file will be considered as having no
                            headers.
-    -d, --delimiter <arg>  The field delimiter foDirectedr reading CSV data.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character.
 ";
 
@@ -120,9 +136,26 @@ impl Args {
     }
 
     fn graph_builder(&self) -> GraphBuilder {
+        // NOTE: we only need to track edge duplicates if:
+        //  1. we have to merge edge data to make it simple
+        //  2. we have to know if the graph is multi
+        // Ultimately this means we need it only for -f=(json|stats) for now
+
+        let output_needs_to_track_multi = ["json", "stats"].contains(&self.flag_format.as_str());
+
+        let mut linear_edge_store = true;
+
+        if output_needs_to_track_multi {
+            linear_edge_store = false;
+        }
+
+        if self.flag_simple {
+            linear_edge_store = true;
+        }
+
         let options = GraphBuilderOptions {
             undirected: self.flag_undirected,
-            linear_edge_store: self.flag_simple,
+            linear_edge_store,
         };
 
         GraphBuilder::new(options)

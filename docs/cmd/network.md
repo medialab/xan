@@ -24,6 +24,22 @@ Supported output formats (-f, --format):
     `stats`      - Single CSV row of useful graph statistics (number of nodes, edges,
                    graph type, density etc.)
 
+Tips & tricks:
+
+You can restrict node and/or edge attributes by using `xan select` ahead
+of this command:
+
+    $ xan select source,target,weight edges.csv | xan network edgelist source target
+
+You can merge edges of a multiple graph using `xan groubpy` etc. ahead of this
+command:
+
+    $ xan groupby source,target 'sum(weight) as weight' edges.csv | xan network edgelist source target
+
+You can easily find duplicated (source, target) pairs using `xan dedup`:
+
+    $ xan dedup -s source,target --keep-duplicates edges.csv
+
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
     xan network bipartite [options] <part1> <part2> [<input>]
@@ -75,6 +91,6 @@ Common options:
     -o, --output <file>    Write output to <file> instead of stdout.
     -n, --no-headers       When set, the file will be considered as having no
                            headers.
-    -d, --delimiter <arg>  The field delimiter foDirectedr reading CSV data.
+    -d, --delimiter <arg>  The field delimiter for reading CSV data.
                            Must be a single character.
 ```
