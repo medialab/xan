@@ -135,6 +135,10 @@ impl Args {
         }
     }
 
+    fn edge_attributes_irrelevant(&self) -> bool {
+        ["nodelist", "stats", "components"].contains(&self.flag_format.as_str())
+    }
+
     fn graph_builder(&self) -> GraphBuilder {
         // NOTE: we only need to track edge duplicates if:
         //  1. we have to merge edge data to make it simple
@@ -242,7 +246,11 @@ impl Args {
 
         let mut edge_attr_inferrence = JSONTypeInferrenceBuffer::new(
             edge_attr_sel.clone(),
-            self.sample_size(),
+            if self.edge_attributes_irrelevant() {
+                Some(1)
+            } else {
+                self.sample_size()
+            },
             JSONEmptyMode::Empty,
         );
 
@@ -255,6 +263,8 @@ impl Args {
             edge_attr_inferrence.types(),
         );
 
+        let edge_attributes_irrelevant = self.edge_attributes_irrelevant();
+
         let mut process_edge_record = |record: &csv::StringRecord| {
             let source = record[source_column_index].to_string();
             let target = record[target_column_index].to_string();
@@ -262,11 +272,17 @@ impl Args {
             let source_id = graph_builder.get_source_node_id(source);
             let target_id = graph_builder.get_target_node_id(target);
 
-            let mut attributes = Attributes::with_capacity(edge_attr_sel.len());
+            let attributes = if edge_attributes_irrelevant {
+                Attributes::default()
+            } else {
+                let mut attributes = Attributes::with_capacity(edge_attr_sel.len());
 
-            for (k, v) in edge_attr_inferrence.cast(&edge_headers, record).flatten() {
-                attributes.insert(k, v);
-            }
+                for (k, v) in edge_attr_inferrence.cast(&edge_headers, record).flatten() {
+                    attributes.insert(k, v);
+                }
+
+                attributes
+            };
 
             graph_builder.add_edge_with_attributes(source_id, target_id, attributes);
         };
