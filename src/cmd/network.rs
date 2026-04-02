@@ -50,6 +50,10 @@ xan network options:
     -D, --degrees             Whether to compute node degrees so it can be added
                               to relevant outputs. Currently only relevant
                               when using -f \"nodelist\".
+    --sample-size <n>         Number of records to sample for node or edge type inference.
+                              Set to -1 to sample ALL records. This will cost a lot of memory
+                              but will ensure better fitting output types.
+                              [default: 64]
 
 edgelist options:
     -U, --undirected       Whether the graph is undirected.
@@ -91,6 +95,7 @@ struct Args {
     flag_nodes: Option<String>,
     flag_node_column: SelectedColumns,
     flag_disjoint_keys: bool,
+    flag_sample_size: isize,
     flag_degrees: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -98,6 +103,14 @@ struct Args {
 }
 
 impl Args {
+    fn sample_size(&self) -> Option<usize> {
+        if self.flag_sample_size <= 0 {
+            None
+        } else {
+            Some(self.flag_sample_size as usize)
+        }
+    }
+
     fn graph_builder(&self) -> GraphBuilder {
         let options = GraphBuilderOptions {
             undirected: self.flag_undirected,
@@ -133,7 +146,7 @@ impl Args {
 
             let mut node_attr_inferrence = JSONTypeInferrenceBuffer::new(
                 node_attr_sel.clone(),
-                Some(512),
+                self.sample_size(),
                 JSONEmptyMode::Empty,
             );
 
@@ -186,8 +199,11 @@ impl Args {
             &[source_column_index, target_column_index],
         );
 
-        let mut edge_attr_inferrence =
-            JSONTypeInferrenceBuffer::new(edge_attr_sel.clone(), Some(512), JSONEmptyMode::Empty);
+        let mut edge_attr_inferrence = JSONTypeInferrenceBuffer::new(
+            edge_attr_sel.clone(),
+            self.sample_size(),
+            JSONEmptyMode::Empty,
+        );
 
         edge_attr_inferrence.read(&mut edge_reader)?;
 

@@ -33,6 +33,7 @@ output format options:
     --gexf-version <version>  GEXF version to output. Can be one of "1.2"
                               or "1.3".
                               [default: 1.2]
+    --minify                  Whether to minify json or gexf output.
 
 xan network options:
     -L, --largest-component   Only keep the largest connected component
@@ -44,6 +45,10 @@ xan network options:
     -D, --degrees             Whether to compute node degrees so it can be added
                               to relevant outputs. Currently only relevant
                               when using -f "nodelist".
+    --sample-size <n>         Number of records to sample for node or edge type inference.
+                              Set to -1 to sample ALL records. This will cost a lot of memory
+                              but will ensure better fitting output types.
+                              [default: 64]
 
 edgelist options:
     -U, --undirected       Whether the graph is undirected.
