@@ -4,8 +4,10 @@
 
 * [Parsing and formatting standard dates](#parsing-and-formatting-standard-iso-8601-dates)
 * [Visualizing dates](#visualizing-dates)
-* [Parsing non-standard dates](#parsing-non-standard-dates)
+* [Parsing and formatting non-standard dates](#parsing-and-formatting-non-standard-dates)
 * [Dealing with timezones](#dealing-with-timezones)
+* [Dealing with timestamps](#dealing-with-timestamps)
+* [Comparing two dates](#comparing-two-dates)
 
 
 ## Parsing and formatting standard dates
@@ -172,7 +174,7 @@ This way, you immediately notice the fact that there is no line in your dataset 
 ## Parsing and formatting non-standard dates
 
 ### datetime()
-If you have dates in non ISO 8601 format, such as `31/12/22` or `02 Jan 2006 15:04`, you can parse them using the `datetime` function.
+If you have dates in non ISO 8601 format, such as `31/12/22` or `02 Jan 2006 15:04`, you can parse them using the `datetime()` function.
 The conversion specifications (i.e. how to tell `datetime()` the format you have in mind) are listed
 [here](https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html#conversion-specifications).
 
@@ -194,11 +196,31 @@ xan map 'initial_date.datetime("%d/%m/%y") as parsed_date' strange_dates.csv | x
 | 01/03/22         | 2022-03-01T00:00:00 |
 | 01/03/22         | 2022-03-01T00:00:00 |
 
- Of course, you can combine `datetime()` with other formatting functions to print your output in the desired format.
+
+### date()
+But if you are dealing with real dates (without mention of time), the simplest way to parse your data is to use the `date()` function.
+
+```bash
+xan map 'initial_date.date("%d/%m/%y") as parsed_date' strange_dates.csv | xan v
+```
+
+| initial_date     | parsed_date |
+| ---------------- | ----------- |
+| 25/02/22         | 2022-02-25  |
+| 25/02/22         | 2022-02-25  |
+| 26/02/22         | 2022-02-26  |
+| 27/02/22         | 2022-02-27  |
+| 27/02/22         | 2022-02-27  |
+| 28/02/22         | 2022-02-28  |
+| 01/03/22         | 2022-03-01  |
+| 01/03/22         | 2022-03-01  |
+
+
+ Of course, you can combine `date()` or `datetime()` with other formatting functions to print your output in the desired format.
  Below an example with `month_day()`:
 
 ```bash
-xan map 'initial_date.datetime("%d/%m/%y").month_day() as formatted_date' strange_dates.csv | xan v
+xan map 'initial_date.date("%d/%m/%y").month_day() as formatted_date' strange_dates.csv | xan v
 ```
 
 | initial_date | formatted_date |
@@ -271,7 +293,7 @@ You want to tell xan to parse dates according to the Paris time zone,
 and probably rename your column to remove the `local_time` header which could be misleading.
 To do this you use the `xan transform` command associated with the `with_timezone()`/`with_tz()` function:
 
-```
+```bash
 xan transform local_time 'local_time.with_timezone("Europe/Paris")' --rename paris_time july_data.csv | xan v
 ```
 
@@ -293,7 +315,7 @@ In that case you need to tell xan to parse the data in Paris time and
 then convert it to your computer's timezone.
 This is what the `to_local_timezone()`/`to_local_tz()` function is for:
 
-```
+```bash
 xan transform local_time 'local_time.with_timezone("Europe/Paris").to_local_timezone()' --rename mexico_time july_data.csv | xan v
 ```
 
@@ -313,7 +335,7 @@ xan transform local_time 'local_time.with_timezone("Europe/Paris").to_local_time
 If you prefer to convert dates to a time zone other than your computer's (UTC, maybe?),
 you can use the `to_timezone()`/`to_tz()`  function
 
-```
+```bash
 xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("UTC")' --rename utc_time july_data.csv | xan v
 ```
 
@@ -332,7 +354,7 @@ xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("
 ### without_timezone() / without_tz()
 
 If you want to discard the timezone information, it is always possible to use `without_timezone()`/`without_tz()`:
-```
+```bash
 xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("UTC").without_tz()' --rename utc_time july_data.csv | xan v
 ```
 
@@ -352,11 +374,11 @@ xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timezone("
 
 ### to_timestamp() and to_timestamp_ms()
 
-The `to_timestamp()` and `to_timestamp_ms()` functions, are used to convert dates to Unix timestamps.
+The `to_timestamp()` and `to_timestamp_ms()` functions are used to convert dates to Unix timestamps.
 Since timestamps are always in UTC, `to_timestamp()` and `to_timestamp_ms()` can only read dates containing a timezone information. In the file your colleague sent from Paris, dates should therefore be parsed with
 `with_timezone("Europe/Paris")` before using `to_timestamp()`:
 
-```
+```bash
 xan transform local_time 'local_time.with_timezone("Europe/Paris").to_timestamp()' --rename timestamp_utc
 july_data.csv | xan v
 ```
@@ -375,9 +397,9 @@ july_data.csv | xan v
 
 ### from_timestamp() and from_timestamp_ms()
 
- Conversely, dates obtained by parsing a timestamp with `from_timestamp()` are always presented in UTC. If the file your colleague sent contained Unix timestamps instead of dates, you could convert them like this:
+Conversely, dates obtained by parsing a timestamp with `from_timestamp()` are always presented in UTC. If the file your colleague sent contained Unix timestamps instead of dates, you could convert them like this:
 
-```
+```bash
 xan map 'timestamp_utc.from_timestamp() as UTC_time' july_data.csv | xan v
 ```
 
@@ -392,3 +414,33 @@ xan map 'timestamp_utc.from_timestamp() as UTC_time' july_data.csv | xan v
 | 1656743708    | 2022-07-02T06:35:08+00:00[UTC] |
 | 1656753620    | 2022-07-02T09:20:20+00:00[UTC] |
 | 1656753784    | 2022-07-02T09:23:04+00:00[UTC] |
+
+## Comparing two dates
+### fractional_days()
+One can obtain the number of days between two dates using the `fractional_days()` function. This value can also be negative.
+
+```bash
+xan map 'fractional_days(start, end) as nb_days' spans.csv | xan v
+```
+
+| start                          | end                            | nb_days               |
+| ------------------------------ | ------------------------------ | --------------------- |
+| 2022-07-01T09:55:06+00:00[UTC] | 2022-07-01T14:07:54+00:00[UTC] | 0.17555555555555555   |
+| 2022-07-01T13:50:02+00:00[UTC] | 2022-07-01T14:07:58+00:00[UTC] | 0.012453703703703703  |
+| 2022-07-01T14:07:11+00:00[UTC] | 2022-07-02T06:35:08+00:00[UTC] | 0.6860763888888889    |
+| 2022-07-01T14:07:38+00:00[UTC] | 2022-07-02T09:20:20+00:00[UTC] | 0.8004861111111111    |
+| 2022-07-01T14:07:38+00:00[UTC] | 2022-07-02T09:20:20+00:00[UTC] | -0.8004861111111111   |
+
+### now()
+It is also possible to count the number of days that have passed between a given date and today by using the `now()` function.
+
+```bash
+xan map 'fractional_days(start, now()) as nb_days_since_start' spans.csv | xan v
+```
+
+| start                          | end                            | nb_days_since_start |
+| ------------------------------ | ------------------------------ | ------------------- |
+| 2022-07-01T09:55:06+00:00[UTC] | 2022-07-01T14:07:54+00:00[UTC] | 1371.0214046039528  |
+| 2022-07-01T13:50:02+00:00[UTC] | 2022-07-01T14:07:58+00:00[UTC] | 1370.8582564792423  |
+| 2022-07-01T14:07:11+00:00[UTC] | 2022-07-02T06:35:08+00:00[UTC] | 1370.8463467572046  |
+| 2022-07-01T14:07:38+00:00[UTC] | 2022-07-02T09:20:20+00:00[UTC] | 1370.84603425734    |
