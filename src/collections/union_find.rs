@@ -13,19 +13,29 @@ pub struct UnionFind {
 }
 
 impl UnionFind {
-    pub fn new() -> Self {
-        Self {
-            entries: Vec::new(),
+    // pub fn new() -> Self {
+    //     Self {
+    //         entries: Vec::new(),
+    //     }
+    // }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut entries = Vec::new();
+
+        for i in 0..capacity {
+            entries.push(UnionFindEntry { parent: i, size: 1 });
         }
+
+        Self { entries }
     }
 
-    pub fn make_set(&mut self) -> usize {
-        let i = self.entries.len();
+    // pub fn make_set(&mut self) -> usize {
+    //     let i = self.entries.len();
 
-        self.entries.push(UnionFindEntry { parent: i, size: 1 });
+    //     self.entries.push(UnionFindEntry { parent: i, size: 1 });
 
-        i
-    }
+    //     i
+    // }
 
     pub fn find(&self, x: usize) -> usize {
         let mut root = x;
@@ -119,6 +129,12 @@ impl UnionFind {
         }
 
         max.map(|entry| entry.parent)
+    }
+
+    pub fn size(&self, index: usize) -> usize {
+        let entry = &self.entries[index];
+        debug_assert!(entry.parent == index);
+        entry.size
     }
 
     pub fn sizes(&self) -> impl Iterator<Item = usize> + '_ {
