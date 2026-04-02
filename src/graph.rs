@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::io::Write;
 use std::ops::Not;
-use std::rc::Rc;
 
 use ahash::RandomState;
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
@@ -228,7 +227,7 @@ pub struct GraphBuilder {
     last_target_index: Option<usize>,
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
-    nodes: IndexMap<Rc<String>, Attributes, RandomState>,
+    nodes: IndexMap<String, Attributes, RandomState>,
     edges: EdgeStore,
 }
 
@@ -315,10 +314,9 @@ impl GraphBuilder {
             }
         }
 
-        let rc_key = Rc::new(key);
         let next_id = self.nodes.len();
 
-        let node_id = match self.nodes.entry(rc_key.clone()) {
+        let node_id = match self.nodes.entry(key) {
             Occupied(entry) => {
                 // TODO: should we merge attributes?
                 entry.index()
