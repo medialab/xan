@@ -220,8 +220,8 @@ impl Args {
             let source = record[source_column_index].to_string();
             let target = record[target_column_index].to_string();
 
-            let source_id = graph_builder.add_source_node(source, Attributes::default());
-            let target_id = graph_builder.add_target_node(target, Attributes::default());
+            let source_id = graph_builder.get_source_node_id(source);
+            let target_id = graph_builder.get_target_node_id(target);
 
             let mut attributes = Attributes::with_capacity(edge_attr_sel.len());
 
@@ -229,7 +229,7 @@ impl Args {
                 attributes.insert(k, v);
             }
 
-            graph_builder.add_edge(source_id, target_id, attributes);
+            graph_builder.add_edge_with_attributes(source_id, target_id, attributes);
         };
 
         for buffered_record in edge_attr_inferrence.records() {
@@ -279,17 +279,11 @@ impl Args {
                 second_part_node = id.get((1, second_part_node)).to_string();
             }
 
-            let first_part_node_id =
-                graph_builder.add_source_node(first_part_node, Attributes::default());
+            let first_part_node_id = graph_builder.get_source_node_id(first_part_node);
 
-            let second_part_node_id =
-                graph_builder.add_target_node(second_part_node, Attributes::default());
+            let second_part_node_id = graph_builder.get_target_node_id(second_part_node);
 
-            graph_builder.add_edge(
-                first_part_node_id,
-                second_part_node_id,
-                Attributes::default(),
-            );
+            graph_builder.add_edge(first_part_node_id, second_part_node_id);
         }
 
         Ok(graph_builder)

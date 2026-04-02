@@ -158,11 +158,22 @@ impl EdgeStore {
         }
     }
 
-    fn insert(&mut self, source: usize, target: usize, attributes: Attributes) -> bool {
+    fn insert(&mut self, source: usize, target: usize, attributes_opt: Option<Attributes>) -> bool {
         match self {
-            Self::Hash(index) => index.insert((source, target), attributes).is_some(),
+            Self::Hash(index) => match index.entry((source, target)) {
+                IndexMapEntry::Occupied(mut entry) => {
+                    if let Some(attributes) = attributes_opt {
+                        entry.insert(attributes);
+                    }
+                    true
+                }
+                IndexMapEntry::Vacant(entry) => {
+                    entry.insert(attributes_opt.unwrap_or_default());
+                    false
+                }
+            },
             Self::Linear(list) => {
-                list.push((source, target, attributes));
+                list.push((source, target, attributes_opt.unwrap_or_default()));
                 false
             }
         }
@@ -295,7 +306,7 @@ impl GraphBuilder {
         &mut self,
         extremity_type: NodeExtremityType,
         key: String,
-        attributes: Attributes,
+        attributes_opt: Option<Attributes>,
     ) -> usize {
         use IndexMapEntry::*;
 
@@ -306,10 +317,13 @@ impl GraphBuilder {
         };
 
         if let Some(cached_index) = cache {
-            let node = self.nodes.get_index_mut(cached_index).unwrap().0;
+            let (node, current_attributes) = self.nodes.get_index_mut(cached_index).unwrap();
 
             if key == **node {
-                // TODO: should we merge attributes?
+                if let Some(attributes) = attributes_opt {
+                    *current_attributes = attributes;
+                }
+
                 return cached_index;
             }
         }
@@ -317,12 +331,15 @@ impl GraphBuilder {
         let next_id = self.nodes.len();
 
         let node_id = match self.nodes.entry(key) {
-            Occupied(entry) => {
-                // TODO: should we merge attributes?
+            Occupied(mut entry) => {
+                if let Some(attributes) = attributes_opt {
+                    entry.insert(attributes);
+                }
+
                 entry.index()
             }
             Vacant(entry) => {
-                entry.insert(attributes);
+                entry.insert(attributes_opt.unwrap_or_default());
 
                 next_id
             }
@@ -343,20 +360,25 @@ impl GraphBuilder {
 
     #[inline(always)]
     pub fn add_node(&mut self, key: String, attributes: Attributes) -> usize {
-        self.add_node_impl(NodeExtremityType::None, key, attributes)
+        self.add_node_impl(NodeExtremityType::None, key, Some(attributes))
     }
 
     #[inline(always)]
-    pub fn add_source_node(&mut self, key: String, attributes: Attributes) -> usize {
-        self.add_node_impl(NodeExtremityType::Source, key, attributes)
+    pub fn get_source_node_id(&mut self, key: String) -> usize {
+        self.add_node_impl(NodeExtremityType::Source, key, None)
     }
 
     #[inline(always)]
-    pub fn add_target_node(&mut self, key: String, attributes: Attributes) -> usize {
-        self.add_node_impl(NodeExtremityType::Target, key, attributes)
+    pub fn get_target_node_id(&mut self, key: String) -> usize {
+        self.add_node_impl(NodeExtremityType::Target, key, None)
     }
 
-    pub fn add_edge(&mut self, source: usize, target: usize, attributes: Attributes) {
+    pub fn add_edge_impl(
+        &mut self,
+        source: usize,
+        target: usize,
+        attributes_opt: Option<Attributes>,
+    ) {
         let undirected = self.is_undirected();
 
         let (source, target) = if source == target {
@@ -368,10 +390,25 @@ impl GraphBuilder {
             (source, target)
         };
 
-        if self.edges.insert(source, target, attributes) {
+        if self.edges.insert(source, target, attributes_opt) {
             // TODO: merge attributes here?
             self.options.multi = true;
         }
+    }
+
+    #[inline(always)]
+    pub fn add_edge(&mut self, source: usize, target: usize) {
+        self.add_edge_impl(source, target, None);
+    }
+
+    #[inline(always)]
+    pub fn add_edge_with_attributes(
+        &mut self,
+        source: usize,
+        target: usize,
+        attributes: Attributes,
+    ) {
+        self.add_edge_impl(source, target, Some(attributes));
     }
 
     pub fn compute_degrees(&self) -> DegreeMap {
