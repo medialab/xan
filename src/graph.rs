@@ -441,13 +441,6 @@ impl GraphBuilder {
         (sets, largest)
     }
 
-    // fn filter_nodes<F>(&self, predicate: F) -> impl Iterator<Item = (&Rc<String>, &Attributes)>
-    // where
-    //     F: Fn(&(&Rc<String>, &Attributes)) -> bool,
-    // {
-    //     self.nodes.iter().filter(predicate)
-    // }
-
     pub fn write_csv_stats(
         &self,
         writer_config: &Config,
@@ -500,6 +493,8 @@ impl GraphBuilder {
             "density",
             "connected_components",
             "largest_connected_component",
+            "node_attributes",
+            "edge_attributes",
         ])?;
 
         writer.write_record([
@@ -515,6 +510,8 @@ impl GraphBuilder {
             &density(self.options.graph_type, order, size).to_string(),
             &components.to_string(),
             &max_component_size.to_string(),
+            &self.node_model.len().to_string(),
+            &self.edge_model.len().to_string(),
         ])?;
 
         Ok(writer.flush()?)

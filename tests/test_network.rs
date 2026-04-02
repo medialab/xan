@@ -118,6 +118,8 @@ fn network_stats() {
             "density",
             "connected_components",
             "largest_connected_component",
+            "node_attributes",
+            "edge_attributes",
         ],
         [
             "undirected",
@@ -128,6 +130,8 @@ fn network_stats() {
             "0.6666666666666666",
             "1",
             "3",
+            "0",
+            "0",
         ],
     ];
     assert_eq!(got, expected);
