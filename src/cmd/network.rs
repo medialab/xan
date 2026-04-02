@@ -35,7 +35,8 @@ Usage:
     xan network --help
 
 output format options:
-    -f, --format <format>     One of \"json\", \"gexf\", \"stats\" or \"nodelist\".
+    -f, --format <format>     One of \"json\", \"gexf\", \"stats\", \"components\"
+                              or \"nodelist\".
                               [default: json]
     --gexf-version <version>  GEXF version to output. Can be one of \"1.2\"
                               or \"1.3\".
@@ -43,19 +44,16 @@ output format options:
     --minify                  Whether to minify json or gexf output.
 
 xan network options:
-    -L, --largest-component   Only keep the largest connected component
-                              in the resulting graph.
-    -S, --simple              Use to indicate you know beforehand that processed
-                              graph is simple, i.e. it does not contains multiple
-                              edges for a same (source, target) pair. This can
-                              improve performance of the overall process.
-    -D, --degrees             Whether to compute node degrees so it can be added
-                              to relevant outputs. Currently only relevant
-                              when using -f \"nodelist\".
-    --sample-size <n>         Number of records to sample for node or edge type inference.
-                              Set to -1 to sample ALL records. This will cost a lot of memory
-                              but will ensure better fitting output types.
-                              [default: 64]
+    -L, --largest-component  Only keep the largest connected component
+                             in the resulting graph.
+    -S, --simple             Use to indicate you know beforehand that processed
+                             graph is simple, i.e. it does not contains multiple
+                             edges for a same (source, target) pair. This can
+                             improve performance of the overall process.
+    --sample-size <n>        Number of records to sample for node or edge type inference.
+                             Set to -1 to sample ALL records. This will cost a lot of memory
+                             but will ensure better fitting output types.
+                             [default: 64]
 
 edgelist options:
     -U, --undirected       Whether the graph is undirected.
@@ -69,6 +67,13 @@ bipartite options:
                          use disjoint sets of keys (i.e. if you know they share
                          no common keys at all). Incorrect graphs will be produced
                          if some keys are used by both partitions!
+
+xan network -f \"nodelist\" options:
+    -D, --degrees  Whether to compute node degrees so it can be added
+                   to relevant outputs. Currently only relevant
+                   when using -f \"nodelist\".
+    --union-find   Whether to add a \"component\" column to the output indicating
+                   the label of the component each node belongs to.
 
 Common options:
     -h, --help             Display this message
@@ -99,6 +104,7 @@ struct Args {
     flag_disjoint_keys: bool,
     flag_sample_size: isize,
     flag_degrees: bool,
+    flag_union_find: bool,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_output: Option<String>,
@@ -297,6 +303,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-D/--degrees is only relevant with -f nodelist!")?;
     }
 
+    if args.flag_union_find && args.flag_format != "nodelist" {
+        Err("--union-find is only relevant with -f nodelist!")?;
+    }
+
     if args.flag_minify && !(args.flag_format == "json" || args.flag_format == "gexf") {
         Err("--minify is only relevant with -f (json|gexf)!")?;
     }
@@ -324,9 +334,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     match args.flag_format.as_str() {
         "stats" => builder.write_csv_stats(&wconf, args.flag_largest_component),
-        "nodelist" => {
-            builder.write_csv_nodelist(&wconf, args.flag_largest_component, args.flag_degrees)
-        }
+        "nodelist" => builder.write_csv_nodelist(
+            &wconf,
+            args.flag_largest_component,
+            args.flag_degrees,
+            args.flag_union_find,
+        ),
         "components" => builder.write_csv_components(&wconf),
         "gexf" => builder.write_gexf(
             &wconf,

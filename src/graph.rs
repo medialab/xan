@@ -542,8 +542,10 @@ impl GraphBuilder {
         writer_config: &Config,
         only_largest_component: bool,
         compute_degrees: bool,
+        union_find: bool,
     ) -> CliResult<()> {
-        let sets_opt = only_largest_component.then(|| self.compute_union_find_with_largest());
+        let sets_opt =
+            (only_largest_component || union_find).then(|| self.compute_union_find_with_largest());
 
         let degree_map_opt = compute_degrees.then(|| self.compute_degrees());
 
@@ -565,10 +567,16 @@ impl GraphBuilder {
             }
         }
 
+        if union_find {
+            record.push_field(b"component");
+        }
+
         writer.write_byte_record(&record)?;
 
         for (i, (key, attributes)) in self.nodes.iter().enumerate() {
-            if let Some((sets, largest)) = &sets_opt {
+            if only_largest_component {
+                let (sets, largest) = sets_opt.as_ref().unwrap();
+
                 if sets.find(i) != *largest {
                     continue;
                 }
@@ -599,6 +607,11 @@ impl GraphBuilder {
                         record.push_field(degrees[i].to_string().as_bytes());
                     }
                 }
+            }
+
+            if union_find {
+                let (sets, _) = sets_opt.as_ref().unwrap();
+                record.push_field(sets.find(i).to_string().as_bytes());
             }
 
             writer.write_byte_record(&record)?;

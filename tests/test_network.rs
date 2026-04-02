@@ -38,6 +38,62 @@ fn network_simple() {
 }
 
 #[test]
+fn network_degrees() {
+    let wrk = Workdir::new("network_degrees");
+    wrk.create(
+        "data.csv",
+        vec![svec!["source", "target"], svec!["A", "B"], svec!["B", "C"]],
+    );
+
+    let mut cmd = wrk.command("network");
+    cmd.arg("edgelist")
+        .arg("--degrees")
+        .args(["source", "target"])
+        .args(["-f", "nodelist"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["node", "degree", "in_degree", "out_degree"],
+        ["A", "1", "0", "1"],
+        ["B", "2", "1", "1"],
+        ["C", "1", "1", "0"],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("network");
+    cmd.arg("edgelist")
+        .arg("--degrees")
+        .arg("-U")
+        .args(["source", "target"])
+        .args(["-f", "nodelist"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["node", "degree"], ["A", "1"], ["B", "2"], ["C", "1"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn network_union_find() {
+    let wrk = Workdir::new("network_union_find");
+    wrk.create(
+        "data.csv",
+        vec![svec!["source", "target"], svec!["A", "B"], svec!["B", "C"]],
+    );
+    let mut cmd = wrk.command("network");
+    cmd.arg("edgelist")
+        .arg("--union-find")
+        .args(["source", "target"])
+        .args(["-f", "nodelist"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["node", "component"], ["A", "1"], ["B", "1"], ["C", "1"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn network_stats() {
     let wrk = Workdir::new("network_stats");
     wrk.create(
