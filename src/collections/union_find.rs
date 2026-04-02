@@ -2,9 +2,9 @@
 // use std::hash::Hash;
 
 #[derive(Debug)]
-struct UnionFindEntry {
-    parent: usize,
-    size: usize,
+pub struct UnionFindEntry {
+    pub parent: usize,
+    pub size: usize,
 }
 
 #[derive(Debug)]
@@ -102,7 +102,7 @@ impl UnionFind {
         }
     }
 
-    fn leaders(&self) -> impl Iterator<Item = &UnionFindEntry> {
+    pub fn leaders(&self) -> impl Iterator<Item = &UnionFindEntry> {
         self.entries.iter().enumerate().filter_map(|(i, entry)| {
             if i != entry.parent {
                 None

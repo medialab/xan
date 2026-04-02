@@ -483,6 +483,23 @@ impl GraphBuilder {
         Ok(writer.flush()?)
     }
 
+    pub fn write_csv_components(&self, writer_config: &Config) -> CliResult<()> {
+        let mut writer = writer_config.simd_writer()?;
+
+        let sets = self.compute_union_find();
+
+        writer.write_record(["component_size", "arbitrary_node"])?;
+
+        for leader in sets.leaders() {
+            writer.write_record([
+                leader.size.to_string().as_bytes(),
+                self.nodes.get_index(leader.parent).unwrap().0.as_bytes(),
+            ])?;
+        }
+
+        Ok(writer.flush()?)
+    }
+
     pub fn write_csv_nodelist(
         &self,
         writer_config: &Config,

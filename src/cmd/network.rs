@@ -19,13 +19,15 @@ Supported input modes:
                  edges between both parts of a bipartite graph.
 
 Supported output formats (-f, --format):
-    `json`     - Graphology JSON serialization format
-                 ref: https://graphology.github.io/serialization.html
-    `gexf`     - Graph eXchange XML Format
-                 ref: https://gexf.net/
-    `nodelist` - CSV nodelist, with optional degrees if using -D/--degrees
-    `stats`    - Single CSV row of useful graph statistics (number of nodes, edges,
-                 graph type, density etc.)
+    `json`       - Graphology JSON serialization format
+                   ref: https://graphology.github.io/serialization.html
+    `gexf`       - Graph eXchange XML Format
+                   ref: https://gexf.net/
+    `nodelist`   - CSV nodelist, with optional degrees if using -D/--degrees
+    `components` - CSV listing connected component sizes and an arbitrary
+                   representative node
+    `stats`      - Single CSV row of useful graph statistics (number of nodes, edges,
+                   graph type, density etc.)
 
 Usage:
     xan network edgelist [options] <source> <target> [<input>]
@@ -305,6 +307,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--minify is only relevant with -f (json|gexf)!")?;
     }
 
+    if args.flag_format == "components" && args.flag_largest_component {
+        Err("-L/--largest-component is not relevant with -f components!")?;
+    }
+
     let wconf = Config::new(&args.flag_output);
 
     if !["1.2", "1.3"].contains(&args.flag_gexf_version.as_str()) {
@@ -327,6 +333,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         "nodelist" => {
             builder.write_csv_nodelist(&wconf, args.flag_largest_component, args.flag_degrees)
         }
+        "components" => builder.write_csv_components(&wconf),
         "gexf" => builder.write_gexf(
             &wconf,
             &args.flag_gexf_version,
