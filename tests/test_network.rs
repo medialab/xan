@@ -1,3 +1,5 @@
+use regex::{Captures, Regex};
+
 use crate::workdir::Workdir;
 
 #[test]
@@ -150,13 +152,17 @@ fn network_gexf() {
         .args(["-f", "gexf"])
         .arg("data.csv");
 
+    let replacement_pattern = Regex::new("lastmodifieddate=\"[^\"]+\"").unwrap();
+
     let got: String = wrk.stdout(&mut cmd);
     assert_eq!(
-        got.trim(),
+        replacement_pattern.replace(got.trim(), |_: &Captures| {
+            "lastmodifieddate=\"test\""
+        }),
         "\
 <?xml version=\"1.0\" encoding=\"utf-8\"?>
 <gexf xmlns=\"http://www.gexf.net/1.2draft\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd\" version=\"1.2\">
-  <meta lastmodifieddate=\"2026-04-02\">
+  <meta lastmodifieddate=\"test\">
     <creator>xan</creator>
   </meta>
   <graph defaultedgetype=\"directed\">

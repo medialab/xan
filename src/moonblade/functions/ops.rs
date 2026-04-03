@@ -130,9 +130,9 @@ where
         (DynamicValue::String(s1), DynamicValue::String(s2)) => s1.partial_cmp(s2),
         (DynamicValue::Bytes(b1), DynamicValue::String(s2)) => std::str::from_utf8(b1)
             .map_err(|_| EvaluationError::UnicodeDecodeError)?
-            .partial_cmp(s2.as_str()),
+            .partial_cmp(s2.as_ref()),
         (DynamicValue::String(s1), DynamicValue::Bytes(b2)) => s1
-            .as_str()
+            .as_ref()
             .partial_cmp(std::str::from_utf8(b2).map_err(|_| EvaluationError::UnicodeDecodeError)?),
         (u1, u2) => u1.try_as_str()?.partial_cmp(&u2.try_as_str()?),
     };

@@ -45,6 +45,7 @@
 * Improving performance of `xan complete`, `xan top`, `xan plot -T` & `xan hist`.
 * Improving overall performance of `xan network`.
 * Slightly optimizing `xan vocab` by allowing needless heap allocation & indirection.
+* Avoid heap allocation & indirection related to `DynamicValue::String`.
 
 *Quality of Life*
 
