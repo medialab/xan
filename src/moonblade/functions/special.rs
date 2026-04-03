@@ -23,8 +23,11 @@ enum AbstractColReturnValue {
 }
 
 impl AbstractColReturnValue {
-    fn possible_concretization(&self, headless: bool) -> Result<(), ConcretizationError> {
-        if headless && matches!(self, AbstractColReturnValue::Header) {
+    fn possible_concretization(
+        &self,
+        headers_index: &HeadersIndex,
+    ) -> Result<(), ConcretizationError> {
+        if headers_index.is_headless() && matches!(self, AbstractColReturnValue::Header) {
             Err(ConcretizationError::Custom(
                 "cannot read header from file without one".to_string(),
             ))
@@ -33,8 +36,11 @@ impl AbstractColReturnValue {
         }
     }
 
-    fn possible_evaluation(&self, headless: bool) -> Result<(), SpecifiedEvaluationError> {
-        if headless && matches!(self, AbstractColReturnValue::Header) {
+    fn possible_evaluation(
+        &self,
+        headers_index: &HeadersIndex,
+    ) -> Result<(), SpecifiedEvaluationError> {
+        if headers_index.is_headless() && matches!(self, AbstractColReturnValue::Header) {
             Err(
                 EvaluationError::Custom("cannot read header from file without one".to_string())
                     .anonymous(),
@@ -223,11 +229,17 @@ fn abstract_comptime_col(
     call: &FunctionCall,
     headers_index: &HeadersIndex,
 ) -> ComptimeFunctionResult {
-    return_value.possible_concretization(headers_index.is_headless())?;
+    return_value.possible_concretization(headers_index)?;
 
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
         if column_indexation.has_name() && headers_index.is_headless() {
             return Err(ConcretizationError::ColumnNotFound(column_indexation, true));
+        }
+
+        // NOTE: if file is empty, we don't raise on concretization to permit
+        // commands working with headless files to remain no-ops
+        if headers_index.is_headless() && headers_index.is_empty() {
+            return Ok(Some(ConcreteExpr::Value(DynamicValue::None)));
         }
 
         match headers_index.get(&column_indexation) {
@@ -265,7 +277,7 @@ fn abstract_comptime_cols<F>(
 where
     F: Fn(usize) -> ConcreteExpr,
 {
-    return_value.possible_concretization(headers_index.is_headless())?;
+    return_value.possible_concretization(headers_index)?;
 
     if call.args.is_empty() {
         return Ok(Some(ConcreteExpr::List(
@@ -281,6 +293,14 @@ where
                     first_column_indexation,
                     true,
                 ));
+            }
+
+            // NOTE: if file is empty, we don't raise on concretization to permit
+            // commands working with headless files to remain no-ops
+            // NOTE: here we don't wait to make sure second indexation is valid
+            // wrt headless but I guess we really don't care...
+            if headers_index.is_headless() && headers_index.is_empty() {
+                return Ok(Some(ConcreteExpr::Value(DynamicValue::from(vec![]))));
             }
 
             match headers_index.get(&first_column_indexation) {
@@ -422,7 +442,7 @@ fn abstract_runtime_col(
 ) -> EvaluationResult {
     let headers_index = &context.headers_index;
 
-    return_value.possible_evaluation(headers_index.is_headless())?;
+    return_value.possible_evaluation(headers_index)?;
 
     let name_or_pos = args.first().unwrap().evaluate(context)?;
 
@@ -472,7 +492,7 @@ where
 {
     let headers_index = &context.headers_index;
 
-    return_value.possible_evaluation(headers_index.is_headless())?;
+    return_value.possible_evaluation(headers_index)?;
 
     // NOTE: 0 is not reachable because it can be resolved at comptime by definition
     match args.len() {

@@ -645,9 +645,7 @@ pub fn concretize_expression(
                 }
             }
 
-            let indexation = ColumIndexationBy::Name(name.into_bytes());
-
-            match headers_index.get(&indexation) {
+            match headers_index.first_by_name(&name) {
                 Some(index) => ConcreteExpr::Column(index),
                 None => {
                     if unsure {
@@ -655,7 +653,7 @@ pub fn concretize_expression(
                     }
 
                     return Err(ConcretizationError::ColumnNotFound(
-                        indexation,
+                        ColumIndexationBy::Name(name.into_bytes()),
                         headers_index.is_headless(),
                     ));
                 }

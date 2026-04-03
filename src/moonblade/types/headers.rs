@@ -113,8 +113,14 @@ impl HeadersIndex {
         index
     }
 
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.headers.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.headers.is_empty()
     }
 
     pub fn first_by_name(&self, name: impl AsRef<[u8]>) -> Option<usize> {
@@ -175,6 +181,7 @@ impl HeadersIndex {
 impl Index<usize> for HeadersIndex {
     type Output = [u8];
 
+    #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
         &self.headers[index]
     }
