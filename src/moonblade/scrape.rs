@@ -572,7 +572,7 @@ fn parse_selector(concrete_expr: ConcreteExpr) -> Result<Selector, Concretizatio
 }
 
 fn parse_contains_pattern(expr: Expr) -> Result<Pattern, ConcretizationError> {
-    let concrete_expr = concretize_expression(expr, &ByteRecord::new(), None)?;
+    let concrete_expr = concretize_expression(expr, &HeadersIndex::empty(), None)?;
     let value = concrete_expr.try_unwrap()?;
 
     if let DynamicValue::Regex(regex) = value {
@@ -602,7 +602,7 @@ fn get_selection_function_arguments(name: &str) -> Option<FunctionArguments> {
 
 fn concretize_selection_expr(
     expr: Expr,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteSelectionExpr, ConcretizationError> {
     match expr {
@@ -631,7 +631,7 @@ fn concretize_selection_expr(
                 let target = if positionals.is_empty() {
                     ConcreteSelectionExpr::Call(SelectionRoutine::Stay, vec![])
                 } else {
-                    concretize_selection_expr(positionals.pop().unwrap().1, headers, globals)?
+                    concretize_selection_expr(positionals.pop().unwrap().1, headers_index, globals)?
                 };
 
                 return Ok(ConcreteSelectionExpr::Call(
@@ -647,14 +647,14 @@ fn concretize_selection_expr(
 
             // Binary?
             let arg = positionals.pop().unwrap().1;
-            let concrete_arg = concretize_expression(arg, headers, globals)?;
+            let concrete_arg = concretize_expression(arg, headers_index, globals)?;
 
             let args = if positionals.is_empty() {
                 vec![]
             } else {
                 vec![concretize_selection_expr(
                     positionals.pop().unwrap().1,
-                    headers,
+                    headers_index,
                     globals,
                 )?]
             };
@@ -712,10 +712,11 @@ fn concretize_selection_expr(
 
 fn concretize_brackets(
     brackets: ScrapingBrackets,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteScrapingBrackets, ConcretizationError> {
-    let selection_expr = concretize_selection_expr(brackets.selection_expr, headers, globals)?;
+    let selection_expr =
+        concretize_selection_expr(brackets.selection_expr, headers_index, globals)?;
 
     let nodes = brackets
         .nodes
@@ -728,14 +729,16 @@ fn concretize_brackets(
                         extractor: Extractor::try_from(leaf.expr)?,
                         processing: leaf
                             .processing
-                            .map(|processing| concretize_expression(processing, headers, globals))
+                            .map(|processing| {
+                                concretize_expression(processing, headers_index, globals)
+                            })
                             .transpose()?,
                     };
 
                     ConcreteScrapingNode::Leaf(concrete_leaf)
                 }
                 ScrapingNode::Brackets(sub_brackets) => ConcreteScrapingNode::Brackets(
-                    concretize_brackets(sub_brackets, headers, globals)?,
+                    concretize_brackets(sub_brackets, headers_index, globals)?,
                 ),
             })
         })
@@ -749,12 +752,12 @@ fn concretize_brackets(
 
 fn concretize_scraper(
     scraper: Vec<ScrapingBrackets>,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteScraper, ConcretizationError> {
     scraper
         .into_iter()
-        .map(|brackets| concretize_brackets(brackets, headers, globals))
+        .map(|brackets| concretize_brackets(brackets, headers_index, globals))
         .collect::<Result<Vec<_>, _>>()
         .map(ConcreteScraper)
 }
@@ -768,15 +771,16 @@ pub struct ScrapingProgram {
 
 impl ScrapingProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers);
         let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
 
         let concrete_scraper =
-            concretize_scraper(scraper, headers, Some(&GlobalVariables::of("value")))?;
+            concretize_scraper(scraper, &headers_index, Some(&GlobalVariables::of("value")))?;
 
         let capacity = concrete_scraper.names().count();
 
         Ok(Self {
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
             scraper: concrete_scraper,
             capacity,
         })
@@ -875,7 +879,7 @@ mod tests {
                 }",
             )
             .unwrap(),
-            &ByteRecord::new(),
+            &HeadersIndex::empty(),
             None,
         )
         .unwrap();

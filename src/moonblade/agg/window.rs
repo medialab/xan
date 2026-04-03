@@ -570,7 +570,7 @@ type ConcreteWindowAggregations = Vec<(String, ConcreteWindowAggregation)>;
 
 fn concretize_window_aggregations(
     input: &str,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
 ) -> Result<ConcreteWindowAggregations, ConcretizationError> {
     let aggs = parse_aggregations(input).map_err(ConcretizationError::ParseError)?;
 
@@ -582,9 +582,11 @@ fn concretize_window_aggregations(
         if is_agg_fn_name(func_name) {
             let agg_name = agg.agg_name.clone();
 
-            let concrete_aggregations = concretize_aggregations(vec![agg], headers)?;
-            let sub_program =
-                AggregationProgram::from_concrete_aggregations(concrete_aggregations, headers);
+            let concrete_aggregations = concretize_aggregations(vec![agg], headers_index)?;
+            let sub_program = AggregationProgram::from_concrete_aggregations(
+                concrete_aggregations,
+                headers_index.clone(),
+            );
 
             concrete_aggs.push((
                 agg_name,
@@ -617,25 +619,26 @@ fn concretize_window_aggregations(
                     (
                         cast_as_usize(&concretize_expression(
                             agg.args.pop().unwrap(),
-                            headers,
+                            headers_index,
                             None,
                         )?)?,
                         ConcreteExpr::Value(DynamicValue::None),
                     )
                 } else {
-                    let default = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                    let default =
+                        concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
 
                     (
                         cast_as_usize(&concretize_expression(
                             agg.args.pop().unwrap(),
-                            headers,
+                            headers_index,
                             None,
                         )?)?,
                         default,
                     )
                 };
 
-                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
 
                 let concrete_agg = if func_name == "lead" {
                     ConcreteWindowAggregation::Lead(expr, n, default)
@@ -646,7 +649,7 @@ fn concretize_window_aggregations(
                 concrete_aggs.push((agg.agg_name, concrete_agg));
             }
             "cumsum" | "cummin" | "cummax" | "front_coding" => {
-                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
 
                 concrete_aggs.push((
                     agg.agg_name,
@@ -660,10 +663,10 @@ fn concretize_window_aggregations(
                 ))
             }
             "rolling_sum" | "rolling_mean" | "rolling_avg" | "rolling_var" | "rolling_stddev" => {
-                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
                 let window_size = cast_as_usize(&concretize_expression(
                     agg.args.pop().unwrap(),
-                    headers,
+                    headers_index,
                     None,
                 )?)?;
 
@@ -699,14 +702,14 @@ fn concretize_window_aggregations(
                 let decimals = if agg.args.len() == 2 {
                     Some(cast_as_usize(&concretize_expression(
                         agg.args.pop().unwrap(),
-                        headers,
+                        headers_index,
                         None,
                     )?)?)
                 } else {
                     None
                 };
 
-                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
 
                 concrete_aggs.push((
                     agg.agg_name,
@@ -714,7 +717,7 @@ fn concretize_window_aggregations(
                 ));
             }
             "dense_rank" | "rank" | "cume_dist" | "percent_rank" => {
-                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
 
                 let kind = match func_name.as_str() {
                     "dense_rank" => RankingKind::Dense,
@@ -730,10 +733,10 @@ fn concretize_window_aggregations(
                 ));
             }
             "ntile" => {
-                let expr = concretize_expression(agg.args.pop().unwrap(), headers, None)?;
+                let expr = concretize_expression(agg.args.pop().unwrap(), headers_index, None)?;
                 let k = cast_as_usize(&concretize_expression(
                     agg.args.pop().unwrap(),
-                    headers,
+                    headers_index,
                     None,
                 )?)?;
 
@@ -783,7 +786,8 @@ pub struct WindowAggregationProgram {
 
 impl WindowAggregationProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let aggs = concretize_window_aggregations(code, headers)?;
+        let headers_index = HeadersIndex::new(headers);
+        let aggs = concretize_window_aggregations(code, &headers_index)?;
 
         let (max_past, max_future) = find_buffer_extent(&aggs);
 
@@ -800,7 +804,7 @@ impl WindowAggregationProgram {
         Ok(Self {
             aggs,
             output_buffer: Vec::with_capacity(headers.len()),
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
             past_buffer,
             future_buffer,
             total_buffer,

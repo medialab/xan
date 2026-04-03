@@ -432,12 +432,12 @@ impl fmt::Debug for ConcreteSpecialFunctionCall {
 fn concretize_arguments(
     function_arguments: &FunctionArguments,
     parsed_args: Vec<(Option<String>, Expr)>,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<Vec<ConcreteExpr>, ConcretizationError> {
     let concrete_args = parsed_args
         .into_iter()
-        .map(|(name, expr)| concretize_expression(expr, headers, globals).map(|r| (name, r)))
+        .map(|(name, expr)| concretize_expression(expr, headers_index, globals).map(|r| (name, r)))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(function_arguments
@@ -449,7 +449,7 @@ fn concretize_arguments(
 
 fn concretize_call(
     call: FunctionCall,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let function_name = &call.name;
@@ -474,7 +474,7 @@ fn concretize_call(
         if let Some(function) = comptime_function {
             // NOTE: some function must be statically analyzable and will
             // yell if they don't have a runtime counterpart.
-            if let Some(concrete_expr) = function(&call, headers)? {
+            if let Some(concrete_expr) = function(&call, headers_index)? {
                 return Ok(concrete_expr);
             }
         }
@@ -484,7 +484,7 @@ fn concretize_call(
 
         // NOTE: special cases wrt branching
         if function_name == "if" || function_name == "unless" {
-            let condition = concretize_expression(call.args[0].clone().1, headers, globals)?;
+            let condition = concretize_expression(call.args[0].clone().1, headers_index, globals)?;
 
             if let Ok(value) = condition.try_unwrap() {
                 let path = if function_name == "if" {
@@ -499,13 +499,13 @@ fn concretize_call(
                     1
                 };
 
-                return concretize_expression(call.args[path].clone().1, headers, globals);
+                return concretize_expression(call.args[path].clone().1, headers_index, globals);
             }
         }
 
         if function_name == "or" || function_name == "and" {
             for (_, arg) in call.args.iter() {
-                if let Ok(condition) = concretize_expression(arg.clone(), headers, globals) {
+                if let Ok(condition) = concretize_expression(arg.clone(), headers_index, globals) {
                     if let Ok(value) = condition.try_unwrap() {
                         let test = if function_name == "or" {
                             value.is_truthy()
@@ -525,7 +525,7 @@ fn concretize_call(
             }
         }
 
-        let concrete_args = concretize_arguments(&arguments, call.args, headers, globals);
+        let concrete_args = concretize_arguments(&arguments, call.args, headers_index, globals);
 
         // NOTE: special case of bubbling-up exceptions
         if function_name == "try" && concrete_args.is_err() {
@@ -562,7 +562,7 @@ fn concretize_call(
             let concrete_call = ConcreteFunctionCall {
                 name: function_name.clone(),
                 function,
-                args: concretize_arguments(&arguments, call.args, headers, globals)?,
+                args: concretize_arguments(&arguments, call.args, headers_index, globals)?,
             };
 
             if concrete_call.is_statically_evaluable(&vec![]) {
@@ -581,12 +581,12 @@ fn concretize_call(
 
 fn concretize_list(
     list: Vec<Expr>,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let concrete_list = list
         .into_iter()
-        .map(|item| concretize_expression(item, headers, globals))
+        .map(|item| concretize_expression(item, headers_index, globals))
         .collect::<Result<Vec<ConcreteExpr>, _>>()?;
 
     // NOTE: here we can collapse to a literal value
@@ -604,12 +604,12 @@ fn concretize_list(
 
 fn concretize_map(
     map: Vec<(String, Expr)>,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let concrete_map = map
         .into_iter()
-        .map(|(k, v)| concretize_expression(v, headers, globals).map(|e| (k, e)))
+        .map(|(k, v)| concretize_expression(v, headers_index, globals).map(|e| (k, e)))
         .collect::<Result<Vec<(String, ConcreteExpr)>, _>>()?;
 
     // NOTE: here we can collapse to a literal value
@@ -627,7 +627,7 @@ fn concretize_map(
 
 pub fn concretize_expression(
     expr: Expr,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     globals: Option<&GlobalVariables>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
@@ -647,7 +647,7 @@ pub fn concretize_expression(
 
             let indexation = ColumIndexationBy::Name(name);
 
-            match indexation.find_column_index(headers) {
+            match headers_index.get(&indexation) {
                 Some(index) => ConcreteExpr::Column(index),
                 None => {
                     if unsure {
@@ -665,17 +665,17 @@ pub fn concretize_expression(
             Ok(regex) => ConcreteExpr::Value(DynamicValue::from(regex)),
             Err(_) => return Err(ConcretizationError::InvalidRegex(pattern)),
         },
-        Expr::Func(call) => concretize_call(call, headers, globals)?,
-        Expr::List(list) => concretize_list(list, headers, globals)?,
-        Expr::Map(map) => concretize_map(map, headers, globals)?,
+        Expr::Func(call) => concretize_call(call, headers_index, globals)?,
+        Expr::List(list) => concretize_list(list, headers_index, globals)?,
+        Expr::Map(map) => concretize_map(map, headers_index, globals)?,
         Expr::Lambda(names, expr) => ConcreteExpr::Lambda(
             names,
-            Box::new(concretize_expression(*expr, headers, globals)?),
+            Box::new(concretize_expression(*expr, headers_index, globals)?),
         ),
         Expr::Pipeline(pipeline) => ConcreteExpr::Pipeline(
             pipeline
                 .into_iter()
-                .map(|expr| concretize_expression(expr, headers, globals))
+                .map(|expr| concretize_expression(expr, headers_index, globals))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
         Expr::LambdaBinding(name) => ConcreteExpr::LambdaBinding(name),
@@ -727,14 +727,16 @@ pub struct Program {
 
 impl Program {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers);
+
         let expr = match parse_expression(code) {
             Err(err) => return Err(ConcretizationError::ParseError(err)),
-            Ok(parsed_expr) => concretize_expression(parsed_expr, headers, None)?,
+            Ok(parsed_expr) => concretize_expression(parsed_expr, &headers_index, None)?,
         };
 
         Ok(Self {
             expr,
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
         })
     }
 
@@ -743,14 +745,16 @@ impl Program {
         headers: &ByteRecord,
         globals: &GlobalVariables,
     ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers);
+
         let expr = match parse_expression(code) {
             Err(err) => return Err(ConcretizationError::ParseError(err)),
-            Ok(parsed_expr) => concretize_expression(parsed_expr, headers, Some(globals))?,
+            Ok(parsed_expr) => concretize_expression(parsed_expr, &headers_index, Some(globals))?,
         };
 
         Ok(Self {
             expr,
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
         })
     }
 

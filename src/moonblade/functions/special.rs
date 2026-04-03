@@ -3,17 +3,16 @@
 // place (e.g. "if"/"unless").
 use std::sync::Arc;
 
-use simd_csv::ByteRecord;
-
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use crate::moonblade::interpreter::{ConcreteExpr, EvaluationContext};
 use crate::moonblade::parser::FunctionCall;
 use crate::moonblade::types::{
-    Arity, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, LambdaArguments,
+    Arity, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments, HeadersIndex,
+    LambdaArguments,
 };
 
 pub type ComptimeFunctionResult = Result<Option<ConcreteExpr>, ConcretizationError>;
-pub type ComptimeFunction = fn(&FunctionCall, &ByteRecord) -> ComptimeFunctionResult;
+pub type ComptimeFunction = fn(&FunctionCall, &HeadersIndex) -> ComptimeFunctionResult;
 pub type RuntimeFunction = fn(&EvaluationContext, &[ConcreteExpr]) -> EvaluationResult;
 
 #[derive(Debug, Clone, Copy)]
@@ -47,8 +46,8 @@ pub fn get_special_function(
         // is not an option for them. What's more they rely on the headers index which
         // is not available to normal functions.
         "col" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(false, AbstractColReturnValue::Cell, call, headers)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_col(false, AbstractColReturnValue::Cell, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_col(false, AbstractColReturnValue::Cell, context, args)
@@ -56,8 +55,8 @@ pub fn get_special_function(
             FunctionArguments::with_range(1..=2),
         ),
         "header" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(false, AbstractColReturnValue::Header, call, headers)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_col(false, AbstractColReturnValue::Header, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_col(false, AbstractColReturnValue::Header, context, args)
@@ -65,8 +64,8 @@ pub fn get_special_function(
             FunctionArguments::with_range(1..=2),
         ),
         "col_index" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(false, AbstractColReturnValue::Index, call, headers)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_col(false, AbstractColReturnValue::Index, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_col(false, AbstractColReturnValue::Index, context, args)
@@ -74,8 +73,8 @@ pub fn get_special_function(
             FunctionArguments::with_range(1..=2),
         ),
         "col?" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(true, AbstractColReturnValue::Cell, call, headers)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_col(true, AbstractColReturnValue::Cell, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_col(true, AbstractColReturnValue::Cell, context, args)
@@ -83,8 +82,8 @@ pub fn get_special_function(
             FunctionArguments::with_range(1..=2),
         ),
         "header?" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(true, AbstractColReturnValue::Header, call, headers)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_col(true, AbstractColReturnValue::Header, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_col(true, AbstractColReturnValue::Header, context, args)
@@ -92,8 +91,8 @@ pub fn get_special_function(
             FunctionArguments::with_range(1..=2),
         ),
         "col_index?" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_col(true, AbstractColReturnValue::Index, call, headers)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_col(true, AbstractColReturnValue::Index, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_col(true, AbstractColReturnValue::Index, context, args)
@@ -101,8 +100,8 @@ pub fn get_special_function(
             FunctionArguments::with_range(1..=2),
         ),
         "cols" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_cols(call, headers, ConcreteExpr::Column)
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_cols(call, headers_index, ConcreteExpr::Column)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_cols(context, args, |i| DynamicValue::from(&context.record[i]))
@@ -110,14 +109,14 @@ pub fn get_special_function(
             FunctionArguments::with_range(0..=2),
         ),
         "headers" => (
-            Some(|call: &FunctionCall, headers: &ByteRecord| {
-                abstract_comptime_cols(call, headers, |i| {
-                    ConcreteExpr::Value(DynamicValue::from(&headers[i]))
+            Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                abstract_comptime_cols(call, headers_index, |i| {
+                    ConcreteExpr::Value(DynamicValue::from(&headers_index[i]))
                 })
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 abstract_runtime_cols(context, args, |i| {
-                    DynamicValue::from(context.headers_index.get_at(i))
+                    DynamicValue::from(&context.headers_index[i])
                 })
             }),
             FunctionArguments::with_range(0..=2),
@@ -164,16 +163,16 @@ fn abstract_comptime_col(
     unsure: bool,
     return_value: AbstractColReturnValue,
     call: &FunctionCall,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
 ) -> ComptimeFunctionResult {
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
-        match column_indexation.find_column_index(headers) {
+        match headers_index.get(&column_indexation) {
             Some(index) => {
                 return Ok(Some(match return_value {
                     AbstractColReturnValue::Cell => ConcreteExpr::Column(index),
                     AbstractColReturnValue::Index => ConcreteExpr::Value(DynamicValue::from(index)),
                     AbstractColReturnValue::Header => {
-                        ConcreteExpr::Value(DynamicValue::from(&headers[index]))
+                        ConcreteExpr::Value(DynamicValue::from(&headers_index[index]))
                     }
                 }))
             }
@@ -192,7 +191,7 @@ fn abstract_comptime_col(
 
 fn abstract_comptime_cols<F>(
     call: &FunctionCall,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
     map: F,
 ) -> ComptimeFunctionResult
 where
@@ -200,23 +199,23 @@ where
 {
     if call.args.is_empty() {
         return Ok(Some(ConcreteExpr::List(
-            (0..headers.len()).map(map).collect(),
+            (0..headers_index.len()).map(map).collect(),
         )));
     }
 
     match ColumIndexationBy::from_argument(&call.args[0].1) {
         None => Ok(None),
-        Some(first_column_indexation) => match first_column_indexation.find_column_index(headers) {
+        Some(first_column_indexation) => match headers_index.get(&first_column_indexation) {
             Some(first_index) => {
                 if call.args.len() < 2 {
                     Ok(Some(ConcreteExpr::List(
-                        (first_index..headers.len()).map(map).collect(),
+                        (first_index..headers_index.len()).map(map).collect(),
                     )))
                 } else {
                     match ColumIndexationBy::from_argument(&call.args[1].1) {
                         None => Ok(None),
                         Some(second_column_indexation) => {
-                            match second_column_indexation.find_column_index(headers) {
+                            match headers_index.get(&second_column_indexation) {
                                 Some(second_index) => {
                                     let range: Vec<_> = if first_index > second_index {
                                         (second_index..=first_index).map(map).rev().collect()
@@ -354,9 +353,7 @@ fn abstract_runtime_col(
             Some(index) => Ok(match return_value {
                 AbstractColReturnValue::Index => DynamicValue::from(index),
                 AbstractColReturnValue::Cell => DynamicValue::from(&context.record[index]),
-                AbstractColReturnValue::Header => {
-                    DynamicValue::from(context.headers_index.get_at(index))
-                }
+                AbstractColReturnValue::Header => DynamicValue::from(&context.headers_index[index]),
             }),
         },
     }

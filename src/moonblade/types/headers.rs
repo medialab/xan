@@ -1,4 +1,5 @@
 use std::collections::{btree_map::Entry, BTreeMap};
+use std::ops::Index;
 
 use crate::moonblade::parser::Expr;
 
@@ -138,20 +139,12 @@ pub struct HeadersIndex {
 }
 
 impl HeadersIndex {
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn len(&self) -> usize {
-        self.headers.len()
-    }
-
-    pub fn get_first_by_name(&self, name: &str) -> Option<usize> {
-        self.mapping.get(name).map(|indices| indices[0])
-    }
-
-    pub fn from_headers<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
-        let mut index = Self::new();
+    pub fn new<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
+        let mut index = Self::empty();
 
         for (i, header) in headers.into_iter().enumerate() {
             index.headers.push(header.to_vec());
@@ -172,8 +165,12 @@ impl HeadersIndex {
         index
     }
 
-    pub fn get_at(&self, index: usize) -> &[u8] {
-        &self.headers[index]
+    pub fn len(&self) -> usize {
+        self.headers.len()
+    }
+
+    pub fn first_by_name(&self, name: &str) -> Option<usize> {
+        self.mapping.get(name).map(|indices| indices[0])
     }
 
     pub fn get(&self, indexation: &ColumIndexationBy) -> Option<usize> {
@@ -224,5 +221,13 @@ impl HeadersIndex {
                 })
                 .copied(),
         }
+    }
+}
+
+impl Index<usize> for HeadersIndex {
+    type Output = [u8];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.headers[index]
     }
 }

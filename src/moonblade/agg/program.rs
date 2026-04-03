@@ -932,7 +932,7 @@ pub type ConcreteAggregations = Vec<ConcreteAggregation>;
 
 pub fn concretize_aggregations(
     aggregations: Aggregations,
-    headers: &ByteRecord,
+    headers_index: &HeadersIndex,
 ) -> Result<ConcreteAggregations, ConcretizationError> {
     let mut concrete_aggregations = ConcreteAggregations::new();
 
@@ -948,7 +948,7 @@ pub fn concretize_aggregations(
         let expr = aggregation
             .args
             .first()
-            .map(|arg| concretize_expression(arg.clone(), headers, None))
+            .map(|arg| concretize_expression(arg.clone(), headers_index, None))
             .transpose()?;
 
         let pair_expr = if aggregation.args.len() > 1
@@ -962,7 +962,7 @@ pub fn concretize_aggregations(
         {
             Some(concretize_expression(
                 aggregation.args.pop().unwrap().clone(),
-                headers,
+                headers_index,
                 None,
             )?)
         } else {
@@ -972,7 +972,7 @@ pub fn concretize_aggregations(
         let mut args: Vec<ConcreteExpr> = Vec::new();
 
         for arg in aggregation.args.into_iter().skip(1) {
-            args.push(concretize_expression(arg, headers, None)?);
+            args.push(concretize_expression(arg, headers_index, None)?);
         }
 
         let method = ConcreteAggregationMethod::parse(&aggregation.func_name, args_count, &args)?;
@@ -990,10 +990,13 @@ pub fn concretize_aggregations(
     Ok(concrete_aggregations)
 }
 
-fn prepare(code: &str, headers: &ByteRecord) -> Result<ConcreteAggregations, ConcretizationError> {
+fn prepare(
+    code: &str,
+    headers_index: &HeadersIndex,
+) -> Result<ConcreteAggregations, ConcretizationError> {
     let parsed_aggregations = parse_aggregations(code).map_err(ConcretizationError::ParseError)?;
 
-    concretize_aggregations(parsed_aggregations, headers)
+    concretize_aggregations(parsed_aggregations, headers_index)
 }
 
 // NOTE: each execution unit is iterated upon linearly to aggregate values
@@ -1184,7 +1187,7 @@ pub struct AggregationProgram {
 impl AggregationProgram {
     pub fn from_concrete_aggregations(
         concrete_aggregations: ConcreteAggregations,
-        headers: &ByteRecord,
+        headers_index: HeadersIndex,
     ) -> Self {
         let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
@@ -1194,16 +1197,18 @@ impl AggregationProgram {
             planner,
             aggregators,
             len,
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
             last_value: DynamicValue::empty_bytes(),
         }
     }
 
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let concrete_aggregations = prepare(code, headers)?;
+        let headers_index = HeadersIndex::new(headers);
+
+        let concrete_aggregations = prepare(code, &headers_index)?;
         Ok(Self::from_concrete_aggregations(
             concrete_aggregations,
-            headers,
+            headers_index,
         ))
     }
 
@@ -1296,14 +1301,15 @@ pub struct GroupAggregationProgram<K> {
 
 impl<K: Eq + Hash> GroupAggregationProgram<K> {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let concrete_aggregations = prepare(code, headers)?;
+        let headers_index = HeadersIndex::new(headers);
+        let concrete_aggregations = prepare(code, &headers_index)?;
         let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
 
         Ok(Self {
             planner,
             groups: ClusteredInsertHashmap::new(),
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
             len,
             dummy_record: ByteRecord::new(),
             last_value: DynamicValue::empty_bytes(),
@@ -1488,7 +1494,8 @@ pub struct PivotAggregationProgram {
 
 impl PivotAggregationProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let concrete_aggregations = prepare(code, headers)?;
+        let headers_index = HeadersIndex::new(headers);
+        let concrete_aggregations = prepare(code, &headers_index)?;
 
         if concrete_aggregations.len() != 1 {
             return Err(ConcretizationError::Custom(format!(
@@ -1502,7 +1509,7 @@ impl PivotAggregationProgram {
         Ok(Self {
             planner,
             groups: IndexMap::with_hasher(RandomState::new()),
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
             pivoted_column_names_index: PivotedColumnNamesIndex::default(),
         })
     }
@@ -1603,7 +1610,8 @@ impl GroupAlongColumnsAggregationProgram {
         headers: &ByteRecord,
         cols: usize,
     ) -> Result<Self, ConcretizationError> {
-        let concrete_aggregations = prepare(code, headers)?;
+        let headers_index = HeadersIndex::new(headers);
+        let concrete_aggregations = prepare(code, &headers_index)?;
 
         if concrete_aggregations.len() != 1 {
             return Err(ConcretizationError::Custom(format!(
@@ -1618,7 +1626,7 @@ impl GroupAlongColumnsAggregationProgram {
             planner,
             cols,
             groups: ClusteredInsertHashmap::new(),
-            headers_index: HeadersIndex::from_headers(headers),
+            headers_index,
             last_value: DynamicValue::empty_bytes(),
         })
     }

@@ -15,7 +15,7 @@ pub struct SelectionProgram {
 
 impl SelectionProgram {
     pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::from_headers(headers);
+        let headers_index = HeadersIndex::new(headers);
         let mut mask = vec![None; headers.len()];
         let mut rest = vec![];
 
@@ -25,9 +25,9 @@ impl SelectionProgram {
                 .into_iter()
                 .enumerate()
                 .map(|(expr_i, (expr, expr_name))| {
-                    concretize_expression(expr, headers, None).map(|c| match &expr_name {
+                    concretize_expression(expr, &headers_index, None).map(|c| match &expr_name {
                         ExprName::Singular(name) => {
-                            let pos = headers_index.get_first_by_name(name);
+                            let pos = headers_index.first_by_name(name);
 
                             if let Some(i) = pos {
                                 mask[i] = Some(expr_i);
