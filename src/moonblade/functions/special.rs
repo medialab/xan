@@ -22,6 +22,29 @@ enum AbstractColReturnValue {
     Header,
 }
 
+impl AbstractColReturnValue {
+    fn possible_concretization(&self, headless: bool) -> Result<(), ConcretizationError> {
+        if headless && matches!(self, AbstractColReturnValue::Header) {
+            Err(ConcretizationError::Custom(
+                "cannot read header from file without one".to_string(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn possible_evaluation(&self, headless: bool) -> Result<(), SpecifiedEvaluationError> {
+        if headless && matches!(self, AbstractColReturnValue::Header) {
+            Err(
+                EvaluationError::Custom("cannot read header from file without one".to_string())
+                    .anonymous(),
+            )
+        } else {
+            Ok(())
+        }
+    }
+}
+
 pub fn get_special_function(
     name: &str,
 ) -> Option<(
@@ -101,21 +124,28 @@ pub fn get_special_function(
         ),
         "cols" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
-                abstract_comptime_cols(call, headers_index, ConcreteExpr::Column)
+                abstract_comptime_cols(
+                    AbstractColReturnValue::Cell,
+                    call,
+                    headers_index,
+                    ConcreteExpr::Column,
+                )
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_cols(context, args, |i| DynamicValue::from(&context.record[i]))
+                abstract_runtime_cols(AbstractColReturnValue::Cell, context, args, |i| {
+                    DynamicValue::from(&context.record[i])
+                })
             }),
             FunctionArguments::with_range(0..=2),
         ),
         "headers" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
-                abstract_comptime_cols(call, headers_index, |i| {
+                abstract_comptime_cols(AbstractColReturnValue::Header, call, headers_index, |i| {
                     ConcreteExpr::Value(DynamicValue::from(&headers_index[i]))
                 })
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_cols(context, args, |i| {
+                abstract_runtime_cols(AbstractColReturnValue::Header, context, args, |i| {
                     DynamicValue::from(&context.headers_index[i])
                 })
             }),
@@ -165,7 +195,13 @@ fn abstract_comptime_col(
     call: &FunctionCall,
     headers_index: &HeadersIndex,
 ) -> ComptimeFunctionResult {
+    return_value.possible_concretization(headers_index.is_headless())?;
+
     if let Some(column_indexation) = ColumIndexationBy::from_arguments(&call.raw_args_as_ref()) {
+        if column_indexation.has_name() && headers_index.is_headless() {
+            return Err(ConcretizationError::ColumnNotFound(column_indexation, true));
+        }
+
         match headers_index.get(&column_indexation) {
             Some(index) => {
                 return Ok(Some(match return_value {
@@ -180,7 +216,10 @@ fn abstract_comptime_col(
                 return if unsure {
                     Ok(Some(ConcreteExpr::Value(DynamicValue::None)))
                 } else {
-                    Err(ConcretizationError::ColumnNotFound(column_indexation))
+                    Err(ConcretizationError::ColumnNotFound(
+                        column_indexation,
+                        headers_index.is_headless(),
+                    ))
                 }
             }
         };
@@ -190,6 +229,7 @@ fn abstract_comptime_col(
 }
 
 fn abstract_comptime_cols<F>(
+    return_value: AbstractColReturnValue,
     call: &FunctionCall,
     headers_index: &HeadersIndex,
     map: F,
@@ -197,6 +237,8 @@ fn abstract_comptime_cols<F>(
 where
     F: Fn(usize) -> ConcreteExpr,
 {
+    return_value.possible_concretization(headers_index.is_headless())?;
+
     if call.args.is_empty() {
         return Ok(Some(ConcreteExpr::List(
             (0..headers_index.len()).map(map).collect(),
@@ -205,36 +247,58 @@ where
 
     match ColumIndexationBy::from_argument(&call.args[0].1) {
         None => Ok(None),
-        Some(first_column_indexation) => match headers_index.get(&first_column_indexation) {
-            Some(first_index) => {
-                if call.args.len() < 2 {
-                    Ok(Some(ConcreteExpr::List(
-                        (first_index..headers_index.len()).map(map).collect(),
-                    )))
-                } else {
-                    match ColumIndexationBy::from_argument(&call.args[1].1) {
-                        None => Ok(None),
-                        Some(second_column_indexation) => {
-                            match headers_index.get(&second_column_indexation) {
-                                Some(second_index) => {
-                                    let range: Vec<_> = if first_index > second_index {
-                                        (second_index..=first_index).map(map).rev().collect()
-                                    } else {
-                                        (first_index..=second_index).map(map).collect()
-                                    };
+        Some(first_column_indexation) => {
+            if first_column_indexation.has_name() && headers_index.is_headless() {
+                return Err(ConcretizationError::ColumnNotFound(
+                    first_column_indexation,
+                    true,
+                ));
+            }
 
-                                    Ok(Some(ConcreteExpr::List(range)))
+            match headers_index.get(&first_column_indexation) {
+                Some(first_index) => {
+                    if call.args.len() < 2 {
+                        Ok(Some(ConcreteExpr::List(
+                            (first_index..headers_index.len()).map(map).collect(),
+                        )))
+                    } else {
+                        match ColumIndexationBy::from_argument(&call.args[1].1) {
+                            None => Ok(None),
+                            Some(second_column_indexation) => {
+                                if second_column_indexation.has_name()
+                                    && headers_index.is_headless()
+                                {
+                                    return Err(ConcretizationError::ColumnNotFound(
+                                        second_column_indexation,
+                                        true,
+                                    ));
                                 }
-                                None => Err(ConcretizationError::ColumnNotFound(
-                                    second_column_indexation,
-                                )),
+
+                                match headers_index.get(&second_column_indexation) {
+                                    Some(second_index) => {
+                                        let range: Vec<_> = if first_index > second_index {
+                                            (second_index..=first_index).map(map).rev().collect()
+                                        } else {
+                                            (first_index..=second_index).map(map).collect()
+                                        };
+
+                                        Ok(Some(ConcreteExpr::List(range)))
+                                    }
+                                    None => Err(ConcretizationError::ColumnNotFound(
+                                        second_column_indexation,
+                                        headers_index.is_headless(),
+                                    )),
+                                }
                             }
                         }
                     }
                 }
+                None => Err(ConcretizationError::ColumnNotFound(
+                    first_column_indexation,
+                    headers_index.is_headless(),
+                )),
             }
-            None => Err(ConcretizationError::ColumnNotFound(first_column_indexation)),
-        },
+        }
     }
 }
 
@@ -327,6 +391,10 @@ fn abstract_runtime_col(
     context: &EvaluationContext,
     args: &[ConcreteExpr],
 ) -> EvaluationResult {
+    let headers_index = &context.headers_index;
+
+    return_value.possible_evaluation(headers_index.is_headless())?;
+
     let name_or_pos = args.first().unwrap().evaluate(context)?;
 
     let pos = match args.get(1) {
@@ -339,27 +407,37 @@ fn abstract_runtime_col(
             "col",
             EvaluationError::Custom("invalid arguments".to_string()),
         )),
-        Some(indexation) => match context.headers_index.get(&indexation) {
-            None => {
-                if unsure {
-                    Ok(DynamicValue::None)
-                } else {
-                    Err(SpecifiedEvaluationError::new(
-                        "col",
-                        EvaluationError::ColumnNotFound(indexation),
-                    ))
-                }
+        Some(indexation) => {
+            if indexation.has_name() && headers_index.is_headless() {
+                return Err(EvaluationError::ColumnNotFound(indexation, true).specify("col"));
             }
-            Some(index) => Ok(match return_value {
-                AbstractColReturnValue::Index => DynamicValue::from(index),
-                AbstractColReturnValue::Cell => DynamicValue::from(&context.record[index]),
-                AbstractColReturnValue::Header => DynamicValue::from(&context.headers_index[index]),
-            }),
-        },
+
+            match headers_index.get(&indexation) {
+                None => {
+                    if unsure {
+                        Ok(DynamicValue::None)
+                    } else {
+                        Err(SpecifiedEvaluationError::new(
+                            "col",
+                            EvaluationError::ColumnNotFound(
+                                indexation,
+                                headers_index.is_headless(),
+                            ),
+                        ))
+                    }
+                }
+                Some(index) => Ok(match return_value {
+                    AbstractColReturnValue::Index => DynamicValue::from(index),
+                    AbstractColReturnValue::Cell => DynamicValue::from(&context.record[index]),
+                    AbstractColReturnValue::Header => DynamicValue::from(&headers_index[index]),
+                }),
+            }
+        }
     }
 }
 
 fn abstract_runtime_cols<F>(
+    return_value: AbstractColReturnValue,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
     map: F,
@@ -367,6 +445,10 @@ fn abstract_runtime_cols<F>(
 where
     F: Fn(usize) -> DynamicValue,
 {
+    let headers_index = &context.headers_index;
+
+    return_value.possible_evaluation(headers_index.is_headless())?;
+
     // NOTE: 0 is not reachable because it can be resolved at comptime by definition
     match args.len() {
         1 => {
@@ -377,17 +459,26 @@ where
                     "col",
                     EvaluationError::Custom("invalid arguments".to_string()),
                 )),
-                Some(indexation) => match context.headers_index.get(&indexation) {
-                    None => Err(SpecifiedEvaluationError::new(
-                        "col",
-                        EvaluationError::ColumnNotFound(indexation),
-                    )),
-                    Some(index) => Ok(DynamicValue::from(
-                        (index..context.headers_index.len())
-                            .map(map)
-                            .collect::<Vec<_>>(),
-                    )),
-                },
+                Some(indexation) => {
+                    if indexation.has_name() && headers_index.is_headless() {
+                        return Err(
+                            EvaluationError::ColumnNotFound(indexation, true).specify("col")
+                        );
+                    }
+
+                    match headers_index.get(&indexation) {
+                        None => Err(SpecifiedEvaluationError::new(
+                            "col",
+                            EvaluationError::ColumnNotFound(
+                                indexation,
+                                headers_index.is_headless(),
+                            ),
+                        )),
+                        Some(index) => Ok(DynamicValue::from(
+                            (index..headers_index.len()).map(map).collect::<Vec<_>>(),
+                        )),
+                    }
+                }
             }
         }
         2 => {
@@ -398,39 +489,61 @@ where
                     "col",
                     EvaluationError::Custom("invalid arguments".to_string()),
                 )),
-                Some(start_indexation) => match context.headers_index.get(&start_indexation) {
-                    None => Err(SpecifiedEvaluationError::new(
-                        "col",
-                        EvaluationError::ColumnNotFound(start_indexation),
-                    )),
-                    Some(start_index) => {
-                        let end_index_arg = args.last().unwrap().evaluate(context)?;
+                Some(start_indexation) => {
+                    if start_indexation.has_name() && headers_index.is_headless() {
+                        return Err(
+                            EvaluationError::ColumnNotFound(start_indexation, true).specify("col")
+                        );
+                    }
 
-                        match ColumIndexationBy::from_bound_arguments(end_index_arg, None) {
-                            None => Err(SpecifiedEvaluationError::new(
-                                "col",
-                                EvaluationError::Custom("invalid arguments".to_string()),
-                            )),
-                            Some(end_indexation) => {
-                                match context.headers_index.get(&end_indexation) {
-                                    None => Err(SpecifiedEvaluationError::new(
-                                        "col",
-                                        EvaluationError::ColumnNotFound(end_indexation),
-                                    )),
-                                    Some(end_index) => {
-                                        let range: Vec<_> = if start_index > end_index {
-                                            (end_index..=start_index).map(map).rev().collect()
-                                        } else {
-                                            (start_index..=end_index).map(map).collect()
-                                        };
+                    match headers_index.get(&start_indexation) {
+                        None => Err(SpecifiedEvaluationError::new(
+                            "col",
+                            EvaluationError::ColumnNotFound(
+                                start_indexation,
+                                headers_index.is_headless(),
+                            ),
+                        )),
+                        Some(start_index) => {
+                            let end_index_arg = args.last().unwrap().evaluate(context)?;
 
-                                        Ok(DynamicValue::from(range))
+                            match ColumIndexationBy::from_bound_arguments(end_index_arg, None) {
+                                None => Err(SpecifiedEvaluationError::new(
+                                    "col",
+                                    EvaluationError::Custom("invalid arguments".to_string()),
+                                )),
+                                Some(end_indexation) => {
+                                    if end_indexation.has_name() && headers_index.is_headless() {
+                                        return Err(EvaluationError::ColumnNotFound(
+                                            end_indexation,
+                                            true,
+                                        )
+                                        .specify("col"));
+                                    }
+
+                                    match headers_index.get(&end_indexation) {
+                                        None => Err(SpecifiedEvaluationError::new(
+                                            "col",
+                                            EvaluationError::ColumnNotFound(
+                                                end_indexation,
+                                                headers_index.is_headless(),
+                                            ),
+                                        )),
+                                        Some(end_index) => {
+                                            let range: Vec<_> = if start_index > end_index {
+                                                (end_index..=start_index).map(map).rev().collect()
+                                            } else {
+                                                (start_index..=end_index).map(map).collect()
+                                            };
+
+                                            Ok(DynamicValue::from(range))
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                },
+                }
             }
         }
         _ => unreachable!(),

@@ -39,6 +39,7 @@
 * Fixing `xan heatmap -n`.
 * Fixing `xan heatmap --repeat-headers --cram always` not repeating x-axis legend.
 * Fixing correctness of `xan plot -T` and increase resolution to microseconds.
+* Fixing moonblade column-related functions returning incorrect results wrt `-n/--no-headers`.
 
 *Performance*
 

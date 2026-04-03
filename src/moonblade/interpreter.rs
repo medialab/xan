@@ -654,7 +654,10 @@ pub fn concretize_expression(
                         return Ok(ConcreteExpr::Value(DynamicValue::None));
                     }
 
-                    return Err(ConcretizationError::ColumnNotFound(indexation));
+                    return Err(ConcretizationError::ColumnNotFound(
+                        indexation,
+                        headers_index.is_headless(),
+                    ));
                 }
             }
         }
@@ -1198,7 +1201,8 @@ mod tests {
         assert_eq!(
             eval_code("col('surname', 1)"),
             Err(RunError::Prepare(ConcretizationError::ColumnNotFound(
-                ColumIndexationBy::NameAndNth(b"surname".to_vec(), 1)
+                ColumIndexationBy::NameAndNth(b"surname".to_vec(), 1),
+                false
             )))
         );
         assert_eq!(eval_code("col(concat('sur', 'name'))"), Ok(b("SMITH")));

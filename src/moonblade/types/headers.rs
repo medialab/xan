@@ -63,6 +63,10 @@ impl ColumIndexationBy {
             }
         }
     }
+
+    pub fn has_name(&self) -> bool {
+        matches!(self, Self::Name(_) | Self::NameAndNth(_, _))
+    }
 }
 
 // NOTE: `mapping` could be a sorted (key, index) list we access using binary search
@@ -79,6 +83,10 @@ impl HeadersIndex {
             headless,
             ..Default::default()
         }
+    }
+
+    pub fn is_headless(&self) -> bool {
+        self.headless
     }
 
     pub fn new<'a>(headers: impl IntoIterator<Item = &'a [u8]>, headless: bool) -> Self {

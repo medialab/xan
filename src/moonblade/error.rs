@@ -8,20 +8,28 @@ use super::types::{Arity, ColumIndexationBy, DynamicValue};
 fn format_column_indexation_error(
     f: &mut std::fmt::Formatter,
     indexation: &ColumIndexationBy,
+    headless: bool,
 ) -> std::fmt::Result {
-    match indexation {
-        ColumIndexationBy::Name(name) => write!(f, "cannot find column \"{}\"", BStr::new(name)),
-        ColumIndexationBy::Pos(pos) => write!(f, "column {} out of range", pos),
-        ColumIndexationBy::NameAndNth(name, nth) => {
+    match (indexation, headless) {
+        (ColumIndexationBy::Name(name), false) => {
+            write!(f, "cannot find column \"{}\"", BStr::new(name))
+        }
+        (ColumIndexationBy::Pos(pos), _) => write!(f, "column {} out of range", pos),
+        (ColumIndexationBy::NameAndNth(name, nth), false) => {
             write!(f, "cannot find column (\"{}\", {})", BStr::new(name), nth)
         }
+        (ColumIndexationBy::Name(name) | ColumIndexationBy::NameAndNth(name, _), true) => write!(
+            f,
+            "cannot find column \"{}\" by name in a file without header",
+            BStr::new(name)
+        ),
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub enum ConcretizationError {
     ParseError(ParseError),
-    ColumnNotFound(ColumIndexationBy),
+    ColumnNotFound(ColumIndexationBy, bool),
     InvalidRegex(String),
     UnknownFunction(String),
     InvalidArity(String, InvalidArity),
@@ -36,7 +44,9 @@ pub enum ConcretizationError {
 impl Display for ConcretizationError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
+            Self::ColumnNotFound(indexation, headless) => {
+                format_column_indexation_error(f, indexation, *headless)
+            }
             Self::UnknownFunction(name) => write!(f, "unknown function \"{}\"", name),
             Self::UnknownArgumentName(arg_name) => write!(f, "unknown argument \"{}\"", arg_name),
             Self::ParseError(err) => write!(f, "could not parse expression: {}", err),
@@ -142,7 +152,7 @@ pub enum EvaluationError {
     UnsupportedEncoding(String),
     UnsupportedDecoderTrap(String),
     DecodeError,
-    ColumnNotFound(ColumIndexationBy),
+    ColumnNotFound(ColumIndexationBy, bool),
     ColumnOutOfRange(usize),
     GlobalVariableOutOfRange(usize),
     UnicodeDecodeError,
@@ -215,7 +225,9 @@ impl Display for EvaluationError {
                 )
             }
             Self::DecodeError => write!(f, "could not decode"),
-            Self::ColumnNotFound(indexation) => format_column_indexation_error(f, indexation),
+            Self::ColumnNotFound(indexation, headless) => {
+                format_column_indexation_error(f, indexation, *headless)
+            }
             Self::ColumnOutOfRange(idx) => write!(f, "column {} is out of range", idx),
             Self::GlobalVariableOutOfRange(idx) => {
                 write!(f, "global variable index={} is out of range", idx)
