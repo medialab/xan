@@ -279,7 +279,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         match (&args.flag_sep, &doc_sel, args.flag_window) {
             // Separator or not, doc column, bag-of-words model
             (_, Some(sel), None) => {
-                let mut doc_tokens: ClusteredInsertHashmap<Document, Vec<Rc<Token>>> =
+                let mut doc_tokens: ClusteredInsertHashmap<Document, Vec<Rc<TokenRef>>> =
                     ClusteredInsertHashmap::new();
 
                 while rdr.read_byte_record(&mut record)? {
@@ -288,23 +288,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     doc_tokens.insert_with_or_else(
                         doc,
                         || match &args.flag_sep {
-                            Some(sep) => record[token_pos]
-                                .split_str(sep)
-                                .map(|t| Rc::new(t.to_vec()))
-                                .collect(),
+                            Some(sep) => record[token_pos].split_str(sep).map(Rc::from).collect(),
                             None => {
-                                vec![Rc::new(record[token_pos].to_vec())]
+                                vec![Rc::from(&record[token_pos])]
                             }
                         },
                         |tokens| {
                             match &args.flag_sep {
                                 Some(sep) => {
                                     for token in record[token_pos].split_str(sep) {
-                                        tokens.push(Rc::new(token.to_vec()));
+                                        tokens.push(Rc::from(token));
                                     }
                                 }
                                 None => {
-                                    tokens.push(Rc::new(record[token_pos].to_vec()));
+                                    tokens.push(Rc::from(&record[token_pos]));
                                 }
                             };
                         },
@@ -329,10 +326,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             // Separator, doc = row or sel, both models
             (Some(sep), _, model) => {
                 while rdr.read_byte_record(&mut record)? {
-                    let bag_of_words: Vec<Rc<Token>> = record[token_pos]
-                        .split_str(sep)
-                        .map(|t| Rc::new(t.to_vec()))
-                        .collect();
+                    let bag_of_words: Vec<Rc<TokenRef>> =
+                        record[token_pos].split_str(sep).map(Rc::from).collect();
 
                     for i in 0..bag_of_words.len() {
                         let source = &bag_of_words[i];
@@ -374,11 +369,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }};
                 }
 
-                let mut current_opt: Option<(Document, Vec<Rc<Token>>)> = None;
+                let mut current_opt: Option<(Document, Vec<Rc<TokenRef>>)> = None;
 
                 while rdr.read_byte_record(&mut record)? {
                     let doc = sel.select(&record).collect();
-                    let token = Rc::new(record[token_pos].to_vec());
+                    let token = Rc::from(&record[token_pos]);
 
                     match current_opt.as_mut() {
                         Some((current_doc, tokens)) if current_doc == &doc => {
@@ -555,6 +550,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
 type Document = ByteRecord;
 type Token = Vec<u8>;
+type TokenRef = [u8];
 type TokenID = usize;
 
 #[derive(Debug)]
@@ -1120,13 +1116,13 @@ fn compute_g2(x: usize, y: usize, xy: usize, n: usize) -> f64 {
 
 #[derive(Debug)]
 struct CooccurrenceTokenEntry {
-    token: Rc<Token>,
+    token: Rc<TokenRef>,
     gcf: usize,
     cooc: ClusteredInsertHashmap<TokenID, usize>,
 }
 
 impl CooccurrenceTokenEntry {
-    fn new(token: Rc<Token>) -> Self {
+    fn new(token: Rc<TokenRef>) -> Self {
         Self {
             token,
             gcf: 0,
@@ -1154,13 +1150,13 @@ impl CooccurrenceMode {
 
 #[derive(Default, Debug)]
 struct Cooccurrences {
-    token_ids: HashMap<Rc<Token>, TokenID>,
+    token_ids: HashMap<Rc<TokenRef>, TokenID>,
     token_entries: Vec<CooccurrenceTokenEntry>,
     cooccurrences_count: usize,
 }
 
 impl Cooccurrences {
-    fn register_token(&mut self, token: Rc<Token>) -> TokenID {
+    fn register_token(&mut self, token: Rc<TokenRef>) -> TokenID {
         match self.token_ids.entry(token.clone()) {
             Entry::Occupied(entry) => {
                 let id = *entry.get();
