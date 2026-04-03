@@ -213,6 +213,14 @@ pub enum FuzzyTemporal {
 }
 
 impl FuzzyTemporal {
+    pub fn has_timezone(&self) -> bool {
+        match self {
+            Self::Any(temporal) => matches!(temporal, AnyTemporal::Zoned(_)),
+            Self::PartialDate(_) => false,
+            Self::Timestamp(_) => true,
+        }
+    }
+
     pub fn to_lower_bound_timestamp(&self, unified_timezone: TimeZone) -> Result<Timestamp, Error> {
         Ok(match self {
             Self::Any(temporal) => match temporal {
@@ -222,7 +230,7 @@ impl FuzzyTemporal {
                     .to_datetime(Time::default())
                     .to_zoned(unified_timezone)?
                     .timestamp(),
-                AnyTemporal::Time(_contains_) => {
+                AnyTemporal::Time(_) => {
                     return Err(Error::from_args(format_args!(
                         "cannot convert a bare time to a lower bound timestamp"
                     )))

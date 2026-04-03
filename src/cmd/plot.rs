@@ -6,6 +6,7 @@ use std::io::{stderr, stdout, Write};
 use std::num::NonZeroUsize;
 
 use ahash::RandomState;
+use bstr::BStr;
 use indexmap::IndexMap;
 use jiff::{tz::TimeZone, SignedDuration, Timestamp, TimestampRound, Unit, Zoned, ZonedRound};
 use unicode_width::UnicodeWidthStr;
@@ -243,20 +244,38 @@ struct Args {
 }
 
 impl Args {
-    fn parse_x_bounds(&self) -> CliResult<(Option<f64>, Option<f64>)> {
+    fn parse_x_bounds(&self) -> CliResult<(Option<bool>, Option<f64>, Option<f64>)> {
         if self.flag_time {
+            let x_min_info = self
+                .flag_x_min
+                .as_ref()
+                .map(|cell| parse_as_seconds(cell.as_bytes()))
+                .transpose()?;
+
+            let x_max_info = self
+                .flag_x_max
+                .as_ref()
+                .map(|cell| parse_as_seconds(cell.as_bytes()))
+                .transpose()?;
+
+            if let (Some(x_min_has_timezone), Some(x_max_has_timezone)) = (x_min_info, x_max_info) {
+                if x_min_has_timezone != x_max_has_timezone {
+                    Err(format!(
+                        "inconsistent timezone info between --x-min {} & --x-max {}",
+                        self.flag_x_min.as_ref().unwrap(),
+                        self.flag_x_max.as_ref().unwrap()
+                    ))?;
+                }
+            }
+
             Ok((
-                self.flag_x_min
-                    .as_ref()
-                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
-                    .transpose()?,
-                self.flag_x_max
-                    .as_ref()
-                    .map(|cell| parse_as_timestamp(cell.as_bytes()))
-                    .transpose()?,
+                x_min_info.or(x_max_info).map(|i| i.0),
+                x_min_info.map(|i| i.1),
+                x_max_info.map(|i| i.1),
             ))
         } else {
             Ok((
+                None,
                 self.flag_x_min
                     .as_ref()
                     .map(|cell| parse_as_float(cell.as_bytes()))
@@ -311,7 +330,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         true
     });
 
-    let (flag_x_min, flag_x_max) = args.parse_x_bounds()?;
+    let (mut has_timezone_opt, flag_x_min, flag_x_max) = args.parse_x_bounds()?;
     let (flag_y_min, flag_y_max) = (args.flag_y_min, args.flag_y_max);
 
     if args.flag_x_scale.is_logarithmic()
@@ -464,9 +483,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }};
     }
 
-    macro_rules! try_parse_as_timestamp {
+    macro_rules! try_parse_as_seconds {
         ($value: expr) => {{
-            match parse_as_timestamp($value) {
+            match parse_as_seconds($value) {
                 Err(e) => {
                     if args.flag_ignore {
                         continue;
@@ -474,7 +493,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         Err(e)?
                     }
                 }
-                Ok(v) => v,
+                Ok((current_has_timezone, v)) => {
+                    if let Some(has_timezone) = has_timezone_opt {
+                        if current_has_timezone != has_timezone {
+                            if current_has_timezone {
+                                Err(format!("first seen a temporal value \"{}\" with timezone info whereas series did not have any until now", BStr::new($value)))?;
+                            } else {
+                                Err(format!("first seen a temporal value \"{}\" without timezone info whereas series had some any until now", BStr::new($value)))?;
+                            }
+                        }
+                    } else {
+                        has_timezone_opt = Some(current_has_timezone);
+                    }
+
+                    v
+                }
             }
         }};
     }
@@ -483,7 +516,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let x_cell = &record[x_column_index];
 
         let x = if args.flag_time {
-            try_parse_as_timestamp!(x_cell)
+            try_parse_as_seconds!(x_cell)
         } else {
             try_parse_as_float!(args.flag_x_scale, x_cell)
         };
@@ -846,7 +879,7 @@ fn is_int(float: f64) -> bool {
     float.fract() <= f64::EPSILON
 }
 
-fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
+fn parse_as_seconds(cell: &[u8]) -> Result<(bool, f64), CliError> {
     let err = || {
         Err(CliError::Other(format!(
             "could not parse \"{}\" as date!",
@@ -855,10 +888,14 @@ fn parse_as_timestamp(cell: &[u8]) -> Result<f64, CliError> {
     };
 
     match parse_fuzzy_temporal(cell, true) {
-        Ok(temporal) => match temporal.to_lower_bound_timestamp(TimeZone::system()) {
-            Ok(timestamp) => Ok(timestamp.as_duration().as_secs_f64()),
-            Err(_) => err(),
-        },
+        Ok(temporal) => {
+            let has_timezone = temporal.has_timezone();
+
+            match temporal.to_lower_bound_timestamp(TimeZone::system()) {
+                Ok(timestamp) => Ok((has_timezone, timestamp.as_duration().as_secs_f64())),
+                Err(_) => err(),
+            }
+        }
         Err(_) => err(),
     }
 }
