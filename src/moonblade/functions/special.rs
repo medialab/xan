@@ -73,7 +73,7 @@ pub fn get_special_function(
                 abstract_comptime_col(false, AbstractColReturnValue::Cell, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(false, AbstractColReturnValue::Cell, context, args)
+                abstract_runtime_col("col", false, AbstractColReturnValue::Cell, context, args)
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -82,7 +82,13 @@ pub fn get_special_function(
                 abstract_comptime_col(false, AbstractColReturnValue::Header, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(false, AbstractColReturnValue::Header, context, args)
+                abstract_runtime_col(
+                    "header",
+                    false,
+                    AbstractColReturnValue::Header,
+                    context,
+                    args,
+                )
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -91,7 +97,13 @@ pub fn get_special_function(
                 abstract_comptime_col(false, AbstractColReturnValue::Index, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(false, AbstractColReturnValue::Index, context, args)
+                abstract_runtime_col(
+                    "col_index",
+                    false,
+                    AbstractColReturnValue::Index,
+                    context,
+                    args,
+                )
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -100,7 +112,7 @@ pub fn get_special_function(
                 abstract_comptime_col(true, AbstractColReturnValue::Cell, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(true, AbstractColReturnValue::Cell, context, args)
+                abstract_runtime_col("col?", true, AbstractColReturnValue::Cell, context, args)
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -109,7 +121,13 @@ pub fn get_special_function(
                 abstract_comptime_col(true, AbstractColReturnValue::Header, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(true, AbstractColReturnValue::Header, context, args)
+                abstract_runtime_col(
+                    "header?",
+                    true,
+                    AbstractColReturnValue::Header,
+                    context,
+                    args,
+                )
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -118,7 +136,13 @@ pub fn get_special_function(
                 abstract_comptime_col(true, AbstractColReturnValue::Index, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_col(true, AbstractColReturnValue::Index, context, args)
+                abstract_runtime_col(
+                    "col_index?",
+                    true,
+                    AbstractColReturnValue::Index,
+                    context,
+                    args,
+                )
             }),
             FunctionArguments::with_range(1..=2),
         ),
@@ -132,7 +156,7 @@ pub fn get_special_function(
                 )
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_cols(AbstractColReturnValue::Cell, context, args, |i| {
+                abstract_runtime_cols("cols", AbstractColReturnValue::Cell, context, args, |i| {
                     DynamicValue::from(&context.record[i])
                 })
             }),
@@ -145,9 +169,13 @@ pub fn get_special_function(
                 })
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
-                abstract_runtime_cols(AbstractColReturnValue::Header, context, args, |i| {
-                    DynamicValue::from(&context.headers_index[i])
-                })
+                abstract_runtime_cols(
+                    "headers",
+                    AbstractColReturnValue::Header,
+                    context,
+                    args,
+                    |i| DynamicValue::from(&context.headers_index[i]),
+                )
             }),
             FunctionArguments::with_range(0..=2),
         ),
@@ -386,6 +414,7 @@ fn runtime_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> Evaluat
 }
 
 fn abstract_runtime_col(
+    fn_name: &'static str,
     unsure: bool,
     return_value: AbstractColReturnValue,
     context: &EvaluationContext,
@@ -403,10 +432,7 @@ fn abstract_runtime_col(
     };
 
     match ColumIndexationBy::from_bound_arguments(name_or_pos, pos) {
-        None => Err(SpecifiedEvaluationError::new(
-            "col",
-            EvaluationError::Custom("invalid arguments".to_string()),
-        )),
+        None => Err(EvaluationError::Custom("invalid arguments".to_string()).specify(fn_name)),
         Some(indexation) => {
             if indexation.has_name() && headers_index.is_headless() {
                 return Err(EvaluationError::ColumnNotFound(indexation, true).specify("col"));
@@ -417,13 +443,11 @@ fn abstract_runtime_col(
                     if unsure {
                         Ok(DynamicValue::None)
                     } else {
-                        Err(SpecifiedEvaluationError::new(
-                            "col",
-                            EvaluationError::ColumnNotFound(
-                                indexation,
-                                headers_index.is_headless(),
-                            ),
-                        ))
+                        Err(EvaluationError::ColumnNotFound(
+                            indexation,
+                            headers_index.is_headless(),
+                        )
+                        .specify(fn_name))
                     }
                 }
                 Some(index) => Ok(match return_value {
@@ -437,6 +461,7 @@ fn abstract_runtime_col(
 }
 
 fn abstract_runtime_cols<F>(
+    fn_name: &'static str,
     return_value: AbstractColReturnValue,
     context: &EvaluationContext,
     args: &[ConcreteExpr],
@@ -455,25 +480,22 @@ where
             let start_index_arg = args.first().unwrap().evaluate(context)?;
 
             match ColumIndexationBy::from_bound_arguments(start_index_arg, None) {
-                None => Err(SpecifiedEvaluationError::new(
-                    "col",
-                    EvaluationError::Custom("invalid arguments".to_string()),
-                )),
+                None => {
+                    Err(EvaluationError::Custom("invalid arguments".to_string()).specify(fn_name))
+                }
                 Some(indexation) => {
                     if indexation.has_name() && headers_index.is_headless() {
                         return Err(
-                            EvaluationError::ColumnNotFound(indexation, true).specify("col")
+                            EvaluationError::ColumnNotFound(indexation, true).specify(fn_name)
                         );
                     }
 
                     match headers_index.get(&indexation) {
-                        None => Err(SpecifiedEvaluationError::new(
-                            "col",
-                            EvaluationError::ColumnNotFound(
-                                indexation,
-                                headers_index.is_headless(),
-                            ),
-                        )),
+                        None => Err(EvaluationError::ColumnNotFound(
+                            indexation,
+                            headers_index.is_headless(),
+                        )
+                        .specify(fn_name)),
                         Some(index) => Ok(DynamicValue::from(
                             (index..headers_index.len()).map(map).collect::<Vec<_>>(),
                         )),
@@ -485,50 +507,44 @@ where
             let start_index_arg = args.first().unwrap().evaluate(context)?;
 
             match ColumIndexationBy::from_bound_arguments(start_index_arg, None) {
-                None => Err(SpecifiedEvaluationError::new(
-                    "col",
-                    EvaluationError::Custom("invalid arguments".to_string()),
-                )),
+                None => {
+                    Err(EvaluationError::Custom("invalid arguments".to_string()).specify(fn_name))
+                }
                 Some(start_indexation) => {
                     if start_indexation.has_name() && headers_index.is_headless() {
-                        return Err(
-                            EvaluationError::ColumnNotFound(start_indexation, true).specify("col")
-                        );
+                        return Err(EvaluationError::ColumnNotFound(start_indexation, true)
+                            .specify(fn_name));
                     }
 
                     match headers_index.get(&start_indexation) {
-                        None => Err(SpecifiedEvaluationError::new(
-                            "col",
-                            EvaluationError::ColumnNotFound(
-                                start_indexation,
-                                headers_index.is_headless(),
-                            ),
-                        )),
+                        None => Err(EvaluationError::ColumnNotFound(
+                            start_indexation,
+                            headers_index.is_headless(),
+                        )
+                        .specify(fn_name)),
                         Some(start_index) => {
                             let end_index_arg = args.last().unwrap().evaluate(context)?;
 
                             match ColumIndexationBy::from_bound_arguments(end_index_arg, None) {
-                                None => Err(SpecifiedEvaluationError::new(
-                                    "col",
-                                    EvaluationError::Custom("invalid arguments".to_string()),
-                                )),
+                                None => {
+                                    Err(EvaluationError::Custom("invalid arguments".to_string())
+                                        .specify(fn_name))
+                                }
                                 Some(end_indexation) => {
                                     if end_indexation.has_name() && headers_index.is_headless() {
                                         return Err(EvaluationError::ColumnNotFound(
                                             end_indexation,
                                             true,
                                         )
-                                        .specify("col"));
+                                        .specify(fn_name));
                                     }
 
                                     match headers_index.get(&end_indexation) {
-                                        None => Err(SpecifiedEvaluationError::new(
-                                            "col",
-                                            EvaluationError::ColumnNotFound(
-                                                end_indexation,
-                                                headers_index.is_headless(),
-                                            ),
-                                        )),
+                                        None => Err(EvaluationError::ColumnNotFound(
+                                            end_indexation,
+                                            headers_index.is_headless(),
+                                        )
+                                        .specify(fn_name)),
                                         Some(end_index) => {
                                             let range: Vec<_> = if start_index > end_index {
                                                 (end_index..=start_index).map(map).rev().collect()
