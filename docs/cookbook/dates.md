@@ -444,3 +444,28 @@ xan map 'fractional_days(start, now()) as nb_days_since_start' spans.csv | xan v
 | 2022-07-01T13:50:02+00:00[UTC] | 2022-07-01T14:07:58+00:00[UTC] | 1370.8582564792423  |
 | 2022-07-01T14:07:11+00:00[UTC] | 2022-07-02T06:35:08+00:00[UTC] | 1370.8463467572046  |
 | 2022-07-01T14:07:38+00:00[UTC] | 2022-07-02T09:20:20+00:00[UTC] | 1370.84603425734    |
+
+### span()
+The `span()` function allows you to parse a duration written in a "human friendly" way, such as "3 days, 4 hours, 59 minutes", or "3d4h59m". The supported formats are presented [here](https://docs.rs/jiff/latest/jiff/struct.Span.html#parsing-and-printing).
+Using a combination of `now()` and `span()`, one can easily find all dates within the last 24 hours. For example, given the following file:
+
+| timestamp_utc      | message |
+| ------------------ | ------- |
+| 1775121985.2887404 | a       |
+| 1775121957.0816143 | b       |
+| 1775120084.931692  | c       |
+| 1775118286.7556427 | d       |
+| 1775118167.2774422 | e       |
+| 1775118167.275305  | f       |
+
+```bash
+xan filter 'from_timestamp(timestamp_utc) < now() - span("24 hours")' logs.csv
+```
+gave the following output (provided that you ran it on 2026-04-03T08:59:28+00:00[UTC]):
+
+| timestamp_utc      | message |
+| ------------------ | ------- |
+| 1775120084.931692  | c       |
+| 1775118286.7556427 | d       |
+| 1775118167.2774422 | e       |
+| 1775118167.275305  | f       |
