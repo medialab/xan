@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use bstr::BStr;
+
 use super::parser::ParseError;
 use super::types::{Arity, ColumIndexationBy, DynamicValue};
 
@@ -8,10 +10,10 @@ fn format_column_indexation_error(
     indexation: &ColumIndexationBy,
 ) -> std::fmt::Result {
     match indexation {
-        ColumIndexationBy::Name(name) => write!(f, "cannot find column \"{}\"", name),
+        ColumIndexationBy::Name(name) => write!(f, "cannot find column \"{}\"", BStr::new(name)),
         ColumIndexationBy::Pos(pos) => write!(f, "column {} out of range", pos),
         ColumIndexationBy::NameAndNth(name, nth) => {
-            write!(f, "cannot find column (\"{}\", {})", name, nth)
+            write!(f, "cannot find column (\"{}\", {})", BStr::new(name), nth)
         }
     }
 }

@@ -645,7 +645,7 @@ pub fn concretize_expression(
                 }
             }
 
-            let indexation = ColumIndexationBy::Name(name);
+            let indexation = ColumIndexationBy::Name(name.into_bytes());
 
             match headers_index.get(&indexation) {
                 Some(index) => ConcreteExpr::Column(index),
@@ -1193,7 +1193,7 @@ mod tests {
         assert_eq!(
             eval_code("col('surname', 1)"),
             Err(RunError::Prepare(ConcretizationError::ColumnNotFound(
-                ColumIndexationBy::NameAndNth("surname".to_string(), 1)
+                ColumIndexationBy::NameAndNth(b"surname".to_vec(), 1)
             )))
         );
         assert_eq!(eval_code("col(concat('sur', 'name'))"), Ok(b("SMITH")));
