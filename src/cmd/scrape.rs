@@ -844,7 +844,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 .as_ref()
                 .map(|code| -> CliResult<CustomScraper> {
                     Ok(CustomScraper {
-                        program: ScrapingProgram::parse(code, &headers)?,
+                        program: ScrapingProgram::parse(code, &headers, conf.no_headers)?,
                         foreach: None,
                     })
                 })
@@ -856,7 +856,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Scraper::Images(url_column_index)
     } else {
         Scraper::Custom(CustomScraper {
-            program: ScrapingProgram::parse(args.flag_evaluate.as_ref().unwrap(), &headers)?,
+            program: ScrapingProgram::parse(
+                args.flag_evaluate.as_ref().unwrap(),
+                &headers,
+                conf.no_headers,
+            )?,
             foreach: args
                 .flag_foreach
                 .as_ref()

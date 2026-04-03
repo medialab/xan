@@ -236,7 +236,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut total_program_opt = args
         .flag_total
         .as_ref()
-        .map(|total| AggregationProgram::parse(total, headers))
+        .map(|total| AggregationProgram::parse(total, headers, rconf.no_headers))
         .transpose()?;
 
     // --along-cols
@@ -255,6 +255,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut program = GroupAlongColumnsAggregationProgram::parse(
             &args.arg_expression,
             headers,
+            rconf.no_headers,
             pivot_sel.len(),
         )?;
 
@@ -306,8 +307,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut matrix_sel = selection.selection(headers, !rconf.no_headers)?;
         matrix_sel.sort_and_dedup();
 
-        let mut program =
-            GroupAggregationProgram::<ByteRecord>::parse(&args.arg_expression, headers)?;
+        let mut program = GroupAggregationProgram::<ByteRecord>::parse(
+            &args.arg_expression,
+            headers,
+            rconf.no_headers,
+        )?;
 
         if !rconf.no_headers {
             wtr.write_record(sel.select(headers).chain(program.headers()))?;
@@ -364,7 +368,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("-T/--total cannot work with -S/--sorted!")?;
         }
 
-        let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
+        let mut program =
+            AggregationProgram::parse(&args.arg_expression, headers, rconf.no_headers)?;
         let mut current: Option<ByteRecord> = None;
 
         if !rconf.no_headers {
@@ -400,7 +405,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_record(current_group.iter().chain(&program.finalize(false)?))?;
         }
     } else {
-        let mut program = GroupAggregationProgram::parse(&args.arg_expression, headers)?;
+        let mut program =
+            GroupAggregationProgram::parse(&args.arg_expression, headers, rconf.no_headers)?;
 
         if !rconf.no_headers {
             if let Some(total_program) = &total_program_opt {

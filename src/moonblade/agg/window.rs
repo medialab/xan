@@ -785,8 +785,12 @@ pub struct WindowAggregationProgram {
 }
 
 impl WindowAggregationProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
         let aggs = concretize_window_aggregations(code, &headers_index)?;
 
         let (max_past, max_future) = find_buffer_extent(&aggs);

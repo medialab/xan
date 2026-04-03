@@ -298,7 +298,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .as_ref()
         .map(|expr| {
             GLOBALS.with_borrow(|globals| {
-                Program::parse_with_globals(&format!("token | {}", expr), &headers, globals)
+                Program::parse_with_globals(
+                    &format!("token | {}", expr),
+                    &headers,
+                    rconfig.no_headers,
+                    globals,
+                )
             })
         })
         .transpose()?;

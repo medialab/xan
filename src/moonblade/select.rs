@@ -14,8 +14,12 @@ pub struct SelectionProgram {
 }
 
 impl SelectionProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
         let mut mask = vec![None; headers.len()];
         let mut rest = vec![];
 

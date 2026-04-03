@@ -572,7 +572,7 @@ fn parse_selector(concrete_expr: ConcreteExpr) -> Result<Selector, Concretizatio
 }
 
 fn parse_contains_pattern(expr: Expr) -> Result<Pattern, ConcretizationError> {
-    let concrete_expr = concretize_expression(expr, &HeadersIndex::empty(), None)?;
+    let concrete_expr = concretize_expression(expr, &HeadersIndex::default(), None)?;
     let value = concrete_expr.try_unwrap()?;
 
     if let DynamicValue::Regex(regex) = value {
@@ -770,8 +770,12 @@ pub struct ScrapingProgram {
 }
 
 impl ScrapingProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
         let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
 
         let concrete_scraper =
@@ -841,7 +845,7 @@ mod tests {
 
     fn eval(html: &str, code: &str) -> Result<Vec<DynamicValue>, SpecifiedEvaluationError> {
         let html = Html::parse_document(html);
-        let program = ScrapingProgram::parse(code, &ByteRecord::new()).unwrap();
+        let program = ScrapingProgram::parse(code, &ByteRecord::new(), true).unwrap();
         program.run_singular(0, &ByteRecord::new(), &html)
     }
 
@@ -879,7 +883,7 @@ mod tests {
                 }",
             )
             .unwrap(),
-            &HeadersIndex::empty(),
+            &HeadersIndex::default(),
             None,
         )
         .unwrap();

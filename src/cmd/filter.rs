@@ -111,7 +111,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
-    let program = Program::parse(&args.arg_expression, &headers)?;
+    let program = Program::parse(&args.arg_expression, &headers, rconf.no_headers)?;
     let mut matches: usize = 0;
 
     if let Some(threads) = parallelization {

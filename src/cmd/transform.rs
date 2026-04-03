@@ -121,7 +121,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let programs = sel
         .iter()
-        .map(|i| Program::parse(&format!("col({}) | {}", i, &args.arg_expression), &headers))
+        .map(|i| {
+            Program::parse(
+                &format!("col({}) | {}", i, &args.arg_expression),
+                &headers,
+                rconf.no_headers,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     if !rconf.no_headers {

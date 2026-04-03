@@ -65,22 +65,31 @@ impl ColumIndexationBy {
     }
 }
 
+// NOTE: `mapping` could be a sorted (key, index) list we access using binary search
 #[derive(Debug, Clone, Default)]
 pub struct HeadersIndex {
     headers: Vec<Vec<u8>>,
     mapping: BTreeMap<Vec<u8>, Vec<usize>>,
+    headless: bool,
 }
 
 impl HeadersIndex {
-    pub fn empty() -> Self {
-        Self::default()
+    pub fn empty(headless: bool) -> Self {
+        Self {
+            headless,
+            ..Default::default()
+        }
     }
 
-    pub fn new<'a>(headers: impl IntoIterator<Item = &'a [u8]>) -> Self {
-        let mut index = Self::empty();
+    pub fn new<'a>(headers: impl IntoIterator<Item = &'a [u8]>, headless: bool) -> Self {
+        let mut index = Self::empty(headless);
 
         for (i, header) in headers.into_iter().enumerate() {
             index.headers.push(header.to_vec());
+
+            if headless {
+                continue;
+            }
 
             match index.mapping.entry(header.to_vec()) {
                 Entry::Vacant(entry) => {

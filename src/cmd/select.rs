@@ -169,7 +169,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let headers = rdr.byte_headers()?.clone();
 
-        let program = SelectionProgram::parse(&args.arg_selection, &headers)?;
+        let program = SelectionProgram::parse(&args.arg_selection, &headers, rconfig.no_headers)?;
 
         if !rconfig.no_headers {
             wtr.write_record(program.headers())?;

@@ -726,8 +726,12 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
 
         let expr = match parse_expression(code) {
             Err(err) => return Err(ConcretizationError::ParseError(err)),
@@ -743,9 +747,10 @@ impl Program {
     pub fn parse_with_globals(
         code: &str,
         headers: &ByteRecord,
+        headless: bool,
         globals: &GlobalVariables,
     ) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+        let headers_index = HeadersIndex::new(headers, headless);
 
         let expr = match parse_expression(code) {
             Err(err) => return Err(ConcretizationError::ParseError(err)),
@@ -836,7 +841,7 @@ mod tests {
         headers.push_field(b"a");
         headers.push_field(b"b");
 
-        let program = Program::parse(code, &headers)?;
+        let program = Program::parse(code, &headers, false)?;
 
         Ok(program.expr)
     }
@@ -848,7 +853,7 @@ mod tests {
         headers.push_field(b"a");
         headers.push_field(b"b");
 
-        let program = Program::parse(code, &headers).map_err(RunError::Prepare)?;
+        let program = Program::parse(code, &headers, false).map_err(RunError::Prepare)?;
 
         let mut record = ByteRecord::new();
         record.push_field(b"john");

@@ -150,7 +150,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
 
-    let program = SelectionProgram::parse(&args.arg_expression, &headers)?;
+    let program = SelectionProgram::parse(&args.arg_expression, &headers, rconf.no_headers)?;
 
     if args.flag_overwrite && program.has_any_plural_expr() {
         Err("-O/--overwrite does not work with clauses yielding multiple columns yet!")?;

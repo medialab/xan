@@ -250,7 +250,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
     let headers = rdr.byte_headers()?;
 
-    let mut program = AggregationProgram::parse(&args.arg_expression, headers)?;
+    let mut program = AggregationProgram::parse(&args.arg_expression, headers, rconf.no_headers)?;
 
     // --along-rows
     if let Some(cols) = &args.flag_along_rows {

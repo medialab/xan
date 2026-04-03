@@ -11,7 +11,11 @@ pub struct ChooseProgram {
 }
 
 impl ChooseProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
         let mut full_headers = ByteRecord::new();
 
         for h in headers.iter() {
@@ -23,7 +27,7 @@ impl ChooseProgram {
 
         Ok(Self {
             header_len: headers.len(),
-            program: Program::parse(code, &full_headers)?,
+            program: Program::parse(code, &full_headers, headless)?,
             full_buffer: ByteRecord::new(),
         })
     }

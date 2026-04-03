@@ -154,7 +154,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         args.arg_expression = format!("col({}) | {}", i, &args.arg_expression);
     }
 
-    let program = Program::parse(&args.arg_expression, &headers)?;
+    let program = Program::parse(&args.arg_expression, &headers, rconf.no_headers)?;
 
     if !rconf.no_headers {
         let output_headers = if let Some(i) = replaced_index_opt {

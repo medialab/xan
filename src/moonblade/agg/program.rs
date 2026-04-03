@@ -1202,8 +1202,12 @@ impl AggregationProgram {
         }
     }
 
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
 
         let concrete_aggregations = prepare(code, &headers_index)?;
         Ok(Self::from_concrete_aggregations(
@@ -1300,8 +1304,12 @@ pub struct GroupAggregationProgram<K> {
 }
 
 impl<K: Eq + Hash> GroupAggregationProgram<K> {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
         let concrete_aggregations = prepare(code, &headers_index)?;
         let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
@@ -1317,7 +1325,7 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
     }
 
     pub fn parse_without_headers(code: &str) -> Result<Self, ConcretizationError> {
-        Self::parse(code, &ByteRecord::new())
+        Self::parse(code, &ByteRecord::new(), true)
     }
 
     pub fn len(&self) -> usize {
@@ -1493,8 +1501,12 @@ pub struct PivotAggregationProgram {
 }
 
 impl PivotAggregationProgram {
-    pub fn parse(code: &str, headers: &ByteRecord) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+    pub fn parse(
+        code: &str,
+        headers: &ByteRecord,
+        headless: bool,
+    ) -> Result<Self, ConcretizationError> {
+        let headers_index = HeadersIndex::new(headers, headless);
         let concrete_aggregations = prepare(code, &headers_index)?;
 
         if concrete_aggregations.len() != 1 {
@@ -1608,9 +1620,10 @@ impl GroupAlongColumnsAggregationProgram {
     pub fn parse(
         code: &str,
         headers: &ByteRecord,
+        headless: bool,
         cols: usize,
     ) -> Result<Self, ConcretizationError> {
-        let headers_index = HeadersIndex::new(headers);
+        let headers_index = HeadersIndex::new(headers, headless);
         let concrete_aggregations = prepare(code, &headers_index)?;
 
         if concrete_aggregations.len() != 1 {

@@ -296,7 +296,7 @@ impl Args {
         }
 
         let mut record = simd_csv::ByteRecord::new();
-        let mut conditions = self.conditions(&headers)?;
+        let mut conditions = self.conditions(&headers, no_headers)?;
 
         let (start, end) = self.range()?;
         let mut record_index: usize = 0;
@@ -451,17 +451,17 @@ impl Args {
         Config::new(&self.flag_output)
     }
 
-    fn conditions(&self, headers: &simd_csv::ByteRecord) -> CliResult<Conditions> {
+    fn conditions(&self, headers: &simd_csv::ByteRecord, headless: bool) -> CliResult<Conditions> {
         let start_condition_program = self
             .flag_start_condition
             .as_ref()
-            .map(|expr| Program::parse(expr, headers))
+            .map(|expr| Program::parse(expr, headers, headless))
             .transpose()?;
 
         let end_condition_program = self
             .flag_end_condition
             .as_ref()
-            .map(|expr| Program::parse(expr, headers))
+            .map(|expr| Program::parse(expr, headers, headless))
             .transpose()?;
 
         Ok(Conditions {

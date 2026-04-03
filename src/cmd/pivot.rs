@@ -124,7 +124,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?.clone();
     let pivot_sel = rconf.selection(&headers)?;
-    let mut program = PivotAggregationProgram::parse(&arg_expr, &headers)?;
+    let mut program = PivotAggregationProgram::parse(&arg_expr, &headers, rconf.no_headers)?;
 
     let column_indices_used_in_aggregation = program.used_column_indices();
 

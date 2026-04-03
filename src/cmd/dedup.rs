@@ -445,7 +445,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         (false, DedupMode::Choose(expr)) => {
             let mut map: IndexMap<ByteRecord, ByteRecord, RandomState> =
                 IndexMap::with_hasher(RandomState::new());
-            let mut program = ChooseProgram::parse(&expr, &headers)?;
+            let mut program = ChooseProgram::parse(&expr, &headers, rconf.no_headers)?;
             let mut record = ByteRecord::new();
             let mut index: usize = 0;
 
@@ -477,7 +477,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Sorted choose
         (true, DedupMode::Choose(expr)) => {
             let mut current_opt: Option<(ByteRecord, ByteRecord)> = None;
-            let mut program = ChooseProgram::parse(&expr, &headers)?;
+            let mut program = ChooseProgram::parse(&expr, &headers, rconf.no_headers)?;
             let mut record = ByteRecord::new();
             let mut index: usize = 0;
 

@@ -45,7 +45,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let program = Program::parse(&args.arg_expr, &dummy_headers)?;
+    let program = Program::parse(&args.arg_expr, &dummy_headers, false)?;
 
     if args.flag_explain {
         writeln!(&mut out, "{}", "concrete plan".cyan())?;

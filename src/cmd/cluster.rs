@@ -57,7 +57,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         None => format!("col({})", sel_index),
     };
 
-    let program = Program::parse(&key_expr, headers)?;
+    let program = Program::parse(&key_expr, headers, rconf.no_headers)?;
     let mut clustering: Box<dyn ClusteringAlgorithm> = Box::<KeyCollision>::default();
 
     let mut record = simd_csv::ByteRecord::new();

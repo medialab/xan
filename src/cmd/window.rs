@@ -105,7 +105,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut writer = Config::new(&args.flag_output).simd_writer()?;
 
     let headers = reader.byte_headers()?.clone();
-    let mut program = WindowAggregationProgram::parse(&args.arg_expression, &headers)?;
+    let mut program =
+        WindowAggregationProgram::parse(&args.arg_expression, &headers, conf.no_headers)?;
 
     let groupby_sel_opt = args
         .flag_groupby
