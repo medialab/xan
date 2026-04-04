@@ -249,6 +249,12 @@ impl Display for EvaluationError {
     }
 }
 
+impl From<jiff::Error> for EvaluationError {
+    fn from(value: jiff::Error) -> Self {
+        Self::TimeRelated(value.to_string())
+    }
+}
+
 #[cfg(test)]
 #[derive(Debug, PartialEq)]
 pub enum RunError {

@@ -454,18 +454,18 @@ pub enum CliError {
 impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            CliError::Flag(ref e) => e.fmt(f),
-            CliError::Csv(ref e) => e.fmt(f),
-            CliError::SimdCsv(ref e) => e.fmt(f),
-            CliError::Io(ref e) => e.fmt(f),
-            CliError::Other(ref s) => f.write_str(s),
-            CliError::Help(ref s, _) => f.write_str(s),
+            Self::Flag(ref e) => e.fmt(f),
+            Self::Csv(ref e) => e.fmt(f),
+            Self::SimdCsv(ref e) => e.fmt(f),
+            Self::Io(ref e) => e.fmt(f),
+            Self::Other(ref s) => f.write_str(s),
+            Self::Help(ref s, _) => f.write_str(s),
         }
     }
 }
 
 impl From<docopt::Error> for CliError {
-    fn from(err: docopt::Error) -> CliError {
+    fn from(err: docopt::Error) -> Self {
         match err {
             docopt::Error::WithProgramUsage(kind, usage) => {
                 let usage = util::colorize_help(&usage);
@@ -480,29 +480,29 @@ impl From<docopt::Error> for CliError {
                 };
 
                 match kind.as_ref() {
-                    docopt::Error::Help => CliError::Help(usage, 0),
+                    docopt::Error::Help => Self::Help(usage, 0),
                     docopt::Error::NoMatch => {
-                        CliError::Help(format_error_msg("Invalid subcommand or arguments!"), 1)
+                        Self::Help(format_error_msg("Invalid subcommand or arguments!"), 1)
                     }
-                    docopt::Error::Argv(msg) => CliError::Help(format_error_msg(msg), 1),
-                    _ => CliError::Help(format_error_msg("Invalid arguments!"), 1),
+                    docopt::Error::Argv(msg) => Self::Help(format_error_msg(msg), 1),
+                    _ => Self::Help(format_error_msg("Invalid arguments!"), 1),
                 }
             }
-            _ => CliError::Flag(err),
+            _ => Self::Flag(err),
         }
     }
 }
 
 impl From<Utf8Error> for CliError {
     fn from(value: Utf8Error) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
 
 impl From<csv::Error> for CliError {
-    fn from(err: csv::Error) -> CliError {
+    fn from(err: csv::Error) -> Self {
         if !err.is_io_error() {
-            return CliError::Csv(err);
+            return Self::Csv(err);
         }
         match err.into_kind() {
             csv::ErrorKind::Io(v) => From::from(v),
@@ -514,7 +514,7 @@ impl From<csv::Error> for CliError {
 impl From<simd_csv::Error> for CliError {
     fn from(err: simd_csv::Error) -> Self {
         if !err.is_io_error() {
-            return CliError::SimdCsv(err);
+            return Self::SimdCsv(err);
         }
         match err.into_kind() {
             simd_csv::ErrorKind::Io(v) => From::from(v),
@@ -524,30 +524,30 @@ impl From<simd_csv::Error> for CliError {
 }
 
 impl From<io::Error> for CliError {
-    fn from(err: io::Error) -> CliError {
-        CliError::Io(err)
+    fn from(err: io::Error) -> Self {
+        Self::Io(err)
     }
 }
 
 impl From<String> for CliError {
-    fn from(err: String) -> CliError {
-        CliError::Other(err)
+    fn from(err: String) -> Self {
+        Self::Other(err)
     }
 }
 
 impl<'a> From<&'a str> for CliError {
-    fn from(err: &'a str) -> CliError {
-        CliError::Other(err.to_owned())
+    fn from(err: &'a str) -> Self {
+        Self::Other(err.to_owned())
     }
 }
 
 impl From<regex::Error> for CliError {
-    fn from(err: regex::Error) -> CliError {
+    fn from(err: regex::Error) -> Self {
         match err {
             regex::Error::CompiledTooBig(size) => {
-                CliError::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.", size))
+                Self::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.", size))
             }
-            _ => CliError::Other(format!("{:?}", err)),
+            _ => Self::Other(format!("{:?}", err)),
         }
     }
 }
@@ -555,82 +555,82 @@ impl From<regex::Error> for CliError {
 impl From<regex_automata::meta::BuildError> for CliError {
     fn from(err: regex_automata::meta::BuildError) -> Self {
         if let Some(size) = err.size_limit() {
-            CliError::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.", size))
+            Self::Other(format!("attempted to create too large a regex ({} bytes)! regexes are probably not the answer here, sorry :'(.", size))
         } else {
-            CliError::Other(format!("{:?}", err))
+            Self::Other(format!("{:?}", err))
         }
     }
 }
 
 impl From<aho_corasick::BuildError> for CliError {
     fn from(err: aho_corasick::BuildError) -> Self {
-        CliError::Other(err.to_string())
+        Self::Other(err.to_string())
     }
 }
 
 impl From<calamine::Error> for CliError {
     fn from(err: calamine::Error) -> Self {
-        CliError::Other(err.to_string())
+        Self::Other(err.to_string())
     }
 }
 
 impl From<moonblade::ConcretizationError> for CliError {
-    fn from(err: moonblade::ConcretizationError) -> CliError {
-        CliError::Other(err.to_string())
+    fn from(err: moonblade::ConcretizationError) -> Self {
+        Self::Other(err.to_string())
     }
 }
 
 impl From<moonblade::EvaluationError> for CliError {
-    fn from(err: moonblade::EvaluationError) -> CliError {
-        CliError::Other(err.to_string())
+    fn from(err: moonblade::EvaluationError) -> Self {
+        Self::Other(err.to_string())
     }
 }
 
 impl From<moonblade::SpecifiedEvaluationError> for CliError {
-    fn from(err: moonblade::SpecifiedEvaluationError) -> CliError {
-        CliError::Other(err.to_string())
+    fn from(err: moonblade::SpecifiedEvaluationError) -> Self {
+        Self::Other(err.to_string())
     }
 }
 
 impl From<glob::GlobError> for CliError {
     fn from(err: glob::GlobError) -> Self {
-        CliError::Other(err.to_string())
+        Self::Other(err.to_string())
     }
 }
 
 impl From<glob::PatternError> for CliError {
     fn from(err: glob::PatternError) -> Self {
-        CliError::Other(err.to_string())
+        Self::Other(err.to_string())
     }
 }
 
 impl From<transient_btree_index::Error> for CliError {
     fn from(value: transient_btree_index::Error) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
 
 impl From<rust_xlsxwriter::XlsxError> for CliError {
     fn from(value: rust_xlsxwriter::XlsxError) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
 
 impl From<serde_json::Error> for CliError {
     fn from(value: serde_json::Error) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
 
 impl From<simd_json::Error> for CliError {
     fn from(value: simd_json::Error) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
 
 impl From<url::ParseError> for CliError {
     fn from(value: url::ParseError) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
 
@@ -638,13 +638,13 @@ impl From<bgzip::BGZFError> for CliError {
     fn from(value: bgzip::BGZFError) -> Self {
         match value {
             bgzip::BGZFError::IoError(err) => From::from(err),
-            _ => CliError::Other(value.to_string()),
+            _ => Self::Other(value.to_string()),
         }
     }
 }
 
 impl From<jiff::Error> for CliError {
     fn from(value: jiff::Error) -> Self {
-        CliError::Other(value.to_string())
+        Self::Other(value.to_string())
     }
 }
