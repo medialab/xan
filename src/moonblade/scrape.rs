@@ -860,10 +860,10 @@ mod tests {
         let html = Html::parse_document("<ul><li>one</li><li>two</li><li>three</li></ul>");
         assert_eq!(html.root_element().collect_text(), "one\n\ntwo\n\nthree");
 
-        let the_worst_html =
-            Html::parse_document(include_str!("../../tests/resources/the_worst.html"));
+        // let the_worst_html =
+        //     Html::parse_document(include_str!("../../tests/resources/the_worst.html"));
 
-        dbg!(the_worst_html.root_element().collect_text());
+        // dbg!(the_worst_html.root_element().collect_text());
     }
 
     #[test]

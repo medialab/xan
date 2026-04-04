@@ -32,6 +32,7 @@
 * Adding `xan separate --trim`.
 * Adding `xan grep -B/--before-context & -A/--after-context`.
 * Adding `xan network -f=components, -S/--simple, --union-find, --minify & --sample-size <n>`.
+* Adding `xan plot --timezone`.
 
 *Fixes*
 

@@ -122,6 +122,9 @@ plot options:
                                colors, even when the output could not handle them.
                                [default: auto]
     -i, --ignore               Ignore values that cannot be correctly parsed.
+    --timezone <name>          Timezone used to discretize time series as well as used to
+                               format x axis ticks. Is only relevant when given values
+                               have timezone information. Defaults to system's timezone.
 
 Common options:
     -h, --help             Display this message

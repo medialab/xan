@@ -1,6 +1,7 @@
 // Issue tracking:
 //  - https://github.com/ratatui/ratatui/issues/334
 //  - https://github.com/ratatui/ratatui/issues/1391
+//  - https://github.com/medialab/xan/issues/942
 use std::convert::TryFrom;
 use std::io::{stderr, stdout, Write};
 use std::num::NonZeroUsize;
@@ -8,7 +9,7 @@ use std::num::NonZeroUsize;
 use ahash::RandomState;
 use bstr::BStr;
 use indexmap::IndexMap;
-use jiff::{tz::TimeZone, SignedDuration, Timestamp, TimestampRound, Unit, Zoned, ZonedRound};
+use jiff::{tz::TimeZone, SignedDuration, Timestamp, Unit, Zoned, ZonedRound};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -22,7 +23,7 @@ use crate::moonblade::GroupAggregationProgram;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
-use crate::temporal::{infer_temporal_granularity, parse_fuzzy_temporal};
+use crate::temporal::{infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg};
 use crate::util::{self, ColorMode};
 use crate::{CliError, CliResult};
 
@@ -200,6 +201,9 @@ plot options:
                                colors, even when the output could not handle them.
                                [default: auto]
     -i, --ignore               Ignore values that cannot be correctly parsed.
+    --timezone <name>          Timezone used to discretize time series as well as used to
+                               format x axis ticks. Is only relevant when given values
+                               have timezone information. Defaults to system's timezone.
 
 Common options:
     -h, --help             Display this message
@@ -241,21 +245,31 @@ struct Args {
     flag_y_scale: ScaleType,
     flag_color: ColorMode,
     flag_ignore: bool,
+    flag_timezone: Option<TimeZoneArg>,
 }
 
 impl Args {
+    fn timezone(&self) -> TimeZone {
+        self.flag_timezone
+            .clone()
+            .map(TimeZoneArg::into_inner)
+            .unwrap_or(TimeZone::system())
+    }
+
     fn parse_x_bounds(&self) -> CliResult<(Option<bool>, Option<f64>, Option<f64>)> {
         if self.flag_time {
+            let timezone = self.timezone();
+
             let x_min_info = self
                 .flag_x_min
                 .as_ref()
-                .map(|cell| parse_as_seconds(cell.as_bytes()))
+                .map(|cell| parse_as_seconds(cell.as_bytes(), timezone.clone()))
                 .transpose()?;
 
             let x_max_info = self
                 .flag_x_max
                 .as_ref()
-                .map(|cell| parse_as_seconds(cell.as_bytes()))
+                .map(|cell| parse_as_seconds(cell.as_bytes(), timezone))
                 .transpose()?;
 
             if let (Some(x_min_has_timezone), Some(x_max_has_timezone)) = (x_min_info, x_max_info) {
@@ -352,6 +366,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if matches!(args.flag_y_ticks, Some(n) if n.get() < 2) {
         Err("--y-ticks must be > 1!")?;
     }
+
+    let timezone = args.timezone();
 
     // Collecting data
     let mut rdr = rconf.simd_reader()?;
@@ -485,7 +501,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! try_parse_as_seconds {
         ($value: expr) => {{
-            match parse_as_seconds($value) {
+            match parse_as_seconds($value, timezone.clone()) {
                 Err(e) => {
                     if args.flag_ignore {
                         continue;
@@ -563,13 +579,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(());
     }
 
+    let actual_timezone = if matches!(has_timezone_opt, Some(true)) {
+        timezone.clone()
+    } else {
+        TimeZone::UTC
+    };
+
     let mut finalized_series = series_builder.into_finalized_series();
 
     for (_, series) in finalized_series.iter_mut() {
         if args.flag_time {
+            if args.flag_timezone.is_some() && matches!(has_timezone_opt, Some(false)) {
+                Err("--timezone cannot be used when given time series is civil, i.e. has no timezone info whatsoever!")?;
+            }
+
             series.mark_as_temporal(
                 args.flag_granularity.map(|g| g.into_inner()),
                 args.flag_aggregate.as_deref().unwrap_or("sum(_)"),
+                actual_timezone.clone(),
             )?;
         }
 
@@ -636,6 +663,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let (x_axis_info, y_axis_info) = AxisInfo::from_multiple_series(
                     (args.flag_x_scale, args.flag_y_scale),
                     finalized_series.iter(),
+                    actual_timezone.clone(),
                 );
 
                 let finalized_floats = finalized_series
@@ -742,6 +770,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let (harmonized_x_axis_info, harmonized_y_axis_info) = AxisInfo::from_multiple_series(
                 (args.flag_x_scale, args.flag_y_scale),
                 finalized_series.iter(),
+                actual_timezone.clone(),
             );
 
             for finalized_series_column in finalized_series.chunks(grid_cols) {
@@ -772,6 +801,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let (mut x_axis_info, mut y_axis_info) = AxisInfo::from_single_series(
                             (args.flag_x_scale, args.flag_y_scale),
                             single_finalized_series,
+                            actual_timezone.clone(),
                         );
 
                         if share_x_scale {
@@ -879,7 +909,7 @@ fn is_int(float: f64) -> bool {
     float.fract() <= f64::EPSILON
 }
 
-fn parse_as_seconds(cell: &[u8]) -> Result<(bool, f64), CliError> {
+fn parse_as_seconds(cell: &[u8], timezone: TimeZone) -> Result<(bool, f64), CliError> {
     let err = || {
         Err(CliError::Other(format!(
             "could not parse \"{}\" as date!",
@@ -891,7 +921,7 @@ fn parse_as_seconds(cell: &[u8]) -> Result<(bool, f64), CliError> {
         Ok(temporal) => {
             let has_timezone = temporal.has_timezone();
 
-            match temporal.to_lower_bound_timestamp(TimeZone::system()) {
+            match temporal.to_lower_bound_timestamp(timezone) {
                 Ok(timestamp) => Ok((has_timezone, timestamp.as_duration().as_secs_f64())),
                 Err(_) => err(),
             }
@@ -909,22 +939,20 @@ fn parse_as_float(cell: &[u8]) -> Result<f64, CliError> {
     })
 }
 
-fn float_to_timestamp(float: f64) -> Timestamp {
-    let duration = SignedDuration::from_secs_f64(float);
+fn seconds_to_timestamp(seconds: f64) -> Timestamp {
+    let duration = SignedDuration::from_secs_f64(seconds);
     Timestamp::from_duration(duration).unwrap()
 }
 
-fn float_to_zoned(float: f64) -> Zoned {
-    float_to_timestamp(float).to_zoned(TimeZone::UTC)
+fn seconds_to_zoned(seconds: f64, timezone: TimeZone) -> Zoned {
+    seconds_to_timestamp(seconds).to_zoned(timezone)
 }
 
-fn floor_timestamp(seconds: f64, unit: Unit) -> i64 {
-    let timestamp = float_to_timestamp(seconds);
+fn floor_timestamp_wrt_timezone(seconds: f64, unit: Unit, timezone: TimeZone) -> i64 {
+    let mut zoned = seconds_to_zoned(seconds, timezone);
 
     match unit {
         Unit::Year | Unit::Month => {
-            let mut zoned = timestamp.to_zoned(TimeZone::UTC);
-
             zoned = if unit == Unit::Year {
                 zoned.start_of_day().unwrap().first_of_year().unwrap()
             } else {
@@ -933,16 +961,10 @@ fn floor_timestamp(seconds: f64, unit: Unit) -> i64 {
 
             zoned.timestamp().as_microsecond()
         }
-        Unit::Day => {
-            let mut zoned = timestamp.to_zoned(TimeZone::UTC);
-
-            zoned = zoned.round(ZonedRound::new().smallest(unit)).unwrap();
-
-            zoned.timestamp().as_microsecond()
-        }
-        _ => timestamp
-            .round(TimestampRound::new().smallest(unit))
+        _ => zoned
+            .round(ZonedRound::new().smallest(unit))
             .unwrap()
+            .timestamp()
             .as_microsecond(),
     }
 }
@@ -991,13 +1013,15 @@ impl AxisInfo {
     fn from_single_series(
         scale_types: (ScaleType, ScaleType),
         series: &(Option<String>, Series),
+        timezone: TimeZone,
     ) -> (AxisInfo, AxisInfo) {
-        Self::from_multiple_series(scale_types, std::iter::once(series))
+        Self::from_multiple_series(scale_types, std::iter::once(series), timezone)
     }
 
     fn from_multiple_series<'a>(
         scale_types: (ScaleType, ScaleType),
         mut series: impl Iterator<Item = &'a (Option<String>, Series)>,
+        timezone: TimeZone,
     ) -> (AxisInfo, AxisInfo) {
         let first_series = &series.next().unwrap().1;
         let mut x_domain = first_series.x_domain().unwrap();
@@ -1040,7 +1064,7 @@ impl AxisInfo {
         y_domain = fix_flat_domain(y_domain, y_axis_type);
 
         let x_scale = if let AxisType::Timestamp(unit) = x_axis_type {
-            Scale::time(x_domain, (0.0, 1.0), unit)
+            Scale::time(x_domain, (0.0, 1.0), unit, timezone)
         } else {
             Scale::nice(scale_types.0, x_domain, (0.0, 1.0), 10)
         };
@@ -1296,12 +1320,17 @@ impl Series {
         }
     }
 
-    fn mark_as_temporal(&mut self, granularity: Option<Unit>, expr: &str) -> CliResult<()> {
+    fn mark_as_temporal(
+        &mut self,
+        granularity: Option<Unit>,
+        expr: &str,
+        timezone: TimeZone,
+    ) -> CliResult<()> {
         if let Some((x_domain, y_domain)) = self.extent.as_mut() {
             let granularity = granularity.unwrap_or_else(|| {
                 infer_temporal_granularity(
-                    &float_to_zoned(x_domain.0),
-                    &float_to_zoned(x_domain.1),
+                    &seconds_to_zoned(x_domain.0, timezone.clone()),
+                    &seconds_to_zoned(x_domain.1, timezone.clone()),
                     TYPICAL_COLS,
                 )
             });
@@ -1317,7 +1346,11 @@ impl Series {
             }
 
             for (index, (x, y)) in self.points.iter().enumerate() {
-                buckets.run_with(floor_timestamp(*x, granularity), index, *y)?;
+                buckets.run_with(
+                    floor_timestamp_wrt_timezone(*x, granularity, timezone.clone()),
+                    index,
+                    *y,
+                )?;
             }
 
             self.points.clear();
@@ -1345,8 +1378,8 @@ impl Series {
             }
 
             *x_domain = (
-                floor_timestamp(x_domain.0, granularity) as f64,
-                floor_timestamp(x_domain.1, granularity) as f64,
+                floor_timestamp_wrt_timezone(x_domain.0, granularity, timezone.clone()) as f64,
+                floor_timestamp_wrt_timezone(x_domain.1, granularity, timezone) as f64,
             );
             *y_domain = new_y_domain.unwrap();
         }

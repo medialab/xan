@@ -7,6 +7,28 @@ use jiff::{
     Error, SignedDuration, Timestamp, ToSpan, Unit, Zoned,
 };
 
+#[derive(Clone, Deserialize)]
+#[serde(try_from = "String")]
+pub struct TimeZoneArg(TimeZone);
+
+impl TimeZoneArg {
+    pub fn into_inner(self) -> TimeZone {
+        self.0
+    }
+}
+
+impl TryFrom<String> for TimeZoneArg {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if let Ok(tz) = TimeZone::get(&value) {
+            Ok(Self(tz))
+        } else {
+            Err(format!("unknown timezone \"{}\"", value))
+        }
+    }
+}
+
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PartialDate {
     inner: Date,
@@ -221,14 +243,16 @@ impl FuzzyTemporal {
         }
     }
 
-    pub fn to_lower_bound_timestamp(&self, unified_timezone: TimeZone) -> Result<Timestamp, Error> {
+    // NOTE: beware, this only converts timezone of Zoned elements as everything
+    // else will be consider to be UTC!
+    pub fn to_lower_bound_timestamp(&self, timezone: TimeZone) -> Result<Timestamp, Error> {
         Ok(match self {
             Self::Any(temporal) => match temporal {
-                AnyTemporal::Zoned(zoned) => zoned.with_time_zone(unified_timezone).timestamp(),
-                AnyTemporal::DateTime(datetime) => datetime.to_zoned(unified_timezone)?.timestamp(),
+                AnyTemporal::Zoned(zoned) => zoned.with_time_zone(timezone).timestamp(),
+                AnyTemporal::DateTime(datetime) => datetime.to_zoned(TimeZone::UTC)?.timestamp(),
                 AnyTemporal::Date(date) => date
                     .to_datetime(Time::default())
-                    .to_zoned(unified_timezone)?
+                    .to_zoned(TimeZone::UTC)?
                     .timestamp(),
                 AnyTemporal::Time(_) => {
                     return Err(Error::from_args(format_args!(
@@ -239,7 +263,7 @@ impl FuzzyTemporal {
             Self::PartialDate(partial_date) => partial_date
                 .as_date()
                 .to_datetime(Time::default())
-                .to_zoned(unified_timezone)?
+                .to_zoned(TimeZone::UTC)?
                 .timestamp(),
             Self::Timestamp(timestamp) => *timestamp,
         })

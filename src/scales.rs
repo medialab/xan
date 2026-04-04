@@ -5,7 +5,7 @@ use std::ops::Sub;
 
 use colored::Colorize;
 use colorgrad::Gradient;
-use jiff::{Timestamp, Unit};
+use jiff::{tz::TimeZone, Timestamp, Unit, ZonedRound};
 
 use crate::util;
 
@@ -615,14 +615,22 @@ impl LinearScale {
     }
 }
 
-fn format_timestamp(microseconds: i64, unit: Unit) -> String {
-    let timestamp = Timestamp::from_microsecond(microseconds).unwrap();
+fn format_timestamp(microseconds: i64, unit: Unit, timezone: TimeZone) -> String {
+    let zoned = Timestamp::from_microsecond(microseconds)
+        .unwrap()
+        .to_zoned(timezone)
+        .round(ZonedRound::new().smallest(unit))
+        .unwrap();
 
-    timestamp
+    // todo!("must factorize rounding into crate::temporal because of day and such");
+    // todo!("must refine the formatting for hour & s below");
+
+    zoned
         .strftime(match unit {
             Unit::Year => "%Y",
             Unit::Month => "%Y-%m",
             Unit::Day => "%F",
+            // Unit::Hour => "%F %H:00",
             _ => "%F %T",
         })
         .to_string()
@@ -633,10 +641,16 @@ pub struct TimeScale {
     input_domain: Extent<f64>,
     output_range: Extent<f64>,
     unit: Unit,
+    timezone: TimeZone,
 }
 
 impl TimeScale {
-    fn new(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
+    fn new(
+        input_domain: (f64, f64),
+        output_range: (f64, f64),
+        unit: Unit,
+        timezone: TimeZone,
+    ) -> Self {
         assert!(input_domain.0 <= input_domain.1, "input_domain min > max");
         assert!(output_range.0 <= output_range.1, "output_range min > max");
 
@@ -644,11 +658,17 @@ impl TimeScale {
             input_domain: Extent::from(input_domain),
             output_range: Extent::from(output_range),
             unit,
+            timezone,
         }
     }
 
-    fn nice(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
-        Self::new(input_domain, output_range, unit)
+    fn nice(
+        input_domain: (f64, f64),
+        output_range: (f64, f64),
+        unit: Unit,
+        timezone: TimeZone,
+    ) -> Self {
+        Self::new(input_domain, output_range, unit, timezone)
     }
 
     #[inline]
@@ -690,7 +710,7 @@ impl TimeScale {
     fn formatted_ticks(&self, count: usize) -> Vec<String> {
         self.ticks(count)
             .into_iter()
-            .map(|tick| format_timestamp(tick as i64, self.unit))
+            .map(|tick| format_timestamp(tick as i64, self.unit, self.timezone.clone()))
             .collect()
     }
 }
@@ -861,8 +881,13 @@ impl Scale {
         }
     }
 
-    pub fn time(input_domain: (f64, f64), output_range: (f64, f64), unit: Unit) -> Self {
-        Self::Time(TimeScale::nice(input_domain, output_range, unit))
+    pub fn time(
+        input_domain: (f64, f64),
+        output_range: (f64, f64),
+        unit: Unit,
+        timezone: TimeZone,
+    ) -> Self {
+        Self::Time(TimeScale::nice(input_domain, output_range, unit, timezone))
     }
 
     pub fn is_logarithmic(&self) -> bool {
