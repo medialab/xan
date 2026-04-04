@@ -199,7 +199,7 @@ pub enum MaybeZoned {
     Zoned(Zoned),
 }
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum AnyTemporal {
     Zoned(Zoned),
     DateTime(DateTime),
@@ -215,6 +215,16 @@ impl AnyTemporal {
             Self::Date(date) => strtime::format(format, *date),
             Self::Time(time) => strtime::format(format, *time),
         }
+    }
+
+    pub fn has_same_type(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::Zoned(_), Self::Zoned(_))
+                | (Self::DateTime(_), Self::DateTime(_))
+                | (Self::Date(_), Self::Date(_))
+                | (Self::Time(_), Self::Time(_))
+        )
     }
 
     pub fn kind_as_str(&self) -> &'static str {

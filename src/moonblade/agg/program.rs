@@ -11,7 +11,7 @@ use simd_csv::ByteRecord;
 use super::aggregators::{
     AllAny, ApproxCardinality, ApproxQuantiles, ArgExtent, ArgTop, Count, CovarianceWelford, First,
     Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, RMSWelford, Sum,
-    Type, Types, Values, Welford, ZonedExtent,
+    TemporalExtent, Type, Types, Values, Welford,
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
@@ -42,7 +42,7 @@ enum Aggregator {
     Sum(Sum),
     Types(Types),
     Welford(Welford),
-    ZonedExtent(Box<ZonedExtent>),
+    TemporalExtent(Box<TemporalExtent>),
 }
 
 impl Aggregator {
@@ -68,7 +68,7 @@ impl Aggregator {
             Sum(inner) => inner.clear(),
             Types(inner) => inner.clear(),
             Welford(inner) => inner.clear(),
-            ZonedExtent(inner) => inner.clear(),
+            TemporalExtent(inner) => inner.clear(),
         }
     }
 
@@ -96,7 +96,7 @@ impl Aggregator {
             (Sum(inner), Sum(other_inner)) => inner.merge(other_inner),
             (Types(inner), Types(other_inner)) => inner.merge(other_inner),
             (Welford(inner), Welford(other_inner)) => inner.merge(other_inner),
-            (ZonedExtent(inner), ZonedExtent(other_inner)) => inner.merge(*other_inner),
+            (TemporalExtent(inner), TemporalExtent(other_inner)) => inner.merge(*other_inner),
             _ => unreachable!(),
         }
     }
@@ -204,14 +204,18 @@ impl Aggregator {
             (ConcreteAggregationMethod::LexLast, Self::LexicographicExtent(inner)) => {
                 DynamicValue::from(inner.last())
             }
-            (ConcreteAggregationMethod::Earliest, Self::ZonedExtent(inner)) => {
+            (ConcreteAggregationMethod::Earliest, Self::TemporalExtent(inner)) => {
                 DynamicValue::from(inner.earliest())
             }
-            (ConcreteAggregationMethod::Latest, Self::ZonedExtent(inner)) => {
+            (ConcreteAggregationMethod::Latest, Self::TemporalExtent(inner)) => {
                 DynamicValue::from(inner.lastest())
             }
-            (ConcreteAggregationMethod::CountTime(unit), Self::ZonedExtent(inner)) => {
-                DynamicValue::from(inner.count(*unit))
+            (ConcreteAggregationMethod::CountTime(unit), Self::TemporalExtent(inner)) => {
+                DynamicValue::from(
+                    inner
+                        .count(*unit)
+                        .map_err(|err| EvaluationError::from(err).specify("count_"))?,
+                )
             }
             (ConcreteAggregationMethod::Min, Self::NumericExtent(inner)) => {
                 DynamicValue::from(inner.min())
@@ -490,7 +494,7 @@ impl CompositeAggregator {
             ConcreteAggregationMethod::Earliest
             | ConcreteAggregationMethod::Latest
             | ConcreteAggregationMethod::CountTime(_) => {
-                upsert_boxed_aggregator!(ZonedExtent)
+                upsert_boxed_aggregator!(TemporalExtent)
             }
             ConcreteAggregationMethod::Median(_)
             | ConcreteAggregationMethod::Quantile(_)
@@ -583,11 +587,12 @@ impl CompositeAggregator {
                             extent.add(&value.try_as_str()?);
                         }
                     }
-                    Aggregator::ZonedExtent(_extent) => {
-                        todo!()
-                        // if !value.is_nullish() {
-                        //     extent.add(value.try_as_datetime()?.as_ref());
-                        // }
+                    Aggregator::TemporalExtent(extent) => {
+                        if !value.is_nullish() {
+                            extent
+                                .add(value.try_as_any_temporal()?)
+                                .map_err(EvaluationError::TimeRelated)?;
+                        }
                     }
                     Aggregator::Frequencies(frequencies) => {
                         if !value.is_nullish() {
