@@ -1,12 +1,11 @@
 use jiff::{
     civil::{Date, Time},
     tz::TimeZone,
-    SignedDuration, Span, SpanRelativeTo, Timestamp, Unit, Zoned,
+    SignedDuration, Span, Timestamp, Unit, Zoned,
 };
 
 use crate::temporal::{
-    parse_maybe_zoned, parse_maybe_zoned_with_format, AnyTemporal, MaybeZoned,
-    DEFAULT_DATETIME_PARSER,
+    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, DEFAULT_DATETIME_PARSER,
 };
 
 use super::FunctionResult;
@@ -361,51 +360,5 @@ pub fn fractional_days(mut args: BoundArguments) -> FunctionResult {
     let (a, b) = args.pop2();
     let (a, b) = (a.try_as_any_temporal()?, b.try_as_any_temporal()?);
 
-    match (&a, &b) {
-        (AnyTemporal::Zoned(a), AnyTemporal::Zoned(b)) => {
-            let days = b
-                .since(a)
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?
-                .total((Unit::Day, SpanRelativeTo::days_are_24_hours()))
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?;
-
-            Ok(DynamicValue::from(days))
-        }
-
-        (AnyTemporal::DateTime(a), AnyTemporal::DateTime(b)) => {
-            let days = b
-                .since(*a)
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?
-                .total((Unit::Day, SpanRelativeTo::days_are_24_hours()))
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?;
-
-            Ok(DynamicValue::from(days))
-        }
-
-        (AnyTemporal::Date(a), AnyTemporal::Date(b)) => {
-            let days = b
-                .since(*a)
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?
-                .total((Unit::Day, SpanRelativeTo::days_are_24_hours()))
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?;
-
-            Ok(DynamicValue::from(days))
-        }
-
-        (AnyTemporal::Time(a), AnyTemporal::Time(b)) => {
-            let days = b
-                .since(*a)
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?
-                .total((Unit::Day, SpanRelativeTo::days_are_24_hours()))
-                .map_err(|err| EvaluationError::TimeRelated(err.to_string()))?;
-
-            Ok(DynamicValue::from(days))
-        }
-
-        _ => Err(EvaluationError::Custom(format!(
-            "found incompatible temporal types \"{}\" and \"{}\"",
-            a.kind_as_str(),
-            b.kind_as_str()
-        ))),
-    }
+    Ok(a.relative_total(&b, Unit::Day).map(DynamicValue::from)?)
 }

@@ -4,7 +4,7 @@ use jiff::{
     fmt::strtime,
     fmt::temporal::{DateTimeParser, PiecesOffset},
     tz::{OffsetConflict, TimeZone},
-    Error, SignedDuration, Timestamp, ToSpan, Unit, Zoned,
+    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, Zoned,
 };
 
 #[derive(Clone, Deserialize)]
@@ -223,6 +223,48 @@ impl AnyTemporal {
             Self::DateTime(_) => "datetime",
             Self::Date(_) => "date",
             Self::Time(_) => "time",
+        }
+    }
+
+    pub fn relative_total(&self, other: &Self, unit: Unit) -> Result<f64, Error> {
+        match (self, other) {
+            (AnyTemporal::Zoned(a), AnyTemporal::Zoned(b)) => {
+                let total = b
+                    .since(a)?
+                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+
+                Ok(total)
+            }
+
+            (AnyTemporal::DateTime(a), AnyTemporal::DateTime(b)) => {
+                let total = b
+                    .since(*a)?
+                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+
+                Ok(total)
+            }
+
+            (AnyTemporal::Date(a), AnyTemporal::Date(b)) => {
+                let total = b
+                    .since(*a)?
+                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+
+                Ok(total)
+            }
+
+            (AnyTemporal::Time(a), AnyTemporal::Time(b)) => {
+                let total = b
+                    .since(*a)?
+                    .total((unit, SpanRelativeTo::days_are_24_hours()))?;
+
+                Ok(total)
+            }
+
+            _ => Err(Error::from_args(format_args!(
+                "incompatible temporal types \"{}\" and \"{}\"",
+                self.kind_as_str(),
+                other.kind_as_str()
+            ))),
         }
     }
 }
