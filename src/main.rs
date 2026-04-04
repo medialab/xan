@@ -15,7 +15,6 @@ use docopt::Docopt;
 mod cmd;
 mod collections;
 mod config;
-mod temporal;
 mod graph;
 mod json;
 mod moonblade;
@@ -24,6 +23,7 @@ mod read;
 mod record;
 mod scales;
 mod select;
+mod temporal;
 mod urls;
 mod util;
 mod xml;
@@ -643,8 +643,8 @@ impl From<bgzip::BGZFError> for CliError {
     }
 }
 
-impl From<()> for CliError {
-    fn from(_: ()) -> CliError {
-        CliError::Other("unknown error".to_string())
+impl From<jiff::Error> for CliError {
+    fn from(value: jiff::Error) -> Self {
+        CliError::Other(value.to_string())
     }
 }
