@@ -9,7 +9,7 @@ use std::num::NonZeroUsize;
 use ahash::RandomState;
 use bstr::BStr;
 use indexmap::IndexMap;
-use jiff::{tz::TimeZone, SignedDuration, Timestamp, Unit, Zoned, ZonedRound};
+use jiff::{tz::TimeZone, Timestamp, Unit, Zoned, ZonedRound};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -23,7 +23,9 @@ use crate::moonblade::GroupAggregationProgram;
 use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
-use crate::temporal::{infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg};
+use crate::temporal::{
+    infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg, TimestampExt,
+};
 use crate::util::{self, ColorMode};
 use crate::{CliError, CliResult};
 
@@ -939,13 +941,10 @@ fn parse_as_float(cell: &[u8]) -> Result<f64, CliError> {
     })
 }
 
-fn seconds_to_timestamp(seconds: f64) -> Timestamp {
-    let duration = SignedDuration::from_secs_f64(seconds);
-    Timestamp::from_duration(duration).unwrap()
-}
-
 fn seconds_to_zoned(seconds: f64, timezone: TimeZone) -> Zoned {
-    seconds_to_timestamp(seconds).to_zoned(timezone)
+    Timestamp::from_secs_f64(seconds)
+        .unwrap()
+        .to_zoned(timezone)
 }
 
 fn floor_timestamp_wrt_timezone(seconds: f64, unit: Unit, timezone: TimeZone) -> i64 {

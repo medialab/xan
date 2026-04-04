@@ -510,9 +510,8 @@ pub fn parse_fuzzy_temporal(
 
     // Early exit for float timestamp
     if parse_float {
-        if let Ok(f) = fast_float::parse::<f64, &[u8]>(bytes) {
-            let duration = SignedDuration::from_secs_f64(f);
-            return Timestamp::from_duration(duration)
+        if let Ok(secs) = fast_float::parse::<f64, &[u8]>(bytes) {
+            return Timestamp::from_secs_f64(secs)
                 .map_err(CannotParse)
                 .map(FuzzyTemporal::Timestamp);
         }
@@ -580,6 +579,20 @@ pub fn parse_fuzzy_temporal(
 
 pub fn looks_temporal(input: impl AsRef<[u8]>) -> bool {
     parse_fuzzy_temporal(input, false).is_ok()
+}
+
+pub trait TimestampExt
+where
+    Self: Sized,
+{
+    fn from_secs_f64(secs: f64) -> Result<Self, Error>;
+}
+
+impl TimestampExt for Timestamp {
+    fn from_secs_f64(secs: f64) -> Result<Self, Error> {
+        let duration = SignedDuration::from_secs_f64(secs);
+        Self::from_duration(duration)
+    }
 }
 
 #[cfg(test)]

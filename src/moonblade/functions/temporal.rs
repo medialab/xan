@@ -1,11 +1,12 @@
 use jiff::{
     civil::{Date, Time},
     tz::TimeZone,
-    SignedDuration, Span, Timestamp, Unit, Zoned,
+    Span, Timestamp, Unit, Zoned,
 };
 
 use crate::temporal::{
-    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, DEFAULT_DATETIME_PARSER,
+    parse_maybe_zoned, parse_maybe_zoned_with_format, MaybeZoned, TimestampExt,
+    DEFAULT_DATETIME_PARSER,
 };
 
 use super::FunctionResult;
@@ -313,9 +314,7 @@ pub fn from_timestamp(mut args: BoundArguments) -> FunctionResult {
             Ok(timestamp) => Ok(DynamicValue::from(timestamp.to_zoned(TimeZone::UTC))),
         },
         DynamicNumber::Float(fractional_seconds) => {
-            let duration = SignedDuration::from_secs_f64(fractional_seconds);
-
-            match Timestamp::from_duration(duration) {
+            match Timestamp::from_secs_f64(fractional_seconds) {
                 Err(_) => Err(EvaluationError::TimeRelated(format!(
                     "invalid timestamp {}",
                     fractional_seconds
