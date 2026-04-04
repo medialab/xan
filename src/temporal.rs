@@ -4,7 +4,7 @@ use jiff::{
     fmt::strtime,
     fmt::temporal::{DateTimeParser, PiecesOffset},
     tz::{OffsetConflict, TimeZone},
-    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, Zoned,
+    Error, SignedDuration, SpanRelativeTo, Timestamp, ToSpan, Unit, Zoned, ZonedRound,
 };
 
 #[derive(Clone, Deserialize)]
@@ -592,6 +592,28 @@ impl TimestampExt for Timestamp {
     fn from_secs_f64(secs: f64) -> Result<Self, Error> {
         let duration = SignedDuration::from_secs_f64(secs);
         Self::from_duration(duration)
+    }
+}
+
+pub trait ZonedExt
+where
+    Self: Sized,
+{
+    fn floor(&self, unit: Unit) -> Result<Self, Error>;
+}
+
+impl ZonedExt for Zoned {
+    fn floor(&self, unit: Unit) -> Result<Self, Error> {
+        Ok(match unit {
+            Unit::Year | Unit::Month => {
+                if unit == Unit::Year {
+                    self.start_of_day()?.first_of_year()?
+                } else {
+                    self.start_of_day()?.first_of_month()?
+                }
+            }
+            _ => self.round(ZonedRound::new().smallest(unit))?,
+        })
     }
 }
 

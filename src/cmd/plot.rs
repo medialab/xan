@@ -9,7 +9,7 @@ use std::num::NonZeroUsize;
 use ahash::RandomState;
 use bstr::BStr;
 use indexmap::IndexMap;
-use jiff::{tz::TimeZone, Timestamp, Unit, Zoned, ZonedRound};
+use jiff::{tz::TimeZone, Timestamp, Unit, Zoned};
 use unicode_width::UnicodeWidthStr;
 
 use ratatui::buffer::Buffer;
@@ -24,7 +24,7 @@ use crate::ratatui::print_ratatui_frame_to_stdout;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::temporal::{
-    infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg, TimestampExt,
+    infer_temporal_granularity, parse_fuzzy_temporal, TimeZoneArg, TimestampExt, ZonedExt,
 };
 use crate::util::{self, ColorMode};
 use crate::{CliError, CliResult};
@@ -948,24 +948,8 @@ fn seconds_to_zoned(seconds: f64, timezone: TimeZone) -> Zoned {
 }
 
 fn floor_timestamp_wrt_timezone(seconds: f64, unit: Unit, timezone: TimeZone) -> i64 {
-    let mut zoned = seconds_to_zoned(seconds, timezone);
-
-    match unit {
-        Unit::Year | Unit::Month => {
-            zoned = if unit == Unit::Year {
-                zoned.start_of_day().unwrap().first_of_year().unwrap()
-            } else {
-                zoned.start_of_day().unwrap().first_of_month().unwrap()
-            };
-
-            zoned.timestamp().as_microsecond()
-        }
-        _ => zoned
-            .round(ZonedRound::new().smallest(unit))
-            .unwrap()
-            .timestamp()
-            .as_microsecond(),
-    }
+    let zoned = seconds_to_zoned(seconds, timezone);
+    zoned.floor(unit).unwrap().timestamp().as_microsecond()
 }
 
 fn get_series_color(i: usize) -> Style {

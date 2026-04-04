@@ -5,8 +5,9 @@ use std::ops::Sub;
 
 use colored::Colorize;
 use colorgrad::Gradient;
-use jiff::{tz::TimeZone, Timestamp, Unit, ZonedRound};
+use jiff::{tz::TimeZone, Timestamp, Unit};
 
+use crate::temporal::ZonedExt;
 use crate::util;
 
 // Taken straight from d3: https://github.com/d3/d3-array/blob/main/src/ticks.js
@@ -616,21 +617,22 @@ impl LinearScale {
 }
 
 fn format_timestamp(microseconds: i64, unit: Unit, timezone: TimeZone) -> String {
+    // NOTE: I don't think rounding is necessary here because the formatting
+    // will naturally hide the irrelevant part, right?
+    // I will keep it, I am a superstitious.
     let zoned = Timestamp::from_microsecond(microseconds)
         .unwrap()
         .to_zoned(timezone)
-        .round(ZonedRound::new().smallest(unit))
+        .floor(unit)
         .unwrap();
-
-    // todo!("must factorize rounding into crate::temporal because of day and such");
-    // todo!("must refine the formatting for hour & s below");
 
     zoned
         .strftime(match unit {
             Unit::Year => "%Y",
             Unit::Month => "%Y-%m",
             Unit::Day => "%F",
-            // Unit::Hour => "%F %H:00",
+            Unit::Hour => "%F %H:00",
+            Unit::Minute => "%F %H:%M",
             _ => "%F %T",
         })
         .to_string()
