@@ -38,9 +38,7 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
                 .map_err(|err| {
                     EvaluationError::TimeRelated(format!(
                         "{} (value: {:?}, format: {:?})",
-                        err.as_str(),
-                        arg,
-                        format_arg
+                        err, arg, format_arg
                     ))
                 })
                 .map(|maybe| match maybe {
@@ -60,8 +58,7 @@ pub fn datetime(mut args: BoundArguments) -> FunctionResult {
             match parse_maybe_zoned(string) {
                 Err(err) => Err(EvaluationError::TimeRelated(format!(
                     "{} (value: {:?})",
-                    err.as_str(),
-                    arg,
+                    err, arg,
                 ))),
                 Ok(maybe) => Ok(match maybe {
                     MaybeZoned::Civil(datetime) => DynamicValue::from(datetime),

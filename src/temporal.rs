@@ -322,198 +322,138 @@ impl FuzzyTemporal {
     }
 }
 
-#[derive(Debug)]
-pub enum TemporalParseError {
-    #[allow(dead_code)]
-    CannotParse(Error),
-    // DoesNotContainTime,
-    NoValidTimezoneInfo,
-    ConflictingTimezoneAndOffset,
-    UnresolvedAmbiguity,
-}
-
-impl TemporalParseError {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::CannotParse(_) => "cannot parse as a datetime",
-            // Self::DoesNotContainTime => "does not contain a time",
-            Self::NoValidTimezoneInfo => "does not contain valid timezone info",
-            Self::ConflictingTimezoneAndOffset => "contains conflicting timezone and offset",
-            Self::UnresolvedAmbiguity => "contains an unresolved ambiguity",
-        }
-    }
-}
-
 pub static DEFAULT_DATETIME_PARSER: DateTimeParser = DateTimeParser::new();
 
-pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, TemporalParseError> {
-    use TemporalParseError::*;
+pub fn parse_maybe_zoned(input: impl AsRef<[u8]>) -> Result<MaybeZoned, Error> {
+    let pieces = DEFAULT_DATETIME_PARSER.parse_pieces(&input)?;
 
-    match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
-        Err(err) => Err(CannotParse(err)),
-        Ok(pieces) => match pieces.time() {
-            None => Ok(MaybeZoned::Civil(DateTime::from_parts(
-                pieces.date(),
-                Time::default(),
-            ))),
-            Some(time) => {
-                let datetime = DateTime::from_parts(pieces.date(), time);
+    match pieces.time() {
+        None => Ok(MaybeZoned::Civil(DateTime::from_parts(
+            pieces.date(),
+            Time::default(),
+        ))),
+        Some(time) => {
+            let datetime = DateTime::from_parts(pieces.date(), time);
 
-                if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
-                    // We have a civil datetime
-                    Ok(MaybeZoned::Civil(datetime))
-                } else {
-                    // We have a timestamp
-                    if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
-                        return Ok(MaybeZoned::Zoned(
-                            datetime.to_zoned(TimeZone::UTC).map_err(CannotParse)?,
-                        ));
-                    }
-
-                    let conflict_resolution = OffsetConflict::Reject;
-
-                    // We might have a correct zoned
-                    let ambiguous = match pieces.to_time_zone() {
-                        Ok(None) => {
-                            let Some(offset) = pieces.to_numeric_offset() else {
-                                return Err(NoValidTimezoneInfo);
-                            };
-
-                            TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
-                        }
-                        Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                            None => tz.into_ambiguous_zoned(datetime),
-                            Some(offset) => conflict_resolution
-                                .resolve(datetime, offset, tz)
-                                .map_err(|_| ConflictingTimezoneAndOffset)?,
-                        },
-                        Err(_) => {
-                            return Err(NoValidTimezoneInfo);
-                        }
-                    };
-
-                    match ambiguous.compatible() {
-                        Err(_) => Err(UnresolvedAmbiguity),
-                        Ok(zoned) => Ok(MaybeZoned::Zoned(zoned)),
-                    }
+            if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
+                // We have a civil datetime
+                Ok(MaybeZoned::Civil(datetime))
+            } else {
+                // We have a timestamp
+                if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
+                    return Ok(MaybeZoned::Zoned(datetime.to_zoned(TimeZone::UTC)?));
                 }
+
+                let conflict_resolution = OffsetConflict::Reject;
+
+                // We might have a correct zoned
+                let ambiguous = match pieces.to_time_zone() {
+                    Ok(None) => {
+                        let Some(offset) = pieces.to_numeric_offset() else {
+                            return Err(Error::from_args(format_args!("no valid timezone info")));
+                        };
+
+                        TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                    }
+                    Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                        None => tz.into_ambiguous_zoned(datetime),
+                        Some(offset) => conflict_resolution.resolve(datetime, offset, tz)?,
+                    },
+                    Err(_) => {
+                        return Err(Error::from_args(format_args!("no valid timezone info")));
+                    }
+                };
+
+                Ok(MaybeZoned::Zoned(ambiguous.compatible()?))
             }
-        },
+        }
     }
 }
 
 pub fn parse_maybe_zoned_with_format(
     format: impl AsRef<[u8]>,
     input: impl AsRef<[u8]>,
-) -> Result<MaybeZoned, TemporalParseError> {
-    use TemporalParseError::*;
+) -> Result<MaybeZoned, Error> {
+    let broken_down_time = strtime::parse(format, input)?;
 
-    match strtime::parse(format, input) {
-        Err(err) => Err(CannotParse(err)),
-        Ok(broken_down_time) => {
-            // If parsed time does not have any timezone info we attempt
-            // to parse it a simple datetime
-            if broken_down_time.offset().is_none() && broken_down_time.iana_time_zone().is_none() {
-                match broken_down_time.to_datetime() {
-                    Err(err) => Err(CannotParse(err)),
-                    Ok(datetime) => Ok(MaybeZoned::Civil(datetime)),
+    // If parsed time does not have any timezone info we attempt
+    // to parse it a simple datetime
+    if broken_down_time.offset().is_none() && broken_down_time.iana_time_zone().is_none() {
+        Ok(MaybeZoned::Civil(broken_down_time.to_datetime()?))
+    }
+    // Else we can attempt to parse it as a zoned
+    else {
+        Ok(MaybeZoned::Zoned(broken_down_time.to_zoned()?))
+    }
+}
+
+pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, Error> {
+    // Early exit matching a bare time
+    if matches!(input.as_ref().get(2), Some(b':')) {
+        return Ok(AnyTemporal::Time(
+            DEFAULT_DATETIME_PARSER.parse_time(&input)?,
+        ));
+    }
+
+    let pieces = DEFAULT_DATETIME_PARSER.parse_pieces(&input)?;
+
+    match pieces.time() {
+        None => Ok(AnyTemporal::Date(pieces.date())),
+        Some(time) => {
+            let datetime = DateTime::from_parts(pieces.date(), time);
+
+            if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
+                // We have a civil datetime
+                Ok(AnyTemporal::DateTime(datetime))
+            } else {
+                // We have a timestamp
+                if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
+                    return Ok(AnyTemporal::Zoned(datetime.to_zoned(TimeZone::UTC)?));
                 }
-            }
-            // Else we can attempt to parse it as a zoned
-            else {
-                match broken_down_time.to_zoned() {
-                    Err(err) => Err(CannotParse(err)),
-                    Ok(zoned) => Ok(MaybeZoned::Zoned(zoned)),
-                }
+
+                let conflict_resolution = OffsetConflict::Reject;
+
+                // We might have a correct zoned
+                let ambiguous = match pieces.to_time_zone() {
+                    Ok(None) => {
+                        let Some(offset) = pieces.to_numeric_offset() else {
+                            return Err(Error::from_args(format_args!("no valid timezone info")));
+                        };
+
+                        TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                    }
+                    Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                        None => tz.into_ambiguous_zoned(datetime),
+                        Some(offset) => conflict_resolution.resolve(datetime, offset, tz)?,
+                    },
+                    Err(_) => {
+                        return Err(Error::from_args(format_args!("no valid timezone info")));
+                    }
+                };
+
+                Ok(AnyTemporal::Zoned(ambiguous.compatible()?))
             }
         }
     }
 }
 
-pub fn parse_any_temporal(input: impl AsRef<[u8]>) -> Result<AnyTemporal, TemporalParseError> {
-    use TemporalParseError::*;
-
-    // Early exit matching a bare time
-    if matches!(input.as_ref().get(2), Some(b':')) {
-        return match DEFAULT_DATETIME_PARSER.parse_time(&input) {
-            Err(err) => Err(CannotParse(err)),
-            Ok(time) => Ok(AnyTemporal::Time(time)),
-        };
-    }
-
-    match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
-        Err(err) => Err(CannotParse(err)),
-        Ok(pieces) => match pieces.time() {
-            None => Ok(AnyTemporal::Date(pieces.date())),
-            Some(time) => {
-                let datetime = DateTime::from_parts(pieces.date(), time);
-
-                if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
-                    // We have a civil datetime
-                    Ok(AnyTemporal::DateTime(datetime))
-                } else {
-                    // We have a timestamp
-                    if matches!(pieces.offset(), Some(PiecesOffset::Zulu)) {
-                        return Ok(AnyTemporal::Zoned(
-                            datetime.to_zoned(TimeZone::UTC).map_err(CannotParse)?,
-                        ));
-                    }
-
-                    let conflict_resolution = OffsetConflict::Reject;
-
-                    // We might have a correct zoned
-                    let ambiguous = match pieces.to_time_zone() {
-                        Ok(None) => {
-                            let Some(offset) = pieces.to_numeric_offset() else {
-                                return Err(NoValidTimezoneInfo);
-                            };
-
-                            TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
-                        }
-                        Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                            None => tz.into_ambiguous_zoned(datetime),
-                            Some(offset) => conflict_resolution
-                                .resolve(datetime, offset, tz)
-                                .map_err(|_| ConflictingTimezoneAndOffset)?,
-                        },
-                        Err(_) => {
-                            return Err(NoValidTimezoneInfo);
-                        }
-                    };
-
-                    match ambiguous.compatible() {
-                        Err(_) => Err(UnresolvedAmbiguity),
-                        Ok(zoned) => Ok(AnyTemporal::Zoned(zoned)),
-                    }
-                }
-            }
-        },
-    }
-}
-
-// TODO: deal with ints/floats
 pub fn parse_fuzzy_temporal(
     input: impl AsRef<[u8]>,
     parse_float: bool,
-) -> Result<FuzzyTemporal, TemporalParseError> {
-    use TemporalParseError::*;
-
+) -> Result<FuzzyTemporal, Error> {
     let bytes = input.as_ref();
 
     // Early exit matching a bare time
     if matches!(bytes.get(2), Some(b':')) {
-        return match DEFAULT_DATETIME_PARSER.parse_time(&input) {
-            Err(err) => Err(CannotParse(err)),
-            Ok(time) => Ok(FuzzyTemporal::Any(AnyTemporal::Time(time))),
-        };
+        return Ok(FuzzyTemporal::Any(AnyTemporal::Time(
+            DEFAULT_DATETIME_PARSER.parse_time(&input)?,
+        )));
     }
 
     // Early exit for float timestamp
     if parse_float {
         if let Ok(secs) = fast_float::parse::<f64, &[u8]>(bytes) {
-            return Timestamp::from_secs_f64(secs)
-                .map_err(CannotParse)
-                .map(FuzzyTemporal::Timestamp);
+            return Timestamp::from_secs_f64(secs).map(FuzzyTemporal::Timestamp);
         }
     }
 
@@ -524,56 +464,51 @@ pub fn parse_fuzzy_temporal(
         }
     }
 
-    match DEFAULT_DATETIME_PARSER.parse_pieces(&input) {
-        Err(err) => Err(CannotParse(err)),
-        Ok(pieces) => match pieces.time() {
-            None => Ok(FuzzyTemporal::Any(AnyTemporal::Date(pieces.date()))),
-            Some(time) => {
-                let datetime = DateTime::from_parts(pieces.date(), time);
+    let pieces = DEFAULT_DATETIME_PARSER.parse_pieces(&input)?;
 
-                if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
-                    // We have a civil datetime
-                    Ok(FuzzyTemporal::Any(AnyTemporal::DateTime(datetime)))
-                } else {
-                    // We have a timestamp
-                    if let Some(PiecesOffset::Zulu) = pieces.offset() {
-                        return Ok(FuzzyTemporal::Timestamp(
-                            PiecesOffset::Zulu
-                                .to_numeric_offset()
-                                .to_timestamp(datetime)
-                                .map_err(CannotParse)?,
-                        ));
-                    }
+    match pieces.time() {
+        None => Ok(FuzzyTemporal::Any(AnyTemporal::Date(pieces.date()))),
+        Some(time) => {
+            let datetime = DateTime::from_parts(pieces.date(), time);
 
-                    let conflict_resolution = OffsetConflict::Reject;
-
-                    // We might have a correct zoned
-                    let ambiguous = match pieces.to_time_zone() {
-                        Ok(None) => {
-                            let Some(offset) = pieces.to_numeric_offset() else {
-                                return Err(NoValidTimezoneInfo);
-                            };
-
-                            TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
-                        }
-                        Ok(Some(tz)) => match pieces.to_numeric_offset() {
-                            None => tz.into_ambiguous_zoned(datetime),
-                            Some(offset) => conflict_resolution
-                                .resolve(datetime, offset, tz)
-                                .map_err(|_| ConflictingTimezoneAndOffset)?,
-                        },
-                        Err(_) => {
-                            return Err(NoValidTimezoneInfo);
-                        }
-                    };
-
-                    match ambiguous.compatible() {
-                        Err(_) => Err(UnresolvedAmbiguity),
-                        Ok(zoned) => Ok(FuzzyTemporal::Any(AnyTemporal::Zoned(zoned))),
-                    }
+            if pieces.offset().is_none() && pieces.time_zone_annotation().is_none() {
+                // We have a civil datetime
+                Ok(FuzzyTemporal::Any(AnyTemporal::DateTime(datetime)))
+            } else {
+                // We have a timestamp
+                if let Some(PiecesOffset::Zulu) = pieces.offset() {
+                    return Ok(FuzzyTemporal::Timestamp(
+                        PiecesOffset::Zulu
+                            .to_numeric_offset()
+                            .to_timestamp(datetime)?,
+                    ));
                 }
+
+                let conflict_resolution = OffsetConflict::Reject;
+
+                // We might have a correct zoned
+                let ambiguous = match pieces.to_time_zone() {
+                    Ok(None) => {
+                        let Some(offset) = pieces.to_numeric_offset() else {
+                            return Err(Error::from_args(format_args!("no valid timezone info")));
+                        };
+
+                        TimeZone::fixed(offset).into_ambiguous_zoned(datetime)
+                    }
+                    Ok(Some(tz)) => match pieces.to_numeric_offset() {
+                        None => tz.into_ambiguous_zoned(datetime),
+                        Some(offset) => conflict_resolution.resolve(datetime, offset, tz)?,
+                    },
+                    Err(_) => {
+                        return Err(Error::from_args(format_args!("no valid timezone info")));
+                    }
+                };
+
+                Ok(FuzzyTemporal::Any(AnyTemporal::Zoned(
+                    ambiguous.compatible()?,
+                )))
             }
-        },
+        }
     }
 }
 
