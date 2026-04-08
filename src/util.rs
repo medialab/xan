@@ -24,8 +24,8 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::temporal;
 use crate::select::SelectedColumns;
+use crate::temporal;
 use crate::CliResult;
 
 pub fn version() -> String {
@@ -466,10 +466,15 @@ pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
 }
 
 lazy_static! {
+    static ref SPARKLINE_PATTERN: Regex = Regex::new(r"[▁▂▃▄▅▆▇█]").unwrap();
     static ref ESCAPED_WHITESPACE_REPLACER: Regex = Regex::new(r"\\[nrtf]").unwrap();
 }
 
 pub fn highlight_problematic_string_features(string: &str) -> String {
+    if SPARKLINE_PATTERN.is_match(string) {
+        return string.to_string();
+    }
+
     let start = string.len() - string.trim_start().len();
     let end = start + string[start..].trim_end().len();
 

@@ -2,6 +2,9 @@ use rayon::prelude::*;
 
 use crate::moonblade::types::DynamicNumber;
 
+// NOTE: removing last '█' char so we can stack sparklines easily
+static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
+
 #[derive(Debug, Clone)]
 pub enum MedianType {
     Interpolation,
@@ -134,6 +137,60 @@ impl Numbers {
                     Some(n[idx])
                 }
             }
+        }
+    }
+
+    pub fn dist_sparkline(&self, bins: usize, log_scale: bool) -> Option<String> {
+        if self.numbers.len() < 2 {
+            None
+        } else {
+            let bins = bins.min(self.numbers.len() - 1);
+
+            let min = *self.numbers.first().unwrap();
+            let max = *self.numbers.last().unwrap();
+
+            let width = max - min;
+            let cell_width = width / DynamicNumber::Integer(bins as i64);
+
+            let mut counts = vec![0f64; bins];
+
+            for number in self.numbers.iter().copied() {
+                let index = (((number - min) / cell_width).floor().as_int() as usize).min(bins - 1);
+                counts[index] += 1.0;
+            }
+
+            if log_scale {
+                for count in counts.iter_mut() {
+                    if *count > 0.0 {
+                        *count = count.ln();
+                    }
+                }
+            }
+
+            let mut max_count = counts[0];
+
+            for count in &counts[1..] {
+                if *count > max_count {
+                    max_count = *count;
+                }
+            }
+
+            let sparkline = counts
+                .iter()
+                .copied()
+                .map(|count| {
+                    if count == 0.0 {
+                        return ' ';
+                    }
+
+                    let index =
+                        ((count / max_count) * SPARKLINE_CHARS.len() as f64).floor() as usize;
+
+                    SPARKLINE_CHARS[index.min(SPARKLINE_CHARS.len() - 1)]
+                })
+                .collect::<String>();
+
+            Some(sparkline)
         }
     }
 

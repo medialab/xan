@@ -4,8 +4,8 @@ use super::aggregators::{
     ApproxCardinality, ApproxQuantiles, Count, Extent, Frequencies, LexicographicExtent, Numbers,
     NumericExtent, Sum, Type, Types, Welford,
 };
-use crate::temporal;
 use crate::moonblade::types::DynamicNumber;
+use crate::temporal;
 use crate::util;
 
 fn map_to_field<T: ToString>(opt: Option<T>) -> Vec<u8> {
@@ -105,6 +105,7 @@ impl Stats {
             headers.push_field(b"q1");
             headers.push_field(b"median");
             headers.push_field(b"q3");
+            headers.push_field(b"log_dist");
         }
 
         headers.push_field(b"variance");
@@ -163,6 +164,12 @@ impl Stats {
                         record.push_field(b"");
                     }
                 }
+            }
+
+            if let Some(sparkline) = numbers.dist_sparkline(10, true) {
+                record.push_field(sparkline.as_bytes());
+            } else {
+                record.push_field(b"");
             }
         }
 
