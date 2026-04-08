@@ -33,6 +33,8 @@
 * Adding `xan grep -B/--before-context & -A/--after-context`.
 * Adding `xan network -f=components, -S/--simple, --union-find, --minify & --sample-size <n>`.
 * Adding `xan plot --timezone`.
+* Adding `xan hist --log` shorthand flag for `--scale=log`.
+* Adding `log_dist` sparkline column to `xan stats -q` output.
 
 *Fixes*
 

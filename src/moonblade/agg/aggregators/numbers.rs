@@ -141,6 +141,11 @@ impl Numbers {
     }
 
     pub fn dist_sparkline(&self, bins: usize, log_scale: bool) -> Option<String> {
+        // Some design choices:
+        //   - We avoid the tallest char so we can stack them easily
+        //   - We keep a blank space to represent empty bins
+        //   - We use ln_1p to simplify log scale computation
+
         if self.numbers.len() < 2 {
             None
         } else {
@@ -161,9 +166,7 @@ impl Numbers {
 
             if log_scale {
                 for count in counts.iter_mut() {
-                    if *count > 0.0 {
-                        *count = count.ln();
-                    }
+                    *count = count.ln_1p();
                 }
             }
 

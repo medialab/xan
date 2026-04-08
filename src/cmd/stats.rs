@@ -33,6 +33,7 @@ mean               (default) - Mean of numerical values
 q1                 (-q, -A)  - First quartile of numerical values
 median             (-q, -A)  - Second quartile, i.e. median, of numerical values
 q3                 (-q, -A)  - Third quartile of numerical values
+log_dist           (-q, -A)  - Sparkline (e.g. ▇▅▄▃▂▃▂▂▂▂) representing numerical distribution
 variance           (default) - Population variance of numerical values
 stddev             (default) - Population standard deviation of numerical values
 min                (default) - Minimum numerical value

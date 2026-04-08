@@ -9,9 +9,9 @@ use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::temporal;
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
+use crate::temporal;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -83,6 +83,7 @@ hist options:
     --scale <scale>          Apply a scale to the values. Can be one of \"lin\", \"log\",
                              \"log2\", \"log10\" or \"log(custom_base)\" like \"log(2.5)\".
                              [default: lin]
+    --log                    Use a log scale, shorthand for --scale=log.
 
 Common options:
     -h, --help             Display this message
@@ -112,10 +113,16 @@ struct Args {
     flag_dates: bool,
     flag_compress_gaps: Option<usize>,
     flag_scale: ScaleType,
+    flag_log: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_log {
+        args.flag_scale = ScaleType::ln();
+    }
+
     args.flag_color.apply();
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)

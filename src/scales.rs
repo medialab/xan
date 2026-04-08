@@ -515,6 +515,10 @@ pub enum ScaleType {
 }
 
 impl ScaleType {
+    pub fn ln() -> Self {
+        Self::Logarithmic(LogBase::Natural)
+    }
+
     pub fn is_linear(&self) -> bool {
         matches!(self, Self::Linear)
     }

@@ -65,6 +65,7 @@ hist options:
     --scale <scale>          Apply a scale to the values. Can be one of "lin", "log",
                              "log2", "log10" or "log(custom_base)" like "log(2.5)".
                              [default: lin]
+    --log                    Use a log scale, shorthand for --scale=log.
 
 Common options:
     -h, --help             Display this message
