@@ -35,6 +35,7 @@
 * Adding `xan plot --timezone`.
 * Adding `xan hist --log` shorthand flag for `--scale=log`.
 * Adding `log_dist` sparkline column to `xan stats -q` output.
+* Adding `dist` & `log_dist` aggregation functions.
 
 *Fixes*
 

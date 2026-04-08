@@ -108,6 +108,12 @@
     "help": "Return the sample covariance of series represented by the two given expressions."
   },
   {
+    "name": "dist",
+    "arguments": ["<expr>", "bins=10"],
+    "returns": "string",
+    "help": "Return a symbolic distribution plot (e.g. `▇▅▆▄▃▃▂▂▁▁`) of the numbers returned by given expression."
+  },
+  {
     "name": "distinct_values",
     "arguments": ["<expr>", "separator?"],
     "returns": "string",
@@ -148,6 +154,12 @@
     "arguments": ["<expr>"],
     "returns": "string",
     "help": "Return last string in lexicographical order."
+  },
+  {
+    "name": "log_dist",
+    "arguments": ["<expr>", "bins=10"],
+    "returns": "string",
+    "help": "Return a symbolic distribution plot (e.g. `▇▅▆▄▃▃▂▂▁▁`) of the numbers returned by given expression, using a log scale for bin counts."
   },
   {
     "name": "min",

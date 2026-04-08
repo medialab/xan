@@ -32,6 +32,7 @@ the number of nodes in a graph represented by a CSV edge list.
 - **covariance**(*\<expr\>*, *\<expr\>*) -> `number`: Return the population covariance of series represented by the two given expressions. Same as `covariance_pop`.
 - **covariance_pop**(*\<expr\>*, *\<expr\>*) -> `number`: Return the population covariance of series represented by the two given expressions. Same as `covariance`.
 - **covariance_sample**(*\<expr\>*, *\<expr\>*) -> `number`: Return the sample covariance of series represented by the two given expressions.
+- **dist**(*\<expr\>*, *bins=10*) -> `string`: Return a symbolic distribution plot (e.g. `▇▅▆▄▃▃▂▂▁▁`) of the numbers returned by given expression.
 - **distinct_values**(*\<expr\>*, *separator?*) -> `string`: List of sorted distinct values joined by a pipe character ('|') by default or by the provided separator.
 - **earliest**(*\<expr\>*) -> `datetime`: Earliest datetime returned by given expression.
 - **first**(*\<expr\>*) -> `string`: Return first seen non empty element of the values returned by the given expression.
@@ -39,6 +40,7 @@ the number of nodes in a graph represented by a CSV edge list.
 - **last**(*\<expr\>*) -> `string`: Return last seen non empty element of the values returned by the given expression.
 - **lex_first**(*\<expr\>*) -> `string`: Return first string in lexicographical order.
 - **lex_last**(*\<expr\>*) -> `string`: Return last string in lexicographical order.
+- **log_dist**(*\<expr\>*, *bins=10*) -> `string`: Return a symbolic distribution plot (e.g. `▇▅▆▄▃▃▂▂▁▁`) of the numbers returned by given expression, using a log scale for bin counts.
 - **min**(*\<expr\>*) -> `number`: Minimum numerical value.
 - **max**(*\<expr\>*) -> `number`: Maximum numerical value.
 - **mean**(*\<expr\>*) -> `number`: Mean of numerical values. Same as `avg`.

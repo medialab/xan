@@ -253,6 +253,9 @@ impl Aggregator {
             (ConcreteAggregationMethod::Quartile(idx), Self::Numbers(inner)) => {
                 DynamicValue::from(inner.quartiles().map(|q| q[*idx]))
             }
+            (ConcreteAggregationMethod::Distribution(bins, log_scale), Self::Numbers(inner)) => {
+                DynamicValue::from(inner.dist_sparkline(*bins, *log_scale))
+            }
             (ConcreteAggregationMethod::Max, Self::NumericExtent(inner)) => {
                 DynamicValue::from(inner.max())
             }
@@ -498,7 +501,8 @@ impl CompositeAggregator {
             }
             ConcreteAggregationMethod::Median(_)
             | ConcreteAggregationMethod::Quantile(_)
-            | ConcreteAggregationMethod::Quartile(_) => {
+            | ConcreteAggregationMethod::Quartile(_)
+            | ConcreteAggregationMethod::Distribution(_, _) => {
                 upsert_aggregator!(Numbers)
             }
             ConcreteAggregationMethod::Mode
@@ -763,6 +767,25 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "count_years" => (FunctionArguments::unary(), |_| Ok(CountTime(Unit::Year))),
         "covariance" | "covariance_pop" => (FunctionArguments::binary(), |_| Ok(CovariancePop)),
         "covariance_sample" => (FunctionArguments::binary(), |_| Ok(CovarianceSample)),
+        "dist" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(ConcreteAggregationMethod::Distribution(
+                if args.len() == 1 {
+                    let bins =
+                        cast_as_static_value(args.last().unwrap(), DynamicValue::try_as_usize)?;
+
+                    if bins == 0 {
+                        return Err(ConcretizationError::Custom(
+                            "expecting a bin count > 0".to_string(),
+                        ));
+                    }
+
+                    bins
+                } else {
+                    10
+                },
+                false,
+            ))
+        }),
         "distinct_values" => (FunctionArguments::with_range(1..=2), |args| {
             Ok(DistinctValues(cast_as_separator(args.first())?))
         }),
@@ -772,6 +795,25 @@ fn get_function_arguments_parser(name: &str) -> Option<(FunctionArguments, Argum
         "last" => (FunctionArguments::unary(), |_| Ok(Last)),
         "lex_first" => (FunctionArguments::unary(), |_| Ok(LexFirst)),
         "lex_last" => (FunctionArguments::unary(), |_| Ok(LexLast)),
+        "log_dist" => (FunctionArguments::with_range(1..=2), |args| {
+            Ok(ConcreteAggregationMethod::Distribution(
+                if args.len() == 1 {
+                    let bins =
+                        cast_as_static_value(args.last().unwrap(), DynamicValue::try_as_usize)?;
+
+                    if bins == 0 {
+                        return Err(ConcretizationError::Custom(
+                            "expecting a bin count > 0".to_string(),
+                        ));
+                    }
+
+                    bins
+                } else {
+                    10
+                },
+                true,
+            ))
+        }),
         "min" => (FunctionArguments::unary(), |_| Ok(Min)),
         "max" => (FunctionArguments::unary(), |_| Ok(Max)),
         "avg" | "mean" => (FunctionArguments::unary(), |_| Ok(Mean)),
@@ -868,6 +910,7 @@ enum ConcreteAggregationMethod {
     CovariancePop,
     CovarianceSample,
     DistinctValues(String),
+    Distribution(usize, bool),
     Earliest,
     First,
     Latest,
