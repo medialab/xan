@@ -38,10 +38,10 @@ Examples:
     $ xan separate -r fullname '\s+' data.csv
 
   Extracting digit sequences from a column named 'birthdate' using a regex:
-    $ xan separate -r -m birthdate '\d+' data.csv
+    $ xan separate -rm birthdate '\d+' data.csv
 
   Extracting year, month and day from a column named 'date' using capture groups:
-    $ xan separate date '(\d{4})-(\d{2})-(\d{2})' data.csv -r -c --into year,month,day
+    $ xan separate -rc date '(\d{4})-(\d{2})-(\d{2})' data.csv --into year,month,day
 
   Splitting a column named 'code' into sequences of 3 bytes:
     $ xan separate code --fixed-width 3 data.csv
