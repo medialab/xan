@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::iter::{empty, once};
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
@@ -12,12 +12,13 @@ use crate::CliResult;
 
 static USAGE: &str = r#"
 Separate a single column into multiple ones by splitting its cells according
-to some splitting algorithm that can be one of:
+to some splitting method that can be one of:
 
     * (default): splitting by a single substring
     * -r, --regex: splitting using a regular expression
     * -m, --match: decomposing into regular expression matches
-    * -c, --capture-groups: decomposing into regular expression capture groups
+    * -c, --captures: decomposing into regular expression first match's capture groups
+    * -C, --all-captures: decomposing into regular expression all matches' capture groups
     * --fixed-width: cutting every <n> bytes
     * --widths: split by a list of consecutive widths
     * --cuts: cut at predefined byte offsets
@@ -25,14 +26,18 @@ to some splitting algorithm that can be one of:
 
 Created columns can be given a name using the --into flag, else they will be
 given generic names based on the original column name. For instance, splitting a
-column named "text" will produce columns named "text1", "text2"...
+column named "text" will produce columns named "text1", "text2"... The --prefix
+flag can also be used to choose a different name.
+
+Note that when using -c/--captures, column names can be deduced from regex capture
+group names like in the following pattern: (?<year>\d{4})-(?<day>\d{2}).
 
 It is also possible to limit the number of splits using the --max flag.
 
 If the number of splits is known beforehand (that is to say when using --into
-or --max or --widths or --cuts or --offsets), the command will be able to stream
-the data. Else it will have to buffer the whole file into memory to record the
-maximum number of splits produced by the selected method.
+or --max, --widths, --cuts, --offsets or --captures), the command will be
+able to stream the data. Else it will have to buffer the whole file into memory
+to record the maximum number of splits produced by the selected method.
 
 Finally, note that by default, the separated column will be removed from the output,
 unless the -k/--keep flag is used.
@@ -69,19 +74,21 @@ Usage:
     xan separate --help
 
 separate mode options:
-    -r, --regex           Split cells using a regular expression instead of using
-                          a simple substring.
-    -m, --match           When using -r/--regex, extract parts of the cell matching
-                          the regex pattern.
-    -c, --capture-groups  When using -r/--regex, extract parts of the call matching
-                          the regex pattern's capture groups.
-    --fixed-width         Split cells every <separator> bytes.
-    --widths              Split cells using the given widths (given as a comma-separated
-                          list of integers).
-    --cuts                Split cells on the given bytes (given as a comma-separated
-                          list of increasing, non-repeating integers).
-    --offsets             Split cells according to the specified byte offsets (given as a
-                          comma-separated list of increasing, non-repeating integers).
+    -r, --regex         Split cells using a regular expression instead of using
+                        a simple substring.
+    -m, --match         When using -r/--regex, extract parts of the cell matching
+                        the regex pattern.
+    -c, --captures      When using -r/--regex, find first match of given regex
+                        pattern and extract its capture groups.
+    -C, --all-captures  When using -r/--regex, find all matches of given regex
+                        pattern and extract their capture groups.
+    --fixed-width       Split cells every <separator> bytes.
+    --widths            Split cells using the given widths (given as a comma-separated
+                        list of integers).
+    --cuts              Split cells on the given bytes (given as a comma-separated
+                        list of increasing, non-repeating integers).
+    --offsets           Split cells according to the specified byte offsets (given as a
+                        comma-separated list of increasing, non-repeating integers).
 
 separate options:
     -M, --max <n>          Limit the number of cells splitted to at most <n>.
@@ -107,7 +114,7 @@ separate options:
                                 - 'merge': append the rest of the cell to the last
                                     produced split.
                            Note that 'merge' cannot be used with -m/--match
-                           nor -c/--capture-groups.
+                           nor -c/--captures.
                            [default: error]
     -k, --keep             Keep the separated column after splitting, instead of
                            discarding it.
@@ -130,7 +137,8 @@ struct Args {
     arg_input: Option<String>,
     flag_regex: bool,
     flag_match: bool,
-    flag_capture_groups: bool,
+    flag_all_captures: bool,
+    flag_captures: bool,
     flag_keep: bool,
     flag_max: Option<usize>,
     flag_into: Option<String>,
@@ -170,7 +178,8 @@ struct SplitOptions {
 enum RegexMode {
     Split,
     Match,
-    CaptureGroups,
+    AllCaptures,
+    Captures,
 }
 
 #[derive(Debug)]
@@ -187,6 +196,7 @@ impl Splitter {
             Self::Offsets(offsets, has_implicit_end) => {
                 Some(offsets.len() - (if *has_implicit_end { 0 } else { 1 }))
             }
+            Self::Regex(regex, RegexMode::Captures) => Some(regex.capture_names().skip(1).count()),
             _ => None,
         }
     }
@@ -203,8 +213,9 @@ impl Splitter {
             Self::Substring(sep) => cell.find_iter(sep).count() + 1,
             Self::Regex(pattern, mode) => match mode {
                 RegexMode::Split => pattern.find_iter(cell).count() + 1,
-                RegexMode::CaptureGroups => pattern.captures_iter(cell).map(|m| m.len() - 1).sum(),
+                RegexMode::AllCaptures => pattern.captures_iter(cell).map(|m| m.len() - 1).sum(),
                 RegexMode::Match => pattern.find_iter(cell).count(),
+                RegexMode::Captures => unreachable!(),
             },
             Self::FixedWidth(width) => cell.len().div_ceil(*width),
             Self::Offsets(_, _) => unreachable!(),
@@ -219,15 +230,26 @@ impl Splitter {
             Self::Substring(sep) => Box::new(cell.split_str(sep)),
             Self::Regex(pattern, mode) => match mode {
                 RegexMode::Split => Box::new(pattern.split(cell)),
-                RegexMode::CaptureGroups => {
-                    Box::new(pattern.captures_iter(cell).flat_map(|caps| {
-                        caps.iter()
-                            .skip(1)
-                            .map(|m| m.map(|b| b.as_bytes()).unwrap_or(b""))
-                            .collect::<Vec<_>>()
-                    }))
-                }
+                RegexMode::AllCaptures => Box::new(pattern.captures_iter(cell).flat_map(|caps| {
+                    caps.iter()
+                        .skip(1)
+                        .map(|m| m.map(|b| b.as_bytes()).unwrap_or(b""))
+                        .collect::<Vec<_>>()
+                })),
                 RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
+                RegexMode::Captures => {
+                    if let Some(caps) = pattern.captures(cell) {
+                        Box::new(
+                            caps.iter()
+                                .skip(1)
+                                .map(|m| m.map(|b| b.as_bytes()).unwrap_or(b""))
+                                .collect::<Vec<_>>()
+                                .into_iter(),
+                        )
+                    } else {
+                        Box::new(empty())
+                    }
+                }
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width)),
             Self::Offsets(offsets, has_implicit_end) => {
@@ -274,13 +296,14 @@ impl Splitter {
             Self::Substring(sep) => Box::new(cell.splitn_str(limit, sep)),
             Self::Regex(pattern, mode) => match mode {
                 RegexMode::Split => Box::new(pattern.splitn(cell, limit)),
-                RegexMode::CaptureGroups => {
-                    unimplemented!()
+                RegexMode::AllCaptures => {
+                    unreachable!()
                 }
-                RegexMode::Match => unimplemented!(),
+                RegexMode::Match => unreachable!(),
+                RegexMode::Captures => unreachable!(),
             },
             Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
-            Self::Offsets(_, _) => unimplemented!(),
+            Self::Offsets(_, _) => unreachable!(),
         }
     }
 
@@ -330,30 +353,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let segmenters_count = args.flag_fixed_width as u8
         + args.flag_widths as u8
         + args.flag_cuts as u8
-        + args.flag_offsets as u8;
+        + args.flag_offsets as u8
+        + args.flag_regex as u8;
 
     if segmenters_count > 1 {
-        Err("Only one of --fixed-width, --widths, --cuts or --offsets argument can be used!")?;
+        Err("Only one of -r/--regex, --fixed-width, --widths, --cuts or --offsets argument can be used!")?;
     }
 
-    if args.flag_fixed_width && (args.flag_regex || args.flag_capture_groups || args.flag_match) {
-        Err("--fixed-width cannot be used with -r/--regex, -c/--capture-groups nor -m/--match!")?;
-    }
-    if args.flag_widths || args.flag_cuts || args.flag_offsets {
-        if args.flag_regex || args.flag_capture_groups || args.flag_match {
-            Err("--width, --cuts, --offsets cannot be used with -r/--regex, -c/--capture-groups nor -m/--match!")?;
-        } else if args.flag_max.is_some() {
-            Err("--widths, --cuts, --offsets cannot be used with --max!")?;
-        }
-    }
+    let regex_mode_count =
+        args.flag_match as u8 + args.flag_captures as u8 + args.flag_all_captures as u8;
 
-    if args.flag_capture_groups || args.flag_match {
-        if !args.flag_regex {
-            Err("-c/--capture-groups and -m/--match can only be used with --regex!")?;
+    if args.flag_regex {
+        if regex_mode_count > 1 {
+            Err("Only one of -m/--match, -c/--captures or -C/--all-captures can be used!")?;
         }
-        if args.flag_capture_groups && args.flag_match {
-            Err("-c/--capture-groups and -m/--match cannot be used together!")?;
-        }
+    } else if regex_mode_count > 0 {
+        Err("-m/--match, -c/--captures and -C/--all-captures can only be used with -r/--regex!")?;
     }
 
     let too_many_mode = args.flag_too_many;
@@ -363,14 +378,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("--too-many can only be used with --max or --into!")?;
         }
 
-        if (args.flag_capture_groups || args.flag_match)
+        if (args.flag_captures || args.flag_all_captures || args.flag_match)
             && matches!(too_many_mode, TooManyMode::Merge)
         {
-            Err("--too-many merge doesn't work with -c/--capture-groups nor -m/--match!")?;
+            Err("--too-many merge doesn't work with -c/--captures nor -m/--match!")?;
         }
     }
 
-    let new_column_names = args
+    let mut new_column_names = args
         .flag_into
         .as_ref()
         .map(|names| util::str_to_csv_byte_record(names));
@@ -397,16 +412,45 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let separated_column_index = rconf.single_selection(&headers)?;
 
+    let prefix = args
+        .flag_prefix
+        .unwrap_or(String::from_utf8_lossy(&headers[separated_column_index]).into_owned());
+
     let splitter = if args.flag_regex {
+        let pattern = Regex::new(&args.arg_separator)?;
+
         let regex_mode = if args.flag_match {
             RegexMode::Match
-        } else if args.flag_capture_groups {
-            RegexMode::CaptureGroups
+        } else if args.flag_captures {
+            if new_column_names.is_none() {
+                new_column_names = Some(
+                    pattern
+                        .capture_names()
+                        .skip(1)
+                        .enumerate()
+                        .map(|(i, name_opt)| match name_opt {
+                            Some(name) => name.to_string().into_bytes(),
+                            None => format!("{}{}", prefix, i).into_bytes(),
+                        })
+                        .collect(),
+                );
+            }
+
+            RegexMode::Captures
+        } else if args.flag_all_captures {
+            RegexMode::AllCaptures
         } else {
             RegexMode::Split
         };
 
-        Splitter::Regex(Regex::new(&args.arg_separator)?, regex_mode)
+        let splitter = Splitter::Regex(pattern, regex_mode);
+
+        if matches!((&new_column_names, splitter.static_count_splits()), (Some(names), Some(expected_count)) if names.len() != expected_count)
+        {
+            Err("--into cannot specify more column names than given regex capture groups when using -c/--captures!")?;
+        }
+
+        splitter
     } else if args.flag_fixed_width {
         Splitter::FixedWidth(
             args.arg_separator
@@ -505,13 +549,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut number_of_new_columns = max_splits;
 
-        let prefix = args
-            .flag_prefix
-            .unwrap_or(String::from_utf8_lossy(&headers[separated_column_index]).into_owned());
-
         if let Some(names) = &new_column_names {
             new_headers.extend(names);
-            number_of_new_columns -= names.len();
+            number_of_new_columns = number_of_new_columns.saturating_sub(names.len());
         }
 
         for i in 1..=number_of_new_columns {

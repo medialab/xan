@@ -3,12 +3,13 @@
 
 ```txt
 Separate a single column into multiple ones by splitting its cells according
-to some splitting algorithm that can be one of:
+to some splitting method that can be one of:
 
     * (default): splitting by a single substring
     * -r, --regex: splitting using a regular expression
     * -m, --match: decomposing into regular expression matches
-    * -c, --capture-groups: decomposing into regular expression capture groups
+    * -c, --captures: decomposing into regular expression first match's capture groups
+    * -C, --all-captures: decomposing into regular expression all matches' capture groups
     * --fixed-width: cutting every <n> bytes
     * --widths: split by a list of consecutive widths
     * --cuts: cut at predefined byte offsets
@@ -16,14 +17,18 @@ to some splitting algorithm that can be one of:
 
 Created columns can be given a name using the --into flag, else they will be
 given generic names based on the original column name. For instance, splitting a
-column named "text" will produce columns named "text1", "text2"...
+column named "text" will produce columns named "text1", "text2"... The --prefix
+flag can also be used to choose a different name.
+
+Note that when using -c/--captures, column names can be deduced from regex capture
+group names like in the following pattern: (?<year>\d{4})-(?<day>\d{2}).
 
 It is also possible to limit the number of splits using the --max flag.
 
 If the number of splits is known beforehand (that is to say when using --into
-or --max or --widths or --cuts or --offsets), the command will be able to stream
-the data. Else it will have to buffer the whole file into memory to record the
-maximum number of splits produced by the selected method.
+or --max, --widths, --cuts, --offsets or --captures), the command will be
+able to stream the data. Else it will have to buffer the whole file into memory
+to record the maximum number of splits produced by the selected method.
 
 Finally, note that by default, the separated column will be removed from the output,
 unless the -k/--keep flag is used.
@@ -60,19 +65,21 @@ Usage:
     xan separate --help
 
 separate mode options:
-    -r, --regex           Split cells using a regular expression instead of using
-                          a simple substring.
-    -m, --match           When using -r/--regex, extract parts of the cell matching
-                          the regex pattern.
-    -c, --capture-groups  When using -r/--regex, extract parts of the call matching
-                          the regex pattern's capture groups.
-    --fixed-width         Split cells every <separator> bytes.
-    --widths              Split cells using the given widths (given as a comma-separated
-                          list of integers).
-    --cuts                Split cells on the given bytes (given as a comma-separated
-                          list of increasing, non-repeating integers).
-    --offsets             Split cells according to the specified byte offsets (given as a
-                          comma-separated list of increasing, non-repeating integers).
+    -r, --regex         Split cells using a regular expression instead of using
+                        a simple substring.
+    -m, --match         When using -r/--regex, extract parts of the cell matching
+                        the regex pattern.
+    -c, --captures      When using -r/--regex, find first match of given regex
+                        pattern and extract its capture groups.
+    -C, --all-captures  When using -r/--regex, find all matches of given regex
+                        pattern and extract their capture groups.
+    --fixed-width       Split cells every <separator> bytes.
+    --widths            Split cells using the given widths (given as a comma-separated
+                        list of integers).
+    --cuts              Split cells on the given bytes (given as a comma-separated
+                        list of increasing, non-repeating integers).
+    --offsets           Split cells according to the specified byte offsets (given as a
+                        comma-separated list of increasing, non-repeating integers).
 
 separate options:
     -M, --max <n>          Limit the number of cells splitted to at most <n>.
@@ -98,7 +105,7 @@ separate options:
                                 - 'merge': append the rest of the cell to the last
                                     produced split.
                            Note that 'merge' cannot be used with -m/--match
-                           nor -c/--capture-groups.
+                           nor -c/--captures.
                            [default: error]
     -k, --keep             Keep the separated column after splitting, instead of
                            discarding it.

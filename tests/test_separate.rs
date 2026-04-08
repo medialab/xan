@@ -268,8 +268,8 @@ fn separate_regex_sep() {
 }
 
 #[test]
-fn separate_regex_capture_groups() {
-    let wrk = Workdir::new("separate_regex_capture_groups");
+fn separate_regex_all_captures() {
+    let wrk = Workdir::new("separate_regex_all_captures");
     wrk.create(
         "data.csv",
         vec![
@@ -284,7 +284,7 @@ fn separate_regex_capture_groups() {
         .arg(r"(?m)^([^:]+):([0-9]+):(.+)$")
         .arg("data.csv")
         .arg("-r")
-        .arg("-c");
+        .arg("-C");
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["path1", "path2", "path3"],
