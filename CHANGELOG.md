@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.57.0 (provisional)
+## 0.57.0
+
+The **temporal** update.
 
 *Breaking*
 
