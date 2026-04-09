@@ -300,6 +300,29 @@ fn separate_regex_all_captures() {
 }
 
 #[test]
+fn separate_regex_captures() {
+    let wrk = Workdir::new("separate_regex_captures");
+    wrk.create(
+        "data.csv",
+        vec![svec!["date"], svec!["2010/01/04"], svec!["2015/02/12"]],
+    );
+
+    let mut cmd = wrk.command("separate");
+    cmd.arg("date")
+        .arg(r"(?<year>\d{4})/(\d{2})/(?<day>\d{2})")
+        .arg("data.csv")
+        .arg("-rc");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["year", "date2", "day"],
+        ["2010", "01", "04"],
+        ["2015", "02", "12"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn separate_regex_match() {
     let wrk = Workdir::new("separate_regex_match");
     wrk.create(
