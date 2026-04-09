@@ -430,7 +430,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .enumerate()
                         .map(|(i, name_opt)| match name_opt {
                             Some(name) => name.to_string().into_bytes(),
-                            None => format!("{}{}", prefix, i).into_bytes(),
+                            None => format!("{}{}", prefix, i + 1).into_bytes(),
                         })
                         .collect(),
                 );
@@ -548,14 +548,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         let mut number_of_new_columns = max_splits;
+        let mut offset: usize = 0;
 
         if let Some(names) = &new_column_names {
-            new_headers.extend(names);
+            let to_extend = names.iter().take(number_of_new_columns);
+            offset = to_extend.len();
+            new_headers.extend(to_extend);
             number_of_new_columns = number_of_new_columns.saturating_sub(names.len());
         }
 
         for i in 1..=number_of_new_columns {
-            let header_name = format!("{}{}", prefix, i);
+            let header_name = format!("{}{}", prefix, offset + i);
             new_headers.push_field(header_name.as_bytes());
         }
 

@@ -361,7 +361,7 @@ fn separate_named_and_known_max_splits() {
         .arg("year,month,day");
     let got1: Vec<Vec<String>> = wrk.read_stdout(&mut cmd1);
     let expected1 = vec![
-        svec!["year", "month", "day", "date1"],
+        svec!["year", "month", "day", "date4"],
         svec!["2023", "01", "15", ""],
         svec!["1999", "12", "31", ""],
         svec!["2024", "07", "04", ""],
