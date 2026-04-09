@@ -1,4 +1,5 @@
 pub mod agg;
+pub mod baseline;
 pub mod behead;
 pub mod bins;
 pub mod bisect;
