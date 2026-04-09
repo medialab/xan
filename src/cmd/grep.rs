@@ -141,7 +141,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     macro_rules! process_record {
         ($record: expr) => {
-            let mut is_match = matcher.is_match($record);
+            let mut is_match = matcher.is_match($record)?;
 
             if args.flag_invert_match {
                 is_match = !is_match;

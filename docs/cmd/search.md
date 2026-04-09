@@ -133,6 +133,12 @@ Would directly translate to:
 
     $ xan parallel cat -P 'search -i eternity' -F file.csv
 
+# A note about encoding
+
+This command usually does not care about the input's encoding. However, some
+search modes need to operate on unicode characters directely and therefore expect
+valid UTF-8. This is the case for -u/--url-prefix & -L/--levenshtein.
+
 Usage:
     xan search [options] --non-empty [<input>]
     xan search [options] --empty [<input>]

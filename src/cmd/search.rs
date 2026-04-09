@@ -1,13 +1,13 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::num::{NonZeroU8, NonZeroUsize};
-use std::str::from_utf8;
+use std::str::{from_utf8, Utf8Error};
 use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use bstr::{ByteSlice, ByteVec};
 use indexmap::IndexMap;
-use levenshtein_automata::{Distance as LevenshteinDistance, LevenshteinAutomatonBuilder, DFA};
+use levenshtein_automata::{Distance as LevenshteinDistance, LevenshteinAutomatonBuilder};
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
@@ -19,6 +19,45 @@ use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
 use crate::util;
 use crate::CliError;
 use crate::CliResult;
+
+fn try_any<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, predicate: F) -> Result<bool, E>
+where
+    F: Fn(&'c [u8]) -> Result<bool, E>,
+{
+    for cell in cells {
+        if predicate(cell)? {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn try_all<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, predicate: F) -> Result<bool, E>
+where
+    F: Fn(&'c [u8]) -> Result<bool, E>,
+{
+    for cell in cells {
+        if !predicate(cell)? {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+fn try_sum<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, callback: F) -> Result<usize, E>
+where
+    F: Fn(&'c [u8]) -> Result<usize, E>,
+{
+    let mut total: usize = 0;
+
+    for cell in cells {
+        total += callback(cell)?;
+    }
+
+    Ok(total)
+}
 
 trait LevenshteinDistanceExt {
     fn is_match(&self) -> bool;
@@ -83,6 +122,43 @@ fn regex_set_replace_all<'a>(
     Cow::Owned(bytes)
 }
 
+pub struct LevenshteinSet {
+    dfas: Vec<levenshtein_automata::DFA>,
+    case_insensitive: bool,
+}
+
+impl LevenshteinSet {
+    fn query<'c>(&self, cell: &'c [u8]) -> Result<Cow<'c, str>, Utf8Error> {
+        Ok(if self.case_insensitive {
+            Cow::Owned(from_utf8(cell)?.to_lowercase())
+        } else {
+            Cow::Borrowed(from_utf8(cell)?)
+        })
+    }
+
+    fn find_iter<'a>(
+        &'a self,
+        cell: &'a [u8],
+    ) -> Result<impl Iterator<Item = usize> + 'a, Utf8Error> {
+        let query = self.query(cell)?;
+
+        Ok(self
+            .dfas
+            .iter()
+            .enumerate()
+            .filter(move |(_, dfa)| dfa.eval(query.as_bytes()).is_match())
+            .map(|(i, _)| i))
+    }
+
+    fn find(&self, cell: &[u8]) -> Result<Option<usize>, Utf8Error> {
+        self.find_iter(cell).map(|mut iter| iter.next())
+    }
+
+    fn is_match(&self, cell: &[u8]) -> Result<bool, Utf8Error> {
+        Ok(self.find(cell)?.is_some())
+    }
+}
+
 pub enum Matcher {
     Empty,
     NonEmpty,
@@ -94,12 +170,12 @@ pub enum Matcher {
     HashMap(HashMap<Vec<u8>, usize>, bool),
     UrlPrefix(LRUStems),
     UrlTrie(LRUTrieMap<usize>),
-    Levenshtein(DFA, bool),
+    Levenshtein(LevenshteinSet),
 }
 
 impl Matcher {
-    pub fn is_match(&self, cell: &[u8]) -> bool {
-        match self {
+    pub fn is_match(&self, cell: &[u8]) -> Result<bool, Utf8Error> {
+        Ok(match self {
             Self::Empty => cell.is_empty(),
             Self::NonEmpty => !cell.is_empty(),
             Self::Substring(pattern, case_insensitive) => {
@@ -126,29 +202,14 @@ impl Matcher {
                     patterns.contains_key(cell)
                 }
             }
-            Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
-                None => false,
-                Some(url) => stems.is_simplified_match(url),
-            },
-            Self::UrlTrie(trie) => match from_utf8(cell).ok() {
-                None => false,
-                Some(url) => trie.is_match(url).unwrap_or(false),
-            },
-            Self::Levenshtein(dfa, case_insenstive) => match from_utf8(cell).ok() {
-                None => false,
-                Some(value) => {
-                    if *case_insenstive {
-                        dfa.eval(value.to_lowercase()).is_match()
-                    } else {
-                        dfa.eval(value).is_match()
-                    }
-                }
-            },
-        }
+            Self::UrlPrefix(stems) => stems.is_simplified_match(from_utf8(cell)?),
+            Self::UrlTrie(trie) => trie.is_match(from_utf8(cell)?).unwrap_or(false),
+            Self::Levenshtein(set) => set.is_match(cell)?,
+        })
     }
 
-    fn count(&self, cell: &[u8], overlapping: bool) -> usize {
-        match self {
+    fn count(&self, cell: &[u8], overlapping: bool) -> Result<usize, Utf8Error> {
+        Ok(match self {
             Self::Empty => {
                 if cell.is_empty() {
                     1
@@ -207,28 +268,18 @@ impl Matcher {
                     patterns.contains_key(cell) as usize
                 }
             }
-            Self::UrlPrefix(stems) => match from_utf8(cell).ok() {
-                None => 0,
-                Some(url) => stems.is_simplified_match(url) as usize,
-            },
-            Self::UrlTrie(trie) => match from_utf8(cell).ok() {
-                None => 0,
-                Some(url) => trie.is_match(url).unwrap_or(false) as usize,
-            },
-            Self::Levenshtein(dfa, case_insenstive) => match from_utf8(cell).ok() {
-                None => 0,
-                Some(value) => {
-                    if *case_insenstive {
-                        dfa.eval(value.to_lowercase()).is_match() as usize
-                    } else {
-                        dfa.eval(value).is_match() as usize
-                    }
-                }
-            },
-        }
+            Self::UrlPrefix(stems) => stems.is_simplified_match(from_utf8(cell)?) as usize,
+            Self::UrlTrie(trie) => trie.is_match(from_utf8(cell)?).unwrap_or(false) as usize,
+            Self::Levenshtein(set) => set.find_iter(cell)?.count(),
+        })
     }
 
-    fn breakdown(&self, cell: &[u8], overlapping: bool, counts: &mut [usize]) -> bool {
+    fn breakdown(
+        &self,
+        cell: &[u8],
+        overlapping: bool,
+        counts: &mut [usize],
+    ) -> Result<bool, Utf8Error> {
         let mut is_match = false;
 
         match self {
@@ -236,8 +287,7 @@ impl Matcher {
             | Self::NonEmpty
             | Self::Regex(_)
             | Self::Exact(_, _)
-            | Self::UrlPrefix(_)
-            | Self::Levenshtein(_, _) => {
+            | Self::UrlPrefix(_) => {
                 unreachable!()
             }
 
@@ -295,26 +345,34 @@ impl Matcher {
                 }
             }
             Self::UrlTrie(trie) => {
-                if let Ok(url) = from_utf8(cell) {
-                    if let Ok(Some(id)) = trie.longest_matching_prefix_value(url) {
-                        counts[*id] += 1;
-                        is_match = true;
-                    }
+                if let Ok(Some(id)) = trie.longest_matching_prefix_value(from_utf8(cell)?) {
+                    counts[*id] += 1;
+                    is_match = true;
+                }
+            }
+            Self::Levenshtein(set) => {
+                for id in set.find_iter(cell)? {
+                    counts[id] += 1;
+                    is_match = true;
                 }
             }
         }
 
-        is_match
+        Ok(is_match)
     }
 
-    fn unique_matches(&self, cell: &[u8], overlapping: bool, matches: &mut BTreeSet<usize>) {
+    fn unique_matches(
+        &self,
+        cell: &[u8],
+        overlapping: bool,
+        matches: &mut BTreeSet<usize>,
+    ) -> Result<(), Utf8Error> {
         match self {
             Self::Empty
             | Self::NonEmpty
             | Self::Regex(_)
             | Self::Exact(_, _)
-            | Self::UrlPrefix(_)
-            | Self::Levenshtein(_, _) => {
+            | Self::UrlPrefix(_) => {
                 unreachable!()
             }
 
@@ -366,17 +424,26 @@ impl Matcher {
                 }
             }
             Self::UrlTrie(trie) => {
-                if let Ok(url) = from_utf8(cell) {
-                    if let Ok(Some(id)) = trie.longest_matching_prefix_value(url) {
-                        matches.insert(*id);
-                    }
+                if let Ok(Some(id)) = trie.longest_matching_prefix_value(from_utf8(cell)?) {
+                    matches.insert(*id);
+                }
+            }
+            Self::Levenshtein(set) => {
+                for id in set.find_iter(cell)? {
+                    matches.insert(id);
                 }
             }
         }
+
+        Ok(())
     }
 
-    fn replace<'a>(&self, cell: &'a [u8], replacements: &'a [Vec<u8>]) -> Cow<'a, [u8]> {
-        match self {
+    fn replace<'a>(
+        &self,
+        cell: &'a [u8],
+        replacements: &'a [Vec<u8>],
+    ) -> Result<Cow<'a, [u8]>, Utf8Error> {
+        Ok(match self {
             Self::Empty => {
                 if cell.is_empty() {
                     Cow::Borrowed(&replacements[0])
@@ -437,33 +504,21 @@ impl Matcher {
                     }
                 }
             },
-            Self::UrlTrie(trie) => match from_utf8(cell).ok() {
-                None => Cow::Borrowed(cell),
-                Some(url) => {
-                    if let Ok(Some(i)) = trie.longest_matching_prefix_value(url) {
-                        Cow::Borrowed(&replacements[*i])
-                    } else {
-                        Cow::Borrowed(cell)
-                    }
+            Self::UrlTrie(trie) => {
+                if let Ok(Some(i)) = trie.longest_matching_prefix_value(from_utf8(cell)?) {
+                    Cow::Borrowed(&replacements[*i])
+                } else {
+                    Cow::Borrowed(cell)
                 }
-            },
-            Self::Levenshtein(dfa, case_insenstive) => match from_utf8(cell).ok() {
-                None => Cow::Borrowed(cell),
-                Some(value) => {
-                    if *case_insenstive {
-                        if dfa.eval(value.to_lowercase()).is_match() {
-                            Cow::Borrowed(&replacements[0])
-                        } else {
-                            Cow::Borrowed(cell)
-                        }
-                    } else if dfa.eval(value).is_match() {
-                        Cow::Borrowed(&replacements[0])
-                    } else {
-                        Cow::Borrowed(cell)
-                    }
+            }
+            Self::Levenshtein(set) => {
+                if let Some(i) = set.find(cell)? {
+                    Cow::Borrowed(&replacements[i])
+                } else {
+                    Cow::Borrowed(cell)
                 }
-            },
-        }
+            }
+        })
     }
 }
 
@@ -601,6 +656,12 @@ For instance, the following `search` command:
 Would directly translate to:
 
     $ xan parallel cat -P 'search -i eternity' -F file.csv
+
+# A note about encoding
+
+This command usually does not care about the input's encoding. However, some
+search modes need to operate on unicode characters directely and therefore expect
+valid UTF-8. This is the case for -u/--url-prefix & -L/--levenshtein.
 
 Usage:
     xan search [options] --non-empty [<input>]
@@ -767,16 +828,16 @@ impl Args {
 
                     Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
                 } else if let Some(k) = self.flag_levenshtein {
-                    Matcher::Levenshtein(
-                        LevenshteinAutomatonBuilder::new(k.get(), false).build_dfa(
+                    Matcher::Levenshtein(LevenshteinSet {
+                        dfas: vec![LevenshteinAutomatonBuilder::new(k.get(), false).build_dfa(
                             &(if self.flag_ignore_case {
                                 pattern.to_lowercase()
                             } else {
                                 pattern.to_string()
                             }),
-                        ),
-                        self.flag_ignore_case,
-                    )
+                        )],
+                        case_insensitive: self.flag_ignore_case,
+                    })
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new([if self.flag_ignore_case {
@@ -831,6 +892,22 @@ impl Args {
                 }
 
                 Matcher::UrlTrie(trie)
+            } else if let Some(k) = self.flag_levenshtein {
+                Matcher::Levenshtein(LevenshteinSet {
+                    dfas: patterns
+                        .iter()
+                        .map(|pattern| {
+                            LevenshteinAutomatonBuilder::new(k.get(), false).build_dfa(
+                                &(if self.flag_ignore_case {
+                                    pattern.to_lowercase()
+                                } else {
+                                    pattern.to_string()
+                                }),
+                            )
+                        })
+                        .collect(),
+                    case_insensitive: self.flag_ignore_case,
+                })
             } else {
                 Matcher::Substring(
                     AhoCorasick::new(
@@ -914,10 +991,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err(
             "for performance reasons, -L/--levenshtein does not allow k to be greater than 5 yet!",
         )?;
-    }
-
-    if args.flag_levenshtein.is_some() && args.flag_patterns.is_some() {
-        Err("-L/--levenshtein does not work yet with --patterns!")?;
     }
 
     let actions_count: u8 = args.flag_count.is_some() as u8
@@ -1069,7 +1142,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut counts = vec![0; patterns_len];
 
                     for cell in sel.select(&record) {
-                        is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                        is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts)?;
                     }
 
                     if is_match || args.flag_left {
@@ -1093,7 +1166,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut matches = BTreeSet::<usize>::new();
 
                     for cell in sel.select(&record) {
-                        matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
+                        matcher.unique_matches(cell, args.flag_overlapping, &mut matches)?;
                     }
 
                     is_match = !matches.is_empty();
@@ -1131,7 +1204,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
                         if should_replace {
-                            let replaced_cell = matcher.replace(cell, replacements);
+                            let replaced_cell = matcher.replace(cell, replacements)?;
                             replaced_record.push_field(&replaced_cell);
 
                             if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
@@ -1146,10 +1219,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
                 // Count
                 else if args.flag_count.is_some() {
-                    let count: usize = sel
-                        .select(&record)
-                        .map(|cell| matcher.count(cell, args.flag_overlapping))
-                        .sum();
+                    let count = try_sum(sel.select(&record), |cell| {
+                        matcher.count(cell, args.flag_overlapping)
+                    })?;
 
                     if count > 0 {
                         is_match = true;
@@ -1164,9 +1236,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 // Filter
                 else {
                     is_match = if args.flag_all {
-                        sel.select(&record).all(|cell| matcher.is_match(cell))
+                        try_all(sel.select(&record), |cell| matcher.is_match(cell))?
                     } else {
-                        sel.select(&record).any(|cell| matcher.is_match(cell))
+                        try_any(sel.select(&record), |cell| matcher.is_match(cell))?
                     };
 
                     if args.flag_invert_match {
@@ -1216,7 +1288,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Breakdown
         if args.flag_breakdown {
             for cell in sel.select(&record) {
-                is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts);
+                is_match |= matcher.breakdown(cell, args.flag_overlapping, &mut counts)?;
             }
 
             if is_match || args.flag_left {
@@ -1248,7 +1320,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             matches.clear();
 
             for cell in sel.select(&record) {
-                matcher.unique_matches(cell, args.flag_overlapping, &mut matches);
+                matcher.unique_matches(cell, args.flag_overlapping, &mut matches)?;
             }
 
             is_match = !matches.is_empty();
@@ -1285,7 +1357,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             for (cell, should_replace) in record.iter().zip(sel_mask.iter().copied()) {
                 if should_replace {
-                    let replaced_cell = matcher.replace(cell, replacements);
+                    let replaced_cell = matcher.replace(cell, replacements)?;
                     replaced_record.push_field(&replaced_cell);
 
                     if args.flag_limit.is_some() && cell != replaced_cell.as_ref() {
@@ -1300,10 +1372,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
         // Count
         else if args.flag_count.is_some() {
-            let count: usize = sel
-                .select(&record)
-                .map(|cell| matcher.count(cell, args.flag_overlapping))
-                .sum();
+            let count = try_sum(sel.select(&record), |cell| {
+                matcher.count(cell, args.flag_overlapping)
+            })?;
 
             if count > 0 {
                 is_match = true;
@@ -1317,9 +1388,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Filter
         else {
             is_match = if args.flag_all {
-                sel.select(&record).all(|cell| matcher.is_match(cell))
+                try_all(sel.select(&record), |cell| matcher.is_match(cell))?
             } else {
-                sel.select(&record).any(|cell| matcher.is_match(cell))
+                try_any(sel.select(&record), |cell| matcher.is_match(cell))?
             };
 
             if args.flag_invert_match {

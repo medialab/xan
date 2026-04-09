@@ -37,6 +37,7 @@
 * Adding `xan hist --log` shorthand flag for `--scale=log`.
 * Adding `log_dist` sparkline column to `xan stats -q` output.
 * Adding `dist` & `log_dist` aggregation functions.
+* Adding `xan search --levenshtein <k>`.
 
 *Fixes*
 
@@ -45,6 +46,7 @@
 * Fixing `xan heatmap --repeat-headers --cram always` not repeating x-axis legend.
 * Fixing correctness of `xan plot -T` and increase resolution to microseconds.
 * Fixing moonblade column-related functions returning incorrect results wrt `-n/--no-headers`.
+* `xan search` should now properly error when handling invalid utf-8 in relevant modes.
 
 *Performance*
 
