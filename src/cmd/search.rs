@@ -460,7 +460,7 @@ impl Matcher {
             }
             Self::Substring(pattern, case_insensitive) => {
                 if *case_insensitive {
-                    Cow::Owned(pattern.replace_all_bytes(&cell.to_lowercase(), replacements))
+                    unreachable!()
                 } else {
                     Cow::Owned(pattern.replace_all_bytes(cell, replacements))
                 }
@@ -805,6 +805,10 @@ struct Args {
 }
 
 impl Args {
+    fn is_replacing(&self) -> bool {
+        self.flag_replace.is_some() || self.flag_replacement_column.is_some()
+    }
+
     fn build_matcher(&self, patterns: &Option<Vec<String>>) -> Result<Matcher, CliError> {
         if self.flag_non_empty {
             return Ok(Matcher::NonEmpty);
@@ -849,6 +853,12 @@ impl Args {
                         )],
                         case_insensitive: self.flag_ignore_case,
                     })
+                } else if self.is_replacing() {
+                    Matcher::Regex(
+                        RegexBuilder::new(&regex::escape(pattern))
+                            .case_insensitive(self.flag_ignore_case)
+                            .build()?,
+                    )
                 } else {
                     Matcher::Substring(
                         AhoCorasick::new([if self.flag_ignore_case {
@@ -923,6 +933,17 @@ impl Args {
                         .collect(),
                     case_insensitive: self.flag_ignore_case,
                 })
+            } else if self.is_replacing() {
+                Matcher::RegexSet(
+                    RegexSet::builder()
+                        .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
+                        .build_many(
+                            &patterns
+                                .iter()
+                                .map(|pattern| regex::escape(pattern))
+                                .collect::<Vec<_>>(),
+                        )?,
+                )
             } else {
                 Matcher::Substring(
                     AhoCorasick::new(

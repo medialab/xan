@@ -47,6 +47,7 @@
 * Fixing correctness of `xan plot -T` and increase resolution to microseconds.
 * Fixing moonblade column-related functions returning incorrect results wrt `-n/--no-headers`.
 * `xan search` should now properly error when handling invalid utf-8 in relevant modes.
+* Fixing `xan search -iR` & `xan search -i --replacement-column`.
 
 *Performance*
 

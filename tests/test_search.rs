@@ -772,6 +772,57 @@ fn search_replace() {
 }
 
 #[test]
+fn search_replace_case_insensitive() {
+    let wrk = Workdir::new("search_replace_case_insensitive");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["JOHN"], svec!["LANDIS"]],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("o")
+        .arg("-i")
+        .args(["--replace", "b"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name"], ["JbHN"], ["LANDIS"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_replace_patterns_case_insensitive() {
+    let wrk = Workdir::new("search_replace_patterns_case_insensitive");
+
+    wrk.create(
+        "data.csv",
+        vec![svec!["name"], svec!["JOHN"], svec!["LANDIS"]],
+    );
+
+    wrk.create(
+        "patterns.csv",
+        vec![
+            svec!["pattern", "replacement"],
+            svec!["o", "b"],
+            svec!["a", "c"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("o")
+        .arg("-i")
+        .args(["--patterns", "patterns.csv"])
+        .args(["--pattern-column", "0"])
+        .args(["--replacement-column", "1"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["name"], ["JbHN"], ["LcNDIS"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn search_replace_regex() {
     let wrk = Workdir::new("search_replace_regex");
 
