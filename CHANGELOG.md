@@ -37,7 +37,7 @@
 * Adding `xan hist --log` shorthand flag for `--scale=log`.
 * Adding `log_dist` sparkline column to `xan stats -q` output.
 * Adding `dist` & `log_dist` aggregation functions.
-* Adding `xan search --levenshtein <k>`.
+* Adding `xan search -L/--levenshtein <k> & -D/--damerau-levenshtein <k>`.
 
 *Fixes*
 

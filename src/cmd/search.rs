@@ -536,6 +536,7 @@ This command has several flags to select the way to perform a match:
     * -r, --regex: using a regular expression
     * -u, --url-prefix: matching by url prefix (e.g. \"lemonde.fr/business\")
     * -L, --levenshtein <k>: matching using Levenshtein distance
+    * -D, --damerau-levenshtein <k>: matching using Damerau-Levenshtein distance
     * -N, --non-empty: finding non-empty cells (does not need a pattern)
     * -E, --empty: finding empty cells (does not need a pattern)
 
@@ -661,7 +662,8 @@ Would directly translate to:
 
 This command usually does not care about the input's encoding. However, some
 search modes need to operate on unicode characters directely and therefore expect
-valid UTF-8. This is the case for -u/--url-prefix & -L/--levenshtein.
+valid UTF-8. This is only the case for -u/--url-prefix, -L/--levenshtein
+and -D/--damerau-levenshtein.
 
 Usage:
     xan search [options] --non-empty [<input>]
@@ -686,6 +688,10 @@ search mode options:
                            less than or equal to given <k> threshold. For performance
                            reasons and to avoid absurd memory consumption, <k> is
                            disallowed to be greater than 5.
+    -D, --damerau-levenshtein <k>
+                           Same as -L/--levenshtein, but set transposition cost
+                           to 1 instead of 2. Useful to match more usual typos without
+                           increasing <k> too much.
 
 search options:
     -i, --ignore-case        Case insensitive search.
@@ -780,6 +786,7 @@ struct Args {
     flag_regex: bool,
     flag_url_prefix: bool,
     flag_levenshtein: Option<NonZeroU8>,
+    flag_damerau_levenshtein: Option<NonZeroU8>,
     flag_flag: Option<String>,
     flag_count: Option<String>,
     flag_replace: Option<String>,
@@ -827,9 +834,13 @@ impl Args {
                     let tagged_url = pattern.parse::<TaggedUrl>()?;
 
                     Matcher::UrlPrefix(LRUStems::from_tagged_url(&tagged_url, true))
-                } else if let Some(k) = self.flag_levenshtein {
+                } else if let Some(k) = self.flag_levenshtein.or(self.flag_damerau_levenshtein) {
                     Matcher::Levenshtein(LevenshteinSet {
-                        dfas: vec![LevenshteinAutomatonBuilder::new(k.get(), false).build_dfa(
+                        dfas: vec![LevenshteinAutomatonBuilder::new(
+                            k.get(),
+                            self.flag_damerau_levenshtein.is_some(),
+                        )
+                        .build_dfa(
                             &(if self.flag_ignore_case {
                                 pattern.to_lowercase()
                             } else {
@@ -892,12 +903,16 @@ impl Args {
                 }
 
                 Matcher::UrlTrie(trie)
-            } else if let Some(k) = self.flag_levenshtein {
+            } else if let Some(k) = self.flag_levenshtein.or(self.flag_damerau_levenshtein) {
                 Matcher::Levenshtein(LevenshteinSet {
                     dfas: patterns
                         .iter()
                         .map(|pattern| {
-                            LevenshteinAutomatonBuilder::new(k.get(), false).build_dfa(
+                            LevenshteinAutomatonBuilder::new(
+                                k.get(),
+                                self.flag_damerau_levenshtein.is_some(),
+                            )
+                            .build_dfa(
                                 &(if self.flag_ignore_case {
                                     pattern.to_lowercase()
                                 } else {
@@ -937,10 +952,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_non_empty as u8
         + args.flag_empty as u8
         + args.flag_url_prefix as u8
-        + args.flag_levenshtein.is_some() as u8;
+        + args.flag_levenshtein.is_some() as u8
+        + args.flag_damerau_levenshtein.is_some() as u8;
 
     if matchers_count > 1 {
-        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix, -L/--levenshtein or -r/--regex!")?;
+        Err("must select only one of -e/--exact, -N/--non-empty, -E/--empty, -u/--url-prefix, -L/--levenshtein, -D/--damerau-levenshtein or -r/--regex!")?;
     }
 
     if args.flag_overlapping

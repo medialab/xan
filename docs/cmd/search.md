@@ -12,6 +12,7 @@ This command has several flags to select the way to perform a match:
     * -r, --regex: using a regular expression
     * -u, --url-prefix: matching by url prefix (e.g. "lemonde.fr/business")
     * -L, --levenshtein <k>: matching using Levenshtein distance
+    * -D, --damerau-levenshtein <k>: matching using Damerau-Levenshtein distance
     * -N, --non-empty: finding non-empty cells (does not need a pattern)
     * -E, --empty: finding empty cells (does not need a pattern)
 
@@ -137,7 +138,8 @@ Would directly translate to:
 
 This command usually does not care about the input's encoding. However, some
 search modes need to operate on unicode characters directely and therefore expect
-valid UTF-8. This is the case for -u/--url-prefix & -L/--levenshtein.
+valid UTF-8. This is only the case for -u/--url-prefix, -L/--levenshtein
+and -D/--damerau-levenshtein.
 
 Usage:
     xan search [options] --non-empty [<input>]
@@ -162,6 +164,10 @@ search mode options:
                            less than or equal to given <k> threshold. For performance
                            reasons and to avoid absurd memory consumption, <k> is
                            disallowed to be greater than 5.
+    -D, --damerau-levenshtein <k>
+                           Same as -L/--levenshtein, but set transposition cost
+                           to 1 instead of 2. Useful to match more usual typos without
+                           increasing <k> too much.
 
 search options:
     -i, --ignore-case        Case insensitive search.
