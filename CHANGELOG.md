@@ -51,6 +51,7 @@
 * Improving performance of `xan complete`, `xan top`, `xan plot -T` & `xan hist`.
 * Improving overall performance of `xan network`.
 * Slightly optimizing `xan vocab` by allowing needless heap allocation & indirection.
+* Improving performance and memory usage of `xan separate`.
 
 *Quality of Life*
 

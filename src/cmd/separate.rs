@@ -1,4 +1,4 @@
-use std::iter::{empty, once};
+use std::iter::once;
 use std::num::NonZeroUsize;
 
 use bstr::ByteSlice;
@@ -182,6 +182,125 @@ enum RegexMode {
     Captures,
 }
 
+enum Split<'c, 'r> {
+    Substring(bstr::Split<'c, 'r>),
+    Regex(regex::bytes::Split<'r, 'c>),
+    RegexMatches(regex::bytes::Matches<'r, 'c>),
+    RegexAllCaptures {
+        iter: regex::bytes::CaptureMatches<'r, 'c>,
+        current: Option<regex::bytes::Captures<'c>>,
+        group: usize,
+    },
+    RegexCaptures {
+        caps: Option<regex::bytes::Captures<'c>>,
+        group: usize,
+    },
+    FixedWidth(std::slice::Chunks<'c, u8>),
+    Offsets {
+        cell: &'c [u8],
+        offsets: &'r [usize],
+        index: usize,
+        has_implicit_end: bool,
+    },
+}
+
+impl<'c> Iterator for Split<'c, '_> {
+    type Item = &'c [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Substring(iter) => iter.next(),
+            Self::Regex(iter) => iter.next(),
+            Self::RegexMatches(iter) => iter.next().map(|m| m.as_bytes()),
+            Self::RegexAllCaptures {
+                iter,
+                current,
+                group,
+            } => {
+                loop {
+                    if let Some(caps) = current {
+                        if *group < caps.len() {
+                            let sub_cell = caps.get(*group).map(|m| m.as_bytes()).unwrap_or(b"");
+                            *group += 1;
+                            return Some(sub_cell);
+                        }
+                    }
+
+                    match iter.next() {
+                        Some(caps) => {
+                            *current = Some(caps);
+                            *group = 1; // skip full match
+                        }
+                        None => return None,
+                    }
+                }
+            }
+            Self::RegexCaptures { caps, group } => {
+                let caps = caps.as_ref()?;
+
+                if *group >= caps.len() {
+                    return None;
+                }
+
+                let sub_cell = caps.get(*group).map(|m| m.as_bytes()).unwrap_or(b"");
+
+                *group += 1;
+
+                Some(sub_cell)
+            }
+            Self::FixedWidth(iter) => iter.next(),
+            Self::Offsets {
+                cell,
+                offsets,
+                index,
+                has_implicit_end,
+            } => {
+                if *index + 1 < offsets.len() {
+                    let start = offsets[*index];
+                    let end = offsets[*index + 1].min(cell.len());
+
+                    *index += 1;
+
+                    if start >= cell.len() {
+                        return None;
+                    }
+
+                    return Some(&cell[start..end]);
+                }
+
+                if *has_implicit_end && *index < offsets.len() {
+                    let start = offsets[*index];
+                    *index += 1;
+
+                    if start < cell.len() {
+                        return Some(&cell[start..]);
+                    }
+                }
+
+                None
+            }
+        }
+    }
+}
+
+enum SplitN<'c, 'r> {
+    Substring(bstr::SplitN<'c, 'r>),
+    Regex(regex::bytes::SplitN<'r, 'c>),
+    FixedWidth(std::iter::Take<std::slice::Chunks<'c, u8>>),
+}
+
+impl<'c> Iterator for SplitN<'c, '_> {
+    type Item = &'c [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Substring(iter) => iter.next(),
+            Self::Regex(iter) => iter.next(),
+            Self::FixedWidth(iter) => iter.next(),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Splitter {
     Substring(Vec<u8>),
@@ -222,128 +341,90 @@ impl Splitter {
         }
     }
 
-    fn split<'s, 'c>(&'s self, cell: &'c [u8]) -> Box<dyn Iterator<Item = &'c [u8]> + 's>
-    where
-        'c: 's,
-    {
+    fn split<'c, 'r>(&'r self, cell: &'c [u8]) -> Split<'c, 'r> {
         match self {
-            Self::Substring(sep) => Box::new(cell.split_str(sep)),
+            Self::Substring(sep) => Split::Substring(cell.split_str(sep)),
             Self::Regex(pattern, mode) => match mode {
-                RegexMode::Split => Box::new(pattern.split(cell)),
-                RegexMode::AllCaptures => Box::new(pattern.captures_iter(cell).flat_map(|caps| {
-                    caps.iter()
-                        .skip(1)
-                        .map(|m| m.map(|b| b.as_bytes()).unwrap_or(b""))
-                        .collect::<Vec<_>>()
-                })),
-                RegexMode::Match => Box::new(pattern.find_iter(cell).map(|m| m.as_bytes())),
-                RegexMode::Captures => {
-                    if let Some(caps) = pattern.captures(cell) {
-                        Box::new(
-                            caps.iter()
-                                .skip(1)
-                                .map(|m| m.map(|b| b.as_bytes()).unwrap_or(b""))
-                                .collect::<Vec<_>>()
-                                .into_iter(),
-                        )
-                    } else {
-                        Box::new(empty())
-                    }
-                }
+                RegexMode::Split => Split::Regex(pattern.split(cell)),
+                RegexMode::Match => Split::RegexMatches(pattern.find_iter(cell)),
+                RegexMode::AllCaptures => Split::RegexAllCaptures {
+                    iter: pattern.captures_iter(cell),
+                    current: None,
+                    group: 0,
+                },
+                RegexMode::Captures => Split::RegexCaptures {
+                    caps: pattern.captures(cell),
+                    group: 1,
+                },
             },
-            Self::FixedWidth(width) => Box::new(cell.chunks(*width)),
-            Self::Offsets(offsets, has_implicit_end) => {
-                let mut splits = Vec::<&[u8]>::with_capacity(
-                    offsets.len() - (if *has_implicit_end { 0 } else { 1 }),
-                );
-
-                let mut must_add_implicit_end = *has_implicit_end;
-
-                for window in offsets.windows(2) {
-                    let start = window[0];
-                    let end = window[1].min(cell.len());
-
-                    if start >= cell.len() {
-                        must_add_implicit_end = false;
-                        break;
-                    }
-
-                    splits.push(&cell[start..end]);
-                }
-
-                if must_add_implicit_end {
-                    let start = *offsets.last().unwrap();
-
-                    if start < cell.len() {
-                        splits.push(&cell[start..])
-                    }
-                }
-
-                Box::new(splits.into_iter())
-            }
+            Self::FixedWidth(width) => Split::FixedWidth(cell.chunks(*width)),
+            Self::Offsets(offsets, has_implicit_end) => Split::Offsets {
+                cell,
+                offsets,
+                index: 0,
+                has_implicit_end: *has_implicit_end,
+            },
         }
     }
 
-    fn splitn<'s, 'c>(
-        &'s self,
-        limit: usize,
-        cell: &'c [u8],
-    ) -> Box<dyn Iterator<Item = &'c [u8]> + 's>
-    where
-        'c: 's,
-    {
+    fn splitn<'c, 'r>(&'r self, limit: usize, cell: &'c [u8]) -> SplitN<'c, 'r> {
         match self {
-            Self::Substring(sep) => Box::new(cell.splitn_str(limit, sep)),
+            Self::Substring(sep) => SplitN::Substring(cell.splitn_str(limit, sep)),
             Self::Regex(pattern, mode) => match mode {
-                RegexMode::Split => Box::new(pattern.splitn(cell, limit)),
+                RegexMode::Split => SplitN::Regex(pattern.splitn(cell, limit)),
                 RegexMode::AllCaptures => {
                     unreachable!()
                 }
                 RegexMode::Match => unreachable!(),
                 RegexMode::Captures => unreachable!(),
             },
-            Self::FixedWidth(width) => Box::new(cell.chunks(*width).take(limit)),
+            Self::FixedWidth(width) => SplitN::FixedWidth(cell.chunks(*width).take(limit)),
             Self::Offsets(_, _) => unreachable!(),
         }
     }
 
-    fn split_cell(&self, cell: &[u8], options: SplitOptions) -> CliResult<ByteRecord> {
+    fn split_cell_into(
+        &self,
+        cell: &[u8],
+        options: SplitOptions,
+        record: &mut ByteRecord,
+    ) -> CliResult<()> {
         let SplitOptions {
             max,
             too_many_mode,
             trim,
         } = options;
 
-        let mut output_record = ByteRecord::new();
+        record.clear();
 
         match too_many_mode {
             TooManyMode::Error => {
                 for sub_cell in self.split(cell) {
-                    output_record.push_field(if trim { sub_cell.trim() } else { sub_cell });
+                    record.push_field(if trim { sub_cell.trim() } else { sub_cell });
                 }
 
-                if output_record.len() > max {
-                    Err(format!("Number of splits exceeded expected maximum {} but got {}. Consider using the --too-many flag to handle extra splitted cells.", max, output_record.len()))?;
+                if record.len() > max {
+                    Err(format!("Number of splits exceeded expected maximum {} but got {}. Consider using the --too-many flag to handle extra splitted cells.", max, record.len()))?;
                 }
             }
             TooManyMode::Drop => {
                 for sub_cell in self.split(cell).take(max) {
-                    output_record.push_field(if trim { sub_cell.trim() } else { sub_cell });
+                    record.push_field(if trim { sub_cell.trim() } else { sub_cell });
                 }
             }
             TooManyMode::Merge => {
                 for sub_cell in self.splitn(max, cell) {
-                    output_record.push_field(if trim { sub_cell.trim() } else { sub_cell });
+                    record.push_field(if trim { sub_cell.trim() } else { sub_cell });
                 }
             }
         };
 
         // Padding
-        while output_record.len() < max {
-            output_record.push_field(b"");
+        while record.len() < max {
+            record.push_field(b"");
         }
 
-        Ok(output_record)
+        Ok(())
     }
 }
 
@@ -574,29 +655,36 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     // Flushing
-    let mut process_record = |record: &ByteRecord| -> CliResult<()> {
-        let splitted = splitter.split_cell(&record[separated_column_index], split_options)?;
+    let mut process_record =
+        |record: &ByteRecord, output_record: &mut ByteRecord| -> CliResult<()> {
+            splitter.split_cell_into(
+                &record[separated_column_index],
+                split_options,
+                output_record,
+            )?;
 
-        wtr.write_record(
-            record
-                .iter()
-                .take(separated_column_index + args.flag_keep as usize)
-                .chain(splitted.iter())
-                .chain(record.iter().skip(separated_column_index + 1)),
-        )?;
+            wtr.write_record(
+                record
+                    .iter()
+                    .take(separated_column_index + args.flag_keep as usize)
+                    .chain(output_record.iter())
+                    .chain(record.iter().skip(separated_column_index + 1)),
+            )?;
 
-        Ok(())
-    };
+            Ok(())
+        };
+
+    let mut output_record = ByteRecord::new();
 
     if let Some(records) = buffered_records {
         for record in records {
-            process_record(&record)?;
+            process_record(&record, &mut output_record)?;
         }
     } else {
         let mut record = ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
-            process_record(&record)?;
+            process_record(&record, &mut output_record)?;
         }
     }
 
