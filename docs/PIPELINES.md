@@ -82,7 +82,7 @@ means: "join `downloaded` to each row's `path` column value, then read the conte
 
 ## Parsing logs using `xan separate`
 
-`xan separate` is a command able to "separate" a single CSV column into multiple ones through a variety of different methods. It boasts both a `-r/--regex` and `-c/--capture-groups` flags that let you give a regex pattern and create new columns based on its matched groups. It is therefore suitable to use it to parse logs.
+`xan separate` is a command able to "separate" a single CSV column into multiple ones through a variety of different methods. It boasts both a `-r/--regex` and `-c/--capture` flags that let you give a regex pattern and create new columns based on its matched groups. It is therefore suitable to use it to parse logs.
 
 See an example here of using a command to parse k8s access logs to structure them better and produce some quick time series:
 
