@@ -602,7 +602,7 @@ Now this command is also able to perform search-adjacent operations:
     - Reporting in a new column whether a match was found with -f/--flag
     - Reporting the total number of matches in a new column with -c/--count
     - Reporting a breakdown of number of matches per query given through --patterns
-      with -B/--breakdown.
+      with -b/--breakdown.
     - Reporting unique matches of multiple queries given through --patterns
       using -U/--unique-matches.
 
@@ -629,7 +629,7 @@ Replacing color names to their French counterpart:
 
 Computing a breakdown of matches per query:
 
-    $ xan search -B -s headline --patterns queries.csv \\
+    $ xan search -b -s headline --patterns queries.csv \\
     $   --pattern-column query --name-column name file.csv > breakdown.csv
 
 Reporting unique matches per query in a new column:
@@ -706,7 +706,7 @@ search options:
     -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
                              given name. Will still filter out rows with 0 matches, unless --left
                              is used. Does not work with -v/--invert-match.
-    --overlapping            When used with -c/--count or -B/--breakdown, return the count of
+    --overlapping            When used with -c/--count or -b/--breakdown, return the count of
                              overlapping matches. Note that this can sometimes be one order of
                              magnitude slower that counting non-overlapping matches.
     -R, --replace <with>     If given, the command will not filter rows but will instead
@@ -719,7 +719,7 @@ search options:
                              rows in a big file before piping to `view` or `flatten`).
                              Does not work with -p/--parallel nor -t/--threads.
     --left                   Rows without any matches will be kept in the output when
-                             using -U/--unique-matches, or -B/--breakdown, or -c/--count.
+                             using -U/--unique-matches, or -b/--breakdown, or -c/--count.
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
@@ -730,7 +730,7 @@ search options:
 multiple patterns options:
     -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
                                  to the --patterns flag.
-    -B, --breakdown              When used with --patterns, will count the total number of
+    -b, --breakdown              When used with --patterns, will count the total number of
                                  non-overlapping matches per pattern and write this count in
                                  one additional column per pattern. Added column will be given
                                  the pattern as name, unless you provide the --name-column flag.
@@ -754,7 +754,7 @@ multiple patterns options:
                                  work with -R/--replace.
                                  Regex replacement string syntax can be found here:
                                  https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
-    --name-column <name>         When given with -B/--breakdown, --patterns & --pattern-column,
+    --name-column <name>         When given with -b/--breakdown, --patterns & --pattern-column,
                                  indicates the column containing a pattern's name that will be used
                                  as column name in the appended breakdown.
 
@@ -985,7 +985,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         && !args.flag_breakdown
         && args.flag_unique_matches.is_none()
     {
-        Err("--overlapping only works with -c/--count, -U/--unique-matches or -B/--breakdown!")?;
+        Err("--overlapping only works with -c/--count, -U/--unique-matches or -b/--breakdown!")?;
     }
 
     if (args.flag_count.is_some()
@@ -995,7 +995,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         || args.flag_unique_matches.is_some())
         && args.flag_invert_match
     {
-        Err("-c/--count, -f,--flag, -R/--replace, -B/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
+        Err("-c/--count, -f,--flag, -R/--replace, -b/--breakdown & -U/--unique-matches do not work with -v/--invert-match!")?;
     }
 
     if (args.flag_empty || args.flag_non_empty)
@@ -1038,11 +1038,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_flag.is_some() as u8;
 
     if actions_count > 1 {
-        Err("must use only one of -R/--replace, --replacement-column, -B/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!")?;
+        Err("must use only one of -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!")?;
     }
 
     if args.flag_all && actions_count > 0 {
-        Err("-A/--all does not work with -R/--replace, --replacement-column, -B/--breakdown, -c/--count nor -U/--unique-matches!")?;
+        Err("-A/--all does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
     }
 
     let parallelization = match (args.flag_parallel, args.flag_threads) {

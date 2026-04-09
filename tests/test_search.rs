@@ -1099,7 +1099,7 @@ fn search_patterns_breakdown() {
     let mut cmd = wrk.command("search");
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "article"])
-        .arg("-B")
+        .arg("-b")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -1113,7 +1113,7 @@ fn search_patterns_breakdown() {
     let mut cmd = wrk.command("search");
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "article"])
-        .arg("-B")
+        .arg("-b")
         .args(["--name-column", "name"])
         .arg("data.csv");
 
@@ -1128,7 +1128,7 @@ fn search_patterns_breakdown() {
     let mut cmd = wrk.command("search");
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "article"])
-        .arg("-B")
+        .arg("-b")
         .arg("--left")
         .args(["--name-column", "name"])
         .arg("data.csv");
@@ -1171,7 +1171,7 @@ fn search_patterns_breakdown_harmonization() {
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "pattern"])
         .args(["--name-column", "name"])
-        .arg("-B")
+        .arg("-b")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -1187,7 +1187,7 @@ fn search_patterns_breakdown_harmonization() {
     cmd.args(["--patterns", "patterns.csv"])
         .args(["--pattern-column", "pattern"])
         .args(["--name-column", "name"])
-        .arg("-B")
+        .arg("-b")
         .arg("-p")
         .arg("data.csv");
 

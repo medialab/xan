@@ -12,6 +12,7 @@
 * Dropping `xan network --stats` in favor of `-f stats`.
 * `-D` becomes short flag for `xan network --degrees` instead of `--disjoint-keys`.
 * `xan separate --capture-groups` is dropped in favor of `-c/--captures` & `-C/--all-captures`.
+* Renaming `xan search --breakdown` shortflag to `-b` to allow for future `-B/--before-context`.
 
 *Features*
 
