@@ -6,6 +6,11 @@
 
 * Fixing `xan sort --check -n` & `xan dedup --check -n` printed report.
 * Fixing `xan parallel cat -nS`.
+* Upgrading `simd_csv` crate.
+
+*Performance*
+
+* Improving performance of `xan flatten`.
 
 ## 0.57.0
 

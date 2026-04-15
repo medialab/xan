@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 
 use colored::Colorize;
 use regex::{Captures, RegexBuilder};
+use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -126,14 +127,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-        let mut output_record = simd_csv::ByteRecord::new();
+        let mut output_record = ByteRecord::new();
         output_record.push_field(b"row");
         output_record.push_field(b"field");
         output_record.push_field(b"value");
 
         wtr.write_byte_record(&output_record)?;
 
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
 
         while rdr.read_byte_record(&mut record)? {
             for (h, cell) in sel.select(&byte_headers).zip(sel.select(&record)) {
@@ -157,7 +158,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
-    let mut rdr = rconfig.reader()?;
+    let mut rdr = rconfig.simd_reader()?;
     let byte_headers = rdr.byte_headers()?;
     let sel = rconfig.selection(byte_headers)?;
 
@@ -165,7 +166,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .flag_split
         .map(|cols| {
             cols.selection(
-                &sel.select(byte_headers).collect::<csv::ByteRecord>(),
+                &sel.select(byte_headers).collect::<ByteRecord>(),
                 !rconfig.no_headers,
             )
         })
@@ -183,10 +184,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
-    let potential_headers = rdr.headers()?.clone();
-    let potential_headers = sel
-        .select(&potential_headers)
-        .collect::<csv::StringRecord>();
+    let potential_headers = rdr.byte_headers()?.clone().into_string_record()?;
+    let potential_headers = sel.select(&potential_headers).collect::<StringRecord>();
     let mut headers: Vec<String> = Vec::new();
 
     for (i, header) in potential_headers.iter().enumerate() {
@@ -212,7 +211,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("not enough cols provided to safely print data!")?;
     }
 
-    let mut record = csv::StringRecord::new();
+    let mut record = StringRecord::new();
 
     let max_value_width = cols - max_header_width - 1;
 
