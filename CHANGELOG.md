@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.57.1 (provisional)
+
+*Fixes*
+
+* Fixing `xan sort --check -n` & `xan dedup --check -n` printed report.
+
 ## 0.57.0
 
 The **temporal** update.

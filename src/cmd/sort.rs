@@ -153,6 +153,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Checking order
     if args.flag_check {
+        if rconfig.no_headers {
+            headers = (0..headers.len())
+                .map(|i| i.to_string().into_bytes())
+                .collect();
+        }
+
         let mut record = ByteRecord::new();
 
         let mut last: Option<Vec<Vec<u8>>> = None;

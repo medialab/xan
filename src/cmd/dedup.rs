@@ -154,12 +154,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .select(args.flag_select);
 
     let mut rdr = rconf.simd_reader()?;
-    let headers = rdr.byte_headers()?.clone();
+    let mut headers = rdr.byte_headers()?.clone();
     let sel = rconf.selection(&headers)?;
 
     if args.flag_check {
         if args.flag_flag.is_some() {
             Err("-f/--flag does not make sense with --check!")?;
+        }
+
+        if rconf.no_headers {
+            headers = (0..headers.len())
+                .map(|i| i.to_string().into_bytes())
+                .collect();
         }
 
         let mut already_seen = HashSet::<ByteRecord>::new();
