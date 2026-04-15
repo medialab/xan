@@ -5,6 +5,7 @@
 *Fixes*
 
 * Fixing `xan sort --check -n` & `xan dedup --check -n` printed report.
+* Fixing `xan parallel cat -nS`.
 
 ## 0.57.0
 

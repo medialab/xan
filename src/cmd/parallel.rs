@@ -1202,7 +1202,7 @@ impl Args {
         let flush = |headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
             let mut guard = writer_mutex.lock().unwrap();
 
-            if !guard.0 {
+            if !guard.0 && !self.flag_no_headers {
                 guard.1.write_byte_record(headers)?;
                 guard.0 = true;
             }
