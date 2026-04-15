@@ -10,7 +10,7 @@
 
 *Performance*
 
-* Improving performance of `xan flatten`.
+* Improving performance of `xan flatten`, `xan view`.
 
 ## 0.57.0
 

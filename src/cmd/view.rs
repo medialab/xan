@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use colored::{self, Colorize};
 use numfmt::{Formatter, Precision};
+use simd_csv::{ByteRecord, StringRecord};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -27,8 +28,8 @@ impl ComplexToggle {
     }
 }
 
-fn prepend(record: &csv::StringRecord, cell_value: &str) -> csv::StringRecord {
-    let mut new_record = csv::StringRecord::new();
+fn prepend(record: &StringRecord, cell_value: &str) -> StringRecord {
+    let mut new_record = StringRecord::new();
     new_record.push_field(cell_value);
     new_record.extend(record);
 
@@ -439,7 +440,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let io_rdr = rconfig.io_reader()?;
 
     let mut sponge = LeakySponge::new(io_rdr, !args.flag_tee);
-    let mut rdr = rconfig.csv_reader_from_reader(&mut sponge);
+    let mut rdr = rconfig.simd_csv_reader_from_reader(&mut sponge);
 
     let byte_headers = rdr.byte_headers()?.clone();
     let mut sel = rconfig.selection(&byte_headers)?;
@@ -465,7 +466,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .clone()
         .map(|cols| {
             cols.selection(
-                &sel.select(&byte_headers).collect::<csv::ByteRecord>(),
+                &sel.select(&byte_headers).collect::<ByteRecord>(),
                 !rconfig.no_headers,
             )
         })
@@ -475,8 +476,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         groupby_sel.offset_by(1);
     }
 
-    let headers = rdr.headers()?.clone();
-    let mut headers = sel.select(&headers).collect::<csv::StringRecord>();
+    let headers = rdr.byte_headers()?.clone().into_string_record()?;
+    let mut headers = sel.select(&headers).collect::<StringRecord>();
 
     let mut right_sel_opt = args
         .flag_right
@@ -527,7 +528,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let mut r_iter = rdr.into_records().enumerate();
 
-        let mut records: Vec<csv::StringRecord> = Vec::new();
+        let mut records: Vec<StringRecord> = Vec::new();
 
         loop {
             match r_iter.next() {
@@ -552,7 +553,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                             cell
                         })
-                        .collect::<csv::StringRecord>();
+                        .collect::<StringRecord>();
 
                     if !args.flag_hide_index {
                         record = prepend(&record, &i.to_string());
