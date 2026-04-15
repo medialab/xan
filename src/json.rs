@@ -5,10 +5,9 @@ use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
-use csv::StringRecord;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde_json::{json, Value};
-use simd_csv::ByteRecord;
+use simd_csv::{ByteRecord, StringRecord};
 
 use crate::select::Selection;
 
@@ -518,7 +517,10 @@ impl JSONTypeInferrenceBuffer {
         self.inferrence.set_string(index);
     }
 
-    pub fn read<R: Read>(&mut self, reader: &mut csv::Reader<R>) -> Result<(), csv::Error> {
+    pub fn read<R: Read>(
+        &mut self,
+        reader: &mut simd_csv::Reader<R>,
+    ) -> Result<(), simd_csv::Error> {
         match self.capacity {
             Some(capacity) => {
                 for result in reader.records().take(capacity) {

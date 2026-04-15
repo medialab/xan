@@ -117,10 +117,10 @@ impl Args {
 
     fn convert_to_json(&self) -> CliResult<()> {
         let rconf = self.rconf();
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
-        let headers = rdr.headers()?.clone();
+        let headers = rdr.byte_headers()?.clone();
 
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
@@ -129,10 +129,7 @@ impl Args {
         );
 
         if let Some(sel) = &self.flag_strings {
-            let indices = sel.selection(
-                headers.iter().map(|cell| cell.as_bytes()),
-                !rconf.no_headers,
-            )?;
+            let indices = sel.selection(&headers, !rconf.no_headers)?;
 
             for index in indices.iter() {
                 inferrence_buffer.set_string(*index);
@@ -141,7 +138,8 @@ impl Args {
 
         inferrence_buffer.read(&mut rdr)?;
 
-        let mut json_object = OmittableAttributes::from_headers(headers.iter());
+        let mut json_object =
+            OmittableAttributes::from_headers(headers.into_string_record()?.iter());
         let mut json_array = Vec::new();
 
         for record in inferrence_buffer.records() {
@@ -149,7 +147,7 @@ impl Args {
             json_array.push(json_object.clone());
         }
 
-        let mut record = csv::StringRecord::new();
+        let mut record = simd_csv::StringRecord::new();
 
         while rdr.read_record(&mut record)? {
             inferrence_buffer.mutate_attributes(&mut json_object, &record);
@@ -164,10 +162,10 @@ impl Args {
 
     fn convert_to_ndjson(&self) -> CliResult<()> {
         let rconf = self.rconf();
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
-        let headers = rdr.headers()?.clone();
+        let headers = rdr.byte_headers()?.clone();
 
         let mut inferrence_buffer = JSONTypeInferrenceBuffer::with_columns(
             headers.len(),
@@ -176,10 +174,7 @@ impl Args {
         );
 
         if let Some(sel) = &self.flag_strings {
-            let indices = sel.selection(
-                headers.iter().map(|cell| cell.as_bytes()),
-                !rconf.no_headers,
-            )?;
+            let indices = sel.selection(&headers, !rconf.no_headers)?;
 
             for index in indices.iter() {
                 inferrence_buffer.set_string(*index);
@@ -188,14 +183,15 @@ impl Args {
 
         inferrence_buffer.read(&mut rdr)?;
 
-        let mut json_object = OmittableAttributes::from_headers(headers.iter());
+        let mut json_object =
+            OmittableAttributes::from_headers(headers.into_string_record()?.iter());
 
         for record in inferrence_buffer.records() {
             inferrence_buffer.mutate_attributes(&mut json_object, record);
             writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
 
-        let mut record = csv::StringRecord::new();
+        let mut record = simd_csv::StringRecord::new();
 
         while rdr.read_record(&mut record)? {
             inferrence_buffer.mutate_attributes(&mut json_object, &record);
@@ -210,11 +206,11 @@ impl Args {
             Err("cannot export in xlsx without a path.\nUse -o, --output or pipe the result!")?;
         }
 
-        let mut rdr = self.rconf().reader()?;
+        let mut rdr = self.rconf().simd_reader()?;
         let mut writer = self.wconf().io_writer()?;
 
         let mut workbook = Workbook::new();
-        let headers = rdr.headers()?.clone();
+        let headers = rdr.byte_headers()?.clone().into_string_record()?;
         let worksheet = workbook.add_worksheet();
 
         for (col, header) in headers.iter().enumerate() {
@@ -470,8 +466,8 @@ impl Args {
             Err("cannot export in npy without a path.\nUse -o, --output or pipe the result!")?;
         }
 
-        let mut rdr = self.rconf().reader()?;
-        let io_writer = self.wconf().io_writer()?;
+        let mut rdr = self.rconf().simd_reader()?;
+        let io_writer = self.wconf().buf_io_writer()?;
 
         let records = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
 

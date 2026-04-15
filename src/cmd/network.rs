@@ -1,3 +1,5 @@
+use simd_csv::StringRecord;
+
 use crate::collections::IncrementalId;
 use crate::config::{Config, Delimiter};
 use crate::graph::{GraphBuilder, GraphBuilderOptions};
@@ -172,14 +174,14 @@ impl Args {
 
         let mut graph_builder = self.graph_builder();
 
-        let mut record = csv::StringRecord::new();
+        let mut record = StringRecord::new();
 
         if let Some(nodes_path) = &self.flag_nodes {
             let nodes_rconf = Config::new(&Some(nodes_path.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let mut node_reader = nodes_rconf.reader()?;
+            let mut node_reader = nodes_rconf.simd_reader()?;
             let node_headers = node_reader.byte_headers()?.clone();
 
             let node_column_index = self
@@ -197,14 +199,14 @@ impl Args {
 
             node_attr_inferrence.read(&mut node_reader)?;
 
-            let node_headers = node_reader.headers()?.clone();
+            let node_headers = node_reader.byte_headers()?.clone().into_string_record()?;
 
             graph_builder.set_node_model(
                 node_attr_sel.select(&node_headers),
                 node_attr_inferrence.types(),
             );
 
-            let mut process_node_record = |record: &csv::StringRecord| {
+            let mut process_node_record = |record: &StringRecord| {
                 let key = record[node_column_index].to_string();
 
                 let mut attributes = Attributes::with_capacity(node_attr_sel.len());
@@ -225,7 +227,7 @@ impl Args {
             }
         }
 
-        let mut edge_reader = edges_rconf.reader()?;
+        let mut edge_reader = edges_rconf.simd_reader()?;
         let edge_headers = edge_reader.byte_headers()?.clone();
 
         let source_column_index = self
@@ -256,7 +258,7 @@ impl Args {
 
         edge_attr_inferrence.read(&mut edge_reader)?;
 
-        let edge_headers = edge_reader.headers()?.clone();
+        let edge_headers = edge_reader.byte_headers()?.clone().into_string_record()?;
 
         graph_builder.set_edge_model(
             edge_attr_sel.select(&edge_headers),
@@ -265,7 +267,7 @@ impl Args {
 
         let edge_attributes_irrelevant = self.edge_attributes_irrelevant();
 
-        let mut process_edge_record = |record: &csv::StringRecord| {
+        let mut process_edge_record = |record: &StringRecord| {
             let source = record[source_column_index].to_string();
             let target = record[target_column_index].to_string();
 
