@@ -505,16 +505,17 @@ impl Args {
 
         let headers = rdr.byte_headers()?.clone();
         let column_index = self
-        .flag_select
-        .single_selection(&headers, rdr.has_headers()).map_err(|_| {
-            "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
-        })?;
+            .flag_select
+            .single_selection(&headers, rdr.has_headers()).map_err(|_| {
+                "Trying to convert more than a single column to text!\nUse `xan select` upstream or use -s/--select flag to restrict column selection."
+            })?;
 
         while let Some(record) = rdr.read_byte_record()? {
             let cell = record.unescape(column_index).unwrap();
             writer.write_all(&cell)?;
             writer.write_all(b"\n")?;
         }
+
         Ok(())
     }
 }

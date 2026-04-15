@@ -6,7 +6,8 @@
 
 * Fixing `xan sort --check -n` & `xan dedup --check -n` printed report.
 * Fixing `xan parallel cat -nS`.
-* Upgrading `simd_csv` crate.
+* Fixing CSV parsing rare edge case panics.
+* Fixing commands relying on zero-copy CSV parsing for performance.
 
 *Performance*
 
