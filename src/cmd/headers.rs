@@ -80,9 +80,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.flag_csv {
-        let mut wtr = Config::new(&args.flag_output).writer()?;
+        let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-        let mut record = csv::StringRecord::new();
+        let mut record = simd_csv::StringRecord::new();
 
         for conf in configs.iter() {
             record.push_field(
