@@ -141,6 +141,10 @@ impl Args {
         ["nodelist", "stats", "components"].contains(&self.flag_format.as_str())
     }
 
+    fn edges_irrelevant(&self) -> bool {
+        self.flag_format == "nodelist" && !self.flag_degrees && !self.flag_union_find
+    }
+
     fn graph_builder(&self) -> GraphBuilder {
         // NOTE: we only need to track edge duplicates if:
         //  1. we have to merge edge data to make it simple
@@ -266,6 +270,7 @@ impl Args {
         );
 
         let edge_attributes_irrelevant = self.edge_attributes_irrelevant();
+        let edges_irrelevant = self.edges_irrelevant();
 
         let mut process_edge_record = |record: &StringRecord| {
             let source = record[source_column_index].to_string();
@@ -286,7 +291,9 @@ impl Args {
                 attributes
             };
 
-            graph_builder.add_edge_with_attributes(source_id, target_id, attributes);
+            if !edges_irrelevant {
+                graph_builder.add_edge_with_attributes(source_id, target_id, attributes);
+            }
         };
 
         for buffered_record in edge_attr_inferrence.records() {

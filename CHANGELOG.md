@@ -12,6 +12,7 @@
 *Performance*
 
 * Improving performance of `xan flatten`, `xan view`, `xan to` & `xan network`.
+* Faster `xan network -f nodelist` in some cases.
 
 ## 0.57.0
 
