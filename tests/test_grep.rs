@@ -153,6 +153,54 @@ fn grep_regex_case_insensitive() {
 }
 
 #[test]
+fn grep_patterns_substring() {
+    let wrk = Workdir::new("grep_patterns_substring");
+
+    wrk.create("index.csv", vec![svec!["name"], svec!["suz"], svec!["jo"]]);
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["abigail"],
+            svec!["suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("grep");
+    cmd.args(["--patterns", "index.csv"])
+        .args(["--pattern-column", "name"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["john"], svec!["suzy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn grep_add_pattern_substring() {
+    let wrk = Workdir::new("grep_add_pattern_substring");
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["abigail"],
+            svec!["suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("grep");
+    cmd.arg("jo").args(["-P", "abi"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["john"], svec!["abigail"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn grep_context() {
     let wrk = Workdir::new("grep_context");
     wrk.create(
