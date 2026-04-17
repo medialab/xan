@@ -821,7 +821,7 @@ impl Args {
             return Ok((inputs.into_iter().map(Input::Path).collect(), threads));
         }
 
-        // If we are using `map` of if inputs are not all chunkable
+        // If we are using `map` or if inputs are not all chunkable
         if self.cmd_map || !inputs.iter().all(|p| Config::is_chunkable(p)) {
             let actual_threads = inputs.len();
 
