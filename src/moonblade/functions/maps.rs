@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::collections::HashMap;
 
 use crate::moonblade::error::EvaluationError;
@@ -5,10 +7,10 @@ use crate::moonblade::types::{BoundArguments, DynamicValue};
 
 use super::FunctionResult;
 
-fn get_subroutine<'a>(
-    target: &'a DynamicValue,
-    key: &'a DynamicValue,
-) -> Result<Option<DynamicValue>, EvaluationError> {
+fn get_subroutine<'v>(
+    target: &'v DynamicValue,
+    key: &DynamicValue,
+) -> Result<Option<Cow<'v, DynamicValue>>, EvaluationError> {
     Ok(match target {
         DynamicValue::String(value) => {
             let mut index = key.try_as_i64()?;
@@ -20,7 +22,11 @@ fn get_subroutine<'a>(
             if index < 0 {
                 None
             } else {
-                value.chars().nth(index as usize).map(DynamicValue::from)
+                value
+                    .chars()
+                    .nth(index as usize)
+                    .map(DynamicValue::from)
+                    .map(Cow::Owned)
             }
         }
         DynamicValue::Bytes(value) => {
@@ -36,7 +42,11 @@ fn get_subroutine<'a>(
                 let value =
                     std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?;
 
-                value.chars().nth(index as usize).map(DynamicValue::from)
+                value
+                    .chars()
+                    .nth(index as usize)
+                    .map(DynamicValue::from)
+                    .map(Cow::Owned)
             }
         }
         DynamicValue::List(list) => {
@@ -49,13 +59,13 @@ fn get_subroutine<'a>(
             if index < 0 {
                 None
             } else {
-                list.get(index as usize).cloned()
+                list.get(index as usize).map(Cow::Borrowed)
             }
         }
         DynamicValue::Map(map) => {
             let key = key.try_as_str()?;
 
-            map.get(key.as_ref()).cloned()
+            map.get(key.as_ref()).map(Cow::Borrowed)
         }
         value => return Err(EvaluationError::from_cast(value, "sequence")),
     })
@@ -72,21 +82,35 @@ pub fn get(mut args: BoundArguments) -> FunctionResult {
         (target, key, None)
     };
 
+    let mut owned_value = Some(target);
+
     match key {
         DynamicValue::List(path) => {
-            let mut current = target;
+            let mut current = owned_value.as_ref().unwrap();
 
             for step in path.iter() {
-                match get_subroutine(&current, step)? {
-                    None => return Ok(default.unwrap_or_else(|| DynamicValue::None)),
-                    Some(next) => current = next,
+                match get_subroutine(current, step)? {
+                    None => return Ok(default.unwrap_or_default()),
+                    Some(next) => match next {
+                        Cow::Owned(owned) => {
+                            owned_value = Some(owned);
+                            current = owned_value.as_ref().unwrap();
+                        }
+                        Cow::Borrowed(borrowed) => {
+                            current = borrowed;
+                        }
+                    },
                 }
             }
 
-            Ok(current)
+            Ok(match owned_value {
+                Some(owned) if std::ptr::eq(&owned, current) => owned,
+                _ => current.clone(),
+            })
         }
-        _ => Ok(get_subroutine(&target, &key)?
-            .unwrap_or_else(|| default.unwrap_or_else(|| DynamicValue::None))),
+        _ => Ok(get_subroutine(owned_value.as_ref().unwrap(), &key)?
+            .map(|v| v.into_owned())
+            .unwrap_or_else(|| default.unwrap_or_default())),
     }
 }
 

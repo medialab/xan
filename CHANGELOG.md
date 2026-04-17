@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.57.2 (provisional)
+
+*Performance*
+
+* Faster moonblade `get` operations.
+
 ## 0.57.1
 
 *Fixes*
