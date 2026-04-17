@@ -21,7 +21,8 @@ standardish CSV data with commas and quoting using double quotes, this command
 will output rows as-is, without any transformation.
 
 Usage:
-    xan grep [options] <pattern> [<input>]
+    xan grep [options] --patterns <path> [<input>]
+    xan grep [options] <pattern> [-P <pattern>...] [<input>]
     xan grep --help
 
 grep options:
@@ -35,6 +36,14 @@ grep options:
     --mmap                    Use a memory map to speed up computations. Only
                               works if the file is on disk (no streams) and if the
                               file is uncompressed. Usually a bad idea on macOS.
+
+multiple patterns options:
+    -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
+                                 to the --patterns flag.
+    --patterns <path>            Path to a text file (use "-" for stdin), containing multiple
+                                 patterns, one per line, to search at once.
+    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
+                                 and patterns to search will be extracted from the given column.
 
 Common options:
     -h, --help             Display this message

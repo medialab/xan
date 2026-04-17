@@ -4,9 +4,12 @@ use std::num::NonZeroUsize;
 
 use aho_corasick::AhoCorasick;
 use regex::bytes::RegexBuilder;
+use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
 use crate::config::{Config, Delimiter};
+use crate::select::SelectedColumns;
 use crate::util;
+use crate::CliError;
 use crate::CliResult;
 
 use crate::cmd::search::Matcher;
@@ -57,7 +60,8 @@ standardish CSV data with commas and quoting using double quotes, this command
 will output rows as-is, without any transformation.
 
 Usage:
-    xan grep [options] <pattern> [<input>]
+    xan grep [options] --patterns <path> [<input>]
+    xan grep [options] <pattern> [-P <pattern>...] [<input>]
     xan grep --help
 
 grep options:
@@ -72,6 +76,14 @@ grep options:
                               works if the file is on disk (no streams) and if the
                               file is uncompressed. Usually a bad idea on macOS.
 
+multiple patterns options:
+    -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
+                                 to the --patterns flag.
+    --patterns <path>            Path to a text file (use \"-\" for stdin), containing multiple
+                                 patterns, one per line, to search at once.
+    --pattern-column <name>      When given a column name, --patterns file will be considered a CSV
+                                 and patterns to search will be extracted from the given column.
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -84,7 +96,7 @@ Common options:
 
 #[derive(Deserialize)]
 struct Args {
-    arg_pattern: String,
+    arg_pattern: Option<String>,
     arg_input: Option<String>,
     flag_count: bool,
     flag_regex: bool,
@@ -96,6 +108,59 @@ struct Args {
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
+    flag_patterns: Option<String>,
+    flag_pattern_column: Option<SelectedColumns>,
+    flag_add_pattern: Vec<String>,
+}
+
+impl Args {
+    fn build_matcher(&self, patterns: &Option<Vec<String>>) -> Result<Matcher, CliError> {
+        match patterns {
+            None => {
+                let pattern = self.arg_pattern.as_ref().unwrap();
+
+                Ok(if self.flag_regex {
+                    Matcher::Regex(
+                        RegexBuilder::new(pattern)
+                            .case_insensitive(self.flag_ignore_case)
+                            .build()?,
+                    )
+                } else {
+                    Matcher::Substring(
+                        AhoCorasick::new([if self.flag_ignore_case {
+                            pattern.to_lowercase()
+                        } else {
+                            pattern.to_string()
+                        }])?,
+                        self.flag_ignore_case,
+                    )
+                })
+            }
+            Some(patterns) => Ok(if self.flag_regex {
+                Matcher::RegexSet(
+                    RegexSet::builder()
+                        .syntax(syntax::Config::new().case_insensitive(self.flag_ignore_case))
+                        .build_many(&patterns.iter().collect::<Vec<_>>())?,
+                )
+            } else {
+                Matcher::Substring(
+                    AhoCorasick::new(
+                        patterns
+                            .iter()
+                            .map(|pattern| {
+                                if self.flag_ignore_case {
+                                    pattern.to_lowercase()
+                                } else {
+                                    pattern.to_string()
+                                }
+                            })
+                            .collect::<Vec<_>>(),
+                    )?,
+                    self.flag_ignore_case,
+                )
+            }),
+        }
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -106,6 +171,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-c/--count does not work with -B/--before-context nor -A/--after-context!")?;
     }
 
+    if !args.flag_add_pattern.is_empty() && args.flag_patterns.is_some() {
+        Err("-P/--add-pattern is incompatible with --patterns!")?;
+    }
+
+    let patterns = if !args.flag_add_pattern.is_empty() {
+        let mut patterns = vec![args.arg_pattern.clone().unwrap()];
+
+        for pattern in args.flag_add_pattern.iter() {
+            patterns.push(pattern.to_string());
+        }
+        Some(patterns)
+    } else {
+        args.flag_patterns
+            .as_ref()
+            .map(|path| {
+                Config::new(&Some(path.clone()))
+                    .delimiter(args.flag_delimiter)
+                    .lines(&args.flag_pattern_column)?
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
+    };
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
@@ -116,21 +203,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .then(|| wconf.simd_writer())
         .transpose()?;
 
-    let matcher = if args.flag_regex {
-        Matcher::Regex(
-            RegexBuilder::new(&args.arg_pattern)
-                .case_insensitive(args.flag_ignore_case)
-                .build()?,
-        )
-    } else {
-        let pattern = if args.flag_ignore_case {
-            args.arg_pattern.to_lowercase()
-        } else {
-            args.arg_pattern.clone()
-        };
-
-        Matcher::Substring(AhoCorasick::new([&pattern])?, args.flag_ignore_case)
-    };
+    let matcher = args.build_matcher(&patterns)?;
 
     let mut count: u64 = 0;
     let mut after_context_count: usize = 0;
