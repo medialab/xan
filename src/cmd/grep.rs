@@ -61,6 +61,8 @@ will output rows as-is, without any transformation.
 
 Usage:
     xan grep [options] <pattern> [<input>]
+    xan grep [options] --patterns <path> [<input>]
+    xan search [options] <pattern> [-P <pattern>...] [<input>]
     xan grep --help
 
 grep options:

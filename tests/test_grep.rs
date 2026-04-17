@@ -193,10 +193,18 @@ fn grep_add_pattern_substring() {
     );
 
     let mut cmd = wrk.command("grep");
-    cmd.arg("jo").args(["-P", "abi"]).arg("data.csv");
+    cmd.arg("jo")
+        .args(["-P", "abi"])
+        .args(["-P", "su"])
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["name"], svec!["john"], svec!["abigail"]];
+    let expected = vec![
+        svec!["name"],
+        svec!["john"],
+        svec!["abigail"],
+        svec!["suzy"],
+    ];
     assert_eq!(got, expected);
 }
 
