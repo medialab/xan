@@ -5,6 +5,7 @@
 *Performance*
 
 * Faster moonblade `get` operations.
+* Less allocations related to `DynamicValue::Bytes`.
 
 ## 0.57.1
 

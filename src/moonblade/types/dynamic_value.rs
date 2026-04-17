@@ -31,13 +31,13 @@ use super::DynamicNumber;
 
 // NOTE: a DynamicValue should always be:
 //   1. cheap to clone (notice the Arcs)
-//   2. 16 bytes large max
+//   2. 24 bytes large max
 #[derive(Debug, Clone, Default)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
     String(Arc<String>),
-    Bytes(Arc<BString>),
+    Bytes(BString),
     Float(f64),
     Integer(i64),
     Boolean(bool),
@@ -180,7 +180,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
 
 impl DynamicValue {
     pub fn from_owned_bytes(bytes: Vec<u8>) -> Self {
-        Self::Bytes(Arc::new(BString::from(bytes)))
+        Self::Bytes(BString::from(bytes))
     }
 
     pub fn empty_bytes() -> Self {
@@ -303,7 +303,7 @@ impl DynamicValue {
                     )))
                 }
             },
-            Self::Bytes(bytes) => match parse_any_temporal(bytes.as_ref()) {
+            Self::Bytes(bytes) => match parse_any_temporal(bytes) {
                 Ok(temporal) => temporal,
                 Err(_) => {
                     return Err(EvaluationError::TimeRelated(format!(
@@ -478,7 +478,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
-            Self::Bytes(bytes) => match DynamicNumber::try_from(bytes.as_ref().as_ref()) {
+            Self::Bytes(bytes) => match DynamicNumber::try_from(bytes.as_ref()) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
@@ -547,7 +547,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "float")),
                 Ok(value) => value,
             },
-            Self::Bytes(bytes) => match fast_float::parse::<f64, &[u8]>(bytes.as_ref().as_ref()) {
+            Self::Bytes(bytes) => match fast_float::parse::<f64, &[u8]>(bytes.as_ref()) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "float")),
                 Ok(value) => value,
             },
@@ -607,13 +607,8 @@ impl DynamicValue {
             Self::Bytes(bytes) => {
                 // NOTE: I cannot really prove this is faster to avoid allocation here...
                 // It certainly seems a little bit faster but not by a large margin.
-                match Arc::get_mut(bytes) {
-                    Some(inner) => {
-                        inner.clear();
-                        inner.extend(new_bytes);
-                    }
-                    None => *bytes = Arc::new(BString::new(new_bytes.to_vec())),
-                };
+                bytes.clear();
+                bytes.extend(new_bytes);
             }
             _ => panic!("DynamicValue is not Bytes!"),
         }
