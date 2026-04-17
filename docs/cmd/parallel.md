@@ -99,6 +99,11 @@ parallel options:
                                  number based on the available CPUs.
     --path-column <name>         Name of the path column if stdin is given as a CSV file
                                  instead of one path per line.
+    --dont-chunk                 Tell the command not to attempt to split CSV inputs into
+                                 chunks when the number of available threads is larger
+                                 than the number of files to process. This can be useful
+                                 when preprocessing needs to deal with non-standard
+                                 CSV files such as those dealt with by `xan input`.
 
 parallel count options:
     -S, --source-column <name>  If given, will return a CSV file containing a column with

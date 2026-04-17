@@ -663,6 +663,11 @@ parallel options:
                                  number based on the available CPUs.
     --path-column <name>         Name of the path column if stdin is given as a CSV file
                                  instead of one path per line.
+    --dont-chunk                 Tell the command not to attempt to split CSV inputs into
+                                 chunks when the number of available threads is larger
+                                 than the number of files to process. This can be useful
+                                 when preprocessing needs to deal with non-standard
+                                 CSV files such as those dealt with by `xan input`.
 
 parallel count options:
     -S, --source-column <name>  If given, will return a CSV file containing a column with
@@ -734,6 +739,7 @@ pub struct Args {
     flag_progress: bool,
     flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectedColumns>,
+    flag_dont_chunk: bool,
     flag_buffer_size: isize,
     flag_source_column: Option<String>,
     pub flag_select: SelectedColumns,
@@ -822,7 +828,7 @@ impl Args {
         }
 
         // If we are using `map` or if inputs are not all chunkable
-        if self.cmd_map || !inputs.iter().all(|p| Config::is_chunkable(p)) {
+        if self.flag_dont_chunk || self.cmd_map || !inputs.iter().all(|p| Config::is_chunkable(p)) {
             let actual_threads = inputs.len();
 
             return Ok((

@@ -5,6 +5,7 @@
 *Features*
 
 * Adding `xan grep -P/--add-pattern, --patterns, --pattern-column`.
+* Adding `xan parallel --dont-chunk`.
 
 *Performance*
 
