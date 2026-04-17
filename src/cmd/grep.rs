@@ -60,7 +60,6 @@ standardish CSV data with commas and quoting using double quotes, this command
 will output rows as-is, without any transformation.
 
 Usage:
-    xan grep [options] <pattern> [<input>]
     xan grep [options] --patterns <path> [<input>]
     xan grep [options] <pattern> [-P <pattern>...] [<input>]
     xan grep --help
@@ -183,18 +182,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             patterns.push(pattern.to_string());
         }
         Some(patterns)
-    } else if args.flag_patterns.is_some() {
-        let mut patterns: Vec<String> = vec![];
-
-        for result in Config::new(&Some(args.flag_patterns.clone().unwrap()))
-            .lines(&args.flag_pattern_column)?
-        {
-            let pattern = result?;
-            patterns.push(pattern);
-        }
-        Some(patterns)
     } else {
-        None
+        args.flag_patterns
+            .as_ref()
+            .map(|path| {
+                Config::new(&Some(path.clone()))
+                    .delimiter(args.flag_delimiter)
+                    .lines(&args.flag_pattern_column)?
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
     };
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
