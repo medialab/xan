@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.57.2 (provisional)
+## 0.58.0 (provisional)
+
+*Features*
+
+* Adding `xan grep -P/--add-pattern, --patterns, --pattern-column`.
 
 *Performance*
 
