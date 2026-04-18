@@ -31,12 +31,12 @@ use super::DynamicNumber;
 
 // NOTE: a DynamicValue should always be:
 //   1. cheap to clone (notice the Arcs)
-//   2. 24 bytes large max
+//   2. size of 24 bytes max
 #[derive(Debug, Clone, Default)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
-    String(Arc<String>),
+    String(Arc<str>),
     Bytes(BString),
     Float(f64),
     Integer(i64),
@@ -665,28 +665,28 @@ impl From<&[u8]> for DynamicValue {
 impl From<&str> for DynamicValue {
     #[inline]
     fn from(value: &str) -> Self {
-        DynamicValue::String(Arc::new(value.to_string()))
+        DynamicValue::String(Arc::from(value))
     }
 }
 
 impl From<Cow<'_, str>> for DynamicValue {
     #[inline]
     fn from(value: Cow<str>) -> Self {
-        DynamicValue::String(Arc::new(value.into_owned()))
+        DynamicValue::String(Arc::from(value))
     }
 }
 
 impl From<String> for DynamicValue {
     #[inline]
     fn from(value: String) -> Self {
-        DynamicValue::String(Arc::new(value))
+        DynamicValue::String(Arc::from(value))
     }
 }
 
 impl From<char> for DynamicValue {
     #[inline]
     fn from(value: char) -> Self {
-        DynamicValue::String(Arc::new(value.to_string()))
+        DynamicValue::String(Arc::from(value.to_string()))
     }
 }
 
