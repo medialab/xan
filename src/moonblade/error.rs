@@ -151,7 +151,6 @@ pub enum EvaluationError {
     Custom(String),
     UnsupportedEncoding(String),
     UnsupportedDecoderTrap(String),
-    DecodeError,
     ColumnNotFound(ColumIndexationBy, bool),
     ColumnOutOfRange(usize),
     GlobalVariableOutOfRange(usize),
@@ -231,7 +230,6 @@ impl Display for EvaluationError {
                     name
                 )
             }
-            Self::DecodeError => write!(f, "could not decode"),
             Self::ColumnNotFound(indexation, headless) => {
                 format_column_indexation_error(f, indexation, *headless)
             }

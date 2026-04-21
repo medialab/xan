@@ -13,7 +13,7 @@ use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, Functi
 // mod fmt;
 mod fuzzy;
 // mod io;
-// mod maps;
+mod maps;
 mod ops;
 // mod sequences;
 pub mod special;
@@ -141,11 +141,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::arithmetic_op(args, DynamicNumber::idiv),
         //     FunctionArguments::binary(),
         // ),
-        // "index_by" => (maps::index_by, FunctionArguments::binary()),
+        "index_by" => (maps::index_by, FunctionArguments::binary()),
         "int" => (ops::parse_int, FunctionArguments::unary()),
         // "isfile" => (io::isfile, FunctionArguments::unary()),
         // "join" => (strings::join, FunctionArguments::binary()),
-        // "keys" => (maps::keys, FunctionArguments::unary()),
+        "keys" => (maps::keys, FunctionArguments::unary()),
         // "latest" => (
         //     |args| ops::variadic_optimum(args, DynamicValue::try_as_any_temporal, Ordering::is_gt),
         //     FunctionArguments::variadic(1),
@@ -305,7 +305,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "upper" => (strings::upper, FunctionArguments::unary()),
         // "urljoin" => (web::urljoin, FunctionArguments::binary()),
         "uuid" => (utils::uuid, FunctionArguments::nullary()),
-        // "values" => (maps::values, FunctionArguments::unary()),
+        "values" => (maps::values, FunctionArguments::unary()),
         // "with_timezone" | "with_tz" => (temporal::with_timezone, FunctionArguments::binary()),
         // "with_local_timezone" | "with_local_tz" => {
         //     (temporal::with_local_timezone, FunctionArguments::unary())

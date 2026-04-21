@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use arrayvec::ArrayVec;
 
+use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
 
 use super::{DynamicNumber, DynamicValue};
@@ -77,6 +78,24 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn try_as_list(&self) -> Result<&Vec<DynamicValue>, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_list(),
+            Self::Borrowed(borrowed) => borrowed.try_as_list(),
+            Self::Cell(cell) => Err(EvaluationError::from_cell_cast(cell, "list")),
+        }
+    }
+
+    #[inline]
+    pub fn try_as_map(&self) -> Result<&HashMap<String, DynamicValue>, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_map(),
+            Self::Borrowed(borrowed) => borrowed.try_as_map(),
+            Self::Cell(cell) => Err(EvaluationError::from_cell_cast(cell, "map")),
+        }
+    }
+
+    #[inline]
     pub fn try_as_bytes(&self) -> Result<&[u8], EvaluationError> {
         match self {
             Self::Owned(owned) => owned.try_as_bytes(),
@@ -90,7 +109,10 @@ impl BoundArgument<'_> {
         match self {
             Self::Owned(owned) => owned.try_as_str(),
             Self::Borrowed(borrowed) => borrowed.try_as_str(),
-            Self::Cell(cell) => todo!(),
+            Self::Cell(cell) => match std::str::from_utf8(cell) {
+                Ok(string) => Ok(Cow::Borrowed(string)),
+                Err(_) => Err(EvaluationError::UnicodeDecodeError),
+            },
         }
     }
 }
