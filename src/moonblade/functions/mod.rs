@@ -105,7 +105,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "cmd" => (io::cmd, FunctionArguments::binary()),
         // "compact" => (sequences::compact, FunctionArguments::unary()),
         // "concat" => (sequences::concat, FunctionArguments::variadic(2)),
-        // "contains" => (maps::contains, FunctionArguments::binary()),
+        "contains" => (maps::contains, FunctionArguments::binary()),
         // "copy" => (io::copy_file, FunctionArguments::binary()),
         // "count" => (strings::count, FunctionArguments::binary()),
         // "date" => (temporal::date, FunctionArguments::with_range(1..=2)),

@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::collections::HashMap;
 
 use crate::moonblade::error::EvaluationError;
-use crate::moonblade::types::{BoundArguments, DynamicValue};
+use crate::moonblade::types::{BoundArguments, BoundContainer, DynamicValue};
 
 use super::FunctionResult;
 
@@ -114,48 +114,33 @@ fn get_subroutine<'v>(
 //     }
 // }
 
-// pub fn contains(args: BoundArguments) -> FunctionResult {
-//     let (arg1, arg2) = args.get2();
+pub fn contains(args: BoundArguments) -> FunctionResult {
+    let (arg1, arg2) = args.get2();
 
-//     match arg1 {
-//         DynamicValue::String(text) => match arg2 {
-//             DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(text))),
-//             _ => {
-//                 let pattern = arg2.try_as_str()?;
-//                 Ok(DynamicValue::from(text.contains(pattern.as_ref())))
-//             }
-//         },
-//         DynamicValue::Bytes(bytes) => {
-//             let text =
-//                 std::str::from_utf8(bytes).map_err(|_| EvaluationError::UnicodeDecodeError)?;
+    let container = arg1.try_as_container()?;
 
-//             match arg2 {
-//                 DynamicValue::Regex(pattern) => Ok(DynamicValue::from(pattern.is_match(text))),
-//                 _ => {
-//                     let pattern = arg2.try_as_str()?;
-//                     Ok(DynamicValue::from(text.contains(pattern.as_ref())))
-//                 }
-//             }
-//         }
-//         DynamicValue::List(list) => {
-//             let needle = arg2.try_as_str()?;
+    match container {
+        BoundContainer::Map(map) => {
+            let needle = arg2.try_as_str()?;
 
-//             for item in list.iter() {
-//                 if needle == item.try_as_str()? {
-//                     return Ok(DynamicValue::from(true));
-//                 }
-//             }
+            Ok(map.contains_key(needle.as_ref()).into())
+        }
+        BoundContainer::List(list) => Ok(list.iter().any(|item| arg2.eq_value(item)).into()),
+        BoundContainer::String(text) => match arg2.as_regex() {
+            Some(pattern) => Ok(pattern.is_match(text).into()),
+            None => Ok(text.contains(arg2.try_as_str()?.as_ref()).into()),
+        },
+        BoundContainer::Bytes(bytes) => {
+            let text =
+                std::str::from_utf8(bytes).map_err(|_| EvaluationError::UnicodeDecodeError)?;
 
-//             Ok(DynamicValue::from(false))
-//         }
-//         DynamicValue::Map(map) => {
-//             let needle = arg2.try_as_str()?;
-
-//             Ok(DynamicValue::from(map.contains_key(needle.as_ref())))
-//         }
-//         value => Err(EvaluationError::from_cast(value, "sequence")),
-//     }
-// }
+            match arg2.as_regex() {
+                Some(pattern) => Ok(pattern.is_match(text).into()),
+                None => Ok(text.contains(arg2.try_as_str()?.as_ref()).into()),
+            }
+        }
+    }
+}
 
 pub fn keys(args: BoundArguments) -> FunctionResult {
     let map = args.get1().try_as_map()?;

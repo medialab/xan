@@ -7,6 +7,13 @@ use crate::moonblade::error::EvaluationError;
 
 use super::{DynamicNumber, DynamicValue};
 
+pub enum BoundContainer<'a> {
+    String(&'a str),
+    Bytes(&'a [u8]),
+    List(&'a Vec<DynamicValue>),
+    Map(&'a HashMap<String, DynamicValue>),
+}
+
 pub enum BoundArgument<'a> {
     Owned(DynamicValue),
     Borrowed(&'a DynamicValue),
@@ -112,6 +119,46 @@ impl BoundArgument<'_> {
             Self::Cell(cell) => match std::str::from_utf8(cell) {
                 Ok(string) => Ok(Cow::Borrowed(string)),
                 Err(_) => Err(EvaluationError::UnicodeDecodeError),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn try_as_container(&self) -> Result<BoundContainer, EvaluationError> {
+        match self {
+            Self::Owned(owned) => match owned {
+                DynamicValue::String(string) => Ok(BoundContainer::String(string)),
+                DynamicValue::Bytes(bytes) => Ok(BoundContainer::Bytes(bytes)),
+                DynamicValue::List(list) => Ok(BoundContainer::List(list)),
+                DynamicValue::Map(map) => Ok(BoundContainer::Map(map)),
+                _ => Err(EvaluationError::from_cast(owned, "container")),
+            },
+            Self::Borrowed(borrowed) => match borrowed {
+                DynamicValue::String(string) => Ok(BoundContainer::String(string)),
+                DynamicValue::Bytes(bytes) => Ok(BoundContainer::Bytes(bytes)),
+                DynamicValue::List(list) => Ok(BoundContainer::List(list)),
+                DynamicValue::Map(map) => Ok(BoundContainer::Map(map)),
+                _ => Err(EvaluationError::from_cast(*borrowed, "container")),
+            },
+            Self::Cell(cell) => Ok(BoundContainer::Bytes(cell)),
+        }
+    }
+
+    pub fn as_regex(&self) -> Option<&regex::Regex> {
+        match self {
+            Self::Owned(DynamicValue::Regex(regex)) => Some(regex),
+            Self::Borrowed(DynamicValue::Regex(regex)) => Some(regex),
+            _ => None,
+        }
+    }
+
+    pub fn eq_value(&self, value: &DynamicValue) -> bool {
+        match self {
+            Self::Owned(owned) => owned.eq(value),
+            Self::Borrowed(borrowed) => (*borrowed).eq(value),
+            Self::Cell(cell) => match value {
+                DynamicValue::Bytes(other_cell) => cell == other_cell,
+                _ => false,
             },
         }
     }
