@@ -152,6 +152,14 @@ impl BoundArgument<'_> {
         }
     }
 
+    pub fn as_list(&self) -> Option<&Vec<DynamicValue>> {
+        match self {
+            Self::Owned(DynamicValue::List(list)) => Some(list),
+            Self::Borrowed(DynamicValue::List(list)) => Some(list),
+            _ => None,
+        }
+    }
+
     pub fn eq_value(&self, value: &DynamicValue) -> bool {
         match self {
             Self::Owned(owned) => owned.eq(value),

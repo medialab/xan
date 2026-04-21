@@ -135,7 +135,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "fractional_days" => (temporal::fractional_days, FunctionArguments::binary()),
         // "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
         // "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
-        // "get" => (maps::get, FunctionArguments::with_range(2..=3)),
+        "get" => (maps::get, FunctionArguments::with_range(2..=3)),
         // "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
         // "idiv" => (
         //     |args| ops::arithmetic_op(args, DynamicNumber::idiv),

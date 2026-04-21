@@ -3,16 +3,16 @@ use std::borrow::Cow;
 use crate::collections::HashMap;
 
 use crate::moonblade::error::EvaluationError;
-use crate::moonblade::types::{BoundArguments, BoundContainer, DynamicValue};
+use crate::moonblade::types::{BoundArgument, BoundArguments, BoundContainer, DynamicValue};
 
 use super::FunctionResult;
 
 fn get_subroutine<'v>(
-    target: &'v DynamicValue,
-    key: &DynamicValue,
+    target: &'v BoundContainer,
+    key: &BoundArgument,
 ) -> Result<Option<Cow<'v, DynamicValue>>, EvaluationError> {
     Ok(match target {
-        DynamicValue::String(value) => {
+        BoundContainer::String(value) => {
             let mut index = key.try_as_i64()?;
 
             if index < 0 {
@@ -29,7 +29,7 @@ fn get_subroutine<'v>(
                     .map(Cow::Owned)
             }
         }
-        DynamicValue::Bytes(value) => {
+        BoundContainer::Bytes(value) => {
             let mut index = key.try_as_i64()?;
 
             if index < 0 {
@@ -49,7 +49,7 @@ fn get_subroutine<'v>(
                     .map(Cow::Owned)
             }
         }
-        DynamicValue::List(list) => {
+        BoundContainer::List(list) => {
             let mut index = key.try_as_i64()?;
 
             if index < 0 {
@@ -62,57 +62,64 @@ fn get_subroutine<'v>(
                 list.get(index as usize).map(Cow::Borrowed)
             }
         }
-        DynamicValue::Map(map) => {
+        BoundContainer::Map(map) => {
             let key = key.try_as_str()?;
 
             map.get(key.as_ref()).map(Cow::Borrowed)
         }
-        value => return Err(EvaluationError::from_cast(value, "sequence")),
     })
 }
 
-// pub fn get(mut args: BoundArguments) -> FunctionResult {
-//     let (target, key, default) = if args.len() == 3 {
-//         let (target, key, default) = args.pop3();
+pub fn get(mut args: BoundArguments) -> FunctionResult {
+    let (target, key, default) = if args.len() == 3 {
+        let (target, key, default) = args.pop3();
 
-//         (target, key, Some(default))
-//     } else {
-//         let (target, key) = args.pop2();
+        (target, key, Some(default))
+    } else {
+        let (target, key) = args.pop2();
 
-//         (target, key, None)
-//     };
+        (target, key, None)
+    };
 
-//     let mut owned_value = Some(target);
+    if let Some(path) = key.as_list() {
+        // let mut owned_value = Some(target);
 
-//     match key {
-//         DynamicValue::List(path) => {
-//             let mut current = owned_value.as_ref().unwrap();
+        // let mut current = owned_value.unwrap();
 
-//             for step in path.iter() {
-//                 match get_subroutine(current, step)? {
-//                     None => return Ok(default.unwrap_or_default()),
-//                     Some(next) => match next {
-//                         Cow::Owned(owned) => {
-//                             owned_value = Some(owned);
-//                             current = owned_value.as_ref().unwrap();
-//                         }
-//                         Cow::Borrowed(borrowed) => {
-//                             current = borrowed;
-//                         }
-//                     },
-//                 }
-//             }
+        // for step in path.iter() {
+        //     let container = current.try_as_container()?;
 
-//             Ok(match owned_value {
-//                 Some(owned) if std::ptr::eq(&owned, current) => owned,
-//                 _ => current.clone(),
-//             })
-//         }
-//         _ => Ok(get_subroutine(owned_value.as_ref().unwrap(), &key)?
-//             .map(|v| v.into_owned())
-//             .unwrap_or_else(|| default.unwrap_or_default())),
-//     }
-// }
+        //     match get_subroutine(&container, &BoundArgument::Borrowed(step))? {
+        //         None => return Ok(default.map(|d| d.into_owned()).unwrap_or_default()),
+        //         Some(next) => match next {
+        //             Cow::Owned(owned) => {
+        //                 owned_value = Some(BoundArgument::Owned(owned));
+        //                 current = owned_value.unwrap();
+        //             }
+        //             Cow::Borrowed(borrowed) => {
+        //                 current = BoundArgument::Borrowed(borrowed);
+        //             }
+        //         },
+        //     }
+        // }
+
+        return Ok(DynamicValue::None);
+
+        // return Ok(match owned_value {
+        //     Some(owned) if std::ptr::eq(&owned, current) => owned,
+        //     _ => current.clone(),
+        // });
+    }
+
+    let container = target.try_as_container()?;
+
+    let out = get_subroutine(&container, &key)?;
+
+    Ok(match out {
+        Some(v) => v.into_owned(),
+        None => default.map(|b| b.into_owned()).unwrap_or_default(),
+    })
+}
 
 pub fn contains(args: BoundArguments) -> FunctionResult {
     let (arg1, arg2) = args.get2();
