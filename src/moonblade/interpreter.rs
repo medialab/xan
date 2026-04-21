@@ -11,8 +11,8 @@ use super::functions::special::{get_special_function, RuntimeFunction as Special
 use super::functions::{get_function, Function};
 use super::parser::{parse_expression, Expr, FunctionCall};
 use super::types::{
-    BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult, FunctionArguments,
-    HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
+    BoundArgument, BoundArguments, ColumIndexationBy, DynamicValue, EvaluationResult,
+    FunctionArguments, HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -235,27 +235,31 @@ impl ConcreteExpr {
         }
     }
 
-    fn bind(&self, context: &EvaluationContext) -> Result<DynamicValue, EvaluationError> {
+    fn bind<'s>(
+        &'s self,
+        context: &'s EvaluationContext,
+    ) -> Result<BoundArgument<'s>, EvaluationError> {
         Ok(match self {
-            Self::Value(value) => value.clone(),
+            Self::Value(value) => BoundArgument::Borrowed(value),
             Self::Column(index) => match context.record.get(*index) {
                 None => return Err(EvaluationError::ColumnOutOfRange(*index)),
-                Some(cell) => DynamicValue::from(cell),
+                Some(cell) => BoundArgument::Cell(cell),
             },
             Self::GlobalVariable(index) => {
                 match context.globals.expect("globals were not set!").get(*index) {
                     None => return Err(EvaluationError::GlobalVariableOutOfRange(*index)),
-                    Some(value) => value.clone(),
+                    Some(value) => BoundArgument::Borrowed(value),
                 }
             }
-            Self::LambdaBinding(name) => context
-                .lambda_variables
-                .expect("lambda_variables MUST be set")
-                .get(name)
-                .clone(),
+            Self::LambdaBinding(name) => BoundArgument::Borrowed(
+                context
+                    .lambda_variables
+                    .expect("lambda_variables MUST be set")
+                    .get(name),
+            ),
             Self::Underscore => match context.last_value.as_ref() {
                 None => return Err(EvaluationError::UnfillableUnderscore),
-                Some(last_value) => last_value.clone(),
+                Some(last_value) => BoundArgument::Borrowed(last_value),
             },
             Self::List(_)
             | Self::Map(_)
@@ -300,7 +304,10 @@ impl ConcreteExpr {
 
                 Ok(pipeline_context.last_value.unwrap())
             }
-            _ => self.bind(context).map_err(|err| err.anonymous()),
+            _ => self
+                .bind(context)
+                .map(|arg| arg.into_owned())
+                .map_err(|err| err.anonymous()),
         }
     }
 }
@@ -331,19 +338,19 @@ impl ConcreteFunctionCall {
         self.run(&EvaluationContext::dummy(&record, &headers_index))
     }
 
-    fn run(&self, context: &EvaluationContext) -> EvaluationResult {
+    fn run<'s>(&'s self, context: &'s EvaluationContext) -> EvaluationResult {
         let mut bound_args = BoundArguments::new();
 
         for arg in self.args.iter() {
             match arg {
                 ConcreteExpr::Call(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(context)?);
+                    bound_args.push(BoundArgument::Owned(sub_function_call.run(context)?));
                 }
                 ConcreteExpr::SpecialCall(sub_function_call) => {
-                    bound_args.push(sub_function_call.run(context)?);
+                    bound_args.push(BoundArgument::Owned(sub_function_call.run(context)?));
                 }
                 ConcreteExpr::List(_) | ConcreteExpr::Map(_) => {
-                    bound_args.push(arg.evaluate(context)?)
+                    bound_args.push(BoundArgument::Owned(arg.evaluate(context)?))
                 }
                 _ => bound_args.push(arg.bind(context).map_err(|err| err.specify(&self.name))?),
             }

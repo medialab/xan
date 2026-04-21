@@ -6,11 +6,35 @@ use crate::moonblade::error::EvaluationError;
 
 use super::{DynamicNumber, DynamicValue};
 
-pub struct BoundArguments {
-    stack: ArrayVec<DynamicValue, BOUND_ARGUMENTS_CAPACITY>,
+pub enum BoundArgument<'a> {
+    Owned(DynamicValue),
+    Borrowed(&'a DynamicValue),
+    Cell(&'a [u8]),
 }
 
-impl BoundArguments {
+impl BoundArgument<'_> {
+    pub fn type_of(&self) -> &str {
+        match self {
+            Self::Owned(owned) => owned.type_of(),
+            Self::Borrowed(borrowed) => borrowed.type_of(),
+            Self::Cell(_) => "bytes",
+        }
+    }
+
+    pub fn into_owned(self) -> DynamicValue {
+        match self {
+            Self::Owned(owned) => owned,
+            Self::Borrowed(borrowed) => borrowed.clone(),
+            Self::Cell(cell) => DynamicValue::from(cell),
+        }
+    }
+}
+
+pub struct BoundArguments<'a> {
+    stack: ArrayVec<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
+}
+
+impl<'s> BoundArguments<'s> {
     pub fn new() -> Self {
         Self {
             stack: ArrayVec::new(),
@@ -21,39 +45,39 @@ impl BoundArguments {
         self.stack.len()
     }
 
-    pub fn push(&mut self, arg: DynamicValue) {
+    pub fn push(&mut self, arg: BoundArgument<'s>) {
         self.stack.push(arg);
     }
 
-    pub fn get(&self, i: usize) -> Option<&DynamicValue> {
+    pub fn get(&self, i: usize) -> Option<&BoundArgument> {
         self.stack.get(i)
     }
 
-    pub fn get_not_none(&self, i: usize) -> Option<&DynamicValue> {
-        let value = self.stack.get(i)?;
+    // pub fn get_not_none(&self, i: usize) -> Option<&DynamicValue> {
+    //     let value = self.stack.get(i)?;
 
-        match value {
-            DynamicValue::None => None,
-            _ => Some(value),
-        }
-    }
+    //     match value {
+    //         DynamicValue::None => None,
+    //         _ => Some(value),
+    //     }
+    // }
 
-    pub fn get1(&self) -> &DynamicValue {
+    pub fn get1(&self) -> &BoundArgument {
         &self.stack[0]
     }
 
-    pub fn pop1(&mut self) -> DynamicValue {
+    pub fn pop1(&mut self) -> BoundArgument {
         self.stack.pop().unwrap()
     }
 
-    pub fn pop2(&mut self) -> (DynamicValue, DynamicValue) {
+    pub fn pop2(&mut self) -> (BoundArgument, BoundArgument) {
         let second = self.stack.pop().unwrap();
         let first = self.stack.pop().unwrap();
 
         (first, second)
     }
 
-    pub fn pop3(&mut self) -> (DynamicValue, DynamicValue, DynamicValue) {
+    pub fn pop3(&mut self) -> (BoundArgument, BoundArgument, BoundArgument) {
         let third = self.stack.pop().unwrap();
         let second = self.stack.pop().unwrap();
         let first = self.stack.pop().unwrap();
@@ -61,40 +85,42 @@ impl BoundArguments {
         (first, second, third)
     }
 
-    pub fn get2(&self) -> (&DynamicValue, &DynamicValue) {
+    pub fn get2(&self) -> (&BoundArgument, &BoundArgument) {
         (&self.stack[0], &self.stack[1])
     }
 
-    pub fn get3(&self) -> (&DynamicValue, &DynamicValue, &DynamicValue) {
+    pub fn get3(&self) -> (&BoundArgument, &BoundArgument, &BoundArgument) {
         (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 
-    pub fn get1_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
-        self.get1().try_as_str()
-    }
+    // pub fn get1_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
+    //     self.get1().try_as_str()
+    // }
 
-    pub fn pop1_bool(&mut self) -> bool {
-        self.pop1().is_truthy()
-    }
+    // pub fn pop1_bool(&mut self) -> bool {
+    //     self.pop1().is_truthy()
+    // }
 
-    pub fn pop1_number(&mut self) -> Result<DynamicNumber, EvaluationError> {
-        self.pop1().try_as_number()
-    }
+    // pub fn pop1_number(&mut self) -> Result<DynamicNumber, EvaluationError> {
+    //     self.pop1().try_as_number()
+    // }
 
-    pub fn get2_str(&self) -> Result<(Cow<'_, str>, Cow<'_, str>), EvaluationError> {
-        let (a, b) = self.get2();
+    // pub fn get2_str(&self) -> Result<(Cow<'_, str>, Cow<'_, str>), EvaluationError> {
+    //     let (a, b) = self.get2();
 
-        Ok((a.try_as_str()?, b.try_as_str()?))
-    }
+    //     Ok((a.try_as_str()?, b.try_as_str()?))
+    // }
 
-    pub fn get2_number(&self) -> Result<(DynamicNumber, DynamicNumber), EvaluationError> {
-        let (a, b) = self.get2();
+    // pub fn get2_number(&self) -> Result<(DynamicNumber, DynamicNumber), EvaluationError> {
+    //     let (a, b) = self.get2();
 
-        Ok((a.try_as_number()?, b.try_as_number()?))
-    }
+    //     Ok((a.try_as_number()?, b.try_as_number()?))
+    // }
 }
 
-pub struct BoundArgumentsIntoIterator(arrayvec::IntoIter<DynamicValue, BOUND_ARGUMENTS_CAPACITY>);
+pub struct BoundArgumentsIntoIterator<'s>(
+    arrayvec::IntoIter<BoundArgument<'s>, BOUND_ARGUMENTS_CAPACITY>,
+);
 
 // impl BoundArgumentsIntoIterator {
 //     pub fn next_not_none(&mut self) -> Option<DynamicValue> {
@@ -105,8 +131,8 @@ pub struct BoundArgumentsIntoIterator(arrayvec::IntoIter<DynamicValue, BOUND_ARG
 //     }
 // }
 
-impl Iterator for BoundArgumentsIntoIterator {
-    type Item = DynamicValue;
+impl<'s> Iterator for BoundArgumentsIntoIterator<'s> {
+    type Item = BoundArgument<'s>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -114,9 +140,9 @@ impl Iterator for BoundArgumentsIntoIterator {
     }
 }
 
-impl IntoIterator for BoundArguments {
-    type Item = DynamicValue;
-    type IntoIter = BoundArgumentsIntoIterator;
+impl<'s> IntoIterator for BoundArguments<'s> {
+    type Item = BoundArgument<'s>;
+    type IntoIter = BoundArgumentsIntoIterator<'s>;
 
     fn into_iter(self) -> Self::IntoIter {
         BoundArgumentsIntoIterator(self.stack.into_iter())
