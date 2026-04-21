@@ -165,6 +165,13 @@ pub enum EvaluationError {
 }
 
 impl EvaluationError {
+    pub fn from_cell_cast(from_value: &[u8], expected: &str) -> Self {
+        Self::Cast {
+            from_value: DynamicValue::from(from_value),
+            to_type: expected.to_string(),
+        }
+    }
+
     pub fn from_cast(from_value: &DynamicValue, expected: &str) -> Self {
         Self::Cast {
             from_value: from_value.clone(),

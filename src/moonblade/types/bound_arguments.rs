@@ -28,6 +28,34 @@ impl BoundArgument<'_> {
             Self::Cell(cell) => DynamicValue::from(cell),
         }
     }
+
+    pub fn try_as_f64(&self) -> Result<f64, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_f64(),
+            Self::Borrowed(borrowed) => borrowed.try_as_f64(),
+            Self::Cell(cell) => {
+                if let Ok(f) = fast_float::parse::<f64, &[u8]>(cell) {
+                    Ok(f)
+                } else {
+                    Err(EvaluationError::from_cell_cast(cell, "float"))
+                }
+            }
+        }
+    }
+
+    pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_number(),
+            Self::Borrowed(borrowed) => borrowed.try_as_number(),
+            Self::Cell(cell) => {
+                if let Ok(n) = DynamicNumber::try_from(*cell) {
+                    Ok(n)
+                } else {
+                    Err(EvaluationError::from_cell_cast(cell, "number"))
+                }
+            }
+        }
+    }
 }
 
 pub struct BoundArguments<'a> {
@@ -101,9 +129,9 @@ impl<'s> BoundArguments<'s> {
     //     self.pop1().is_truthy()
     // }
 
-    // pub fn pop1_number(&mut self) -> Result<DynamicNumber, EvaluationError> {
-    //     self.pop1().try_as_number()
-    // }
+    pub fn pop1_number(&mut self) -> Result<DynamicNumber, EvaluationError> {
+        self.pop1().try_as_number()
+    }
 
     // pub fn get2_str(&self) -> Result<(Cow<'_, str>, Cow<'_, str>), EvaluationError> {
     //     let (a, b) = self.get2();

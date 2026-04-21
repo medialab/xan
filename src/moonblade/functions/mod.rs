@@ -14,7 +14,7 @@ use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, Functi
 // mod fuzzy;
 // mod io;
 // mod maps;
-// mod ops;
+mod ops;
 // mod sequences;
 pub mod special;
 // mod strings;
@@ -27,10 +27,6 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
     Some(match name {
-        "test" => (
-            |args| Ok(DynamicValue::from(args.get1().type_of())),
-            FunctionArguments::unary(),
-        ),
         // Operators
         // "==" => (
         //     |args| ops::abstract_compare(args, Ordering::is_eq),
@@ -82,10 +78,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // ),
 
         // Functions
-        // "abs" => (
-        //     |args| ops::unary_arithmetic_op(args, DynamicNumber::abs),
-        //     FunctionArguments::unary(),
-        // ),
+        "abs" => (
+            |args| ops::unary_arithmetic_op(args, DynamicNumber::abs),
+            FunctionArguments::unary(),
+        ),
         // "abspath" => (io::abspath, FunctionArguments::unary()),
         // "add" => (ops::add, FunctionArguments::variadic(2)),
         // "argmax" => (
@@ -283,7 +279,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // ),
         // "startswith" => (strings::startswith, FunctionArguments::binary()),
         // "strftime" => (temporal::strftime, FunctionArguments::binary()),
-        // "sub" => (ops::sub, FunctionArguments::variadic(2)),
+        "sub" => (ops::sub, FunctionArguments::variadic(2)),
         // "sum" => (ops::sum, FunctionArguments::unary()),
         // "s_stemmer" => (
         //     |args| ops::abstract_unary_string_fn(args, s_stemmer),
