@@ -13,6 +13,7 @@ pub enum BoundArgument<'a> {
 }
 
 impl BoundArgument<'_> {
+    #[inline]
     pub fn type_of(&self) -> &str {
         match self {
             Self::Owned(owned) => owned.type_of(),
@@ -29,32 +30,39 @@ impl BoundArgument<'_> {
         }
     }
 
-    pub fn try_as_f64(&self) -> Result<f64, EvaluationError> {
+    #[inline]
+    fn map<D, F, T>(&self, over_dynamic_value: D, over_cell: F) -> T
+    where
+        D: FnOnce(&DynamicValue) -> T,
+        F: FnOnce(&[u8]) -> T,
+    {
         match self {
-            Self::Owned(owned) => owned.try_as_f64(),
-            Self::Borrowed(borrowed) => borrowed.try_as_f64(),
-            Self::Cell(cell) => {
-                if let Ok(f) = fast_float::parse::<f64, &[u8]>(cell) {
-                    Ok(f)
-                } else {
-                    Err(EvaluationError::from_cell_cast(cell, "float"))
-                }
-            }
+            Self::Owned(owned) => over_dynamic_value(&owned),
+            Self::Borrowed(borrowed) => over_dynamic_value(*borrowed),
+            Self::Cell(cell) => over_cell(cell),
         }
     }
 
-    pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
-        match self {
-            Self::Owned(owned) => owned.try_as_number(),
-            Self::Borrowed(borrowed) => borrowed.try_as_number(),
-            Self::Cell(cell) => {
-                if let Ok(n) = DynamicNumber::try_from(*cell) {
-                    Ok(n)
-                } else {
-                    Err(EvaluationError::from_cell_cast(cell, "number"))
-                }
+    #[inline]
+    pub fn try_as_f64(&self) -> Result<f64, EvaluationError> {
+        self.map(DynamicValue::try_as_f64, |cell| {
+            if let Ok(f) = fast_float::parse::<f64, &[u8]>(cell) {
+                Ok(f)
+            } else {
+                Err(EvaluationError::from_cell_cast(cell, "float"))
             }
-        }
+        })
+    }
+
+    #[inline]
+    pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
+        self.map(DynamicValue::try_as_number, |cell| {
+            if let Ok(n) = DynamicNumber::try_from(cell) {
+                Ok(n)
+            } else {
+                Err(EvaluationError::from_cell_cast(cell, "number"))
+            }
+        })
     }
 }
 
