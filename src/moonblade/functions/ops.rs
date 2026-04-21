@@ -179,6 +179,12 @@ pub fn variadic_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
 where
     F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
 {
+    if args.len() == 2 {
+        let (x, y) = args.get2_number()?;
+
+        return Ok(op(x, y).into());
+    }
+
     let mut args_iter = args.into_iter();
 
     let mut acc = args_iter.next().unwrap().try_as_number()?;
