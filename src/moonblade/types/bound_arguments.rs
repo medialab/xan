@@ -55,6 +55,17 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn try_as_i64(&self) -> Result<i64, EvaluationError> {
+        self.map(DynamicValue::try_as_i64, |cell| {
+            if let Ok(i) = btoi::btoi::<i64>(cell) {
+                Ok(i)
+            } else {
+                Err(EvaluationError::from_cell_cast(cell, "integer"))
+            }
+        })
+    }
+
+    #[inline]
     pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         self.map(DynamicValue::try_as_number, |cell| {
             if let Ok(n) = DynamicNumber::try_from(cell) {
@@ -64,13 +75,33 @@ impl BoundArgument<'_> {
             }
         })
     }
+
+    #[inline]
+    pub fn try_as_bytes(&self) -> Result<&[u8], EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_bytes(),
+            Self::Borrowed(borrowed) => borrowed.try_as_bytes(),
+            Self::Cell(cell) => Ok(cell),
+        }
+    }
+
+    #[inline]
+    pub fn try_as_str(&self) -> Result<Cow<str>, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_str(),
+            Self::Borrowed(borrowed) => borrowed.try_as_str(),
+            Self::Cell(cell) => todo!(),
+        }
+    }
 }
+
+pub const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 
 pub struct BoundArguments<'a> {
     stack: ArrayVec<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
 }
 
-impl<'s> BoundArguments<'s> {
+impl<'a> BoundArguments<'a> {
     pub fn new() -> Self {
         Self {
             stack: ArrayVec::new(),
@@ -81,7 +112,7 @@ impl<'s> BoundArguments<'s> {
         self.stack.len()
     }
 
-    pub fn push(&mut self, arg: BoundArgument<'s>) {
+    pub fn push(&mut self, arg: BoundArgument<'a>) {
         self.stack.push(arg);
     }
 
@@ -129,9 +160,9 @@ impl<'s> BoundArguments<'s> {
         (&self.stack[0], &self.stack[1], &self.stack[2])
     }
 
-    // pub fn get1_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
-    //     self.get1().try_as_str()
-    // }
+    pub fn get1_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
+        self.get1().try_as_str()
+    }
 
     // pub fn pop1_bool(&mut self) -> bool {
     //     self.pop1().is_truthy()
@@ -154,8 +185,8 @@ impl<'s> BoundArguments<'s> {
     }
 }
 
-pub struct BoundArgumentsIntoIterator<'s>(
-    arrayvec::IntoIter<BoundArgument<'s>, BOUND_ARGUMENTS_CAPACITY>,
+pub struct BoundArgumentsIntoIterator<'a>(
+    arrayvec::IntoIter<BoundArgument<'a>, BOUND_ARGUMENTS_CAPACITY>,
 );
 
 // impl BoundArgumentsIntoIterator {
@@ -167,8 +198,8 @@ pub struct BoundArgumentsIntoIterator<'s>(
 //     }
 // }
 
-impl<'s> Iterator for BoundArgumentsIntoIterator<'s> {
-    type Item = BoundArgument<'s>;
+impl<'a> Iterator for BoundArgumentsIntoIterator<'a> {
+    type Item = BoundArgument<'a>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -176,16 +207,15 @@ impl<'s> Iterator for BoundArgumentsIntoIterator<'s> {
     }
 }
 
-impl<'s> IntoIterator for BoundArguments<'s> {
-    type Item = BoundArgument<'s>;
-    type IntoIter = BoundArgumentsIntoIterator<'s>;
+impl<'a> IntoIterator for BoundArguments<'a> {
+    type Item = BoundArgument<'a>;
+    type IntoIter = BoundArgumentsIntoIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         BoundArgumentsIntoIterator(self.stack.into_iter())
     }
 }
 
-pub const BOUND_ARGUMENTS_CAPACITY: usize = 8;
 const LAMBDA_ARGUMENTS_CAPACITY: usize = 4;
 
 #[derive(Clone, Debug)]

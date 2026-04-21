@@ -11,7 +11,7 @@ use super::error::EvaluationError;
 use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
 // mod fmt;
-// mod fuzzy;
+mod fuzzy;
 // mod io;
 // mod maps;
 mod ops;
@@ -19,7 +19,7 @@ mod ops;
 pub mod special;
 // mod strings;
 // mod temporal;
-// mod utils;
+mod utils;
 // mod web;
 
 pub type FunctionResult = Result<DynamicValue, EvaluationError>;
@@ -120,13 +120,13 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::variadic(1),
         // ),
         // "endswith" => (strings::endswith, FunctionArguments::binary()),
-        // "err" => (utils::err, FunctionArguments::unary()),
+        "err" => (utils::err, FunctionArguments::unary()),
         // "escape_regex" => (fmt::escape_regex, FunctionArguments::unary()),
         // "ext" => (io::ext, FunctionArguments::unary()),
         // "filesize" => (io::filesize, FunctionArguments::unary()),
-        // "fingerprint" => (fuzzy::fingerprint, FunctionArguments::unary()),
+        "fingerprint" => (fuzzy::fingerprint, FunctionArguments::unary()),
         // "first" => (sequences::first, FunctionArguments::unary()),
-        // "float" => (ops::parse_float, FunctionArguments::unary()),
+        "float" => (ops::parse_float, FunctionArguments::unary()),
         // "floor" => (
         //     |args| ops::round_like_op(args, DynamicNumber::floor),
         //     FunctionArguments::with_range(1..=2),
@@ -142,7 +142,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::binary(),
         // ),
         // "index_by" => (maps::index_by, FunctionArguments::binary()),
-        // "int" => (ops::parse_int, FunctionArguments::unary()),
+        "int" => (ops::parse_int, FunctionArguments::unary()),
         // "isfile" => (io::isfile, FunctionArguments::unary()),
         // "join" => (strings::join, FunctionArguments::binary()),
         // "keys" => (maps::keys, FunctionArguments::unary()),
@@ -175,7 +175,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_gt),
         //     FunctionArguments::variadic(1),
         // ),
-        // "md5" => (utils::md5, FunctionArguments::unary()),
+        "md5" => (utils::md5, FunctionArguments::unary()),
         // "mean" => (ops::mean, FunctionArguments::unary()),
         // "mime_ext" => (web::mime_ext, FunctionArguments::unary()),
         // "min" => (
@@ -239,7 +239,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::binary(),
         // ),
         // "printf" => (fmt::printf, FunctionArguments::variadic(2)),
-        // "random" => (utils::random, FunctionArguments::nullary()),
+        "random" => (utils::random, FunctionArguments::nullary()),
         // "range" => (sequences::range, FunctionArguments::with_range(1..=3)),
         // "read" => (
         //     io::read,
@@ -257,7 +257,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     },
         //     FunctionArguments::unary(),
         // ),
-        // "regex" => (utils::parse_regex, FunctionArguments::unary()),
+        "regex" => (utils::parse_regex, FunctionArguments::unary()),
         // "repeat" => (sequences::repeat, FunctionArguments::binary()),
         // "replace" => (strings::replace, FunctionArguments::nary(3)),
         // "round" => (
@@ -300,11 +300,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::round_like_op(args, DynamicNumber::trunc),
         //     FunctionArguments::with_range(1..=2),
         // ),
-        // "typeof" => (utils::type_of, FunctionArguments::unary()),
-        // "unidecode" => (fuzzy::apply_unidecode, FunctionArguments::unary()),
+        "typeof" => (utils::type_of, FunctionArguments::unary()),
+        "unidecode" => (fuzzy::apply_unidecode, FunctionArguments::unary()),
         // "upper" => (strings::upper, FunctionArguments::unary()),
         // "urljoin" => (web::urljoin, FunctionArguments::binary()),
-        // "uuid" => (utils::uuid, FunctionArguments::nullary()),
+        "uuid" => (utils::uuid, FunctionArguments::nullary()),
         // "values" => (maps::values, FunctionArguments::unary()),
         // "with_timezone" | "with_tz" => (temporal::with_timezone, FunctionArguments::binary()),
         // "with_local_timezone" | "with_local_tz" => {

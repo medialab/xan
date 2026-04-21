@@ -10,13 +10,13 @@ use crate::moonblade::types::{BoundArguments, DynamicNumber, DynamicValue};
 
 use super::FunctionResult;
 
-// pub fn parse_int(args: BoundArguments) -> FunctionResult {
-//     args.get1().try_as_i64().map(DynamicValue::from)
-// }
+pub fn parse_int(args: BoundArguments) -> FunctionResult {
+    args.get1().try_as_i64().map(DynamicValue::from)
+}
 
-// pub fn parse_float(args: BoundArguments) -> FunctionResult {
-//     args.get1().try_as_f64().map(DynamicValue::from)
-// }
+pub fn parse_float(args: BoundArguments) -> FunctionResult {
+    args.get1().try_as_f64().map(DynamicValue::from)
+}
 
 // pub fn not(mut args: BoundArguments) -> FunctionResult {
 //     Ok(DynamicValue::from(!args.pop1_bool()))
