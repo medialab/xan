@@ -54,30 +54,30 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::abstract_compare(args, Ordering::is_ne),
         //     FunctionArguments::binary(),
         // ),
-        // "eq" => (
-        //     |args| ops::sequence_compare(args, Ordering::is_eq),
-        //     FunctionArguments::binary(),
-        // ),
-        // "gt" => (
-        //     |args| ops::sequence_compare(args, Ordering::is_gt),
-        //     FunctionArguments::binary(),
-        // ),
-        // "ge" => (
-        //     |args| ops::sequence_compare(args, Ordering::is_ge),
-        //     FunctionArguments::binary(),
-        // ),
-        // "lt" => (
-        //     |args| ops::sequence_compare(args, Ordering::is_lt),
-        //     FunctionArguments::binary(),
-        // ),
-        // "le" => (
-        //     |args| ops::sequence_compare(args, Ordering::is_le),
-        //     FunctionArguments::binary(),
-        // ),
-        // "ne" => (
-        //     |args| ops::sequence_compare(args, Ordering::is_ne),
-        //     FunctionArguments::binary(),
-        // ),
+        "eq" => (
+            |args| ops::sequence_compare(args, Ordering::is_eq),
+            FunctionArguments::binary(),
+        ),
+        "gt" => (
+            |args| ops::sequence_compare(args, Ordering::is_gt),
+            FunctionArguments::binary(),
+        ),
+        "ge" => (
+            |args| ops::sequence_compare(args, Ordering::is_ge),
+            FunctionArguments::binary(),
+        ),
+        "lt" => (
+            |args| ops::sequence_compare(args, Ordering::is_lt),
+            FunctionArguments::binary(),
+        ),
+        "le" => (
+            |args| ops::sequence_compare(args, Ordering::is_le),
+            FunctionArguments::binary(),
+        ),
+        "ne" => (
+            |args| ops::sequence_compare(args, Ordering::is_ne),
+            FunctionArguments::binary(),
+        ),
 
         // Functions
         "abs" => (

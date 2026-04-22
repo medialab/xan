@@ -116,28 +116,21 @@ pub fn sub(args: BoundArguments) -> FunctionResult {
 //     }))
 // }
 
-// pub fn sequence_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
-// where
-//     F: FnOnce(Ordering) -> bool,
-// {
-//     // TODO: deal with lists
-//     let ordering = match args.get2() {
-//         (DynamicValue::Bytes(b1), DynamicValue::Bytes(b2)) => b1.partial_cmp(b2),
-//         (DynamicValue::String(s1), DynamicValue::String(s2)) => s1.partial_cmp(s2),
-//         (DynamicValue::Bytes(b1), DynamicValue::String(s2)) => std::str::from_utf8(b1)
-//             .map_err(|_| EvaluationError::UnicodeDecodeError)?
-//             .partial_cmp(s2.as_ref()),
-//         (DynamicValue::String(s1), DynamicValue::Bytes(b2)) => s1
-//             .as_ref()
-//             .partial_cmp(std::str::from_utf8(b2).map_err(|_| EvaluationError::UnicodeDecodeError)?),
-//         (u1, u2) => u1.try_as_str()?.partial_cmp(&u2.try_as_str()?),
-//     };
+pub fn sequence_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: FnOnce(Ordering) -> bool,
+{
+    let (a, b) = args.get2();
 
-//     Ok(DynamicValue::from(match ordering {
-//         Some(ordering) => validate(ordering),
-//         None => false,
-//     }))
-// }
+    let ordering = if let (Some(a), Some(b)) = (a.as_bytes(), b.as_bytes()) {
+        a.cmp(b)
+    } else {
+        a.try_as_str()?.cmp(&b.try_as_str()?)
+    };
+
+    // TODO: deal with lists
+    Ok(validate(ordering).into())
+}
 
 pub fn abstract_unary_string_fn<F>(args: BoundArguments, function: F) -> FunctionResult
 where
