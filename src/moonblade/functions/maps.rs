@@ -8,8 +8,8 @@ use crate::moonblade::types::{BoundArgument, BoundArguments, BoundContainer, Dyn
 use super::FunctionResult;
 
 fn get_subroutine<'v>(
-    target: &'v BoundContainer,
-    key: &BoundArgument,
+    target: BoundContainer<'v>,
+    key: BoundArgument,
 ) -> Result<Option<Cow<'v, DynamicValue>>, EvaluationError> {
     Ok(match target {
         BoundContainer::String(value) => {
@@ -82,38 +82,24 @@ pub fn get(mut args: BoundArguments) -> FunctionResult {
     };
 
     if let Some(path) = key.as_list() {
-        // let mut owned_value = Some(target);
+        let mut current_value = target.to_value();
 
-        // let mut current = owned_value.unwrap();
+        for step in path {
+            match get_subroutine(
+                BoundArgument::Borrowed(&current_value).try_as_container()?,
+                BoundArgument::Borrowed(step),
+            )? {
+                Some(v) => current_value = v.into_owned(),
+                None => return Ok(default.map(|b| b.into_owned()).unwrap_or_default()),
+            };
+        }
 
-        // for step in path.iter() {
-        //     let container = current.try_as_container()?;
-
-        //     match get_subroutine(&container, &BoundArgument::Borrowed(step))? {
-        //         None => return Ok(default.map(|d| d.into_owned()).unwrap_or_default()),
-        //         Some(next) => match next {
-        //             Cow::Owned(owned) => {
-        //                 owned_value = Some(BoundArgument::Owned(owned));
-        //                 current = owned_value.unwrap();
-        //             }
-        //             Cow::Borrowed(borrowed) => {
-        //                 current = BoundArgument::Borrowed(borrowed);
-        //             }
-        //         },
-        //     }
-        // }
-
-        return Ok(DynamicValue::None);
-
-        // return Ok(match owned_value {
-        //     Some(owned) if std::ptr::eq(&owned, current) => owned,
-        //     _ => current.clone(),
-        // });
+        return Ok(current_value);
     }
 
     let container = target.try_as_container()?;
 
-    let out = get_subroutine(&container, &key)?;
+    let out = get_subroutine(container, key)?;
 
     Ok(match out {
         Some(v) => v.into_owned(),

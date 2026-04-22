@@ -38,6 +38,14 @@ impl BoundArgument<'_> {
         }
     }
 
+    pub fn to_value(self) -> DynamicValue {
+        match self {
+            Self::Owned(owned) => owned,
+            Self::Borrowed(borrowed) => borrowed.clone(),
+            Self::Cell(cell) => cell.into(),
+        }
+    }
+
     #[inline]
     fn map<D, F, T>(&self, over_dynamic_value: D, over_cell: F) -> T
     where
