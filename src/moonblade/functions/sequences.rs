@@ -103,11 +103,7 @@ pub fn first(mut args: BoundArguments) -> FunctionResult {
 
     Ok(match arg.try_as_container()? {
         BoundContainer::String(string) => string.chars().next().into(),
-        BoundContainer::Bytes(bytes) => std::str::from_utf8(bytes)
-            .map_err(|_| EvaluationError::UnicodeDecodeError)?
-            .chars()
-            .next()
-            .into(),
+        BoundContainer::Bytes(bytes) => std::str::from_utf8(bytes)?.chars().next().into(),
         BoundContainer::List(list) => list.first().cloned().into(),
         _ => {
             return Err(EvaluationError::Cast {
@@ -123,11 +119,7 @@ pub fn last(mut args: BoundArguments) -> FunctionResult {
 
     Ok(match arg.try_as_container()? {
         BoundContainer::String(string) => string.chars().next_back().into(),
-        BoundContainer::Bytes(bytes) => std::str::from_utf8(bytes)
-            .map_err(|_| EvaluationError::UnicodeDecodeError)?
-            .chars()
-            .next_back()
-            .into(),
+        BoundContainer::Bytes(bytes) => std::str::from_utf8(bytes)?.chars().next_back().into(),
         BoundContainer::List(list) => list.last().cloned().into(),
         _ => {
             return Err(EvaluationError::Cast {

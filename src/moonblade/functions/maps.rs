@@ -39,8 +39,7 @@ fn get_subroutine<'v>(
             if index < 0 {
                 None
             } else {
-                let value =
-                    std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?;
+                let value = std::str::from_utf8(value)?;
 
                 value
                     .chars()
@@ -124,8 +123,7 @@ pub fn contains(args: BoundArguments) -> FunctionResult {
             None => Ok(text.contains(arg2.try_as_str()?.as_ref()).into()),
         },
         BoundContainer::Bytes(bytes) => {
-            let text =
-                std::str::from_utf8(bytes).map_err(|_| EvaluationError::UnicodeDecodeError)?;
+            let text = std::str::from_utf8(bytes)?;
 
             match arg2.as_regex() {
                 Some(pattern) => Ok(pattern.is_match(text).into()),

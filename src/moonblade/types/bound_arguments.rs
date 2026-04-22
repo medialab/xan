@@ -1,10 +1,12 @@
 use std::borrow::Cow;
 
 use arrayvec::ArrayVec;
+use url::Url;
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
 use crate::temporal::{parse_any_temporal, AnyTemporal};
+use crate::urls::TaggedUrl;
 
 use super::{DynamicNumber, DynamicValue};
 
@@ -171,10 +173,7 @@ impl BoundArgument<'_> {
         match self {
             Self::Owned(owned) => owned.try_as_str(),
             Self::Borrowed(borrowed) => borrowed.try_as_str(),
-            Self::Cell(cell) => match std::str::from_utf8(cell) {
-                Ok(string) => Ok(Cow::Borrowed(string)),
-                Err(_) => Err(EvaluationError::UnicodeDecodeError),
-            },
+            Self::Cell(cell) => Ok(Cow::Borrowed(std::str::from_utf8(cell)?)),
         }
     }
 
@@ -257,6 +256,22 @@ impl BoundArgument<'_> {
             Self::Borrowed(DynamicValue::Span(span)) => Some(span),
             _ => None,
         }
+    }
+
+    #[inline]
+    pub fn try_as_tagged_url(&self) -> Result<TaggedUrl, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_tagged_url(),
+            Self::Borrowed(borrowed) => borrowed.try_as_tagged_url(),
+            Self::Cell(cell) => std::str::from_utf8(cell)?
+                .parse::<TaggedUrl>()
+                .map_err(|_| EvaluationError::from_cell_cast(*cell, "url")),
+        }
+    }
+
+    #[inline]
+    pub fn try_as_url(&self) -> Result<Url, EvaluationError> {
+        self.try_as_tagged_url().map(TaggedUrl::into_inner)
     }
 
     #[inline]

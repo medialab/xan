@@ -433,9 +433,7 @@ impl DynamicValue {
     pub fn try_as_str(&self) -> Result<Cow<'_, str>, EvaluationError> {
         Ok(match self {
             Self::String(value) => Cow::Borrowed(value),
-            Self::Bytes(value) => Cow::Borrowed(
-                std::str::from_utf8(value).map_err(|_| EvaluationError::UnicodeDecodeError)?,
-            ),
+            Self::Bytes(value) => Cow::Borrowed(std::str::from_utf8(value)?),
             Self::Float(value) => Cow::Owned(value.to_string()),
             Self::Integer(value) => Cow::Owned(value.to_string()),
             Self::Zoned(value) => Cow::Owned(value.to_string()),

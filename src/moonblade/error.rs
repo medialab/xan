@@ -254,6 +254,12 @@ impl Display for EvaluationError {
     }
 }
 
+impl From<std::str::Utf8Error> for EvaluationError {
+    fn from(value: std::str::Utf8Error) -> Self {
+        Self::UnicodeDecodeError
+    }
+}
+
 impl From<jiff::Error> for EvaluationError {
     fn from(value: jiff::Error) -> Self {
         Self::TimeRelated(value.to_string())

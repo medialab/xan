@@ -24,7 +24,7 @@ pub fn parse_dataurl(args: BoundArguments) -> FunctionResult {
                 let mime = &spec[..spec.len() - 7];
 
                 Ok(DynamicValue::from(vec![
-                    DynamicValue::from(std::str::from_utf8(mime).unwrap()),
+                    DynamicValue::from(std::str::from_utf8(mime)?),
                     DynamicValue::from_owned_bytes(BASE64_STANDARD.decode(data).map_err(|_| {
                         EvaluationError::Custom("data url contains invalid base64".to_string())
                     })?),

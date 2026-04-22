@@ -22,7 +22,7 @@ pub mod special;
 // mod strings;
 mod temporal;
 mod utils;
-// mod web;
+mod web;
 
 pub type FunctionResult = Result<DynamicValue, EvaluationError>;
 pub type Function = fn(BoundArguments) -> FunctionResult;
@@ -138,7 +138,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
         // "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
         "get" => (maps::get, FunctionArguments::with_range(2..=3)),
-        // "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
+        "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
         "idiv" => (
             |args| ops::arithmetic_op(args, DynamicNumber::idiv),
             FunctionArguments::binary(),
@@ -171,7 +171,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::unary(),
         // ),
         // "lower" => (strings::lower, FunctionArguments::unary()),
-        // "lru" => (web::lru, FunctionArguments::unary()),
+        "lru" => (web::lru, FunctionArguments::unary()),
         // "match" => (strings::regex_match, FunctionArguments::with_range(2..=3)),
         "max" => (
             |args| ops::variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_gt),
@@ -179,7 +179,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "md5" => (utils::md5, FunctionArguments::unary()),
         "mean" => (ops::mean, FunctionArguments::unary()),
-        // "mime_ext" => (web::mime_ext, FunctionArguments::unary()),
+        "mime_ext" => (web::mime_ext, FunctionArguments::unary()),
         "min" => (
             |args| ops::variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_lt),
             FunctionArguments::variadic(1),
@@ -228,7 +228,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| fmt::pad(pad::Alignment::Left, args),
             FunctionArguments::with_range(2..=3),
         ),
-        // "parse_dataurl" => (web::parse_dataurl, FunctionArguments::unary()),
+        "parse_dataurl" => (web::parse_dataurl, FunctionArguments::unary()),
         "parse_json" => (io::parse_json, FunctionArguments::unary()),
         "parse_py_literal" => (io::parse_py_literal, FunctionArguments::unary()),
         "phonogram" => (
@@ -305,7 +305,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "typeof" => (utils::type_of, FunctionArguments::unary()),
         "unidecode" => (fuzzy::apply_unidecode, FunctionArguments::unary()),
         // "upper" => (strings::upper, FunctionArguments::unary()),
-        // "urljoin" => (web::urljoin, FunctionArguments::binary()),
+        "urljoin" => (web::urljoin, FunctionArguments::binary()),
         "uuid" => (utils::uuid, FunctionArguments::nullary()),
         "values" => (maps::values, FunctionArguments::unary()),
         // "with_timezone" | "with_tz" => (temporal::with_timezone, FunctionArguments::binary()),
