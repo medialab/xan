@@ -9,8 +9,7 @@
 
 *Performance*
 
-* Faster moonblade `get` operations.
-* Less allocations related to `DynamicValue::Bytes` & `DynamicValue::String`.
+* moonblade expressions are now faster overall and allocate more cautiously, thus saving memory.
 
 ## 0.57.1
 
