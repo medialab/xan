@@ -200,125 +200,125 @@ where
     Ok(DynamicValue::from(op(args.pop1_number()?)))
 }
 
-// pub fn round_like_op<F>(mut args: BoundArguments, op: F) -> FunctionResult
-// where
-//     F: Fn(DynamicNumber) -> DynamicNumber,
-// {
-//     if args.len() == 2 {
-//         let unit = args.pop1_number()?;
-//         let operand = args.pop1_number()?;
+pub fn round_like_op<F>(mut args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber) -> DynamicNumber,
+{
+    if args.len() == 2 {
+        let unit = args.pop1_number()?;
+        let operand = args.pop1_number()?;
 
-//         let result = op(operand / unit) * unit;
+        let result = op(operand / unit) * unit;
 
-//         Ok(DynamicValue::from(result))
-//     } else {
-//         Ok(DynamicValue::from(op(args.pop1_number()?)))
-//     }
-// }
+        Ok(DynamicValue::from(result))
+    } else {
+        Ok(DynamicValue::from(op(args.pop1_number()?)))
+    }
+}
 
-// pub fn binary_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
-// where
-//     F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
-// {
-//     let (n1, n2) = args.get2_number()?;
+pub fn binary_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: Fn(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let (n1, n2) = args.get2_number()?;
 
-//     Ok(DynamicValue::from(op(n1, n2)))
-// }
+    Ok(DynamicValue::from(op(n1, n2)))
+}
 
-// pub fn variadic_optimum<F, V, T>(args: BoundArguments, convert: F, validate: V) -> FunctionResult
-// where
-//     F: Fn(&DynamicValue) -> Result<T, EvaluationError>,
-//     V: Fn(Ordering) -> bool,
-//     T: PartialOrd,
-//     DynamicValue: From<T>,
-// {
-//     if args.len() == 1 {
-//         let values = args.get1().try_as_list()?;
+pub fn variadic_optimum<F, V, T>(args: BoundArguments, convert: F, validate: V) -> FunctionResult
+where
+    F: Fn(&DynamicValue) -> Result<T, EvaluationError>,
+    V: Fn(Ordering) -> bool,
+    T: PartialOrd,
+    DynamicValue: From<T>,
+{
+    if args.len() == 1 {
+        let values = args.get1().try_as_list()?;
 
-//         if values.is_empty() {
-//             return Ok(DynamicValue::None);
-//         }
+        if values.is_empty() {
+            return Ok(DynamicValue::None);
+        }
 
-//         let mut values_iter = values.iter();
-//         let mut best_value = convert(values_iter.next().unwrap())?;
+        let mut values_iter = values.iter();
+        let mut best_value = convert(values_iter.next().unwrap())?;
 
-//         for value in values_iter {
-//             let other = convert(value)?;
+        for value in values_iter {
+            let other = convert(value)?;
 
-//             match other.partial_cmp(&best_value) {
-//                 None => {
-//                     return Err(EvaluationError::Custom(
-//                         "trying to compare heterogenous types".to_string(),
-//                     ));
-//                 }
-//                 Some(ordering) => {
-//                     if validate(ordering) {
-//                         best_value = other;
-//                     }
-//                 }
-//             }
-//         }
+            match other.partial_cmp(&best_value) {
+                None => {
+                    return Err(EvaluationError::Custom(
+                        "trying to compare heterogenous types".to_string(),
+                    ));
+                }
+                Some(ordering) => {
+                    if validate(ordering) {
+                        best_value = other;
+                    }
+                }
+            }
+        }
 
-//         return Ok(DynamicValue::from(best_value));
-//     }
+        return Ok(DynamicValue::from(best_value));
+    }
 
-//     let mut args_iter = args.into_iter();
-//     let mut best_value = convert(&args_iter.next().unwrap())?;
+    let mut args_iter = args.into_iter();
+    let mut best_value = convert(&args_iter.next().unwrap().to_value())?;
 
-//     for arg in args_iter {
-//         let other_value = convert(&arg)?;
+    for arg in args_iter {
+        let other_value = convert(&arg.to_value())?;
 
-//         match other_value.partial_cmp(&best_value) {
-//             None => {
-//                 return Err(EvaluationError::Custom(
-//                     "trying to compare heterogenous types".to_string(),
-//                 ));
-//             }
-//             Some(ordering) => {
-//                 if validate(ordering) {
-//                     best_value = other_value;
-//                 }
-//             }
-//         }
-//     }
+        match other_value.partial_cmp(&best_value) {
+            None => {
+                return Err(EvaluationError::Custom(
+                    "trying to compare heterogenous types".to_string(),
+                ));
+            }
+            Some(ordering) => {
+                if validate(ordering) {
+                    best_value = other_value;
+                }
+            }
+        }
+    }
 
-//     Ok(DynamicValue::from(best_value))
-// }
+    Ok(DynamicValue::from(best_value))
+}
 
-// pub fn argcompare<F>(args: BoundArguments, validate: F) -> FunctionResult
-// where
-//     F: Fn(Ordering) -> bool,
-// {
-//     let values = args.get(0).unwrap().try_as_list()?;
-//     let labels = args.get(1).map(|arg| arg.try_as_list()).transpose()?;
-//     let mut min_item: Option<(DynamicNumber, DynamicValue)> = None;
+pub fn argcompare<F>(args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: Fn(Ordering) -> bool,
+{
+    let values = args.get(0).unwrap().try_as_list()?;
+    let labels = args.get(1).map(|arg| arg.try_as_list()).transpose()?;
+    let mut min_item: Option<(DynamicNumber, DynamicValue)> = None;
 
-//     for (i, value) in values.iter().enumerate() {
-//         let n = value.try_as_number()?;
+    for (i, value) in values.iter().enumerate() {
+        let n = value.try_as_number()?;
 
-//         match min_item {
-//             None => {
-//                 min_item = Some((
-//                     n,
-//                     match labels {
-//                         None => DynamicValue::from(i),
-//                         Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
-//                     },
-//                 ));
-//             }
-//             Some((current, _)) => {
-//                 if validate(n.partial_cmp(&current).unwrap()) {
-//                     min_item = Some((
-//                         n,
-//                         match labels {
-//                             None => DynamicValue::from(i),
-//                             Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
-//                         },
-//                     ));
-//                 }
-//             }
-//         }
-//     }
+        match min_item {
+            None => {
+                min_item = Some((
+                    n,
+                    match labels {
+                        None => DynamicValue::from(i),
+                        Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
+                    },
+                ));
+            }
+            Some((current, _)) => {
+                if validate(n.partial_cmp(&current).unwrap()) {
+                    min_item = Some((
+                        n,
+                        match labels {
+                            None => DynamicValue::from(i),
+                            Some(l) => l.get(i).cloned().unwrap_or_else(|| DynamicValue::None),
+                        },
+                    ));
+                }
+            }
+        }
+    }
 
-//     Ok(DynamicValue::from(min_item.map(|t| t.1)))
-// }
+    Ok(DynamicValue::from(min_item.map(|t| t.1)))
+}
