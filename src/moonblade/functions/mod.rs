@@ -134,9 +134,9 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(1..=2),
         ),
         "fmt" => (fmt::fmt, FunctionArguments::variadic(2)),
-        // "fractional_days" => (temporal::fractional_days, FunctionArguments::binary()),
-        // "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
-        // "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
+        "fractional_days" => (temporal::fractional_days, FunctionArguments::binary()),
+        "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
+        "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
         "get" => (maps::get, FunctionArguments::with_range(2..=3)),
         "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
         "idiv" => (
@@ -188,14 +188,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| ops::binary_arithmetic_op(args, Rem::rem),
             FunctionArguments::binary(),
         ),
-        // "month" => (
-        //     |args| temporal::custom_strftime(args, "%m"),
-        //     FunctionArguments::unary(),
-        // ),
-        // "month_day" => (
-        //     |args| temporal::custom_strftime(args, "%m-%d"),
-        //     FunctionArguments::unary(),
-        // ),
+        "month" => (
+            |args| temporal::custom_strftime(args, "%m"),
+            FunctionArguments::unary(),
+        ),
+        "month_day" => (
+            |args| temporal::custom_strftime(args, "%m-%d"),
+            FunctionArguments::unary(),
+        ),
         "move" => (io::move_file, FunctionArguments::binary()),
         "mul" => (
             |args| ops::variadic_arithmetic_op(args, Mul::mul),
@@ -206,7 +206,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "not" => (ops::not, FunctionArguments::unary()),
-        // "now" => (temporal::now, FunctionArguments::nullary()),
+        "now" => (temporal::now, FunctionArguments::nullary()),
         "numfmt" => (
             fmt::fmt_number,
             FunctionArguments::complex(vec![
@@ -280,7 +280,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         // "startswith" => (strings::startswith, FunctionArguments::binary()),
-        // "strftime" => (temporal::strftime, FunctionArguments::binary()),
+        "strftime" => (temporal::strftime, FunctionArguments::binary()),
         "sub" => (ops::sub, FunctionArguments::variadic(2)),
         "sum" => (ops::sum, FunctionArguments::unary()),
         "s_stemmer" => (
@@ -289,12 +289,12 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "time" => (temporal::time, FunctionArguments::with_range(1..=2)),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
-        // "to_timestamp" => (temporal::to_timestamp, FunctionArguments::unary()),
-        // "to_timestamp_ms" => (temporal::to_timestamp_ms, FunctionArguments::unary()),
-        // "to_timezone" | "to_tz" => (temporal::to_timezone, FunctionArguments::binary()),
-        // "to_local_timezone" | "to_local_tz" => {
-        //     (temporal::to_local_timezone, FunctionArguments::unary())
-        // }
+        "to_timestamp" => (temporal::to_timestamp, FunctionArguments::unary()),
+        "to_timestamp_ms" => (temporal::to_timestamp_ms, FunctionArguments::unary()),
+        "to_timezone" | "to_tz" => (temporal::to_timezone, FunctionArguments::binary()),
+        "to_local_timezone" | "to_local_tz" => {
+            (temporal::to_local_timezone, FunctionArguments::unary())
+        }
         "trim" => (fmt::trim, FunctionArguments::with_range(1..=2)),
         "ltrim" => (fmt::ltrim, FunctionArguments::with_range(1..=2)),
         "rtrim" => (fmt::rtrim, FunctionArguments::with_range(1..=2)),
@@ -308,26 +308,26 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "urljoin" => (web::urljoin, FunctionArguments::binary()),
         "uuid" => (utils::uuid, FunctionArguments::nullary()),
         "values" => (maps::values, FunctionArguments::unary()),
-        // "with_timezone" | "with_tz" => (temporal::with_timezone, FunctionArguments::binary()),
-        // "with_local_timezone" | "with_local_tz" => {
-        //     (temporal::with_local_timezone, FunctionArguments::unary())
-        // }
-        // "without_timezone" | "without_tz" => {
-        //     (temporal::without_timezone, FunctionArguments::unary())
-        // }
+        "with_timezone" | "with_tz" => (temporal::with_timezone, FunctionArguments::binary()),
+        "with_local_timezone" | "with_local_tz" => {
+            (temporal::with_local_timezone, FunctionArguments::unary())
+        }
+        "without_timezone" | "without_tz" => {
+            (temporal::without_timezone, FunctionArguments::unary())
+        }
         "write" => (io::write, FunctionArguments::binary()),
-        // "year" => (
-        //     |args| temporal::custom_strftime(args, "%Y"),
-        //     FunctionArguments::unary(),
-        // ),
-        // "year_month_day" | "ymd" => (
-        //     |args| temporal::custom_strftime(args, "%F"),
-        //     FunctionArguments::unary(),
-        // ),
-        // "year_month" | "ym" => (
-        //     |args| temporal::custom_strftime(args, "%Y-%m"),
-        //     FunctionArguments::unary(),
-        // ),
+        "year" => (
+            |args| temporal::custom_strftime(args, "%Y"),
+            FunctionArguments::unary(),
+        ),
+        "year_month_day" | "ymd" => (
+            |args| temporal::custom_strftime(args, "%F"),
+            FunctionArguments::unary(),
+        ),
+        "year_month" | "ym" => (
+            |args| temporal::custom_strftime(args, "%Y-%m"),
+            FunctionArguments::unary(),
+        ),
         _ => return None,
     })
 }

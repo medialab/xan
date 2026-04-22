@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
-use crate::temporal::{parse_any_temporal, AnyTemporal};
+use crate::temporal::{parse_any_temporal, parse_maybe_zoned, AnyTemporal, MaybeZoned};
 use crate::urls::TaggedUrl;
 
 use super::{DynamicNumber, DynamicValue};
@@ -219,6 +219,49 @@ impl BoundArgument<'_> {
                     bstr::BStr::new(cell)
                 ))),
             },
+        }
+    }
+
+    #[inline]
+    pub fn try_as_maybe_zoned(&self) -> Result<MaybeZoned, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_maybe_zoned(),
+            Self::Borrowed(borrowed) => borrowed.try_as_maybe_zoned(),
+            Self::Cell(cell) => match parse_maybe_zoned(cell) {
+                Ok(maybe_zoned) => Ok(maybe_zoned),
+                Err(_) => Err(EvaluationError::from_cell_cast(cell, "maybe_zoned")),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn try_as_zoned(&self) -> Result<jiff::Zoned, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_zoned(),
+            Self::Borrowed(borrowed) => borrowed.try_as_zoned(),
+            Self::Cell(cell) => match parse_maybe_zoned(cell) {
+                Ok(maybe_zoned) => match maybe_zoned {
+                    MaybeZoned::Civil(_) => Err(EvaluationError::TimeRelated(format!(
+                        "this operation requires given datetime {:?} to have timezone information but it has none. You can use `with_timezone` or `with_local_timezone` to indicate it if you know the correct one beforehand.", self
+                    ))),
+                    MaybeZoned::Zoned(zoned) => Ok(zoned),
+                },
+                Err(_) => Err(EvaluationError::from_cell_cast(cell, "zoned")),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn try_as_timezone(&self) -> Result<jiff::tz::TimeZone, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_timezone(),
+            Self::Borrowed(borrowed) => borrowed.try_as_timezone(),
+            Self::Cell(cell) => jiff::tz::TimeZone::get(std::str::from_utf8(cell)?).map_err(|_| {
+                EvaluationError::TimeRelated(format!(
+                    "\"{}\" is not a valid timezone",
+                    bstr::BStr::new(cell)
+                ))
+            }),
         }
     }
 

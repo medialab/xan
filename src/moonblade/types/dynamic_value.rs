@@ -267,13 +267,13 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_into_maybe_zoned(self) -> Result<MaybeZoned, EvaluationError> {
+    pub fn try_as_maybe_zoned(&self) -> Result<MaybeZoned, EvaluationError> {
         if let Self::Zoned(zoned) = self {
-            return Ok(MaybeZoned::Zoned(*zoned));
+            return Ok(MaybeZoned::Zoned(*zoned.clone()));
         }
 
         if let Self::DateTime(datetime) = self {
-            return Ok(MaybeZoned::Civil(datetime));
+            return Ok(MaybeZoned::Civil(*datetime));
         }
 
         if self.is_temporal() {
@@ -326,9 +326,9 @@ impl DynamicValue {
         })
     }
 
-    pub fn try_into_zoned(self) -> Result<Zoned, EvaluationError> {
+    pub fn try_as_zoned(&self) -> Result<Zoned, EvaluationError> {
         if let Self::Zoned(zoned) = self {
-            return Ok(*zoned);
+            return Ok(*zoned.clone());
         }
 
         let mismatch_err = || {
