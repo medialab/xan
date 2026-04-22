@@ -116,6 +116,11 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn is_temporal(&self) -> bool {
+        self.map(DynamicValue::is_temporal, |_| false)
+    }
+
+    #[inline]
     pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         self.map(DynamicValue::try_as_number, |cell| {
             if let Ok(n) = DynamicNumber::try_from(cell) {
@@ -200,6 +205,15 @@ impl BoundArgument<'_> {
                 _ => Err(EvaluationError::from_cast(*borrowed, "container")),
             },
             Self::Cell(cell) => Ok(BoundContainer::Bytes(cell)),
+        }
+    }
+
+    #[inline]
+    pub fn as_any_temporal(&self) -> Option<AnyTemporal> {
+        match self {
+            Self::Owned(owned) => owned.as_any_temporal(),
+            Self::Borrowed(borrowed) => borrowed.as_any_temporal(),
+            _ => None,
         }
     }
 

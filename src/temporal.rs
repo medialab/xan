@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use btoi::btoi;
 use jiff::{
     civil::{Date, DateTime, Time},
@@ -233,6 +235,20 @@ impl AnyTemporal {
             Self::DateTime(_) => "datetime",
             Self::Date(_) => "date",
             Self::Time(_) => "time",
+        }
+    }
+
+    pub fn try_cmp(&self, other: &Self) -> Result<Ordering, Error> {
+        match (self, other) {
+            (AnyTemporal::Zoned(a), AnyTemporal::Zoned(b)) => Ok(a.cmp(b)),
+            (AnyTemporal::DateTime(a), AnyTemporal::DateTime(b)) => Ok(a.cmp(b)),
+            (AnyTemporal::Date(a), AnyTemporal::Date(b)) => Ok(a.cmp(b)),
+            (AnyTemporal::Time(a), AnyTemporal::Time(b)) => Ok(a.cmp(b)),
+            _ => Err(Error::from_args(format_args!(
+                "incompatible temporal types \"{}\" and \"{}\"",
+                self.kind_as_str(),
+                other.kind_as_str()
+            ))),
         }
     }
 

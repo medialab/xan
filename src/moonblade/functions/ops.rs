@@ -88,33 +88,27 @@ pub fn sub(args: BoundArguments) -> FunctionResult {
     variadic_arithmetic_op(args, Sub::sub)
 }
 
-// pub fn abstract_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
-// where
-//     F: FnOnce(Ordering) -> bool,
-// {
-//     let (a, b) = args.pop2();
+pub fn abstract_compare<F>(mut args: BoundArguments, validate: F) -> FunctionResult
+where
+    F: FnOnce(Ordering) -> bool,
+{
+    let (a, b) = args.pop2();
 
-//     let ordering = match (a, b) {
-//         (DynamicValue::Zoned(a), b) => (*a).partial_cmp(&b.try_into_zoned()?),
-//         (a, DynamicValue::Zoned(b)) => a.try_into_zoned()?.partial_cmp(&b),
+    let ordering = if let Some(a) = a.as_any_temporal() {
+        let b = b.try_as_any_temporal()?;
+        Some(a.try_cmp(&b)?)
+    } else if let Some(b) = b.as_any_temporal() {
+        let a = a.try_as_any_temporal()?;
+        Some(a.try_cmp(&b)?)
+    } else {
+        a.try_as_number()?.partial_cmp(&b.try_as_number()?)
+    };
 
-//         (DynamicValue::DateTime(a), b) => a.partial_cmp(&b.try_into_datetime()?),
-//         (a, DynamicValue::DateTime(b)) => a.try_into_datetime()?.partial_cmp(&b),
-
-//         (DynamicValue::Date(a), b) => a.partial_cmp(&b.try_into_date()?),
-//         (a, DynamicValue::Date(b)) => a.try_into_date()?.partial_cmp(&b),
-
-//         (DynamicValue::Time(a), b) => a.partial_cmp(&b.try_into_time()?),
-//         (a, DynamicValue::Time(b)) => a.try_into_time()?.partial_cmp(&b),
-
-//         (a, b) => a.try_as_number()?.partial_cmp(&b.try_as_number()?),
-//     };
-
-//     Ok(DynamicValue::from(match ordering {
-//         Some(ordering) => validate(ordering),
-//         None => false,
-//     }))
-// }
+    Ok(DynamicValue::from(match ordering {
+        Some(ordering) => validate(ordering),
+        None => false,
+    }))
+}
 
 pub fn sequence_compare<F>(args: BoundArguments, validate: F) -> FunctionResult
 where

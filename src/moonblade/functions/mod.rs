@@ -30,30 +30,30 @@ pub type Function = fn(BoundArguments) -> FunctionResult;
 pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
     Some(match name {
         // Operators
-        // "==" => (
-        //     |args| ops::abstract_compare(args, Ordering::is_eq),
-        //     FunctionArguments::binary(),
-        // ),
-        // ">" => (
-        //     |args| ops::abstract_compare(args, Ordering::is_gt),
-        //     FunctionArguments::binary(),
-        // ),
-        // ">=" => (
-        //     |args| ops::abstract_compare(args, Ordering::is_ge),
-        //     FunctionArguments::binary(),
-        // ),
-        // "<" => (
-        //     |args| ops::abstract_compare(args, Ordering::is_lt),
-        //     FunctionArguments::binary(),
-        // ),
-        // "<=" => (
-        //     |args| ops::abstract_compare(args, Ordering::is_le),
-        //     FunctionArguments::binary(),
-        // ),
-        // "!=" => (
-        //     |args| ops::abstract_compare(args, Ordering::is_ne),
-        //     FunctionArguments::binary(),
-        // ),
+        "==" => (
+            |args| ops::abstract_compare(args, Ordering::is_eq),
+            FunctionArguments::binary(),
+        ),
+        ">" => (
+            |args| ops::abstract_compare(args, Ordering::is_gt),
+            FunctionArguments::binary(),
+        ),
+        ">=" => (
+            |args| ops::abstract_compare(args, Ordering::is_ge),
+            FunctionArguments::binary(),
+        ),
+        "<" => (
+            |args| ops::abstract_compare(args, Ordering::is_lt),
+            FunctionArguments::binary(),
+        ),
+        "<=" => (
+            |args| ops::abstract_compare(args, Ordering::is_le),
+            FunctionArguments::binary(),
+        ),
+        "!=" => (
+            |args| ops::abstract_compare(args, Ordering::is_ne),
+            FunctionArguments::binary(),
+        ),
         "eq" => (
             |args| ops::sequence_compare(args, Ordering::is_eq),
             FunctionArguments::binary(),
@@ -110,7 +110,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "contains" => (maps::contains, FunctionArguments::binary()),
         "copy" => (io::copy_file, FunctionArguments::binary()),
         // "count" => (strings::count, FunctionArguments::binary()),
-        // "date" => (temporal::date, FunctionArguments::with_range(1..=2)),
+        "date" => (temporal::date, FunctionArguments::with_range(1..=2)),
         // "datetime" => (temporal::datetime, FunctionArguments::with_range(1..=2)),
         "dirname" => (io::dirname, FunctionArguments::unary()),
         // "div" => (

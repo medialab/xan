@@ -69,60 +69,65 @@ use crate::moonblade::types::{BoundArguments, DynamicNumber, DynamicValue};
 //     }
 // }
 
-// pub fn date(mut args: BoundArguments) -> FunctionResult {
-//     let (arg, format_arg_opt) = if args.len() == 2 {
-//         let (a, b) = args.pop2();
-//         (a, Some(b))
-//     } else {
-//         (args.pop1(), None)
-//     };
+pub fn date(mut args: BoundArguments) -> FunctionResult {
+    let (arg, format_arg_opt) = if args.len() == 2 {
+        let (a, b) = args.pop2();
+        (a, Some(b))
+    } else {
+        (args.pop1(), None)
+    };
 
-//     match format_arg_opt {
-//         Some(format_arg) => {
-//             // Early returns mapping to errors
-//             if arg.is_temporal() {
-//                 return Err(EvaluationError::Custom(
-//                     "cannot parse an already parsed temporal value using a format".to_string(),
-//                 ));
-//             }
+    match format_arg_opt {
+        Some(format_arg) => {
+            // Early returns mapping to errors
+            if arg.is_temporal() {
+                return Err(EvaluationError::Custom(
+                    "cannot parse an already parsed temporal value using a format".to_string(),
+                ));
+            }
 
-//             // Using a strptime format
-//             let format = format_arg.try_as_bytes()?;
-//             let string = arg.try_as_bytes()?;
+            // Using a strptime format
+            let format = format_arg.try_as_bytes()?;
+            let string = arg.try_as_bytes()?;
 
-//             match Date::strptime(format, string) {
-//                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-//                     "could not parse {:?} as a date using format {:?}",
-//                     arg, format_arg
-//                 ))),
-//                 Ok(date) => Ok(DynamicValue::from(date)),
-//             }
-//         }
-//         None => {
-//             // Early returns mapping to no-ops
-//             if matches!(arg, DynamicValue::Date(_)) {
-//                 return Ok(arg);
-//             }
+            match Date::strptime(format, string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {:?} as a date using format {:?}",
+                    arg, format_arg
+                ))),
+                Ok(date) => Ok(DynamicValue::from(date)),
+            }
+        }
+        None => {
+            if let Some(value) = arg.as_value() {
+                // Early returns mapping to no-ops
+                // TODO: could leverage BoundArgument::Owned to avoid a clone.
+                if matches!(value, DynamicValue::Date(_)) {
+                    return Ok(value.clone());
+                }
 
-//             match arg {
-//                 DynamicValue::Zoned(zoned) => return Ok(DynamicValue::from(zoned.date())),
-//                 DynamicValue::DateTime(datetime) => return Ok(DynamicValue::from(datetime.date())),
-//                 _ => (),
-//             };
+                match value {
+                    DynamicValue::Zoned(zoned) => return Ok(DynamicValue::from(zoned.date())),
+                    DynamicValue::DateTime(datetime) => {
+                        return Ok(DynamicValue::from(datetime.date()))
+                    }
+                    _ => (),
+                };
+            }
 
-//             // Attempting to parse
-//             let string = arg.try_as_bytes()?;
+            // Attempting to parse
+            let string = arg.try_as_bytes()?;
 
-//             match DEFAULT_DATETIME_PARSER.parse_date(string) {
-//                 Err(_) => Err(EvaluationError::TimeRelated(format!(
-//                     "could not parse {:?} as a date",
-//                     arg
-//                 ))),
-//                 Ok(date) => Ok(DynamicValue::from(date)),
-//             }
-//         }
-//     }
-// }
+            match DEFAULT_DATETIME_PARSER.parse_date(string) {
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {:?} as a date",
+                    arg
+                ))),
+                Ok(date) => Ok(DynamicValue::from(date)),
+            }
+        }
+    }
+}
 
 // pub fn time(mut args: BoundArguments) -> FunctionResult {
 //     let (arg, format_arg_opt) = if args.len() == 2 {

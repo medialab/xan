@@ -288,6 +288,16 @@ impl DynamicValue {
         }
     }
 
+    pub fn as_any_temporal(&self) -> Option<AnyTemporal> {
+        Some(match self {
+            Self::Zoned(zoned) => AnyTemporal::Zoned(*zoned.clone()),
+            Self::DateTime(datetime) => AnyTemporal::DateTime(*datetime),
+            Self::Date(date) => AnyTemporal::Date(*date),
+            Self::Time(time) => AnyTemporal::Time(*time),
+            _ => return None,
+        })
+    }
+
     pub fn try_as_any_temporal(&self) -> Result<AnyTemporal, EvaluationError> {
         Ok(match self {
             Self::Zoned(zoned) => AnyTemporal::Zoned(*zoned.clone()),
