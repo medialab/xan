@@ -82,6 +82,27 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn try_as_usize(&self) -> Result<usize, EvaluationError> {
+        self.map(DynamicValue::try_as_usize, |cell| {
+            if let Ok(i) = btoi::btoi::<usize>(cell) {
+                Ok(i)
+            } else {
+                Err(EvaluationError::from_cell_cast(cell, "usize"))
+            }
+        })
+    }
+
+    #[inline]
+    pub fn is_none(&self) -> bool {
+        self.map(DynamicValue::is_none, |_| false)
+    }
+
+    #[inline]
+    pub fn is_truthy(&self) -> bool {
+        self.map(DynamicValue::is_truthy, |cell| !cell.is_empty())
+    }
+
+    #[inline]
     pub fn try_as_number(&self) -> Result<DynamicNumber, EvaluationError> {
         self.map(DynamicValue::try_as_number, |cell| {
             if let Ok(n) = DynamicNumber::try_from(cell) {
@@ -116,6 +137,23 @@ impl BoundArgument<'_> {
             Self::Owned(owned) => owned.try_as_bytes(),
             Self::Borrowed(borrowed) => borrowed.try_as_bytes(),
             Self::Cell(cell) => Ok(cell),
+        }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        match self {
+            Self::Owned(owned) => match owned {
+                DynamicValue::String(string) => Some(string.as_bytes()),
+                DynamicValue::Bytes(bytes) => Some(bytes),
+                _ => None,
+            },
+            Self::Borrowed(borrowed) => match borrowed {
+                DynamicValue::String(string) => Some(string.as_bytes()),
+                DynamicValue::Bytes(bytes) => Some(bytes),
+                _ => None,
+            },
+            Self::Cell(cell) => Some(cell),
         }
     }
 
@@ -164,6 +202,14 @@ impl BoundArgument<'_> {
         match self {
             Self::Owned(DynamicValue::List(list)) => Some(list),
             Self::Borrowed(DynamicValue::List(list)) => Some(list),
+            _ => None,
+        }
+    }
+
+    pub fn as_map(&self) -> Option<&HashMap<String, DynamicValue>> {
+        match self {
+            Self::Owned(DynamicValue::Map(map)) => Some(map),
+            Self::Borrowed(DynamicValue::Map(map)) => Some(map),
             _ => None,
         }
     }

@@ -10,7 +10,7 @@ use paltoquet::{
 use super::error::EvaluationError;
 use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, FunctionArguments};
 
-// mod fmt;
+mod fmt;
 mod fuzzy;
 // mod io;
 mod maps;
@@ -121,7 +121,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // ),
         // "endswith" => (strings::endswith, FunctionArguments::binary()),
         "err" => (utils::err, FunctionArguments::unary()),
-        // "escape_regex" => (fmt::escape_regex, FunctionArguments::unary()),
+        "escape_regex" => (fmt::escape_regex, FunctionArguments::unary()),
         // "ext" => (io::ext, FunctionArguments::unary()),
         // "filesize" => (io::filesize, FunctionArguments::unary()),
         "fingerprint" => (fuzzy::fingerprint, FunctionArguments::unary()),
@@ -131,7 +131,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::round_like_op(args, DynamicNumber::floor),
         //     FunctionArguments::with_range(1..=2),
         // ),
-        // "fmt" => (fmt::fmt, FunctionArguments::variadic(2)),
+        "fmt" => (fmt::fmt, FunctionArguments::variadic(2)),
         // "fractional_days" => (temporal::fractional_days, FunctionArguments::binary()),
         // "from_timestamp" => (temporal::from_timestamp, FunctionArguments::unary()),
         // "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
@@ -205,27 +205,27 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // ),
         // "not" => (ops::not, FunctionArguments::unary()),
         // "now" => (temporal::now, FunctionArguments::nullary()),
-        // "numfmt" => (
-        //     fmt::fmt_number,
-        //     FunctionArguments::complex(vec![
-        //         Argument::Positional,
-        //         Argument::with_name("thousands_sep"),
-        //         Argument::with_name("comma"),
-        //         Argument::with_name("significance"),
-        //     ]),
-        // ),
-        // "pad" => (
-        //     |args| fmt::pad(pad::Alignment::Middle, args),
-        //     FunctionArguments::with_range(2..=3),
-        // ),
-        // "lpad" => (
-        //     |args| fmt::pad(pad::Alignment::Right, args),
-        //     FunctionArguments::with_range(2..=3),
-        // ),
-        // "rpad" => (
-        //     |args| fmt::pad(pad::Alignment::Left, args),
-        //     FunctionArguments::with_range(2..=3),
-        // ),
+        "numfmt" => (
+            fmt::fmt_number,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("thousands_sep"),
+                Argument::with_name("comma"),
+                Argument::with_name("significance"),
+            ]),
+        ),
+        "pad" => (
+            |args| fmt::pad(pad::Alignment::Middle, args),
+            FunctionArguments::with_range(2..=3),
+        ),
+        "lpad" => (
+            |args| fmt::pad(pad::Alignment::Right, args),
+            FunctionArguments::with_range(2..=3),
+        ),
+        "rpad" => (
+            |args| fmt::pad(pad::Alignment::Left, args),
+            FunctionArguments::with_range(2..=3),
+        ),
         // "parse_dataurl" => (web::parse_dataurl, FunctionArguments::unary()),
         // "parse_json" => (io::parse_json, FunctionArguments::unary()),
         // "parse_py_literal" => (io::parse_py_literal, FunctionArguments::unary()),
@@ -238,7 +238,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::binary_arithmetic_op(args, DynamicNumber::pow),
         //     FunctionArguments::binary(),
         // ),
-        // "printf" => (fmt::printf, FunctionArguments::variadic(2)),
+        "printf" => (fmt::printf, FunctionArguments::variadic(2)),
         "random" => (utils::random, FunctionArguments::nullary()),
         // "range" => (sequences::range, FunctionArguments::with_range(1..=3)),
         // "read" => (
@@ -286,16 +286,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::unary(),
         // ),
         // "time" => (temporal::time, FunctionArguments::with_range(1..=2)),
-        // "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
+        "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
         // "to_timestamp" => (temporal::to_timestamp, FunctionArguments::unary()),
         // "to_timestamp_ms" => (temporal::to_timestamp_ms, FunctionArguments::unary()),
         // "to_timezone" | "to_tz" => (temporal::to_timezone, FunctionArguments::binary()),
         // "to_local_timezone" | "to_local_tz" => {
         //     (temporal::to_local_timezone, FunctionArguments::unary())
         // }
-        // "trim" => (fmt::trim, FunctionArguments::with_range(1..=2)),
-        // "ltrim" => (fmt::ltrim, FunctionArguments::with_range(1..=2)),
-        // "rtrim" => (fmt::rtrim, FunctionArguments::with_range(1..=2)),
+        "trim" => (fmt::trim, FunctionArguments::with_range(1..=2)),
+        "ltrim" => (fmt::ltrim, FunctionArguments::with_range(1..=2)),
+        "rtrim" => (fmt::rtrim, FunctionArguments::with_range(1..=2)),
         // "trunc" => (
         //     |args| ops::round_like_op(args, DynamicNumber::trunc),
         //     FunctionArguments::with_range(1..=2),

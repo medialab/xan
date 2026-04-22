@@ -11,10 +11,15 @@ macro_rules! make_trim_fn {
             let chars_opt = args.get(1);
 
             Ok(match chars_opt {
-                None => match args.get1() {
-                    DynamicValue::Bytes(bytes) => DynamicValue::from(bytes.$trim()),
-                    value => DynamicValue::from(value.try_as_str()?.$trim()),
-                },
+                None => {
+                    let arg = args.get1();
+
+                    if let Some(bytes) = arg.as_bytes() {
+                        bytes.$trim().into()
+                    } else {
+                        arg.try_as_str()?.$trim().into()
+                    }
+                }
                 Some(chars) => {
                     let pattern = chars.try_as_str()?.chars().collect::<Vec<char>>();
                     DynamicValue::from(args.get1_str()?.$trim_matches(|c| pattern.contains(&c)))
@@ -74,12 +79,13 @@ pub fn fmt(args: BoundArguments) -> FunctionResult {
     let first_arg = args_iter.next().unwrap();
     let mut rest = args_iter.collect::<Vec<_>>();
     let substitution_map = if rest.len() == 1 {
-        match rest.pop().unwrap() {
-            DynamicValue::Map(map) => Some(map),
-            other => {
-                rest.push(other);
-                None
-            }
+        let v = rest.pop().unwrap();
+
+        if let Some(map) = v.as_map() {
+            Some(map.clone())
+        } else {
+            rest.push(v);
+            None
         }
     } else {
         None
@@ -181,12 +187,12 @@ pub fn printf(args: BoundArguments) -> FunctionResult {
     }
 
     for arg in args_iter {
-        if let DynamicValue::List(list) = arg {
+        if let Some(list) = arg.as_list() {
             for sub_arg in list.iter() {
                 fmt_args.push(arg_to_printf(sub_arg)?);
             }
         } else {
-            fmt_args.push(arg_to_printf(&arg)?);
+            fmt_args.push(arg_to_printf(&arg.to_value())?);
         }
     }
 
