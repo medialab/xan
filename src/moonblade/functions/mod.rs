@@ -17,7 +17,7 @@ mod fuzzy;
 mod io;
 mod maps;
 mod ops;
-// mod sequences;
+mod sequences;
 pub mod special;
 // mod strings;
 mod temporal;
@@ -105,13 +105,13 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(1..=2),
         ),
         "cmd" => (io::cmd, FunctionArguments::binary()),
-        // "compact" => (sequences::compact, FunctionArguments::unary()),
-        // "concat" => (sequences::concat, FunctionArguments::variadic(2)),
+        "compact" => (sequences::compact, FunctionArguments::unary()),
+        "concat" => (sequences::concat, FunctionArguments::variadic(2)),
         "contains" => (maps::contains, FunctionArguments::binary()),
         "copy" => (io::copy_file, FunctionArguments::binary()),
         // "count" => (strings::count, FunctionArguments::binary()),
         "date" => (temporal::date, FunctionArguments::with_range(1..=2)),
-        // "datetime" => (temporal::datetime, FunctionArguments::with_range(1..=2)),
+        "datetime" => (temporal::datetime, FunctionArguments::with_range(1..=2)),
         "dirname" => (io::dirname, FunctionArguments::unary()),
         // "div" => (
         //     |args| ops::variadic_arithmetic_op(args, Div::div),
@@ -127,7 +127,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "ext" => (io::ext, FunctionArguments::unary()),
         "filesize" => (io::filesize, FunctionArguments::unary()),
         "fingerprint" => (fuzzy::fingerprint, FunctionArguments::unary()),
-        // "first" => (sequences::first, FunctionArguments::unary()),
+        "first" => (sequences::first, FunctionArguments::unary()),
         "float" => (ops::parse_float, FunctionArguments::unary()),
         "floor" => (
             |args| ops::round_like_op(args, DynamicNumber::floor),
@@ -152,8 +152,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| ops::variadic_optimum(args, DynamicValue::try_as_any_temporal, Ordering::is_gt),
             FunctionArguments::variadic(1),
         ),
-        // "last" => (sequences::last, FunctionArguments::unary()),
-        // "len" => (sequences::len, FunctionArguments::unary()),
+        "last" => (sequences::last, FunctionArguments::unary()),
+        "len" => (sequences::len, FunctionArguments::unary()),
         "log" => (
             |args| match args.len() {
                 1 => ops::unary_arithmetic_op(args, DynamicNumber::ln),
@@ -242,7 +242,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "printf" => (fmt::printf, FunctionArguments::variadic(2)),
         "random" => (utils::random, FunctionArguments::nullary()),
-        // "range" => (sequences::range, FunctionArguments::with_range(1..=3)),
+        "range" => (sequences::range, FunctionArguments::with_range(1..=3)),
         "read" => (
             io::read,
             FunctionArguments::complex(vec![
@@ -260,7 +260,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "regex" => (utils::parse_regex, FunctionArguments::unary()),
-        // "repeat" => (sequences::repeat, FunctionArguments::binary()),
+        "repeat" => (sequences::repeat, FunctionArguments::binary()),
         // "replace" => (strings::replace, FunctionArguments::nary(3)),
         "round" => (
             |args| ops::round_like_op(args, DynamicNumber::round),
@@ -268,7 +268,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "shell" => (io::shell, FunctionArguments::unary()),
         "shlex_split" => (io::shlex_split, FunctionArguments::unary()),
-        // "slice" => (sequences::slice, FunctionArguments::with_range(2..=3)),
+        "slice" => (sequences::slice, FunctionArguments::with_range(2..=3)),
         "soundex" => (
             |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
             FunctionArguments::unary(),
@@ -287,7 +287,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| ops::abstract_unary_string_fn(args, s_stemmer),
             FunctionArguments::unary(),
         ),
-        // "time" => (temporal::time, FunctionArguments::with_range(1..=2)),
+        "time" => (temporal::time, FunctionArguments::with_range(1..=2)),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
         // "to_timestamp" => (temporal::to_timestamp, FunctionArguments::unary()),
         // "to_timestamp_ms" => (temporal::to_timestamp_ms, FunctionArguments::unary()),

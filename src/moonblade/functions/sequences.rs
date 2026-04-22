@@ -2,18 +2,20 @@ use std::cmp::max;
 use std::sync::Arc;
 
 use crate::moonblade::error::EvaluationError;
-use crate::moonblade::types::{BoundArguments, DynamicValue};
+use crate::moonblade::types::{BoundArgument, BoundArguments, BoundContainer, DynamicValue};
 
 use super::FunctionResult;
 
 pub fn len(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(DynamicValue::from(match arg {
-        DynamicValue::List(list) => list.len(),
-        DynamicValue::Map(map) => map.len(),
+    let l = match arg.as_value() {
+        Some(DynamicValue::List(list)) => list.len(),
+        Some(DynamicValue::Map(map)) => map.len(),
         _ => arg.try_as_str()?.chars().count(),
-    }))
+    };
+
+    Ok(l.into())
 }
 
 pub fn range(args: BoundArguments) -> FunctionResult {
@@ -73,7 +75,7 @@ pub fn repeat(args: BoundArguments) -> FunctionResult {
 
     let times = times_arg.try_as_usize()?;
 
-    if let DynamicValue::List(items) = to_repeat_arg {
+    if let Some(items) = to_repeat_arg.as_list() {
         let mut repeated = Vec::with_capacity(items.len() * times);
 
         for _ in 0..times {
@@ -99,46 +101,47 @@ pub fn repeat(args: BoundArguments) -> FunctionResult {
 pub fn first(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(match arg {
-        DynamicValue::String(string) => DynamicValue::from(string.chars().next()),
-        DynamicValue::Bytes(bytes) => DynamicValue::from(
-            std::str::from_utf8(&bytes)
-                .map_err(|_| EvaluationError::UnicodeDecodeError)?
-                .chars()
-                .next(),
-        ),
-        DynamicValue::List(list) => match list.first() {
-            None => DynamicValue::None,
-            Some(value) => value.clone(),
-        },
-        _ => return Err(EvaluationError::from_cast(&arg, "sequence")),
+    Ok(match arg.try_as_container()? {
+        BoundContainer::String(string) => string.chars().next().into(),
+        BoundContainer::Bytes(bytes) => std::str::from_utf8(bytes)
+            .map_err(|_| EvaluationError::UnicodeDecodeError)?
+            .chars()
+            .next()
+            .into(),
+        BoundContainer::List(list) => list.first().cloned().into(),
+        _ => {
+            return Err(EvaluationError::Cast {
+                from_value: arg.into_owned(),
+                to_type: "sequence".to_string(),
+            })
+        }
     })
 }
 
 pub fn last(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
 
-    Ok(match arg {
-        DynamicValue::String(string) => DynamicValue::from(string.chars().next_back()),
-        DynamicValue::Bytes(bytes) => DynamicValue::from(
-            std::str::from_utf8(&bytes)
-                .map_err(|_| EvaluationError::UnicodeDecodeError)?
-                .chars()
-                .next_back(),
-        ),
-        DynamicValue::List(list) => match list.last() {
-            None => DynamicValue::None,
-            Some(value) => value.clone(),
-        },
-        _ => return Err(EvaluationError::from_cast(&arg, "sequence")),
+    Ok(match arg.try_as_container()? {
+        BoundContainer::String(string) => string.chars().next_back().into(),
+        BoundContainer::Bytes(bytes) => std::str::from_utf8(bytes)
+            .map_err(|_| EvaluationError::UnicodeDecodeError)?
+            .chars()
+            .next_back()
+            .into(),
+        BoundContainer::List(list) => list.last().cloned().into(),
+        _ => {
+            return Err(EvaluationError::Cast {
+                from_value: arg.into_owned(),
+                to_type: "sequence".to_string(),
+            })
+        }
     })
 }
 
 pub fn slice(args: BoundArguments) -> FunctionResult {
     let target = args.get(0).unwrap();
 
-    if let DynamicValue::List(list) = target {
-        // TODO: can be implemented through Arc::try_unwrap
+    if let Some(list) = target.as_list() {
         let mut lo = args.get(1).unwrap().try_as_i64()?;
         let opt_hi = args.get(2);
 
@@ -240,61 +243,97 @@ pub fn slice(args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(substring))
 }
 
+fn concat_str<'b>(first: &str, iter: impl Iterator<Item = BoundArgument<'b>>) -> FunctionResult {
+    let mut output = String::from(first);
+
+    for arg in iter {
+        output.push_str(&arg.try_as_str()?);
+    }
+
+    Ok(output.into())
+}
+
+// TODO: deal with allocation reuse when dealing with raw Bytes
 pub fn concat(args: BoundArguments) -> FunctionResult {
     let mut args_iter = args.into_iter();
     let first = args_iter.next().unwrap();
 
-    match first {
-        // NOTE: if the list's arc has a single reference, we can safely
-        // mutate it because it belongs to the pipeline
-        DynamicValue::List(list) => match Arc::try_unwrap(list) {
-            Ok(mut owned_list) => {
+    if first.as_list().is_some() {
+        match first {
+            BoundArgument::Owned(DynamicValue::List(mut list)) => {
+                if let Some(list_ref) = Arc::get_mut(&mut list) {
+                    for arg in args_iter {
+                        list_ref.push(arg.into_owned());
+                    }
+
+                    Ok(DynamicValue::List(list))
+                } else {
+                    let mut new_list = Vec::clone(&list);
+
+                    for arg in args_iter {
+                        new_list.push(arg.into_owned());
+                    }
+
+                    Ok(new_list.into())
+                }
+            }
+            BoundArgument::Borrowed(DynamicValue::List(list)) => {
+                let mut new_list = Vec::clone(list);
+
                 for arg in args_iter {
-                    owned_list.push(arg);
+                    new_list.push(arg.into_owned());
                 }
 
-                Ok(DynamicValue::from(owned_list))
+                Ok(new_list.into())
             }
-            Err(borrowed_list) => {
-                let mut result = Vec::clone(&borrowed_list);
+            _ => unreachable!(),
+        }
+    } else {
+        match first {
+            BoundArgument::Owned(DynamicValue::String(mut string)) => {
+                if let Some(string_ref) = Arc::get_mut(&mut string) {
+                    for arg in args_iter {
+                        string_ref.push_str(&arg.try_as_str()?);
+                    }
 
-                for arg in args_iter {
-                    result.push(arg);
+                    Ok(DynamicValue::String(string))
+                } else {
+                    concat_str(&string, args_iter)
                 }
-
-                Ok(DynamicValue::from(result))
             }
-        },
-        value => {
-            let first_part = value.try_as_str()?;
-
-            let mut result = String::with_capacity(first_part.len());
-            result.push_str(&first_part);
-
-            for arg in args_iter {
-                result.push_str(&arg.try_as_str()?);
-            }
-
-            Ok(DynamicValue::from(result))
+            _ => concat_str(&first.try_as_str()?, args_iter),
         }
     }
 }
 
 pub fn compact(mut args: BoundArguments) -> FunctionResult {
     let arg = args.pop1();
-    let list = arg.try_into_arc_list()?;
 
-    Ok(match Arc::try_unwrap(list) {
-        Err(borrowed_list) => DynamicValue::from(
-            borrowed_list
+    // TODO: this pattern, and the one of concat can probably be abstracted in a method
+    Ok(match arg {
+        BoundArgument::Borrowed(DynamicValue::List(list)) => list
+            .iter()
+            .filter(|value| value.is_truthy())
+            .cloned()
+            .collect::<Vec<_>>()
+            .into(),
+        BoundArgument::Owned(DynamicValue::List(mut list)) => match Arc::get_mut(&mut list) {
+            Some(list_ref) => {
+                list_ref.retain(|value| value.is_truthy());
+                DynamicValue::List(list)
+            }
+            None => list
                 .iter()
                 .filter(|value| value.is_truthy())
                 .cloned()
-                .collect::<Vec<_>>(),
-        ),
-        Ok(mut owned_list) => {
-            owned_list.retain(|v| v.is_truthy());
-            DynamicValue::from(owned_list)
+                .collect::<Vec<_>>()
+                .into(),
+        },
+        _ => {
+            return Err(EvaluationError::Cast {
+                from_value: arg.into_owned(),
+                to_type: "list".to_string(),
+            })
         }
     })
 }

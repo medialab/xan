@@ -82,7 +82,7 @@ pub fn get(mut args: BoundArguments) -> FunctionResult {
     };
 
     if let Some(path) = key.as_list() {
-        let mut current_value = target.to_value();
+        let mut current_value = target.into_owned();
 
         for step in path {
             match get_subroutine(

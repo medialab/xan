@@ -250,10 +250,10 @@ where
     }
 
     let mut args_iter = args.into_iter();
-    let mut best_value = convert(&args_iter.next().unwrap().to_value())?;
+    let mut best_value = convert(&args_iter.next().unwrap().into_owned())?;
 
     for arg in args_iter {
-        let other_value = convert(&arg.to_value())?;
+        let other_value = convert(&arg.into_owned())?;
 
         match other_value.partial_cmp(&best_value) {
             None => {

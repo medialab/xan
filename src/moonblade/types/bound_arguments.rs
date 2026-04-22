@@ -42,15 +42,6 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
-    pub fn to_value(self) -> DynamicValue {
-        match self {
-            Self::Owned(owned) => owned,
-            Self::Borrowed(borrowed) => borrowed.clone(),
-            Self::Cell(cell) => cell.into(),
-        }
-    }
-
-    #[inline]
     pub fn as_value(&self) -> Option<&DynamicValue> {
         match self {
             Self::Owned(owned) => Some(&owned),

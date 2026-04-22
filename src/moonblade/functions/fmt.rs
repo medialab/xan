@@ -192,7 +192,7 @@ pub fn printf(args: BoundArguments) -> FunctionResult {
                 fmt_args.push(arg_to_printf(sub_arg)?);
             }
         } else {
-            fmt_args.push(arg_to_printf(&arg.to_value())?);
+            fmt_args.push(arg_to_printf(&arg.into_owned())?);
         }
     }
 
