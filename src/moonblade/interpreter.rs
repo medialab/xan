@@ -17,7 +17,7 @@ use super::types::{
 
 #[derive(Debug, Default, Clone)]
 pub struct GlobalVariables {
-    slots: ArrayVec<(String, DynamicValue), 2>,
+    slots: ArrayVec<(&'static str, DynamicValue), 2>,
 }
 
 impl GlobalVariables {
@@ -25,20 +25,20 @@ impl GlobalVariables {
         Self::default()
     }
 
-    pub fn of(name: &str) -> Self {
+    pub fn of(name: &'static str) -> Self {
         let mut vars = Self::new();
         vars.register(name);
         vars
     }
 
-    pub fn register(&mut self, name: &str) -> usize {
+    pub fn register(&mut self, name: &'static str) -> usize {
         let id = self.slots.len();
-        self.slots.push((name.to_string(), DynamicValue::None));
+        self.slots.push((name, DynamicValue::None));
         id
     }
 
     fn get_id(&self, name: &str) -> Option<usize> {
-        self.slots.iter().position(|(n, _)| n == name)
+        self.slots.iter().position(|(n, _)| *n == name)
     }
 
     fn get(&self, index: usize) -> Option<&DynamicValue> {
