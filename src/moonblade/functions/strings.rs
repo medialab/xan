@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use bstr::ByteSlice;
 
-use crate::moonblade::types::{BoundArguments, DynamicValue};
+use crate::moonblade::types::{BoundArguments, BoundStringLike, DynamicValue};
 
 use super::FunctionResult;
 
@@ -11,7 +11,7 @@ pub fn split(args: BoundArguments) -> FunctionResult {
     let pattern_arg = args.get(1).unwrap();
     let count = args.get(2);
 
-    let splitted: Vec<DynamicValue> = if let DynamicValue::Regex(pattern) = pattern_arg {
+    let splitted: Vec<DynamicValue> = if let Some(pattern) = pattern_arg.as_regex() {
         if let Some(c) = count {
             pattern
                 .splitn(&to_split, c.try_as_usize()? + 1)
@@ -37,16 +37,22 @@ pub fn split(args: BoundArguments) -> FunctionResult {
 }
 
 pub fn lower(args: BoundArguments) -> FunctionResult {
-    Ok(match args.get1() {
-        DynamicValue::Bytes(bytes) => DynamicValue::from_owned_bytes(bytes.to_lowercase()),
-        value => DynamicValue::from(value.try_as_str()?.to_lowercase()),
+    let arg = args.get1();
+
+    Ok(match arg.as_string_like() {
+        Some(BoundStringLike::Bytes(bytes)) => DynamicValue::from_owned_bytes(bytes.to_lowercase()),
+        Some(BoundStringLike::String(string)) => string.to_lowercase().into(),
+        None => arg.try_as_str()?.to_lowercase().into(),
     })
 }
 
 pub fn upper(args: BoundArguments) -> FunctionResult {
-    Ok(match args.get1() {
-        DynamicValue::Bytes(bytes) => DynamicValue::from_owned_bytes(bytes.to_uppercase()),
-        value => DynamicValue::from(value.try_as_str()?.to_uppercase()),
+    let arg = args.get1();
+
+    Ok(match arg.as_string_like() {
+        Some(BoundStringLike::Bytes(bytes)) => DynamicValue::from_owned_bytes(bytes.to_uppercase()),
+        Some(BoundStringLike::String(string)) => string.to_uppercase().into(),
+        None => arg.try_as_str()?.to_uppercase().into(),
     })
 }
 
@@ -55,9 +61,9 @@ pub fn count(args: BoundArguments) -> FunctionResult {
 
     let string = arg1.try_as_str()?;
 
-    match arg2.try_as_regex() {
-        Ok(regex) => Ok(DynamicValue::from(regex.find_iter(&string).count())),
-        Err(_) => {
+    match arg2.as_regex() {
+        Some(regex) => Ok(DynamicValue::from(regex.find_iter(&string).count())),
+        None => {
             let pattern = arg2.try_as_str()?;
 
             Ok(DynamicValue::from(string.matches(pattern.as_ref()).count()))
@@ -114,9 +120,9 @@ pub fn replace(args: BoundArguments) -> FunctionResult {
     let string = arg1.try_as_str()?;
     let replacement = arg3.try_as_str()?;
 
-    let replaced = match arg2.try_as_regex() {
-        Ok(regex) => regex.replace_all(&string, replacement).into_owned(),
-        Err(_) => {
+    let replaced = match arg2.as_regex() {
+        Some(regex) => regex.replace_all(&string, replacement).into_owned(),
+        None => {
             let pattern = arg2.try_as_str()?;
 
             string.replace(&*pattern, &replacement)

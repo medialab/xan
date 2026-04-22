@@ -17,6 +17,11 @@ pub enum BoundContainer<'a> {
     Map(&'a HashMap<String, DynamicValue>),
 }
 
+pub enum BoundStringLike<'a> {
+    String(&'a str),
+    Bytes(&'a [u8]),
+}
+
 #[derive(Debug)]
 pub enum BoundArgument<'a> {
     Owned(DynamicValue),
@@ -46,7 +51,7 @@ impl BoundArgument<'_> {
     #[inline]
     pub fn as_value(&self) -> Option<&DynamicValue> {
         match self {
-            Self::Owned(owned) => Some(&owned),
+            Self::Owned(owned) => Some(owned),
             Self::Borrowed(borrowed) => Some(borrowed),
             Self::Cell(_) => None,
         }
@@ -59,8 +64,8 @@ impl BoundArgument<'_> {
         F: FnOnce(&[u8]) -> T,
     {
         match self {
-            Self::Owned(owned) => over_dynamic_value(&owned),
-            Self::Borrowed(borrowed) => over_dynamic_value(*borrowed),
+            Self::Owned(owned) => over_dynamic_value(owned),
+            Self::Borrowed(borrowed) => over_dynamic_value(borrowed),
             Self::Cell(cell) => over_cell(cell),
         }
     }
@@ -152,6 +157,23 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn as_string_like(&self) -> Option<BoundStringLike> {
+        match self {
+            Self::Owned(owned) => match owned {
+                DynamicValue::String(string) => Some(BoundStringLike::String(string)),
+                DynamicValue::Bytes(bytes) => Some(BoundStringLike::Bytes(bytes)),
+                _ => None,
+            },
+            Self::Borrowed(borrowed) => match borrowed {
+                DynamicValue::String(string) => Some(BoundStringLike::String(string)),
+                DynamicValue::Bytes(bytes) => Some(BoundStringLike::Bytes(bytes)),
+                _ => None,
+            },
+            Self::Cell(cell) => Some(BoundStringLike::Bytes(cell)),
+        }
+    }
+
+    #[inline]
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
             Self::Owned(owned) => match owned {
@@ -192,7 +214,7 @@ impl BoundArgument<'_> {
                 DynamicValue::Bytes(bytes) => Ok(BoundContainer::Bytes(bytes)),
                 DynamicValue::List(list) => Ok(BoundContainer::List(list)),
                 DynamicValue::Map(map) => Ok(BoundContainer::Map(map)),
-                _ => Err(EvaluationError::from_cast(*borrowed, "container")),
+                _ => Err(EvaluationError::from_cast(borrowed, "container")),
             },
             Self::Cell(cell) => Ok(BoundContainer::Bytes(cell)),
         }
@@ -275,6 +297,17 @@ impl BoundArgument<'_> {
     }
 
     #[inline]
+    pub fn try_as_regex(&self) -> Result<&regex::Regex, EvaluationError> {
+        match self {
+            Self::Owned(DynamicValue::Regex(regex)) => Ok(regex),
+            Self::Borrowed(DynamicValue::Regex(regex)) => Ok(regex),
+            Self::Owned(owned) => Err(EvaluationError::from_cast(owned, "regex")),
+            Self::Borrowed(borrowed) => Err(EvaluationError::from_cast(borrowed, "regex")),
+            Self::Cell(cell) => Err(EvaluationError::from_cell_cast(cell, "regex")),
+        }
+    }
+
+    #[inline]
     pub fn as_list(&self) -> Option<&Vec<DynamicValue>> {
         match self {
             Self::Owned(DynamicValue::List(list)) => Some(list),
@@ -308,7 +341,7 @@ impl BoundArgument<'_> {
             Self::Borrowed(borrowed) => borrowed.try_as_tagged_url(),
             Self::Cell(cell) => std::str::from_utf8(cell)?
                 .parse::<TaggedUrl>()
-                .map_err(|_| EvaluationError::from_cell_cast(*cell, "url")),
+                .map_err(|_| EvaluationError::from_cell_cast(cell, "url")),
         }
     }
 

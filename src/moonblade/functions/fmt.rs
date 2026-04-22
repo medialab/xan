@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
-use crate::moonblade::types::{BoundArguments, DynamicValue};
+use crate::moonblade::types::{BoundArguments, BoundStringLike, DynamicValue};
 
 macro_rules! make_trim_fn {
     ($name: ident, $trim: ident, $trim_matches: ident) => {
@@ -14,10 +14,10 @@ macro_rules! make_trim_fn {
                 None => {
                     let arg = args.get1();
 
-                    if let Some(bytes) = arg.as_bytes() {
-                        bytes.$trim().into()
-                    } else {
-                        arg.try_as_str()?.$trim().into()
+                    match arg.as_string_like() {
+                        Some(BoundStringLike::Bytes(bytes)) => bytes.$trim().into(),
+                        Some(BoundStringLike::String(string)) => string.$trim().into(),
+                        None => arg.try_as_str()?.$trim().into(),
                     }
                 }
                 Some(chars) => {

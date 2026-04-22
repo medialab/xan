@@ -255,7 +255,7 @@ impl Display for EvaluationError {
 }
 
 impl From<std::str::Utf8Error> for EvaluationError {
-    fn from(value: std::str::Utf8Error) -> Self {
+    fn from(_value: std::str::Utf8Error) -> Self {
         Self::UnicodeDecodeError
     }
 }

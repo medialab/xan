@@ -277,13 +277,13 @@ impl DynamicValue {
         }
 
         if self.is_temporal() {
-            return Err(EvaluationError::from_cast(&self, "maybe_zoned"));
+            return Err(EvaluationError::from_cast(self, "maybe_zoned"));
         }
 
         let bytes = self.try_as_bytes()?;
 
         match parse_maybe_zoned(bytes) {
-            Err(_) => Err(EvaluationError::from_cast(&self, "maybe_zoned")),
+            Err(_) => Err(EvaluationError::from_cast(self, "maybe_zoned")),
             Ok(maybe) => Ok(maybe),
         }
     }
@@ -357,7 +357,7 @@ impl DynamicValue {
         let bytes = self.try_as_bytes()?;
 
         match parse_maybe_zoned(bytes) {
-            Err(_) => Err(EvaluationError::from_cast(&self, "zoned")),
+            Err(_) => Err(EvaluationError::from_cast(self, "zoned")),
             Ok(maybe) => match maybe {
                 MaybeZoned::Civil(_) => Err(mismatch_err()),
                 MaybeZoned::Zoned(zoned) => Ok(zoned),

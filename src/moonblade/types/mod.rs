@@ -6,7 +6,8 @@ mod headers;
 
 pub use arguments::{Argument, Arity, FunctionArguments};
 pub use bound_arguments::{
-    BoundArgument, BoundArguments, BoundContainer, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
+    BoundArgument, BoundArguments, BoundContainer, BoundStringLike, LambdaArguments,
+    BOUND_ARGUMENTS_CAPACITY,
 };
 pub use dynamic_number::DynamicNumber;
 pub use dynamic_value::DynamicValue;
