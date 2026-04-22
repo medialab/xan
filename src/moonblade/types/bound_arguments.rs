@@ -540,3 +540,16 @@ impl LambdaArguments {
     //     self.stack.push((name.to_string(), value));
     // }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::mem::size_of;
+
+    use super::*;
+
+    #[test]
+    fn test_sizes() {
+        assert_eq!(size_of::<DynamicValue>(), 16);
+        assert_eq!(size_of::<BoundArgument>(), 24);
+    }
+}
