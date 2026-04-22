@@ -4,7 +4,7 @@ use std::fmt;
 
 use std::sync::Arc;
 
-use bstr::BString;
+use bstr::BStr;
 use btoi::btoi;
 use jiff::{
     civil::{Date, DateTime, Time},
@@ -31,13 +31,13 @@ use super::DynamicNumber;
 
 // NOTE: a DynamicValue should always be:
 //   1. cheap to clone (notice the Arcs)
-//   2. size of 16 bytes max
-#[derive(Debug, Clone, Default)]
+//   2. size of 24 bytes max
+#[derive(Clone, Default)]
 pub enum DynamicValue {
     List(Arc<Vec<DynamicValue>>),
     Map(Arc<HashMap<String, DynamicValue>>),
-    String(Arc<String>),
-    Bytes(Arc<BString>),
+    String(Arc<str>),
+    Bytes(Arc<[u8]>),
     Float(f64),
     Integer(i64),
     Boolean(bool),
@@ -49,6 +49,27 @@ pub enum DynamicValue {
     Span(Box<Span>),
     #[default]
     None,
+}
+
+impl fmt::Debug for DynamicValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DynamicValue::List(v) => f.debug_tuple("List").field(v).finish(),
+            DynamicValue::Map(m) => f.debug_tuple("Map").field(m).finish(),
+            DynamicValue::String(s) => f.debug_tuple("String").field(s).finish(),
+            DynamicValue::Bytes(b) => f.debug_tuple("Bytes").field(&BStr::new(b)).finish(),
+            DynamicValue::Float(n) => f.debug_tuple("Float").field(n).finish(),
+            DynamicValue::Integer(n) => f.debug_tuple("Integer").field(n).finish(),
+            DynamicValue::Boolean(b) => f.debug_tuple("Boolean").field(b).finish(),
+            DynamicValue::Regex(r) => f.debug_tuple("Regex").field(r).finish(),
+            DynamicValue::Zoned(z) => f.debug_tuple("Zoned").field(z).finish(),
+            DynamicValue::DateTime(dt) => f.debug_tuple("DateTime").field(dt).finish(),
+            DynamicValue::Date(d) => f.debug_tuple("Date").field(d).finish(),
+            DynamicValue::Time(t) => f.debug_tuple("Time").field(t).finish(),
+            DynamicValue::Span(s) => f.debug_tuple("Span").field(s).finish(),
+            DynamicValue::None => f.write_str("None"),
+        }
+    }
 }
 
 impl Serialize for DynamicValue {
@@ -180,7 +201,7 @@ impl<'de> Deserialize<'de> for DynamicValue {
 
 impl DynamicValue {
     pub fn from_owned_bytes(bytes: Vec<u8>) -> Self {
-        Self::Bytes(Arc::new(BString::from(bytes)))
+        Self::Bytes(Arc::from(bytes))
     }
 
     pub fn empty_bytes() -> Self {
@@ -318,7 +339,7 @@ impl DynamicValue {
                 Err(_) => {
                     return Err(EvaluationError::TimeRelated(format!(
                         "could not parse {} as a temporal value",
-                        bytes
+                        BStr::new(bytes)
                     )))
                 }
             },
@@ -486,7 +507,7 @@ impl DynamicValue {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
-            Self::Bytes(bytes) => match DynamicNumber::try_from(bytes.as_ref().as_ref()) {
+            Self::Bytes(bytes) => match DynamicNumber::try_from(bytes.as_ref()) {
                 Err(_) => return Err(EvaluationError::from_cast(self, "number")),
                 Ok(number) => number,
             },
@@ -613,15 +634,7 @@ impl DynamicValue {
     pub fn set_bytes(&mut self, new_bytes: &[u8]) {
         match self {
             Self::Bytes(bytes) => {
-                // NOTE: I cannot really prove this is faster to avoid allocation here...
-                // It certainly seems a little bit faster but not by a large margin.
-                match Arc::get_mut(bytes) {
-                    Some(inner) => {
-                        inner.clear();
-                        inner.extend(new_bytes);
-                    }
-                    None => *bytes = Arc::new(BString::new(new_bytes.to_vec())),
-                };
+                *bytes = Arc::from(new_bytes);
             }
             _ => panic!("DynamicValue is not Bytes!"),
         }
@@ -671,21 +684,21 @@ impl<'a> Iterator for DynamicValueFlatIter<'a> {
 impl From<&[u8]> for DynamicValue {
     #[inline]
     fn from(value: &[u8]) -> Self {
-        DynamicValue::from_owned_bytes(value.to_vec())
+        DynamicValue::Bytes(Arc::from(value))
     }
 }
 
 impl From<&str> for DynamicValue {
     #[inline]
     fn from(value: &str) -> Self {
-        DynamicValue::String(Arc::from(value.to_string()))
+        DynamicValue::String(Arc::from(value))
     }
 }
 
 impl From<Cow<'_, str>> for DynamicValue {
     #[inline]
     fn from(value: Cow<str>) -> Self {
-        DynamicValue::String(Arc::from(value.to_string()))
+        DynamicValue::String(Arc::from(value))
     }
 }
 

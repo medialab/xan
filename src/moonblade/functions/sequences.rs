@@ -281,20 +281,7 @@ pub fn concat(args: BoundArguments) -> FunctionResult {
             _ => unreachable!(),
         }
     } else {
-        match first {
-            BoundArgument::Owned(DynamicValue::String(mut string)) => {
-                if let Some(string_ref) = Arc::get_mut(&mut string) {
-                    for arg in args_iter {
-                        string_ref.push_str(&arg.try_as_str()?);
-                    }
-
-                    Ok(DynamicValue::String(string))
-                } else {
-                    concat_str(&string, args_iter)
-                }
-            }
-            _ => concat_str(&first.try_as_str()?, args_iter),
-        }
+        concat_str(&first.try_as_str()?, args_iter)
     }
 }
 
