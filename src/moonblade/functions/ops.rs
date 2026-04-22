@@ -22,72 +22,68 @@ pub fn not(mut args: BoundArguments) -> FunctionResult {
     Ok(DynamicValue::from(!args.pop1_bool()))
 }
 
-// pub fn arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
-// where
-//     F: FnOnce(DynamicNumber, DynamicNumber) -> DynamicNumber,
-// {
-//     let (a, b) = args.get2_number()?;
-//     Ok(DynamicValue::from(op(a, b)))
-// }
+pub fn arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
+where
+    F: FnOnce(DynamicNumber, DynamicNumber) -> DynamicNumber,
+{
+    let (a, b) = args.get2_number()?;
+    Ok(DynamicValue::from(op(a, b)))
+}
 
-// pub fn add(args: BoundArguments) -> FunctionResult {
-//     if args.len() == 2 {
-//         match args.get2() {
-//             (operand, DynamicValue::Span(span)) | (DynamicValue::Span(span), operand) => {
-//                 return match operand.try_as_any_temporal()? {
-//                     AnyTemporal::Zoned(zoned) => match zoned.checked_add(span.as_ref()) {
-//                         Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-//                         Ok(zoned) => Ok(DynamicValue::from(zoned)),
-//                     },
-//                     AnyTemporal::DateTime(datetime) => match datetime.checked_add(span.as_ref()) {
-//                         Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-//                         Ok(datetime) => Ok(DynamicValue::from(datetime)),
-//                     },
-//                     AnyTemporal::Date(date) => match date.checked_add(span.as_ref()) {
-//                         Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-//                         Ok(date) => Ok(DynamicValue::from(date)),
-//                     },
-//                     AnyTemporal::Time(time) => match time.checked_add(span.as_ref()) {
-//                         Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-//                         Ok(time) => Ok(DynamicValue::from(time)),
-//                     },
-//                 }
-//             }
+pub fn add(args: BoundArguments) -> FunctionResult {
+    if args.len() == 2 {
+        let (a, b) = args.get2();
 
-//             _ => (),
-//         };
-//     }
+        if let Some(span) = b.as_span() {
+            return match a.try_as_any_temporal()? {
+                AnyTemporal::Zoned(zoned) => match zoned.checked_add(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                },
+                AnyTemporal::DateTime(datetime) => match datetime.checked_add(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                },
+                AnyTemporal::Date(date) => match date.checked_add(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(date) => Ok(DynamicValue::from(date)),
+                },
+                AnyTemporal::Time(time) => match time.checked_add(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(time) => Ok(DynamicValue::from(time)),
+                },
+            };
+        }
+    }
 
-//     variadic_arithmetic_op(args, Add::add)
-// }
+    variadic_arithmetic_op(args, Add::add)
+}
 
 pub fn sub(args: BoundArguments) -> FunctionResult {
-    // if args.len() == 2 {
-    //     match args.get2() {
-    //         (operand, DynamicValue::Span(span)) | (DynamicValue::Span(span), operand) => {
-    //             return match operand.try_as_any_temporal()? {
-    //                 AnyTemporal::Zoned(zoned) => match zoned.checked_sub(span.as_ref()) {
-    //                     Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-    //                     Ok(zoned) => Ok(DynamicValue::from(zoned)),
-    //                 },
-    //                 AnyTemporal::DateTime(datetime) => match datetime.checked_sub(span.as_ref()) {
-    //                     Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-    //                     Ok(datetime) => Ok(DynamicValue::from(datetime)),
-    //                 },
-    //                 AnyTemporal::Date(date) => match date.checked_sub(span.as_ref()) {
-    //                     Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-    //                     Ok(date) => Ok(DynamicValue::from(date)),
-    //                 },
-    //                 AnyTemporal::Time(time) => match time.checked_sub(span.as_ref()) {
-    //                     Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
-    //                     Ok(time) => Ok(DynamicValue::from(time)),
-    //                 },
-    //             }
-    //         }
+    if args.len() == 2 {
+        let (a, b) = args.get2();
 
-    //         _ => (),
-    //     };
-    // }
+        if let Some(span) = b.as_span() {
+            return match a.try_as_any_temporal()? {
+                AnyTemporal::Zoned(zoned) => match zoned.checked_sub(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(zoned) => Ok(DynamicValue::from(zoned)),
+                },
+                AnyTemporal::DateTime(datetime) => match datetime.checked_sub(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(datetime) => Ok(DynamicValue::from(datetime)),
+                },
+                AnyTemporal::Date(date) => match date.checked_sub(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(date) => Ok(DynamicValue::from(date)),
+                },
+                AnyTemporal::Time(time) => match time.checked_sub(span) {
+                    Err(err) => Err(EvaluationError::TimeRelated(err.to_string())),
+                    Ok(time) => Ok(DynamicValue::from(time)),
+                },
+            };
+        }
+    }
 
     variadic_arithmetic_op(args, Sub::sub)
 }
@@ -143,37 +139,37 @@ pub fn sub(args: BoundArguments) -> FunctionResult {
 //     }))
 // }
 
-// pub fn abstract_unary_string_fn<F>(args: BoundArguments, function: F) -> FunctionResult
-// where
-//     F: FnOnce(&str) -> Cow<str>,
-// {
-//     let string = args.get1().try_as_str()?;
+pub fn abstract_unary_string_fn<F>(args: BoundArguments, function: F) -> FunctionResult
+where
+    F: FnOnce(&str) -> Cow<str>,
+{
+    let string = args.get1().try_as_str()?;
 
-//     Ok(DynamicValue::from(function(&string)))
-// }
+    Ok(DynamicValue::from(function(&string)))
+}
 
-// pub fn mean(args: BoundArguments) -> FunctionResult {
-//     let items = args.get1().try_as_list()?;
-//     let mut welford = Welford::new();
+pub fn mean(args: BoundArguments) -> FunctionResult {
+    let items = args.get1().try_as_list()?;
+    let mut welford = Welford::new();
 
-//     for item in items {
-//         let n = item.try_as_f64()?;
-//         welford.add(n);
-//     }
+    for item in items {
+        let n = item.try_as_f64()?;
+        welford.add(n);
+    }
 
-//     Ok(DynamicValue::from(welford.mean()))
-// }
+    Ok(DynamicValue::from(welford.mean()))
+}
 
-// pub fn sum(args: BoundArguments) -> FunctionResult {
-//     let items = args.get1().try_as_list()?;
-//     let mut sum = Sum::new();
+pub fn sum(args: BoundArguments) -> FunctionResult {
+    let items = args.get1().try_as_list()?;
+    let mut sum = Sum::new();
 
-//     for item in items {
-//         sum.add(item.try_as_number()?);
-//     }
+    for item in items {
+        sum.add(item.try_as_number()?);
+    }
 
-//     Ok(DynamicValue::from(sum.get()))
-// }
+    Ok(DynamicValue::from(sum.get()))
+}
 
 pub fn variadic_arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
 where

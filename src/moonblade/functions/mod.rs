@@ -18,7 +18,7 @@ mod ops;
 // mod sequences;
 pub mod special;
 // mod strings;
-// mod temporal;
+mod temporal;
 mod utils;
 // mod web;
 
@@ -83,7 +83,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::unary(),
         ),
         "abspath" => (io::abspath, FunctionArguments::unary()),
-        // "add" => (ops::add, FunctionArguments::variadic(2)),
+        "add" => (ops::add, FunctionArguments::variadic(2)),
         // "argmax" => (
         //     |args| ops::argcompare(args, Ordering::is_gt),
         //     FunctionArguments::with_range(1..=2),
@@ -94,10 +94,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // ),
         "basename" => (io::basename, FunctionArguments::with_range(1..=2)),
         "bytesize" => (io::bytesize, FunctionArguments::unary()),
-        // "carry_stemmer" => (
-        //     |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(carry_stemmer(string))),
-        //     FunctionArguments::unary(),
-        // ),
+        "carry_stemmer" => (
+            |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(carry_stemmer(string))),
+            FunctionArguments::unary(),
+        ),
         // "ceil" => (
         //     |args| ops::round_like_op(args, DynamicNumber::ceil),
         //     FunctionArguments::with_range(1..=2),
@@ -137,10 +137,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "from_timestamp_ms" => (temporal::from_timestamp_ms, FunctionArguments::unary()),
         "get" => (maps::get, FunctionArguments::with_range(2..=3)),
         // "html_unescape" => (web::html_unescape, FunctionArguments::unary()),
-        // "idiv" => (
-        //     |args| ops::arithmetic_op(args, DynamicNumber::idiv),
-        //     FunctionArguments::binary(),
-        // ),
+        "idiv" => (
+            |args| ops::arithmetic_op(args, DynamicNumber::idiv),
+            FunctionArguments::binary(),
+        ),
         "index_by" => (maps::index_by, FunctionArguments::binary()),
         "int" => (ops::parse_int, FunctionArguments::unary()),
         "isfile" => (io::isfile, FunctionArguments::unary()),
@@ -176,7 +176,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::variadic(1),
         // ),
         "md5" => (utils::md5, FunctionArguments::unary()),
-        // "mean" => (ops::mean, FunctionArguments::unary()),
+        "mean" => (ops::mean, FunctionArguments::unary()),
         // "mime_ext" => (web::mime_ext, FunctionArguments::unary()),
         // "min" => (
         //     |args| ops::variadic_optimum(args, DynamicValue::try_as_number, Ordering::is_lt),
@@ -229,10 +229,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "parse_dataurl" => (web::parse_dataurl, FunctionArguments::unary()),
         "parse_json" => (io::parse_json, FunctionArguments::unary()),
         "parse_py_literal" => (io::parse_py_literal, FunctionArguments::unary()),
-        // "phonogram" => (
-        //     |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(phonogram(string))),
-        //     FunctionArguments::unary(),
-        // ),
+        "phonogram" => (
+            |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(phonogram(string))),
+            FunctionArguments::unary(),
+        ),
         "pjoin" | "pathjoin" => (io::pathjoin, FunctionArguments::variadic(2)),
         // "pow" => (
         //     |args| ops::binary_arithmetic_op(args, DynamicNumber::pow),
@@ -251,12 +251,12 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "read_csv" => (io::read_csv, FunctionArguments::unary()),
         "read_json" => (io::read_json, FunctionArguments::unary()),
-        // "refined_soundex" => (
-        //     |args| {
-        //         ops::abstract_unary_string_fn(args, |string| Cow::Owned(refined_soundex(string)))
-        //     },
-        //     FunctionArguments::unary(),
-        // ),
+        "refined_soundex" => (
+            |args| {
+                ops::abstract_unary_string_fn(args, |string| Cow::Owned(refined_soundex(string)))
+            },
+            FunctionArguments::unary(),
+        ),
         "regex" => (utils::parse_regex, FunctionArguments::unary()),
         // "repeat" => (sequences::repeat, FunctionArguments::binary()),
         // "replace" => (strings::replace, FunctionArguments::nary(3)),
@@ -267,11 +267,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "shell" => (io::shell, FunctionArguments::unary()),
         "shlex_split" => (io::shlex_split, FunctionArguments::unary()),
         // "slice" => (sequences::slice, FunctionArguments::with_range(2..=3)),
-        // "soundex" => (
-        //     |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
-        //     FunctionArguments::unary(),
-        // ),
-        // "span" => (temporal::span, FunctionArguments::unary()),
+        "soundex" => (
+            |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
+            FunctionArguments::unary(),
+        ),
+        "span" => (temporal::span, FunctionArguments::unary()),
         // "split" => (strings::split, FunctionArguments::with_range(2..=3)),
         // "sqrt" => (
         //     |args| ops::unary_arithmetic_op(args, DynamicNumber::sqrt),
@@ -280,11 +280,11 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "startswith" => (strings::startswith, FunctionArguments::binary()),
         // "strftime" => (temporal::strftime, FunctionArguments::binary()),
         "sub" => (ops::sub, FunctionArguments::variadic(2)),
-        // "sum" => (ops::sum, FunctionArguments::unary()),
-        // "s_stemmer" => (
-        //     |args| ops::abstract_unary_string_fn(args, s_stemmer),
-        //     FunctionArguments::unary(),
-        // ),
+        "sum" => (ops::sum, FunctionArguments::unary()),
+        "s_stemmer" => (
+            |args| ops::abstract_unary_string_fn(args, s_stemmer),
+            FunctionArguments::unary(),
+        ),
         // "time" => (temporal::time, FunctionArguments::with_range(1..=2)),
         "to_fixed" => (fmt::to_fixed, FunctionArguments::binary()),
         // "to_timestamp" => (temporal::to_timestamp, FunctionArguments::unary()),

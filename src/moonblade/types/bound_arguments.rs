@@ -4,6 +4,7 @@ use arrayvec::ArrayVec;
 
 use crate::collections::HashMap;
 use crate::moonblade::error::EvaluationError;
+use crate::temporal::{parse_any_temporal, AnyTemporal};
 
 use super::{DynamicNumber, DynamicValue};
 
@@ -191,6 +192,22 @@ impl BoundArgument<'_> {
         }
     }
 
+    #[inline]
+    pub fn try_as_any_temporal(&self) -> Result<AnyTemporal, EvaluationError> {
+        match self {
+            Self::Owned(owned) => owned.try_as_any_temporal(),
+            Self::Borrowed(borrowed) => borrowed.try_as_any_temporal(),
+            Self::Cell(cell) => match parse_any_temporal(cell) {
+                Ok(temporal) => Ok(temporal),
+                Err(_) => Err(EvaluationError::TimeRelated(format!(
+                    "could not parse {} as a temporal value",
+                    bstr::BStr::new(cell)
+                ))),
+            },
+        }
+    }
+
+    #[inline]
     pub fn as_regex(&self) -> Option<&regex::Regex> {
         match self {
             Self::Owned(DynamicValue::Regex(regex)) => Some(regex),
@@ -199,6 +216,7 @@ impl BoundArgument<'_> {
         }
     }
 
+    #[inline]
     pub fn as_list(&self) -> Option<&Vec<DynamicValue>> {
         match self {
             Self::Owned(DynamicValue::List(list)) => Some(list),
@@ -207,6 +225,7 @@ impl BoundArgument<'_> {
         }
     }
 
+    #[inline]
     pub fn as_map(&self) -> Option<&HashMap<String, DynamicValue>> {
         match self {
             Self::Owned(DynamicValue::Map(map)) => Some(map),
@@ -215,6 +234,16 @@ impl BoundArgument<'_> {
         }
     }
 
+    #[inline]
+    pub fn as_span(&self) -> Option<&jiff::Span> {
+        match self {
+            Self::Owned(DynamicValue::Span(span)) => Some(span),
+            Self::Borrowed(DynamicValue::Span(span)) => Some(span),
+            _ => None,
+        }
+    }
+
+    #[inline]
     pub fn eq_value(&self, value: &DynamicValue) -> bool {
         match self {
             Self::Owned(owned) => owned.eq(value),
