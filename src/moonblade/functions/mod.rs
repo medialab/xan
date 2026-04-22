@@ -113,10 +113,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "date" => (temporal::date, FunctionArguments::with_range(1..=2)),
         "datetime" => (temporal::datetime, FunctionArguments::with_range(1..=2)),
         "dirname" => (io::dirname, FunctionArguments::unary()),
-        // "div" => (
-        //     |args| ops::variadic_arithmetic_op(args, Div::div),
-        //     FunctionArguments::variadic(2),
-        // ),
+        "div" => (
+            |args| ops::variadic_arithmetic_op(args, Div::div),
+            FunctionArguments::variadic(2),
+        ),
         "earliest" => (
             |args| ops::variadic_optimum(args, DynamicValue::try_as_any_temporal, Ordering::is_lt),
             FunctionArguments::variadic(1),
@@ -162,14 +162,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             },
             FunctionArguments::with_range(1..=2),
         ),
-        // "log2" => (
-        //     |args| ops::unary_arithmetic_op(args, DynamicNumber::log2),
-        //     FunctionArguments::unary(),
-        // ),
-        // "log10" => (
-        //     |args| ops::unary_arithmetic_op(args, DynamicNumber::log10),
-        //     FunctionArguments::unary(),
-        // ),
+        "log2" => (
+            |args| ops::unary_arithmetic_op(args, DynamicNumber::log2),
+            FunctionArguments::unary(),
+        ),
+        "log10" => (
+            |args| ops::unary_arithmetic_op(args, DynamicNumber::log10),
+            FunctionArguments::unary(),
+        ),
         // "lower" => (strings::lower, FunctionArguments::unary()),
         "lru" => (web::lru, FunctionArguments::unary()),
         // "match" => (strings::regex_match, FunctionArguments::with_range(2..=3)),
@@ -197,14 +197,14 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     FunctionArguments::unary(),
         // ),
         "move" => (io::move_file, FunctionArguments::binary()),
-        // "mul" => (
-        //     |args| ops::variadic_arithmetic_op(args, Mul::mul),
-        //     FunctionArguments::variadic(2),
-        // ),
-        // "neg" => (
-        //     |args| ops::unary_arithmetic_op(args, Neg::neg),
-        //     FunctionArguments::unary(),
-        // ),
+        "mul" => (
+            |args| ops::variadic_arithmetic_op(args, Mul::mul),
+            FunctionArguments::variadic(2),
+        ),
+        "neg" => (
+            |args| ops::unary_arithmetic_op(args, Neg::neg),
+            FunctionArguments::unary(),
+        ),
         "not" => (ops::not, FunctionArguments::unary()),
         // "now" => (temporal::now, FunctionArguments::nullary()),
         "numfmt" => (
@@ -275,10 +275,10 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         ),
         "span" => (temporal::span, FunctionArguments::unary()),
         // "split" => (strings::split, FunctionArguments::with_range(2..=3)),
-        // "sqrt" => (
-        //     |args| ops::unary_arithmetic_op(args, DynamicNumber::sqrt),
-        //     FunctionArguments::unary(),
-        // ),
+        "sqrt" => (
+            |args| ops::unary_arithmetic_op(args, DynamicNumber::sqrt),
+            FunctionArguments::unary(),
+        ),
         // "startswith" => (strings::startswith, FunctionArguments::binary()),
         // "strftime" => (temporal::strftime, FunctionArguments::binary()),
         "sub" => (ops::sub, FunctionArguments::variadic(2)),
