@@ -14,6 +14,7 @@ pub enum BoundContainer<'a> {
     Map(&'a HashMap<String, DynamicValue>),
 }
 
+#[derive(Debug)]
 pub enum BoundArgument<'a> {
     Owned(DynamicValue),
     Borrowed(&'a DynamicValue),
@@ -251,14 +252,21 @@ impl<'a> BoundArguments<'a> {
         self.stack.get(i)
     }
 
-    // pub fn get_not_none(&self, i: usize) -> Option<&DynamicValue> {
-    //     let value = self.stack.get(i)?;
+    pub fn get_not_none(&self, i: usize) -> Option<&BoundArgument> {
+        let arg = self.stack.get(i)?;
 
-    //     match value {
-    //         DynamicValue::None => None,
-    //         _ => Some(value),
-    //     }
-    // }
+        match arg {
+            BoundArgument::Owned(owned) => match owned {
+                DynamicValue::None => None,
+                _ => Some(arg),
+            },
+            BoundArgument::Borrowed(borrowed) => match borrowed {
+                DynamicValue::None => None,
+                _ => Some(arg),
+            },
+            BoundArgument::Cell(_) => Some(arg),
+        }
+    }
 
     pub fn get1(&self) -> &BoundArgument {
         &self.stack[0]
@@ -295,19 +303,19 @@ impl<'a> BoundArguments<'a> {
         self.get1().try_as_str()
     }
 
-    // pub fn pop1_bool(&mut self) -> bool {
-    //     self.pop1().is_truthy()
-    // }
+    pub fn pop1_bool(&mut self) -> bool {
+        self.pop1().is_truthy()
+    }
 
     pub fn pop1_number(&mut self) -> Result<DynamicNumber, EvaluationError> {
         self.pop1().try_as_number()
     }
 
-    // pub fn get2_str(&self) -> Result<(Cow<'_, str>, Cow<'_, str>), EvaluationError> {
-    //     let (a, b) = self.get2();
+    pub fn get2_str(&self) -> Result<(Cow<'_, str>, Cow<'_, str>), EvaluationError> {
+        let (a, b) = self.get2();
 
-    //     Ok((a.try_as_str()?, b.try_as_str()?))
-    // }
+        Ok((a.try_as_str()?, b.try_as_str()?))
+    }
 
     pub fn get2_number(&self) -> Result<(DynamicNumber, DynamicNumber), EvaluationError> {
         let (a, b) = self.get2();

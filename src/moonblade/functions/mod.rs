@@ -12,7 +12,7 @@ use super::types::{Argument, BoundArguments, DynamicNumber, DynamicValue, Functi
 
 mod fmt;
 mod fuzzy;
-// mod io;
+mod io;
 mod maps;
 mod ops;
 // mod sequences;
@@ -82,7 +82,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             |args| ops::unary_arithmetic_op(args, DynamicNumber::abs),
             FunctionArguments::unary(),
         ),
-        // "abspath" => (io::abspath, FunctionArguments::unary()),
+        "abspath" => (io::abspath, FunctionArguments::unary()),
         // "add" => (ops::add, FunctionArguments::variadic(2)),
         // "argmax" => (
         //     |args| ops::argcompare(args, Ordering::is_gt),
@@ -92,8 +92,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::argcompare(args, Ordering::is_lt),
         //     FunctionArguments::with_range(1..=2),
         // ),
-        // "basename" => (io::basename, FunctionArguments::with_range(1..=2)),
-        // "bytesize" => (io::bytesize, FunctionArguments::unary()),
+        "basename" => (io::basename, FunctionArguments::with_range(1..=2)),
+        "bytesize" => (io::bytesize, FunctionArguments::unary()),
         // "carry_stemmer" => (
         //     |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(carry_stemmer(string))),
         //     FunctionArguments::unary(),
@@ -102,15 +102,15 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::round_like_op(args, DynamicNumber::ceil),
         //     FunctionArguments::with_range(1..=2),
         // ),
-        // "cmd" => (io::cmd, FunctionArguments::binary()),
+        "cmd" => (io::cmd, FunctionArguments::binary()),
         // "compact" => (sequences::compact, FunctionArguments::unary()),
         // "concat" => (sequences::concat, FunctionArguments::variadic(2)),
         "contains" => (maps::contains, FunctionArguments::binary()),
-        // "copy" => (io::copy_file, FunctionArguments::binary()),
+        "copy" => (io::copy_file, FunctionArguments::binary()),
         // "count" => (strings::count, FunctionArguments::binary()),
         // "date" => (temporal::date, FunctionArguments::with_range(1..=2)),
         // "datetime" => (temporal::datetime, FunctionArguments::with_range(1..=2)),
-        // "dirname" => (io::dirname, FunctionArguments::unary()),
+        "dirname" => (io::dirname, FunctionArguments::unary()),
         // "div" => (
         //     |args| ops::variadic_arithmetic_op(args, Div::div),
         //     FunctionArguments::variadic(2),
@@ -122,8 +122,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "endswith" => (strings::endswith, FunctionArguments::binary()),
         "err" => (utils::err, FunctionArguments::unary()),
         "escape_regex" => (fmt::escape_regex, FunctionArguments::unary()),
-        // "ext" => (io::ext, FunctionArguments::unary()),
-        // "filesize" => (io::filesize, FunctionArguments::unary()),
+        "ext" => (io::ext, FunctionArguments::unary()),
+        "filesize" => (io::filesize, FunctionArguments::unary()),
         "fingerprint" => (fuzzy::fingerprint, FunctionArguments::unary()),
         // "first" => (sequences::first, FunctionArguments::unary()),
         "float" => (ops::parse_float, FunctionArguments::unary()),
@@ -143,7 +143,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // ),
         "index_by" => (maps::index_by, FunctionArguments::binary()),
         "int" => (ops::parse_int, FunctionArguments::unary()),
-        // "isfile" => (io::isfile, FunctionArguments::unary()),
+        "isfile" => (io::isfile, FunctionArguments::unary()),
         // "join" => (strings::join, FunctionArguments::binary()),
         "keys" => (maps::keys, FunctionArguments::unary()),
         // "latest" => (
@@ -194,7 +194,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| temporal::custom_strftime(args, "%m-%d"),
         //     FunctionArguments::unary(),
         // ),
-        // "move" => (io::move_file, FunctionArguments::binary()),
+        "move" => (io::move_file, FunctionArguments::binary()),
         // "mul" => (
         //     |args| ops::variadic_arithmetic_op(args, Mul::mul),
         //     FunctionArguments::variadic(2),
@@ -203,7 +203,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::unary_arithmetic_op(args, Neg::neg),
         //     FunctionArguments::unary(),
         // ),
-        // "not" => (ops::not, FunctionArguments::unary()),
+        "not" => (ops::not, FunctionArguments::unary()),
         // "now" => (temporal::now, FunctionArguments::nullary()),
         "numfmt" => (
             fmt::fmt_number,
@@ -227,13 +227,13 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
             FunctionArguments::with_range(2..=3),
         ),
         // "parse_dataurl" => (web::parse_dataurl, FunctionArguments::unary()),
-        // "parse_json" => (io::parse_json, FunctionArguments::unary()),
-        // "parse_py_literal" => (io::parse_py_literal, FunctionArguments::unary()),
+        "parse_json" => (io::parse_json, FunctionArguments::unary()),
+        "parse_py_literal" => (io::parse_py_literal, FunctionArguments::unary()),
         // "phonogram" => (
         //     |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(phonogram(string))),
         //     FunctionArguments::unary(),
         // ),
-        // "pjoin" | "pathjoin" => (io::pathjoin, FunctionArguments::variadic(2)),
+        "pjoin" | "pathjoin" => (io::pathjoin, FunctionArguments::variadic(2)),
         // "pow" => (
         //     |args| ops::binary_arithmetic_op(args, DynamicNumber::pow),
         //     FunctionArguments::binary(),
@@ -241,16 +241,16 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         "printf" => (fmt::printf, FunctionArguments::variadic(2)),
         "random" => (utils::random, FunctionArguments::nullary()),
         // "range" => (sequences::range, FunctionArguments::with_range(1..=3)),
-        // "read" => (
-        //     io::read,
-        //     FunctionArguments::complex(vec![
-        //         Argument::Positional,
-        //         Argument::with_name("encoding"),
-        //         Argument::with_name("errors"),
-        //     ]),
-        // ),
-        // "read_csv" => (io::read_csv, FunctionArguments::unary()),
-        // "read_json" => (io::read_json, FunctionArguments::unary()),
+        "read" => (
+            io::read,
+            FunctionArguments::complex(vec![
+                Argument::Positional,
+                Argument::with_name("encoding"),
+                Argument::with_name("errors"),
+            ]),
+        ),
+        "read_csv" => (io::read_csv, FunctionArguments::unary()),
+        "read_json" => (io::read_json, FunctionArguments::unary()),
         // "refined_soundex" => (
         //     |args| {
         //         ops::abstract_unary_string_fn(args, |string| Cow::Owned(refined_soundex(string)))
@@ -264,8 +264,8 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         //     |args| ops::round_like_op(args, DynamicNumber::round),
         //     FunctionArguments::with_range(1..=2),
         // ),
-        // "shell" => (io::shell, FunctionArguments::unary()),
-        // "shlex_split" => (io::shlex_split, FunctionArguments::unary()),
+        "shell" => (io::shell, FunctionArguments::unary()),
+        "shlex_split" => (io::shlex_split, FunctionArguments::unary()),
         // "slice" => (sequences::slice, FunctionArguments::with_range(2..=3)),
         // "soundex" => (
         //     |args| ops::abstract_unary_string_fn(args, |string| Cow::Owned(soundex(string))),
@@ -313,7 +313,7 @@ pub fn get_function(name: &str) -> Option<(Function, FunctionArguments)> {
         // "without_timezone" | "without_tz" => {
         //     (temporal::without_timezone, FunctionArguments::unary())
         // }
-        // "write" => (io::write, FunctionArguments::binary()),
+        "write" => (io::write, FunctionArguments::binary()),
         // "year" => (
         //     |args| temporal::custom_strftime(args, "%Y"),
         //     FunctionArguments::unary(),

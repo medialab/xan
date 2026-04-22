@@ -18,9 +18,9 @@ pub fn parse_float(args: BoundArguments) -> FunctionResult {
     args.get1().try_as_f64().map(DynamicValue::from)
 }
 
-// pub fn not(mut args: BoundArguments) -> FunctionResult {
-//     Ok(DynamicValue::from(!args.pop1_bool()))
-// }
+pub fn not(mut args: BoundArguments) -> FunctionResult {
+    Ok(DynamicValue::from(!args.pop1_bool()))
+}
 
 // pub fn arithmetic_op<F>(args: BoundArguments, op: F) -> FunctionResult
 // where

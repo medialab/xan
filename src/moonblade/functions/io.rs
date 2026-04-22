@@ -13,7 +13,7 @@ use crate::collections::HashMap;
 
 use super::FunctionResult;
 use crate::moonblade::error::EvaluationError;
-use crate::moonblade::types::{BoundArguments, DynamicValue};
+use crate::moonblade::types::{BoundArgument, BoundArguments, DynamicValue};
 
 pub fn abspath(args: BoundArguments) -> FunctionResult {
     let arg = args.get1_str()?;
@@ -54,9 +54,9 @@ pub fn isfile(args: BoundArguments) -> FunctionResult {
 }
 
 fn abstract_read(
-    path: &DynamicValue,
-    encoding: Option<&DynamicValue>,
-    errors: Option<&DynamicValue>,
+    path: &BoundArgument,
+    encoding: Option<&BoundArgument>,
+    errors: Option<&BoundArgument>,
 ) -> Result<String, EvaluationError> {
     let path = path.try_as_str()?;
 
@@ -90,7 +90,7 @@ fn abstract_read(
 
             encoding
                 .decode(&buffer, decoder_trap)
-                .map_err(|_| EvaluationError::DecodeError)?
+                .map_err(|_| EvaluationError::UnicodeDecodeError)?
         }
         None => {
             let mut buffer = String::new();
