@@ -427,7 +427,7 @@ fn runtime_and(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
 }
 
 fn runtime_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {
-    Ok(match context.index {
+    Ok(match context.row_index {
         None => DynamicValue::None,
         Some(index) => DynamicValue::from(index),
     })
@@ -596,7 +596,7 @@ fn runtime_warn(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluatio
     let msg_arg = args.first().unwrap().evaluate(context)?;
     let msg = msg_arg.try_as_str().map_err(|err| err.specify("warn"))?;
 
-    match context.index {
+    match context.row_index {
         Some(i) => eprintln!("Row index {}: {}", i, msg),
         None => eprintln!("{}", msg),
     };

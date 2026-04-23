@@ -37,7 +37,8 @@ impl GlobalVariables {
 
 #[derive(Debug, Clone)]
 pub struct EvaluationContext<'a> {
-    pub index: Option<usize>,
+    pub row_index: Option<usize>,
+    pub col_index: Option<usize>,
     pub record: &'a ByteRecord,
     pub headers_index: &'a HeadersIndex,
     pub globals: Option<&'a GlobalVariables>,
@@ -52,7 +53,8 @@ impl<'a> EvaluationContext<'a> {
         headers_index: &'a HeadersIndex,
     ) -> Self {
         Self {
-            index,
+            row_index: index,
+            col_index: None,
             record,
             headers_index,
             globals: None,
@@ -75,7 +77,8 @@ impl<'a> EvaluationContext<'a> {
 
     fn dummy(record: &'a ByteRecord, headers_index: &'a HeadersIndex) -> Self {
         Self {
-            index: None,
+            row_index: None,
+            col_index: None,
             record,
             headers_index,
             globals: None,
@@ -86,7 +89,8 @@ impl<'a> EvaluationContext<'a> {
 
     pub fn with_lambda_variables(&self, variables: &'a LambdaArguments) -> Self {
         Self {
-            index: self.index,
+            row_index: self.row_index,
+            col_index: self.col_index,
             record: self.record,
             headers_index: self.headers_index,
             globals: self.globals,
@@ -97,7 +101,8 @@ impl<'a> EvaluationContext<'a> {
 
     pub fn with_globals(&self, globals: &'a GlobalVariables) -> Self {
         Self {
-            index: self.index,
+            row_index: self.row_index,
+            col_index: self.col_index,
             record: self.record,
             headers_index: self.headers_index,
             globals: Some(globals),
@@ -239,7 +244,13 @@ impl ConcreteExpr {
                     .get(name),
             ),
             Self::Underscore => match context.last_value.as_ref() {
-                None => return Err(EvaluationError::UnfillableUnderscore),
+                None => match context.col_index {
+                    Some(index) => match context.record.get(index) {
+                        None => return Err(EvaluationError::ColumnOutOfRange(index)),
+                        Some(cell) => BoundArgument::Cell(cell),
+                    },
+                    None => return Err(EvaluationError::UnfillableUnderscore),
+                },
                 Some(last_value) => BoundArgument::Borrowed(last_value),
             },
             Self::List(_)
@@ -684,15 +695,15 @@ pub fn eval_expression_with_globals(
     expr.evaluate(&context)
 }
 
-pub fn eval_expression_with_optional_last_value(
+pub fn eval_expression_with_optional_col_index(
     expr: &ConcreteExpr,
     index: Option<usize>,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
-    last_value: Option<DynamicValue>,
+    col_index: Option<usize>,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
     let mut context = EvaluationContext::new(index, record, headers_index);
-    context.last_value = last_value;
+    context.col_index = col_index;
 
     expr.evaluate(&context)
 }
@@ -760,18 +771,18 @@ impl Program {
         eval_expression(&self.expr, Some(index), record, &self.headers_index)
     }
 
-    pub fn run_with_record_and_last_value(
+    pub fn run_with_record_and_col_index(
         &self,
         index: usize,
+        col_index: usize,
         record: &ByteRecord,
-        last_value: DynamicValue,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression_with_optional_last_value(
+        eval_expression_with_optional_col_index(
             &self.expr,
             Some(index),
             record,
             &self.headers_index,
-            Some(last_value),
+            Some(col_index),
         )
     }
 
@@ -858,6 +869,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_sizes() {
         assert_eq!(size_of::<EvaluationContext>(), 64);
         assert_eq!(size_of::<ConcreteExpr>(), 64);

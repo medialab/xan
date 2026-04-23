@@ -3,7 +3,7 @@ use std::fs;
 use pariter::IteratorExt;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::{DynamicValue, Program};
+use crate::moonblade::Program;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
@@ -117,18 +117,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut sel = rconf.selection(&headers)?;
     sel.dedup();
 
-    let mask = sel.indexed_mask(headers.len());
+    let mask = sel.mask(headers.len());
 
-    let programs = sel
-        .iter()
-        .map(|i| {
-            Program::parse(
-                &format!("col({}) | {}", i, &args.arg_expression),
-                &headers,
-                rconf.no_headers,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let program = Program::parse(&args.arg_expression, &headers, rconf.no_headers)?;
 
     if !rconf.no_headers {
         let output_headers = if let Some(new_names) = &args.flag_rename {
@@ -142,7 +133,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 ))?;
             }
 
-            mask.iter()
+            sel.indexed_mask(headers.len())
+                .iter()
                 .zip(headers.iter())
                 .map(|(o, h)| if let Some(i) = o { &renamed[*i] } else { h })
                 .collect()
@@ -160,21 +152,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 let record = record?;
 
                 let mut output_record = simd_csv::ByteRecord::new();
-                let mut last_value = DynamicValue::empty_bytes();
 
-                for (m, cell) in mask.iter().copied().zip(record.iter()) {
-                    if let Some(i) = m {
-                        last_value.set_bytes(cell);
-
-                        let value = programs[i].run_with_record_and_last_value(
-                            index,
-                            &record,
-                            last_value.clone(),
-                        )?;
+                for (col_index, do_transform) in mask.iter().copied().enumerate() {
+                    if do_transform {
+                        let value =
+                            program.run_with_record_and_col_index(index, col_index, &record)?;
 
                         output_record.push_field(&value.serialize_as_bytes());
                     } else {
-                        output_record.push_field(cell);
+                        output_record.push_field(&record[col_index]);
                     }
                 }
 
@@ -186,25 +172,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     } else {
         let mut record = simd_csv::ByteRecord::new();
         let mut output_record = simd_csv::ByteRecord::new();
-        let mut last_value = DynamicValue::empty_bytes();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             output_record.clear();
 
-            for (m, cell) in mask.iter().copied().zip(record.iter()) {
-                if let Some(i) = m {
-                    last_value.set_bytes(cell);
-
-                    let value = programs[i].run_with_record_and_last_value(
-                        index,
-                        &record,
-                        last_value.clone(),
-                    )?;
+            for (col_index, do_transform) in mask.iter().copied().enumerate() {
+                if do_transform {
+                    let value = program.run_with_record_and_col_index(index, col_index, &record)?;
 
                     output_record.push_field(&value.serialize_as_bytes());
                 } else {
-                    output_record.push_field(cell);
+                    output_record.push_field(&record[col_index]);
                 }
             }
 

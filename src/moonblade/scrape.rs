@@ -805,7 +805,8 @@ impl ScrapingProgram {
         let mut scratch = Vec::with_capacity(self.capacity);
 
         let context = EvaluationContext {
-            index: Some(index),
+            row_index: Some(index),
+            col_index: None,
             record,
             headers_index: &self.headers_index,
             globals: None,

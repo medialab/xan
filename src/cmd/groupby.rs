@@ -275,7 +275,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_byte_record(&mut record)? {
             let group = sel.collect(&record);
 
-            program.run_with_cells(group, index, &record, pivot_sel.select(&record))?;
+            program.run_with_col_indices(group, index, pivot_sel.iter().copied(), &record)?;
 
             index += 1;
         }
@@ -323,7 +323,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_byte_record(&mut record)? {
             let group = sel.select(&record).collect();
 
-            program.run_with_cells(group, index, &record, matrix_sel.select(&record))?;
+            program.run_with_col_indices(group, index, matrix_sel.iter().copied(), &record)?;
 
             index += 1;
         }

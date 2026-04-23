@@ -261,17 +261,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let mut record = simd_csv::ByteRecord::new();
+        let mut row_index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             program.clear();
 
-            for (cell, index) in sel.select(&record).zip(sel.iter().copied()) {
-                program.run_with_cell(index, &record, cell)?;
+            for col_index in sel.iter().copied() {
+                program.run_with_col_index(row_index, col_index, &record)?;
             }
 
             record.extend(program.finalize(false)?.into_iter());
 
             wtr.write_record(&record)?;
+
+            row_index += 1;
         }
     }
     // --along-cols
@@ -294,15 +297,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let mut programs = sel.iter().map(|_| program.clone()).collect::<Vec<_>>();
-
-        let mut index: usize = 0;
+        let mut row_index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            for (cell, p) in sel.select(&record).zip(programs.iter_mut()) {
-                p.run_with_cell(index, &record, cell)?;
+            for (col_index, p) in sel.iter().copied().zip(programs.iter_mut()) {
+                p.run_with_col_index(row_index, col_index, &record)?;
             }
 
-            index += 1;
+            row_index += 1;
         }
 
         record.clear();
@@ -322,11 +324,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let mut record = simd_csv::ByteRecord::new();
+        let mut row_index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            for (cell, index) in sel.select(&record).zip(sel.iter().copied()) {
-                program.run_with_cell(index, &record, cell)?;
+            for col_index in sel.iter().copied() {
+                program.run_with_col_index(row_index, col_index, &record)?;
             }
+
+            row_index += 1;
         }
 
         wtr.write_byte_record(&program.finalize(false)?)?;

@@ -3,7 +3,7 @@ use std::cmp::{Ordering, Reverse};
 use simd_csv::ByteRecord;
 
 use crate::collections::FixedReverseHeapMap;
-use crate::moonblade::types::{DynamicNumber, DynamicValue};
+use crate::moonblade::types::DynamicNumber;
 
 #[derive(Debug, Clone)]
 pub struct Extent<T: Copy + PartialOrd> {
@@ -61,7 +61,7 @@ impl<T: Copy + PartialOrd> Extent<T> {
 
 pub type NumericExtent = Extent<DynamicNumber>;
 
-type ArgExtentEntry = (DynamicNumber, (usize, ByteRecord, Option<DynamicValue>));
+type ArgExtentEntry = (DynamicNumber, (usize, ByteRecord, Option<usize>));
 
 #[derive(Debug, Clone)]
 pub struct ArgExtent {
@@ -82,35 +82,35 @@ impl ArgExtent {
         index: usize,
         value: DynamicNumber,
         record: &ByteRecord,
-        last_value: &Option<DynamicValue>,
+        col_index: Option<usize>,
     ) {
         match &mut self.extent {
             None => {
                 self.extent = Some((
-                    (value, (index, record.clone(), last_value.clone())),
-                    (value, (index, record.clone(), last_value.clone())),
+                    (value, (index, record.clone(), col_index)),
+                    (value, (index, record.clone(), col_index)),
                 ))
             }
             Some(((min, min_arg), (max, max_arg))) => {
                 match value.partial_cmp(min).unwrap() {
                     Ordering::Equal => {
                         if min_arg.0 > index {
-                            *min_arg = (index, record.clone(), last_value.clone());
+                            *min_arg = (index, record.clone(), col_index);
                         }
                     }
                     Ordering::Less => {
                         *min = value;
-                        *min_arg = (index, record.clone(), last_value.clone());
+                        *min_arg = (index, record.clone(), col_index);
                     }
                     Ordering::Greater => match value.partial_cmp(max).unwrap() {
                         Ordering::Equal => {
                             if min_arg.0 > index {
-                                *min_arg = (index, record.clone(), last_value.clone());
+                                *min_arg = (index, record.clone(), col_index);
                             }
                         }
                         Ordering::Greater => {
                             *max = value;
-                            *max_arg = (index, record.clone(), last_value.clone());
+                            *max_arg = (index, record.clone(), col_index);
                         }
                         _ => (),
                     },
@@ -127,25 +127,25 @@ impl ArgExtent {
         self.extent.as_ref().map(|e| e.1 .0)
     }
 
-    pub fn argmin(&self) -> Option<&(usize, ByteRecord, Option<DynamicValue>)> {
+    pub fn argmin(&self) -> Option<&(usize, ByteRecord, Option<usize>)> {
         self.extent.as_ref().map(|e| &e.0 .1)
     }
 
-    pub fn argmax(&self) -> Option<&(usize, ByteRecord, Option<DynamicValue>)> {
+    pub fn argmax(&self) -> Option<&(usize, ByteRecord, Option<usize>)> {
         self.extent.as_ref().map(|e| &e.1 .1)
     }
 
     pub fn merge(&mut self, other: Self) {
         if let Some(((min, arg_min), (max, arg_max))) = other.extent {
-            self.add(arg_min.0, min, &arg_min.1, &arg_min.2);
-            self.add(arg_max.0, max, &arg_max.1, &arg_max.2);
+            self.add(arg_min.0, min, &arg_min.1, arg_min.2);
+            self.add(arg_max.0, max, &arg_max.1, arg_max.2);
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ArgTop {
-    heap: FixedReverseHeapMap<(DynamicNumber, Reverse<usize>), (ByteRecord, Option<DynamicValue>)>,
+    heap: FixedReverseHeapMap<(DynamicNumber, Reverse<usize>), (ByteRecord, Option<usize>)>,
 }
 
 impl ArgTop {
@@ -168,11 +168,10 @@ impl ArgTop {
         index: usize,
         value: DynamicNumber,
         record: &ByteRecord,
-        last_value: &Option<DynamicValue>,
+        col_index: Option<usize>,
     ) {
-        self.heap.push_with((value, Reverse(index)), || {
-            (record.clone(), last_value.clone())
-        });
+        self.heap
+            .push_with((value, Reverse(index)), || (record.clone(), col_index));
     }
 
     pub fn top_indices(&self) -> impl Iterator<Item = usize> {
@@ -182,7 +181,7 @@ impl ArgTop {
             .map(|((_, Reverse(i)), _)| i)
     }
 
-    pub fn top_records(&self) -> impl Iterator<Item = (usize, ByteRecord, Option<DynamicValue>)> {
+    pub fn top_records(&self) -> impl Iterator<Item = (usize, ByteRecord, Option<usize>)> {
         self.heap
             .to_sorted_vec()
             .into_iter()

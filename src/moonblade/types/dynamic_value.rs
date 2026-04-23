@@ -578,23 +578,6 @@ impl DynamicValue {
     pub fn flat_iter(&self) -> DynamicValueFlatIter<'_> {
         DynamicValueFlatIter::new(self)
     }
-
-    pub fn set_bytes(&mut self, new_bytes: &[u8]) {
-        match self {
-            Self::Bytes(bytes) => {
-                // NOTE: I cannot really prove this is faster to avoid allocation here...
-                // It certainly seems a little bit faster but not by a large margin.
-                match Arc::get_mut(bytes) {
-                    Some(inner) => {
-                        inner.clear();
-                        inner.extend(new_bytes);
-                    }
-                    None => *bytes = Arc::new(BString::new(new_bytes.to_vec())),
-                };
-            }
-            _ => panic!("DynamicValue is not Bytes!"),
-        }
-    }
 }
 
 pub struct DynamicValueFlatIter<'a> {

@@ -15,6 +15,7 @@
 *Performance*
 
 * moonblade expressions are now faster overall and allocate more cautiously, thus saving memory.
+* Improving performance of `xan transform`, `xan flatmap`, `xan agg -C/--along-columns & -M/--along-matrix` & `xan groupby -C/--along-columns & -M/--along-matrix`.
 
 ## 0.57.1
 
