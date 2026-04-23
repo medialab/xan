@@ -2,6 +2,11 @@
 
 ## 0.58.0 (provisional)
 
+*Breaking*
+
+* Stopping to serialize moonblade lists either as joined by some separator or JSON. This was awkard, error-prone & potentially lossy. Use the `join` function manually to format output when required.
+* As per previous point, dropping `xan scrape --sep`.
+
 *Features*
 
 * Adding `xan grep -P/--add-pattern, --patterns, --pattern-column`.

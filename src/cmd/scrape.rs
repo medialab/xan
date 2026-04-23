@@ -746,8 +746,6 @@ scrape -e/--evaluate & -f/--evaluate-file options:
     -F, --foreach <css>  If given, will return one row per element matching
                          the CSS selector in target document, instead of returning
                          a single row per document.
-    --sep <char>         Separator used to join values of serialized lists.
-                         [default: |]
 
 Common options:
     -h, --help             Display this message
@@ -776,7 +774,6 @@ struct Args {
     flag_url_column: Option<SelectedColumns>,
     flag_input_dir: Option<String>,
     flag_keep: Option<SelectedColumns>,
-    flag_sep: String,
     flag_parallel: bool,
     flag_threads: Option<usize>,
 }
@@ -949,9 +946,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     };
 
                     for value in output_row {
-                        output_record.push_field(
-                            &value.serialize_as_bytes_with_options(args.flag_sep.as_bytes()),
-                        );
+                        output_record.push_field(&value.serialize_as_bytes());
                     }
 
                     writer.write_byte_record(&output_record)?;
@@ -996,9 +991,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 };
 
                 for value in output_row {
-                    output_record.push_field(
-                        &value.serialize_as_bytes_with_options(args.flag_sep.as_bytes()),
-                    );
+                    output_record.push_field(&value.serialize_as_bytes());
                 }
 
                 writer.write_byte_record(&output_record)?;

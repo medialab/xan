@@ -126,8 +126,6 @@ scrape -e/--evaluate & -f/--evaluate-file options:
     -F, --foreach <css>  If given, will return one row per element matching
                          the CSS selector in target document, instead of returning
                          a single row per document.
-    --sep <char>         Separator used to join values of serialized lists.
-                         [default: |]
 
 Common options:
     -h, --help             Display this message

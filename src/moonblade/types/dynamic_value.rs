@@ -209,39 +209,9 @@ impl DynamicValue {
         }
     }
 
-    fn is_scalar(&self) -> bool {
-        !matches!(self, Self::List(_) | Self::Map(_))
-    }
-
-    pub fn serialize_as_bytes_with_options(&self, plural_separator: &[u8]) -> Cow<'_, [u8]> {
+    pub fn serialize_as_bytes(&self) -> Cow<'_, [u8]> {
         match self {
-            Self::List(list) => {
-                if list.is_empty() {
-                    return Cow::Borrowed(b"");
-                }
-
-                if list.iter().any(|v| !v.is_scalar()) {
-                    return Cow::Owned(serde_json::to_string(self).unwrap().into_bytes());
-                }
-
-                if list.len() == 1 {
-                    return list[0].serialize_as_bytes_with_options(plural_separator);
-                }
-
-                let mut bytes: Vec<u8> = Vec::new();
-
-                for item in list.iter().take(list.len() - 1) {
-                    bytes
-                        .extend_from_slice(&item.serialize_as_bytes_with_options(plural_separator));
-                    bytes.extend_from_slice(plural_separator);
-                }
-
-                bytes.extend_from_slice(
-                    &list[list.len() - 1].serialize_as_bytes_with_options(plural_separator),
-                );
-
-                Cow::Owned(bytes)
-            }
+            Self::List(_) => Cow::Owned(serde_json::to_string(self).unwrap().into_bytes()),
             Self::Map(_) => Cow::Owned(serde_json::to_string(self).unwrap().into_bytes()),
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
             Self::Bytes(value) => Cow::Borrowed(value),
@@ -256,10 +226,6 @@ impl DynamicValue {
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
         }
-    }
-
-    pub fn serialize_as_bytes(&self) -> Cow<'_, [u8]> {
-        self.serialize_as_bytes_with_options(b"|")
     }
 
     pub fn try_as_timezone(&self) -> Result<TimeZone, EvaluationError> {
