@@ -145,9 +145,13 @@ impl<'de> Deserialize<'de> for DynamicValue {
             where
                 V: SeqAccess<'de>,
             {
-                let mut vec = Vec::new();
+                let mut vec = if let Some(size) = visitor.size_hint() {
+                    Vec::with_capacity(size)
+                } else {
+                    Vec::new()
+                };
 
-                while let Ok(Some(elem)) = visitor.next_element() {
+                while let Some(elem) = visitor.next_element()? {
                     vec.push(elem);
                 }
 
@@ -158,19 +162,18 @@ impl<'de> Deserialize<'de> for DynamicValue {
             where
                 V: MapAccess<'de>,
             {
-                match visitor.next_key::<String>() {
-                    Ok(Some(first_key)) => {
-                        let mut map = HashMap::<String, DynamicValue>::new();
-                        map.insert(first_key, visitor.next_value()?);
+                let mut map: HashMap<String, DynamicValue> = if let Some(size) = visitor.size_hint()
+                {
+                    HashMap::with_capacity(size)
+                } else {
+                    HashMap::new()
+                };
 
-                        while let Ok(Some((key, value))) = visitor.next_entry() {
-                            map.insert(key, value);
-                        }
-
-                        Ok(DynamicValue::Map(Arc::new(map)))
-                    }
-                    _ => Ok(DynamicValue::Map(Arc::new(HashMap::new()))),
+                while let Some((key, value)) = visitor.next_entry()? {
+                    map.insert(key, value);
                 }
+
+                Ok(DynamicValue::Map(Arc::new(map)))
             }
         }
 
