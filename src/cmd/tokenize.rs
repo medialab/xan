@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::ops::RangeInclusive;
 
 use paltoquet::stemmers::{fr::carry_stemmer, s_stemmer};
@@ -284,27 +283,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut headers = rdr.byte_headers()?.clone();
     let col_index = rconfig.single_selection(&headers)?;
 
-    thread_local! {
-        static GLOBALS: RefCell<GlobalVariables> =  {
-            let mut globals = GlobalVariables::new();
-            globals.register("token");
-            globals.register("token_type");
-            RefCell::new(globals)
-        };
-    }
-
     let flatmap_program_opt = args
         .flag_flatmap
         .as_ref()
         .map(|expr| {
-            GLOBALS.with_borrow(|globals| {
-                Program::parse_with_globals(
-                    &format!("token | {}", expr),
-                    &headers,
-                    rconfig.no_headers,
-                    globals,
-                )
-            })
+            Program::parse_with_globals(
+                &format!("token | {}", expr),
+                &headers,
+                rconfig.no_headers,
+                &["token", "token_type"],
+            )
         })
         .transpose()?;
 
@@ -508,24 +496,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut flatmapped_tokens = Vec::with_capacity(collected_tokens.len());
 
             for (token, kind) in collected_tokens.into_iter() {
-                GLOBALS.with_borrow_mut(|globals| -> CliResult<()> {
-                    globals.set(0, token);
+                let mut globals = GlobalVariables::default();
 
-                    // TODO: we could avoid setting the type when we know it is not used
-                    globals.set(1, kind.as_str());
+                globals.set(0, token);
 
-                    let result = program.run_with_record_and_globals(index, record, globals)?;
+                // TODO: we could avoid setting the type when we know it is not used
+                globals.set(1, kind.as_str());
 
-                    for value in result.flat_iter() {
-                        if value.is_falsey() {
-                            continue;
-                        }
+                let result = program.run_with_record_and_globals(index, record, &globals)?;
 
-                        flatmapped_tokens.push((value.try_as_str()?.into_owned(), kind));
+                for value in result.flat_iter() {
+                    if value.is_falsey() {
+                        continue;
                     }
 
-                    Ok(())
-                })?;
+                    flatmapped_tokens.push((value.try_as_str()?.into_owned(), kind));
+                }
             }
 
             collected_tokens = flatmapped_tokens;

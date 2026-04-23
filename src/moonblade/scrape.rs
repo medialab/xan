@@ -11,7 +11,9 @@ use simd_csv::ByteRecord;
 use crate::collections::HashMap;
 
 use super::error::{ConcretizationError, SpecifiedEvaluationError};
-use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext, GlobalVariables};
+use super::interpreter::{
+    concretize_expression, ConcreteExpr, EvaluationContext, GlobalNames, GlobalVariables,
+};
 use super::parser::{parse_scraper, Expr, ScrapingBrackets, ScrapingNode};
 use super::types::{Argument, DynamicValue, FunctionArguments, HeadersIndex};
 
@@ -466,7 +468,7 @@ impl ConcreteScrapingLeaf {
             None => Ok(value),
             Some(expr) => {
                 // NOTE: the `GlobalVariables` lives on the stack, for now
-                let mut globals = GlobalVariables::of("value");
+                let mut globals = GlobalVariables::default();
                 globals.set_value(0, value);
 
                 expr.evaluate(&context.with_globals(&globals))
@@ -603,7 +605,7 @@ fn get_selection_function_arguments(name: &str) -> Option<FunctionArguments> {
 fn concretize_selection_expr(
     expr: Expr,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteSelectionExpr, ConcretizationError> {
     match expr {
         Expr::Func(call) => {
@@ -713,7 +715,7 @@ fn concretize_selection_expr(
 fn concretize_brackets(
     brackets: ScrapingBrackets,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteScrapingBrackets, ConcretizationError> {
     let selection_expr =
         concretize_selection_expr(brackets.selection_expr, headers_index, globals)?;
@@ -753,7 +755,7 @@ fn concretize_brackets(
 fn concretize_scraper(
     scraper: Vec<ScrapingBrackets>,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteScraper, ConcretizationError> {
     scraper
         .into_iter()
@@ -778,8 +780,7 @@ impl ScrapingProgram {
         let headers_index = HeadersIndex::new(headers, headless);
         let scraper = parse_scraper(code).map_err(ConcretizationError::ParseError)?;
 
-        let concrete_scraper =
-            concretize_scraper(scraper, &headers_index, Some(&GlobalVariables::of("value")))?;
+        let concrete_scraper = concretize_scraper(scraper, &headers_index, Some(&["value"]))?;
 
         let capacity = concrete_scraper.names().count();
 

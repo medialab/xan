@@ -1,6 +1,5 @@
 use std::fmt;
 
-use arrayvec::ArrayVec;
 use regex::RegexBuilder;
 use simd_csv::ByteRecord;
 
@@ -15,38 +14,20 @@ use super::types::{
     FunctionArguments, HeadersIndex, LambdaArguments, BOUND_ARGUMENTS_CAPACITY,
 };
 
+pub type GlobalNames = [&'static str];
+
 #[derive(Debug, Default, Clone)]
 pub struct GlobalVariables {
-    slots: ArrayVec<(&'static str, DynamicValue), 2>,
+    slots: [DynamicValue; 2],
 }
 
 impl GlobalVariables {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn of(name: &'static str) -> Self {
-        let mut vars = Self::new();
-        vars.register(name);
-        vars
-    }
-
-    pub fn register(&mut self, name: &'static str) -> usize {
-        let id = self.slots.len();
-        self.slots.push((name, DynamicValue::None));
-        id
-    }
-
-    fn get_id(&self, name: &str) -> Option<usize> {
-        self.slots.iter().position(|(n, _)| *n == name)
-    }
-
     fn get(&self, index: usize) -> Option<&DynamicValue> {
-        self.slots.get(index).map(|(_, value)| value)
+        self.slots.get(index)
     }
 
     pub fn set_value(&mut self, index: usize, value: DynamicValue) {
-        self.slots[index].1 = value;
+        self.slots[index] = value;
     }
 
     pub fn set<T: Into<DynamicValue>>(&mut self, index: usize, value: T) {
@@ -440,7 +421,7 @@ fn concretize_arguments(
     function_arguments: &FunctionArguments,
     parsed_args: Vec<(Option<String>, Expr)>,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<Vec<ConcreteExpr>, ConcretizationError> {
     let concrete_args = parsed_args
         .into_iter()
@@ -457,7 +438,7 @@ fn concretize_arguments(
 fn concretize_call(
     call: FunctionCall,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let function_name = &call.name;
     let actual_arity = call.args.len();
@@ -589,7 +570,7 @@ fn concretize_call(
 fn concretize_list(
     list: Vec<Expr>,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let concrete_list = list
         .into_iter()
@@ -612,7 +593,7 @@ fn concretize_list(
 fn concretize_map(
     map: Vec<(String, Expr)>,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     let concrete_map = map
         .into_iter()
@@ -635,7 +616,7 @@ fn concretize_map(
 pub fn concretize_expression(
     expr: Expr,
     headers_index: &HeadersIndex,
-    globals: Option<&GlobalVariables>,
+    globals: Option<&GlobalNames>,
 ) -> Result<ConcreteExpr, ConcretizationError> {
     Ok(match expr {
         Expr::Underscore => ConcreteExpr::Underscore,
@@ -647,7 +628,7 @@ pub fn concretize_expression(
         Expr::BStr(v) => ConcreteExpr::Value(DynamicValue::from_owned_bytes(v)),
         Expr::Identifier(name, unsure) => {
             if let Some(g) = globals {
-                if let Some(index) = g.get_id(&name) {
+                if let Some(index) = g.iter().position(|n| *n == name) {
                     return Ok(ConcreteExpr::GlobalVariable(index));
                 }
             }
@@ -756,7 +737,7 @@ impl Program {
         code: &str,
         headers: &ByteRecord,
         headless: bool,
-        globals: &GlobalVariables,
+        globals: &GlobalNames,
     ) -> Result<Self, ConcretizationError> {
         let headers_index = HeadersIndex::new(headers, headless);
 
