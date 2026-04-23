@@ -3,7 +3,7 @@ mod program;
 mod stats;
 mod window;
 
-pub use aggregators::CovarianceWelford;
+pub use aggregators::{CovarianceWelford, Welford};
 pub use program::{
     AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
     PivotAggregationProgram,

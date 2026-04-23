@@ -1341,8 +1341,6 @@ pub struct GroupAggregationProgram<K> {
     planner: ConcreteAggregationPlanner,
     groups: ClusteredInsertHashmap<K, Vec<CompositeAggregator>>,
     headers_index: HeadersIndex,
-    len: usize,
-    dummy_record: ByteRecord,
 }
 
 impl<K: Eq + Hash> GroupAggregationProgram<K> {
@@ -1353,28 +1351,13 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
     ) -> Result<Self, ConcretizationError> {
         let headers_index = HeadersIndex::new(headers, headless);
         let concrete_aggregations = prepare(code, &headers_index)?;
-        let len = concrete_aggregations.len();
         let planner = ConcreteAggregationPlanner::from(concrete_aggregations);
 
         Ok(Self {
             planner,
             groups: ClusteredInsertHashmap::new(),
             headers_index,
-            len,
-            dummy_record: ByteRecord::new(),
         })
-    }
-
-    pub fn parse_without_headers(code: &str) -> Result<Self, ConcretizationError> {
-        Self::parse(code, &ByteRecord::new(), true)
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn has_single_expr(&self) -> bool {
-        self.len == 1
     }
 
     pub fn merge(&mut self, other: Self) {
@@ -1442,51 +1425,8 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
         Ok(())
     }
 
-    pub fn run_with<T: Into<DynamicValue>>(
-        &mut self,
-        group: K,
-        index: usize,
-        value: T,
-    ) -> Result<(), SpecifiedEvaluationError> {
-        let planner = &self.planner;
-
-        let aggregators = self
-            .groups
-            .insert_with(group, || planner.instantiate_aggregators());
-
-        run_with_record_on_aggregators(
-            &self.planner,
-            aggregators.iter_mut(),
-            index,
-            &self.dummy_record,
-            &self.headers_index,
-            None,
-        )
-    }
-
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
         self.planner.headers()
-    }
-
-    pub fn iter(self) -> impl Iterator<Item = Result<(K, DynamicValue), SpecifiedEvaluationError>> {
-        assert!(self.has_single_expr());
-
-        let planner = self.planner;
-        let headers_index = self.headers_index;
-
-        self.groups
-            .into_iter()
-            .map(move |(group, mut aggregators)| {
-                for aggregator in aggregators.iter_mut() {
-                    aggregator.finalize(false);
-                }
-
-                planner
-                    .results(&aggregators, &headers_index)
-                    .next()
-                    .unwrap()
-                    .map(|value| (group, value))
-            })
     }
 
     pub fn into_byte_records(
