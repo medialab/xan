@@ -809,6 +809,8 @@ impl Program {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::size_of;
+
     use super::super::error::RunError;
     use super::*;
     use jiff::{
@@ -853,6 +855,12 @@ mod tests {
         program
             .run_with_record(2, &record)
             .map_err(RunError::Evaluation)
+    }
+
+    #[test]
+    fn test_sizes() {
+        assert_eq!(size_of::<EvaluationContext>(), 64);
+        assert_eq!(size_of::<ConcreteExpr>(), 64);
     }
 
     #[test]

@@ -121,8 +121,6 @@ impl Aggregator {
         method: &ConcreteAggregationMethod,
         headers_index: &HeadersIndex,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        debug_assert!(std::mem::size_of::<Self>() <= 64);
-
         Ok(match (method, self) {
             (ConcreteAggregationMethod::All, Self::AllAny(inner)) => {
                 DynamicValue::from(inner.all())
@@ -1747,5 +1745,17 @@ impl GroupAlongColumnsAggregationProgram {
 
                 Ok((group, record))
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem::size_of;
+
+    use super::*;
+
+    #[test]
+    fn test_sizes() {
+        assert!(size_of::<Aggregator>() <= 64);
     }
 }
