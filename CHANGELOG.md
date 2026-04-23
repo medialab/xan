@@ -14,6 +14,10 @@
 * Adding `xan grep -P/--add-pattern, --patterns, --pattern-column`.
 * Adding `xan parallel --dont-chunk`.
 
+*Fixes*
+
+* Fixing issues related to nested lambdas in expressions.
+
 *Performance*
 
 * moonblade expressions are now faster overall and allocate more cautiously, thus saving memory.

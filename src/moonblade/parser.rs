@@ -437,6 +437,9 @@ impl Expr {
                     *self = Self::LambdaBinding(name.to_string());
                 }
             }
+            Self::Lambda(_, expr) => {
+                expr.bind_lambda_args(names);
+            }
             Self::Func(call) => {
                 for (_, arg) in call.args.iter_mut() {
                     arg.bind_lambda_args(names);
