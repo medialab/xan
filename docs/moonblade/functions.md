@@ -107,7 +107,6 @@ using "_" for left-hand side substitution.
 
 ```txt
 trim(name) | len(_)         - Same as len(trim(name))
-trim(name) | len            - Supports elision for unary functions
 trim(name) | add(1, len(_)) - Can be nested
 add(trim(name) | len, 2)    - Can be used anywhere
 ```

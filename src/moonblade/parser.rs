@@ -323,25 +323,21 @@ fn pratt_parse(pairs: Pairs<Rule>) -> Result<Expr, String> {
                 },
 
                 // Pipe threading
-                Rule::pipe => match rhs? {
-                    Expr::Identifier(name, unsure) => match get_function(&name) {
-                        None => Expr::Identifier(name, unsure),
-                        Some(_) => Expr::Func(FunctionCall::new(&name, vec![lhs?])),
-                    },
-                    mut rest => {
-                        let mut counter: usize = 0;
-                        rest.count_underscores(&mut counter);
+                Rule::pipe => {
+                    let mut rhs = rhs?;
 
-                        if counter == 0 {
-                            rest
-                        } else if counter == 1 {
-                            rest.fill_underscore(&lhs?);
-                            rest
-                        } else {
-                            Expr::Pipeline(vec![lhs?, rest])
-                        }
+                    let mut counter: usize = 0;
+                    rhs.count_underscores(&mut counter);
+
+                    if counter == 0 {
+                        rhs
+                    } else if counter == 1 {
+                        rhs.fill_underscore(&lhs?);
+                        rhs
+                    } else {
+                        Expr::Pipeline(vec![lhs?, rhs])
                     }
-                },
+                }
 
                 // Access & call
                 Rule::point => match rhs? {
@@ -1170,7 +1166,7 @@ mod tests {
         );
 
         assert_eq!(
-            parse_expression("add(trim(name) | len, 2)"),
+            parse_expression("add(trim(name) | len(_), 2)"),
             Ok(func(
                 "add",
                 vec![func("len", vec![func("trim", vec![id("name")])]), Int(2)]
@@ -1208,13 +1204,13 @@ mod tests {
 
         // Elision
         assert_eq!(
-            parse_expression("trim(count) | len"),
+            parse_expression("trim(count) | len(_)"),
             Ok(func("len", vec![func("trim", vec![id("count")])]))
         );
 
         // Trimming
         assert_eq!(
-            parse_expression("trim(a) | add(a, b) | trim | add(a, b) | len"),
+            parse_expression("trim(a) | add(a, b) | trim(_) | add(a, b) | len(_)"),
             Ok(func("len", vec![func("add", vec![id("a"), id("b")])]))
         );
     }

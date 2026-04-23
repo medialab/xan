@@ -75,32 +75,6 @@ fn transform_multi() {
 }
 
 #[test]
-fn transform_implicit() {
-    let wrk = Workdir::new("transform_implicit");
-    wrk.create(
-        "data.csv",
-        vec![
-            svec!["name", "surname"],
-            svec!["john", "davis"],
-            svec!["mary", "sue"],
-        ],
-    );
-    let mut cmd = wrk.command("transform");
-    cmd.arg("surname")
-        .arg("upper")
-        .args(&["-r", "upper_surname"])
-        .arg("data.csv");
-
-    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![
-        svec!["name", "upper_surname"],
-        svec!["john", "DAVIS"],
-        svec!["mary", "SUE"],
-    ];
-    assert_eq!(got, expected);
-}
-
-#[test]
 fn transform_errors_panic() {
     let wrk = Workdir::new("transform_errors_panic");
     wrk.create(

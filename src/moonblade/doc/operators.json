@@ -170,10 +170,6 @@
         "help": "Same as len(trim(name))"
       },
       {
-        "snippet": "trim(name) | len",
-        "help": "Supports elision for unary functions"
-      },
-      {
         "snippet": "trim(name) | add(1, len(_))",
         "help": "Can be nested"
       },

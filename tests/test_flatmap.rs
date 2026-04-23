@@ -13,7 +13,7 @@ fn flatmap() {
         ],
     );
     let mut cmd = wrk.command("flatmap");
-    cmd.arg("split(colors, '|') | compact")
+    cmd.arg("split(colors, '|') | _.compact()")
         .arg("color")
         .arg("data.csv");
 

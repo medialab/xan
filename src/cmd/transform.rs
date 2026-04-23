@@ -29,14 +29,10 @@ name,surname
 john,DAVIS
 mary,SUE
 
-When using unary functions, the above command can be written even shorter:
-
-    $ xan transform surname upper
-
 The above example work on a single column but the command is perfectly able to
-transform multiple columns at once using a selection:
+transform multiple columns at once:
 
-    $ xan transform name,surname,fullname upper
+    $ xan transform name,surname,fullname 'upper(_)'
 
 The expression can optionally be read from a file using the -f/--evaluate-file flag:
 

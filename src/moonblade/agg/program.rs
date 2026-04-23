@@ -535,7 +535,7 @@ impl CompositeAggregator {
 
     fn process_value(
         &mut self,
-        index: usize,
+        row_index: usize,
         value_opt: Option<DynamicValue>,
         record: &ByteRecord,
         col_index: Option<usize>,
@@ -567,22 +567,22 @@ impl CompositeAggregator {
                     }
                     Aggregator::ArgExtent(extent) => {
                         if !value.is_nullish() {
-                            extent.add(index, value.try_as_number()?, record, col_index);
+                            extent.add(row_index, value.try_as_number()?, record, col_index);
                         }
                     }
                     Aggregator::ArgTop(top) => {
                         if !value.is_nullish() {
-                            top.add(index, value.try_as_number()?, record, col_index);
+                            top.add(row_index, value.try_as_number()?, record, col_index);
                         }
                     }
                     Aggregator::First(first) => {
                         if !value.is_nullish() {
-                            first.add(index, value);
+                            first.add(row_index, value);
                         }
                     }
                     Aggregator::Last(last) => {
                         if !value.is_nullish() {
-                            last.add(index, value);
+                            last.add(row_index, value);
                         }
                     }
                     Aggregator::LexicographicExtent(extent) => {
@@ -663,7 +663,7 @@ impl CompositeAggregator {
 
     fn process_pair(
         &mut self,
-        _index: usize,
+        _row_index: usize,
         first: DynamicValue,
         second: DynamicValue,
     ) -> Result<(), EvaluationError> {
@@ -1175,7 +1175,7 @@ impl ConcreteAggregationPlanner {
 fn run_with_record_on_aggregators<'a>(
     planner: &ConcreteAggregationPlanner,
     aggregators: impl Iterator<Item = &'a mut CompositeAggregator>,
-    index: usize,
+    row_index: usize,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
     col_index: Option<usize>,
@@ -1185,7 +1185,7 @@ fn run_with_record_on_aggregators<'a>(
             None => None,
             Some(expr) => Some(eval_expression_with_optional_col_index(
                 expr,
-                Some(index),
+                Some(row_index),
                 record,
                 headers_index,
                 col_index,
@@ -1195,26 +1195,26 @@ fn run_with_record_on_aggregators<'a>(
         if let Some(pair_expr) = &unit.pair_expr {
             let second_value = eval_expression_with_optional_col_index(
                 pair_expr,
-                Some(index),
+                Some(row_index),
                 record,
                 headers_index,
                 col_index,
             )?;
 
             return aggregator
-                .process_pair(index, value.unwrap(), second_value)
+                .process_pair(row_index, value.unwrap(), second_value)
                 .map_err(|err| err.specify("<agg-expr>"));
         }
 
         if let Some(DynamicValue::List(list)) = value {
             for v in Arc::into_inner(list).unwrap() {
                 aggregator
-                    .process_value(index, Some(v), record, col_index)
+                    .process_value(row_index, Some(v), record, col_index)
                     .map_err(|err| err.specify("<agg-expr>"))?;
             }
         } else {
             aggregator
-                .process_value(index, value, record, col_index)
+                .process_value(row_index, value, record, col_index)
                 .map_err(|err| err.specify("<agg-expr>"))?;
         }
     }
@@ -1460,7 +1460,7 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
             index,
             &self.dummy_record,
             &self.headers_index,
-            Some(todo!()),
+            None,
         )
     }
 

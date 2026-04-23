@@ -6,6 +6,7 @@
 
 * Stopping to serialize moonblade lists either as joined by some separator or JSON. This was awkard, error-prone & potentially lossy. Use the `join` function manually to format output when required.
 * As per previous point, dropping `xan scrape --sep`.
+* Dropping implicit unary function calls in moonblade pipelines. This feature was not well-known, confusing (an indentifier, could be understood as a call in a pipeline, only if not in first position...), and mostly useless now that moonblade has had a proper dot operator.
 
 *Features*
 

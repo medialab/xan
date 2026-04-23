@@ -898,12 +898,12 @@ mod tests {
     #[test]
     fn test_pipeline_optimization_correctness() {
         assert_eq!(
-            eval_code("trim(a) | add(a, b) | trim | add(a, b) | len"),
+            eval_code("trim(a) | add(a, b) | trim(_) | add(a, b) | len(_)"),
             Ok(DynamicValue::Integer(2))
         );
 
         assert_eq!(
-            eval_code("trim(a) | len | add(b, _)"),
+            eval_code("trim(a) | len(_) | add(b, _)"),
             Ok(DynamicValue::Integer(64))
         );
     }
