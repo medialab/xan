@@ -631,12 +631,14 @@ fn runtime_higher_order(
         .get(1)
         .unwrap()
         .try_as_lambda()
-        .map_err(|err| err.anonymous())?;
+        .map_err(|err| err.specify(name))?;
 
     // Validating arity
     Arity::Strict(1)
         .validate(names.len())
-        .map_err(|invalid_arity| EvaluationError::InvalidArity(invalid_arity).anonymous())?;
+        .map_err(|invalid_arity| {
+            EvaluationError::InvalidArity(invalid_arity).specify("<lambda>")
+        })?;
 
     let arg_name = names.first().unwrap();
 
