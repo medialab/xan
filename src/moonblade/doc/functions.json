@@ -776,9 +776,12 @@
       },
       {
         "name": "header",
-        "arguments": ["name_or_pos", "nth?"],
+        "arguments": [],
+        "alternatives": [
+          ["name_or_pos", "nth?"]
+        ],
         "returns": "bytes",
-        "help": "Return header name for given column, by name, by position or by name & nth, in case of duplicate header names."
+        "help": "Without argument, return current column's name, if relevant. Return header name for given column, by name, by position or by name & nth, in case of duplicate header names."
       },
       {
         "name": "header?",

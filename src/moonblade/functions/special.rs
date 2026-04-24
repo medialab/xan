@@ -85,9 +85,20 @@ pub fn get_special_function(
         ),
         "header" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                if call.args.is_empty() {
+                    return Ok(None);
+                }
+
                 abstract_comptime_col(false, AbstractColReturnValue::Header, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                if args.is_empty() {
+                    return Ok(context
+                        .col_index()
+                        .map(|i| &context.headers_index[i])
+                        .into());
+                }
+
                 abstract_runtime_col(
                     "header",
                     false,
@@ -96,7 +107,7 @@ pub fn get_special_function(
                     args,
                 )
             }),
-            FunctionArguments::with_range(1..=2),
+            FunctionArguments::with_range(0..=2),
         ),
         "col_index" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
