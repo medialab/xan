@@ -5,7 +5,7 @@ use simd_csv::ByteRecord;
 use super::aggregators::{Sum, Welford};
 use super::program::{concretize_aggregations, is_agg_fn_name, AggregationProgram};
 use crate::moonblade::error::{ConcretizationError, SpecifiedEvaluationError};
-use crate::moonblade::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
+use crate::moonblade::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
 use crate::moonblade::parser::parse_aggregations;
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
@@ -178,7 +178,7 @@ fn eval_expression_to_number(
     record: &ByteRecord,
     headers_index: &HeadersIndex,
 ) -> Result<DynamicNumber, SpecifiedEvaluationError> {
-    let value = eval_expression(expr, Some(index), record, headers_index)?;
+    let value = EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
 
     value.try_as_number().map_err(|err| err.anonymous())
 }
@@ -207,7 +207,8 @@ impl ConcreteWindowAggregation {
     ) -> Result<(), SpecifiedEvaluationError> {
         match self {
             Self::Frac(expr, sum, _) => {
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let value =
+                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
 
                 if !value.is_nullish() {
                     sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
@@ -219,7 +220,8 @@ impl ConcreteWindowAggregation {
                 kind,
                 ..
             }) => {
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let value =
+                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
                 let number = value
                     .try_as_number()
                     .map_err(|err| err.specify(kind.as_str()))?;
@@ -365,15 +367,12 @@ impl ConcreteWindowAggregation {
                 let past_buffer = past_buffer.unwrap();
 
                 match past_buffer.get(*n - 1) {
-                    None => Ok(eval_expression(
-                        default,
-                        Some(index),
-                        record,
-                        headers_index,
-                    )?),
+                    None => Ok(EvaluationContext::new(Some(index), record, headers_index)
+                        .evaluate(default)?),
                     Some((past_index, past_record)) => {
                         let value =
-                            eval_expression(expr, Some(*past_index), past_record, headers_index)?;
+                            EvaluationContext::new(Some(*past_index), past_record, headers_index)
+                                .evaluate(expr)?;
 
                         Ok(value)
                     }
@@ -386,12 +385,14 @@ impl ConcreteWindowAggregation {
                 let expr = if *is_padding { default } else { expr };
 
                 let value =
-                    eval_expression(expr, Some(*future_index), future_record, headers_index)?;
+                    EvaluationContext::new(Some(*future_index), future_record, headers_index)
+                        .evaluate(expr)?;
 
                 Ok(value)
             }
             Self::FrontCoding(expr, last_string_opt) => {
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let value =
+                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
                 let string = value
                     .try_as_str()
                     .map_err(|err| err.anonymous())?
@@ -477,7 +478,8 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(sum.add(number)))
             }
             Self::RollingWelford(expr, stat, welford) => {
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let value =
+                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
                 let float = value.try_as_f64().map_err(|err| err.anonymous())?;
 
                 Ok(DynamicValue::from(welford.add(float, *stat)))
@@ -485,7 +487,8 @@ impl ConcreteWindowAggregation {
             Self::Frac(expr, sum, decimals) => {
                 // NOTE: we are evaluation the expression twice, because it seems less costly
                 // than allocating a cache for every record.
-                let value = eval_expression(expr, Some(index), record, headers_index)?;
+                let value =
+                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
 
                 if value.is_nullish() {
                     return Ok(DynamicValue::None);

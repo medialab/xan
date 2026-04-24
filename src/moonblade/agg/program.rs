@@ -15,9 +15,7 @@ use super::aggregators::{
 };
 use crate::collections::ClusteredInsertHashmap;
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use crate::moonblade::interpreter::{
-    concretize_expression, eval_expression_with_optional_col_index, ConcreteExpr,
-};
+use crate::moonblade::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
@@ -145,13 +143,13 @@ impl Aggregator {
                         let mut strings = Vec::new();
 
                         for (index, record, col_index) in inner.top_records() {
-                            let value = eval_expression_with_optional_col_index(
-                                expr,
+                            let value = EvaluationContext::new_with_col_index(
                                 Some(index),
+                                col_index,
                                 &record,
                                 headers_index,
-                                col_index,
-                            )?;
+                            )
+                            .evaluate(expr)?;
 
                             strings.push(
                                 value
@@ -226,13 +224,13 @@ impl Aggregator {
                     match expr_opt {
                         None => DynamicValue::from(*index),
                         Some(expr) => {
-                            return eval_expression_with_optional_col_index(
-                                expr,
+                            return EvaluationContext::new_with_col_index(
                                 Some(*index),
+                                *col_index,
                                 record,
                                 headers_index,
-                                *col_index,
                             )
+                            .evaluate(expr)
                         }
                     }
                 } else {
@@ -265,13 +263,13 @@ impl Aggregator {
                     match expr_opt {
                         None => DynamicValue::from(*index),
                         Some(expr) => {
-                            return eval_expression_with_optional_col_index(
-                                expr,
+                            return EvaluationContext::new_with_col_index(
                                 Some(*index),
+                                *col_index,
                                 record,
                                 headers_index,
-                                *col_index,
                             )
+                            .evaluate(expr)
                         }
                     }
                 } else {
@@ -1183,23 +1181,25 @@ fn run_with_record_on_aggregators<'a>(
     for (unit, aggregator) in planner.execution_plan.iter().zip(aggregators) {
         let value = match &unit.expr {
             None => None,
-            Some(expr) => Some(eval_expression_with_optional_col_index(
-                expr,
-                Some(row_index),
-                record,
-                headers_index,
-                col_index,
-            )?),
+            Some(expr) => Some(
+                EvaluationContext::new_with_col_index(
+                    Some(row_index),
+                    col_index,
+                    record,
+                    headers_index,
+                )
+                .evaluate(expr)?,
+            ),
         };
 
         if let Some(pair_expr) = &unit.pair_expr {
-            let second_value = eval_expression_with_optional_col_index(
-                pair_expr,
+            let second_value = EvaluationContext::new_with_col_index(
                 Some(row_index),
+                col_index,
                 record,
                 headers_index,
-                col_index,
-            )?;
+            )
+            .evaluate(pair_expr)?;
 
             return aggregator
                 .process_pair(row_index, value.unwrap(), second_value)

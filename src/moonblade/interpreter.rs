@@ -23,14 +23,17 @@ pub struct GlobalVariables {
 }
 
 impl GlobalVariables {
+    #[inline]
     fn get(&self, index: usize) -> Option<&DynamicValue> {
         self.slots.get(index)
     }
 
+    #[inline]
     pub fn set_value(&mut self, index: usize, value: DynamicValue) {
         self.slots[index] = value;
     }
 
+    #[inline]
     pub fn set<T: Into<DynamicValue>>(&mut self, index: usize, value: T) {
         self.set_value(index, value.into());
     }
@@ -53,6 +56,7 @@ pub struct EvaluationContext<'a> {
 }
 
 impl<'a> EvaluationContext<'a> {
+    #[inline]
     pub fn new(
         row_index: Option<usize>,
         record: &'a ByteRecord,
@@ -69,6 +73,7 @@ impl<'a> EvaluationContext<'a> {
         }
     }
 
+    #[inline]
     pub fn new_with_col_index(
         row_index: Option<usize>,
         col_index: Option<usize>,
@@ -86,6 +91,7 @@ impl<'a> EvaluationContext<'a> {
         }
     }
 
+    #[inline]
     pub fn new_with_globals(
         row_index: Option<usize>,
         record: &'a ByteRecord,
@@ -98,6 +104,7 @@ impl<'a> EvaluationContext<'a> {
         context
     }
 
+    #[inline]
     fn dummy(record: &'a ByteRecord, headers_index: &'a HeadersIndex) -> Self {
         Self {
             row_index: None,
@@ -110,14 +117,22 @@ impl<'a> EvaluationContext<'a> {
         }
     }
 
+    #[inline]
     pub fn row_index(&self) -> Option<usize> {
         self.row_index.map(|i| i.get() - 1)
     }
 
+    #[inline]
     pub fn col_index(&self) -> Option<usize> {
         self.col_index.map(|i| i.get() - 1)
     }
 
+    #[inline(always)]
+    pub fn evaluate(&self, expr: &ConcreteExpr) -> EvaluationResult {
+        expr.evaluate(self)
+    }
+
+    #[inline]
     pub fn with_lambda_variables(&self, variables: &'a LambdaArguments) -> Self {
         Self {
             row_index: self.row_index,
@@ -130,6 +145,7 @@ impl<'a> EvaluationContext<'a> {
         }
     }
 
+    #[inline]
     pub fn with_globals(&self, globals: &'a GlobalVariables) -> Self {
         Self {
             row_index: self.row_index,
@@ -714,41 +730,6 @@ pub fn concretize_expression(
     })
 }
 
-pub fn eval_expression_with_globals(
-    expr: &ConcreteExpr,
-    index: Option<usize>,
-    record: &ByteRecord,
-    headers_index: &HeadersIndex,
-    globals: &GlobalVariables,
-) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let context = EvaluationContext::new_with_globals(index, record, headers_index, globals);
-
-    expr.evaluate(&context)
-}
-
-pub fn eval_expression_with_optional_col_index(
-    expr: &ConcreteExpr,
-    index: Option<usize>,
-    record: &ByteRecord,
-    headers_index: &HeadersIndex,
-    col_index: Option<usize>,
-) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let context = EvaluationContext::new_with_col_index(index, col_index, record, headers_index);
-
-    expr.evaluate(&context)
-}
-
-pub fn eval_expression(
-    expr: &ConcreteExpr,
-    index: Option<usize>,
-    record: &ByteRecord,
-    headers_index: &HeadersIndex,
-) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let context = EvaluationContext::new(index, record, headers_index);
-
-    expr.evaluate(&context)
-}
-
 #[derive(Clone, Debug)]
 pub struct Program {
     pub expr: ConcreteExpr,
@@ -795,51 +776,46 @@ impl Program {
 
     pub fn run_with_record(
         &self,
-        index: usize,
+        row_index: usize,
         record: &ByteRecord,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression(&self.expr, Some(index), record, &self.headers_index)
+        EvaluationContext::new(Some(row_index), record, &self.headers_index).evaluate(&self.expr)
     }
 
     pub fn run_with_record_and_col_index(
         &self,
-        index: usize,
+        row_index: usize,
         col_index: usize,
         record: &ByteRecord,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression_with_optional_col_index(
-            &self.expr,
-            Some(index),
+        EvaluationContext::new_with_col_index(
+            Some(row_index),
+            Some(col_index),
             record,
             &self.headers_index,
-            Some(col_index),
         )
+        .evaluate(&self.expr)
     }
 
     pub fn run_with_record_and_globals(
         &self,
-        index: usize,
+        row_index: usize,
         record: &ByteRecord,
         globals: &GlobalVariables,
     ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-        eval_expression_with_globals(
-            &self.expr,
-            Some(index),
-            record,
-            &self.headers_index,
-            globals,
-        )
+        EvaluationContext::new_with_globals(Some(row_index), record, &self.headers_index, globals)
+            .evaluate(&self.expr)
     }
 
     pub fn generate_key(
         &self,
-        index: usize,
+        row_index: usize,
         record: &ByteRecord,
     ) -> Result<String, SpecifiedEvaluationError> {
         if let Some(index) = self.expr.as_column() {
             Ok(String::from_utf8(record[index].to_vec()).unwrap())
         } else {
-            let value = self.run_with_record(index, record)?;
+            let value = self.run_with_record(row_index, record)?;
             Ok(value
                 .try_as_str()
                 .map(|s| s.to_string())

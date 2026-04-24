@@ -1,7 +1,7 @@
 use simd_csv::ByteRecord;
 
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
-use super::interpreter::{concretize_expression, eval_expression, ConcreteExpr};
+use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
 use super::parser::{parse_named_expressions, ExprName};
 use super::types::HeadersIndex;
 
@@ -91,14 +91,16 @@ impl SelectionProgram {
 
     pub fn extend_into(
         &self,
-        index: usize,
+        row_index: usize,
         record: &ByteRecord,
         output_record: &mut ByteRecord,
     ) -> Result<bool, SpecifiedEvaluationError> {
         let mut truthy = false;
 
         for (expr, expr_name, _) in self.exprs.iter() {
-            let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+            let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
+                .evaluate(expr)?;
+
             truthy |= value.is_truthy();
 
             match expr_name {
@@ -127,13 +129,14 @@ impl SelectionProgram {
 
     pub fn extend(
         &self,
-        index: usize,
+        row_index: usize,
         record: &mut ByteRecord,
     ) -> Result<bool, SpecifiedEvaluationError> {
         let mut truthy = false;
 
         for (expr, expr_name, _) in self.exprs.iter() {
-            let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+            let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
+                .evaluate(expr)?;
             truthy |= value.is_truthy();
 
             match expr_name {
@@ -162,7 +165,7 @@ impl SelectionProgram {
 
     pub fn overwrite(
         &self,
-        index: usize,
+        row_index: usize,
         record: &mut ByteRecord,
     ) -> Result<(bool, ByteRecord), SpecifiedEvaluationError> {
         let mut new_record = ByteRecord::new();
@@ -172,7 +175,8 @@ impl SelectionProgram {
             if let Some(expr_i) = expr_i_opt {
                 let expr = &self.exprs[expr_i].0;
 
-                let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+                let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
+                    .evaluate(expr)?;
                 truthy |= value.is_truthy();
                 new_record.push_field(&value.serialize_as_bytes());
             } else {
@@ -183,7 +187,8 @@ impl SelectionProgram {
         for expr_i in self.rest.iter().copied() {
             let expr = &self.exprs[expr_i].0;
 
-            let value = eval_expression(expr, Some(index), record, &self.headers_index)?;
+            let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
+                .evaluate(expr)?;
             truthy &= value.is_truthy();
             new_record.push_field(&value.serialize_as_bytes());
         }
