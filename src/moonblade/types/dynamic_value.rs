@@ -211,8 +211,9 @@ impl DynamicValue {
 
     pub fn serialize_as_bytes(&self) -> Cow<'_, [u8]> {
         match self {
-            Self::List(_) => Cow::Owned(serde_json::to_string(self).unwrap().into_bytes()),
-            Self::Map(_) => Cow::Owned(serde_json::to_string(self).unwrap().into_bytes()),
+            Self::List(_) | Self::Map(_) => {
+                Cow::Owned(serde_json::to_string(self).unwrap().into_bytes())
+            }
             Self::String(value) => Cow::Borrowed(value.as_bytes()),
             Self::Bytes(value) => Cow::Borrowed(value),
             Self::Float(value) => Cow::Owned(value.to_string().into_bytes()),
@@ -225,6 +226,34 @@ impl DynamicValue {
             Self::Span(value) => Cow::Owned(value.to_string().into_bytes()),
             Self::Regex(pattern) => Cow::Borrowed(pattern.as_str().as_bytes()),
             Self::None => Cow::Borrowed(b""),
+        }
+    }
+
+    pub fn push_field_to_record(&self, record: &mut simd_csv::ByteRecord) {
+        match self {
+            Self::List(_) | Self::Map(_) => {
+                record.write_field(|data| serde_json::to_writer(data, self).unwrap());
+            }
+            Self::String(string) => record.push_field(string.as_bytes()),
+            Self::Bytes(bytes) => record.push_field(&bytes),
+            Self::Integer(i) => {
+                let mut buffer = itoa::Buffer::new();
+                let n = buffer.format(*i);
+                record.push_field(n.as_bytes());
+            }
+            Self::Float(f) => {
+                let mut buffer = zmij::Buffer::new();
+                let n = buffer.format(*f);
+                record.push_field(n.as_bytes());
+            }
+            Self::Boolean(v) => record.push_field(if *v { b"true" } else { b"false" }),
+            Self::Zoned(zoned) => record.fmt_field(zoned),
+            Self::DateTime(datetime) => record.fmt_field(datetime),
+            Self::Date(date) => record.fmt_field(date),
+            Self::Time(time) => record.fmt_field(time),
+            Self::Span(span) => record.fmt_field(span),
+            Self::Regex(pattern) => record.push_field(pattern.as_str().as_bytes()),
+            Self::None => record.push_field(b""),
         }
     }
 

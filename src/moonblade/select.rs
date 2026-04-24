@@ -141,13 +141,13 @@ impl SelectionProgram {
 
             match expr_name {
                 ExprName::Singular(_) => {
-                    record.push_field(&value.serialize_as_bytes());
+                    value.push_field_to_record(record);
                 }
                 ExprName::Plural(names) => {
                     let mut count: usize = 0;
 
                     for sub_value in value.flat_iter() {
-                        record.push_field(&sub_value.serialize_as_bytes());
+                        sub_value.push_field_to_record(record);
                         count += 1;
                     }
 
