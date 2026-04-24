@@ -60,7 +60,7 @@ representing the currently processed column's value.
 In a way, it is a variant of `xan map`, able to leverage aggregation
 functions and generic over target columns.
 
-Note that when using --along-rows, the `index()` function will return the
+Note that when using --along-rows, the `col_index()` function will return the
 index of currently processed column, not the row index. This can be useful
 when used with `argmin/argmax` etc.
 
@@ -89,7 +89,7 @@ dense vectors:
 
 Finding the column maximizing a score:
 
-    $ xan agg -R '*_score' 'argmax(_, header(index()) as best' results.csv
+    $ xan agg -R '*_score' 'argmax(_, header(col_index()) as best' results.csv
 
 # Aggregating along columns
 

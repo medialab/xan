@@ -788,9 +788,12 @@
       },
       {
         "name": "col_index",
-        "arguments": ["name_or_pos", "nth?"],
+        "arguments": [],
+        "alternatives": [
+          ["name_or_pos", "nth?"]
+        ],
         "returns": "bytes",
-        "help": "Return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names."
+        "help": "Without argument, return current column's zero-based index, if relevant. Else, return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names."
       },
       {
         "name": "col_index?",
@@ -820,7 +823,7 @@
         "name": "row_index",
         "arguments": [],
         "returns": "int?",
-        "help": "Return current row's zero-based index, if applicable."
+        "help": "Return current row's zero-based index, if relevant."
       },
       {
         "name": "regex",

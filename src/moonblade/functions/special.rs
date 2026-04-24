@@ -100,9 +100,17 @@ pub fn get_special_function(
         ),
         "col_index" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                if call.args.is_empty() {
+                    return Ok(None);
+                }
+
                 abstract_comptime_col(false, AbstractColReturnValue::Index, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                if args.is_empty() {
+                    return Ok(context.col_index().into());
+                }
+
                 abstract_runtime_col(
                     "col_index",
                     false,
@@ -111,7 +119,7 @@ pub fn get_special_function(
                     args,
                 )
             }),
-            FunctionArguments::with_range(1..=2),
+            FunctionArguments::with_range(0..=2),
         ),
         "col?" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
@@ -427,10 +435,7 @@ fn runtime_and(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
 }
 
 fn runtime_row_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {
-    Ok(match context.row_index() {
-        None => DynamicValue::None,
-        Some(index) => DynamicValue::from(index),
-    })
+    Ok(context.row_index().into())
 }
 
 fn abstract_runtime_col(

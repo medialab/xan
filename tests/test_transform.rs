@@ -86,3 +86,20 @@ fn transform_errors_panic() {
 
     wrk.assert_err(&mut cmd);
 }
+
+#[test]
+fn transform_col_index() {
+    let wrk = Workdir::new("transform_col_index");
+    wrk.create(
+        "data.csv",
+        vec![svec!["a1", "a2", "b1", "b2"], svec!["1", "2", "3", "4"]],
+    );
+    let mut cmd = wrk.command("transform");
+    cmd.arg("a1,b1")
+        .arg("_ + col(header(col_index())[:-1] ++ '2')")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["a1", "a2", "b1", "b2"], svec!["3", "2", "7", "4"]];
+    assert_eq!(got, expected);
+}

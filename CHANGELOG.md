@@ -9,6 +9,7 @@
 * Dropping implicit unary function calls in moonblade pipelines. This feature was not well-known, confusing (an indentifier, could be understood as a call in a pipeline, only if not in first position...), and mostly useless now that moonblade has had a proper dot operator.
 * `xan plot -A/--aggregate` does not take an expression anymore but has an automatic selection of two modes: `sum` and `mean`. It should also be faster.
 * Renaming the `index` function as `row_index` for clarity.
+* `xan agg -C/--along-columns & -M/--along-matrix` & `xan groupby -C/--along-columns & -M/--along-matrix` will not map current column index to the result of the `index()` function. The `col_index()` can be now used instead for this very purpose.
 
 *Features*
 
