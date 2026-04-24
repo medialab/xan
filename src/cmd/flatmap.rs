@@ -150,10 +150,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|s| s.single_selection(&headers, !rconf.no_headers))
         .transpose()?;
 
-    if let Some(i) = replaced_index_opt {
-        args.arg_expression = format!("col({}) | {}", i, &args.arg_expression);
-    }
-
     let program = Program::parse(&args.arg_expression, &headers, rconf.no_headers)?;
 
     if !rconf.no_headers {
@@ -176,7 +172,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                 let mut output = Vec::new();
 
-                let values = program.run_with_record(index, &record)?;
+                let values = if let Some(i) = replaced_index_opt {
+                    program.run_with_record_and_col_index(index, i, &record)?
+                } else {
+                    program.run_with_record(index, &record)?
+                };
 
                 for value in values.flat_iter() {
                     if value.is_falsey() {
@@ -202,7 +202,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
-            let values = program.run_with_record(index, &record)?;
+            let values = if let Some(i) = replaced_index_opt {
+                program.run_with_record_and_col_index(index, i, &record)?
+            } else {
+                program.run_with_record(index, &record)?
+            };
 
             for value in values.flat_iter() {
                 if value.is_falsey() {

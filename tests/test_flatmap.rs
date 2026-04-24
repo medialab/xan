@@ -55,6 +55,33 @@ fn flatmap_replace() {
 }
 
 #[test]
+fn flatmap_replace_implicit() {
+    let wrk = Workdir::new("flatmap_replace_implicit");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "colors"],
+            svec!["john", "yellow|red"],
+            svec!["mary", "red"],
+        ],
+    );
+    let mut cmd = wrk.command("flatmap");
+    cmd.arg("split(_, '|')")
+        .arg("color")
+        .args(&["-r", "colors"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "color"],
+        svec!["john", "yellow"],
+        svec!["john", "red"],
+        svec!["mary", "red"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn flatmap_filtermap() {
     let wrk = Workdir::new("flatmap_filtermap");
     wrk.create(
