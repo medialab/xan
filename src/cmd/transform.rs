@@ -154,7 +154,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         let value =
                             program.run_with_record_and_col_index(index, col_index, &record)?;
 
-                        output_record.push_field(&value.serialize_as_bytes());
+                        value.push_field_to_record(&mut output_record);
                     } else {
                         output_record.push_field(&record[col_index]);
                     }
@@ -177,7 +177,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if do_transform {
                     let value = program.run_with_record_and_col_index(index, col_index, &record)?;
 
-                    output_record.push_field(&value.serialize_as_bytes());
+                    value.push_field_to_record(&mut output_record);
                 } else {
                     output_record.push_field(&record[col_index]);
                 }

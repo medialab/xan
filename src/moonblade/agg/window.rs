@@ -885,7 +885,7 @@ impl WindowAggregationProgram {
         let mut output_record = record_to_emit.clone();
 
         for value in self.output_buffer.iter() {
-            output_record.push_field(&value.serialize_as_bytes());
+            value.push_field_to_record(&mut output_record);
         }
 
         Ok(Some(output_record))

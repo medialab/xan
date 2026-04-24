@@ -1329,7 +1329,7 @@ impl AggregationProgram {
         let mut record = ByteRecord::new();
 
         for value in self.finalize_iter(parallel) {
-            record.push_field(&value?.serialize_as_bytes());
+            value?.push_field_to_record(&mut record);
         }
 
         Ok(record)
@@ -1446,7 +1446,7 @@ impl<K: Eq + Hash> GroupAggregationProgram<K> {
                 let mut record = ByteRecord::new();
 
                 for value in planner.results(&aggregators, &headers_index) {
-                    record.push_field(&value?.serialize_as_bytes());
+                    value?.push_field_to_record(&mut record);
                 }
 
                 Ok((group, record))
@@ -1572,7 +1572,7 @@ impl PivotAggregationProgram {
                         .planner
                         .results(std::slice::from_ref(aggregator), &self.headers_index)
                     {
-                        record.push_field(&value?.serialize_as_bytes());
+                        value?.push_field_to_record(&mut record);
                     }
                 } else {
                     record.push_field(b"");

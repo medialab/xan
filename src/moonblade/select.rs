@@ -105,13 +105,13 @@ impl SelectionProgram {
 
             match expr_name {
                 ExprName::Singular(_) => {
-                    output_record.push_field(&value.serialize_as_bytes());
+                    value.push_field_to_record(output_record);
                 }
                 ExprName::Plural(names) => {
                     let mut count: usize = 0;
 
                     for sub_value in value.flat_iter() {
-                        output_record.push_field(&sub_value.serialize_as_bytes());
+                        sub_value.push_field_to_record(output_record);
                         count += 1;
                     }
 
@@ -178,7 +178,7 @@ impl SelectionProgram {
                 let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
                     .evaluate(expr)?;
                 truthy |= value.is_truthy();
-                new_record.push_field(&value.serialize_as_bytes());
+                value.push_field_to_record(&mut new_record);
             } else {
                 new_record.push_field(cell);
             }
@@ -190,7 +190,7 @@ impl SelectionProgram {
             let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
                 .evaluate(expr)?;
             truthy &= value.is_truthy();
-            new_record.push_field(&value.serialize_as_bytes());
+            value.push_field_to_record(&mut new_record);
         }
 
         Ok((truthy, new_record))

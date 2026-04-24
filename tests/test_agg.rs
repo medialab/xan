@@ -553,7 +553,7 @@ fn agg_along_rows() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["name", "a", "b", "mean"],
-        svec!["john", "3", "5", "4"],
+        svec!["john", "3", "5", "4.0"],
         svec!["lucy", "6", "1", "3.5"],
     ];
     assert_eq!(got, expected);

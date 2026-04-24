@@ -111,7 +111,7 @@ fn groupby_mean() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
         svec!["id", "meanA"],
-        svec!["x", "1"],
+        svec!["x", "1.0"],
         svec!["y", "1.5"],
         svec!["z", "2.6666666666666665"],
     ];
