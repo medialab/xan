@@ -471,7 +471,7 @@ fn agg_argtop() {
 
     // Custom separator
     let mut cmd = wrk.command("agg");
-    cmd.arg("argtop(3, score, index(), ',') as top")
+    cmd.arg("argtop(3, score, row_index(), ',') as top")
         .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);

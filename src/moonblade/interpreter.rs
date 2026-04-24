@@ -360,7 +360,7 @@ pub struct ConcreteFunctionCall {
 
 impl ConcreteFunctionCall {
     fn is_statically_evaluable(&self, bound: &Vec<String>) -> bool {
-        // NOTE: nullary functions such as index() or uuid() usually
+        // NOTE: nullary functions such as row_index() or uuid() usually
         // rely on some external implicit state and cannot be statically
         // evaluated.
         !self.args.is_empty()
@@ -434,7 +434,7 @@ impl ConcreteSpecialFunctionCall {
             "header",
             "header?",
             "headers",
-            "index",
+            "row_index",
             "if",
             "unless",
             "warn",
@@ -921,8 +921,8 @@ mod tests {
     }
 
     #[test]
-    fn test_index() {
-        assert_eq!(eval_code("index() + 2"), Ok(DynamicValue::from(4)));
+    fn test_row_index() {
+        assert_eq!(eval_code("row_index() + 2"), Ok(DynamicValue::from(4)));
     }
 
     #[test]

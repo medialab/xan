@@ -44,7 +44,7 @@ fn map_index() {
     wrk.create("data.csv", vec![svec!["n"], svec!["10"], svec!["15"]]);
 
     let mut cmd = wrk.command("map");
-    cmd.arg("index() as r").arg("data.csv");
+    cmd.arg("row_index() as r").arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["n", "r"], svec!["10", "0"], svec!["15", "1"]];

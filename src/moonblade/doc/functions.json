@@ -817,10 +817,10 @@
         "help": "Return list of header names from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers."
       },
       {
-        "name": "index",
+        "name": "row_index",
         "arguments": [],
         "returns": "int?",
-        "help": "Return the row's index, if applicable."
+        "help": "Return current row's zero-based index, if applicable."
       },
       {
         "name": "regex",

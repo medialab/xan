@@ -187,7 +187,7 @@ pub fn get_special_function(
         ),
         // NOTE: index needs to be a special function because it relies on external
         // data that cannot be accessed by normal functions.
-        "index" => (None, Some(runtime_index), FunctionArguments::nullary()),
+        "row_index" => (None, Some(runtime_row_index), FunctionArguments::nullary()),
 
         // NOTE: if and unless need to be special functions because they short-circuit
         // underlying evaluation and circumvent the typical DFS evaluation scheme.
@@ -426,7 +426,7 @@ fn runtime_and(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
     Ok(last.unwrap())
 }
 
-fn runtime_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {
+fn runtime_row_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {
     Ok(match context.row_index() {
         None => DynamicValue::None,
         Some(index) => DynamicValue::from(index),
