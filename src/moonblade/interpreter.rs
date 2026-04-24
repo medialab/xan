@@ -1,4 +1,5 @@
 use std::fmt;
+use std::num::NonZeroUsize;
 
 use regex::RegexBuilder;
 use simd_csv::ByteRecord;
@@ -35,25 +36,30 @@ impl GlobalVariables {
     }
 }
 
+// NOTE: I am use NonZeroUsize here to leverage niche optimizations and keep
+// EvaluationContext 64 in size. This ultimately means the actual indices
+// are offset by 1.
+// I might revisit this if I find a convincing way to merge globals, lambda
+// arguments and last value into the same value stack.
 #[derive(Debug, Clone)]
 pub struct EvaluationContext<'a> {
-    pub row_index: Option<usize>,
-    pub col_index: Option<usize>,
+    row_index: Option<NonZeroUsize>,
+    col_index: Option<NonZeroUsize>,
     pub record: &'a ByteRecord,
     pub headers_index: &'a HeadersIndex,
     pub globals: Option<&'a GlobalVariables>,
     pub lambda_variables: Option<&'a LambdaArguments>,
-    pub last_value: Option<DynamicValue>,
+    last_value: Option<DynamicValue>,
 }
 
 impl<'a> EvaluationContext<'a> {
     pub fn new(
-        index: Option<usize>,
+        row_index: Option<usize>,
         record: &'a ByteRecord,
         headers_index: &'a HeadersIndex,
     ) -> Self {
         Self {
-            row_index: index,
+            row_index: row_index.map(|i| NonZeroUsize::new(i + 1).unwrap()),
             col_index: None,
             record,
             headers_index,
@@ -63,13 +69,30 @@ impl<'a> EvaluationContext<'a> {
         }
     }
 
+    pub fn new_with_col_index(
+        row_index: Option<usize>,
+        col_index: Option<usize>,
+        record: &'a ByteRecord,
+        headers_index: &'a HeadersIndex,
+    ) -> Self {
+        Self {
+            row_index: row_index.map(|i| NonZeroUsize::new(i + 1).unwrap()),
+            col_index: col_index.map(|i| NonZeroUsize::new(i + 1).unwrap()),
+            record,
+            headers_index,
+            globals: None,
+            lambda_variables: None,
+            last_value: None,
+        }
+    }
+
     pub fn new_with_globals(
-        index: Option<usize>,
+        row_index: Option<usize>,
         record: &'a ByteRecord,
         headers_index: &'a HeadersIndex,
         globals: &'a GlobalVariables,
     ) -> Self {
-        let mut context = Self::new(index, record, headers_index);
+        let mut context = Self::new(row_index, record, headers_index);
         context.globals = Some(globals);
 
         context
@@ -85,6 +108,14 @@ impl<'a> EvaluationContext<'a> {
             lambda_variables: None,
             last_value: None,
         }
+    }
+
+    pub fn row_index(&self) -> Option<usize> {
+        self.row_index.map(|i| i.get() - 1)
+    }
+
+    pub fn col_index(&self) -> Option<usize> {
+        self.col_index.map(|i| i.get() - 1)
     }
 
     pub fn with_lambda_variables(&self, variables: &'a LambdaArguments) -> Self {
@@ -244,7 +275,7 @@ impl ConcreteExpr {
                     .get(name),
             ),
             Self::Underscore => match context.last_value.as_ref() {
-                None => match context.col_index {
+                None => match context.col_index() {
                     Some(index) => match context.record.get(index) {
                         None => return Err(EvaluationError::ColumnOutOfRange(index)),
                         Some(cell) => BoundArgument::Cell(cell),
@@ -702,8 +733,7 @@ pub fn eval_expression_with_optional_col_index(
     headers_index: &HeadersIndex,
     col_index: Option<usize>,
 ) -> Result<DynamicValue, SpecifiedEvaluationError> {
-    let mut context = EvaluationContext::new(index, record, headers_index);
-    context.col_index = col_index;
+    let context = EvaluationContext::new_with_col_index(index, col_index, record, headers_index);
 
     expr.evaluate(&context)
 }
@@ -869,7 +899,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_sizes() {
         assert_eq!(size_of::<EvaluationContext>(), 64);
         assert_eq!(size_of::<ConcreteExpr>(), 64);

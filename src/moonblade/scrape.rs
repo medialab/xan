@@ -804,15 +804,7 @@ impl ScrapingProgram {
         let selection = Selection::Singular(html.root_element().id());
         let mut scratch = Vec::with_capacity(self.capacity);
 
-        let context = EvaluationContext {
-            row_index: Some(index),
-            col_index: None,
-            record,
-            headers_index: &self.headers_index,
-            globals: None,
-            lambda_variables: None,
-            last_value: None,
-        };
+        let context = EvaluationContext::new(Some(index), record, &self.headers_index);
 
         self.scraper
             .evaluate(&mut scratch, &context, html, &selection)?;
