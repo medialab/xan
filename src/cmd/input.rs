@@ -35,7 +35,8 @@ formatting options:
     --comment <char>  Skip records starting with this character.
     --trim            Whether to trim cell values.
     -T, --tolerant    Whether to use a slower but more tolerant CSV parser able
-                      to handle badly quoted cells.
+                      to handle badly quoted cells. Can also be used to parse
+                      old macOS files with CR-only newlines.
 
 header skipping options:
     -L, --skip-lines <n>        Skip the first <n> lines of the file.
