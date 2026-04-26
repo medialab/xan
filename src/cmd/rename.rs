@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 use lazy_static::lazy_static;
 use regex::bytes::Regex as BytesRegex;
@@ -114,12 +114,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers);
+    let wconfig = Config::new(&args.flag_output);
 
-    let mut rdr = rconfig.simd_reader()?;
-
-    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
-
-    let mut record = simd_csv::ByteRecord::new();
+    let mut rdr = rconfig.simd_zero_copy_reader()?;
+    let mut wtr_builder = wconfig.simd_csv_writer_builder();
+    wtr_builder.crlf_newlines(rdr.has_crlf_newlines()?);
+    let mut wtr = wtr_builder.from_writer(wconfig.io_writer()?);
 
     if args.flag_no_headers {
         if args.flag_slugify {
@@ -130,10 +130,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("Cannot use -R/--replace with -n/--no-headers!")?;
         }
 
-        let expected_len = if rdr.read_byte_record(&mut record)? {
-            record.len()
+        let (expected_len, bytes) = if let Some(record) = rdr.read_byte_record()? {
+            (record.len(), record.as_slice().to_vec())
         } else {
-            0
+            (0, Vec::new())
         };
 
         let rename_as = if let Some(prefix) = &args.flag_prefix {
@@ -158,19 +158,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         if expected_len > 0 {
             wtr.write_record(&rename_as)?;
-            wtr.write_byte_record(&record)?;
+
+            let mut bufwriter = wtr.into_bufwriter();
+            bufwriter.flush()?;
+            bufwriter.write_all(&bytes)?;
+
+            if rdr.has_crlf_newlines()? {
+                bufwriter.write_all(b"\r\n")?;
+            } else {
+                bufwriter.write_all(b"\n")?;
+            }
 
             let (rest, mut bufreader) = rdr.into_bufreader();
 
             assert!(rest.is_none());
 
-            match wtr.into_inner() {
-                Err(err) => Err(err.into_error())?,
-                Ok(mut wtr) => {
-                    io::copy(&mut bufreader, &mut wtr)?;
-                    wtr.flush()?;
-                }
-            }
+            io::copy(&mut bufreader, &mut bufwriter)?;
         }
 
         return Ok(());
@@ -285,13 +288,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     assert!(rest.is_none());
 
-    match wtr.into_inner() {
-        Err(err) => Err(err.into_error())?,
-        Ok(mut wtr) => {
-            io::copy(&mut bufreader, &mut wtr)?;
-            wtr.flush()?;
-        }
-    }
+    let mut bufwriter = wtr.into_bufwriter();
+
+    io::copy(&mut bufreader, &mut bufwriter)?;
 
     Ok(())
 }

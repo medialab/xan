@@ -20,11 +20,13 @@
 *Fixes*
 
 * Fixing issues related to nested lambdas in expressions.
+* Fixing `xan rename` consistency regarding CRLF newlines and first row normalization when using `-n/--no-headers`.
 
 *Performance*
 
 * moonblade expressions are now faster overall and allocate more cautiously, thus saving memory.
-* Improving performance of `xan transform`, `xan flatmap`, `xan agg -C/--along-columns & -M/--along-matrix` & `xan groupby -C/--along-columns & -M/--along-matrix`.
+* Improving performance of `xan transform`, `xan flatmap`, `xan agg` & `xan groupby`.
+* Improving performance of `xan rename`.
 
 ## 0.57.1
 

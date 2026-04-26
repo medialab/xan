@@ -235,7 +235,7 @@ impl DynamicValue {
                 record.write_field(|data| serde_json::to_writer(data, self).unwrap());
             }
             Self::String(string) => record.push_field(string.as_bytes()),
-            Self::Bytes(bytes) => record.push_field(&bytes),
+            Self::Bytes(bytes) => record.push_field(bytes),
             Self::Integer(i) => {
                 let mut buffer = itoa::Buffer::new();
                 let n = buffer.format(*i);

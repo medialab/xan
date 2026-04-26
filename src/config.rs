@@ -837,10 +837,15 @@ impl Config {
             .from_writer(wtr)
     }
 
+    pub fn simd_csv_writer_builder(&self) -> simd_csv::WriterBuilder {
+        let mut builder = simd_csv::WriterBuilder::with_capacity(32 * (1 << 10));
+
+        builder.delimiter(self.delimiter).quote(self.quote);
+
+        builder
+    }
+
     pub fn simd_csv_writer_from_writer<W: io::Write>(&self, wtr: W) -> simd_csv::Writer<W> {
-        simd_csv::WriterBuilder::with_capacity(32 * (1 << 10))
-            .delimiter(self.delimiter)
-            .quote(self.quote)
-            .from_writer(wtr)
+        self.simd_csv_writer_builder().from_writer(wtr)
     }
 }

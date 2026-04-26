@@ -1139,9 +1139,9 @@ impl Args {
                 Ok(())
             })?;
 
-            let mut writer = Config::new(&self.flag_output).writer()?;
+            let mut writer = Config::new(&self.flag_output).simd_writer()?;
 
-            let mut output_record = csv::ByteRecord::new();
+            let mut output_record = ByteRecord::new();
             output_record.push_field(source_column_name.as_bytes());
             output_record.push_field(b"count");
 
@@ -1328,9 +1328,9 @@ impl Args {
             Ok(())
         })?;
 
-        let mut writer = Config::new(&self.flag_output).writer()?;
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
 
-        let mut output_record = csv::ByteRecord::new();
+        let mut output_record = ByteRecord::new();
         output_record.extend([b"field", b"value", b"count"]);
 
         writer.write_byte_record(&output_record)?;
