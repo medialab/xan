@@ -36,18 +36,19 @@ Usage:
     xan filter --help
 
 filter options:
-    -f, --evaluate-file        Read evaluation expression from a file instead.
-    -v, --invert-match         If set, will invert the evaluated value.
-    -l, --limit <n>            Maximum number of rows to return. Useful to avoid downstream
-                               buffering some times (e.g. when searching for very few
-                               rows in a big file before piping to `view` or `flatten`).
-                               Does not work when parallelizing.
-    -p, --parallel             Whether to use parallelization to speed up computations.
-                               Will automatically select a suitable number of threads to use
-                               based on your number of cores. Use -t, --threads if you want to
-                               indicate the number of threads yourself.
-    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
-                               if you want the number of threads to be automatically chosen instead.
+    -f, --evaluate-file       Read evaluation expression from a file instead.
+    -v, --invert-match        If set, will invert the evaluated value.
+    -l, --limit <n>           Maximum number of rows to return. Useful to avoid downstream
+                              buffering some times (e.g. when searching for very few
+                              rows in a big file before piping to `view` or `flatten`).
+    -B, --before-context <n>  Number of rows to keep before a matching one.
+    -A, --after-context <n>   Number of rows to keep after a matching one.
+    -p, --parallel            Whether to use parallelization to speed up computations.
+                              Will automatically select a suitable number of threads to use
+                              based on your number of cores. Use -t, --threads if you want to
+                              indicate the number of threads yourself.
+    -t, --threads <threads>   Parellize computations using this many threads. Use -p, --parallel
+                              if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message

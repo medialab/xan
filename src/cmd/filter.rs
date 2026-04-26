@@ -1,7 +1,10 @@
 use std::fs;
+use std::num::NonZeroUsize;
 
 use pariter::IteratorExt;
+use simd_csv::ByteRecord;
 
+use crate::collections::ContextBuffer;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::Program;
 use crate::util;
@@ -42,18 +45,19 @@ Usage:
     xan filter --help
 
 filter options:
-    -f, --evaluate-file        Read evaluation expression from a file instead.
-    -v, --invert-match         If set, will invert the evaluated value.
-    -l, --limit <n>            Maximum number of rows to return. Useful to avoid downstream
-                               buffering some times (e.g. when searching for very few
-                               rows in a big file before piping to `view` or `flatten`).
-                               Does not work when parallelizing.
-    -p, --parallel             Whether to use parallelization to speed up computations.
-                               Will automatically select a suitable number of threads to use
-                               based on your number of cores. Use -t, --threads if you want to
-                               indicate the number of threads yourself.
-    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
-                               if you want the number of threads to be automatically chosen instead.
+    -f, --evaluate-file       Read evaluation expression from a file instead.
+    -v, --invert-match        If set, will invert the evaluated value.
+    -l, --limit <n>           Maximum number of rows to return. Useful to avoid downstream
+                              buffering some times (e.g. when searching for very few
+                              rows in a big file before piping to `view` or `flatten`).
+    -B, --before-context <n>  Number of rows to keep before a matching one.
+    -A, --after-context <n>   Number of rows to keep after a matching one.
+    -p, --parallel            Whether to use parallelization to speed up computations.
+                              Will automatically select a suitable number of threads to use
+                              based on your number of cores. Use -t, --threads if you want to
+                              indicate the number of threads yourself.
+    -t, --threads <threads>   Parellize computations using this many threads. Use -p, --parallel
+                              if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message
@@ -73,6 +77,8 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_parallel: bool,
     flag_limit: Option<usize>,
+    flag_before_context: Option<NonZeroUsize>,
+    flag_after_context: Option<NonZeroUsize>,
     flag_threads: Option<usize>,
     flag_invert_match: bool,
     flag_evaluate_file: bool,
@@ -107,13 +113,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
+    let mut context_buffer = ContextBuffer::new(args.flag_before_context, args.flag_after_context);
+
     let program = Program::parse(&args.arg_expression, &headers, rconf.no_headers)?;
     let mut matches: usize = 0;
 
     if let Some(t) = threads {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
             |o| o.threads(t),
-            move |(index, record)| -> CliResult<Option<simd_csv::ByteRecord>> {
+            move |(index, record)| -> CliResult<(bool, ByteRecord)> {
                 let record = record?;
 
                 let value = program.run_with_record(index, &record)?;
@@ -124,13 +132,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     is_match = !is_match;
                 }
 
-                Ok(is_match.then_some(record))
+                Ok((is_match, record))
             },
         ) {
-            if let Some(record) = result? {
+            let (is_match, record) = result?;
+
+            if is_match {
                 matches += 1;
-                wtr.write_byte_record(&record)?;
             }
+
+            context_buffer.try_process_owned(is_match, record, |r| wtr.write_byte_record(r))?;
 
             if let Some(limit) = args.flag_limit {
                 if matches >= limit {
@@ -139,7 +150,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     } else {
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
@@ -153,8 +164,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             if is_match {
                 matches += 1;
-                wtr.write_byte_record(&record)?;
             }
+
+            context_buffer.try_process(is_match, &record, |r| wtr.write_byte_record(r))?;
 
             if let Some(limit) = args.flag_limit {
                 if matches >= limit {

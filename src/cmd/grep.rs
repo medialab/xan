@@ -193,7 +193,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             if let Some(context_buffer) = context_buffer_opt.as_mut() {
-                context_buffer.try_process(is_match, $record, |r| -> CliResult<()> {
+                context_buffer.try_process_bytes(is_match, $record, |r| -> CliResult<()> {
                     if let Some(writer) = writer_opt.as_mut() {
                         writer.write_splitted_record(r)?;
                     } else {

@@ -193,7 +193,6 @@ search options:
     -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
                              buffering some times (e.g. when searching for very few
                              rows in a big file before piping to `view` or `flatten`).
-                             Does not work with -p/--parallel nor -t/--threads.
     --left                   Rows without any matches will be kept in the output when
                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
     -p, --parallel           Whether to use parallelization to speed up computation.
