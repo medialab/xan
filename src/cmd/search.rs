@@ -1158,8 +1158,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Parallel path
     if let Some(t) = threads {
-        wtr.flush()?;
-
         let matcher = Arc::new(matcher);
 
         for result in rdr.into_byte_records().parallel_map_custom(
