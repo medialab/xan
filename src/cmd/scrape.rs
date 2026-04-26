@@ -813,11 +813,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = reader.byte_headers()?.clone();
     let column_index = conf.single_selection(&headers)?;
 
-    let parallelization = match (args.flag_parallel, args.flag_threads) {
-        (true, None) => Some(None),
-        (_, Some(count)) => Some(Some(count)),
-        _ => None,
-    };
+    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
     if args.flag_evaluate.is_none() && args.flag_foreach.is_some() {
         Err("--foreach only works with -e/--evaluate!")?;
@@ -898,12 +894,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         writer.write_byte_record(&output_headers)?;
     }
 
-    if let Some(threads) = parallelization {
+    if let Some(t) = threads {
         reader
             .into_byte_records()
             .enumerate()
             .parallel_map_custom(
-                |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
+                |o| o.threads(t),
                 move |(index, result)| -> CliResult<(ByteRecord, Vec<Vec<DynamicValue>>)> {
                     let record = result?;
 

@@ -801,7 +801,7 @@ struct Args {
     flag_add_pattern: Vec<String>,
     flag_name_column: Option<SelectedColumns>,
     flag_parallel: bool,
-    flag_threads: Option<NonZeroUsize>,
+    flag_threads: Option<usize>,
 }
 
 impl Args {
@@ -1045,11 +1045,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-A/--all does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
     }
 
-    let parallelization = match (args.flag_parallel, args.flag_threads) {
-        (true, None) => Some(None),
-        (_, Some(count)) => Some(Some(count.get())),
-        _ => None,
-    };
+    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
     let mut pairs = args
         .flag_patterns
@@ -1161,13 +1157,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut matches_count: usize = 0;
 
     // Parallel path
-    if let Some(threads) = parallelization {
+    if let Some(t) = threads {
         wtr.flush()?;
 
         let matcher = Arc::new(matcher);
 
         for result in rdr.into_byte_records().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
+            |o| o.threads(t),
             move |result| -> CliResult<(bool, Option<simd_csv::ByteRecord>)> {
                 let mut record = result?;
 

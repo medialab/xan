@@ -96,11 +96,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter);
 
-    let parallelization = match (args.flag_parallel, args.flag_threads) {
-        (true, None) => Some(None),
-        (_, Some(count)) => Some(Some(count)),
-        _ => None,
-    };
+    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
@@ -114,9 +110,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let program = Program::parse(&args.arg_expression, &headers, rconf.no_headers)?;
     let mut matches: usize = 0;
 
-    if let Some(threads) = parallelization {
+    if let Some(t) = threads {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
-            |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
+            |o| o.threads(t),
             move |(index, record)| -> CliResult<Option<simd_csv::ByteRecord>> {
                 let record = record?;
 

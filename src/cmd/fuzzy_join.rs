@@ -246,11 +246,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let inner = !args.flag_left;
 
-    let parallelization = match (args.flag_parallel, args.flag_threads) {
-        (true, None) => Some(None),
-        (_, Some(count)) => Some(Some(count)),
-        _ => None,
-    };
+    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
     let joiner = args.build_joiner()?;
     let mut patterns_headers = joiner.headers.clone();
@@ -288,14 +284,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Parallel
-    if let Some(threads) = parallelization {
+    if let Some(t) = threads {
         let joiner = Arc::new(joiner);
         let joiner_handle = joiner.clone();
 
         reader
             .into_byte_records()
             .parallel_map_custom(
-                |o| o.threads(threads.unwrap_or_else(crate::util::default_num_cpus)),
+                |o| o.threads(t),
                 move |result| -> CliResult<(ByteRecord, BTreeSet<usize>)> {
                     let record = result?;
 

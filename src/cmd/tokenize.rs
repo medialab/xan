@@ -325,11 +325,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
-    let parallelization = match (args.flag_parallel, args.flag_threads) {
-        (true, None) => Some(None),
-        (_, Some(count)) => Some(Some(count)),
-        _ => None,
-    };
+    let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
     let mut tokenizer_builder = WordTokenizerBuilder::new();
 
@@ -569,12 +565,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }};
     }
 
-    if let Some(threads) = parallelization {
+    if let Some(t) = threads {
         rdr.into_byte_records()
             .enumerate()
             .parallel_map_custom(
                 |o| {
-                   o.threads(threads.unwrap_or_else(crate::util::default_num_cpus))
+                   o.threads(t)
                 },
                 move |(index, result)| -> CliResult<(simd_csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;

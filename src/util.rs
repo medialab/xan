@@ -51,6 +51,14 @@ pub fn default_num_cpus() -> usize {
     num_cpus::get().min(16)
 }
 
+pub fn parallelization(parallel: bool, threads: Option<usize>) -> Option<usize> {
+    match (parallel, threads) {
+        (_, Some(t)) => Some(if t == 0 { default_num_cpus() } else { t }),
+        (true, None) => Some(default_num_cpus()),
+        _ => None,
+    }
+}
+
 lazy_static! {
     static ref FLAG_REGEX: Regex = Regex::new(r"([\s,/\(])(--?[A-Za-z§][\w\-=]*)").unwrap();
     static ref SECTION_REGEX: Regex = Regex::new("(?im)^.*(?:usage|options):|---+").unwrap();
