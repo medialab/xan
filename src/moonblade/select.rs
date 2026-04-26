@@ -163,6 +163,13 @@ impl SelectionProgram {
         Ok(truthy)
     }
 
+    // NOTE: I could make this work for ExprName::Plural, but to avoid allocating an
+    // aligned Vec<Option<DynamicValue>> for each row, the function will need to take
+    // a mutable reference to it (no need to even clear it).
+    // I won't do it as of yet because it is a very niche use-case and would complexify
+    // multithreaded code significantly, requiring mutable thread-local state.
+    // What's more, this would mean you need to have owned DynamicValue and any
+    // future optimization related to raw column copy could be hampered by this pattern.
     pub fn overwrite(
         &self,
         row_index: usize,
@@ -189,7 +196,7 @@ impl SelectionProgram {
 
             let value = EvaluationContext::new(Some(row_index), record, &self.headers_index)
                 .evaluate(expr)?;
-            truthy &= value.is_truthy();
+            truthy |= value.is_truthy();
             value.push_field_to_record(&mut new_record);
         }
 

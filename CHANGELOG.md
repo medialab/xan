@@ -22,6 +22,7 @@
 
 * Fixing issues related to nested lambdas in expressions.
 * Fixing `xan rename` consistency regarding CRLF newlines and first row normalization when using `-n/--no-headers`.
+* Fixing `xan map --overwrite --filter`.
 
 *Performance*
 
