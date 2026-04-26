@@ -3,7 +3,7 @@ use simd_csv::ByteRecord;
 use super::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use super::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
 use super::parser::{parse_named_expressions, ExprName};
-use super::types::HeadersIndex;
+use super::types::{DynamicValue, HeadersIndex};
 
 #[derive(Clone, Debug)]
 pub struct SelectionProgram {
@@ -85,6 +85,23 @@ impl SelectionProgram {
 
     pub fn has_something_to_overwrite(&self) -> bool {
         self.rest.len() < self.exprs.len()
+    }
+
+    pub fn run_with_record<'a>(
+        &'a self,
+        row_index: usize,
+        col_index: usize,
+        record: &'a ByteRecord,
+    ) -> impl Iterator<Item = Result<DynamicValue, SpecifiedEvaluationError>> + 'a {
+        self.exprs.iter().map(move |(expr, _, _)| {
+            EvaluationContext::new_with_col_index(
+                Some(row_index),
+                Some(col_index),
+                record,
+                &self.headers_index,
+            )
+            .evaluate(expr)
+        })
     }
 
     pub fn extend_into(

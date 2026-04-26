@@ -1,9 +1,12 @@
 use std::fs;
 
+use bstr::ByteSlice;
 use pariter::IteratorExt;
+use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::moonblade::SelectionProgram;
+use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
 
@@ -83,20 +86,21 @@ Usage:
     xan map --help
 
 map options:
-    -f, --evaluate-file        Read evaluation expression from a file instead.
-    -O, --overwrite            If set, expressions named with a column already existing
-                               in the file will be overwritten with the result of the
-                               expression instead of adding a new column at the end.
-                               This means you can both transform and add columns at the
-                               same time.
-    -F, --filter               If given, will not write rows in the output if all results
-                               of evaluated expression are falsey.
-    -p, --parallel             Whether to use parallelization to speed up computations.
-                               Will automatically select a suitable number of threads to use
-                               based on your number of cores. Use -t, --threads if you want to
-                               indicate the number of threads yourself.
-    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
-                               if you want the number of threads to be automatically chosen instead.
+    -f, --evaluate-file         Read evaluation expression from a file instead.
+    -O, --overwrite             If set, expressions named with a column already existing
+                                in the file will be overwritten with the result of the
+                                expression instead of adding a new column at the end.
+                                This means you can both transform and add columns at the
+                                same time.
+    -F, --filter                If given, will not write rows in the output if all results
+                                of evaluated expression are falsey.
+    -C, --along-columns <cols>  Repeat same expression over a selection of columns at once.
+    -p, --parallel              Whether to use parallelization to speed up computations.
+                                Will automatically select a suitable number of threads to use
+                                based on your number of cores. Use -t, --threads if you want to
+                                indicate the number of threads yourself.
+    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
+                                if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message
@@ -119,6 +123,7 @@ struct Args {
     flag_threads: Option<usize>,
     flag_evaluate_file: bool,
     flag_overwrite: bool,
+    flag_along_columns: Option<SelectedColumns>,
 }
 
 impl Args {
@@ -148,6 +153,55 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let program = SelectionProgram::parse(&args.arg_expression, &headers, rconf.no_headers)?;
 
+    // --along-columns
+    if let Some(columns) = args.flag_along_columns {
+        let sel = columns.selection(&headers, !rconf.no_headers)?;
+        let mask = sel.mask(headers.len());
+
+        // TODO: help, tests, parallelism
+        if !rconf.no_headers {
+            let mut new_headers = ByteRecord::new();
+
+            for (i, is_mapped) in mask.iter().copied().enumerate() {
+                new_headers.push_field(&headers[i]);
+
+                if is_mapped {
+                    for name in program.headers() {
+                        let templated = name.replace("{}", &headers[i]);
+                        new_headers.push_field(&templated);
+                    }
+                }
+            }
+
+            wtr.write_byte_record(&new_headers)?;
+        }
+
+        let mut record = ByteRecord::new();
+        let mut output_record = ByteRecord::new();
+        let mut index: usize = 0;
+
+        while rdr.read_byte_record(&mut record)? {
+            output_record.clear();
+
+            for (i, is_mapped) in mask.iter().copied().enumerate() {
+                output_record.push_field(&record[i]);
+
+                if is_mapped {
+                    for result in program.run_with_record(index, i, &record) {
+                        let value = result?;
+                        value.push_field_to_record(&mut output_record);
+                    }
+                }
+            }
+
+            wtr.write_byte_record(&output_record)?;
+
+            index += 1;
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
     if args.flag_overwrite && program.has_any_plural_expr() {
         Err("-O/--overwrite does not work with clauses yielding multiple columns yet!")?;
     }
@@ -165,7 +219,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if let Some(t) = threads {
         for result in rdr.into_byte_records().enumerate().parallel_map_custom(
             |o| o.threads(t),
-            move |(index, record)| -> CliResult<(bool, simd_csv::ByteRecord)> {
+            move |(index, record)| -> CliResult<(bool, ByteRecord)> {
                 let mut record = record?;
 
                 let is_truthy;
@@ -186,7 +240,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
     } else {
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
