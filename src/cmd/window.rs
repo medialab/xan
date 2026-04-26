@@ -73,6 +73,11 @@ Usage:
 window options:
     -g, --groupby <cols>  If given, resets the computed aggregations each
                           time the given selection yields a new identity.
+    -O, --overwrite       If set, expressions named with a column already existing
+                          in the file will be overwritten with the result of the
+                          expression instead of adding a new column at the end.
+                          This means you can both transform and add columns at the
+                          same time.
 
 Common options:
     -h, --help               Display this message
@@ -88,6 +93,7 @@ struct Args {
     arg_expression: String,
     arg_input: Option<String>,
     flag_groupby: Option<SelectedColumns>,
+    flag_overwrite: bool,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -107,6 +113,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let headers = reader.byte_headers()?.clone();
     let mut program =
         WindowAggregationProgram::parse(&args.arg_expression, &headers, conf.no_headers)?;
+
+    if args.flag_overwrite {
+        program.overwrite();
+    }
 
     let groupby_sel_opt = args
         .flag_groupby

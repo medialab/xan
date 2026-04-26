@@ -36,14 +36,12 @@ impl SelectionProgram {
                             if let Some(i) = pos {
                                 mask[i] = Some(expr_i);
                             } else {
-                                mask.push(None);
                                 rest.push(expr_i);
                             }
 
                             (c, expr_name, pos.is_some())
                         }
                         ExprName::Plural(_names) => {
-                            mask.push(None);
                             rest.push(expr_i);
 
                             (c, expr_name, false)

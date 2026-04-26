@@ -785,6 +785,8 @@ pub struct WindowAggregationProgram {
     future_buffer: Option<(usize, FutureBuffer)>,
     total_buffer: Option<TotalBuffer>,
     output_buffer: Vec<DynamicValue>,
+    mask: Vec<Option<usize>>,
+    rest: Vec<usize>,
 }
 
 impl WindowAggregationProgram {
@@ -795,6 +797,9 @@ impl WindowAggregationProgram {
     ) -> Result<Self, ConcretizationError> {
         let headers_index = HeadersIndex::new(headers, headless);
         let aggs = concretize_window_aggregations(code, &headers_index)?;
+
+        let mask = vec![None; headers.len()];
+        let rest = (0..aggs.len()).collect();
 
         let (max_past, max_future) = find_buffer_extent(&aggs);
 
@@ -815,11 +820,31 @@ impl WindowAggregationProgram {
             past_buffer,
             future_buffer,
             total_buffer,
+            mask,
+            rest,
         })
     }
 
+    fn has_something_to_overwrite(&self) -> bool {
+        self.rest.len() < self.aggs.len()
+    }
+
+    pub fn overwrite(&mut self) {
+        self.rest.clear();
+
+        for (expr_i, (name, _)) in self.aggs.iter().enumerate() {
+            let pos = self.headers_index.first_by_name(name);
+
+            if let Some(i) = pos {
+                self.mask[i] = Some(expr_i);
+            } else {
+                self.rest.push(expr_i);
+            }
+        }
+    }
+
     pub fn headers(&self) -> impl Iterator<Item = &[u8]> {
-        self.aggs.iter().map(|(name, _)| name.as_bytes())
+        self.rest.iter().map(|i| self.aggs[*i].0.as_bytes())
     }
 
     fn run_with_record_impl(
@@ -882,15 +907,34 @@ impl WindowAggregationProgram {
             past_buffer.push_front((index, record_to_emit.clone()));
         }
 
-        let mut output_record = record_to_emit.clone();
+        if self.has_something_to_overwrite() {
+            let mut output_record = ByteRecord::new();
 
-        for value in self.output_buffer.iter() {
-            value.push_field_to_record(&mut output_record);
+            for (expr_i_opt, cell) in self.mask.iter().copied().zip(record_to_emit.iter()) {
+                if let Some(expr_i) = expr_i_opt {
+                    self.output_buffer[expr_i].push_field_to_record(&mut output_record);
+                } else {
+                    output_record.push_field(cell);
+                }
+            }
+
+            for expr_i in self.rest.iter().copied() {
+                self.output_buffer[expr_i].push_field_to_record(&mut output_record);
+            }
+
+            Ok(Some(output_record))
+        } else {
+            let mut output_record = record_to_emit.clone();
+
+            for value in self.output_buffer.iter() {
+                value.push_field_to_record(&mut output_record);
+            }
+
+            Ok(Some(output_record))
         }
-
-        Ok(Some(output_record))
     }
 
+    #[inline(always)]
     pub fn run_with_record(
         &mut self,
         index: usize,

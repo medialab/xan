@@ -559,3 +559,29 @@ fn window_generic_agg() {
 
     assert_eq!(got, expected);
 }
+
+#[test]
+fn window_overwrite() {
+    let wrk = Workdir::new("window_overwrite");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["name", "color", "age"],
+            svec!["john", "red", "45"],
+            svec!["lucy", "yellow", "36"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("-O")
+        .arg("mean(age) as age, lag(color) as prev_color")
+        .arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "color", "age", "prev_color"],
+        ["john", "red", "40.5", ""],
+        ["lucy", "yellow", "40.5", "red"],
+    ];
+
+    assert_eq!(got, expected);
+}
