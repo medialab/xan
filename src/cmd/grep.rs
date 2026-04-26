@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::io::Write;
 use std::num::NonZeroUsize;
 
@@ -6,6 +5,7 @@ use aho_corasick::AhoCorasick;
 use regex::bytes::RegexBuilder;
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
 
+use crate::collections::ContextBuffer;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -13,32 +13,6 @@ use crate::CliError;
 use crate::CliResult;
 
 use crate::cmd::search::Matcher;
-
-struct BeforeContextBuffer {
-    buffer: VecDeque<Vec<u8>>,
-}
-
-impl BeforeContextBuffer {
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            buffer: VecDeque::with_capacity(capacity),
-        }
-    }
-
-    #[inline]
-    fn push(&mut self, record: &[u8]) {
-        if self.buffer.len() == self.buffer.capacity() {
-            self.buffer.pop_front();
-        }
-
-        self.buffer.push_back(record.to_vec());
-    }
-
-    #[inline(always)]
-    fn flush(&mut self) -> impl Iterator<Item = Vec<u8>> + '_ {
-        self.buffer.drain(..)
-    }
-}
 
 static USAGE: &str = "
 Keep rows of a CSV file matching a given pattern. It can be thought of as
@@ -206,11 +180,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let matcher = args.build_matcher(&patterns)?;
 
     let mut count: u64 = 0;
-    let mut after_context_count: usize = 0;
-
-    let mut before_context_buffer_opt = args
-        .flag_before_context
-        .map(|n| BeforeContextBuffer::with_capacity(n.get()));
+    let mut context_buffer_opt = (args.flag_after_context.is_some()
+        || args.flag_before_context.is_some())
+    .then(|| ContextBuffer::new(args.flag_before_context, args.flag_after_context));
 
     macro_rules! process_record {
         ($record: expr) => {
@@ -220,32 +192,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match = !is_match;
             }
 
-            if is_match {
-                if let Some(writer) = writer_opt.as_mut() {
-                    if let Some(buffer) = before_context_buffer_opt.as_mut() {
-                        for past_record in buffer.flush() {
-                            writer.write_splitted_record(&past_record)?;
-                        }
+            if let Some(context_buffer) = context_buffer_opt.as_mut() {
+                context_buffer.try_process(is_match, $record, |r| -> CliResult<()> {
+                    if let Some(writer) = writer_opt.as_mut() {
+                        writer.write_splitted_record(r)?;
+                    } else {
+                        count += 1;
                     }
 
-                    writer.write_splitted_record($record)?;
-                } else {
-                    count += 1;
-                }
-
-                if let Some(n) = args.flag_after_context {
-                    after_context_count = n.get();
-                }
+                    Ok(())
+                })?;
             } else {
-                if after_context_count > 0 {
-                    after_context_count -= 1;
-                    writer_opt
-                        .as_mut()
-                        .unwrap()
-                        .write_splitted_record($record)?;
-                } else {
-                    if let Some(buffer) = before_context_buffer_opt.as_mut() {
-                        buffer.push($record);
+                if is_match {
+                    if let Some(writer) = writer_opt.as_mut() {
+                        writer.write_splitted_record($record)?;
+                    } else {
+                        count += 1;
                     }
                 }
             }

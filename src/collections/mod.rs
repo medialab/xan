@@ -1,10 +1,12 @@
 mod clustered_insert_hashmap;
+mod context_buffer;
 mod counter;
 mod fixed_reverse_heap;
 mod incremental_id;
 mod union_find;
 
 pub use clustered_insert_hashmap::ClusteredInsertHashmap;
+pub use context_buffer::ContextBuffer;
 pub use counter::Counter;
 pub use fixed_reverse_heap::{FixedReverseHeap, FixedReverseHeapMap, FixedReverseHeapMapWithTies};
 pub use incremental_id::IncrementalId;
