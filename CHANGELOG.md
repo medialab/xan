@@ -32,6 +32,10 @@
 * Improving performance of `xan transform`, `xan flatmap`, `xan agg` & `xan groupby`.
 * Improving performance of `xan rename`.
 
+*Quality of Life*
+
+* `xan plot` will now display `<empty>` label in legends.
+
 ## 0.57.1
 
 *Fixes*

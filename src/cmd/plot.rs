@@ -1584,11 +1584,22 @@ impl SeriesBuilder {
     }
 
     fn into_finalized_series(self) -> Vec<(Option<String>, Series)> {
-        match self {
+        let mut finalized = match self {
             Self::Single(inner) => vec![(None, inner)],
             Self::Categorical(inner) => inner.into_finalized_series(),
             Self::Multiple(inner) => inner.into_finalized_series(),
+        };
+
+        // Normalizing names
+        for (name_opt, _) in finalized.iter_mut() {
+            if let Some(name) = name_opt {
+                if name.is_empty() {
+                    *name = "<empty>".into();
+                }
+            }
         }
+
+        finalized
     }
 
     fn is_empty(&self) -> bool {
