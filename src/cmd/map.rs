@@ -163,13 +163,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             let mut new_headers = ByteRecord::new();
 
             for (i, is_mapped) in mask.iter().copied().enumerate() {
-                new_headers.push_field(&headers[i]);
-
                 if is_mapped {
+                    if !args.flag_overwrite {
+                        new_headers.push_field(&headers[i]);
+                    }
+
                     for name in program.headers() {
                         let templated = name.replace("{}", &headers[i]);
                         new_headers.push_field(&templated);
                     }
+                } else {
+                    new_headers.push_field(&headers[i]);
                 }
             }
 
@@ -184,13 +188,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             output_record.clear();
 
             for (i, is_mapped) in mask.iter().copied().enumerate() {
-                output_record.push_field(&record[i]);
-
                 if is_mapped {
+                    if !args.flag_overwrite {
+                        output_record.push_field(&record[i]);
+                    }
+
                     for result in program.run_with_record(index, i, &record) {
                         let value = result?;
                         value.push_field_to_record(&mut output_record);
                     }
+                } else {
+                    output_record.push_field(&record[i]);
                 }
             }
 

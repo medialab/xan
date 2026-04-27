@@ -157,3 +157,40 @@ fn map_plural_clause() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn map_along_columns() {
+    let wrk = Workdir::new("map_along_columns");
+    wrk.create("data.csv", vec![svec!["a", "b"], svec!["1", "2"]]);
+
+    let mut cmd = wrk.command("map");
+    cmd.args(["-C", "a,b"])
+        .arg("_ + 10 as '{}_add', _ - 10 as '{}_sub'")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["a", "a_add", "a_sub", "b", "b_add", "b_sub"],
+        ["1", "11", "-9", "2", "12", "-8"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn map_along_columns_overwrite() {
+    let wrk = Workdir::new("map_along_columns_overwrite");
+    wrk.create("data.csv", vec![svec!["a", "b"], svec!["1", "2"]]);
+
+    let mut cmd = wrk.command("map");
+    cmd.args(["-C", "a,b"])
+        .arg("-O")
+        .arg("_ + 10 as '{}_add', _ - 10 as '{}_sub'")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["a_add", "a_sub", "b_add", "b_sub"],
+        ["11", "-9", "12", "-8"],
+    ];
+    assert_eq!(got, expected);
+}
