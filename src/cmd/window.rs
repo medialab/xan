@@ -175,7 +175,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let new_group = sel.select(&record).collect();
 
                     if group != &new_group {
-                        program.flush_and_clear(index, |output_record| -> CliResult<()> {
+                        program.flush_and_clear(index, None, |output_record| -> CliResult<()> {
                             writer.write_byte_record(&output_record)?;
 
                             Ok(())
@@ -187,14 +187,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
         }
 
-        if let Some(output_record) = program.run_with_record(index, &record)? {
+        if let Some(output_record) = program.run_with_record(index, None, &record)? {
             writer.write_byte_record(&output_record)?;
         }
 
         index += 1;
     }
 
-    program.flush(index, |output_record| -> CliResult<()> {
+    program.flush(index, None, |output_record| -> CliResult<()> {
         writer.write_byte_record(&output_record)?;
 
         Ok(())

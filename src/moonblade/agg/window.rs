@@ -174,11 +174,14 @@ enum ConcreteWindowAggregation {
 
 fn eval_expression_to_number(
     expr: &ConcreteExpr,
-    index: usize,
+    row_index: usize,
+    col_index: Option<usize>,
     record: &ByteRecord,
     headers_index: &HeadersIndex,
 ) -> Result<DynamicNumber, SpecifiedEvaluationError> {
-    let value = EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
+    let value =
+        EvaluationContext::new_with_col_index(Some(row_index), col_index, record, headers_index)
+            .evaluate(expr)?;
 
     value.try_as_number().map_err(|err| err.anonymous())
 }
@@ -201,14 +204,20 @@ impl ConcreteWindowAggregation {
 
     fn aggregate_total(
         &mut self,
-        index: usize,
+        row_index: usize,
+        col_index: Option<usize>,
         record: &ByteRecord,
         headers_index: &HeadersIndex,
     ) -> Result<(), SpecifiedEvaluationError> {
         match self {
             Self::Frac(expr, sum, _) => {
-                let value =
-                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
+                let value = EvaluationContext::new_with_col_index(
+                    Some(row_index),
+                    col_index,
+                    record,
+                    headers_index,
+                )
+                .evaluate(expr)?;
 
                 if !value.is_nullish() {
                     sum.add(value.try_as_number().map_err(|err| err.specify("frac"))?);
@@ -220,8 +229,13 @@ impl ConcreteWindowAggregation {
                 kind,
                 ..
             }) => {
-                let value =
-                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
+                let value = EvaluationContext::new_with_col_index(
+                    Some(row_index),
+                    col_index,
+                    record,
+                    headers_index,
+                )
+                .evaluate(expr)?;
                 let number = value
                     .try_as_number()
                     .map_err(|err| err.specify(kind.as_str()))?;
@@ -229,7 +243,7 @@ impl ConcreteWindowAggregation {
                 numbers.push((number, numbers.len()));
             }
             Self::TotalAggregation(program, _) => {
-                program.run_with_record(index, record)?;
+                program.run_with_record(row_index, record)?;
             }
             _ => (),
         };
@@ -357,6 +371,7 @@ impl ConcreteWindowAggregation {
     fn run(
         &mut self,
         index: usize,
+        col_index: Option<usize>,
         record: &ByteRecord,
         headers_index: &HeadersIndex,
         past_buffer: Option<&PastBuffer>,
@@ -369,24 +384,32 @@ impl ConcreteWindowAggregation {
                 match past_buffer.get(*n - 1) {
                     None => Ok(EvaluationContext::new(Some(index), record, headers_index)
                         .evaluate(default)?),
-                    Some((past_index, past_record)) => {
-                        let value =
-                            EvaluationContext::new(Some(*past_index), past_record, headers_index)
-                                .evaluate(expr)?;
+                    Some((past_row_index, past_col_index, past_record)) => {
+                        let value = EvaluationContext::new_with_col_index(
+                            Some(*past_row_index),
+                            *past_col_index,
+                            past_record,
+                            headers_index,
+                        )
+                        .evaluate(expr)?;
 
                         Ok(value)
                     }
                 }
             }
             Self::Lead(expr, n, default) => {
-                let (future_index, future_record, is_padding) =
+                let (future_row_index, future_col_index, future_record, is_padding) =
                     future_buffer.unwrap().get(*n).unwrap();
 
                 let expr = if *is_padding { default } else { expr };
 
-                let value =
-                    EvaluationContext::new(Some(*future_index), future_record, headers_index)
-                        .evaluate(expr)?;
+                let value = EvaluationContext::new_with_col_index(
+                    Some(*future_row_index),
+                    *future_col_index,
+                    future_record,
+                    headers_index,
+                )
+                .evaluate(expr)?;
 
                 Ok(value)
             }
@@ -438,14 +461,16 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(idx))
             }
             Self::CumulativeSum(expr, sum) => {
-                let number = eval_expression_to_number(expr, index, record, headers_index)?;
+                let number =
+                    eval_expression_to_number(expr, index, col_index, record, headers_index)?;
 
                 sum.add(number);
 
                 Ok(DynamicValue::from(sum.get()))
             }
             Self::CumulativeMin(expr, min) => {
-                let number = eval_expression_to_number(expr, index, record, headers_index)?;
+                let number =
+                    eval_expression_to_number(expr, index, col_index, record, headers_index)?;
 
                 match min {
                     None => *min = Some(number),
@@ -459,7 +484,8 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(*min))
             }
             Self::CumulativeMax(expr, max) => {
-                let number = eval_expression_to_number(expr, index, record, headers_index)?;
+                let number =
+                    eval_expression_to_number(expr, index, col_index, record, headers_index)?;
 
                 match max {
                     None => *max = Some(number),
@@ -473,7 +499,8 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(*max))
             }
             Self::RollingSum(expr, sum) => {
-                let number = eval_expression_to_number(expr, index, record, headers_index)?;
+                let number =
+                    eval_expression_to_number(expr, index, col_index, record, headers_index)?;
 
                 Ok(DynamicValue::from(sum.add(number)))
             }
@@ -773,9 +800,9 @@ fn find_buffer_extent(aggs: &ConcreteWindowAggregations) -> (usize, usize) {
     extent
 }
 
-type PastBuffer = VecDeque<(usize, ByteRecord)>;
-type FutureBuffer = VecDeque<(usize, ByteRecord, bool)>;
-type TotalBuffer = Vec<(usize, ByteRecord)>;
+type PastBuffer = VecDeque<(usize, Option<usize>, ByteRecord)>;
+type FutureBuffer = VecDeque<(usize, Option<usize>, ByteRecord, bool)>;
+type TotalBuffer = Vec<(usize, Option<usize>, ByteRecord)>;
 
 #[derive(Debug)]
 pub struct WindowAggregationProgram {
@@ -849,19 +876,20 @@ impl WindowAggregationProgram {
 
     fn run_with_record_impl(
         &mut self,
-        index: usize,
+        row_index: usize,
+        col_index: Option<usize>,
         record: &ByteRecord,
         is_padding: bool,
     ) -> Result<Option<ByteRecord>, SpecifiedEvaluationError> {
         if let Some(total_buffer) = &mut self.total_buffer {
-            total_buffer.push((index, record.clone()));
+            total_buffer.push((row_index, col_index, record.clone()));
 
             return Ok(None);
         }
 
         if let Some((future_capacity, future_buffer)) = &mut self.future_buffer {
             if future_buffer.len() < *future_capacity {
-                future_buffer.push_back((index, record.clone(), is_padding));
+                future_buffer.push_back((row_index, col_index, record.clone(), is_padding));
 
                 return Ok(None);
             }
@@ -873,17 +901,18 @@ impl WindowAggregationProgram {
         let future_buffer_ref = self.future_buffer.as_ref().map(|(_, b)| b);
 
         for (_, agg) in self.aggs.iter_mut() {
-            let (working_index, working_record) =
+            let (working_row_index, working_col_index, working_record) =
                 if let Some((_, future_buffer)) = &self.future_buffer {
-                    let (i, r, _) = future_buffer.front().unwrap();
+                    let (i, c, r, _) = future_buffer.front().unwrap();
 
-                    (*i, r)
+                    (*i, *c, r)
                 } else {
-                    (index, record)
+                    (row_index, col_index, record)
                 };
 
             self.output_buffer.push(agg.run(
-                working_index,
+                working_row_index,
+                working_col_index,
                 working_record,
                 &self.headers_index,
                 past_buffer_ref,
@@ -893,8 +922,8 @@ impl WindowAggregationProgram {
 
         let record_to_emit = if let Some((_, future_buffer)) = &mut self.future_buffer {
             let r = future_buffer.pop_front();
-            future_buffer.push_back((index, record.clone(), is_padding));
-            &r.unwrap().1
+            future_buffer.push_back((row_index, col_index, record.clone(), is_padding));
+            &r.unwrap().2
         } else {
             record
         };
@@ -904,7 +933,7 @@ impl WindowAggregationProgram {
                 past_buffer.pop_back();
             }
 
-            past_buffer.push_front((index, record_to_emit.clone()));
+            past_buffer.push_front((row_index, col_index, record_to_emit.clone()));
         }
 
         if self.has_something_to_overwrite() {
@@ -937,21 +966,27 @@ impl WindowAggregationProgram {
     #[inline(always)]
     pub fn run_with_record(
         &mut self,
-        index: usize,
+        row_index: usize,
+        col_index: Option<usize>,
         record: &ByteRecord,
     ) -> Result<Option<ByteRecord>, SpecifiedEvaluationError> {
-        self.run_with_record_impl(index, record, false)
+        self.run_with_record_impl(row_index, col_index, record, false)
     }
 
-    pub fn flush<F, E>(&mut self, mut from_index: usize, mut callback: F) -> Result<(), E>
+    pub fn flush<F, E>(
+        &mut self,
+        mut from_row_index: usize,
+        col_index: Option<usize>,
+        mut callback: F,
+    ) -> Result<(), E>
     where
         F: FnMut(ByteRecord) -> Result<(), E>,
         E: From<SpecifiedEvaluationError>,
     {
         if let Some(total_buffer) = self.total_buffer.take() {
-            for (index, record) in total_buffer.iter() {
+            for (row_index, col_index, record) in total_buffer.iter() {
                 for (_, agg) in self.aggs.iter_mut() {
-                    agg.aggregate_total(*index, record, &self.headers_index)?;
+                    agg.aggregate_total(*row_index, *col_index, record, &self.headers_index)?;
                 }
             }
 
@@ -959,8 +994,8 @@ impl WindowAggregationProgram {
                 agg.finalize_total()?;
             }
 
-            for (index, record) in total_buffer.iter() {
-                if let Some(output_record) = self.run_with_record(*index, record)? {
+            for (row_index, col_index, record) in total_buffer.iter() {
+                if let Some(output_record) = self.run_with_record(*row_index, *col_index, record)? {
                     callback(output_record)?;
                 }
             }
@@ -972,9 +1007,9 @@ impl WindowAggregationProgram {
                 .collect::<ByteRecord>();
 
             for _ in 0..future_buffer.len() {
-                from_index += 1;
+                from_row_index += 1;
                 callback(
-                    self.run_with_record_impl(from_index, &padding, true)?
+                    self.run_with_record_impl(from_row_index, col_index, &padding, true)?
                         .unwrap(),
                 )?;
             }
@@ -983,13 +1018,7 @@ impl WindowAggregationProgram {
         Ok(())
     }
 
-    pub fn flush_and_clear<F, E>(&mut self, from_index: usize, callback: F) -> Result<(), E>
-    where
-        F: FnMut(ByteRecord) -> Result<(), E>,
-        E: From<SpecifiedEvaluationError>,
-    {
-        self.flush(from_index, callback)?;
-
+    fn clear(&mut self) {
         if self.aggs.iter().any(|(_, agg)| agg.requires_total_buffer()) {
             self.total_buffer = Some(Vec::new());
         }
@@ -1005,6 +1034,20 @@ impl WindowAggregationProgram {
         for (_, agg) in &mut self.aggs {
             agg.clear();
         }
+    }
+
+    pub fn flush_and_clear<F, E>(
+        &mut self,
+        from_row_index: usize,
+        col_index: Option<usize>,
+        callback: F,
+    ) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        self.flush(from_row_index, col_index, callback)?;
+        self.clear();
 
         Ok(())
     }

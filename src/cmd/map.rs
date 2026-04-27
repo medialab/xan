@@ -238,7 +238,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         output_record.push_field(&input_record[i]);
                     }
 
-                    for result in program.run_with_record(index, i, &input_record) {
+                    for result in program.run_with_record(index, i, input_record) {
                         let value = result?;
                         value.push_field_to_record(output_record);
                     }
