@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
@@ -71,13 +72,14 @@ Usage:
     xan window --help
 
 window options:
-    -g, --groupby <cols>  If given, resets the computed aggregations each
-                          time the given selection yields a new identity.
-    -O, --overwrite       If set, expressions named with a column already existing
-                          in the file will be overwritten with the result of the
-                          expression instead of adding a new column at the end.
-                          This means you can both transform and add columns at the
-                          same time.
+    -g, --groupby <cols>        If given, resets the computed aggregations each
+                                time the given selection yields a new identity.
+    -O, --overwrite             If set, expressions named with a column already existing
+                                in the file will be overwritten with the result of the
+                                expression instead of adding a new column at the end.
+                                This means you can both transform and add columns at the
+                                same time.
+    -C, --along-columns <cols>  Repeat same expression over a selection of columns at once.
 
 Common options:
     -h, --help               Display this message
@@ -94,6 +96,7 @@ struct Args {
     arg_input: Option<String>,
     flag_groupby: Option<SelectedColumns>,
     flag_overwrite: bool,
+    flag_along_columns: Option<SelectedColumns>,
     flag_no_headers: bool,
     flag_output: Option<String>,
     flag_delimiter: Option<Delimiter>,
@@ -123,8 +126,39 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|s| s.selection(&headers, !conf.no_headers))
         .transpose()?;
 
+    let columns_mask_opt = args
+        .flag_along_columns
+        .map(|s| s.selection(&headers, !conf.no_headers))
+        .transpose()?
+        .map(|s| s.mask(headers.len()));
+
     if !conf.no_headers {
-        writer.write_record(headers.iter().chain(program.headers()))?;
+        if let Some(mask) = &columns_mask_opt {
+            let mut new_headers = ByteRecord::new();
+
+            for (i, is_mapped) in mask.iter().copied().enumerate() {
+                if is_mapped {
+                    if !args.flag_overwrite {
+                        new_headers.push_field(&headers[i]);
+                    }
+
+                    for name in program.headers() {
+                        let templated = name.replace("{}", &headers[i]);
+                        new_headers.push_field(&templated);
+                    }
+                } else {
+                    new_headers.push_field(&headers[i]);
+                }
+            }
+
+            writer.write_byte_record(&new_headers)?;
+        } else {
+            writer.write_record(headers.iter().chain(program.headers()))?;
+        }
+    }
+
+    if columns_mask_opt.is_some() {
+        todo!()
     }
 
     let mut record = ByteRecord::new();
