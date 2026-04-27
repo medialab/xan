@@ -68,6 +68,11 @@ Usage:
 window options:
     -g, --groupby <cols>  If given, resets the computed aggregations each
                           time the given selection yields a new identity.
+    -O, --overwrite       If set, expressions named with a column already existing
+                          in the file will be overwritten with the result of the
+                          expression instead of adding a new column at the end.
+                          This means you can both transform and add columns at the
+                          same time.
 
 Common options:
     -h, --help               Display this message

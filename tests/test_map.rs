@@ -174,6 +174,15 @@ fn map_along_columns() {
         ["1", "11", "-9", "2", "12", "-8"],
     ];
     assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("map");
+    cmd.args(["-C", "a,b"])
+        .arg("-p")
+        .arg("_ + 10 as '{}_add', _ - 10 as '{}_sub'")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    assert_eq!(got, expected);
 }
 
 #[test]
@@ -192,5 +201,15 @@ fn map_along_columns_overwrite() {
         ["a_add", "a_sub", "b_add", "b_sub"],
         ["11", "-9", "12", "-8"],
     ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("map");
+    cmd.args(["-C", "a,b"])
+        .arg("-p")
+        .arg("-O")
+        .arg("_ + 10 as '{}_add', _ - 10 as '{}_sub'")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     assert_eq!(got, expected);
 }

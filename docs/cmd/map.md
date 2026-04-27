@@ -53,6 +53,42 @@ a,b,c
 1,40,4
 5,20,10
 
+# Mapping along columns
+
+Sometimes you might want to add one or more columns in a same fashion for a given
+selection of columns.
+
+You can do so using the -C/--along-columns <cols> flag. In this case, the `_`
+placeholder can be used in expression to represent the current column.
+
+For instance, given the following data:
+
+a,b
+4,5
+1,7
+
+The following command (notice how we can template added column names):
+
+    $ xan map -C a,b '_ + 10 as "{}_add", _ - 10 as "{}_sub"' file.csv
+
+Would produce the following:
+
+a,a_add,a_sub,b,b_add,b_sub
+4,14,-6,5,15,-5
+1,11,-9,7,17,-3
+
+This can also be used with the -O/--overwrite flag:
+
+    $ xan map -OC a,b '_ + 10 as "{}_add", _ - 10 as "{}_sub"' file.csv
+
+To produce:
+
+a_add,a_sub,b_add,b_sub
+14,-6,15,-5
+11,-9,17,-3
+
+---
+
 The expression can optionally be read from a file using the -f/--evaluate-file flag:
 
     $ xan map -f expr.moonblade file.csv > result.csv
@@ -61,6 +97,8 @@ For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
 For a list of available functions, use `xan help functions`.
+
+---
 
 Miscellaneous tricks:
 
@@ -77,20 +115,21 @@ Usage:
     xan map --help
 
 map options:
-    -f, --evaluate-file        Read evaluation expression from a file instead.
-    -O, --overwrite            If set, expressions named with a column already existing
-                               in the file will be overwritten with the result of the
-                               expression instead of adding a new column at the end.
-                               This means you can both transform and add columns at the
-                               same time.
-    -F, --filter               If given, will not write rows in the output if all results
-                               of evaluated expression are falsey.
-    -p, --parallel             Whether to use parallelization to speed up computations.
-                               Will automatically select a suitable number of threads to use
-                               based on your number of cores. Use -t, --threads if you want to
-                               indicate the number of threads yourself.
-    -t, --threads <threads>    Parellize computations using this many threads. Use -p, --parallel
-                               if you want the number of threads to be automatically chosen instead.
+    -f, --evaluate-file         Read evaluation expression from a file instead.
+    -O, --overwrite             If set, expressions named with a column already existing
+                                in the file will be overwritten with the result of the
+                                expression instead of adding a new column at the end.
+                                This means you can both transform and add columns at the
+                                same time.
+    -F, --filter                If given, will not write rows in the output if all results
+                                of evaluated expression are falsey.
+    -C, --along-columns <cols>  Repeat same expression over a selection of columns at once.
+    -p, --parallel              Whether to use parallelization to speed up computations.
+                                Will automatically select a suitable number of threads to use
+                                based on your number of cores. Use -t, --threads if you want to
+                                indicate the number of threads yourself.
+    -t, --threads <threads>     Parellize computations using this many threads. Use -p, --parallel
+                                if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message

@@ -18,6 +18,7 @@
 * Adding nullary `col_index` & `header()` variants, to work with expression applied in series to multiple columns at once.
 * Adding `xan filter -B/--before-context & -A/--after-context`.
 * Adding `xan window -O/--overwrite`.
+* Adding `xan map -C/--along-columns`.
 
 *Fixes*
 

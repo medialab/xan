@@ -62,6 +62,42 @@ a,b,c
 1,40,4
 5,20,10
 
+# Mapping along columns
+
+Sometimes you might want to add one or more columns in a same fashion for a given
+selection of columns.
+
+You can do so using the -C/--along-columns <cols> flag. In this case, the `_`
+placeholder can be used in expression to represent the current column.
+
+For instance, given the following data:
+
+a,b
+4,5
+1,7
+
+The following command (notice how we can template added column names):
+
+    $ xan map -C a,b '_ + 10 as "{}_add", _ - 10 as "{}_sub"' file.csv
+
+Would produce the following:
+
+a,a_add,a_sub,b,b_add,b_sub
+4,14,-6,5,15,-5
+1,11,-9,7,17,-3
+
+This can also be used with the -O/--overwrite flag:
+
+    $ xan map -OC a,b '_ + 10 as "{}_add", _ - 10 as "{}_sub"' file.csv
+
+To produce:
+
+a_add,a_sub,b_add,b_sub
+14,-6,15,-5
+11,-9,17,-3
+
+---
+
 The expression can optionally be read from a file using the -f/--evaluate-file flag:
 
     $ xan map -f expr.moonblade file.csv > result.csv
@@ -70,6 +106,8 @@ For a quick review of the capabilities of the expression language,
 check out the `xan help cheatsheet` command.
 
 For a list of available functions, use `xan help functions`.
+
+---
 
 Miscellaneous tricks:
 
@@ -140,6 +178,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve()?;
 
+    if args.flag_filter && args.flag_along_columns.is_some() {
+        Err("-F/--filter does not work with -C/--along-columns!")?;
+    }
+
     let rconf = Config::new(&args.arg_input)
         .no_headers(args.flag_no_headers)
         .delimiter(args.flag_delimiter);
@@ -158,7 +200,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let sel = columns.selection(&headers, !rconf.no_headers)?;
         let mask = sel.mask(headers.len());
 
-        // TODO: help, tests, parallelism
         if !rconf.no_headers {
             let mut new_headers = ByteRecord::new();
 
@@ -180,31 +221,75 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             wtr.write_byte_record(&new_headers)?;
         }
 
-        let mut record = ByteRecord::new();
-        let mut output_record = ByteRecord::new();
-        let mut index: usize = 0;
-
-        while rdr.read_byte_record(&mut record)? {
+        #[inline]
+        fn process_record(
+            program: &SelectionProgram,
+            index: usize,
+            input_record: &ByteRecord,
+            output_record: &mut ByteRecord,
+            mask: &[bool],
+            overwrite: bool,
+        ) -> CliResult<()> {
             output_record.clear();
 
             for (i, is_mapped) in mask.iter().copied().enumerate() {
                 if is_mapped {
-                    if !args.flag_overwrite {
-                        output_record.push_field(&record[i]);
+                    if !overwrite {
+                        output_record.push_field(&input_record[i]);
                     }
 
-                    for result in program.run_with_record(index, i, &record) {
+                    for result in program.run_with_record(index, i, &input_record) {
                         let value = result?;
-                        value.push_field_to_record(&mut output_record);
+                        value.push_field_to_record(output_record);
                     }
                 } else {
-                    output_record.push_field(&record[i]);
+                    output_record.push_field(&input_record[i]);
                 }
             }
 
-            wtr.write_byte_record(&output_record)?;
+            Ok(())
+        }
 
-            index += 1;
+        if let Some(t) = threads {
+            for result in rdr.into_byte_records().enumerate().parallel_map_custom(
+                |o| o.threads(t),
+                move |(index, record)| -> CliResult<ByteRecord> {
+                    let record = record?;
+                    let mut output_record = ByteRecord::new();
+
+                    process_record(
+                        &program,
+                        index,
+                        &record,
+                        &mut output_record,
+                        &mask,
+                        args.flag_overwrite,
+                    )?;
+
+                    Ok(output_record)
+                },
+            ) {
+                wtr.write_byte_record(&result?)?;
+            }
+        } else {
+            let mut record = ByteRecord::new();
+            let mut output_record = ByteRecord::new();
+            let mut index: usize = 0;
+
+            while rdr.read_byte_record(&mut record)? {
+                process_record(
+                    &program,
+                    index,
+                    &record,
+                    &mut output_record,
+                    &mask,
+                    args.flag_overwrite,
+                )?;
+
+                wtr.write_byte_record(&output_record)?;
+
+                index += 1;
+            }
         }
 
         return Ok(wtr.flush()?);
