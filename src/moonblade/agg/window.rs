@@ -406,8 +406,11 @@ impl ConcreteWindowAggregation {
                 }
             }
             Self::Lead(expr, n, default) => {
-                let (future_row_index, future_col_index, future_record, is_padding) =
-                    future_buffer.unwrap().get(*n).unwrap();
+                let Some((future_row_index, future_col_index, future_record, is_padding)) =
+                    future_buffer.unwrap().get(*n)
+                else {
+                    return Ok(DynamicValue::None);
+                };
 
                 let expr = if *is_padding { default } else { expr };
 
@@ -914,7 +917,9 @@ impl WindowAggregationProgram {
             if future_buffer.len() < *future_capacity {
                 future_buffer.push_back((row_index, col_index, record.clone(), is_padding));
 
-                return Ok(None);
+                if !is_padding {
+                    return Ok(None);
+                }
             }
         }
 

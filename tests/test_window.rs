@@ -712,7 +712,7 @@ fn window_no_future() {
     cmd.arg("lead(n, 4)").arg("numbers.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
-    let expected = vec![svec!["n", "lead(n)"], svec!["1", ""]];
+    let expected = vec![svec!["n", "lead(n, 4)"], svec!["1", ""]];
 
     assert_eq!(got, expected);
 }
