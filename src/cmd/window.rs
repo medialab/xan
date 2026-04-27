@@ -2,10 +2,39 @@ use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
-use crate::moonblade::WindowAggregationProgram;
+use crate::moonblade::{WindowAggregationArray, WindowAggregationProgram};
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
+
+#[inline]
+fn build_along_columns_record(
+    mask: &[bool],
+    input_record: &ByteRecord,
+    output_record: &mut ByteRecord,
+    records: &[ByteRecord],
+    overwrite: bool,
+) {
+    output_record.clear();
+
+    let mut records_iter = records.iter();
+
+    for (i, is_mapped) in mask.iter().copied().enumerate() {
+        if is_mapped {
+            if !overwrite {
+                output_record.push_field(&input_record[i]);
+            }
+
+            let current_record = records_iter.next().unwrap();
+
+            for cell in current_record {
+                output_record.push_field(cell);
+            }
+        } else {
+            output_record.push_field(&input_record[i]);
+        }
+    }
+}
 
 static USAGE: &str = "
 Compute window aggregations such as cumulative sums, rolling means, leading and
@@ -55,6 +84,40 @@ Note that when doing so, the whole file will be buffered to memory.
 Keeping rows belonging to groups whose average for the `count` column is over 10:
 
     $ xan window -g country 'mean(count) as mean' file.csv | xan filter 'mean > 10'
+
+# Window aggregationgs along columns
+
+Sometimes you might want to add one or more columns in a same fashion for a given
+selection of columns.
+
+You can do so using the -C/--along-columns <cols> flag. In this case, the `_`
+placeholder can be used in expression to represent the current column.
+
+For instance, given the following data:
+
+a,b
+4,5
+1,7
+
+The following command (notice how we can template added column names):
+
+    $ xan window -C a,b 'mean(_) as \"{}_mean\", lag(_) as \"{}_lag\"' file.csv
+
+Would produce the following:
+
+a,a_mean,a_lag,b,b_mean,b_lag
+4,2.5,,5,6.0,
+1,2.5,4,7,6.0,5
+
+This can also be used with the -O/--overwrite flag:
+
+    $ xan window -OC a,b 'mean(_) as \"{}_mean\", lag(_) as \"{}_lag\"' file.csv
+
+To produce:
+
+a_mean,a_lag,b_mean,b_lag
+2.5,,6.0,
+2.5,4,6.0,5
 
 ---
 
@@ -126,14 +189,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|s| s.selection(&headers, !conf.no_headers))
         .transpose()?;
 
-    let columns_mask_opt = args
+    let columns_sel_opt = args
         .flag_along_columns
         .map(|s| s.selection(&headers, !conf.no_headers))
-        .transpose()?
-        .map(|s| s.mask(headers.len()));
+        .transpose()?;
+
+    let mut array_opt = columns_sel_opt.map(|s| {
+        (
+            s.mask(headers.len()),
+            WindowAggregationArray::from_program(&program, &s),
+        )
+    });
 
     if !conf.no_headers {
-        if let Some(mask) = &columns_mask_opt {
+        if let Some((mask, _)) = &array_opt {
             let mut new_headers = ByteRecord::new();
 
             for (i, is_mapped) in mask.iter().copied().enumerate() {
@@ -157,12 +226,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    if columns_mask_opt.is_some() {
-        todo!()
-    }
-
     let mut record = ByteRecord::new();
-    let mut index: usize = 0;
+    let mut output_record = ByteRecord::new();
+    let mut row_index: usize = 0;
     let mut group_opt: Option<ByteRecord> = None;
 
     while reader.read_byte_record(&mut record)? {
@@ -175,11 +241,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let new_group = sel.select(&record).collect();
 
                     if group != &new_group {
-                        program.flush_and_clear(index, None, |output_record| -> CliResult<()> {
-                            writer.write_byte_record(&output_record)?;
+                        if let Some((mask, array)) = array_opt.as_mut() {
+                            array.flush_and_clear(
+                                headers.len(),
+                                row_index,
+                                |r, rs| -> CliResult<()> {
+                                    build_along_columns_record(
+                                        mask,
+                                        &r,
+                                        &mut output_record,
+                                        &rs,
+                                        args.flag_overwrite,
+                                    );
 
-                            Ok(())
-                        })?;
+                                    writer.write_byte_record(&output_record)?;
+
+                                    Ok(())
+                                },
+                            )?;
+                        } else {
+                            program.flush_and_clear(
+                                row_index,
+                                |output_record| -> CliResult<()> {
+                                    writer.write_byte_record(&output_record)?;
+
+                                    Ok(())
+                                },
+                            )?;
+                        }
 
                         *group = new_group;
                     }
@@ -187,18 +276,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             };
         }
 
-        if let Some(output_record) = program.run_with_record(index, None, &record)? {
+        if let Some((mask, array)) = array_opt.as_mut() {
+            if let Some((r, rs)) = array.run_with_record(row_index, &record)? {
+                build_along_columns_record(mask, &r, &mut output_record, rs, args.flag_overwrite);
+
+                writer.write_byte_record(&output_record)?;
+            }
+        } else if let Some(output_record) = program.run_with_record(row_index, None, &record)? {
             writer.write_byte_record(&output_record)?;
         }
 
-        index += 1;
+        row_index += 1;
     }
 
-    program.flush(index, None, |output_record| -> CliResult<()> {
-        writer.write_byte_record(&output_record)?;
+    if let Some((mask, array)) = array_opt {
+        array.flush(row_index, headers.len(), |r, rs| -> CliResult<()> {
+            build_along_columns_record(&mask, &r, &mut output_record, &rs, args.flag_overwrite);
 
-        Ok(())
-    })?;
+            writer.write_byte_record(&output_record)?;
+
+            Ok(())
+        })?;
+    } else {
+        program.flush(row_index, |output_record| -> CliResult<()> {
+            writer.write_byte_record(&output_record)?;
+
+            Ok(())
+        })?;
+    }
 
     Ok(writer.flush()?)
 }

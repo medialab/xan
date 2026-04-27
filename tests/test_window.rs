@@ -564,7 +564,7 @@ fn window_generic_agg() {
 fn window_overwrite() {
     let wrk = Workdir::new("window_overwrite");
     wrk.create(
-        "numbers.csv",
+        "data.csv",
         vec![
             svec!["name", "color", "age"],
             svec!["john", "red", "45"],
@@ -574,7 +574,7 @@ fn window_overwrite() {
     let mut cmd = wrk.command("window");
     cmd.arg("-O")
         .arg("mean(age) as age, lag(color) as prev_color")
-        .arg("numbers.csv");
+        .arg("data.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -582,6 +582,137 @@ fn window_overwrite() {
         ["john", "red", "40.5", ""],
         ["lucy", "yellow", "40.5", "red"],
     ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn window_along_columns() {
+    let wrk = Workdir::new("window_along_columns");
+    wrk.create(
+        "numbers.csv",
+        vec![svec!["a", "b"], svec!["14", "2"], svec!["-10", "3"]],
+    );
+
+    // Regular
+    let mut cmd = wrk.command("window");
+    cmd.args(["-C", "a,b"])
+        .arg("row_index() as '{}_index', mean(_) as '{}_mean', lead(_) as '{}_lead', lag(_) as '{}_lag', cumsum(_) as '{}_cumsum', rolling_mean(2, _) as '{}_rollmean'")
+        .arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        [
+            "a",
+            "a_index",
+            "a_mean",
+            "a_lead",
+            "a_lag",
+            "a_cumsum",
+            "a_rollmean",
+            "b",
+            "b_index",
+            "b_mean",
+            "b_lead",
+            "b_lag",
+            "b_cumsum",
+            "b_rollmean",
+        ],
+        [
+            "14", "0", "2.0", "-10", "", "14", "", "2", "0", "2.5", "3", "", "2", "",
+        ],
+        [
+            "-10", "1", "2.0", "", "14", "4", "2.0", "3", "1", "2.5", "", "2", "5", "2.5",
+        ],
+    ];
+
+    assert_eq!(got, expected);
+
+    // Overwrite
+    let mut cmd = wrk.command("window");
+    cmd.args(["-C", "a,b"]).arg("-O")
+        .arg("row_index() as '{}_index', mean(_) as '{}_mean', lead(_) as '{}_lead', lag(_) as '{}_lag', cumsum(_) as '{}_cumsum', rolling_mean(2, _) as '{}_rollmean'")
+        .arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        [
+            "a_index",
+            "a_mean",
+            "a_lead",
+            "a_lag",
+            "a_cumsum",
+            "a_rollmean",
+            "b_index",
+            "b_mean",
+            "b_lead",
+            "b_lag",
+            "b_cumsum",
+            "b_rollmean",
+        ],
+        [
+            "0", "2.0", "-10", "", "14", "", "0", "2.5", "3", "", "2", "",
+        ],
+        [
+            "1", "2.0", "", "14", "4", "2.0", "1", "2.5", "", "2", "5", "2.5",
+        ],
+    ];
+
+    assert_eq!(got, expected);
+
+    // Groupby
+    let mut cmd = wrk.command("window");
+    cmd.args(["-C", "a,b"]).args(["-g", "a"])
+        .arg("row_index() as '{}_index', mean(_) as '{}_mean', lead(_) as '{}_lead', lag(_) as '{}_lag', cumsum(_) as '{}_cumsum', rolling_mean(2, _) as '{}_rollmean'")
+        .arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        [
+            "a",
+            "a_index",
+            "a_mean",
+            "a_lead",
+            "a_lag",
+            "a_cumsum",
+            "a_rollmean",
+            "b",
+            "b_index",
+            "b_mean",
+            "b_lead",
+            "b_lag",
+            "b_cumsum",
+            "b_rollmean",
+        ],
+        [
+            "14", "0", "14.0", "", "", "14", "", "2", "0", "2.0", "", "", "2", "",
+        ],
+        [
+            "-10", "0", "-10.0", "", "", "-10", "", "3", "0", "3.0", "", "", "3", "",
+        ],
+    ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn window_no_future() {
+    let wrk = Workdir::new("window_no_future");
+    wrk.create("numbers.csv", vec![svec!["n"], svec!["1"]]);
+
+    let mut cmd = wrk.command("window");
+    cmd.arg("lead(n)").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "lead(n)"], svec!["1", ""]];
+
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("window");
+    cmd.arg("lead(n, 4)").arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["n", "lead(n)"], svec!["1", ""]];
 
     assert_eq!(got, expected);
 }

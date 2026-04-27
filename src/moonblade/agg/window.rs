@@ -9,7 +9,7 @@ use crate::moonblade::interpreter::{concretize_expression, ConcreteExpr, Evaluat
 use crate::moonblade::parser::parse_aggregations;
 use crate::moonblade::types::{DynamicNumber, DynamicValue, FunctionArguments, HeadersIndex};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RollingSum {
     buffer: VecDeque<DynamicNumber>,
     window_size: usize,
@@ -57,7 +57,7 @@ enum WelfordStat {
     Stddev,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RollingWelford {
     buffer: VecDeque<f64>,
     window_size: usize,
@@ -110,7 +110,7 @@ impl RollingWelford {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum RankingKind {
     Arbitrary,
     Dense,
@@ -131,7 +131,7 @@ impl RankingKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Ranking {
     kind: RankingKind,
     expr: ConcreteExpr,
@@ -155,7 +155,7 @@ impl Ranking {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConcreteWindowAggregation {
     Lead(ConcreteExpr, usize, ConcreteExpr),
     Lag(ConcreteExpr, usize, ConcreteExpr),
@@ -243,7 +243,10 @@ impl ConcreteWindowAggregation {
                 numbers.push((number, numbers.len()));
             }
             Self::TotalAggregation(program, _) => {
-                program.run_with_record(row_index, record)?;
+                match col_index {
+                    Some(i) => program.run_with_col_index(row_index, i, record)?,
+                    None => program.run_with_record(row_index, record)?,
+                };
             }
             _ => (),
         };
@@ -382,8 +385,13 @@ impl ConcreteWindowAggregation {
                 let past_buffer = past_buffer.unwrap();
 
                 match past_buffer.get(*n - 1) {
-                    None => Ok(EvaluationContext::new(Some(index), record, headers_index)
-                        .evaluate(default)?),
+                    None => Ok(EvaluationContext::new_with_col_index(
+                        Some(index),
+                        col_index,
+                        record,
+                        headers_index,
+                    )
+                    .evaluate(default)?),
                     Some((past_row_index, past_col_index, past_record)) => {
                         let value = EvaluationContext::new_with_col_index(
                             Some(*past_row_index),
@@ -414,8 +422,13 @@ impl ConcreteWindowAggregation {
                 Ok(value)
             }
             Self::FrontCoding(expr, last_string_opt) => {
-                let value =
-                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
+                let value = EvaluationContext::new_with_col_index(
+                    Some(index),
+                    col_index,
+                    record,
+                    headers_index,
+                )
+                .evaluate(expr)?;
                 let string = value
                     .try_as_str()
                     .map_err(|err| err.anonymous())?
@@ -505,8 +518,13 @@ impl ConcreteWindowAggregation {
                 Ok(DynamicValue::from(sum.add(number)))
             }
             Self::RollingWelford(expr, stat, welford) => {
-                let value =
-                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
+                let value = EvaluationContext::new_with_col_index(
+                    Some(index),
+                    col_index,
+                    record,
+                    headers_index,
+                )
+                .evaluate(expr)?;
                 let float = value.try_as_f64().map_err(|err| err.anonymous())?;
 
                 Ok(DynamicValue::from(welford.add(float, *stat)))
@@ -514,8 +532,13 @@ impl ConcreteWindowAggregation {
             Self::Frac(expr, sum, decimals) => {
                 // NOTE: we are evaluation the expression twice, because it seems less costly
                 // than allocating a cache for every record.
-                let value =
-                    EvaluationContext::new(Some(index), record, headers_index).evaluate(expr)?;
+                let value = EvaluationContext::new_with_col_index(
+                    Some(index),
+                    col_index,
+                    record,
+                    headers_index,
+                )
+                .evaluate(expr)?;
 
                 if value.is_nullish() {
                     return Ok(DynamicValue::None);
@@ -804,7 +827,7 @@ type PastBuffer = VecDeque<(usize, Option<usize>, ByteRecord)>;
 type FutureBuffer = VecDeque<(usize, Option<usize>, ByteRecord, bool)>;
 type TotalBuffer = Vec<(usize, Option<usize>, ByteRecord)>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WindowAggregationProgram {
     aggs: ConcreteWindowAggregations,
     headers_index: HeadersIndex,
@@ -973,7 +996,7 @@ impl WindowAggregationProgram {
         self.run_with_record_impl(row_index, col_index, record, false)
     }
 
-    pub fn flush<F, E>(
+    fn flush_impl<F, E>(
         &mut self,
         mut from_row_index: usize,
         col_index: Option<usize>,
@@ -1001,7 +1024,7 @@ impl WindowAggregationProgram {
             }
         }
 
-        if let Some((_, future_buffer)) = self.future_buffer.as_mut() {
+        if let Some((_, future_buffer)) = &self.future_buffer {
             let padding = (0..self.headers_index.len())
                 .map(|_| b"")
                 .collect::<ByteRecord>();
@@ -1016,6 +1039,15 @@ impl WindowAggregationProgram {
         }
 
         Ok(())
+    }
+
+    #[inline(always)]
+    pub fn flush<F, E>(mut self, from_row_index: usize, callback: F) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        self.flush_impl(from_row_index, None, callback)
     }
 
     fn clear(&mut self) {
@@ -1036,7 +1068,7 @@ impl WindowAggregationProgram {
         }
     }
 
-    pub fn flush_and_clear<F, E>(
+    fn flush_and_clear_impl<F, E>(
         &mut self,
         from_row_index: usize,
         col_index: Option<usize>,
@@ -1046,7 +1078,138 @@ impl WindowAggregationProgram {
         F: FnMut(ByteRecord) -> Result<(), E>,
         E: From<SpecifiedEvaluationError>,
     {
-        self.flush(from_row_index, col_index, callback)?;
+        self.flush_impl(from_row_index, col_index, callback)?;
+        self.clear();
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    pub fn flush_and_clear<F, E>(&mut self, from_row_index: usize, callback: F) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        self.flush_and_clear_impl(from_row_index, None, callback)?;
+        self.clear();
+
+        Ok(())
+    }
+}
+
+// TODO: this is hardly optimal, allocation-wise...
+pub struct WindowAggregationArray {
+    copies: Vec<WindowAggregationProgram>,
+    selection: Vec<usize>,
+    output_buffer: Vec<ByteRecord>,
+}
+
+impl WindowAggregationArray {
+    pub fn from_program(program: &WindowAggregationProgram, selection: &[usize]) -> Self {
+        Self {
+            copies: (0..selection.len()).map(|_| program.clone()).collect(),
+            selection: selection.to_vec(),
+            output_buffer: Vec::with_capacity(selection.len()),
+        }
+    }
+
+    pub fn run_with_record(
+        &mut self,
+        row_index: usize,
+        record: &ByteRecord,
+    ) -> Result<Option<(ByteRecord, &Vec<ByteRecord>)>, SpecifiedEvaluationError> {
+        let mut input_record: Option<ByteRecord> = None;
+        self.output_buffer.clear();
+
+        for (col_index, program) in self.selection.iter().copied().zip(self.copies.iter_mut()) {
+            if let Some(mut output_record) =
+                program.run_with_record_impl(row_index, Some(col_index), record, false)?
+            {
+                self.output_buffer
+                    .push(output_record.iter().skip(record.len()).collect());
+
+                if input_record.is_none() {
+                    output_record.truncate(record.len());
+                    input_record = Some(output_record);
+                }
+            }
+        }
+
+        Ok(input_record.map(|r| (r, &self.output_buffer)))
+    }
+
+    fn flush_impl<F, E>(
+        &mut self,
+        alignment: usize,
+        from_row_index: usize,
+        mut callback: F,
+    ) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord, Vec<ByteRecord>) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        let mut flush_buffer: Vec<(ByteRecord, Vec<ByteRecord>)> = vec![];
+
+        for (col_index, program) in self.selection.iter().copied().zip(self.copies.iter_mut()) {
+            let mut index: usize = 0;
+
+            program.flush_impl(from_row_index, Some(col_index), |record| {
+                if flush_buffer.get(index).is_none() {
+                    flush_buffer.push((record.iter().take(alignment).collect(), vec![]));
+                }
+
+                flush_buffer
+                    .get_mut(index)
+                    .unwrap()
+                    .1
+                    .push(record.iter().skip(alignment).collect());
+
+                index += 1;
+                Ok(())
+            })?;
+        }
+
+        for (record, records) in flush_buffer {
+            debug_assert_eq!(records.len(), self.copies.len());
+            callback(record, records)?;
+        }
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    pub fn flush<F, E>(
+        mut self,
+        alignment: usize,
+        from_row_index: usize,
+        callback: F,
+    ) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord, Vec<ByteRecord>) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        self.flush_impl(from_row_index, alignment, callback)
+    }
+
+    #[inline(always)]
+    fn clear(&mut self) {
+        for program in self.copies.iter_mut() {
+            program.clear();
+        }
+    }
+
+    #[inline(always)]
+    pub fn flush_and_clear<F, E>(
+        &mut self,
+        alignment: usize,
+        from_row_index: usize,
+        callback: F,
+    ) -> Result<(), E>
+    where
+        F: FnMut(ByteRecord, Vec<ByteRecord>) -> Result<(), E>,
+        E: From<SpecifiedEvaluationError>,
+    {
+        self.flush_impl(alignment, from_row_index, callback)?;
         self.clear();
 
         Ok(())

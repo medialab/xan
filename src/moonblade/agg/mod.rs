@@ -9,4 +9,4 @@ pub use program::{
     PivotAggregationProgram,
 };
 pub use stats::Stats;
-pub use window::WindowAggregationProgram;
+pub use window::{WindowAggregationArray, WindowAggregationProgram};

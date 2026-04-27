@@ -19,12 +19,14 @@
 * Adding `xan filter -B/--before-context & -A/--after-context`.
 * Adding `xan window -O/--overwrite`.
 * Adding `xan map -C/--along-columns`.
+* Adding `xan window -C/--along-columns`.
 
 *Fixes*
 
 * Fixing issues related to nested lambdas in expressions.
 * Fixing `xan rename` consistency regarding CRLF newlines and first row normalization when using `-n/--no-headers`.
 * Fixing `xan map --overwrite --filter`.
+* Fixing `lead` window function when there is not enough rows ahead.
 
 *Performance*
 

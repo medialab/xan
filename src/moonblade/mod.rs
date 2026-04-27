@@ -11,7 +11,7 @@ mod utils;
 
 pub use self::agg::{
     AggregationProgram, GroupAggregationProgram, GroupAlongColumnsAggregationProgram,
-    PivotAggregationProgram, Stats, WindowAggregationProgram,
+    PivotAggregationProgram, Stats, WindowAggregationArray, WindowAggregationProgram,
 };
 pub use self::choose::ChooseProgram;
 pub use self::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};

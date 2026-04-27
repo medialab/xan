@@ -50,6 +50,40 @@ Keeping rows belonging to groups whose average for the `count` column is over 10
 
     $ xan window -g country 'mean(count) as mean' file.csv | xan filter 'mean > 10'
 
+# Window aggregationgs along columns
+
+Sometimes you might want to add one or more columns in a same fashion for a given
+selection of columns.
+
+You can do so using the -C/--along-columns <cols> flag. In this case, the `_`
+placeholder can be used in expression to represent the current column.
+
+For instance, given the following data:
+
+a,b
+4,5
+1,7
+
+The following command (notice how we can template added column names):
+
+    $ xan window -C a,b 'mean(_) as "{}_mean", lag(_) as "{}_lag"' file.csv
+
+Would produce the following:
+
+a,a_mean,a_lag,b,b_mean,b_lag
+4,2.5,,5,6.0,
+1,2.5,4,7,6.0,5
+
+This can also be used with the -O/--overwrite flag:
+
+    $ xan window -OC a,b 'mean(_) as "{}_mean", lag(_) as "{}_lag"' file.csv
+
+To produce:
+
+a_mean,a_lag,b_mean,b_lag
+2.5,,6.0,
+2.5,4,6.0,5
+
 ---
 
 For a list of available window aggregation functions, use `xan help window`.
@@ -66,13 +100,14 @@ Usage:
     xan window --help
 
 window options:
-    -g, --groupby <cols>  If given, resets the computed aggregations each
-                          time the given selection yields a new identity.
-    -O, --overwrite       If set, expressions named with a column already existing
-                          in the file will be overwritten with the result of the
-                          expression instead of adding a new column at the end.
-                          This means you can both transform and add columns at the
-                          same time.
+    -g, --groupby <cols>        If given, resets the computed aggregations each
+                                time the given selection yields a new identity.
+    -O, --overwrite             If set, expressions named with a column already existing
+                                in the file will be overwritten with the result of the
+                                expression instead of adding a new column at the end.
+                                This means you can both transform and add columns at the
+                                same time.
+    -C, --along-columns <cols>  Repeat same expression over a selection of columns at once.
 
 Common options:
     -h, --help               Display this message
