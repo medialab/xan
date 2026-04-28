@@ -1,9 +1,10 @@
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
+use crate::collections::ClusteredInsertHashmap;
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{WindowAggregationArray, WindowAggregationProgram};
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -33,6 +34,23 @@ fn build_along_columns_record(
         } else {
             output_record.push_field(&input_record[i]);
         }
+    }
+}
+
+#[derive(Default, Debug)]
+struct Groups {
+    map: ClusteredInsertHashmap<ByteRecord, Vec<usize>>,
+    dense: Vec<ByteRecord>,
+}
+
+impl Groups {
+    #[inline]
+    fn add(&mut self, sel: &Selection, record: &ByteRecord) {
+        let list = self.map.insert_with(sel.select(record).collect(), Vec::new);
+
+        list.push(self.dense.len());
+
+        self.dense.push(record.clone());
     }
 }
 
@@ -135,8 +153,13 @@ Usage:
     xan window --help
 
 window options:
-    -g, --groupby <cols>        If given, resets the computed aggregations each
-                                time the given selection yields a new identity.
+    -g, --groupby <cols>        If given, runs the aggregation per group symbolized by
+                                given column selection. This will buffer the whole file
+                                into memory unless -S/--sorted is given.
+    -S, --sorted                When used with -g/--groupby, indicates that the file is
+                                sorted over the group columns so we can reset state each
+                                time a new group is encountered to save memory and speed
+                                up computations.
     -O, --overwrite             If set, expressions named with a column already existing
                                 in the file will be overwritten with the result of the
                                 expression instead of adding a new column at the end.
@@ -158,6 +181,7 @@ struct Args {
     arg_expression: String,
     arg_input: Option<String>,
     flag_groupby: Option<SelectedColumns>,
+    flag_sorted: bool,
     flag_overwrite: bool,
     flag_along_columns: Option<SelectedColumns>,
     flag_no_headers: bool,
@@ -167,6 +191,10 @@ struct Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_sorted && args.flag_groupby.is_none() {
+        Err("-S/--sorted only makes sense with -g/--groubpy!")?;
+    }
 
     let conf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
@@ -228,8 +256,81 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = ByteRecord::new();
     let mut output_record = ByteRecord::new();
-    let mut row_index: usize = 0;
+
+    if groupby_sel_opt.is_some() && !args.flag_sorted {
+        let group_sel = groupby_sel_opt.unwrap();
+        let mut groups = Groups::default();
+
+        while reader.read_byte_record(&mut record)? {
+            groups.add(&group_sel, &record);
+        }
+
+        // NOTE: just to be sure we don't use it afterwards erroneously
+        std::mem::drop(record);
+
+        // TODO: we can forego this buffer
+        let mut output_buffer = Vec::with_capacity(groups.dense.len());
+
+        for (_, indices) in groups.map.iter() {
+            let mut from_row_index: usize = 0;
+
+            for i in indices.iter().copied() {
+                let current_record = &groups.dense[i];
+
+                if let Some((mask, array)) = array_opt.as_mut() {
+                    if let Some((r, rs)) = array.run_with_record(i, current_record)? {
+                        build_along_columns_record(
+                            mask,
+                            &r,
+                            &mut output_record,
+                            rs,
+                            args.flag_overwrite,
+                        );
+
+                        output_buffer.push(output_record.clone());
+                    }
+                } else if let Some(output_record) =
+                    program.run_with_record(i, None, current_record)?
+                {
+                    output_buffer.push(output_record);
+                }
+
+                from_row_index = i;
+            }
+
+            // Flushing after group
+            if let Some((mask, array)) = array_opt.as_mut() {
+                array.flush_and_clear(headers.len(), from_row_index, |r, rs| -> CliResult<()> {
+                    build_along_columns_record(
+                        mask,
+                        &r,
+                        &mut output_record,
+                        &rs,
+                        args.flag_overwrite,
+                    );
+
+                    output_buffer.push(output_record.clone());
+
+                    Ok(())
+                })?;
+            } else {
+                program.flush_and_clear(from_row_index, |output_record| -> CliResult<()> {
+                    output_buffer.push(output_record);
+
+                    Ok(())
+                })?;
+            }
+        }
+
+        for record in output_buffer {
+            writer.write_byte_record(&record)?;
+        }
+
+        return Ok(writer.flush()?);
+    }
+
     let mut group_opt: Option<ByteRecord> = None;
+    let mut row_index: usize = 0;
 
     while reader.read_byte_record(&mut record)? {
         if let Some(sel) = &groupby_sel_opt {

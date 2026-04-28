@@ -358,6 +358,7 @@ fn window_groupby() {
     let mut cmd = wrk.command("window");
     cmd.arg("row_number(), lead(n), lead(n, 3), lag(n), lag(n, 3), cumsum(n), rolling_sum(3, n)")
         .args(["-g", "group"])
+        .arg("-S")
         .arg("numbers.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -510,6 +511,7 @@ fn window_advanced_ranking() {
     let mut cmd = wrk.command("window");
     cmd.arg("cume_dist(n) as cume_dist, ntile(2, n) as ntile, percent_rank(n) as percent_rank")
         .args(["-g", "id"])
+        .arg("-S")
         .arg("numbers.csv");
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
@@ -662,7 +664,7 @@ fn window_along_columns() {
 
     // Groupby
     let mut cmd = wrk.command("window");
-    cmd.args(["-C", "a,b"]).args(["-g", "a"])
+    cmd.args(["-C", "a,b"]).args(["-g", "a"]).arg("-S")
         .arg("row_index() as '{}_index', mean(_) as '{}_mean', lead(_) as '{}_lead', lag(_) as '{}_lag', cumsum(_) as '{}_cumsum', rolling_mean(2, _) as '{}_rollmean'")
         .arg("numbers.csv");
 
