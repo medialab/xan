@@ -337,8 +337,8 @@ fn window_all() {
 }
 
 #[test]
-fn window_groupby() {
-    let wrk = Workdir::new("window_groupby");
+fn window_groupby_sorted() {
+    let wrk = Workdir::new("window_groupby_sorted");
     wrk.create(
         "numbers.csv",
         vec![
@@ -384,6 +384,59 @@ fn window_groupby() {
         ["8", "two", "3", "9", "", "7", "", "21", "21"],
         ["9", "two", "4", "10", "", "8", "6", "30", "24"],
         ["10", "two", "5", "", "", "9", "7", "40", "27"],
+    ];
+
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn window_groupby() {
+    let wrk = Workdir::new("window_groupby");
+    wrk.create(
+        "numbers.csv",
+        vec![
+            svec!["n", "group"],
+            svec!["7", "two"],
+            svec!["5", "one"],
+            svec!["9", "two"],
+            svec!["3", "one"],
+            svec!["4", "one"],
+            svec!["10", "two"],
+            svec!["1", "one"],
+            svec!["6", "two"],
+            svec!["8", "two"],
+            svec!["2", "one"],
+        ],
+    );
+    let mut cmd = wrk.command("window");
+    cmd.arg("row_number(), lead(n), lead(n, 3), lag(n), lag(n, 3), cumsum(n), rolling_sum(3, n), mean(n)")
+        .args(["-g", "group"])
+        .arg("numbers.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        [
+            "n",
+            "group",
+            "row_number()",
+            "lead(n)",
+            "lead(n, 3)",
+            "lag(n)",
+            "lag(n, 3)",
+            "cumsum(n)",
+            "rolling_sum(3, n)",
+            "mean(n)",
+        ],
+        ["7", "two", "1", "9", "6", "", "", "7", "", "8.0"],
+        ["5", "one", "1", "3", "1", "", "", "5", "", "3.0"],
+        ["9", "two", "2", "10", "8", "7", "", "16", "", "8.0"],
+        ["3", "one", "2", "4", "2", "5", "", "8", "", "3.0"],
+        ["4", "one", "3", "1", "", "3", "", "12", "12", "3.0"],
+        ["10", "two", "3", "6", "", "9", "", "26", "26", "8.0"],
+        ["1", "one", "4", "2", "", "4", "5", "13", "8", "3.0"],
+        ["6", "two", "4", "8", "", "10", "7", "32", "25", "8.0"],
+        ["8", "two", "5", "", "", "6", "9", "40", "24", "8.0"],
+        ["2", "one", "5", "", "", "1", "3", "15", "7", "3.0"],
     ];
 
     assert_eq!(got, expected);

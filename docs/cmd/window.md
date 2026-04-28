@@ -10,8 +10,12 @@ file, and never uses more memory that required to fit the largest desired window
 for rolling stats and leads/lags.
 
 Ranking aggregations however (such as `frac` or `dense_rank`), still require to
-buffer the whole file in memory (or at least whole groups when using -g/--groupby),
-since they cannot be computed otherwise.
+buffer the whole file in memory.
+
+Aggregations can also be computed per group using the -g/--groupby <cols> flag
+but will also require to buffer the whole file in memory, unless you can
+guarantee the file is sorted on the grouping columns and use the -S/--sorted flag
+to indicate it to the command.
 
 Computing a cumulative sum:
 
@@ -33,9 +37,7 @@ Computing fraction of cell wrt total sum of target column:
 
     $ xan window 'frac(n) as frac' file.csv
 
-This command is also able to reset the statistics each time a new contiguous group
-of rows is encountered using the -g/--groupby flag. This means, however, that
-the file must be sorted by columns representing group identities beforehand:
+Computing window aggregations per value of the "country" column:
 
     $ xan window -g country 'cumsum(n)' file.csv
 
@@ -44,7 +46,8 @@ with `xan agg` & `xan groupby`) for the whole file or per group and repeat their
 result for each row. This can be useful to filter rows belonging to some group
 (e.g. if an aggregated score is over some threshold), or for normalization purposes.
 
-Note that when doing so, the whole file will be buffered to memory.
+Note that when doing so, the whole file (or only whole groups when using -g/--groupby
+alongside -S/--sorted) will be buffered to memory.
 
 Keeping rows belonging to groups whose average for the `count` column is over 10:
 
@@ -100,8 +103,13 @@ Usage:
     xan window --help
 
 window options:
-    -g, --groupby <cols>        If given, resets the computed aggregations each
-                                time the given selection yields a new identity.
+    -g, --groupby <cols>        If given, runs the aggregation per group symbolized by
+                                given column selection. This will buffer the whole file
+                                into memory unless -S/--sorted is given.
+    -S, --sorted                When used with -g/--groupby, indicates that the file is
+                                sorted over the group columns so we can reset state each
+                                time a new group is encountered to save memory and speed
+                                up computations.
     -O, --overwrite             If set, expressions named with a column already existing
                                 in the file will be overwritten with the result of the
                                 expression instead of adding a new column at the end.

@@ -63,8 +63,12 @@ file, and never uses more memory that required to fit the largest desired window
 for rolling stats and leads/lags.
 
 Ranking aggregations however (such as `frac` or `dense_rank`), still require to
-buffer the whole file in memory (or at least whole groups when using -g/--groupby),
-since they cannot be computed otherwise.
+buffer the whole file in memory.
+
+Aggregations can also be computed per group using the -g/--groupby <cols> flag
+but will also require to buffer the whole file in memory, unless you can
+guarantee the file is sorted on the grouping columns and use the -S/--sorted flag
+to indicate it to the command.
 
 Computing a cumulative sum:
 
@@ -86,9 +90,7 @@ Computing fraction of cell wrt total sum of target column:
 
     $ xan window 'frac(n) as frac' file.csv
 
-This command is also able to reset the statistics each time a new contiguous group
-of rows is encountered using the -g/--groupby flag. This means, however, that
-the file must be sorted by columns representing group identities beforehand:
+Computing window aggregations per value of the \"country\" column:
 
     $ xan window -g country 'cumsum(n)' file.csv
 
@@ -97,7 +99,8 @@ with `xan agg` & `xan groupby`) for the whole file or per group and repeat their
 result for each row. This can be useful to filter rows belonging to some group
 (e.g. if an aggregated score is over some threshold), or for normalization purposes.
 
-Note that when doing so, the whole file will be buffered to memory.
+Note that when doing so, the whole file (or only whole groups when using -g/--groupby
+alongside -S/--sorted) will be buffered to memory.
 
 Keeping rows belonging to groups whose average for the `count` column is over 10:
 
@@ -268,11 +271,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // NOTE: just to be sure we don't use it afterwards erroneously
         std::mem::drop(record);
 
-        // TODO: we can forego this buffer
-        let mut output_buffer = Vec::with_capacity(groups.dense.len());
-
         for (_, indices) in groups.map.iter() {
             let mut from_row_index: usize = 0;
+            let mut output_indices = indices.iter().copied();
 
             for i in indices.iter().copied() {
                 let current_record = &groups.dense[i];
@@ -287,12 +288,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             args.flag_overwrite,
                         );
 
-                        output_buffer.push(output_record.clone());
+                        groups.dense[output_indices.next().unwrap()] = output_record.clone();
                     }
                 } else if let Some(output_record) =
                     program.run_with_record(i, None, current_record)?
                 {
-                    output_buffer.push(output_record);
+                    groups.dense[output_indices.next().unwrap()] = output_record;
                 }
 
                 from_row_index = i;
@@ -309,20 +310,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         args.flag_overwrite,
                     );
 
-                    output_buffer.push(output_record.clone());
+                    groups.dense[output_indices.next().unwrap()] = output_record.clone();
 
                     Ok(())
                 })?;
             } else {
                 program.flush_and_clear(from_row_index, |output_record| -> CliResult<()> {
-                    output_buffer.push(output_record);
+                    groups.dense[output_indices.next().unwrap()] = output_record;
 
                     Ok(())
                 })?;
             }
         }
 
-        for record in output_buffer {
+        for record in groups.dense {
             writer.write_byte_record(&record)?;
         }
 
