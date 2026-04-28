@@ -180,7 +180,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut program =
         WindowAggregationProgram::parse(&args.arg_expression, &headers, conf.no_headers)?;
 
-    if args.flag_overwrite {
+    if args.flag_along_columns.is_none() && args.flag_overwrite {
         program.overwrite();
     }
 
