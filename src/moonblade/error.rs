@@ -254,6 +254,12 @@ impl Display for EvaluationError {
     }
 }
 
+impl From<&str> for EvaluationError {
+    fn from(value: &str) -> Self {
+        Self::Custom(value.to_string())
+    }
+}
+
 impl From<std::str::Utf8Error> for EvaluationError {
     fn from(_value: std::str::Utf8Error) -> Self {
         Self::UnicodeDecodeError

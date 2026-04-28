@@ -51,6 +51,8 @@ impl AbstractColReturnValue {
     }
 }
 
+static COL_INDEX_ERROR_MSG: &str = "this expression does not know current column's index. This is usually only the case with the -C/--along-rows & -M/--along-matrix flags or commands evaluation a same expression over multiple columns like xan transform! Or did you forget to give this function an argument?";
+
 pub fn get_special_function(
     name: &str,
 ) -> Option<(
@@ -76,12 +78,23 @@ pub fn get_special_function(
         // is not available to normal functions.
         "col" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
+                if call.args.is_empty() {
+                    return Ok(None);
+                }
+
                 abstract_comptime_col(false, AbstractColReturnValue::Cell, call, headers_index)
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                if args.is_empty() {
+                    return match context.col_index() {
+                        Some(i) => Ok(context.record[i].into()),
+                        None => Err(EvaluationError::from(COL_INDEX_ERROR_MSG).specify("col")),
+                    };
+                }
+
                 abstract_runtime_col("col", false, AbstractColReturnValue::Cell, context, args)
             }),
-            FunctionArguments::with_range(1..=2),
+            FunctionArguments::with_range(0..=2),
         ),
         "header" => (
             Some(|call: &FunctionCall, headers_index: &HeadersIndex| {
@@ -93,10 +106,10 @@ pub fn get_special_function(
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 if args.is_empty() {
-                    return Ok(context
-                        .col_index()
-                        .map(|i| &context.headers_index[i])
-                        .into());
+                    return match context.col_index() {
+                        Some(i) => Ok(context.headers_index[i].into()),
+                        None => Err(EvaluationError::from(COL_INDEX_ERROR_MSG).specify("header")),
+                    };
                 }
 
                 abstract_runtime_col(
@@ -119,7 +132,12 @@ pub fn get_special_function(
             }),
             Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
                 if args.is_empty() {
-                    return Ok(context.col_index().into());
+                    return match context.col_index() {
+                        Some(i) => Ok(i.into()),
+                        None => {
+                            Err(EvaluationError::from(COL_INDEX_ERROR_MSG).specify("col_index"))
+                        }
+                    };
                 }
 
                 abstract_runtime_col(
@@ -446,7 +464,13 @@ fn runtime_and(context: &EvaluationContext, args: &[ConcreteExpr]) -> Evaluation
 }
 
 fn runtime_row_index(context: &EvaluationContext, _args: &[ConcreteExpr]) -> EvaluationResult {
-    Ok(context.row_index().into())
+    match context.row_index() {
+        Some(i) => Ok(i.into()),
+        None => Err(
+            EvaluationError::from("this expression does not know a row's index")
+                .specify("row_index"),
+        ),
+    }
 }
 
 fn abstract_runtime_col(

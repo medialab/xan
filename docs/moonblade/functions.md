@@ -273,10 +273,11 @@ add(trim(name) | len, 2)    - Can be used anywhere
 
 ## Utils
 
-- **col**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names.
+- **col**() -> `bytes`: Without argument, return current column's value, if relevant. Else, return value for given column, by name, by position or by name & nth, in case of duplicate header names.
+- **col**(*name_or_pos*, *nth?*) -> `bytes`: Without argument, return current column's value, if relevant. Else, return value for given column, by name, by position or by name & nth, in case of duplicate header names.
 - **col?**(*name_or_pos*, *nth?*) -> `bytes`: Return value of cell for given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
-- **header**() -> `bytes`: Without argument, return current column's name, if relevant. Return header name for given column, by name, by position or by name & nth, in case of duplicate header names.
-- **header**(*name_or_pos*, *nth?*) -> `bytes`: Without argument, return current column's name, if relevant. Return header name for given column, by name, by position or by name & nth, in case of duplicate header names.
+- **header**() -> `bytes`: Without argument, return current column's name, if relevant. Else, return header name for given column, by name, by position or by name & nth, in case of duplicate header names.
+- **header**(*name_or_pos*, *nth?*) -> `bytes`: Without argument, return current column's name, if relevant. Else, return header name for given column, by name, by position or by name & nth, in case of duplicate header names.
 - **header?**(*name_or_pos*, *nth?*) -> `bytes`: Return header namefor given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
 - **col_index**() -> `bytes`: Without argument, return current column's zero-based index, if relevant. Else, return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names.
 - **col_index**(*name_or_pos*, *nth?*) -> `bytes`: Without argument, return current column's zero-based index, if relevant. Else, return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names.
