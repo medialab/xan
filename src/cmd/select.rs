@@ -76,12 +76,17 @@ Examples:
     $ xan select '0:'
     $ xan select ':0'
 
+  Wildcard selection using the \"*\" character (can only appear once in pattern):
+
   Select all columns starting by \"dim_\"
   (notice the simple quotes again):
     $ xan select 'dim_*'
 
   Select all columns ending by \"_count\":
     $ xan select '*_count'
+
+  Select all columns starting with \"vec_\" and ending with \"_count\":
+    $ xan select 'vec_*_count'
 
 # Evaluating a expression
 
@@ -95,11 +100,11 @@ computations, for instance:
 
 Splitting a full name:
 
-    $ xan select -e 'full_name.split(\" \") as (first_name, last_name)' file.csv > result.csv
+  $ xan select -e 'full_name.split(\" \") as (first_name, last_name)' file.csv > result.csv
 
 Extracting data from a JSON cell:
 
-    $ xan select -e 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
+  $ xan select -e 'data.parse_json() | [_.name, _.meta[2].age] as (name, age)' file.csv > result.csv
 
 If your expression becomes too complicated, you can write it in a file and
 use the -f/--evaluate-file flag instead:

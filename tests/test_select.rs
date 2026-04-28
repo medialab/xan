@@ -247,4 +247,12 @@ fn select_glob() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![svec!["1_vec", "2_vec", "name"], svec!["3", "4", "john"]];
     assert_eq!(got, expected);
+
+    // Inner
+    let mut cmd = wrk.command("select");
+    cmd.arg("v*_1").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["vec_1"], svec!["1"]];
+    assert_eq!(got, expected);
 }

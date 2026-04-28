@@ -315,6 +315,7 @@ enum Selector {
     Range(OneSelector, OneSelector),
     GlobPrefix(String),
     GlobSuffix(String),
+    GlobInner(String, String),
     All,
 }
 
@@ -328,15 +329,33 @@ impl Selector {
                     return Ok(());
                 }
 
-                if name == "*" {
-                    *self = Self::All;
-                } else if name.starts_with('*') {
-                    *self = Self::GlobSuffix(name.trim_start_matches('*').to_string());
-                } else if name.ends_with('*') {
-                    *self = Self::GlobPrefix(name.trim_end_matches('*').to_string());
-                }
+                let star_count = name.chars().filter(|c| *c == '*').count();
 
-                Ok(())
+                match star_count {
+                    0 => Ok(()),
+                    1 => {
+                        if name == "*" {
+                            *self = Self::All;
+                        } else if name.starts_with('*') {
+                            *self = Self::GlobSuffix(name.trim_start_matches('*').to_string());
+                        } else if name.ends_with('*') {
+                            *self = Self::GlobPrefix(name.trim_end_matches('*').to_string());
+                        } else {
+                            let pos = name
+                                .char_indices()
+                                .find_map(|(i, c)| if c == '*' { Some(i) } else { None })
+                                .unwrap();
+
+                            *self = Self::GlobInner(
+                                name[..pos].to_string(),
+                                name[pos + 1..].to_string(),
+                            );
+                        }
+
+                        Ok(())
+                    }
+                    _ => Err(format!("'{}' contains more than one \"*\" wildcard", name)),
+                }
             }
             Self::Range(start, end) => {
                 if let OneSelector::IndexedName(name, _, false) = start {
@@ -395,7 +414,7 @@ impl Selector {
             Selector::GlobPrefix(ref prefix) => {
                 if !use_names {
                     return Err(format!(
-                        "Cannot use prefix ('{}') in selection \
+                        "Cannot use prefix ('{}*') in selection \
                                         with --no-headers set.",
                         prefix
                     ));
@@ -414,7 +433,7 @@ impl Selector {
                     .collect();
 
                 if inds.is_empty() {
-                    return Err(format!("Prefix '{}' selected nothing.", prefix));
+                    return Err(format!("Prefix '{}*' selected nothing.", prefix));
                 }
 
                 Ok(inds)
@@ -422,7 +441,7 @@ impl Selector {
             Selector::GlobSuffix(ref suffix) => {
                 if !use_names {
                     return Err(format!(
-                        "Cannot use suffix ('{}') in selection \
+                        "Cannot use suffix ('*{}') in selection \
                                         with --no-headers set.",
                         suffix
                     ));
@@ -441,7 +460,37 @@ impl Selector {
                     .collect();
 
                 if inds.is_empty() {
-                    return Err(format!("Suffix '{}' selected nothing.", suffix));
+                    return Err(format!("Suffix '*{}' selected nothing.", suffix));
+                }
+
+                Ok(inds)
+            }
+            Selector::GlobInner(ref prefix, ref suffix) => {
+                if !use_names {
+                    return Err(format!(
+                        "Cannot use inner wildcard ('{}*{}') in selection \
+                                        with --no-headers set.",
+                        prefix, suffix
+                    ));
+                }
+
+                let inds: Vec<usize> = first_record
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, h)| {
+                        if h.starts_with(prefix.as_bytes()) && h.ends_with(suffix.as_bytes()) {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if inds.is_empty() {
+                    return Err(format!(
+                        "Inner wildcard '{}*{}' selected nothing.",
+                        prefix, suffix
+                    ));
                 }
 
                 Ok(inds)
@@ -554,6 +603,9 @@ impl fmt::Debug for Selector {
             Selector::Range(ref s, ref e) => write!(f, "Range({:?}, {:?})", s, e),
             Selector::GlobPrefix(ref prefix) => write!(f, "Prefix({:?})", prefix),
             Selector::GlobSuffix(ref suffix) => write!(f, "Suffix({:?})", suffix),
+            Self::GlobInner(ref prefix, ref suffix) => {
+                write!(f, "Inner({:?}, {:?})", prefix, suffix)
+            }
         }
     }
 }
