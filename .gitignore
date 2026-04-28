@@ -5,6 +5,7 @@ target
 *.tsv
 *.vcf
 *.gz
+*.zst
 *.cdx
 *.idx
 builds
