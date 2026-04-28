@@ -23,6 +23,7 @@
 * Adding `xan window -O/--overwrite`.
 * Adding `xan map -C/--along-columns`.
 * Adding `xan window -C/--along-columns`.
+* Adding `xan cat rows --raw`.
 
 *Fixes*
 

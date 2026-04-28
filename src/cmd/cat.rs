@@ -1,3 +1,5 @@
+use std::io;
+
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
@@ -57,6 +59,10 @@ cat rows options:
                                 to CSV files to concatenate will be extracted from the selected column.
     -S, --source-column <name>  Name of a column to prepend in the output of \"cat rows\"
                                 indicating the path to source file.
+    --raw                       Concatenate files as fast as possible, while skipping subsequent
+                                files' headers. Will not normalize the CSV stream at all while doing
+                                so, nor verify columns alignment. Only use for performance, and
+                                if you know what you are doing.
 
 Common options:
     -h, --help             Display this message
@@ -81,6 +87,7 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_source_column: Option<String>,
+    flag_raw: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -91,8 +98,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.cmd_rows {
-        args.cat_rows()
+        if args.flag_raw {
+            args.cat_rows_raw()
+        } else {
+            args.cat_rows()
+        }
     } else if args.cmd_columns || args.cmd_cols {
+        if args.flag_raw {
+            Err("--raw only works with `xan cat rows`!")?;
+        }
+
         args.cat_columns()
     } else {
         unreachable!();
@@ -106,6 +121,53 @@ impl Args {
         } else {
             Ok(Box::new(self.arg_inputs.clone().into_iter().map(Ok)))
         }
+    }
+
+    fn cat_rows_raw(&self) -> CliResult<()> {
+        let configs = self
+            .paths()?
+            .map(|p| -> CliResult<Config> {
+                Ok(Config::new(&Some(p?))
+                    .delimiter(self.flag_delimiter)
+                    .no_headers(self.flag_no_headers))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let wconf = Config::new(&self.flag_output);
+        let mut writer = wconf.io_writer()?;
+
+        if matches!(configs.first(), Some(c) if c.no_headers) {
+            for conf in configs {
+                io::copy(&mut conf.io_reader()?, &mut writer)?;
+            }
+        } else {
+            let mut headers_written = false;
+
+            for conf in configs {
+                let mut reader = conf.simd_zero_copy_reader()?;
+
+                if !headers_written {
+                    let mut writer_builder = wconf.simd_csv_writer_builder();
+                    writer_builder.crlf_newlines(reader.has_crlf_newlines()?);
+
+                    let mut csv_writer = wconf.simd_csv_writer_from_writer(&mut writer);
+
+                    csv_writer.write_byte_record(reader.byte_headers()?)?;
+                    csv_writer.flush()?;
+
+                    headers_written = true;
+                }
+
+                reader.byte_headers()?;
+
+                let (rest, mut bufreader) = reader.into_bufreader();
+                assert!(rest.is_none());
+
+                io::copy(&mut bufreader, &mut writer)?;
+            }
+        }
+
+        Ok(writer.flush()?)
     }
 
     fn cat_rows(&self) -> CliResult<()> {

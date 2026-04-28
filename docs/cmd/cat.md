@@ -53,6 +53,10 @@ cat rows options:
                                 to CSV files to concatenate will be extracted from the selected column.
     -S, --source-column <name>  Name of a column to prepend in the output of "cat rows"
                                 indicating the path to source file.
+    --raw                       Concatenate files as fast as possible, while skipping subsequent
+                                files' headers. Will not normalize the CSV stream at all while doing
+                                so, nor verify columns alignment. Only use for performance, and
+                                if you know what you are doing.
 
 Common options:
     -h, --help             Display this message
