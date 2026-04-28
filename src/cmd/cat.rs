@@ -1,3 +1,5 @@
+use simd_csv::ByteRecord;
+
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -89,11 +91,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.cmd_rows {
-        if args.flag_paths.is_some() {
-            args.cat_rows_with_input()
-        } else {
-            args.cat_rows()
-        }
+        args.cat_rows()
     } else if args.cmd_columns || args.cmd_cols {
         args.cat_columns()
     } else {
@@ -102,61 +100,21 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 }
 
 impl Args {
-    fn configs(&self) -> CliResult<Vec<Config>> {
-        util::many_configs(
-            &self.arg_inputs,
-            self.flag_delimiter,
-            self.flag_no_headers,
-            None,
-        )
-        .map_err(From::from)
+    fn paths(&self) -> CliResult<Box<dyn Iterator<Item = CliResult<String>>>> {
+        if let Some(paths_path) = self.flag_paths.as_ref() {
+            Config::new(&Some(paths_path.clone())).lines(&self.flag_path_column)
+        } else {
+            Ok(Box::new(self.arg_inputs.clone().into_iter().map(Ok)))
+        }
     }
 
     fn cat_rows(&self) -> CliResult<()> {
-        let mut row = simd_csv::ByteRecord::new();
-        let mut wtr = Config::new(&self.flag_output).simd_writer()?;
-        for (i, conf) in self.configs()?.into_iter().enumerate() {
-            let mut rdr = conf.simd_reader()?;
-
-            match &self.flag_source_column {
-                None => {
-                    if !conf.no_headers && i == 0 {
-                        wtr.write_byte_record(rdr.byte_headers()?)?;
-                    }
-                    while rdr.read_byte_record(&mut row)? {
-                        wtr.write_byte_record(&row)?;
-                    }
-                }
-                Some(source_column) => {
-                    if !conf.no_headers && i == 0 {
-                        let headers = rdr.byte_headers()?;
-                        wtr.write_record([source_column.as_bytes()].into_iter().chain(headers))?;
-                    }
-
-                    let source = conf
-                        .path
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .unwrap_or("<stdin>".to_string());
-
-                    while rdr.read_byte_record(&mut row)? {
-                        wtr.write_record([source.as_bytes()].into_iter().chain(&row))?;
-                    }
-                }
-            }
-        }
-        wtr.flush().map_err(From::from)
-    }
-
-    fn cat_rows_with_input(&self) -> CliResult<()> {
-        let paths =
-            Config::new(&Some(self.flag_paths.clone().unwrap())).lines(&self.flag_path_column)?;
-
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut wtr = Config::new(&self.flag_output).simd_writer()?;
 
-        let mut headers_written = self.flag_no_headers;
+        let mut headers_opt: Option<ByteRecord> = None;
 
-        for result in paths {
+        for result in self.paths()? {
             let path = result?;
 
             let mut reader = Config::new(&Some(path.clone()))
@@ -164,30 +122,53 @@ impl Args {
                 .no_headers(self.flag_no_headers)
                 .simd_reader()?;
 
-            match &self.flag_source_column {
-                None => {
-                    if !headers_written {
-                        let headers = reader.byte_headers()?;
-                        wtr.write_byte_record(headers)?;
-                        headers_written = true;
-                    }
+            if reader.has_headers() {
+                match &headers_opt {
+                    Some(headers) => {
+                        let current_headers = reader.byte_headers()?;
 
-                    while reader.read_byte_record(&mut record)? {
-                        wtr.write_byte_record(&record)?;
+                        if current_headers != headers {
+                            Err(format!("found inconsistent headers as soon as path \"{}\"!\nExpected: {:?}\nGot: {:?}", path, headers, current_headers))?;
+                        }
+                    }
+                    None => {
+                        let current_headers = reader.byte_headers()?;
+
+                        headers_opt = Some(current_headers.clone());
+
+                        if let Some(source_column) = &self.flag_source_column {
+                            wtr.write_record(
+                                [source_column.as_bytes()]
+                                    .into_iter()
+                                    .chain(current_headers.iter()),
+                            )?;
+                        } else {
+                            wtr.write_byte_record(current_headers)?;
+                        }
                     }
                 }
-                Some(source_column) => {
-                    if !headers_written {
-                        let headers = reader.byte_headers()?;
-                        wtr.write_record(
-                            [source_column.as_bytes()].into_iter().chain(headers.iter()),
-                        )?;
-                        headers_written = true;
-                    }
+            } else {
+                match &headers_opt {
+                    Some(headers) => {
+                        let current_headers = reader.byte_headers()?;
 
-                    while reader.read_byte_record(&mut record)? {
-                        wtr.write_record([path.as_bytes()].into_iter().chain(&record))?;
+                        if headers.len() != current_headers.len() {
+                            Err(format!("found inconsistent column count as soon as path \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), current_headers.len()))?;
+                        }
                     }
+                    None => {
+                        headers_opt = Some(reader.byte_headers()?.clone());
+                    }
+                }
+            }
+
+            if self.flag_source_column.is_none() {
+                while reader.read_byte_record(&mut record)? {
+                    wtr.write_byte_record(&record)?;
+                }
+            } else {
+                while reader.read_byte_record(&mut record)? {
+                    wtr.write_record([path.as_bytes()].into_iter().chain(&record))?;
                 }
             }
         }
@@ -197,15 +178,21 @@ impl Args {
 
     fn cat_columns(&self) -> CliResult<()> {
         let mut wtr = Config::new(&self.flag_output).simd_writer()?;
+
         let mut rdrs = self
-            .configs()?
-            .into_iter()
-            .map(|conf| conf.no_headers(true).reader())
+            .paths()?
+            .map(|p| -> CliResult<_> {
+                Config::new(&Some(p?))
+                    .delimiter(self.flag_delimiter)
+                    .no_headers(true) // NOTE: header info is irrelevant for this operation
+                    .simd_reader()
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         // Find the lengths of each record. If a length varies, then an error
         // will occur so we can rely on the first length being the correct one.
         let mut lengths = vec![];
+
         for rdr in &mut rdrs {
             lengths.push(rdr.byte_headers()?.len());
         }
@@ -214,8 +201,9 @@ impl Args {
             .iter_mut()
             .map(|rdr| rdr.byte_records())
             .collect::<Vec<_>>();
+
         'OUTER: loop {
-            let mut record = simd_csv::ByteRecord::new();
+            let mut record = ByteRecord::new();
             let mut num_done = 0;
             for (iter, &len) in iters.iter_mut().zip(lengths.iter()) {
                 match iter.next() {
