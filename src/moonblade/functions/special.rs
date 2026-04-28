@@ -222,6 +222,69 @@ pub fn get_special_function(
             }),
             FunctionArguments::with_range(0..=2),
         ),
+        "prev_col" => (
+            None,
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                let offset = if args.is_empty() {
+                    1
+                } else {
+                    args.first()
+                        .unwrap()
+                        .evaluate(context)?
+                        .try_as_usize()
+                        .map_err(|err| err.specify("prev_col"))?
+                };
+
+                match context.col_index() {
+                    Some(i) => {
+                        if offset > i {
+                            return Err(EvaluationError::RelativeColumnNotFound(
+                                i,
+                                -(offset as isize),
+                            )
+                            .specify("prev_col"));
+                        }
+
+                        let j = i - offset;
+
+                        match context.record.get(j) {
+                            Some(cell) => Ok(cell.into()),
+                            None => Err(EvaluationError::RelativeColumnNotFound(
+                                i,
+                                -(offset as isize),
+                            )
+                            .specify("prev_col")),
+                        }
+                    }
+                    None => Err(EvaluationError::from(COL_INDEX_ERROR_MSG).specify("prev_col")),
+                }
+            }),
+            FunctionArguments::with_range(0..=1),
+        ),
+        "next_col" => (
+            None,
+            Some(|context: &EvaluationContext, args: &[ConcreteExpr]| {
+                let offset = if args.is_empty() {
+                    1
+                } else {
+                    args.first()
+                        .unwrap()
+                        .evaluate(context)?
+                        .try_as_usize()
+                        .map_err(|err| err.specify("next_col"))?
+                };
+
+                match context.col_index() {
+                    Some(i) => match context.record.get(i + offset) {
+                        Some(cell) => Ok(cell.into()),
+                        None => Err(EvaluationError::RelativeColumnNotFound(i, offset as isize)
+                            .specify("next_col")),
+                    },
+                    None => Err(EvaluationError::from(COL_INDEX_ERROR_MSG).specify("next_col")),
+                }
+            }),
+            FunctionArguments::with_range(0..=1),
+        ),
         // NOTE: index needs to be a special function because it relies on external
         // data that cannot be accessed by normal functions.
         "row_index" => (None, Some(runtime_row_index), FunctionArguments::nullary()),

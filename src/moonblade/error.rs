@@ -152,6 +152,7 @@ pub enum EvaluationError {
     UnsupportedEncoding(String),
     UnsupportedDecoderTrap(String),
     ColumnNotFound(ColumIndexationBy, bool),
+    RelativeColumnNotFound(usize, isize),
     ColumnOutOfRange(usize),
     GlobalVariableOutOfRange(usize),
     UnicodeDecodeError,
@@ -233,6 +234,11 @@ impl Display for EvaluationError {
             Self::ColumnNotFound(indexation, headless) => {
                 format_column_indexation_error(f, indexation, *headless)
             }
+            Self::RelativeColumnNotFound(from_index, offset) => write!(
+                f,
+                "column at offset {} from {} is out of range",
+                from_index, offset
+            ),
             Self::ColumnOutOfRange(idx) => write!(f, "column {} is out of range", idx),
             Self::GlobalVariableOutOfRange(idx) => {
                 write!(f, "global variable index={} is out of range", idx)

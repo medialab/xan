@@ -814,6 +814,18 @@
         "help": "Return list of cell values from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns."
       },
       {
+        "name": "prev_col",
+        "arguments": ["offset=1"],
+        "returns": "bytes",
+        "help": "Return cell value of column just before current column. Take an optional offset if you want a larger stride."
+      },
+      {
+        "name": "next_col",
+        "arguments": ["offset=1"],
+        "returns": "bytes",
+        "help": "Return cell value of column just after current column, by an optional offset. Take an optional offset if you want a larger stride."
+      },
+      {
         "name": "err",
         "arguments": ["msg"],
         "returns": "error",

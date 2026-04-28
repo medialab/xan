@@ -435,6 +435,8 @@ impl ConcreteSpecialFunctionCall {
             "header?",
             "headers",
             "row_index",
+            "prev_col",
+            "next_col",
             "if",
             "unless",
             "warn",

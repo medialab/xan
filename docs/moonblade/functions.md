@@ -283,6 +283,8 @@ add(trim(name) | len, 2)    - Can be used anywhere
 - **col_index**(*name_or_pos*, *nth?*) -> `bytes`: Without argument, return current column's zero-based index, if relevant. Else, return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names.
 - **col_index?**(*name_or_pos*, *nth?*) -> `bytes`: Return zero-based index of given column, by name, by position or by name & nth, in case of duplicate header names. Allow selecting inexisting columns, in which case it will return null.
 - **cols**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[bytes]`: Return list of cell values from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to take all columns.
+- **prev_col**(*offset=1*) -> `bytes`: Return cell value of column just before current column. Take an optional offset if you want a larger stride.
+- **next_col**(*offset=1*) -> `bytes`: Return cell value of column just after current column, by an optional offset. Take an optional offset if you want a larger stride.
 - **err**(*msg*) -> `error`: Make the expression return a custom error.
 - **headers**(*from_name_or_pos?*, *to_name_or_pos?*) -> `list[string]`: Return list of header names from the given column by name or position to another given column by name or position, inclusive. Can also be called with a single argument to take a slice from the given column to the end, or no argument at all to return all headers.
 - **row_index**() -> `int?`: Return current row's zero-based index, if relevant.
