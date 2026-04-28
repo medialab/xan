@@ -71,8 +71,6 @@ impl SelectedColumns {
     where
         H: IntoIterator<Item = &'a [u8]>,
     {
-        let first_record = first_record.into_iter().collect::<Vec<_>>();
-
         let selection = self.selection(first_record, use_names)?;
 
         if selection.len() != 1 {
@@ -168,39 +166,11 @@ impl SelectorParser {
                 break;
             }
 
-            if self.cur() == Some('*') {
-                self.bump();
-
-                if self.is_end_of_selector() {
-                    sels.push(Selector::All);
-                } else {
-                    let suffix = self.parse_name()?;
-
-                    if self.cur() == Some(':') {
-                        return Err("Prefix name selection cannot work with range.".to_string());
-                    }
-
-                    sels.push(Selector::GlobSuffix(suffix));
-                }
-
-                self.bump();
-
-                continue;
-            }
-
             let f1: OneSelector = if self.cur() == Some(':') {
                 OneSelector::Start
             } else {
                 self.parse_one()?
             };
-
-            if let OneSelector::IndexedName(name, None) = &f1 {
-                if name.ends_with('*') {
-                    sels.push(Selector::GlobPrefix(name[..name.len() - 1].to_string()));
-                    self.bump();
-                    continue;
-                }
-            }
 
             let f2: Option<OneSelector> = if self.cur() == Some(':') {
                 self.bump();
@@ -230,11 +200,18 @@ impl SelectorParser {
 
             self.bump();
         }
+
+        for sel in sels.iter_mut() {
+            sel.refine()?;
+        }
+
         Ok(sels)
     }
 
     fn parse_one(&mut self) -> Result<OneSelector, String> {
+        let mut was_quoted = false;
         let name = if self.cur() == Some('"') {
+            was_quoted = true;
             self.bump();
             self.parse_quoted_name()?
         } else {
@@ -242,10 +219,10 @@ impl SelectorParser {
         };
         Ok(if self.cur() == Some('[') {
             let idx = self.parse_index()?;
-            OneSelector::IndexedName(name, Some(idx))
+            OneSelector::IndexedName(name, Some(idx), was_quoted)
         } else {
             match FromStr::from_str(&name) {
-                Err(_) => OneSelector::IndexedName(name, None),
+                Err(_) => OneSelector::IndexedName(name, None, was_quoted),
                 Ok(idx) => OneSelector::Index(idx),
             }
         })
@@ -341,12 +318,56 @@ enum Selector {
     All,
 }
 
+impl Selector {
+    fn refine(&mut self) -> Result<(), String> {
+        match self {
+            Self::One(OneSelector::IndexedName(name, _, was_quoted)) => {
+                // TODO: deal with pos_opt
+
+                if *was_quoted {
+                    return Ok(());
+                }
+
+                if name == "*" {
+                    *self = Self::All;
+                } else if name.starts_with('*') {
+                    *self = Self::GlobSuffix(name.trim_start_matches('*').to_string());
+                } else if name.ends_with('*') {
+                    *self = Self::GlobPrefix(name.trim_end_matches('*').to_string());
+                }
+
+                Ok(())
+            }
+            Self::Range(start, end) => {
+                if let OneSelector::IndexedName(name, _, false) = start {
+                    if name.contains("*") {
+                        return Err(
+                            "start of range cannot contain \"*\" wildcard unquoted".to_string()
+                        );
+                    }
+                }
+
+                if let OneSelector::IndexedName(name, _, false) = end {
+                    if name.contains("*") {
+                        return Err(
+                            "end of range cannot contain \"*\" wildcard unquoted".to_string()
+                        );
+                    }
+                }
+
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 #[derive(Clone)]
 enum OneSelector {
     Start,
     End,
     Index(isize),
-    IndexedName(String, Option<isize>),
+    IndexedName(String, Option<isize>, bool),
 }
 
 impl Selector {
@@ -466,7 +487,7 @@ impl OneSelector {
                     }
                 }
             }
-            OneSelector::IndexedName(ref s, sidx) => {
+            OneSelector::IndexedName(ref s, sidx, _) => {
                 let sidx = sidx.unwrap_or(0);
 
                 if !use_names {
@@ -543,7 +564,7 @@ impl fmt::Debug for OneSelector {
             OneSelector::Start => write!(f, "Start"),
             OneSelector::End => write!(f, "End"),
             OneSelector::Index(idx) => write!(f, "Index({})", idx),
-            OneSelector::IndexedName(ref s, idx) => match idx {
+            OneSelector::IndexedName(ref s, idx, _) => match idx {
                 None => write!(f, "IndexedName({})", s),
                 Some(i) => write!(f, "IndexedName({}[{}])", s, i),
             },
@@ -694,3 +715,13 @@ impl ops::DerefMut for Selection {
         &mut self.0
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_parser() {
+//         SelectedColumns::parse("one,*,*_suffix,prefix_*,one[1],one:two").unwrap();
+//     }
+// }
