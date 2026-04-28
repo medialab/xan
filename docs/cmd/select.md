@@ -44,8 +44,9 @@ Examples:
     $ xan select -- -3: (last three columns)
     $ xan select :-3 (up to the third from last)
 
-  Select the third column named 'Foo':
+  Select the third column named 'Foo' (this also works in ranges):
     $ xan select 'Foo[2]'
+    $ xan select ':Foo[2]'
 
   Select the last column named 'Foo':
     $ xan select 'Foo[-1]'
