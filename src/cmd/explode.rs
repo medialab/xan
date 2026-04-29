@@ -1,4 +1,5 @@
 use bstr::ByteSlice;
+use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
@@ -152,8 +153,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         wtr.write_byte_record(&headers)?;
     }
 
-    let mut record = simd_csv::ByteRecord::new();
-    let mut output_record = simd_csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
+    let mut output_record = ByteRecord::new();
 
     'main: while rdr.read_byte_record(&mut record)? {
         let mut splits: Vec<Vec<&[u8]>> = Vec::with_capacity(sel.len());
