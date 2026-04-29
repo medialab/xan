@@ -1,7 +1,9 @@
 use std::io;
+use std::num::NonZeroUsize;
 
 use simd_csv::ByteRecord;
 
+use crate::cmd::parallel::Args as ParallelArgs;
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -53,16 +55,21 @@ cat cols/columns options:
                                 other CSV data isn't long enough.
 
 cat rows options:
-    --paths <input>             When concatenating rows, give a text file (use \"-\" for stdin)
-                                containing one path of CSV file to concatenate per line.
-    --path-column <name>        When given a column name, --paths will be considered as CSV, and paths
-                                to CSV files to concatenate will be extracted from the selected column.
-    -S, --source-column <name>  Name of a column to prepend in the output of \"cat rows\"
-                                indicating the path to source file.
-    --raw                       Concatenate files as fast as possible, while skipping subsequent
-                                files' headers. Will not normalize the CSV stream at all while doing
-                                so, nor verify columns alignment. Only use for performance, and
-                                if you know what you are doing.
+    --paths <input>              When concatenating rows, give a text file (use \"-\" for stdin)
+                                 containing one path of CSV file to concatenate per line.
+    --path-column <name>         When given a column name, --paths will be considered as CSV, and paths
+                                 to CSV files to concatenate will be extracted from the selected column.
+    -S, --source-column <name>   Name of a column to prepend in the output of \"cat rows\"
+                                 indicating the path to source file.
+    -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
+                                 See `xan parallel -h` for more information about preprocessing.
+    -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
+                                 own shell using the -c flag. Will not work on windows.
+                                 See `xan parallel -h` for more information about preprocessing.
+    --raw                        Concatenate files as fast as possible, while skipping subsequent
+                                 files' headers. Will not normalize the CSV stream at all while doing
+                                 so, nor verify columns alignment. Only use for performance, and
+                                 if you know what you are doing.
 
 Common options:
     -h, --help             Display this message
@@ -88,6 +95,8 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_source_column: Option<String>,
     flag_raw: bool,
+    flag_preprocess: Option<String>,
+    flag_shell_preprocess: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -95,6 +104,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if args.flag_paths.is_some() && !args.arg_inputs.is_empty() {
         Err("--paths cannot be used with other positional arguments!")?;
+    }
+
+    if args.flag_preprocess.is_some() || args.flag_shell_preprocess.is_some() {
+        let mut parallel_args = ParallelArgs::default();
+        parallel_args.cmd_cat = true;
+        parallel_args.arg_inputs = args.paths()?.collect::<Result<Vec<_>, _>>()?;
+        parallel_args.flag_source_column = args.flag_source_column;
+        parallel_args.flag_preprocess = args.flag_preprocess;
+        parallel_args.flag_shell_preprocess = args.flag_shell_preprocess;
+        parallel_args.flag_no_headers = args.flag_no_headers;
+        parallel_args.flag_delimiter = args.flag_delimiter;
+        parallel_args.flag_threads = Some(NonZeroUsize::new(1).unwrap());
+
+        return parallel_args.run();
     }
 
     if args.cmd_rows {

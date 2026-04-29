@@ -47,16 +47,21 @@ cat cols/columns options:
                                 other CSV data isn't long enough.
 
 cat rows options:
-    --paths <input>             When concatenating rows, give a text file (use "-" for stdin)
-                                containing one path of CSV file to concatenate per line.
-    --path-column <name>        When given a column name, --paths will be considered as CSV, and paths
-                                to CSV files to concatenate will be extracted from the selected column.
-    -S, --source-column <name>  Name of a column to prepend in the output of "cat rows"
-                                indicating the path to source file.
-    --raw                       Concatenate files as fast as possible, while skipping subsequent
-                                files' headers. Will not normalize the CSV stream at all while doing
-                                so, nor verify columns alignment. Only use for performance, and
-                                if you know what you are doing.
+    --paths <input>              When concatenating rows, give a text file (use "-" for stdin)
+                                 containing one path of CSV file to concatenate per line.
+    --path-column <name>         When given a column name, --paths will be considered as CSV, and paths
+                                 to CSV files to concatenate will be extracted from the selected column.
+    -S, --source-column <name>   Name of a column to prepend in the output of "cat rows"
+                                 indicating the path to source file.
+    -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
+                                 See `xan parallel -h` for more information about preprocessing.
+    -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
+                                 own shell using the -c flag. Will not work on windows.
+                                 See `xan parallel -h` for more information about preprocessing.
+    --raw                        Concatenate files as fast as possible, while skipping subsequent
+                                 files' headers. Will not normalize the CSV stream at all while doing
+                                 so, nor verify columns alignment. Only use for performance, and
+                                 if you know what you are doing.
 
 Common options:
     -h, --help             Display this message

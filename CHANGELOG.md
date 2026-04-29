@@ -23,7 +23,7 @@
 * Adding `xan window -O/--overwrite`.
 * Adding `xan map -C/--along-columns`.
 * Adding `xan window -C/--along-columns`.
-* Adding `xan cat rows --raw`.
+* Adding `xan cat rows --raw, -P/--preprocess & -H/--shell-preprocess`.
 * Improving `xan select` DSL star selectors. You can now do stuff like `vec_*_count`, `*[1]`, `vec_*[1]` etc.
 
 *Fixes*

@@ -89,7 +89,7 @@ Usage:
     xan p --help
 
 parallel options:
-    -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
+    -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
     --progress                   Display a progress bar for the parallel tasks. The

@@ -653,7 +653,7 @@ Usage:
     xan p --help
 
 parallel options:
-    -P, --preprocess <op>        Preprocessing, only able to use xan subcommands.
+    -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag. Will not work on windows.
     --progress                   Display a progress bar for the parallel tasks. The
@@ -724,24 +724,24 @@ Common options:
 #[derive(Deserialize, Default)]
 pub struct Args {
     pub cmd_count: bool,
-    cmd_cat: bool,
+    pub cmd_cat: bool,
     pub cmd_freq: bool,
     pub cmd_stats: bool,
     pub cmd_agg: bool,
     pub cmd_groupby: bool,
     cmd_map: bool,
-    arg_inputs: Vec<String>,
+    pub arg_inputs: Vec<String>,
     pub arg_expr: Option<String>,
     pub arg_group: Option<SelectedColumns>,
     arg_template: Option<FilenameTemplate>,
-    flag_preprocess: Option<String>,
-    flag_shell_preprocess: Option<String>,
+    pub flag_preprocess: Option<String>,
+    pub flag_shell_preprocess: Option<String>,
     flag_progress: bool,
-    flag_threads: Option<NonZeroUsize>,
+    pub flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectedColumns>,
     flag_dont_chunk: bool,
     flag_buffer_size: isize,
-    flag_source_column: Option<String>,
+    pub flag_source_column: Option<String>,
     pub flag_select: SelectedColumns,
     pub flag_sep: Option<String>,
     pub flag_limit: usize,
