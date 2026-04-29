@@ -392,19 +392,51 @@ enum OneSelector {
     IndexedName(String, Option<isize>, bool),
 }
 
-fn build_map<'s>(first_record: &'s [&[u8]]) -> IndexMap<&'s [u8], Vec<usize>, RandomState> {
-    let mut map = IndexMap::with_hasher(RandomState::new());
-
-    for (i, name) in first_record.into_iter().enumerate() {
-        let list: &mut Vec<usize> = map.entry(*name).or_default();
-        list.push(i);
-    }
-
-    map
-}
-
 impl Selector {
     fn indices(&self, first_record: &[&[u8]], use_names: bool) -> Result<Vec<usize>, String> {
+        struct Map<'s> {
+            inner: IndexMap<&'s [u8], Vec<usize>, RandomState>,
+        }
+
+        impl<'s> Map<'s> {
+            fn new(first_record: &'s [&[u8]]) -> Self {
+                let mut map = IndexMap::with_hasher(RandomState::new());
+
+                for (i, name) in first_record.iter().enumerate() {
+                    let list: &mut Vec<usize> = map.entry(*name).or_default();
+                    list.push(i);
+                }
+
+                Self { inner: map }
+            }
+
+            fn for_each<P, C>(&self, pos: isize, predicate: P, mut callback: C)
+            where
+                P: Fn(&[u8]) -> bool,
+                C: FnMut(usize),
+            {
+                for (name, indices) in self.inner.iter() {
+                    if !predicate(name) {
+                        continue;
+                    }
+
+                    let pos = if pos < 0 {
+                        indices.len() as isize + pos
+                    } else {
+                        pos
+                    };
+
+                    if pos < 0 {
+                        continue;
+                    }
+
+                    if let Some(i) = indices.get(pos as usize) {
+                        callback(*i);
+                    }
+                }
+            }
+        }
+
         match *self {
             Selector::All(pos_opt) => {
                 if let Some(pos) = pos_opt {
@@ -416,24 +448,10 @@ impl Selector {
                         ));
                     }
 
-                    let map = build_map(first_record);
                     let mut inds = vec![];
+                    let map = Map::new(first_record);
 
-                    for indices in map.into_values() {
-                        let pos = if pos < 0 {
-                            indices.len() as isize + pos
-                        } else {
-                            pos
-                        };
-
-                        if pos < 0 {
-                            continue;
-                        }
-
-                        if let Some(i) = indices.get(pos as usize) {
-                            inds.push(*i);
-                        }
-                    }
+                    map.for_each(pos, |_| true, |i| inds.push(i));
 
                     if inds.is_empty() {
                         return Err(format!("'*[{}]' selected nothing.", pos_opt.unwrap()));

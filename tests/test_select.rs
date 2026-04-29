@@ -256,3 +256,31 @@ fn select_glob() {
     let expected = vec![svec!["vec_1"], svec!["1"]];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn select_glob_duplicates() {
+    let wrk = Workdir::new("select_glob_duplicates");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["nan", "nan", "nan", "aba", "aba", "aba"],
+            svec!["1", "2", "3", "4", "5", "6"],
+        ],
+    );
+
+    // star
+    let mut cmd = wrk.command("select");
+    cmd.arg("*[1]").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["nan", "aba"], ["2", "5"]];
+    assert_eq!(got, expected);
+
+    // star, negative
+    let mut cmd = wrk.command("select");
+    cmd.arg("*[-3]").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["nan", "aba"], ["1", "4"]];
+    assert_eq!(got, expected);
+}

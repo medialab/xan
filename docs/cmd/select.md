@@ -83,6 +83,9 @@ Examples:
   Select all columns starting with "vec_" and ending with "_count":
     $ xan select 'vec_*_count'
 
+  Select all second occurrences of duplicated column names:
+    $ xan select '*[1]'
+
 # Evaluating a expression
 
 Using a SQLish syntax that is the same as for the `map`, `agg`, `filter` etc.
