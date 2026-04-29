@@ -1205,29 +1205,45 @@ impl Args {
             Some(self.flag_buffer_size as usize)
         };
 
-        let flush = |path: &str, headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
-            let mut guard = writer_mutex.lock().unwrap();
-
-            if !self.flag_no_headers {
-                match &guard.0 {
+        #[inline(always)]
+        fn check_headers<'b>(
+            no_headers: bool,
+            path: &str,
+            expected: &mut Option<ByteRecord>,
+            headers: &'b ByteRecord,
+        ) -> CliResult<Option<&'b ByteRecord>> {
+            if !no_headers {
+                match expected {
                     Some(expected_headers) if headers != expected_headers => Err(format!(
                         "found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}",
                         path, headers, expected_headers
                     ))?,
                     None => {
-                        guard.1.write_byte_record(headers)?;
-                        guard.0 = Some(headers.clone());
+                        *expected = Some(headers.clone());
+                        return Ok(Some(headers));
                     }
                     _ => (),
                 }
             } else {
-                match &guard.0 {
+                match expected {
                     Some(expected_headers) if headers.len() != expected_headers.len() => Err(format!("found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), expected_headers.len()))?,
                     None => {
-                        guard.0 = Some(headers.clone());
+                        *expected = Some(headers.clone());
                     }
                     _ => ()
                 }
+            }
+
+            Ok(None)
+        }
+
+        let flush = |path: &str, headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
+            let mut guard = writer_mutex.lock().unwrap();
+
+            if let Some(headers_to_write) =
+                check_headers(self.flag_no_headers, path, &mut guard.0, headers)?
+            {
+                guard.1.write_byte_record(headers_to_write)?;
             }
 
             for record in records.iter() {
