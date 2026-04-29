@@ -190,7 +190,7 @@ impl Args {
                         let current_headers = reader.byte_headers()?;
 
                         if current_headers != headers {
-                            Err(format!("found inconsistent headers as soon as path \"{}\"!\nExpected: {:?}\nGot: {:?}", path, headers, current_headers))?;
+                            Err(format!("found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}", path, headers, current_headers))?;
                         }
                     }
                     None => {
@@ -215,7 +215,7 @@ impl Args {
                         let current_headers = reader.byte_headers()?;
 
                         if headers.len() != current_headers.len() {
-                            Err(format!("found inconsistent column count as soon as path \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), current_headers.len()))?;
+                            Err(format!("found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), current_headers.len()))?;
                         }
                     }
                     None => {

@@ -1195,7 +1195,7 @@ impl Args {
 
         // NOTE: the bool tracks whether headers were already written
         let writer_mutex = Arc::new(Mutex::new((
-            false,
+            None,
             Config::new(&self.flag_output).simd_writer()?,
         )));
 
@@ -1205,12 +1205,29 @@ impl Args {
             Some(self.flag_buffer_size as usize)
         };
 
-        let flush = |headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
+        let flush = |path: &str, headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
             let mut guard = writer_mutex.lock().unwrap();
 
-            if !guard.0 && !self.flag_no_headers {
-                guard.1.write_byte_record(headers)?;
-                guard.0 = true;
+            if !self.flag_no_headers {
+                match &guard.0 {
+                    Some(expected_headers) if headers != expected_headers => Err(format!(
+                        "found inconsistent headers as soon as \"{}\"!\nExpected: {:?}\nGot: {:?}",
+                        path, headers, expected_headers
+                    ))?,
+                    None => {
+                        guard.1.write_byte_record(headers)?;
+                        guard.0 = Some(headers.clone());
+                    }
+                    _ => (),
+                }
+            } else {
+                match &guard.0 {
+                    Some(expected_headers) if headers.len() != expected_headers.len() => Err(format!("found inconsistent column count as soon as \"{}\"!\nExpected: {}\nGot: {}", path, headers.len(), expected_headers.len()))?,
+                    None => {
+                        guard.0 = Some(headers.clone());
+                    }
+                    _ => ()
+                }
             }
 
             for record in records.iter() {
@@ -1244,7 +1261,7 @@ impl Args {
 
             while csv_reader.read_byte_record(&mut record)? {
                 if matches!(buffer_size_opt, Some(buffer_size) if buffer.len() == buffer_size) {
-                    flush(&headers, &buffer)?;
+                    flush(path, &headers, &buffer)?;
 
                     buffer.clear();
                 }
@@ -1259,7 +1276,7 @@ impl Args {
             }
 
             if !buffer.is_empty() {
-                flush(&headers, &buffer)?;
+                flush(path, &headers, &buffer)?;
             }
 
             process_manager.stop(&input.name());
