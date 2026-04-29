@@ -283,4 +283,28 @@ fn select_glob_duplicates() {
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![["nan", "aba"], ["1", "4"]];
     assert_eq!(got, expected);
+
+    // prefix
+    let mut cmd = wrk.command("select");
+    cmd.arg("na*[1]").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["nan"], ["2"]];
+    assert_eq!(got, expected);
+
+    // suffix
+    let mut cmd = wrk.command("select");
+    cmd.arg("*ba[1]").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["aba"], ["5"]];
+    assert_eq!(got, expected);
+
+    // inner wildcard
+    let mut cmd = wrk.command("select");
+    cmd.arg("a*a[2]").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["aba"], ["6"]];
+    assert_eq!(got, expected);
 }

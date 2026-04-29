@@ -24,7 +24,7 @@
 * Adding `xan map -C/--along-columns`.
 * Adding `xan window -C/--along-columns`.
 * Adding `xan cat rows --raw`.
-* Improving `xan select` DSL star selectors. You can now do stuff like `vec_*_count`, `*[1]` etc.
+* Improving `xan select` DSL star selectors. You can now do stuff like `vec_*_count`, `*[1]`, `vec_*[1]` etc.
 
 *Fixes*
 

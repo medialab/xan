@@ -316,9 +316,9 @@ impl SelectorParser {
 enum Selector {
     One(OneSelector),
     Range(OneSelector, OneSelector),
-    GlobPrefix(String),
-    GlobSuffix(String),
-    GlobInner(String, String),
+    GlobPrefix(String, Option<isize>),
+    GlobSuffix(String, Option<isize>),
+    GlobInner(String, String, Option<isize>),
     All(Option<isize>),
 }
 
@@ -340,9 +340,13 @@ impl Selector {
                         if name == "*" {
                             *self = Self::All(*pos_opt);
                         } else if name.starts_with('*') {
-                            *self = Self::GlobSuffix(name.trim_start_matches('*').to_string());
+                            *self = Self::GlobSuffix(
+                                name.trim_start_matches('*').to_string(),
+                                *pos_opt,
+                            );
                         } else if name.ends_with('*') {
-                            *self = Self::GlobPrefix(name.trim_end_matches('*').to_string());
+                            *self =
+                                Self::GlobPrefix(name.trim_end_matches('*').to_string(), *pos_opt);
                         } else {
                             let pos = name
                                 .char_indices()
@@ -352,6 +356,7 @@ impl Selector {
                             *self = Self::GlobInner(
                                 name[..pos].to_string(),
                                 name[pos + 1..].to_string(),
+                                *pos_opt,
                             );
                         }
 
@@ -454,7 +459,7 @@ impl Selector {
                     map.for_each(pos, |_| true, |i| inds.push(i));
 
                     if inds.is_empty() {
-                        return Err(format!("'*[{}]' selected nothing.", pos_opt.unwrap()));
+                        return Err(format!("'*[{}]' selected nothing.", pos));
                     }
 
                     Ok(inds)
@@ -480,89 +485,169 @@ impl Selector {
                     }
                 })
             }
-            Selector::GlobPrefix(ref prefix) => {
-                if !use_names {
-                    return Err(format!(
-                        "Cannot use prefix ('{}*') in selection \
+            Selector::GlobPrefix(ref prefix, pos_opt) => {
+                if let Some(pos) = pos_opt {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use prefix ('{}*[{}]') in selection \
                                         with --no-headers set.",
-                        prefix
-                    ));
+                            prefix, pos
+                        ));
+                    }
+
+                    let mut inds = vec![];
+                    let map = Map::new(first_record);
+
+                    map.for_each(
+                        pos,
+                        |name| name.starts_with(prefix.as_bytes()),
+                        |i| inds.push(i),
+                    );
+
+                    if inds.is_empty() {
+                        return Err(format!("Prefix '{}*[{}]' selected nothing.", prefix, pos));
+                    }
+
+                    Ok(inds)
+                } else {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use prefix ('{}*') in selection \
+                                        with --no-headers set.",
+                            prefix
+                        ));
+                    }
+
+                    let inds: Vec<usize> = first_record
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, h)| {
+                            if h.starts_with(prefix.as_bytes()) {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    if inds.is_empty() {
+                        return Err(format!("Prefix '{}*' selected nothing.", prefix));
+                    }
+
+                    Ok(inds)
                 }
-
-                let inds: Vec<usize> = first_record
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, h)| {
-                        if h.starts_with(prefix.as_bytes()) {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                if inds.is_empty() {
-                    return Err(format!("Prefix '{}*' selected nothing.", prefix));
-                }
-
-                Ok(inds)
             }
-            Selector::GlobSuffix(ref suffix) => {
-                if !use_names {
-                    return Err(format!(
-                        "Cannot use suffix ('*{}') in selection \
+            Selector::GlobSuffix(ref suffix, pos_opt) => {
+                if let Some(pos) = pos_opt {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use suffix ('*{}[{}]') in selection \
                                         with --no-headers set.",
-                        suffix
-                    ));
+                            suffix, pos
+                        ));
+                    }
+
+                    let mut inds = vec![];
+                    let map = Map::new(first_record);
+
+                    map.for_each(
+                        pos,
+                        |name| name.ends_with(suffix.as_bytes()),
+                        |i| inds.push(i),
+                    );
+
+                    if inds.is_empty() {
+                        return Err(format!("Suffix '*{}[{}]' selected nothing.", suffix, pos));
+                    }
+
+                    Ok(inds)
+                } else {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use suffix ('*{}') in selection \
+                                        with --no-headers set.",
+                            suffix
+                        ));
+                    }
+
+                    let inds: Vec<usize> = first_record
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, h)| {
+                            if h.ends_with(suffix.as_bytes()) {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    if inds.is_empty() {
+                        return Err(format!("Suffix '*{}' selected nothing.", suffix));
+                    }
+
+                    Ok(inds)
                 }
-
-                let inds: Vec<usize> = first_record
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, h)| {
-                        if h.ends_with(suffix.as_bytes()) {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                if inds.is_empty() {
-                    return Err(format!("Suffix '*{}' selected nothing.", suffix));
-                }
-
-                Ok(inds)
             }
-            Selector::GlobInner(ref prefix, ref suffix) => {
-                if !use_names {
-                    return Err(format!(
-                        "Cannot use inner wildcard ('{}*{}') in selection \
+            Selector::GlobInner(ref prefix, ref suffix, pos_opt) => {
+                if let Some(pos) = pos_opt {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use inner wildcard ('{}*{}[{}]') in selection \
                                         with --no-headers set.",
-                        prefix, suffix
-                    ));
+                            prefix, suffix, pos
+                        ));
+                    }
+
+                    let mut inds = vec![];
+                    let map = Map::new(first_record);
+
+                    map.for_each(
+                        pos,
+                        |name| {
+                            name.starts_with(prefix.as_bytes()) && name.ends_with(suffix.as_bytes())
+                        },
+                        |i| inds.push(i),
+                    );
+
+                    if inds.is_empty() {
+                        return Err(format!(
+                            "Inner wildcard '{}*{}[{}]' selected nothing.",
+                            prefix, suffix, pos
+                        ));
+                    }
+
+                    Ok(inds)
+                } else {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use inner wildcard ('{}*{}') in selection \
+                                        with --no-headers set.",
+                            prefix, suffix
+                        ));
+                    }
+
+                    let inds: Vec<usize> = first_record
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, h)| {
+                            if h.starts_with(prefix.as_bytes()) && h.ends_with(suffix.as_bytes()) {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    if inds.is_empty() {
+                        return Err(format!(
+                            "Inner wildcard '{}*{}' selected nothing.",
+                            prefix, suffix
+                        ));
+                    }
+
+                    Ok(inds)
                 }
-
-                let inds: Vec<usize> = first_record
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, h)| {
-                        if h.starts_with(prefix.as_bytes()) && h.ends_with(suffix.as_bytes()) {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                if inds.is_empty() {
-                    return Err(format!(
-                        "Inner wildcard '{}*{}' selected nothing.",
-                        prefix, suffix
-                    ));
-                }
-
-                Ok(inds)
             }
         }
     }
@@ -676,10 +761,38 @@ impl fmt::Debug for Selector {
             }
             Selector::One(ref sel) => sel.fmt(f),
             Selector::Range(ref s, ref e) => write!(f, "Range({:?}, {:?})", s, e),
-            Selector::GlobPrefix(ref prefix) => write!(f, "Prefix({:?})", prefix),
-            Selector::GlobSuffix(ref suffix) => write!(f, "Suffix({:?})", suffix),
-            Self::GlobInner(ref prefix, ref suffix) => {
-                write!(f, "Inner({:?}, {:?})", prefix, suffix)
+            Selector::GlobPrefix(ref prefix, pos_opt) => write!(
+                f,
+                "Prefix({:?}){}",
+                prefix,
+                if let Some(pos) = pos_opt {
+                    format!("[{}]", pos)
+                } else {
+                    "".to_string()
+                }
+            ),
+            Selector::GlobSuffix(ref suffix, pos_opt) => write!(
+                f,
+                "Suffix({:?}){}",
+                suffix,
+                if let Some(pos) = pos_opt {
+                    format!("[{}]", pos)
+                } else {
+                    "".to_string()
+                }
+            ),
+            Self::GlobInner(ref prefix, ref suffix, pos_opt) => {
+                write!(
+                    f,
+                    "Inner({:?}, {:?}){}",
+                    prefix,
+                    suffix,
+                    if let Some(pos) = pos_opt {
+                        format!("[{}]", pos)
+                    } else {
+                        "".to_string()
+                    }
+                )
             }
         }
     }

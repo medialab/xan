@@ -85,6 +85,9 @@ Examples:
 
   Select all second occurrences of duplicated column names:
     $ xan select '*[1]'
+    $ xan select 'vec_*[1]'
+    $ xan select '*_dim[1]'
+    $ xan select 'vec_*_count[1]'
 
 # Evaluating a expression
 
