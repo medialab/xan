@@ -1193,18 +1193,6 @@ impl Args {
 
         let process_manager = self.process_manager(inputs.len());
 
-        // NOTE: the bool tracks whether headers were already written
-        let writer_mutex = Arc::new(Mutex::new((
-            None,
-            Config::new(&self.flag_output).simd_writer()?,
-        )));
-
-        let buffer_size_opt = if self.flag_buffer_size <= 0 {
-            None
-        } else {
-            Some(self.flag_buffer_size as usize)
-        };
-
         #[inline(always)]
         fn check_headers<'b>(
             no_headers: bool,
@@ -1236,6 +1224,61 @@ impl Args {
 
             Ok(None)
         }
+
+        // Faster, single-threaded path (still managing preprocessing subprocesses)
+        if self.flag_threads.unwrap().get() == 1 {
+            let mut headers_opt: Option<ByteRecord> = None;
+
+            let mut writer = Config::new(&self.flag_output).simd_writer()?;
+
+            for input in inputs {
+                let mut input_reader = self.io_reader(&input)?;
+                let progress_bar =
+                    process_manager.start(&input.name(), input_reader.take_children());
+                let mut csv_reader = input_reader.take_simd_csv_reader();
+                let mut headers = input_reader.headers(csv_reader.byte_headers()?);
+
+                let path = input.path();
+
+                if let Some(source_column) = &self.flag_source_column {
+                    headers.push_field(source_column.as_bytes());
+                }
+
+                if let Some(headers_to_write) =
+                    check_headers(self.flag_no_headers, path, &mut headers_opt, &headers)?
+                {
+                    writer.write_byte_record(headers_to_write)?;
+                }
+
+                let mut record = ByteRecord::new();
+
+                while csv_reader.read_byte_record(&mut record)? {
+                    if self.flag_source_column.is_some() {
+                        record.push_field(path.as_bytes());
+                    }
+
+                    writer.write_byte_record(&record)?;
+
+                    progress_bar.tick();
+                }
+
+                process_manager.stop(&input.name());
+            }
+
+            return Ok(writer.flush()?);
+        }
+
+        // NOTE: the option tracks whether headers were already written
+        let writer_mutex = Arc::new(Mutex::new((
+            None,
+            Config::new(&self.flag_output).simd_writer()?,
+        )));
+
+        let buffer_size_opt = if self.flag_buffer_size <= 0 {
+            None
+        } else {
+            Some(self.flag_buffer_size as usize)
+        };
 
         let flush = |path: &str, headers: &ByteRecord, records: &[ByteRecord]| -> CliResult<()> {
             let mut guard = writer_mutex.lock().unwrap();
