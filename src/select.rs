@@ -6,6 +6,9 @@ use std::iter::repeat_n;
 use std::ops;
 use std::str::FromStr;
 
+use ahash::RandomState;
+use indexmap::IndexMap;
+
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]
 pub struct SelectedColumns {
@@ -316,13 +319,13 @@ enum Selector {
     GlobPrefix(String),
     GlobSuffix(String),
     GlobInner(String, String),
-    All,
+    All(Option<isize>),
 }
 
 impl Selector {
     fn refine(&mut self) -> Result<(), String> {
         match self {
-            Self::One(OneSelector::IndexedName(name, _, was_quoted)) => {
+            Self::One(OneSelector::IndexedName(name, pos_opt, was_quoted)) => {
                 // TODO: deal with pos_opt
 
                 if *was_quoted {
@@ -335,7 +338,7 @@ impl Selector {
                     0 => Ok(()),
                     1 => {
                         if name == "*" {
-                            *self = Self::All;
+                            *self = Self::All(*pos_opt);
                         } else if name.starts_with('*') {
                             *self = Self::GlobSuffix(name.trim_start_matches('*').to_string());
                         } else if name.ends_with('*') {
@@ -389,10 +392,58 @@ enum OneSelector {
     IndexedName(String, Option<isize>, bool),
 }
 
+fn build_map<'s>(first_record: &'s [&[u8]]) -> IndexMap<&'s [u8], Vec<usize>, RandomState> {
+    let mut map = IndexMap::with_hasher(RandomState::new());
+
+    for (i, name) in first_record.into_iter().enumerate() {
+        let list: &mut Vec<usize> = map.entry(*name).or_default();
+        list.push(i);
+    }
+
+    map
+}
+
 impl Selector {
     fn indices(&self, first_record: &[&[u8]], use_names: bool) -> Result<Vec<usize>, String> {
         match *self {
-            Selector::All => Ok((0..first_record.len()).collect()),
+            Selector::All(pos_opt) => {
+                if let Some(pos) = pos_opt {
+                    if !use_names {
+                        return Err(format!(
+                            "Cannot use '*[{}]' in selection \
+                                        with --no-headers set.",
+                            pos
+                        ));
+                    }
+
+                    let map = build_map(first_record);
+                    let mut inds = vec![];
+
+                    for indices in map.into_values() {
+                        let pos = if pos < 0 {
+                            indices.len() as isize + pos
+                        } else {
+                            pos
+                        };
+
+                        if pos < 0 {
+                            continue;
+                        }
+
+                        if let Some(i) = indices.get(pos as usize) {
+                            inds.push(*i);
+                        }
+                    }
+
+                    if inds.is_empty() {
+                        return Err(format!("'*[{}]' selected nothing.", pos_opt.unwrap()));
+                    }
+
+                    Ok(inds)
+                } else {
+                    Ok((0..first_record.len()).collect())
+                }
+            }
             Selector::One(ref sel) => sel.index(first_record, use_names).map(|i| vec![i]),
             Selector::Range(ref sel1, ref sel2) => {
                 let i1 = sel1.index(first_record, use_names)?;
@@ -598,7 +649,13 @@ impl OneSelector {
 impl fmt::Debug for Selector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Selector::All => write!(f, "All"),
+            Selector::All(pos_opt) => {
+                if let Some(pos) = pos_opt {
+                    write!(f, "All[{}]", pos)
+                } else {
+                    write!(f, "All")
+                }
+            }
             Selector::One(ref sel) => sel.fmt(f),
             Selector::Range(ref s, ref e) => write!(f, "Range({:?}, {:?})", s, e),
             Selector::GlobPrefix(ref prefix) => write!(f, "Prefix({:?})", prefix),
