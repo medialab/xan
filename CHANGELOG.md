@@ -38,6 +38,7 @@
 * moonblade expressions are now faster overall and allocate more cautiously, thus saving memory.
 * Improving performance of `xan transform`, `xan flatmap`, `xan agg` & `xan groupby`.
 * Improving performance of `xan rename`.
+* Faster `xan range`.
 
 *Quality of Life*
 

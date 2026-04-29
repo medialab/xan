@@ -55,13 +55,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     wtr.write_all(b"\n")?;
 
     let mut i = args.flag_start;
+    let mut buffer = itoa::Buffer::new();
 
     while if args.flag_inclusive {
         i <= args.arg_end
     } else {
         i < args.arg_end
     } {
-        wtr.write_all(i.to_string().as_bytes())?;
+        wtr.write_all(buffer.format(i).as_bytes())?;
         wtr.write_all(b"\n")?;
 
         i += args.flag_step;
