@@ -64,7 +64,7 @@ cat rows options:
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
                                  See `xan parallel -h` for more information about preprocessing.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
-                                 own shell using the -c flag. Will not work on windows.
+                                 own shell using the -c flag.
                                  See `xan parallel -h` for more information about preprocessing.
     --raw                        Concatenate files as fast as possible, while skipping subsequent
                                  files' headers. Will not normalize the CSV stream at all while doing
