@@ -1303,6 +1303,29 @@ fn search_fast_parser() {
 }
 
 #[test]
+fn search_fast_parser_select() {
+    let wrk = Workdir::new("search_fast_parser_select");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "evan"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z")
+        .args(["-s", "surname"])
+        .arg("evan")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "surname"], svec!["john", "evan"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn search_fast_parser_invert_match() {
     let wrk = Workdir::new("search_fast_parser_invert_match");
     wrk.create(

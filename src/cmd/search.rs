@@ -1163,10 +1163,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
     let mut matches_count: usize = 0;
 
-    // TODO: deal with limit in fast path
-    // TODO: -A/-B
-    // TODO: invert
-
     // Fast parser path, without selection
     if args.flag_fast_parser && args.flag_select.is_none() {
         let mut splitter = rconfig.simd_splitter()?;
@@ -1196,7 +1192,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Fast parser path, with selection
     if args.flag_fast_parser && args.flag_select.is_some() {
-        unimplemented!();
+        let mut rdr = rconfig.simd_zero_copy_reader()?;
+        let headers = rdr.byte_headers()?.clone();
+
+        let sel = rconfig.selection(&headers)?;
+
+        if !rconfig.no_headers {
+            wtr.write_byte_record(&headers)?;
+        }
+
+        while let Some(record) = rdr.read_byte_record()? {
+            let mut is_match = if args.flag_all {
+                try_all(sel.select(&record), |cell| matcher.is_match(cell))?
+            } else {
+                try_any(sel.select(&record), |cell| matcher.is_match(cell))?
+            };
+
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
+
+            if is_match {
+                wtr.write_zero_copy_byte_record(rconfig.delimiter, &record)?;
+            }
+
+            if !check_limit(args.flag_limit, is_match, &mut matches_count) {
+                break;
+            }
+        }
+
         return Ok(wtr.flush()?);
     }
 
