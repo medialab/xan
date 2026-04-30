@@ -21,7 +21,7 @@
 * Adding `xan parallel --dont-chunk`.
 * Adding nullary `col`, `col_index` & `header` variants, to work with expression applied in series to multiple columns at once.
 * Adding `prev_col` & `next_col` functions.
-* Adding `xan filter -B/--before-context & -A/--after-context`.
+* Adding `xan (search|filter) -B/--before-context & -A/--after-context`.
 * Adding `xan window -O/--overwrite`.
 * Adding `xan map -C/--along-columns`.
 * Adding `xan window -C/--along-columns`.

@@ -11,8 +11,9 @@ use levenshtein_automata::{Distance as LevenshteinDistance, LevenshteinAutomaton
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
+use simd_csv::ByteRecord;
 
-use crate::collections::HashMap;
+use crate::collections::{ContextBuffer, HashMap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
@@ -20,6 +21,7 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
+#[inline]
 fn try_any<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, predicate: F) -> Result<bool, E>
 where
     F: Fn(&'c [u8]) -> Result<bool, E>,
@@ -33,6 +35,7 @@ where
     Ok(false)
 }
 
+#[inline]
 fn try_all<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, predicate: F) -> Result<bool, E>
 where
     F: Fn(&'c [u8]) -> Result<bool, E>,
@@ -46,6 +49,7 @@ where
     Ok(true)
 }
 
+#[inline]
 fn try_sum<'c, F, E>(cells: impl Iterator<Item = &'c [u8]>, callback: F) -> Result<usize, E>
 where
     F: Fn(&'c [u8]) -> Result<usize, E>,
@@ -696,45 +700,47 @@ search mode options:
                            increasing <k> too much.
 
 search options:
-    -i, --ignore-case        Case insensitive search.
-    -v, --invert-match       Select only rows that did not match
-    -s, --select <arg>       Select the columns to search. See 'xan select -h'
-                             for the full syntax.
-    -A, --all                Only return a row when ALL columns from the given selection
-                             match the desired pattern, instead of returning a row
-                             when ANY column matches.
-    -f, --flag <column>      Instead of filtering rows, add a new column indicating if any match
-                             was found.
-    -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
-                             given name. Will still filter out rows with 0 matches, unless --left
-                             is used. Does not work with -v/--invert-match.
-    --overlapping            When used with -c/--count or -b/--breakdown, return the count of
-                             overlapping matches. Note that this can sometimes be one order of
-                             magnitude slower that counting non-overlapping matches.
-    -R, --replace <with>     If given, the command will not filter rows but will instead
-                             replace matches with the given replacement.
-                             Does not work with --replacement-column.
-                             Regex replacement string syntax can be found here:
-                             https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
-    -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
-                             buffering some times (e.g. when searching for very few
-                             rows in a big file before piping to `view` or `flatten`).
-    --left                   Rows without any matches will be kept in the output when
-                             using -U/--unique-matches, or -b/--breakdown, or -c/--count.
-    -Z, --fast-parser        Use a faster, zero-copy parser when searching the file.
-                             Note that no normalization of the input format will be applied when
-                             used without -s/--select. Also, this can only work using this command's
-                             default mode, i.e. filtering, and does not work with parallelization.
-                             Note that this parser is also unable to unescape CSV cells. This means
-                             you must take care of considering quotes to be doubled, and when using
-                             this flag without -s/--select, the command will attempt to match the
-                             whole row at once, so it may contain raw delimiters & newlines.
-    -p, --parallel           Whether to use parallelization to speed up computation.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+    -i, --ignore-case         Case insensitive search.
+    -v, --invert-match        Select only rows that did not match
+    -s, --select <arg>        Select the columns to search. See 'xan select -h'
+                              for the full syntax.
+    -A, --all                 Only return a row when ALL columns from the given selection
+                              match the desired pattern, instead of returning a row
+                              when ANY column matches.
+    -f, --flag <column>       Instead of filtering rows, add a new column indicating if any match
+                              was found.
+    -c, --count <column>      Report the number of non-overlapping pattern matches in a new column with
+                              given name. Will still filter out rows with 0 matches, unless --left
+                              is used. Does not work with -v/--invert-match.
+    --overlapping             When used with -c/--count or -b/--breakdown, return the count of
+                              overlapping matches. Note that this can sometimes be one order of
+                              magnitude slower that counting non-overlapping matches.
+    -R, --replace <with>      If given, the command will not filter rows but will instead
+                              replace matches with the given replacement.
+                              Does not work with --replacement-column.
+                              Regex replacement string syntax can be found here:
+                              https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+    -l, --limit <n>           Maximum of number rows to return. Useful to avoid downstream
+                              buffering some times (e.g. when searching for very few
+                              rows in a big file before piping to `view` or `flatten`).
+    -B, --before-context <n>  Number of rows to keep before a matching one.
+    -A, --after-context <n>   Number of rows to keep after a matching one.
+    --left                    Rows without any matches will be kept in the output when
+                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
+    -Z, --fast-parser         Use a faster, zero-copy parser when searching the file.
+                              Note that no normalization of the input format will be applied when
+                              used without -s/--select. Also, this can only work using this command's
+                              default mode, i.e. filtering, and does not work with parallelization.
+                              Note that this parser is also unable to unescape CSV cells. This means
+                              you must take care of considering quotes to be doubled, and when using
+                              this flag without -s/--select, the command will attempt to match the
+                              whole row at once, so it may contain raw delimiters & newlines.
+    -p, --parallel            Whether to use parallelization to speed up computation.
+                              Will automatically select a suitable number of threads to use
+                              based on your number of cores. Use -t, --threads if you want to
+                              indicate the number of threads yourself.
+    -t, --threads <threads>   Parellize computations using this many threads. Use -p, --parallel
+                              if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
     -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file
@@ -812,6 +818,8 @@ struct Args {
     flag_parallel: bool,
     flag_threads: Option<usize>,
     flag_fast_parser: bool,
+    flag_before_context: Option<NonZeroUsize>,
+    flag_after_context: Option<NonZeroUsize>,
 }
 
 #[inline(always)]
@@ -1070,14 +1078,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-Z/--fast-parser only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!")?;
     }
 
+    let tracking_context = args.flag_before_context.is_some() || args.flag_after_context.is_some();
+
+    if actions_count > 0 && tracking_context {
+        Err("-B/--before-context & -A/--after-context only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!")?;
+    }
+
     if args.flag_all && actions_count > 0 {
         Err("-A/--all does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
     }
 
     let threads = util::parallelization(args.flag_parallel, args.flag_threads);
 
-    if args.flag_fast_parser && threads.is_some() {
-        Err("-Z/--fast-parser does not work with -p/--parallel nor -t/--threads!")?;
+    if threads.is_some() {
+        if args.flag_fast_parser {
+            Err("-Z/--fast-parser does not work with -p/--parallel nor -t/--threads!")?;
+        }
+
+        if tracking_context {
+            Err("-B/--before-context & -A/--after-context does not work with -p/--parallel nor -t/--threads!")?;
+        }
     }
 
     let mut pairs = args
@@ -1162,6 +1182,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_fast_parser && args.flag_select.is_none() {
         let mut splitter = rconfig.simd_splitter()?;
 
+        let mut context_buffer_opt = tracking_context.then(|| {
+            ContextBuffer::<Vec<u8>>::new(args.flag_before_context, args.flag_after_context)
+        });
+
         if !rconfig.no_headers {
             wtr.write_splitted_record(splitter.byte_headers()?)?;
         }
@@ -1173,7 +1197,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match = !is_match;
             }
 
-            if is_match {
+            if let Some(context_buffer) = context_buffer_opt.as_mut() {
+                context_buffer.try_process_bytes(is_match, record, |r| -> CliResult<()> {
+                    wtr.write_splitted_record(r)?;
+                    Ok(())
+                })?;
+            } else if is_match {
                 wtr.write_splitted_record(record)?;
             }
 
@@ -1187,6 +1216,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Fast parser path, with selection
     if args.flag_fast_parser && args.flag_select.is_some() {
+        if tracking_context {
+            Err("-B/--before-context & -A/--after-context does not work with -Z/--fast-parser & -s/--select as it negates its performance benefit.")?;
+        }
+
         let mut rdr = rconfig.simd_zero_copy_reader()?;
         let headers = rdr.byte_headers()?.clone();
 
@@ -1256,7 +1289,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         for result in rdr.into_byte_records().parallel_map_custom(
             |o| o.threads(t),
-            move |result| -> CliResult<(bool, Option<simd_csv::ByteRecord>)> {
+            move |result| -> CliResult<(bool, Option<ByteRecord>)> {
                 let mut record = result?;
 
                 let mut record_to_write_opt = None;
@@ -1396,10 +1429,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     // Single-threaded path
-    let mut record = simd_csv::ByteRecord::new();
-    let mut replaced_record = simd_csv::ByteRecord::new();
+    let mut record = ByteRecord::new();
+    let mut replaced_record = ByteRecord::new();
     let mut matches = BTreeSet::<usize>::new();
     let mut counts = vec![0; patterns_len];
+
+    let mut context_buffer_opt = tracking_context.then(|| {
+        ContextBuffer::<ByteRecord>::new(args.flag_before_context, args.flag_after_context)
+    });
 
     while rdr.read_byte_record(&mut record)? {
         let mut is_match: bool = false;
@@ -1516,7 +1553,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 is_match = !is_match;
             }
 
-            if args.flag_flag.is_some() {
+            if let Some(context_buffer) = context_buffer_opt.as_mut() {
+                context_buffer.try_process(is_match, &record, |r| -> CliResult<()> {
+                    wtr.write_byte_record(r)?;
+
+                    Ok(())
+                })?;
+            } else if args.flag_flag.is_some() {
                 record.push_field(if is_match { b"true" } else { b"false" });
                 wtr.write_byte_record(&record)?;
             } else if is_match {
