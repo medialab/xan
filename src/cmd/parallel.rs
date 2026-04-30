@@ -901,7 +901,7 @@ impl Args {
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
 
-            let shell = env::var("SHELL").expect("$SHELL is not set!");
+            let shell = env::var("SHELL").map_err(|_| "$SHELL is not set!")?;
 
             // NOTE: here we are relying on cat to avoid spinning a thread.
             // I haven't benchmarked this but I suspect `cat` does a better job
@@ -913,8 +913,7 @@ impl Args {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .arg(p)
-                    .spawn()
-                    .expect("could not spawn \"cat\""),
+                    .spawn()?,
                 Input::FileChunk(file_chunk) => Command::new(env::current_exe()?)
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
@@ -926,8 +925,7 @@ impl Args {
                     .arg(file_chunk.to.to_string())
                     .arg("--raw")
                     .arg(&file_chunk.file_path)
-                    .spawn()
-                    .expect("could not spawn \"xan slice\""),
+                    .spawn()?,
             };
 
             let mut child = Command::new(shell)
@@ -935,8 +933,7 @@ impl Args {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .args(["-c", preprocessing])
-                .spawn()
-                .expect("could not spawn shell preprocessing");
+                .spawn()?;
 
             let reader = Box::new(child.stdout.take().expect("cannot read child stdout"));
 
@@ -995,8 +992,7 @@ impl Args {
                         .arg(file_chunk.to.to_string())
                         .arg("--raw")
                         .arg(&file_chunk.file_path)
-                        .spawn()
-                        .expect("could not spawn \"xan slice\""),
+                        .spawn()?,
                 );
             }
 
@@ -1028,7 +1024,7 @@ impl Args {
                     command.arg(input.path());
                 }
 
-                children.push(command.spawn().expect("could not spawn preprocessing"));
+                children.push(command.spawn()?);
             }
 
             let config = Config::std()
