@@ -594,7 +594,6 @@ For a sense of what can be achieved with `xan`, see this page summarizing a vari
 *Search & filter*
 
 - [**search**](./docs/cmd/search.md): Search for (or replace) patterns in CSV data
-- [**grep**](./docs/cmd/grep.md): Coarse but fast filtering of CSV data
 - [**filter**](./docs/cmd/filter.md): Only keep some CSV rows based on an evaluated expression
 - [**head**](./docs/cmd/head.md): First rows of CSV file
 - [**tail**](./docs/cmd/tail.md): Last rows of CSV file

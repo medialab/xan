@@ -2,8 +2,7 @@
 # xan search
 
 ```txt
-Search for (or replace) patterns in CSV data (be sure to check out `xan grep` for
-a faster but coarser equivalent).
+Search for (or replace) patterns in CSV data.
 
 This command has several flags to select the way to perform a match:
 
@@ -115,6 +114,9 @@ Reporting unique matches per query in a new column:
 
 # Regarding parallelization
 
+TODO: perf, mention -Z, mention regex is usually expensive, mention strategies used not linear
+TODO: -Z with or without -s is very contextual, mention ripgrep
+
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
 parallelization might differ a lot and depends on the complexity and number of
@@ -134,7 +136,7 @@ Would directly translate to:
 
     $ xan parallel cat -P 'search -i eternity' -F file.csv
 
-# A note about encoding
+# Regarding encoding
 
 This command usually does not care about the input's encoding. However, some
 search modes need to operate on unicode characters directely and therefore expect
@@ -195,6 +197,14 @@ search options:
                              rows in a big file before piping to `view` or `flatten`).
     --left                   Rows without any matches will be kept in the output when
                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
+    -Z, --fast-parser        Use a faster, zero-copy parser when searching the file.
+                             Note that no normalization of the input format will be applied when
+                             used without -s/--select. Also, this can only work using this command's
+                             default mode, i.e. filtering, and does not work with parallelization.
+                             Note that this parser is also unable to unescape CSV cells. This means
+                             you must take care of considering quotes to be doubled, and when using
+                             this flag without -s/--select, the command will attempt to match the
+                             whole row at once, so it may contain raw delimiters & newlines.
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to

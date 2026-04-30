@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use bgzip::index::BGZFIndex;
 use bgzip::read::{BGZFReader, IndexedBGZFReader};
 use flate2::read::MultiGzDecoder;
-use memmap2::Mmap;
 use regex::bytes::Regex;
 
 use crate::read;
@@ -296,9 +295,9 @@ impl Config {
         self.compression = Some(compression);
     }
 
-    pub fn is_compressed(&self) -> bool {
-        self.compression.is_some()
-    }
+    // pub fn is_compressed(&self) -> bool {
+    //     self.compression.is_some()
+    // }
 
     pub fn std() -> Config {
         Self::new(&None)
@@ -387,23 +386,23 @@ impl Config {
         self.path.is_none()
     }
 
-    pub fn mmap(&self) -> io::Result<Option<Mmap>> {
-        if self.is_std() || self.is_compressed() {
-            return Ok(None);
-        }
+    // pub fn mmap(&self) -> io::Result<Option<Mmap>> {
+    //     if self.is_std() || self.is_compressed() {
+    //         return Ok(None);
+    //     }
 
-        let file = fs::File::open(self.path.as_ref().unwrap())?;
+    //     let file = fs::File::open(self.path.as_ref().unwrap())?;
 
-        let map = unsafe { Mmap::map(&file)? };
+    //     let map = unsafe { Mmap::map(&file)? };
 
-        #[cfg(unix)]
-        {
-            map.advise(memmap2::Advice::Sequential)?;
-            map.advise(memmap2::Advice::WillNeed)?;
-        }
+    //     #[cfg(unix)]
+    //     {
+    //         map.advise(memmap2::Advice::Sequential)?;
+    //         map.advise(memmap2::Advice::WillNeed)?;
+    //     }
 
-        Ok(Some(map))
-    }
+    //     Ok(Some(map))
+    // }
 
     pub fn selection<'a, H>(&self, first_record: H) -> Result<Selection, String>
     where

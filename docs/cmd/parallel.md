@@ -142,7 +142,8 @@ parallel stats options:
                            mean and standard deviation.
 
 parallel map options:
-    -z, --compress  Use this flag to gzip the processed files.
+    -z, --compress <kind>  Compress created files using either "gz|gzip" or "zst|zstd"
+                           compression.
 
 Common options:
     -h, --help             Display this message

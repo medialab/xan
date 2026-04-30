@@ -526,8 +526,7 @@ impl Matcher {
 // early termination when piping to `xan slice` because flush won't get a broken
 // pipe when writing nothing.
 static USAGE: &str = "
-Search for (or replace) patterns in CSV data (be sure to check out `xan grep` for
-a faster but coarser equivalent).
+Search for (or replace) patterns in CSV data.
 
 This command has several flags to select the way to perform a match:
 
@@ -640,7 +639,7 @@ Reporting unique matches per query in a new column:
 # Regarding parallelization
 
 TODO: perf, mention -Z, mention regex is usually expensive, mention strategies used not linear
-TODO: -Z with or without -s is very contextual
+TODO: -Z with or without -s is very contextual, mention ripgrep
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
@@ -1154,11 +1153,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(
-            args.flag_select
-                .clone()
-                .unwrap_or(SelectedColumns::default()),
-        );
+        .select(args.flag_select.clone().unwrap_or_default());
 
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
     let mut matches_count: usize = 0;
@@ -1179,7 +1174,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             if is_match {
-                wtr.write_splitted_record(&record)?;
+                wtr.write_splitted_record(record)?;
             }
 
             if !check_limit(args.flag_limit, is_match, &mut matches_count) {
