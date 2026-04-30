@@ -13,7 +13,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::ChooseProgram;
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
 
@@ -81,6 +81,7 @@ dedup options:
                            indicating whether a row is duplicated. File order might get
                            modified to keep proper performance when -l/--keep-last
                            or -C/--choose is used.
+    --uint
 
 Common options:
     -h, --help               Display this message
@@ -105,6 +106,7 @@ struct Args {
     flag_keep_duplicates: bool,
     flag_choose: Option<String>,
     flag_flag: Option<String>,
+    flag_uint: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -278,12 +280,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Unsorted, keep first
         (false, DedupMode::KeepFirst) => {
             let mut record = ByteRecord::new();
-            let mut already_seen = HashSet::<ByteRecord>::new();
+            let mut already_seen = DedupSet::new(&sel, args.flag_uint)?;
 
             while rdr.read_byte_record(&mut record)? {
-                let key = sel.select(&record).collect();
-
-                if already_seen.insert(key) {
+                if already_seen.insert(&sel, &record)? {
                     record_writer.emit_record(&record)?;
                 } else {
                     record_writer.discard_record(&record)?;
@@ -617,5 +617,44 @@ impl KeepLastSet {
 
     fn into_iter(self) -> impl Iterator<Item = ByteRecord> {
         self.list.into_iter()
+    }
+}
+
+enum DedupSet {
+    String(HashSet<ByteRecord>),
+    Uint(HashSet<u64>),
+    UintPair(HashSet<(u64, u64)>),
+}
+
+impl DedupSet {
+    fn new(sel: &Selection, uint: bool) -> CliResult<Self> {
+        Ok(if uint {
+            match sel.len() {
+                1 => Self::Uint(HashSet::new()),
+                2 => Self::UintPair(HashSet::new()),
+                _ => Err("--uint flag expects at most two columns selected!")?,
+            }
+        } else {
+            Self::String(HashSet::new())
+        })
+    }
+
+    fn insert(&mut self, sel: &Selection, record: &ByteRecord) -> CliResult<bool> {
+        Ok(match self {
+            Self::String(set) => set.insert(sel.select(record).collect()),
+            Self::Uint(set) => {
+                let cell = sel.select(record).next().unwrap();
+                let i = btoi::btoi(cell)?;
+                set.insert(i)
+            }
+            Self::UintPair(set) => {
+                let mut iter = sel.select(record);
+                let cell = iter.next().unwrap();
+                let a = btoi::btoi(cell)?;
+                let cell = iter.next().unwrap();
+                let b = btoi::btoi(cell)?;
+                set.insert((a, b))
+            }
+        })
     }
 }

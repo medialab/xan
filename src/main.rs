@@ -490,12 +490,6 @@ impl From<docopt::Error> for CliError {
     }
 }
 
-impl From<Utf8Error> for CliError {
-    fn from(value: Utf8Error) -> Self {
-        Self::Other(value.to_string())
-    }
-}
-
 impl From<csv::Error> for CliError {
     fn from(err: csv::Error) -> Self {
         if !err.is_io_error() {
@@ -559,89 +553,29 @@ impl From<regex_automata::meta::BuildError> for CliError {
     }
 }
 
-impl From<aho_corasick::BuildError> for CliError {
-    fn from(err: aho_corasick::BuildError) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<calamine::Error> for CliError {
-    fn from(err: calamine::Error) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<moonblade::ConcretizationError> for CliError {
-    fn from(err: moonblade::ConcretizationError) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<moonblade::EvaluationError> for CliError {
-    fn from(err: moonblade::EvaluationError) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<moonblade::SpecifiedEvaluationError> for CliError {
-    fn from(err: moonblade::SpecifiedEvaluationError) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<glob::GlobError> for CliError {
-    fn from(err: glob::GlobError) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<glob::PatternError> for CliError {
-    fn from(err: glob::PatternError) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
-impl From<transient_btree_index::Error> for CliError {
-    fn from(value: transient_btree_index::Error) -> Self {
-        Self::Other(value.to_string())
-    }
-}
-
-impl From<rust_xlsxwriter::XlsxError> for CliError {
-    fn from(value: rust_xlsxwriter::XlsxError) -> Self {
-        Self::Other(value.to_string())
-    }
-}
-
-impl From<serde_json::Error> for CliError {
-    fn from(value: serde_json::Error) -> Self {
-        Self::Other(value.to_string())
-    }
-}
-
-impl From<simd_json::Error> for CliError {
-    fn from(value: simd_json::Error) -> Self {
-        Self::Other(value.to_string())
-    }
-}
-
-impl From<url::ParseError> for CliError {
-    fn from(value: url::ParseError) -> Self {
-        Self::Other(value.to_string())
-    }
-}
-
-impl From<bgzip::BGZFError> for CliError {
-    fn from(value: bgzip::BGZFError) -> Self {
-        match value {
-            bgzip::BGZFError::IoError(err) => From::from(err),
-            _ => Self::Other(value.to_string()),
+macro_rules! impl_from_error {
+    ($path: path) => {
+        impl From<$path> for CliError {
+            fn from(err: $path) -> Self {
+                Self::Other(err.to_string())
+            }
         }
-    }
+    };
 }
 
-impl From<jiff::Error> for CliError {
-    fn from(value: jiff::Error) -> Self {
-        Self::Other(value.to_string())
-    }
-}
+impl_from_error!(aho_corasick::BuildError);
+impl_from_error!(calamine::Error);
+impl_from_error!(moonblade::ConcretizationError);
+impl_from_error!(moonblade::EvaluationError);
+impl_from_error!(moonblade::SpecifiedEvaluationError);
+impl_from_error!(glob::GlobError);
+impl_from_error!(glob::PatternError);
+impl_from_error!(transient_btree_index::Error);
+impl_from_error!(rust_xlsxwriter::XlsxError);
+impl_from_error!(serde_json::Error);
+impl_from_error!(simd_json::Error);
+impl_from_error!(url::ParseError);
+impl_from_error!(bgzip::BGZFError);
+impl_from_error!(jiff::Error);
+impl_from_error!(Utf8Error);
+impl_from_error!(btoi::ParseIntegerError);
