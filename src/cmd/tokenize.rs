@@ -560,10 +560,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let last = $tokens.len().saturating_sub(1);
 
                     for (i, token) in $tokens.iter().enumerate() {
-                        bytes.extend(token.0.as_str().as_bytes());
+                        bytes.extend_from_slice(token.0.as_str().as_bytes());
 
                         if i != last {
-                            bytes.extend(sep.as_bytes());
+                            bytes.extend_from_slice(sep.as_bytes());
                         }
                     }
                 });
