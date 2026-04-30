@@ -112,21 +112,55 @@ Reporting unique matches per query in a new column:
     $ xan search -U matches -s headline,text --patterns queries.csv \
     $   --pattern-column query --name-column name file.csv > matches.csv
 
-# Regarding parallelization
+# Regarding performance
 
-TODO: perf, mention -Z, mention regex is usually expensive, mention strategies used not linear
-TODO: -Z with or without -s is very contextual, mention ripgrep
+*Parsing*
+
+Note that this command has a -Z/--fast-parser able to leverage a faster, zero-copy
+parser. This parser however does not bother unescaping CSV cells and you will need
+to pay attention to CSV delimiters and/or quotes when writing your patterns (don't
+worry, this is inconsequential most of the time).
+
+The parser actually used will depend on whether you are targeting a selection of
+columns through the -s/--select flag or not. The game here is that you need to
+balance the cost of peforming a match over longer strings vs. the cost of parsing
+the CSV stream.
+
+Ultimately your mileage may vary, so bench away and see what is faster for your
+actual use-case.
+
+Also, this might seem counterintuitive but if your CSV data is never quoted and
+your rows are small enough a dedicated tool like `ripgrep` should be even faster:
+
+https://github.com/burntsushi/ripgrep
+
+*Mulitple patterns*
+
+This command goes to great length ensuring multiple patterns search are not a
+simple loop testing each pattern in turn. Here is what is used for each mode:
+
+    * (default): a unique Aho-Corasick automaton
+    * -e, --exact: a hashmap
+    * -r, --regex: a unique regex automaton
+    * -u, --url-prefix: a specialized trie
+    * -L, --levenshtein <k>: a set of levenshtein automata
+    * -D, --damerau-levenshtein <k>: ditto
+
+This also means that, even if Rust's regex engine is very clever, sometimes it
+is faster to search for a set of substrings vs. a regex pattern.
+
+*Parallelization*
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
 parallelization might differ a lot and depends on the complexity and number of
-queries and also on the size of the haystacks. That is to say `xan search --empty`
+patterns and also on the size of the haystacks. That is to say `xan search --empty`
 would not be significantly faster when parallelized whereas `xan search -i eternity`
 definitely would.
 
 Also, you might want to try `xan parallel cat` instead because it could be
-faster in some scenarios at the cost of an increase in memory usage (and it
-won't work on streams and unindexed gzipped data).
+faster in some scenarios at the cost of an increase in memory usage (with the
+caveat that it cannot work on a single compressed files nor on streams).
 
 For instance, the following `search` command:
 
@@ -134,7 +168,7 @@ For instance, the following `search` command:
 
 Would directly translate to:
 
-    $ xan parallel cat -P 'search -i eternity' -F file.csv
+    $ xan parallel cat -P 'search -i eternity' file.csv
 
 # Regarding encoding
 
@@ -172,45 +206,47 @@ search mode options:
                            increasing <k> too much.
 
 search options:
-    -i, --ignore-case        Case insensitive search.
-    -v, --invert-match       Select only rows that did not match
-    -s, --select <arg>       Select the columns to search. See 'xan select -h'
-                             for the full syntax.
-    -A, --all                Only return a row when ALL columns from the given selection
-                             match the desired pattern, instead of returning a row
-                             when ANY column matches.
-    -f, --flag <column>      Instead of filtering rows, add a new column indicating if any match
-                             was found.
-    -c, --count <column>     Report the number of non-overlapping pattern matches in a new column with
-                             given name. Will still filter out rows with 0 matches, unless --left
-                             is used. Does not work with -v/--invert-match.
-    --overlapping            When used with -c/--count or -b/--breakdown, return the count of
-                             overlapping matches. Note that this can sometimes be one order of
-                             magnitude slower that counting non-overlapping matches.
-    -R, --replace <with>     If given, the command will not filter rows but will instead
-                             replace matches with the given replacement.
-                             Does not work with --replacement-column.
-                             Regex replacement string syntax can be found here:
-                             https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
-    -l, --limit <n>          Maximum of number rows to return. Useful to avoid downstream
-                             buffering some times (e.g. when searching for very few
-                             rows in a big file before piping to `view` or `flatten`).
-    --left                   Rows without any matches will be kept in the output when
-                             using -U/--unique-matches, or -b/--breakdown, or -c/--count.
-    -Z, --fast-parser        Use a faster, zero-copy parser when searching the file.
-                             Note that no normalization of the input format will be applied when
-                             used without -s/--select. Also, this can only work using this command's
-                             default mode, i.e. filtering, and does not work with parallelization.
-                             Note that this parser is also unable to unescape CSV cells. This means
-                             you must take care of considering quotes to be doubled, and when using
-                             this flag without -s/--select, the command will attempt to match the
-                             whole row at once, so it may contain raw delimiters & newlines.
-    -p, --parallel           Whether to use parallelization to speed up computation.
-                             Will automatically select a suitable number of threads to use
-                             based on your number of cores. Use -t, --threads if you want to
-                             indicate the number of threads yourself.
-    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
-                             if you want the number of threads to be automatically chosen instead.
+    -i, --ignore-case         Case insensitive search.
+    -v, --invert-match        Select only rows that did not match
+    -s, --select <arg>        Select the columns to search. See 'xan select -h'
+                              for the full syntax.
+    -A, --all                 Only return a row when ALL columns from the given selection
+                              match the desired pattern, instead of returning a row
+                              when ANY column matches.
+    -f, --flag <column>       Instead of filtering rows, add a new column indicating if any match
+                              was found.
+    -c, --count <column>      Report the number of non-overlapping pattern matches in a new column with
+                              given name. Will still filter out rows with 0 matches, unless --left
+                              is used. Does not work with -v/--invert-match.
+    --overlapping             When used with -c/--count or -b/--breakdown, return the count of
+                              overlapping matches. Note that this can sometimes be one order of
+                              magnitude slower that counting non-overlapping matches.
+    -R, --replace <with>      If given, the command will not filter rows but will instead
+                              replace matches with the given replacement.
+                              Does not work with --replacement-column.
+                              Regex replacement string syntax can be found here:
+                              https://docs.rs/regex/latest/regex/struct.Regex.html#replacement-string-syntax
+    -l, --limit <n>           Maximum of number rows to return. Useful to avoid downstream
+                              buffering some times (e.g. when searching for very few
+                              rows in a big file before piping to `view` or `flatten`).
+    -B, --before-context <n>  Number of rows to keep before a matching one.
+    -A, --after-context <n>   Number of rows to keep after a matching one.
+    --left                    Rows without any matches will be kept in the output when
+                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
+    -Z, --fast-parser         Use a faster, zero-copy parser when searching the file.
+                              Note that no normalization of the input format will be applied when
+                              used without -s/--select. Also, this can only work using this command's
+                              default mode, i.e. filtering, and does not work with parallelization.
+                              Note that this parser is also unable to unescape CSV cells. This means
+                              you must take care of considering quotes to be doubled, and when using
+                              this flag without -s/--select, the command will attempt to match the
+                              whole row at once, so it may contain raw delimiters & newlines.
+    -p, --parallel            Whether to use parallelization to speed up computation.
+                              Will automatically select a suitable number of threads to use
+                              based on your number of cores. Use -t, --threads if you want to
+                              indicate the number of threads yourself.
+    -t, --threads <threads>   Parellize computations using this many threads. Use -p, --parallel
+                              if you want the number of threads to be automatically chosen instead.
 
 multiple patterns options:
     -P, --add-pattern <pattern>  Manually add patterns to query without needing to feed a file

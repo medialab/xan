@@ -640,21 +640,55 @@ Reporting unique matches per query in a new column:
     $ xan search -U matches -s headline,text --patterns queries.csv \\
     $   --pattern-column query --name-column name file.csv > matches.csv
 
-# Regarding parallelization
+# Regarding performance
 
-TODO: perf, mention -Z, mention regex is usually expensive, mention strategies used not linear
-TODO: -Z with or without -s is very contextual, mention ripgrep
+*Parsing*
+
+Note that this command has a -Z/--fast-parser able to leverage a faster, zero-copy
+parser. This parser however does not bother unescaping CSV cells and you will need
+to pay attention to CSV delimiters and/or quotes when writing your patterns (don't
+worry, this is inconsequential most of the time).
+
+The parser actually used will depend on whether you are targeting a selection of
+columns through the -s/--select flag or not. The game here is that you need to
+balance the cost of peforming a match over longer strings vs. the cost of parsing
+the CSV stream.
+
+Ultimately your mileage may vary, so bench away and see what is faster for your
+actual use-case.
+
+Also, this might seem counterintuitive but if your CSV data is never quoted and
+your rows are small enough a dedicated tool like `ripgrep` should be even faster:
+
+https://github.com/burntsushi/ripgrep
+
+*Mulitple patterns*
+
+This command goes to great length ensuring multiple patterns search are not a
+simple loop testing each pattern in turn. Here is what is used for each mode:
+
+    * (default): a unique Aho-Corasick automaton
+    * -e, --exact: a hashmap
+    * -r, --regex: a unique regex automaton
+    * -u, --url-prefix: a specialized trie
+    * -L, --levenshtein <k>: a set of levenshtein automata
+    * -D, --damerau-levenshtein <k>: ditto
+
+This also means that, even if Rust's regex engine is very clever, sometimes it
+is faster to search for a set of substrings vs. a regex pattern.
+
+*Parallelization*
 
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
 parallelization might differ a lot and depends on the complexity and number of
-queries and also on the size of the haystacks. That is to say `xan search --empty`
+patterns and also on the size of the haystacks. That is to say `xan search --empty`
 would not be significantly faster when parallelized whereas `xan search -i eternity`
 definitely would.
 
 Also, you might want to try `xan parallel cat` instead because it could be
-faster in some scenarios at the cost of an increase in memory usage (and it
-won't work on streams and unindexed gzipped data).
+faster in some scenarios at the cost of an increase in memory usage (with the
+caveat that it cannot work on a single compressed files nor on streams).
 
 For instance, the following `search` command:
 
@@ -662,7 +696,7 @@ For instance, the following `search` command:
 
 Would directly translate to:
 
-    $ xan parallel cat -P 'search -i eternity' -F file.csv
+    $ xan parallel cat -P 'search -i eternity' file.csv
 
 # Regarding encoding
 
