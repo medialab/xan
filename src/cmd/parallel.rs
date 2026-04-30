@@ -903,33 +903,39 @@ impl Args {
 
             let shell = env::var("SHELL").map_err(|_| "$SHELL is not set!")?;
 
-            // NOTE: here we are relying on cat to avoid spinning a thread.
-            // I haven't benchmarked this but I suspect `cat` does a better job
-            // than what I could do regarding buffering etc. It's true we could
-            // save up a process though, so we might want to benchmark this.
-            let mut cat = match input {
-                Input::Path(p) => Command::new("cat")
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .arg(p)
-                    .spawn()?,
-                Input::FileChunk(file_chunk) => Command::new(env::current_exe()?)
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .arg("slice")
-                    .arg("--byte-offset")
-                    .arg(file_chunk.from.to_string())
-                    .arg("--end-byte")
-                    .arg(file_chunk.to.to_string())
-                    .arg("--raw")
-                    .arg(&file_chunk.file_path)
-                    .spawn()?,
+            let mut cmd = Command::new(shell);
+            let mut children: Vec<Child> = Vec::new();
+
+            match input {
+                Input::Path(path) => {
+                    cmd.stdin(File::open(path)?);
+                }
+                Input::FileChunk(file_chunk) => {
+                    let mut slice_child = Command::new(env::current_exe()?)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .arg("slice")
+                        .arg("--byte-offset")
+                        .arg(file_chunk.from.to_string())
+                        .arg("--end-byte")
+                        .arg(file_chunk.to.to_string())
+                        .arg("--raw")
+                        .arg(&file_chunk.file_path)
+                        .spawn()?;
+
+                    cmd.stdin(
+                        slice_child
+                            .stdout
+                            .take()
+                            .expect("could not consume chunk slice stdout"),
+                    );
+
+                    children.push(slice_child);
+                }
             };
 
-            let mut child = Command::new(shell)
-                .stdin(cat.stdout.take().expect("could not consume cat stdout"))
+            let mut child = cmd
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .args(["-c", preprocessing])
@@ -937,14 +943,13 @@ impl Args {
 
             let reader = Box::new(child.stdout.take().expect("cannot read child stdout"));
 
-            // NOTE: this must happen before reading headers to ensure correct drop
-            let children = Some(Children::from(vec![cat, child]));
+            children.push(child);
 
             Ok(InputReader {
                 config,
                 reader: Some(reader),
                 headers: None,
-                children,
+                children: Some(Children::from(children)),
             })
         }
         // Standard preprocessing

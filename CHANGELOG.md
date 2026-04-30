@@ -40,6 +40,7 @@
 * Improving performance of `xan transform`, `xan flatmap`, `xan agg` & `xan groupby`.
 * Improving performance of `xan rename`.
 * Faster `xan range`.
+* Faster `xan parallel -H/--shell-preprocess`.
 
 *Quality of Life*
 
