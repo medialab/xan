@@ -719,6 +719,9 @@ search options:
                              rows in a big file before piping to `view` or `flatten`).
     --left                   Rows without any matches will be kept in the output when
                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
+    -z, --fast-parser        Use a faster, zero-copy parser when searching the file.
+                             Note that no normalization of the input format will be applied when
+                             used without -s/--select.
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
