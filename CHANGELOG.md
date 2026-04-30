@@ -13,6 +13,7 @@
 * `xan window -g/--groupby` does not require the file to be sorted anymore. This means using `-g/--groupby` will now require the whole file to be buffered into memory by the command. The old behavior can still be used through the `-S/--sorted` flag, thus aligning the `xan window` command with the rest of the tool.
 * `row_index` will now error if the expression has no concept of row index, instead of returning nothing.
 * `xan parallel -z/--compress` now take the desired compression (either `gzip` or `zstd`).
+* Retiring the `xan grep` command in favor of `xan search -Z/--fast-parser`.
 
 *Features*
 

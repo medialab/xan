@@ -1281,3 +1281,198 @@ fn search_patterns_unique_matches() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn search_fast_parser() {
+    let wrk = Workdir::new("search_fast_parser");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landy"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z").arg("evan").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "surname"], svec!["evan", "choucroute"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_invert_match() {
+    let wrk = Workdir::new("search_fast_parser_invert_match");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landy"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z").arg("evan").arg("-v").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "surname"],
+        svec!["john", "landy"],
+        svec!["béatrice", "babka"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_no_headers() {
+    let wrk = Workdir::new("search_fast_parser_no_headers");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landy"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z").arg("evan").arg("-n").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["evan", "choucroute"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_regex() {
+    let wrk = Workdir::new("search_fast_parser_regex");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landy"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z").arg("evan|babka").arg("-r").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "surname"],
+        svec!["evan", "choucroute"],
+        svec!["béatrice", "babka"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_case_insensitive() {
+    let wrk = Workdir::new("search_fast_parser_case_insensitive");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landy"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z").arg("EVAN").arg("-i").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name", "surname"], svec!["evan", "choucroute"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_regex_case_insensitive() {
+    let wrk = Workdir::new("search_fast_parser_regex_case_insensitive");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "surname"],
+            svec!["john", "landy"],
+            svec!["evan", "choucroute"],
+            svec!["béatrice", "babka"],
+        ],
+    );
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z")
+        .arg("EVAN|BABKA")
+        .arg("-r")
+        .arg("-i")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "surname"],
+        svec!["evan", "choucroute"],
+        svec!["béatrice", "babka"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_patterns_substring() {
+    let wrk = Workdir::new("search_fast_parser_patterns_substring");
+
+    wrk.create("index.csv", vec![svec!["name"], svec!["suz"], svec!["jo"]]);
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["abigail"],
+            svec!["suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z")
+        .args(["--patterns", "index.csv"])
+        .args(["--pattern-column", "name"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![svec!["name"], svec!["john"], svec!["suzy"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn search_fast_parser_add_pattern_substring() {
+    let wrk = Workdir::new("search_fast_parser_add_pattern_substring");
+
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name"],
+            svec!["john"],
+            svec!["abigail"],
+            svec!["suzy"],
+        ],
+    );
+
+    let mut cmd = wrk.command("search");
+    cmd.arg("-Z")
+        .arg("jo")
+        .args(["-P", "abi"])
+        .args(["-P", "su"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name"],
+        svec!["john"],
+        svec!["abigail"],
+        svec!["suzy"],
+    ];
+    assert_eq!(got, expected);
+}

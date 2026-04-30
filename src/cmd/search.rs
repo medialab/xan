@@ -639,6 +639,9 @@ Reporting unique matches per query in a new column:
 
 # Regarding parallelization
 
+TODO: perf, mention -Z, mention regex is usually expensive, mention strategies used not linear
+TODO: -Z with or without -s is very contextual
+
 Finally, this command can leverage multithreading to run faster using
 the -p/--parallel or -t/--threads flags. This said, the boost given by
 parallelization might differ a lot and depends on the complexity and number of
@@ -658,7 +661,7 @@ Would directly translate to:
 
     $ xan parallel cat -P 'search -i eternity' -F file.csv
 
-# A note about encoding
+# Regarding encoding
 
 This command usually does not care about the input's encoding. However, some
 search modes need to operate on unicode characters directely and therefore expect
@@ -719,9 +722,14 @@ search options:
                              rows in a big file before piping to `view` or `flatten`).
     --left                   Rows without any matches will be kept in the output when
                              using -U/--unique-matches, or -b/--breakdown, or -c/--count.
-    -z, --fast-parser        Use a faster, zero-copy parser when searching the file.
+    -Z, --fast-parser        Use a faster, zero-copy parser when searching the file.
                              Note that no normalization of the input format will be applied when
-                             used without -s/--select.
+                             used without -s/--select. Also, this can only work using this command's
+                             default mode, i.e. filtering, and does not work with parallelization.
+                             Note that this parser is also unable to unescape CSV cells. This means
+                             you must take care of considering quotes to be doubled, and when using
+                             this flag without -s/--select, the command will attempt to match the
+                             whole row at once, so it may contain raw delimiters & newlines.
     -p, --parallel           Whether to use parallelization to speed up computation.
                              Will automatically select a suitable number of threads to use
                              based on your number of cores. Use -t, --threads if you want to
@@ -774,7 +782,7 @@ Common options:
 struct Args {
     arg_input: Option<String>,
     arg_pattern: Option<String>,
-    flag_select: SelectedColumns,
+    flag_select: Option<SelectedColumns>,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -804,6 +812,22 @@ struct Args {
     flag_name_column: Option<SelectedColumns>,
     flag_parallel: bool,
     flag_threads: Option<usize>,
+    flag_fast_parser: bool,
+}
+
+#[inline(always)]
+fn check_limit(limit_opt: Option<NonZeroUsize>, is_match: bool, matches_count: &mut usize) -> bool {
+    if let Some(limit) = limit_opt {
+        if is_match {
+            *matches_count += 1;
+        }
+
+        if *matches_count >= limit.get() {
+            return false;
+        }
+    }
+
+    true
 }
 
 impl Args {
@@ -1043,11 +1067,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("must use only one of -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag or -U/--unique-matches!")?;
     }
 
+    if actions_count > 0 && args.flag_fast_parser {
+        Err("-Z/--fast-parser only work with the command default mode.\nNo -R/--replace, --replacement-column, -b/--breakdown, -c/--count, -f/--flag nor -U/--unique-matches!")?;
+    }
+
     if args.flag_all && actions_count > 0 {
         Err("-A/--all does not work with -R/--replace, --replacement-column, -b/--breakdown, -c/--count nor -U/--unique-matches!")?;
     }
 
     let threads = util::parallelization(args.flag_parallel, args.flag_threads);
+
+    if args.flag_fast_parser && threads.is_some() {
+        Err("-Z/--fast-parser does not work with -p/--parallel nor -t/--threads!")?;
+    }
 
     let mut pairs = args
         .flag_patterns
@@ -1122,10 +1154,53 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let rconfig = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
         .no_headers(args.flag_no_headers)
-        .select(args.flag_select);
+        .select(
+            args.flag_select
+                .clone()
+                .unwrap_or(SelectedColumns::default()),
+        );
+
+    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
+    let mut matches_count: usize = 0;
+
+    // TODO: deal with limit in fast path
+    // TODO: -A/-B
+    // TODO: invert
+
+    // Fast parser path, without selection
+    if args.flag_fast_parser && args.flag_select.is_none() {
+        let mut splitter = rconfig.simd_splitter()?;
+
+        if !rconfig.no_headers {
+            wtr.write_splitted_record(splitter.byte_headers()?)?;
+        }
+
+        while let Some(record) = splitter.split_record()? {
+            let mut is_match = matcher.is_match(record)?;
+
+            if args.flag_invert_match {
+                is_match = !is_match;
+            }
+
+            if is_match {
+                wtr.write_splitted_record(&record)?;
+            }
+
+            if !check_limit(args.flag_limit, is_match, &mut matches_count) {
+                break;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Fast parser path, with selection
+    if args.flag_fast_parser && args.flag_select.is_some() {
+        unimplemented!();
+        return Ok(wtr.flush()?);
+    }
 
     let mut rdr = rconfig.simd_reader()?;
-    let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
     let mut headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
@@ -1155,8 +1230,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if !rconfig.no_headers {
         wtr.write_byte_record(&headers)?;
     }
-
-    let mut matches_count: usize = 0;
 
     // Parallel path
     if let Some(t) = threads {
@@ -1295,14 +1368,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 wtr.write_byte_record(&record)?;
             }
 
-            if let Some(limit) = args.flag_limit {
-                if is_match {
-                    matches_count += 1;
-                }
-
-                if matches_count >= limit.get() {
-                    break;
-                }
+            if !check_limit(args.flag_limit, is_match, &mut matches_count) {
+                break;
             }
         }
 
@@ -1438,14 +1505,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        if let Some(limit) = args.flag_limit {
-            if is_match {
-                matches_count += 1;
-            }
-
-            if matches_count >= limit.get() {
-                break;
-            }
+        if !check_limit(args.flag_limit, is_match, &mut matches_count) {
+            break;
         }
     }
 
