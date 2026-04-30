@@ -35,10 +35,13 @@ impl<T: Clone> ContextBuffer<T> {
     fn push(&mut self, item: &T) {
         if let Some(before) = self.before_buffer.as_mut() {
             if before.len() == before.capacity() {
-                before.pop_front();
+                // Here we are able to reuse the allocation
+                let mut popped = before.pop_front().unwrap();
+                item.clone_into(&mut popped);
+                before.push_back(popped);
+            } else {
+                before.push_back(item.clone());
             }
-
-            before.push_back(item.clone());
         }
     }
 
@@ -104,11 +107,15 @@ impl ContextBuffer<Vec<u8>> {
     #[inline]
     fn push_bytes(&mut self, item: &[u8]) {
         if let Some(before) = self.before_buffer.as_mut() {
+            // Here we are able to reuse the allocation
             if before.len() == before.capacity() {
-                before.pop_front();
+                let mut popped = before.pop_front().unwrap();
+                popped.clear();
+                popped.extend_from_slice(item);
+                before.push_back(popped);
+            } else {
+                before.push_back(item.to_vec());
             }
-
-            before.push_back(item.to_vec());
         }
     }
 
