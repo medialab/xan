@@ -5,8 +5,7 @@ static USAGE: &str = "
 Print script parts necessary to activate xan completions, tailored
 to your current shell.
 
-Only support `bash` and `zsh` for now (or at least any shell relying on
-`complete` and `compgen`).
+Only support `bash` and `zsh` for now.
 
 For `bash`, run:
     $ xan completions bash >> ~/.bashrc
@@ -15,13 +14,16 @@ To enable those completions system-wide, you can also run:
     $ xan completions bash > /etc/bash_completions.d/xan
 
 For `zsh`, run:
-    $ xan completions zsh >> ~/.zshrc
+    $ mkdir -p ~/.zfunc
+    $ xan completions zsh > ~/.zfunc/_xan
 
-For `zsh` you might also need to load Bash compatibility wrt completions thusly:
+Then add this before compinit in ~/.zshrc:
 
-    $ echo 'autoload -Uz bashcompinit && bashcompinit' >> ~/.zshrc
+    fpath=(~/.zfunc $fpath)
+    autoload -Uz compinit
+    compinit
 
-You will need to reload you shell or source your main shell
+You will need to reload your shell or source your main shell
 configuration file (`source ~/.bashrc` for bash, for instance) for
 the completions to be activated (this is only required once).
 
@@ -33,21 +35,36 @@ Common options:
     -h, --help             Display this message
 ";
 
-static BASH_COMPLETE_FUNCTION: &str = "
-# Xan completions
+static BASH_COMPLETE_FUNCTION: &str = r#"# Xan completions
 function __xan {
-    xan compgen \"$1\" \"$2\" \"$3\"
+    xan compgen "$1" "$2" "$3"
 }
 complete -C __xan -o default xan
-";
+"#;
 
-static ZSH_COMPLETE_FUNCTION: &str = "
-# Xan completions
-function __xan {
-    xan compgen \"$1\" \"$2\" \"$3\"
+static ZSH_COMPLETE_FUNCTION: &str = r#"#compdef xan
+
+__xan() {
+    emulate -L zsh
+    local -a completions
+    local completion_output
+
+    completion_output=$(COMP_LINE="$BUFFER" xan compgen "$words[1]" "$words[CURRENT]" "$words[CURRENT - 1]")
+    completions=(${(@f)completion_output})
+
+    if (( $#completions )); then
+        compadd -a completions
+    else
+        _default
+    fi
 }
-complete -F __xan -o default xan
-";
+
+if [ "$funcstack[1]" = "_xan" ]; then
+    __xan "$@"
+else
+    compdef __xan xan
+fi
+"#;
 
 #[derive(Deserialize)]
 struct Args {

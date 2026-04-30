@@ -184,10 +184,21 @@ Run the following command to understand how to install those completions:
 
 ```bash
 xan completions -h
+```
 
-# With zsh you might also need to add this to your initialization to make
-# sure Bash compatibility is loaded:
-autoload -Uz bashcompinit && bashcompinit
+For `zsh`, you can add the completion file to `~/.zfunc`:
+
+```bash
+mkdir -p ~/.zfunc
+xan completions zsh > ~/.zfunc/_xan
+```
+
+Then add this before `compinit` in your `~/.zshrc`:
+
+```zsh
+fpath=(~/.zfunc $fpath)
+autoload -Uz compinit
+compinit
 ```
 
 ## Quick tour
