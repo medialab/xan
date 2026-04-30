@@ -14,7 +14,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
 use crate::record::Record;
 use crate::select::SelectedColumns;
-use crate::util::{self, JoinIteratorExt};
+use crate::util;
 use crate::CliResult;
 
 fn get_stemmer(name: &str) -> Result<fn(&str) -> Cow<str>, String> {
@@ -556,9 +556,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     $record.remove(col_index)
                 };
 
-                let joined_tokens = $tokens.iter().map(|token| token.0.as_str()).join(&sep);
+                record_to_write.write_field(|bytes| {
+                    let last = $tokens.len().saturating_sub(1);
 
-                record_to_write.push_field(joined_tokens.as_bytes());
+                    for (i, token) in $tokens.iter().enumerate() {
+                        bytes.extend(token.0.as_str().as_bytes());
+
+                        if i != last {
+                            bytes.extend(sep.as_bytes());
+                        }
+                    }
+                });
 
                 wtr.write_byte_record(&record_to_write)?;
             }

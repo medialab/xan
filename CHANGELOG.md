@@ -43,6 +43,7 @@
 * Improving performance of `xan rename`.
 * Faster `xan range`.
 * Faster `xan parallel -H/--shell-preprocess`.
+* Faster `xan tokenize words`.
 
 *Quality of Life*
 
