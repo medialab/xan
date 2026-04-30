@@ -14,14 +14,13 @@ use std::time::Duration;
 
 use bstr::ByteSlice;
 use colored::{ColoredString, Colorize};
-use flate2::{write::GzEncoder, Compression};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{prelude::*, ThreadPoolBuilder};
 use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
-use crate::config::{Config, Delimiter};
+use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
@@ -706,7 +705,8 @@ parallel stats options:
                            mean and standard deviation.
 
 parallel map options:
-    -z, --compress  Use this flag to gzip the processed files.
+    -z, --compress <kind>  Compress created files using either \"gz|gzip\" or \"zst|zstd\"
+                           compression.
 
 Common options:
     -h, --help             Display this message
@@ -748,7 +748,7 @@ pub struct Args {
     pub flag_quartiles: bool,
     pub flag_approx: bool,
     pub flag_nulls: bool,
-    flag_compress: bool,
+    flag_compress: Option<Compression>,
     pub flag_output: Option<String>,
     pub flag_no_headers: bool,
     pub flag_delimiter: Option<Delimiter>,
@@ -1670,8 +1670,8 @@ impl Args {
 
             let output_file = File::create(file_path)?;
 
-            let mut output: Box<dyn io::Write> = if self.flag_compress {
-                Box::new(GzEncoder::new(output_file, Compression::default()))
+            let mut output: Box<dyn io::Write> = if let Some(compression) = self.flag_compress {
+                compression.wrap_writer(output_file)?
             } else {
                 Box::new(output_file)
             };

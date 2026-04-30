@@ -12,6 +12,7 @@
 * `xan agg -C/--along-columns & -M/--along-matrix` & `xan groupby -C/--along-columns & -M/--along-matrix` will not map current column index to the result of the `index()` function. The `col_index()` can be now used instead for this very purpose.
 * `xan window -g/--groupby` does not require the file to be sorted anymore. This means using `-g/--groupby` will now require the whole file to be buffered into memory by the command. The old behavior can still be used through the `-S/--sorted` flag, thus aligning the `xan window` command with the rest of the tool.
 * `row_index` will now error if the expression has no concept of row index, instead of returning nothing.
+* `xan parallel -z/--compress` now take the desired compression (either `gzip` or `zstd`).
 
 *Features*
 

@@ -265,7 +265,7 @@ impl TryFrom<String> for FilenameTemplate {
                 suffix: chunks[1].to_owned(),
             })
         } else {
-            Err("The --filename argument must contain one '{}'.")
+            Err("The template argument must contain one '{}'.")
         }
     }
 }

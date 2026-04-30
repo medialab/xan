@@ -93,10 +93,23 @@ impl TabularDataKind {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(try_from = "String")]
 pub enum Compression {
     Gzip,
     Zstd,
+}
+
+impl TryFrom<String> for Compression {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "gz" | "gzip" => Self::Gzip,
+            "zst" | "zstd" => Self::Zstd,
+            _ => return Err(format!("unknown compression format \"{}\"", value)),
+        })
+    }
 }
 
 impl Compression {
@@ -107,6 +120,19 @@ impl Compression {
             Some(Self::Zstd)
         } else {
             None
+        }
+    }
+
+    pub fn wrap_writer<W: Write + 'static>(
+        &self,
+        writer: W,
+    ) -> io::Result<Box<dyn Write + 'static>> {
+        match self {
+            Self::Gzip => Ok(Box::new(flate2::write::GzEncoder::new(
+                writer,
+                flate2::Compression::default(),
+            ))),
+            Self::Zstd => Ok(Box::new(zstd::Encoder::new(writer, 0)?.auto_finish())),
         }
     }
 
