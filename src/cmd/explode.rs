@@ -154,6 +154,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     let mut record = ByteRecord::new();
+
+    // Fast path with single column explosion, which is the most common
+    if sel.len() == 1 {
+        let column_index = sel[0];
+
+        while rdr.read_byte_record(&mut record)? {
+            let cell = &record[column_index];
+
+            if args.flag_drop_empty && cell.is_empty() {
+                continue;
+            }
+
+            for sub_cell in cell.split_str(&args.flag_sep) {
+                wtr.write_record(record.iter().enumerate().map(|(i, input_cell)| {
+                    if i == column_index {
+                        sub_cell
+                    } else {
+                        input_cell
+                    }
+                }))?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
     let mut output_record = ByteRecord::new();
 
     'main: while rdr.read_byte_record(&mut record)? {

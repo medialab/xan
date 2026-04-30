@@ -44,6 +44,7 @@
 * Faster `xan range`.
 * Faster `xan parallel -H/--shell-preprocess`.
 * Faster `xan tokenize words`.
+* Adding fast path for `xan explode` when only a single column is selected.
 
 *Quality of Life*
 
