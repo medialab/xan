@@ -65,6 +65,7 @@ dedup options:
                            indicating whether a row is duplicated. File order might get
                            modified to keep proper performance when -l/--keep-last
                            or -C/--choose is used.
+    --uint
 
 Common options:
     -h, --help               Display this message

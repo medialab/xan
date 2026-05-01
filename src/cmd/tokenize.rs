@@ -142,7 +142,7 @@ tokenize words options:
     -D, --drop <types>       Types of tokens to drop from the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -k, --keep.
                              See the list of recognized types above.
-    -K, --keep <types>       Types of tokens to keep in the results, separated by comma,
+    -k, --keep <types>       Types of tokens to keep in the results, separated by comma,
                              e.g. \"word,number\". Cannot work with -d, --drop.
                              See the list of recognized types above.
     -m, --min-token <n>      Minimum characters count of a token to be included in the output.

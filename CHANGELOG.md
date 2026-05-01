@@ -14,6 +14,7 @@
 * `row_index` will now error if the expression has no concept of row index, instead of returning nothing.
 * `xan parallel -z/--compress` now take the desired compression (either `gzip` or `zstd`).
 * Retiring the `xan grep` command in favor of `xan search -Z/--fast-parser`.
+* `xan tokenize --keep` short flag becomes `-k` instead of `-K` to harmonize with other commands.
 
 *Features*
 
