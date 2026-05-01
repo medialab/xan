@@ -65,7 +65,10 @@ dedup options:
                            indicating whether a row is duplicated. File order might get
                            modified to keep proper performance when -l/--keep-last
                            or -C/--choose is used.
-    --uint
+    --u32                  Indicate that deduplication keys are 32 bits unsigned
+                           integers. This can be very useful to save memory and increase
+                           performance. This can only work when selecting at most two columns.
+                           Only works with the command's default operation.
 
 Common options:
     -h, --help               Display this message

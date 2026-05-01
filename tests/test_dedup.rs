@@ -516,3 +516,32 @@ fn dedup_choose_sorted() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn dedup_u32() {
+    let wrk = Workdir::new("dedup_u32");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["a", "b"],
+            svec!["1", "2"],
+            svec!["2", "3"],
+            svec!["2", "3"],
+            svec!["1", "4"],
+        ],
+    );
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("--u32").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["a", "b"], ["1", "2"], ["2", "3"], ["1", "4"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("dedup");
+    cmd.arg("--u32").args(["-s", "a"]).arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["a", "b"], ["1", "2"], ["2", "3"]];
+    assert_eq!(got, expected);
+}

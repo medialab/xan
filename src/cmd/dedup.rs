@@ -81,7 +81,10 @@ dedup options:
                            indicating whether a row is duplicated. File order might get
                            modified to keep proper performance when -l/--keep-last
                            or -C/--choose is used.
-    --uint
+    --u32                  Indicate that deduplication keys are 32 bits unsigned
+                           integers. This can be very useful to save memory and increase
+                           performance. This can only work when selecting at most two columns.
+                           Only works with the command's default operation.
 
 Common options:
     -h, --help               Display this message
@@ -106,7 +109,7 @@ struct Args {
     flag_keep_duplicates: bool,
     flag_choose: Option<String>,
     flag_flag: Option<String>,
-    flag_uint: bool,
+    flag_u32: bool,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -128,6 +131,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if args.flag_choose.is_some() {
             Err("--choose does not work with -e/--external!")?;
         }
+    }
+
+    if args.flag_u32
+        && (args.flag_check
+            || args.flag_external
+            || args.flag_keep_last
+            || args.flag_keep_duplicates
+            || args.flag_choose.is_some())
+    {
+        Err("--u32 only work with the command's default operation!")?;
     }
 
     let mut mutually_exclusive_count: usize = 0;
@@ -280,7 +293,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         // Unsorted, keep first
         (false, DedupMode::KeepFirst) => {
             let mut record = ByteRecord::new();
-            let mut already_seen = DedupSet::new(&sel, args.flag_uint)?;
+            let mut already_seen = DedupSet::new(&sel, args.flag_u32)?;
 
             while rdr.read_byte_record(&mut record)? {
                 if already_seen.insert(&sel, &record)? {
@@ -622,16 +635,16 @@ impl KeepLastSet {
 
 enum DedupSet {
     String(HashSet<ByteRecord>),
-    Uint(HashSet<u64>),
-    UintPair(HashSet<(u64, u64)>),
+    U32(HashSet<u32>),
+    U32Pair(HashSet<(u32, u32)>),
 }
 
 impl DedupSet {
     fn new(sel: &Selection, uint: bool) -> CliResult<Self> {
         Ok(if uint {
             match sel.len() {
-                1 => Self::Uint(HashSet::new()),
-                2 => Self::UintPair(HashSet::new()),
+                1 => Self::U32(HashSet::new()),
+                2 => Self::U32Pair(HashSet::new()),
                 _ => Err("--uint flag expects at most two columns selected!")?,
             }
         } else {
@@ -639,15 +652,16 @@ impl DedupSet {
         })
     }
 
+    #[inline]
     fn insert(&mut self, sel: &Selection, record: &ByteRecord) -> CliResult<bool> {
         Ok(match self {
             Self::String(set) => set.insert(sel.select(record).collect()),
-            Self::Uint(set) => {
+            Self::U32(set) => {
                 let cell = sel.select(record).next().unwrap();
                 let i = btoi::btoi(cell)?;
                 set.insert(i)
             }
-            Self::UintPair(set) => {
+            Self::U32Pair(set) => {
                 let mut iter = sel.select(record);
                 let cell = iter.next().unwrap();
                 let a = btoi::btoi(cell)?;

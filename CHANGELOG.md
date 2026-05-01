@@ -30,6 +30,7 @@
 * Improving `xan select` DSL star selectors. You can now do stuff like `vec_*_count`, `*[1]`, `vec_*[1]` etc.
 * `xan p -H/--shell-preprocess` now works on Windows.
 * Adding native `zsh` completions (@apcamargo).
+* Adding `xan dedup --u32`.
 
 *Fixes*
 
