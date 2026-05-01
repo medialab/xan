@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use simd_csv::StringRecord;
 
 use crate::collections::IncrementalId;
@@ -7,6 +9,42 @@ use crate::json::{Attributes, JSONEmptyMode, JSONTypeInferrenceBuffer};
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
+
+#[derive(Deserialize, Debug)]
+#[serde(try_from = "String")]
+enum OutputFormat {
+    Json,
+    Gexf,
+    Nodes,
+    Components,
+    Stats,
+}
+
+impl OutputFormat {
+    fn is_nodelist(&self) -> bool {
+        matches!(self, Self::Nodes)
+    }
+}
+
+impl TryFrom<String> for OutputFormat {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "json" => Self::Json,
+            "gexf" => Self::Gexf,
+            "nodes" | "nodelist" => Self::Nodes,
+            "components" => Self::Components,
+            "stats" => Self::Stats,
+            _ => {
+                return Err(format!(
+                    "unknown \"{}\" format given to -f/--format!",
+                    value
+                ))
+            }
+        })
+    }
+}
 
 static USAGE: &str = "
 Process CSV data to build a network (nodes & edges) so you can produce a variety
@@ -111,7 +149,7 @@ struct Args {
     arg_target: Option<SelectedColumns>,
     arg_part1: Option<SelectedColumns>,
     arg_part2: Option<SelectedColumns>,
-    flag_format: String,
+    flag_format: OutputFormat,
     flag_gexf_version: String,
     flag_minify: bool,
     flag_largest_component: bool,
@@ -138,11 +176,14 @@ impl Args {
     }
 
     fn edge_attributes_irrelevant(&self) -> bool {
-        ["nodelist", "stats", "components"].contains(&self.flag_format.as_str())
+        matches!(
+            &self.flag_format,
+            OutputFormat::Nodes | OutputFormat::Stats | OutputFormat::Components
+        )
     }
 
     fn edges_irrelevant(&self) -> bool {
-        self.flag_format == "nodelist" && !self.flag_degrees && !self.flag_union_find
+        self.flag_format.is_nodelist() && !self.flag_degrees && !self.flag_union_find
     }
 
     fn graph_builder(&self) -> GraphBuilder {
@@ -151,7 +192,8 @@ impl Args {
         //  2. we have to know if the graph is multi
         // Ultimately this means we need it only for -f=(json|stats) for now
 
-        let output_needs_to_track_multi = ["json", "stats"].contains(&self.flag_format.as_str());
+        let output_needs_to_track_multi =
+            matches!(&self.flag_format, OutputFormat::Json | OutputFormat::Stats);
 
         let mut linear_edge_store = true;
 
@@ -357,19 +399,21 @@ impl Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if args.flag_degrees && args.flag_format != "nodelist" {
-        Err("-D/--degrees is only relevant with -f nodelist!")?;
+    if !args.flag_format.is_nodelist() {
+        if args.flag_degrees {
+            Err("-D/--degrees is only relevant with -f nodelist!")?;
+        }
+
+        if args.flag_union_find {
+            Err("--union-find is only relevant with -f nodelist!")?;
+        }
     }
 
-    if args.flag_union_find && args.flag_format != "nodelist" {
-        Err("--union-find is only relevant with -f nodelist!")?;
-    }
-
-    if args.flag_minify && !(args.flag_format == "json" || args.flag_format == "gexf") {
+    if args.flag_minify && !matches!(&args.flag_format, OutputFormat::Gexf | OutputFormat::Json) {
         Err("--minify is only relevant with -f (json|gexf)!")?;
     }
 
-    if args.flag_format == "components" && args.flag_largest_component {
+    if matches!(&args.flag_format, OutputFormat::Components) && args.flag_largest_component {
         Err("-L/--largest-component is not relevant with -f components!")?;
     }
 
@@ -390,22 +434,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         unreachable!()
     })?;
 
-    match args.flag_format.as_str() {
-        "stats" => builder.write_csv_stats(&wconf, args.flag_largest_component),
-        "nodelist" => builder.write_csv_nodelist(
+    match args.flag_format {
+        OutputFormat::Stats => builder.write_csv_stats(&wconf, args.flag_largest_component),
+        OutputFormat::Nodes => builder.write_csv_nodelist(
             &wconf,
             args.flag_largest_component,
             args.flag_degrees,
             args.flag_union_find,
         ),
-        "components" => builder.write_csv_components(&wconf),
-        "gexf" => builder.write_gexf(
+        OutputFormat::Components => builder.write_csv_components(&wconf),
+        OutputFormat::Gexf => builder.write_gexf(
             &wconf,
             &args.flag_gexf_version,
             args.flag_minify,
             args.flag_largest_component,
         ),
-        "json" => builder.write_json(&wconf, args.flag_minify, args.flag_largest_component),
-        _ => Err(format!("unsupported output format: {}!", &args.flag_format))?,
+        OutputFormat::Json => {
+            builder.write_json(&wconf, args.flag_minify, args.flag_largest_component)
+        }
     }
 }

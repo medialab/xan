@@ -36,6 +36,7 @@
 * Fixing `xan rename` consistency regarding CRLF newlines and first row normalization when using `-n/--no-headers`.
 * Fixing `xan map --overwrite --filter`.
 * Fixing `lead` window function when there is not enough rows ahead.
+* Fixing `xan network --format` not being validated early enough.
 
 *Performance*
 
