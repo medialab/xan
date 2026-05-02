@@ -45,6 +45,7 @@ explode options:
                          in CSV format if exploding multiple columns.
                          See 'xan rename' help for more details.
                          Does not work with -S, --singular.
+    -k, --keep           Keep the exploded columns alongside each split.
     -D, --drop-empty     Drop rows when selected cells are empty.
     --pad                When exploding multiple columns at once, pad shorter splits
                          to align them with the longest one instead of erroring.

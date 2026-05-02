@@ -66,6 +66,7 @@ explode options:
                          in CSV format if exploding multiple columns.
                          See 'xan rename' help for more details.
                          Does not work with -S, --singular.
+    -k, --keep           Keep the exploded columns alongside each split.
     -D, --drop-empty     Drop rows when selected cells are empty.
     --pad                When exploding multiple columns at once, pad shorter splits
                          to align them with the longest one instead of erroring.
@@ -87,6 +88,7 @@ struct Args {
     flag_singularize: bool,
     flag_rename: Option<String>,
     flag_drop_empty: bool,
+    flag_keep: bool,
     flag_pad: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
@@ -108,7 +110,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut rdr = rconfig.simd_reader()?;
     let mut wtr = Config::new(&args.flag_output).simd_writer()?;
 
-    let mut headers = rdr.byte_headers()?.clone();
+    let headers = rdr.byte_headers()?.clone();
     let sel = rconfig.selection(&headers)?;
 
     if sel.is_empty() {
@@ -120,43 +122,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     // NOTE: the mask deduplicates
     let sel_mask = sel.indexed_mask(headers.len());
 
-    if let Some(new_names) = args.flag_rename {
-        let new_names = util::str_to_csv_byte_record(&new_names);
+    let new_names_opt = args
+        .flag_rename
+        .as_ref()
+        .map(|n| util::str_to_csv_byte_record(n));
 
-        if new_names.len() != sel.len() {
-            Err(format!(
-                "Renamed columns alignment error. Expected {} names and got {}.",
-                sel.len(),
-                new_names.len(),
-            ))?;
+    let mut new_headers = ByteRecord::new();
+
+    for (name, mask) in headers.iter().zip(sel_mask.iter()) {
+        if let Some(i) = mask {
+            if args.flag_keep {
+                new_headers.push_field(name);
+            }
+
+            if let Some(new_names) = &new_names_opt {
+                new_headers.push_field(&new_names[*i]);
+            } else if args.flag_singularize {
+                new_headers.push_field(&singularize(name));
+            } else {
+                new_headers.push_field(name);
+            }
+        } else {
+            new_headers.push_field(name);
         }
-
-        headers = headers
-            .iter()
-            .zip(sel_mask.iter())
-            .map(|(h, rh)| if let Some(i) = rh { &new_names[*i] } else { h })
-            .collect();
-    }
-
-    if args.flag_singularize {
-        headers = headers
-            .iter()
-            .zip(sel_mask.iter())
-            .map(|(h, m)| {
-                if m.is_some() {
-                    singularize(h)
-                } else {
-                    h.to_vec()
-                }
-            })
-            .collect();
     }
 
     if !rconfig.no_headers {
-        wtr.write_byte_record(&headers)?;
+        wtr.write_byte_record(&new_headers)?;
     }
 
     let mut record = ByteRecord::new();
+    let mut output_record = ByteRecord::new();
 
     // Fast path with single column explosion, which is the most common
     if sel.len() == 1 {
@@ -169,14 +165,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue;
             }
 
-            for sub_cell in cell.split_str(&args.flag_sep) {
-                wtr.write_record(record.iter().enumerate().map(|(i, input_cell)| {
-                    if i == column_index {
-                        sub_cell
-                    } else {
-                        input_cell
+            if args.flag_keep {
+                for sub_cell in cell.split_str(&args.flag_sep) {
+                    output_record.clear();
+
+                    for (i, cell) in record.iter().enumerate() {
+                        if i == column_index {
+                            output_record.push_field(cell);
+                            output_record.push_field(sub_cell);
+                        } else {
+                            output_record.push_field(cell);
+                        }
                     }
-                }))?;
+
+                    wtr.write_byte_record(&output_record)?;
+                }
+            } else {
+                for sub_cell in cell.split_str(&args.flag_sep) {
+                    wtr.write_record(record.iter().enumerate().map(|(i, input_cell)| {
+                        if i == column_index {
+                            sub_cell
+                        } else {
+                            input_cell
+                        }
+                    }))?;
+                }
             }
         }
 
@@ -212,17 +225,37 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         for i in 0..max_len {
-            wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
-                if let Some(j) = mask {
-                    if let Some(sub_cell) = splits[*j].get(i) {
-                        sub_cell
+            if args.flag_keep {
+                output_record.clear();
+
+                for (cell, mask) in record.iter().zip(sel_mask.iter()) {
+                    output_record.push_field(cell);
+
+                    output_record.push_field(if let Some(j) = mask {
+                        if let Some(sub_cell) = splits[*j].get(i) {
+                            sub_cell
+                        } else {
+                            b"".as_slice()
+                        }
                     } else {
-                        b"".as_slice()
-                    }
-                } else {
-                    cell
+                        cell
+                    });
                 }
-            }))?;
+
+                wtr.write_byte_record(&output_record)?;
+            } else {
+                wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
+                    if let Some(j) = mask {
+                        if let Some(sub_cell) = splits[*j].get(i) {
+                            sub_cell
+                        } else {
+                            b"".as_slice()
+                        }
+                    } else {
+                        cell
+                    }
+                }))?;
+            }
         }
     }
 

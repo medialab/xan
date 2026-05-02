@@ -31,7 +31,7 @@
 * `xan p -H/--shell-preprocess` now works on Windows.
 * Adding native `zsh` completions (@apcamargo).
 * Adding `xan dedup --u32`.
-* Adding `xan explode --pad`.
+* Adding `xan explode --pad & -k/--keep`.
 
 *Fixes*
 

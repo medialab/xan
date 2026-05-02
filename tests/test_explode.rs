@@ -27,6 +27,32 @@ fn explode() {
 }
 
 #[test]
+fn explode_keep() {
+    let wrk = Workdir::new("explode_keep");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "colors"],
+            svec!["Mary", "yellow"],
+            svec!["John", "blue|orange"],
+            svec!["Jack", ""],
+        ],
+    );
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors").arg("-Sk").arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors", "color"],
+        ["Mary", "yellow", "yellow"],
+        ["John", "blue|orange", "blue"],
+        ["John", "blue|orange", "orange"],
+        ["Jack", "", ""],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
 fn explode_drop_empty() {
     let wrk = Workdir::new("explode_drop_empty");
     wrk.create(
@@ -75,6 +101,23 @@ fn explode_pad() {
         ["Brad", "orange"],
         ["", "yellow"],
         ["Jack", ""],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("explode");
+    cmd.arg("names,colors")
+        .arg("--drop-empty")
+        .arg("--pad")
+        .arg("--keep")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["names", "names", "colors", "colors"],
+        ["John|Brad", "John", "blue|orange|yellow", "blue"],
+        ["John|Brad", "Brad", "blue|orange|yellow", "orange"],
+        ["John|Brad", "", "blue|orange|yellow", "yellow"],
+        ["Jack", "Jack", "", ""],
     ];
     assert_eq!(got, expected);
 }
