@@ -1,3 +1,5 @@
+use std::slice;
+
 use bstr::ByteSlice;
 use simd_csv::ByteRecord;
 
@@ -196,16 +198,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
+    let mut splits: Vec<Vec<(*const u8, usize)>> = Vec::with_capacity(sel.len());
+
+    for _ in 0..sel.len() {
+        splits.push(Vec::new());
+    }
+
     while rdr.read_byte_record(&mut record)? {
-        let mut splits: Vec<Vec<&[u8]>> = Vec::with_capacity(sel.len());
         let mut all_empty = true;
 
-        for cell in sel.select(&record) {
+        for (i, cell) in sel.select(&record).enumerate() {
+            let col_splits = &mut splits[i];
+            col_splits.clear();
+
             if !cell.is_empty() {
                 all_empty = false;
             }
 
-            splits.push(cell.split_str(&args.flag_sep).collect());
+            for slice in cell.split_str(&args.flag_sep) {
+                col_splits.push((slice.as_ptr(), slice.len()));
+            }
         }
 
         if args.flag_drop_empty && all_empty {
@@ -233,7 +245,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     output_record.push_field(if let Some(j) = mask {
                         if let Some(sub_cell) = splits[*j].get(i) {
-                            sub_cell
+                            unsafe { slice::from_raw_parts(sub_cell.0, sub_cell.1) }
                         } else {
                             b"".as_slice()
                         }
@@ -247,7 +259,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
                     if let Some(j) = mask {
                         if let Some(sub_cell) = splits[*j].get(i) {
-                            sub_cell
+                            unsafe { slice::from_raw_parts(sub_cell.0, sub_cell.1) }
                         } else {
                             b"".as_slice()
                         }
