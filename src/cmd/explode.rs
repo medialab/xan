@@ -67,6 +67,8 @@ explode options:
                          See 'xan rename' help for more details.
                          Does not work with -S, --singular.
     -D, --drop-empty     Drop rows when selected cells are empty.
+    --pad                When exploding multiple columns at once, pad shorter splits
+                         to align them with the longest one instead of erroring.
 
 Common options:
     -h, --help             Display this message
@@ -85,6 +87,7 @@ struct Args {
     flag_singularize: bool,
     flag_rename: Option<String>,
     flag_drop_empty: bool,
+    flag_pad: bool,
     flag_output: Option<String>,
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
@@ -180,37 +183,46 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
-    let mut output_record = ByteRecord::new();
-
-    'main: while rdr.read_byte_record(&mut record)? {
+    while rdr.read_byte_record(&mut record)? {
         let mut splits: Vec<Vec<&[u8]>> = Vec::with_capacity(sel.len());
+        let mut all_empty = true;
 
         for cell in sel.select(&record) {
-            if args.flag_drop_empty && cell.is_empty() {
-                continue 'main;
+            if !cell.is_empty() {
+                all_empty = false;
             }
 
             splits.push(cell.split_str(&args.flag_sep).collect());
         }
 
-        if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
-            return Err(CliError::Other(
-                "inconsistent exploded length across columns.".to_string(),
-            ));
+        if args.flag_drop_empty && all_empty {
+            continue;
         }
 
-        for i in 0..splits[0].len() {
-            output_record.clear();
-
-            for (cell, mask) in record.iter().zip(sel_mask.iter()) {
-                if let Some(j) = mask {
-                    output_record.push_field(splits[*j][i]);
-                } else {
-                    output_record.push_field(cell);
-                }
+        let max_len = if args.flag_pad {
+            splits.iter().map(|s| s.len()).max().unwrap()
+        } else {
+            if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
+                return Err(CliError::Other(
+                    "inconsistent exploded length across columns.".to_string(),
+                ));
             }
 
-            wtr.write_byte_record(&output_record)?;
+            splits[0].len()
+        };
+
+        for i in 0..max_len {
+            wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
+                if let Some(j) = mask {
+                    if let Some(sub_cell) = splits[*j].get(i) {
+                        sub_cell
+                    } else {
+                        b"".as_slice()
+                    }
+                } else {
+                    cell
+                }
+            }))?;
         }
     }
 

@@ -31,6 +31,7 @@
 * `xan p -H/--shell-preprocess` now works on Windows.
 * Adding native `zsh` completions (@apcamargo).
 * Adding `xan dedup --u32`.
+* Adding `xan explode --pad`.
 
 *Fixes*
 
@@ -39,6 +40,7 @@
 * Fixing `xan map --overwrite --filter`.
 * Fixing `lead` window function when there is not enough rows ahead.
 * Fixing `xan network --format` not being validated early enough.
+* Fixing `xan explode -D/--drop-empty` when selecting multiple columns.
 
 *Performance*
 

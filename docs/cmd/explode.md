@@ -46,6 +46,8 @@ explode options:
                          See 'xan rename' help for more details.
                          Does not work with -S, --singular.
     -D, --drop-empty     Drop rows when selected cells are empty.
+    --pad                When exploding multiple columns at once, pad shorter splits
+                         to align them with the longest one instead of erroring.
 
 Common options:
     -h, --help             Display this message
