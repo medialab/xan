@@ -45,14 +45,13 @@ complete -C __xan -o default xan
 static ZSH_COMPLETE_FUNCTION: &str = r#"#compdef xan
 
 __xan() {
-    emulate -L zsh
     local -a completions
     local completion_output
 
-    completion_output=$(COMP_LINE="$BUFFER" xan compgen "$words[1]" "$words[CURRENT]" "$words[CURRENT - 1]")
-    completions=(${(@f)completion_output})
+    completion_output=$(COMP_LINE="${(j: :)words}" xan compgen "$words[1]" "$words[CURRENT]" "$words[$((CURRENT - 1))]")
 
-    if (( $#completions )); then
+    if [[ -n "$completion_output" ]]; then
+        completions=("${(@f)completion_output}")
         compadd -a completions
     else
         _default
