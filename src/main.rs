@@ -579,3 +579,4 @@ impl_from_error!(bgzip::BGZFError);
 impl_from_error!(jiff::Error);
 impl_from_error!(Utf8Error);
 impl_from_error!(btoi::ParseIntegerError);
+impl_from_error!(fast_float::Error);

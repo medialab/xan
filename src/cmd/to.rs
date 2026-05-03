@@ -1,5 +1,7 @@
-use std::io::{self, IsTerminal, Write};
+use std::fs::File;
+use std::io::{self, BufWriter, IsTerminal, Read, Write};
 use std::iter;
+use std::path::Path;
 
 use npyz::WriterBuilder;
 use pad::PadStr;
@@ -8,7 +10,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::xml::XMLWriter;
 use crate::CliResult;
@@ -27,14 +29,14 @@ Supported formats:
     latex   - LaTeX table
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
-    npy     - Numpy array
+    npy     - Numpy arrayrconf.path.as_ref().unwrap();
     txt     - Text lines
     xlsx    - Excel spreadsheet
 
 Some formats can be streamed, some others require the full CSV file to be loaded into
 memory.
 
-Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
+Streamable formats are `html`, `jsonl`, `ndjson`, `npy` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
@@ -46,13 +48,14 @@ JSON options:
                           instead of integers, floats etc.
 
 NPY options:
-    --dtype <type>  Number type to use for the npy conversion. Must be one of \"f32\"
-                    or \"f64\". [default: f64]
+    --dtype <type>       Number type to use for the npy conversion. Must be one of \"f32\"
+                         or \"f64\". [default: f64]
+    -s, --select <cols>  Numerical columns of the file to emit.
 
 TXT options:
-    -s, --select <column>  Column of file to emit as text. Will error if file
-                           to convert to text has multiple columns or if
-                           selection yields more than a single column.
+    -s, --select <col>  Column of file to emit as text. Will error if file
+                        to convert to text has multiple columns or if
+                        selection yields more than a single column.
 
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
@@ -109,6 +112,7 @@ impl Args {
         Config::new(&self.arg_input)
             .no_headers(self.flag_no_headers)
             .delimiter(self.flag_delimiter)
+            .select(self.flag_select.clone())
     }
 
     fn wconf(&self) -> Config {
@@ -466,37 +470,45 @@ impl Args {
             Err("cannot export in npy without a path.\nUse -o, --output or pipe the result!")?;
         }
 
-        let mut rdr = self.rconf().simd_reader()?;
-        let io_writer = self.wconf().buf_io_writer()?;
+        fn write_floats<T: npyz::AutoSerialize + fast_float::FastFloat>(
+            output_path: impl AsRef<Path>,
+            mut rdr: simd_csv::ZeroCopyReader<Box<dyn Read + Send>>,
+            sel: &Selection,
+        ) -> CliResult<()> {
+            let output_file = File::create(output_path)?;
+            let io_writer = BufWriter::with_capacity(32 * (1 << 10), output_file);
 
-        let records = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
+            let mut writer = npyz::WriteOptions::<T>::new()
+                .default_dtype()
+                .writer(io_writer)
+                .begin_2d(sel.len() as u64)?;
 
-        macro_rules! write_floats {
-            ($type: ty) => {{
-                let mut writer = npyz::WriteOptions::new()
-                    .default_dtype()
-                    .shape(&[records.len() as u64, rdr.byte_headers()?.len() as u64])
-                    .writer(io_writer)
-                    .begin_nd()?;
-
-                for record in records.iter() {
-                    for cell in record.iter() {
-                        writer.push(
-                            &fast_float::parse::<$type, &[u8]>(cell)
-                                .map_err(|_| "could not parse some cell as dtype number!")?,
-                        )?;
-                    }
+            while let Some(record) = rdr.read_byte_record()? {
+                for i in sel.iter().copied() {
+                    let cell = record.unquote(i).unwrap();
+                    let f = fast_float::parse::<T, &[u8]>(cell)?;
+                    writer.push(&f)?;
                 }
+            }
 
-                writer.finish()?;
-            }};
+            writer.finish()?;
+
+            Ok(())
         }
+
+        let rconf = self.rconf();
+        let mut rdr = rconf.simd_zero_copy_reader()?;
+        let headers = rdr.byte_headers()?;
+
+        let sel = rconf.selection(headers)?;
+
+        let output_path = self.flag_output.as_ref().unwrap();
+
         match self.flag_dtype.as_str() {
-            "float64" | "f64" => write_floats!(f64),
-            "float32" | "f32" => write_floats!(f32),
+            "float64" | "f64" => write_floats::<f64>(output_path, rdr, &sel),
+            "float32" | "f32" => write_floats::<f32>(output_path, rdr, &sel),
             _ => Err(format!("unknown --dtype {}", self.flag_dtype))?,
-        };
-        Ok(())
+        }
     }
 
     fn convert_to_txt(&self) -> CliResult<()> {

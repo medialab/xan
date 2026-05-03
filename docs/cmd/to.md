@@ -15,14 +15,14 @@ Supported formats:
     latex   - LaTeX table
     md      - Markdown table
     ndjson  - Newline-delimited JSON (same as `jsonl`)
-    npy     - Numpy array
+    npy     - Numpy arrayrconf.path.as_ref().unwrap();
     txt     - Text lines
     xlsx    - Excel spreadsheet
 
 Some formats can be streamed, some others require the full CSV file to be loaded into
 memory.
 
-Streamable formats are `html`, `jsonl`, `ndjson` and `txt`.
+Streamable formats are `html`, `jsonl`, `ndjson`, `npy` and `txt`.
 
 JSON options:
     --sample-size <size>  Number of CSV rows to sample to infer column types.
@@ -34,13 +34,14 @@ JSON options:
                           instead of integers, floats etc.
 
 NPY options:
-    --dtype <type>  Number type to use for the npy conversion. Must be one of "f32"
-                    or "f64". [default: f64]
+    --dtype <type>       Number type to use for the npy conversion. Must be one of "f32"
+                         or "f64". [default: f64]
+    -s, --select <cols>  Numerical columns of the file to emit.
 
 TXT options:
-    -s, --select <column>  Column of file to emit as text. Will error if file
-                           to convert to text has multiple columns or if
-                           selection yields more than a single column.
+    -s, --select <col>  Column of file to emit as text. Will error if file
+                        to convert to text has multiple columns or if
+                        selection yields more than a single column.
 
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.

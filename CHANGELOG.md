@@ -32,6 +32,7 @@
 * Adding native `zsh` completions (@apcamargo).
 * Adding `xan dedup --u32`.
 * Adding `xan explode --pad & -k/--keep`.
+* `xan to npy` is now able to stream.
 
 *Fixes*
 
