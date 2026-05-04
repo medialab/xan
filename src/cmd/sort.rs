@@ -12,7 +12,7 @@ use simd_csv::{ByteRecord, Error};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::select::{SelectedColumns, Selection};
+use crate::select::SelectedColumns;
 use crate::util::{self, DeepSizedByteRecord};
 use crate::CliResult;
 
@@ -546,81 +546,3 @@ where
 {
     xs.next().and_then(parse_num)
 }
-
-// Standard comparable byte record abstraction
-pub struct ComparableByteRecord<'a> {
-    record: ByteRecord,
-    sel: &'a Selection,
-}
-
-impl<'a> ComparableByteRecord<'a> {
-    pub fn new(record: ByteRecord, sel: &'a Selection) -> Self {
-        ComparableByteRecord { record, sel }
-    }
-
-    pub fn as_byte_record(&self) -> &ByteRecord {
-        &self.record
-    }
-}
-
-impl cmp::Ord for ComparableByteRecord<'_> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        let s1 = self.sel.select(&self.record);
-        let s2 = other.sel.select(&other.record);
-
-        iter_cmp(s1, s2)
-    }
-}
-
-impl cmp::PartialOrd for ComparableByteRecord<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl cmp::PartialEq for ComparableByteRecord<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other).is_eq()
-    }
-}
-
-impl cmp::Eq for ComparableByteRecord<'_> {}
-
-// Numerically comparable byte record abstraction
-pub struct NumericallyComparableByteRecord<'a> {
-    record: ByteRecord,
-    sel: &'a Selection,
-}
-
-impl<'a> NumericallyComparableByteRecord<'a> {
-    pub fn new(record: ByteRecord, sel: &'a Selection) -> Self {
-        NumericallyComparableByteRecord { record, sel }
-    }
-
-    pub fn as_byte_record(&self) -> &ByteRecord {
-        &self.record
-    }
-}
-
-impl cmp::Ord for NumericallyComparableByteRecord<'_> {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        let s1 = self.sel.select(&self.record);
-        let s2 = other.sel.select(&other.record);
-
-        iter_cmp_num(s1, s2)
-    }
-}
-
-impl cmp::PartialOrd for NumericallyComparableByteRecord<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl cmp::PartialEq for NumericallyComparableByteRecord<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other).is_eq()
-    }
-}
-
-impl cmp::Eq for NumericallyComparableByteRecord<'_> {}

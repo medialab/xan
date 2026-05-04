@@ -44,6 +44,7 @@
 * Fixing `lead` window function when there is not enough rows ahead.
 * Fixing `xan network --format` not being validated early enough.
 * Fixing `xan explode -D/--drop-empty` when selecting multiple columns.
+* Fixing `xan merge -u` row precedence.
 
 *Performance*
 

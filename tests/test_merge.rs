@@ -27,7 +27,7 @@ fn merge() {
 
 #[test]
 fn merge_no_headers() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_no_headers");
     wrk.create("a.csv", vec![svec!["bautista"], svec!["caroline"]]);
     wrk.create("b.csv", vec![svec!["anna"], svec!["delphine"]]);
     let mut cmd = wrk.command("merge");
@@ -45,7 +45,7 @@ fn merge_no_headers() {
 
 #[test]
 fn merge_padding() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_padding");
     wrk.create(
         "a.csv",
         vec![svec!["name"], svec!["bautista"], svec!["caroline"]],
@@ -78,7 +78,7 @@ fn merge_padding() {
 
 #[test]
 fn merge_reverse() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_reverse");
     wrk.create(
         "a.csv",
         vec![svec!["name"], svec!["caroline"], svec!["bautista"]],
@@ -103,7 +103,7 @@ fn merge_reverse() {
 
 #[test]
 fn merge_numeric() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_numeric");
     wrk.create("a.csv", vec![svec!["n"], svec!["1"], svec!["3"]]);
     wrk.create("b.csv", vec![svec!["n"], svec!["2"], svec!["4"]]);
     let mut cmd = wrk.command("merge");
@@ -116,7 +116,7 @@ fn merge_numeric() {
 
 #[test]
 fn merge_numeric_reverse() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_numeric_reverse");
     wrk.create("a.csv", vec![svec!["n"], svec!["3"], svec!["1"]]);
     wrk.create("b.csv", vec![svec!["n"], svec!["4"], svec!["2"]]);
     let mut cmd = wrk.command("merge");
@@ -132,7 +132,7 @@ fn merge_numeric_reverse() {
 
 #[test]
 fn merge_select() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_select");
     wrk.create(
         "a.csv",
         vec![
@@ -165,7 +165,7 @@ fn merge_select() {
 
 #[test]
 fn merge_uniq() {
-    let wrk = Workdir::new("merge");
+    let wrk = Workdir::new("merge_uniq");
     wrk.create(
         "a.csv",
         vec![
@@ -186,9 +186,10 @@ fn merge_uniq() {
             svec!["4", "2"],
         ],
     );
+
     let mut cmd = wrk.command("merge");
-    cmd.arg("b.csv")
-        .arg("a.csv")
+    cmd.arg("a.csv")
+        .arg("b.csv")
         .arg("--numeric")
         .arg("--uniq")
         .args(["-s", "n"]);

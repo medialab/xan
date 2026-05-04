@@ -1,9 +1,11 @@
-use std::cmp::{Ordering, Reverse};
-use std::collections::BinaryHeap;
+use std::cmp::Ordering;
+use std::io::Write;
 
+use binary_heap_plus::BinaryHeap;
 use colored::Colorize;
+use simd_csv::{ByteRecord, Writer};
 
-use crate::cmd::sort::{ComparableByteRecord, NumericallyComparableByteRecord};
+use crate::cmd::sort::{iter_cmp, iter_cmp_num};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -72,9 +74,6 @@ Common options:
                            Must be a single character.
 ";
 
-#[derive(PartialEq, PartialOrd, Ord, Eq)]
-struct Forward<T>(T);
-
 #[derive(Deserialize)]
 struct Args {
     arg_inputs: Vec<String>,
@@ -134,99 +133,119 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    let selections = confs
+    let sel = confs
         .iter()
         .zip(headers.iter())
         .map(|(c, h)| c.selection(*h))
-        .collect::<Result<Vec<_>, _>>()?;
+        .next()
+        .unwrap()?;
 
     let mut record_iterators = readers
         .into_iter()
         .map(|rdr| rdr.into_byte_records())
         .collect::<Vec<_>>();
 
-    macro_rules! write_record {
-        ($i:ident, $record:expr) => {
-            if args.flag_source_column.is_some() {
-                wtr.write_record([paths[$i].as_bytes()].into_iter().chain($record))
-            } else {
-                wtr.write_byte_record($record)
-            }
-        };
+    fn write_record<W: Write>(
+        writer: &mut Writer<W>,
+        record: &ByteRecord,
+        path_opt: Option<&[u8]>,
+    ) -> simd_csv::Result<()> {
+        if let Some(path) = path_opt {
+            writer.write_record([path].into_iter().chain(record))
+        } else {
+            writer.write_byte_record(record)
+        }
     }
 
-    macro_rules! kway {
-        ($wrapper:ident, $record:ident) => {
-            let mut heap: BinaryHeap<($wrapper<$record>, usize)> =
-                BinaryHeap::with_capacity(record_iterators.len());
+    let cmp_record = |a: &ByteRecord, b: &ByteRecord| -> Ordering {
+        let a_sel = sel.select(a);
+        let b_sel = sel.select(b);
 
-            for (i, (iter, sel)) in record_iterators
-                .iter_mut()
-                .zip(selections.iter())
-                .enumerate()
-            {
-                match iter.next() {
-                    None => continue,
-                    Some(record) => {
-                        let record = $wrapper($record::new(record?, sel));
-                        heap.push((record, i));
-                    }
-                }
-            }
-
-            let mut last_record: Option<$wrapper<$record>> = None;
-
-            while !heap.is_empty() {
-                match heap.pop() {
-                    None => break,
-                    Some(entry) => {
-                        let (comparable_record, i) = entry;
-
-                        if args.flag_uniq {
-                            match last_record {
-                                None => {
-                                    write_record!(i, comparable_record.0.as_byte_record())?;
-                                    last_record = Some(comparable_record);
-                                }
-                                Some(ref r) => match r.cmp(&comparable_record) {
-                                    Ordering::Equal => (),
-                                    _ => {
-                                        write_record!(i, comparable_record.0.as_byte_record())?;
-                                        last_record = Some(comparable_record);
-                                    }
-                                },
-                            }
-                        } else {
-                            write_record!(i, comparable_record.0.as_byte_record())?;
-                        }
-
-                        match record_iterators[i].next() {
-                            None => continue,
-                            Some(record) => {
-                                let record = $wrapper($record::new(record?, &selections[i]));
-                                heap.push((record, i));
-                            }
-                        }
-                    }
-                }
-            }
+        let ordering = if args.flag_numeric {
+            iter_cmp_num(a_sel, b_sel)
+        } else {
+            iter_cmp(a_sel, b_sel)
         };
-    }
 
-    match (args.flag_numeric, args.flag_reverse) {
-        (false, false) => {
-            kway!(Reverse, ComparableByteRecord);
-        }
-        (true, false) => {
-            kway!(Reverse, NumericallyComparableByteRecord);
-        }
-        (false, true) => {
-            kway!(Forward, ComparableByteRecord);
-        }
-        (true, true) => {
-            kway!(Forward, NumericallyComparableByteRecord);
+        // NOTE: remember the heap is a max heap
+        if args.flag_reverse {
+            ordering
+        } else {
+            ordering.reverse()
         }
     };
+
+    let cmp = |a: &(ByteRecord, usize), b: &(ByteRecord, usize)| -> Ordering {
+        let ordering = cmp_record(&a.0, &b.0);
+
+        if ordering.is_eq() {
+            b.1.cmp(&a.1)
+        } else {
+            ordering
+        }
+    };
+
+    let mut heap = BinaryHeap::with_capacity_by(record_iterators.len(), cmp);
+
+    for (i, iter) in record_iterators.iter_mut().enumerate() {
+        match iter.next() {
+            None => continue,
+            Some(record) => {
+                heap.push((record?, i));
+            }
+        }
+    }
+
+    let mut last_record: Option<(ByteRecord, usize)> = None;
+
+    // TODO: factorize into a MergHeap
+
+    while let Some(entry) = heap.pop() {
+        let (record, i) = entry;
+
+        if args.flag_uniq {
+            match last_record {
+                None => {
+                    write_record(
+                        &mut wtr,
+                        &record,
+                        args.flag_source_column
+                            .as_ref()
+                            .map(|_| paths[i].as_bytes()),
+                    )?;
+                    last_record = Some((record, i));
+                }
+                Some(ref r) => match cmp_record(&r.0, &record) {
+                    Ordering::Equal => (),
+                    _ => {
+                        write_record(
+                            &mut wtr,
+                            &record,
+                            args.flag_source_column
+                                .as_ref()
+                                .map(|_| paths[i].as_bytes()),
+                        )?;
+                        last_record = Some((record, i));
+                    }
+                },
+            }
+        } else {
+            write_record(
+                &mut wtr,
+                &record,
+                args.flag_source_column
+                    .as_ref()
+                    .map(|_| paths[i].as_bytes()),
+            )?;
+        }
+
+        match record_iterators[i].next() {
+            None => continue,
+            Some(record) => {
+                heap.push((record?, i));
+            }
+        }
+    }
 
     Ok(wtr.flush()?)
 }
