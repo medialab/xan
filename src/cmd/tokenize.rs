@@ -8,11 +8,11 @@ use paltoquet::tokenizers::{
 };
 use pariter::IteratorExt;
 use regex::Regex;
+use simd_csv::ByteRecord;
 
 use crate::collections::{HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{GlobalVariables, Program};
-use crate::record::Record;
 use crate::select::SelectedColumns;
 use crate::util;
 use crate::CliResult;
@@ -313,7 +313,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     if !rconfig.no_headers {
         if !args.flag_keep_text {
-            headers = headers.remove(col_index);
+            headers = headers
+                .iter()
+                .enumerate()
+                .filter_map(|(i, cell)| if i == col_index { None } else { Some(cell) })
+                .collect();
         }
 
         headers.push_field(token_column_name.as_bytes());
@@ -374,7 +378,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
             let token_pos = config.single_selection(vocab_headers)?;
 
-            let mut vocab_record = simd_csv::ByteRecord::new();
+            let mut vocab_record = ByteRecord::new();
 
             if let Some(vocab_token_id) = args.flag_vocab_token_id {
                 let mut whitelist = HashMap::new();
@@ -411,7 +415,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // NOTE: everything in this function will be parallelized
     let tokenize = move |index: usize,
-                         record: &simd_csv::ByteRecord,
+                         record: &ByteRecord,
                          string: &str|
           -> CliResult<Vec<(String, WordTokenKind)>> {
         if args.cmd_paragraphs {
@@ -522,91 +526,98 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     };
 
     // NOTE: nothing here will be parallelized
-    macro_rules! write_tokens {
-        ($record:ident, $tokens:expr) => {{
-            if args.cmd_paragraphs || args.cmd_sentences {
-                for token in $tokens {
-                    let mut record_to_write = if args.flag_keep_text {
-                        $record.clone()
-                    } else {
-                        $record.remove(col_index)
-                    };
+    let mut write_tokens = |record: &ByteRecord,
+                            output_record: &mut ByteRecord,
+                            tokens: Vec<(String, WordTokenKind)>|
+     -> CliResult<()> {
+        if args.cmd_paragraphs || args.cmd_sentences {
+            for token in tokens {
+                output_record.clear();
 
-                    record_to_write.push_field(token.0.as_bytes());
-
-                    wtr.write_record(&record_to_write)?;
-                }
-            } else if args.flag_token_type.is_some() {
-                for token in $tokens {
-                    let mut record_to_write = if args.flag_keep_text {
-                        $record.clone()
-                    } else {
-                        $record.remove(col_index)
-                    };
-
-                    record_to_write.push_field(token.0.as_bytes());
-                    record_to_write.push_field(token.1.as_str().as_bytes());
-
-                    wtr.write_record(&record_to_write)?;
-                }
-            } else {
-                let mut record_to_write = if args.flag_keep_text {
-                    $record.clone()
-                } else {
-                    $record.remove(col_index)
-                };
-
-                record_to_write.write_field(|bytes| {
-                    let last = $tokens.len().saturating_sub(1);
-
-                    for (i, token) in $tokens.iter().enumerate() {
-                        bytes.extend_from_slice(token.0.as_str().as_bytes());
-
-                        if i != last {
-                            bytes.extend_from_slice(sep.as_bytes());
-                        }
+                for (i, cell) in record.iter().enumerate() {
+                    if args.flag_keep_text || i != col_index {
+                        output_record.push_field(cell);
                     }
-                });
+                }
 
-                wtr.write_byte_record(&record_to_write)?;
+                output_record.push_field(token.0.as_bytes());
+
+                wtr.write_byte_record(output_record)?;
             }
-        }};
-    }
+        } else if args.flag_token_type.is_some() {
+            for token in tokens {
+                output_record.clear();
+
+                for (i, cell) in record.iter().enumerate() {
+                    if args.flag_keep_text || i != col_index {
+                        output_record.push_field(cell);
+                    }
+                }
+
+                output_record.push_field(token.0.as_bytes());
+                output_record.push_field(token.1.as_str().as_bytes());
+
+                wtr.write_byte_record(output_record)?;
+            }
+        } else {
+            output_record.clear();
+
+            for (i, cell) in record.iter().enumerate() {
+                if args.flag_keep_text || i != col_index {
+                    output_record.push_field(cell);
+                }
+            }
+
+            output_record.write_field(|bytes| {
+                let last = tokens.len().saturating_sub(1);
+
+                for (i, token) in tokens.iter().enumerate() {
+                    bytes.extend_from_slice(token.0.as_bytes());
+
+                    if i != last {
+                        bytes.extend_from_slice(sep.as_bytes());
+                    }
+                }
+            });
+
+            wtr.write_byte_record(output_record)?;
+        }
+
+        Ok(())
+    };
+
+    let mut output_record = ByteRecord::new();
 
     if let Some(t) = threads {
         rdr.into_byte_records()
             .enumerate()
             .parallel_map_custom(
-                |o| {
-                   o.threads(t)
-                },
-                move |(index, result)| -> CliResult<(simd_csv::ByteRecord, Vec<(String, WordTokenKind)>)> {
+                |o| o.threads(t),
+                move |(index, result)| -> CliResult<(ByteRecord, Vec<(String, WordTokenKind)>)> {
                     let record = result?;
 
                     let text =
                         std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
 
-                    tokenize(index, &record, text).map(|tokens| {
-                        (record, tokens)
-                    })
+                    tokenize(index, &record, text).map(|tokens| (record, tokens))
                 },
             )
             .try_for_each(|result| -> CliResult<()> {
                 let (record, tokens) = result?;
 
-                write_tokens!(record, tokens);
+                write_tokens(&record, &mut output_record, tokens)?;
 
                 Ok(())
             })?;
     } else {
-        let mut record = simd_csv::ByteRecord::new();
+        let mut record = ByteRecord::new();
         let mut index: usize = 0;
 
         while rdr.read_byte_record(&mut record)? {
             let text = std::str::from_utf8(&record[col_index]).expect("could not decode utf8");
             let tokens = tokenize(index, &record, text)?;
 
-            write_tokens!(record, tokens);
+            write_tokens(&record, &mut output_record, tokens)?;
 
             index += 1;
         }

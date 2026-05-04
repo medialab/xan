@@ -20,7 +20,6 @@ mod json;
 mod moonblade;
 mod ratatui;
 mod read;
-mod record;
 mod scales;
 mod select;
 mod temporal;
