@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::VecDeque;
 use std::fmt;
 
 use std::sync::Arc;
@@ -607,10 +606,14 @@ impl DynamicValue {
     pub fn flat_iter(&self) -> DynamicValueFlatIter<'_> {
         DynamicValueFlatIter::new(self)
     }
+
+    pub fn into_flat_iter(self) -> DynamicValueIntoFlatIter {
+        DynamicValueIntoFlatIter::new(self)
+    }
 }
 
 pub struct DynamicValueFlatIter<'a> {
-    queue: VecDeque<&'a DynamicValue>,
+    stack: Vec<&'a DynamicValue>,
 }
 
 impl<'a> DynamicValueFlatIter<'a> {
@@ -620,10 +623,10 @@ impl<'a> DynamicValueFlatIter<'a> {
             _ => 1,
         };
 
-        let mut queue: VecDeque<&DynamicValue> = VecDeque::with_capacity(initial_capacity);
-        queue.push_back(value);
+        let mut stack: Vec<&DynamicValue> = Vec::with_capacity(initial_capacity);
+        stack.push(value);
 
-        DynamicValueFlatIter { queue }
+        Self { stack }
     }
 }
 
@@ -632,13 +635,51 @@ impl<'a> Iterator for DynamicValueFlatIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            match self.queue.pop_front() {
+            match self.stack.pop() {
                 None => break None,
                 Some(value) => match value {
                     DynamicValue::List(list) => {
-                        for subvalue in list.iter().rev() {
-                            self.queue.push_front(subvalue);
-                        }
+                        self.stack.extend(list.iter().rev());
+
+                        continue;
+                    }
+                    _ => break Some(value),
+                },
+            }
+        }
+    }
+}
+
+pub struct DynamicValueIntoFlatIter {
+    stack: Vec<DynamicValue>,
+}
+
+impl DynamicValueIntoFlatIter {
+    fn new(value: DynamicValue) -> Self {
+        let initial_capacity = match &value {
+            DynamicValue::List(list) => list.len(),
+            _ => 1,
+        };
+
+        let mut stack: Vec<DynamicValue> = Vec::with_capacity(initial_capacity);
+        stack.push(value);
+
+        Self { stack }
+    }
+}
+
+impl Iterator for DynamicValueIntoFlatIter {
+    type Item = DynamicValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.stack.pop() {
+                None => break None,
+                Some(value) => match value {
+                    DynamicValue::List(list) => {
+                        self.stack
+                            .extend(Arc::try_unwrap(list)
+                            .expect("cannot use DynamicValue::into_flat_iter if it is shared between threads").into_iter().rev());
 
                         continue;
                     }
