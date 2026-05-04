@@ -20,7 +20,6 @@
 
 *Features*
 
-* Adding `xan grep -P/--add-pattern, --patterns, --pattern-column`.
 * Adding `xan parallel --dont-chunk`.
 * Adding nullary `col`, `col_index` & `header` variants, to work with expression applied in series to multiple columns at once.
 * Adding `prev_col` & `next_col` functions.
