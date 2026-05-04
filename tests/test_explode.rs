@@ -275,3 +275,66 @@ fn explode_multipe_columns_rename() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn explode_evaluate() {
+    let wrk = Workdir::new("explode_evaluate");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["name", "colors"],
+            svec!["Mary", "yellow"],
+            svec!["John", "blue|orange"],
+            svec!["Jack", ""],
+        ],
+    );
+
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .args(["-e", "_.split('|')"])
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "colors"],
+        svec!["Mary", "yellow"],
+        svec!["John", "blue"],
+        svec!["John", "orange"],
+        svec!["Jack", ""],
+    ];
+    assert_eq!(got, expected);
+
+    // drop empty
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .args(["-e", "_.split('|')"])
+        .arg("-D")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        svec!["name", "colors"],
+        svec!["Mary", "yellow"],
+        svec!["John", "blue"],
+        svec!["John", "orange"],
+    ];
+    assert_eq!(got, expected);
+
+    // keep
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors")
+        .args(["-e", "_.split('|')"])
+        .arg("-D")
+        .arg("--keep")
+        .arg("-S")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "colors", "color"],
+        ["Mary", "yellow", "yellow"],
+        ["John", "blue|orange", "blue"],
+        ["John", "blue|orange", "orange"],
+    ];
+    assert_eq!(got, expected);
+}

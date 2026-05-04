@@ -10,6 +10,8 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
+use crate::moonblade::Program;
+
 fn singularize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
 
@@ -52,7 +54,6 @@ Mary,red
 
 Note that the file can be exploded on multiple well-aligned columns (that
 is to say selected cells must all be split into a same number of values).
-
 
 TODO: amend help here, mention parallelization
 
@@ -142,6 +143,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ));
     }
 
+    let program_opt = args
+        .flag_evaluate
+        .as_ref()
+        .map(|expr| Program::parse(expr, &headers, rconfig.no_headers))
+        .transpose()?;
+
     // NOTE: the mask deduplicates
     let sel_mask = sel.indexed_mask(headers.len());
 
@@ -176,6 +183,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut record = ByteRecord::new();
     let mut output_record = ByteRecord::new();
+    let mut row_index: usize = 0;
 
     // Fast path with single column explosion, which is the most common
     if sel.len() == 1 {
@@ -183,12 +191,35 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         while rdr.read_byte_record(&mut record)? {
             let cell = &record[column_index];
+            row_index += 1;
 
             if args.flag_drop_empty && cell.is_empty() {
                 continue;
             }
 
-            if args.flag_keep {
+            // Single & multiple expr
+            if let Some(program) = &program_opt {
+                let value =
+                    program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
+
+                for sub_value in value.flat_iter() {
+                    output_record.clear();
+
+                    for (i, cell) in record.iter().enumerate() {
+                        if i == column_index {
+                            if args.flag_keep {
+                                output_record.push_field(cell);
+                            }
+                            sub_value.push_field_to_record(&mut output_record);
+                        } else {
+                            output_record.push_field(cell);
+                        }
+                    }
+
+                    wtr.write_byte_record(&output_record)?;
+                }
+            } else if args.flag_keep {
+                // Single, keep
                 for sub_cell in cell.split_str(&args.flag_sep) {
                     output_record.clear();
 
@@ -204,6 +235,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     wtr.write_byte_record(&output_record)?;
                 }
             } else {
+                // Single
                 for sub_cell in cell.split_str(&args.flag_sep) {
                     wtr.write_record(record.iter().enumerate().map(|(i, input_cell)| {
                         if i == column_index {
@@ -258,6 +290,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         };
 
         for i in 0..max_len {
+            // Multiple keep
             if args.flag_keep {
                 output_record.clear();
 
@@ -276,7 +309,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 wtr.write_byte_record(&output_record)?;
-            } else {
+            }
+            // Multiple
+            else {
                 wtr.write_record(record.iter().zip(sel_mask.iter()).map(|(cell, mask)| {
                     if let Some(j) = mask {
                         if let Some(sub_cell) = splits[*j].get(i) {
