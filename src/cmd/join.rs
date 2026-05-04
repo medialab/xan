@@ -1,13 +1,19 @@
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::io;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
+use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
+use pariter::IteratorExt;
+use regex::bytes::{RegexSet, RegexSetBuilder};
 use simd_csv::ByteRecord;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
+use crate::urls::LRUTrieMultiMap;
 use crate::util;
 use crate::CliResult;
 
@@ -31,6 +37,16 @@ fn transform(bs: &[u8], case_insensitive: bool) -> Cow<'_, [u8]> {
     } else {
         Cow::Owned(bs.to_lowercase())
     }
+}
+
+fn prefix_header(headers: &ByteRecord, prefix: &String) -> ByteRecord {
+    let mut prefixed_headers = ByteRecord::new();
+
+    for column in headers.iter() {
+        prefixed_headers.push_field(&[prefix.as_bytes(), column].concat());
+    }
+
+    prefixed_headers
 }
 
 fn build_headers(
@@ -196,6 +212,60 @@ impl Index {
     }
 }
 
+enum FuzzyIndex {
+    Substring(AhoCorasick),
+    Regex(RegexSet),
+    Url(LRUTrieMultiMap<usize>),
+}
+
+impl FuzzyIndex {
+    fn matches(&self, cell: &[u8], matches: &mut BTreeSet<usize>) {
+        match self {
+            Self::Substring(inner) => {
+                for m in inner.find_iter(cell) {
+                    matches.insert(m.pattern().as_usize());
+                }
+            }
+            Self::Regex(inner) => {
+                for m in inner.matches(cell) {
+                    matches.insert(m);
+                }
+            }
+            Self::Url(inner) => {
+                if let Ok(url) = std::str::from_utf8(cell) {
+                    if let Ok(ids) = inner.longest_matching_prefix_values(url) {
+                        for id in ids {
+                            matches.insert(*id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct FuzzyJoiner {
+    index: FuzzyIndex,
+    headers: ByteRecord,
+    records: Vec<ByteRecord>,
+}
+
+impl FuzzyJoiner {
+    fn matches(&self, cell: &[u8], matches: &mut BTreeSet<usize>) {
+        self.index.matches(cell, matches);
+    }
+
+    fn matched_records<'a, 'b>(
+        &'a self,
+        matches: &'b BTreeSet<usize>,
+    ) -> impl Iterator<Item = &'a ByteRecord> + 'b
+    where
+        'a: 'b,
+    {
+        matches.iter().copied().map(|i| &self.records[i])
+    }
+}
+
 static USAGE: &str = "
 Join two CSV files on the specified columns.
 
@@ -245,6 +315,32 @@ Prefixing right column names:
 
     $ xan join -R user_ user_id tweets.csv id accounts.csv > joined.csv
 
+# Fuzzy join
+
+This command is also able to perform a so-called \"fuzzy\" join using the
+following flags:
+
+    * -c, --contains: matching a substring (e.g. \"john\" in \"My name is john\")
+    * -r, --regex: using a regular expression
+    * -u, --url-prefix: matching by url prefix (e.g. \"lemonde.fr/business\")
+
+The file containing patterns has to be, by convention, given on the right, while
+the left one should contain values that will be tested against those patterns.
+
+This means --left can still be used to emit rows without any match.
+
+Fuzzy-join is a costly operation, especially when testing a large number of patterns,
+so a -p/--parallel and -t/--threads flag can be used to use multiple CPUs and
+speed up the search.
+
+A typical use-case for this command is to fuzzy search family
+names, using regex patterns, in some text column of a CSV file, all while
+keeping any match-related column from the pattern file.
+
+This said, if you only need to filter rows of the second file and don't
+actually need to join columns from the patterns file, you should
+probably use `xan search --patterns` instead.
+
 # Memory considerations
 
     - `inner join`: the command does not try to be clever and
@@ -267,6 +363,8 @@ Prefixing right column names:
                     always indexes the left file, while the right
                     file is streamed. Prefer placing the smaller file
                     on the left.
+    - `fuzzy join`: the command always indexes patterns of the right file and
+                    streams the file on the left.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
@@ -274,31 +372,43 @@ Usage:
     xan join [options] --cross <input1> <input2>
     xan join --help
 
+join mode options:
+    --inner  Do an \"inner\" join. This only returns rows where
+             a match can be found between both data sets. This
+             is the command's default, so this flag can be omitted,
+             or used for clarity.
+    --left   Do an \"outer left\" join. This returns all rows in
+             first CSV data set, including rows with no
+             corresponding row in the second data set. When no
+             corresponding row exists, it is padded out with
+             empty fields. This is the reverse of --right.
+             Can be used in fuzzy joins.
+    --right  Do an \"outer right\" join. This returns all rows in
+             second CSV data set, including rows with no
+             corresponding row in the first data set. When no
+             corresponding row exists, it is padded out with
+             empty fields. This is the reverse of --left.
+    --full   Do a \"full outer\" join. This returns all rows in
+             both data sets with matching records joined. If
+             there is no match, the missing side will be padded
+             out with empty fields.
+    --semi   Only keep rows of left file matching a row in right file.
+    --anti   Only keep rows of left file not matching a row in right file.
+    --cross  This returns the cartesian product of the given CSV
+             files. The number of rows emitted will be equal to N * M,
+             where N and M correspond to the number of rows in the given
+             data sets, respectively.
+
+fuzzy join mode options:
+    -c, --contains    Join by matching substrings.
+    -r, --regex       Join by regex patterns.
+    -u, --url-prefix  Join by url prefix, i.e. cells must contain urls
+                      matching the searched url prefix. Urls are first
+                      reordered using a scheme called a LRU, that you can
+                      read about here:
+                      https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+
 join options:
-    --inner                      Do an \"inner\" join. This only returns rows where
-                                 a match can be found between both data sets. This
-                                 is the command's default, so this flag can be omitted,
-                                 or used for clarity.
-    --left                       Do an \"outer left\" join. This returns all rows in
-                                 first CSV data set, including rows with no
-                                 corresponding row in the second data set. When no
-                                 corresponding row exists, it is padded out with
-                                 empty fields. This is the reverse of --right.
-    --right                      Do an \"outer right\" join. This returns all rows in
-                                 second CSV data set, including rows with no
-                                 corresponding row in the first data set. When no
-                                 corresponding row exists, it is padded out with
-                                 empty fields. This is the reverse of --left.
-    --full                       Do a \"full outer\" join. This returns all rows in
-                                 both data sets with matching records joined. If
-                                 there is no match, the missing side will be padded
-                                 out with empty fields.
-    --semi                       Only keep rows of left file matching a row in right file.
-    --anti                       Only keep rows of left file not matching a row in right file.
-    --cross                      This returns the cartesian product of the given CSV
-                                 files. The number of rows emitted will be equal to N * M,
-                                 where N and M correspond to the number of rows in the given
-                                 data sets, respectively.
     -i, --ignore-case            When set, joins are done case insensitively.
     --nulls                      When set, joins will work on empty fields.
                                  Otherwise, empty keys are completely ignored, i.e. when
@@ -311,6 +421,16 @@ join options:
                                  first dataset.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
                                  second dataset.
+
+fuzzy join options:
+    -S, --simplified-urls    When using -u/--url-prefix, drop irrelevant parts of the urls,
+                             like the scheme, `www.` subdomains etc. to facilitate matches.
+    -p, --parallel           Whether to use parallelization to speed up computations.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help                  Display this message
@@ -344,6 +464,12 @@ struct Args {
     flag_delimiter: Option<Delimiter>,
     flag_prefix_left: Option<String>,
     flag_prefix_right: Option<String>,
+    flag_contains: bool,
+    flag_regex: bool,
+    flag_url_prefix: bool,
+    flag_simplified_urls: bool,
+    flag_parallel: bool,
+    flag_threads: Option<usize>,
 }
 
 type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
@@ -355,6 +481,65 @@ impl Args {
             self.arg_columns1 = sel.clone();
             self.arg_columns2 = sel.clone();
         }
+    }
+
+    fn build_fuzzy_joiner(&self) -> CliResult<FuzzyJoiner> {
+        let rconf = Config::new(&Some(self.arg_input2.clone()))
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers)
+            .select(self.arg_columns2.clone());
+
+        let mut reader = rconf.simd_reader()?;
+        let headers = reader.byte_headers()?.clone();
+        let pattern_cell_index = rconf.single_selection(&headers)?;
+        let selection: Selection = match self.flag_drop_key.unwrap_or(DropKey::None) {
+            DropKey::Right | DropKey::Both => {
+                Selection::without_indices(headers.len(), &[pattern_cell_index])
+            }
+            _ => Selection::full(headers.len()),
+        };
+        let dropped_headers: ByteRecord = selection.select(&headers).collect();
+
+        let mut patterns = Vec::new();
+        let mut records = Vec::new();
+        let mut url_trie_opt: Option<LRUTrieMultiMap<usize>> = self.flag_url_prefix.then(|| {
+            if self.flag_simplified_urls {
+                LRUTrieMultiMap::new_simplified()
+            } else {
+                LRUTrieMultiMap::new()
+            }
+        });
+
+        for (i, record) in reader.into_byte_records().enumerate() {
+            let record = record?;
+            let pattern = String::from_utf8(record[pattern_cell_index].to_vec()).unwrap();
+
+            if let Some(url_trie) = &mut url_trie_opt {
+                url_trie.insert(&pattern, i)?;
+            } else {
+                patterns.push(pattern);
+            }
+            let dropped_reccord: ByteRecord = selection.select(&record).collect();
+            records.push(dropped_reccord);
+        }
+
+        let index = if let Some(url_trie) = url_trie_opt {
+            FuzzyIndex::Url(url_trie)
+        } else if self.flag_regex {
+            FuzzyIndex::Regex(
+                RegexSetBuilder::new(patterns)
+                    .case_insensitive(self.flag_ignore_case)
+                    .build()?,
+            )
+        } else {
+            FuzzyIndex::Substring(AhoCorasick::new(patterns)?)
+        };
+
+        Ok(FuzzyJoiner {
+            index,
+            headers: dropped_headers,
+            records,
+        })
     }
 
     fn readers(&mut self) -> CliResult<(ReaderHandle, ReaderHandle)> {
@@ -705,13 +890,118 @@ impl Args {
 
         Ok(writer.flush()?)
     }
+
+    fn fuzzy_join(self) -> CliResult<()> {
+        let inner = !self.flag_left;
+
+        let threads = util::parallelization(self.flag_parallel, self.flag_threads);
+
+        let joiner = self.build_fuzzy_joiner()?;
+        let mut patterns_headers = joiner.headers.clone();
+
+        if let Some(prefix) = &self.flag_prefix_right {
+            patterns_headers = prefix_header(&patterns_headers, prefix);
+        }
+
+        let rconf = Config::new(&Some(self.arg_input1.clone()))
+            .delimiter(self.flag_delimiter)
+            .no_headers(self.flag_no_headers)
+            .select(self.arg_columns1.clone());
+
+        let mut reader = rconf.simd_reader()?;
+        let mut headers = reader.byte_headers()?.clone();
+        let sel = rconf.selection(reader.byte_headers()?)?;
+
+        let inverted_sel: Selection = match self.flag_drop_key.unwrap_or(DropKey::None) {
+            DropKey::Left | DropKey::Both => sel.inverse(headers.len()),
+            _ => Selection::full(headers.len()),
+        };
+
+        if let Some(prefix) = &self.flag_prefix_left {
+            headers = prefix_header(&headers, prefix);
+        }
+
+        let dropped_headers: ByteRecord = inverted_sel.select(&headers).collect();
+
+        let padding = vec![b""; patterns_headers.len()];
+
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+
+        if !rconf.no_headers {
+            writer.write_record(dropped_headers.iter().chain(patterns_headers.iter()))?;
+        }
+
+        // Parallel
+        if let Some(t) = threads {
+            let joiner = Arc::new(joiner);
+            let joiner_handle = joiner.clone();
+
+            reader
+                .into_byte_records()
+                .parallel_map_custom(
+                    |o| o.threads(t),
+                    move |result| -> CliResult<(ByteRecord, BTreeSet<usize>)> {
+                        let record = result?;
+
+                        let mut matches = BTreeSet::new();
+
+                        for cell in sel.select(&record) {
+                            joiner.matches(cell, &mut matches);
+                        }
+
+                        Ok((record, matches))
+                    },
+                )
+                .try_for_each(|result| -> CliResult<()> {
+                    let (mut record, matches) = result?;
+
+                    for pattern_record in joiner_handle.matched_records(&matches) {
+                        writer.write_record(
+                            inverted_sel.select(&record).chain(pattern_record.iter()),
+                        )?;
+                    }
+
+                    if !inner && matches.is_empty() {
+                        record.extend(&padding);
+                        writer.write_byte_record(&record)?;
+                    }
+
+                    Ok(())
+                })?;
+
+            return Ok(writer.flush()?);
+        }
+
+        // Single-threaded
+        let mut record = ByteRecord::new();
+        let mut matches = BTreeSet::new();
+
+        while reader.read_byte_record(&mut record)? {
+            matches.clear();
+
+            for cell in sel.select(&record) {
+                joiner.matches(cell, &mut matches);
+            }
+
+            for pattern_record in joiner.matched_records(&matches) {
+                writer.write_record(inverted_sel.select(&record).chain(pattern_record.iter()))?;
+            }
+
+            if !inner && matches.is_empty() {
+                record.extend(&padding);
+                writer.write_byte_record(&record)?;
+            }
+        }
+
+        Ok(writer.flush()?)
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut args: Args = util::get_args(USAGE, argv)?;
     args.resolve();
 
-    let operation = args.flag_inner as u8
+    let normal_operations = args.flag_inner as u8
         + args.flag_left as u8
         + args.flag_right as u8
         + args.flag_full as u8
@@ -719,13 +1009,31 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         + args.flag_anti as u8
         + args.flag_cross as u8;
 
-    if operation == 0 {
-        args.flag_inner = true;
-    } else if operation > 1 {
-        Err("Please pick exactly one join operation.")?;
+    let fuzzy_operations =
+        args.flag_contains as u8 + args.flag_regex as u8 + args.flag_url_prefix as u8;
+
+    match normal_operations + fuzzy_operations {
+        0 => args.flag_inner = true,
+        1 => (),
+        2 if fuzzy_operations == 1 && args.flag_left => (),
+        _ => Err("Please pick exactly one join operation!")?,
     }
 
-    if args.flag_left {
+    if fuzzy_operations > 1 {
+        Err("Please exactly one fuzzy join (-c, -r, -u) operation!")?;
+    }
+
+    if fuzzy_operations == 1 && normal_operations == 1 && !args.flag_left {
+        Err("fuzzy join (-c, -r, -u) is only compatible with --left!")?;
+    }
+
+    if fuzzy_operations == 0 && (args.flag_parallel || args.flag_threads.is_some()) {
+        Err("-p/--parallel or -t/--threads only work with fuzzy joins (-c, -r, -u)!")?;
+    }
+
+    if fuzzy_operations == 1 {
+        args.fuzzy_join()
+    } else if args.flag_left {
         args.left_join()
     } else if args.flag_right {
         args.right_join()

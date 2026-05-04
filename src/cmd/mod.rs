@@ -21,7 +21,6 @@ pub mod flatten;
 pub mod fmt;
 pub mod frequency;
 pub mod from;
-pub mod fuzzy_join;
 pub mod groupby;
 pub mod head;
 pub mod headers;

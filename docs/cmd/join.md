@@ -50,6 +50,32 @@ Prefixing right column names:
 
     $ xan join -R user_ user_id tweets.csv id accounts.csv > joined.csv
 
+# Fuzzy join
+
+This command is also able to perform a so-called "fuzzy" join using the
+following flags:
+
+    * -c, --contains: matching a substring (e.g. "john" in "My name is john")
+    * -r, --regex: using a regular expression
+    * -u, --url-prefix: matching by url prefix (e.g. "lemonde.fr/business")
+
+The file containing patterns has to be, by convention, given on the right, while
+the left one should contain values that will be tested against those patterns.
+
+This means --left can still be used to emit rows without any match.
+
+Fuzzy-join is a costly operation, especially when testing a large number of patterns,
+so a -p/--parallel and -t/--threads flag can be used to use multiple CPUs and
+speed up the search.
+
+A typical use-case for this command is to fuzzy search family
+names, using regex patterns, in some text column of a CSV file, all while
+keeping any match-related column from the pattern file.
+
+This said, if you only need to filter rows of the second file and don't
+actually need to join columns from the patterns file, you should
+probably use `xan search --patterns` instead.
+
 # Memory considerations
 
     - `inner join`: the command does not try to be clever and
@@ -72,6 +98,8 @@ Prefixing right column names:
                     always indexes the left file, while the right
                     file is streamed. Prefer placing the smaller file
                     on the left.
+    - `fuzzy join`: the command always indexes patterns of the right file and
+                    streams the file on the left.
 
 Usage:
     xan join [options] <columns1> <input1> <columns2> <input2>
@@ -79,31 +107,43 @@ Usage:
     xan join [options] --cross <input1> <input2>
     xan join --help
 
+join mode options:
+    --inner  Do an "inner" join. This only returns rows where
+             a match can be found between both data sets. This
+             is the command's default, so this flag can be omitted,
+             or used for clarity.
+    --left   Do an "outer left" join. This returns all rows in
+             first CSV data set, including rows with no
+             corresponding row in the second data set. When no
+             corresponding row exists, it is padded out with
+             empty fields. This is the reverse of --right.
+             Can be used in fuzzy joins.
+    --right  Do an "outer right" join. This returns all rows in
+             second CSV data set, including rows with no
+             corresponding row in the first data set. When no
+             corresponding row exists, it is padded out with
+             empty fields. This is the reverse of --left.
+    --full   Do a "full outer" join. This returns all rows in
+             both data sets with matching records joined. If
+             there is no match, the missing side will be padded
+             out with empty fields.
+    --semi   Only keep rows of left file matching a row in right file.
+    --anti   Only keep rows of left file not matching a row in right file.
+    --cross  This returns the cartesian product of the given CSV
+             files. The number of rows emitted will be equal to N * M,
+             where N and M correspond to the number of rows in the given
+             data sets, respectively.
+
+fuzzy join mode options:
+    -c, --contains    Join by matching substrings.
+    -r, --regex       Join by regex patterns.
+    -u, --url-prefix  Join by url prefix, i.e. cells must contain urls
+                      matching the searched url prefix. Urls are first
+                      reordered using a scheme called a LRU, that you can
+                      read about here:
+                      https://github.com/medialab/ural?tab=readme-ov-file#about-lrus
+
 join options:
-    --inner                      Do an "inner" join. This only returns rows where
-                                 a match can be found between both data sets. This
-                                 is the command's default, so this flag can be omitted,
-                                 or used for clarity.
-    --left                       Do an "outer left" join. This returns all rows in
-                                 first CSV data set, including rows with no
-                                 corresponding row in the second data set. When no
-                                 corresponding row exists, it is padded out with
-                                 empty fields. This is the reverse of --right.
-    --right                      Do an "outer right" join. This returns all rows in
-                                 second CSV data set, including rows with no
-                                 corresponding row in the first data set. When no
-                                 corresponding row exists, it is padded out with
-                                 empty fields. This is the reverse of --left.
-    --full                       Do a "full outer" join. This returns all rows in
-                                 both data sets with matching records joined. If
-                                 there is no match, the missing side will be padded
-                                 out with empty fields.
-    --semi                       Only keep rows of left file matching a row in right file.
-    --anti                       Only keep rows of left file not matching a row in right file.
-    --cross                      This returns the cartesian product of the given CSV
-                                 files. The number of rows emitted will be equal to N * M,
-                                 where N and M correspond to the number of rows in the given
-                                 data sets, respectively.
     -i, --ignore-case            When set, joins are done case insensitively.
     --nulls                      When set, joins will work on empty fields.
                                  Otherwise, empty keys are completely ignored, i.e. when
@@ -116,6 +156,16 @@ join options:
                                  first dataset.
     -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
                                  second dataset.
+
+fuzzy join options:
+    -S, --simplified-urls    When using -u/--url-prefix, drop irrelevant parts of the urls,
+                             like the scheme, `www.` subdomains etc. to facilitate matches.
+    -p, --parallel           Whether to use parallelization to speed up computations.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help                  Display this message

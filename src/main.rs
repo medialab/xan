@@ -73,7 +73,6 @@ macro_rules! command_list {
 ## Combine multiple CSV files
     cat         Concatenate by row or column
     join        Join CSV files
-    fuzzy-join  Join a CSV file with another containing patterns (e.g. regexes)
     merge       Merge multiple similar already sorted CSV files
 
 ## Add, transform, drop and move columns
@@ -292,8 +291,6 @@ enum Command {
     Freq,
     Frequency,
     From,
-    #[serde(rename = "fuzzy-join")]
-    FuzzyJoin,
     Groupby,
     Guillotine,
     H,
@@ -379,7 +376,6 @@ impl Command {
             Command::Fmt => cmd::fmt::run(argv),
             Command::Freq | Command::Frequency => cmd::frequency::run(argv),
             Command::From => cmd::from::run(argv),
-            Command::FuzzyJoin => cmd::fuzzy_join::run(argv),
             Command::Groupby => cmd::groupby::run(argv),
             Command::Head => cmd::head::run(argv),
             Command::Headers | Command::H => cmd::headers::run(argv),

@@ -28,7 +28,6 @@ mod test_filter;
 mod test_fixlengths;
 mod test_fmt;
 mod test_frequency;
-mod test_fuzzy_join;
 mod test_groupby;
 mod test_headers;
 mod test_implode;

@@ -621,7 +621,6 @@ For a sense of what can be achieved with `xan`, see this page summarizing a vari
 
 - [**cat**](./docs/cmd/cat.md): Concatenate by row or column
 - [**join**](./docs/cmd/join.md): Join CSV files
-- [**fuzzy-join**](./docs/cmd/fuzzy-join.md): Join a CSV file with another containing patterns (e.g. regexes)
 - [**merge**](./docs/cmd/merge.md): Merge multiple similar already sorted CSV files
 
 *Add, transform, drop and move columns*

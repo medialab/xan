@@ -16,6 +16,7 @@
 * Retiring the `xan grep` command in favor of `xan search -Z/--fast-parser`.
 * `xan tokenize --keep` short flag becomes `-k` instead of `-K` to harmonize with other commands.
 * Retiring the `xan flatmap` command in favor of `xan explode -e`.
+* Retiring the `xan fuzzy-join` command in favor of a consolidated `xan join` command.
 
 *Features*
 
