@@ -6,7 +6,6 @@ use regex::Regex;
 
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
-use crate::record::Record;
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
@@ -121,7 +120,11 @@ impl Args {
         };
 
         if self.flag_drop {
-            headers = headers.remove(key_col);
+            headers = headers
+                .iter()
+                .enumerate()
+                .filter_map(|(i, cell)| if i == key_col { None } else { Some(cell) })
+                .collect();
         }
 
         let mut row = simd_csv::ByteRecord::new();
@@ -154,7 +157,13 @@ impl Args {
                 let wtr = &mut current.as_mut().unwrap().1;
 
                 if self.flag_drop {
-                    wtr.write_record(&row.remove(key_col))?;
+                    wtr.write_record(row.iter().enumerate().filter_map(|(i, cell)| {
+                        if key_col == i {
+                            None
+                        } else {
+                            Some(cell)
+                        }
+                    }))?;
                 } else {
                     wtr.write_byte_record(&row)?;
                 }
@@ -185,7 +194,13 @@ impl Args {
                 };
 
                 if self.flag_drop {
-                    wtr.write_record(&row.remove(key_col))?;
+                    wtr.write_record(row.iter().enumerate().filter_map(|(i, cell)| {
+                        if key_col == i {
+                            None
+                        } else {
+                            Some(cell)
+                        }
+                    }))?;
                 } else {
                     wtr.write_byte_record(&row)?;
                 }
