@@ -10,7 +10,7 @@ use crate::util;
 use crate::CliError;
 use crate::CliResult;
 
-use crate::moonblade::Program;
+use crate::moonblade::{DynamicValue, Program};
 
 fn singularize(name: &[u8]) -> Vec<u8> {
     let mut vec = name.to_vec();
@@ -31,7 +31,7 @@ static USAGE: &str = "
 Explode CSV rows into multiple ones by splitting selected cell using the pipe
 character (\"|\") or any separator given to the --sep flag.
 
-This is conceptually the inverse of the \"implode\" command.
+This command is conceptually the inverse of the \"implode\" command.
 
 For instance the following CSV:
 
@@ -52,13 +52,13 @@ John,blue
 John,yellow
 Mary,red
 
-Note that the file can be exploded on multiple well-aligned columns (that
-is to say selected cells must all be split into a same number of values).
+Note that a file can be exploded on multiple well-aligned columns that would
+be split into a same number of values. Else you can always use the --pad flag.
 
-TODO: amend help here, mention parallelization
+Alternatively, you can also use an expression using the -e <expr> flag if you
+need to split your cells using custom logic, e.g. parsing JSON etc.
 
-Finally, if you need more complex stuff that splitting cells by a separator,
-check out the `flatmap` command instead.
+    $ xan explode json_names -e '_.parse_json().compact()' file.csv
 
 Usage:
     xan explode [options] <columns> [<input>]
@@ -197,7 +197,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 continue;
             }
 
-            // Single & multiple expr
+            // Single expr, with or without keep
             if let Some(program) = &program_opt {
                 let value =
                     program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
@@ -251,6 +251,79 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
+    // Multiple selection path when evaluating an expression
+    if let Some(program) = program_opt {
+        let mut splits: Vec<Vec<DynamicValue>> = Vec::with_capacity(sel.len());
+
+        for _ in 0..sel.len() {
+            splits.push(Vec::new());
+        }
+
+        while rdr.read_byte_record(&mut record)? {
+            let mut all_empty = true;
+            row_index += 1;
+
+            for (i, column_index) in sel.iter().copied().enumerate() {
+                let col_splits = &mut splits[i];
+                let cell = &record[column_index];
+                col_splits.clear();
+
+                if !cell.is_empty() {
+                    all_empty = false;
+                }
+
+                let value =
+                    program.run_with_record_and_col_index(row_index - 1, column_index, &record)?;
+
+                for sub_value in value.into_flat_iter() {
+                    col_splits.push(sub_value);
+                }
+            }
+
+            if args.flag_drop_empty && all_empty {
+                continue;
+            }
+
+            let max_len = if args.flag_pad {
+                splits.iter().map(|s| s.len()).max().unwrap()
+            } else {
+                if splits.iter().skip(1).any(|s| s.len() != splits[0].len()) {
+                    return Err(CliError::Other(
+                        "inconsistent exploded length across columns.".to_string(),
+                    ));
+                }
+
+                splits[0].len()
+            };
+
+            for i in 0..max_len {
+                // Mulitple expr, with or without keep
+                output_record.clear();
+
+                for (cell, mask) in record.iter().zip(sel_mask.iter()) {
+                    if args.flag_keep {
+                        output_record.push_field(cell);
+                    }
+
+                    if let Some(j) = mask {
+                        if let Some(sub_value) = splits[*j].get(i) {
+                            sub_value.push_field_to_record(&mut output_record);
+                        } else {
+                            output_record.push_field(b"");
+                        }
+                    } else {
+                        output_record.push_field(cell);
+                    }
+                }
+
+                wtr.write_byte_record(&output_record)?;
+            }
+        }
+
+        return Ok(wtr.flush()?);
+    }
+
+    // Normal multiple path
     let mut splits: Vec<Vec<(*const u8, usize)>> = Vec::with_capacity(sel.len());
 
     for _ in 0..sel.len() {

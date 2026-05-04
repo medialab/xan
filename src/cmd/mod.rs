@@ -17,7 +17,6 @@ pub mod explode;
 pub mod fill;
 pub mod filter;
 pub mod fixlengths;
-pub mod flatmap;
 pub mod flatten;
 pub mod fmt;
 pub mod frequency;

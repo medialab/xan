@@ -338,3 +338,63 @@ fn explode_evaluate() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn explode_evaluate_multiple() {
+    let wrk = Workdir::new("explode_evaluate_multiple");
+    wrk.create(
+        "data.csv",
+        vec![
+            svec!["colors", "names"],
+            svec!["[\"yellow\", \"blue\", \"orange\"]", "[\"john\", \"lucy\"]"],
+        ],
+    );
+
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors,names")
+        .args(["-e", "_.parse_json()"])
+        .arg("-S")
+        .arg("--pad")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["color", "name"],
+        ["yellow", "john"],
+        ["blue", "lucy"],
+        ["orange", ""],
+    ];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("explode");
+    cmd.arg("colors,names")
+        .args(["-e", "_.parse_json()"])
+        .arg("-S")
+        .arg("--pad")
+        .arg("--keep")
+        .arg("data.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["colors", "color", "names", "name"],
+        [
+            "[\"yellow\", \"blue\", \"orange\"]",
+            "yellow",
+            "[\"john\", \"lucy\"]",
+            "john",
+        ],
+        [
+            "[\"yellow\", \"blue\", \"orange\"]",
+            "blue",
+            "[\"john\", \"lucy\"]",
+            "lucy",
+        ],
+        [
+            "[\"yellow\", \"blue\", \"orange\"]",
+            "orange",
+            "[\"john\", \"lucy\"]",
+            "",
+        ],
+    ];
+    assert_eq!(got, expected);
+}

@@ -15,6 +15,7 @@
 * `xan parallel -z/--compress` now take the desired compression (either `gzip` or `zstd`).
 * Retiring the `xan grep` command in favor of `xan search -Z/--fast-parser`.
 * `xan tokenize --keep` short flag becomes `-k` instead of `-K` to harmonize with other commands.
+* Retiring the `xan flatmap` command in favor of `xan explode -e`.
 
 *Features*
 
@@ -31,7 +32,7 @@
 * `xan p -H/--shell-preprocess` now works on Windows.
 * Adding native `zsh` completions (@apcamargo).
 * Adding `xan dedup --u32`.
-* Adding `xan explode --pad & -k/--keep`.
+* Adding `xan explode -e/--evaluate, -f/--evaluate-file, --pad & -k/--keep`.
 * `xan to npy` is now able to stream.
 
 *Fixes*

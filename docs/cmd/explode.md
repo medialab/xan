@@ -5,7 +5,7 @@
 Explode CSV rows into multiple ones by splitting selected cell using the pipe
 character ("|") or any separator given to the --sep flag.
 
-This is conceptually the inverse of the "implode" command.
+This command is conceptually the inverse of the "implode" command.
 
 For instance the following CSV:
 
@@ -26,14 +26,13 @@ John,blue
 John,yellow
 Mary,red
 
-Note that the file can be exploded on multiple well-aligned columns (that
-is to say selected cells must all be split into a same number of values).
+Note that a file can be exploded on multiple well-aligned columns that would
+be split into a same number of values. Else you can always use the --pad flag.
 
+Alternatively, you can also use an expression using the -e <expr> flag if you
+need to split your cells using custom logic, e.g. parsing JSON etc.
 
-TODO: amend help here, mention parallelization
-
-Finally, if you need more complex stuff that splitting cells by a separator,
-check out the `flatmap` command instead.
+    $ xan explode json_names -e '_.parse_json().compact()' file.csv
 
 Usage:
     xan explode [options] <columns> [<input>]

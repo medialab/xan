@@ -83,7 +83,6 @@ macro_rules! command_list {
     map         Create a new column by evaluating an expression on each CSV row
     transform   Transform a column by evaluating an expression on each CSV row
     enum        Enumerate CSV file by preprending an index column
-    flatmap     Emit one row per value yielded by an expression evaluated for each CSV row
     fill        Fill empty cells
     complete    Add missing rows in a column of contiguous values
     blank       Blank down contiguous identical cell values
@@ -289,7 +288,6 @@ enum Command {
     Fill,
     Filter,
     FixLengths,
-    Flatmap,
     Flatten,
     Fmt,
     Freq,
@@ -378,7 +376,6 @@ impl Command {
             Command::Fill => cmd::fill::run(argv),
             Command::Filter => cmd::filter::run(argv),
             Command::FixLengths => cmd::fixlengths::run(argv),
-            Command::Flatmap => cmd::flatmap::run(argv),
             Command::Flatten | Command::F => cmd::flatten::run(argv),
             Command::Fmt => cmd::fmt::run(argv),
             Command::Freq | Command::Frequency => cmd::frequency::run(argv),

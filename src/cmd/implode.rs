@@ -23,7 +23,7 @@ Implode a CSV file by merging multiple consecutive rows into a single one, where
 diverging cells will be joined by the pipe character (\"|\") or any separator
 given to the --sep flag.
 
-This is the inverse of the \"explode\" command.
+This command is conceptually the inverse of the \"explode\" command.
 
 For instance the following CSV:
 
