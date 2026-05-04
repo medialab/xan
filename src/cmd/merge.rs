@@ -14,16 +14,16 @@ use crate::CliResult;
 type MergeHeapEntry = (ByteRecord, usize);
 
 #[derive(Clone)]
-struct MergeHeapComparator {
-    sel: Selection,
+struct MergeHeapComparator<'s> {
+    sel: &'s Selection,
     numeric: bool,
     reverse: bool,
 }
 
-impl MergeHeapComparator {
-    fn new(sel: &Selection, numeric: bool, reverse: bool) -> Self {
+impl<'s> MergeHeapComparator<'s> {
+    fn new(sel: &'s Selection, numeric: bool, reverse: bool) -> Self {
         Self {
-            sel: sel.clone(),
+            sel,
             numeric,
             reverse,
         }
@@ -59,29 +59,22 @@ impl MergeHeapComparator {
     }
 }
 
-impl Compare<MergeHeapEntry> for MergeHeapComparator {
+impl Compare<MergeHeapEntry> for MergeHeapComparator<'_> {
     #[inline(always)]
     fn compare(&self, l: &MergeHeapEntry, r: &MergeHeapEntry) -> Ordering {
         self.cmp(l, r)
     }
 }
 
-struct MergeHeap {
-    comparator: MergeHeapComparator,
-    inner: BinaryHeap<MergeHeapEntry, MergeHeapComparator>,
+struct MergeHeap<'s> {
+    inner: BinaryHeap<MergeHeapEntry, MergeHeapComparator<'s>>,
 }
 
-impl MergeHeap {
-    fn new(sel: &Selection, numeric: bool, reverse: bool) -> Self {
-        let comparator = MergeHeapComparator::new(sel, numeric, reverse);
-        let inner = BinaryHeap::from_vec_cmp(Vec::with_capacity(sel.len()), comparator.clone());
+impl<'s> MergeHeap<'s> {
+    fn with_comparator(comparator: MergeHeapComparator<'s>) -> Self {
+        let inner = BinaryHeap::from_vec_cmp(Vec::with_capacity(comparator.sel.len()), comparator);
 
-        Self { comparator, inner }
-    }
-
-    #[inline(always)]
-    fn cmp_record(&self, a: &ByteRecord, b: &ByteRecord) -> Ordering {
-        self.comparator.cmp_record(a, b)
+        Self { inner }
     }
 
     #[inline(always)]
@@ -94,55 +87,63 @@ impl MergeHeap {
         self.inner.pop()
     }
 
-    fn try_for_each<F>(
-        &mut self,
-        uniq: bool,
-        iterators: &mut [impl Iterator<Item = simd_csv::Result<ByteRecord>>],
-        mut callback: F,
-    ) -> simd_csv::Result<()>
+    fn into_iter<I>(self, iterators: Vec<I>) -> simd_csv::Result<MergeHeapIntoIter<'s, I>>
     where
-        F: FnMut(usize, &ByteRecord) -> simd_csv::Result<()>,
+        I: Iterator<Item = simd_csv::Result<ByteRecord>>,
     {
+        MergeHeapIntoIter::new(self, iterators)
+    }
+}
+
+struct MergeHeapIntoIter<'s, I> {
+    heap: MergeHeap<'s>,
+    iterators: Vec<I>,
+}
+
+impl<'s, I> MergeHeapIntoIter<'s, I>
+where
+    I: Iterator<Item = simd_csv::Result<ByteRecord>>,
+{
+    fn new(mut heap: MergeHeap<'s>, mut iterators: Vec<I>) -> simd_csv::Result<Self> {
         for (i, iter) in iterators.iter_mut().enumerate() {
             match iter.next() {
                 None => continue,
                 Some(record) => {
-                    self.push((record?, i));
+                    heap.push((record?, i));
                 }
             }
         }
 
-        let mut last_record: Option<(ByteRecord, usize)> = None;
+        Ok(Self { heap, iterators })
+    }
+}
 
-        while let Some(entry) = self.pop() {
+impl<I> Iterator for MergeHeapIntoIter<'_, I>
+where
+    I: Iterator<Item = simd_csv::Result<ByteRecord>>,
+{
+    type Item = simd_csv::Result<(usize, ByteRecord)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(entry) = self.heap.pop() {
             let (record, i) = entry;
 
-            if uniq {
-                match last_record {
-                    None => {
-                        callback(i, &record)?;
-                        last_record = Some((record, i));
+            match self.iterators[i].next() {
+                None => (),
+                Some(result) => match result {
+                    Ok(record) => {
+                        self.heap.push((record, i));
                     }
-                    Some(ref r) => match self.cmp_record(&r.0, &record) {
-                        Ordering::Equal => (),
-                        _ => {
-                            callback(i, &record)?;
-                            last_record = Some((record, i));
-                        }
-                    },
-                }
-            } else {
-                callback(i, &record)?;
+                    Err(err) => {
+                        return Some(Err(err));
+                    }
+                },
             }
 
-            match iterators[i].next() {
-                None => continue,
-                Some(record) => {
-                    self.push((record?, i));
-                }
-            }
+            Some(Ok((i, record)))
+        } else {
+            None
         }
-        Ok(())
     }
 }
 
@@ -275,20 +276,47 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .next()
         .unwrap()?;
 
-    let mut record_iterators = readers
+    let record_iterators = readers
         .into_iter()
         .map(|rdr| rdr.into_byte_records())
         .collect::<Vec<_>>();
 
-    let mut heap = MergeHeap::new(&sel, args.flag_numeric, args.flag_reverse);
+    let comparator = MergeHeapComparator::new(&sel, args.flag_numeric, args.flag_reverse);
+    let heap = MergeHeap::with_comparator(comparator.clone());
 
-    heap.try_for_each(args.flag_uniq, &mut record_iterators, |i, record| {
-        if args.flag_source_column.is_some() {
-            wtr.write_record([paths[i].as_bytes()].into_iter().chain(record))
+    let mut last_record: Option<(ByteRecord, usize)> = None;
+
+    macro_rules! write_record {
+        ($i: ident, $record: ident) => {{
+            if args.flag_source_column.is_some() {
+                wtr.write_record([paths[$i].as_bytes()].into_iter().chain(&$record))?;
+            } else {
+                wtr.write_byte_record(&$record)?;
+            }
+        }};
+    }
+
+    for result in heap.into_iter(record_iterators)? {
+        let (i, record) = result?;
+
+        if args.flag_uniq {
+            match last_record {
+                None => {
+                    write_record!(i, record);
+                    last_record = Some((record, i));
+                }
+                Some(ref r) => match comparator.cmp_record(&r.0, &record) {
+                    Ordering::Equal => (),
+                    _ => {
+                        write_record!(i, record);
+                        last_record = Some((record, i));
+                    }
+                },
+            }
         } else {
-            wtr.write_byte_record(record)
+            write_record!(i, record);
         }
-    })?;
+    }
 
     Ok(wtr.flush()?)
 }
