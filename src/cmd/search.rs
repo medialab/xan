@@ -6,14 +6,13 @@ use std::sync::Arc;
 
 use aho_corasick::AhoCorasick;
 use bstr::{ByteSlice, ByteVec};
-use indexmap::IndexMap;
 use levenshtein_automata::{Distance as LevenshteinDistance, LevenshteinAutomatonBuilder};
 use pariter::IteratorExt;
 use regex::bytes::{Regex, RegexBuilder};
 use regex_automata::{meta::Regex as RegexSet, util::syntax};
 use simd_csv::ByteRecord;
 
-use crate::collections::{ContextBuffer, HashMap};
+use crate::collections::{new_index_map, ContextBuffer, HashMap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::urls::{LRUStems, LRUTrieMap, TaggedUrl};
@@ -1187,7 +1186,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     });
 
     let consolidated_patterns = associated.as_ref().and_then(|names| {
-        let mut map: IndexMap<&[u8], Vec<usize>> = IndexMap::new();
+        let mut map: IndexMap<&[u8], Vec<usize>> = new_index_map();
 
         for (i, name) in names.iter().enumerate() {
             map.entry(name)

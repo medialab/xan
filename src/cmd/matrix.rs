@@ -1,8 +1,6 @@
-use ahash::RandomState;
-use indexmap::set::IndexSet;
 use simd_csv::ByteRecord;
 
-use crate::collections::HashMap;
+use crate::collections::{new_index_set, HashMap, IndexSet};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::CovarianceWelford;
 use crate::select::SelectedColumns;
@@ -10,10 +8,10 @@ use crate::util;
 use crate::CliResult;
 
 enum Axes {
-    Homogeneous(IndexSet<Vec<u8>, RandomState>),
+    Homogeneous(IndexSet<Vec<u8>>),
     Heterogeneous {
-        x: IndexSet<Vec<u8>, RandomState>,
-        y: IndexSet<Vec<u8>, RandomState>,
+        x: IndexSet<Vec<u8>>,
+        y: IndexSet<Vec<u8>>,
     },
 }
 
@@ -21,11 +19,11 @@ impl Axes {
     fn new(heterogeneous: bool) -> Self {
         if heterogeneous {
             Self::Heterogeneous {
-                x: IndexSet::with_hasher(RandomState::new()),
-                y: IndexSet::with_hasher(RandomState::new()),
+                x: new_index_set(),
+                y: new_index_set(),
             }
         } else {
-            Self::Homogeneous(IndexSet::with_hasher(RandomState::new()))
+            Self::Homogeneous(new_index_set())
         }
     }
 

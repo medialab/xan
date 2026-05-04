@@ -3,8 +3,6 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::ops::Not;
 
-use ahash::RandomState;
-use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use jiff::Zoned;
 use serde::ser::{SerializeMap, SerializeSeq, Serializer as _};
 use serde_json::{
@@ -12,7 +10,9 @@ use serde_json::{
     Value,
 };
 
-use crate::collections::{hash_map::Entry, HashMap, UnionFind};
+use crate::collections::{
+    hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map, HashMap, IndexMap, UnionFind,
+};
 use crate::config::Config;
 use crate::json::{Attributes, JSONType, INTERNER};
 use crate::xml::XMLWriter;
@@ -223,7 +223,7 @@ pub struct GraphBuilder {
     last_target_index: Option<usize>,
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
-    nodes: IndexMap<String, Attributes, RandomState>,
+    nodes: IndexMap<String, Attributes>,
     edges: EdgeStore,
 }
 
@@ -241,7 +241,7 @@ impl GraphBuilder {
             last_target_index: None,
             node_model: Vec::new(),
             edge_model: Vec::new(),
-            nodes: IndexMap::with_hasher(RandomState::new()),
+            nodes: new_index_map(),
             edges: if options.linear_edge_store {
                 EdgeStore::Linear(Vec::new())
             } else {

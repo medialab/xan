@@ -3,8 +3,6 @@ use std::hash::Hash;
 use std::iter::once;
 use std::sync::Arc;
 
-use ahash::RandomState;
-use indexmap::IndexMap;
 use jiff::Unit;
 use simd_csv::ByteRecord;
 
@@ -13,7 +11,7 @@ use super::aggregators::{
     Frequencies, Last, LexicographicExtent, MedianType, Numbers, NumericExtent, RMSWelford, Sum,
     TemporalExtent, Type, Types, Values, Welford,
 };
-use crate::collections::ClusteredInsertHashmap;
+use crate::collections::{new_index_map, ClusteredInsertHashmap, IndexMap};
 use crate::moonblade::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationError};
 use crate::moonblade::interpreter::{concretize_expression, ConcreteExpr, EvaluationContext};
 use crate::moonblade::parser::{parse_aggregations, Aggregations};
@@ -1474,7 +1472,7 @@ type GroupKey = Vec<Vec<u8>>;
 #[derive(Debug, Clone)]
 pub struct PivotAggregationProgram {
     planner: ConcreteAggregationPlanner,
-    groups: IndexMap<GroupKey, BTreeMap<Vec<u8>, CompositeAggregator>, RandomState>,
+    groups: IndexMap<GroupKey, BTreeMap<Vec<u8>, CompositeAggregator>>,
     headers_index: HeadersIndex,
     pivoted_column_names_index: PivotedColumnNamesIndex,
 }
@@ -1499,7 +1497,7 @@ impl PivotAggregationProgram {
 
         Ok(Self {
             planner,
-            groups: IndexMap::with_hasher(RandomState::new()),
+            groups: new_index_map(),
             headers_index,
             pivoted_column_names_index: PivotedColumnNamesIndex::default(),
         })

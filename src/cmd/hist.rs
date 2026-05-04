@@ -1,13 +1,12 @@
 use std::collections::BTreeMap;
 use std::io::{stdout, Write};
 
-use ahash::RandomState;
 use colored::Colorize;
-use indexmap::{map::Entry, IndexMap};
 use jiff::{civil::Date, Unit};
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::collections::{index_map::Entry, new_index_map, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::scales::{Scale, ScaleType};
 use crate::select::SelectedColumns;
@@ -166,8 +165,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|name| name.single_selection(&headers, !conf.no_headers))
         .transpose()?;
 
-    let mut category_colors: IndexMap<String, usize, RandomState> =
-        IndexMap::with_hasher(RandomState::new());
+    let mut category_colors: IndexMap<String, usize> = new_index_map();
     let mut categories_overflow: Vec<String> = Vec::new();
 
     while rdr.read_byte_record(&mut record)? {

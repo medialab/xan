@@ -2,15 +2,15 @@ use std::io::{stdout, Write};
 use std::rc::Rc;
 use std::str;
 
-use ahash::RandomState;
 use colored::Colorize;
 use dlv_list::{Index, VecList};
-use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use simd_csv::ByteRecord;
 use transient_btree_index::{BtreeConfig, BtreeIndex};
 use unicode_width::UnicodeWidthStr;
 
-use crate::collections::{hash_map::Entry, HashMap, HashSet};
+use crate::collections::{
+    hash_map::Entry, index_map::Entry as IndexMapEntry, new_index_map, HashMap, HashSet, IndexMap,
+};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::ChooseProgram;
 use crate::select::{SelectedColumns, Selection};
@@ -462,8 +462,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         // Unsorted choose
         (false, DedupMode::Choose(expr)) => {
-            let mut map: IndexMap<ByteRecord, ByteRecord, RandomState> =
-                IndexMap::with_hasher(RandomState::new());
+            let mut map: IndexMap<ByteRecord, ByteRecord> = new_index_map();
             let mut program = ChooseProgram::parse(&expr, &headers, rconf.no_headers)?;
             let mut record = ByteRecord::new();
             let mut index: usize = 0;

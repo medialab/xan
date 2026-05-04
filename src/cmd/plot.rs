@@ -6,9 +6,7 @@ use std::convert::TryFrom;
 use std::io::{stderr, stdout, Write};
 use std::num::NonZeroUsize;
 
-use ahash::RandomState;
 use bstr::BStr;
-use indexmap::IndexMap;
 use jiff::{tz::TimeZone, Timestamp, Unit, Zoned};
 use unicode_width::UnicodeWidthStr;
 
@@ -18,7 +16,7 @@ use ratatui::style::{Style, Stylize};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Chart, Dataset, GraphType};
 
-use crate::collections::HashMap;
+use crate::collections::{HashMap, IndexMap};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::agg::Welford;
 use crate::ratatui::print_ratatui_frame_to_stdout;
@@ -1485,7 +1483,7 @@ impl Series {
 
 #[derive(Default)]
 struct CategoricalSeries {
-    mapping: IndexMap<Vec<u8>, Series, RandomState>,
+    mapping: IndexMap<Vec<u8>, Series>,
 }
 
 impl CategoricalSeries {

@@ -6,8 +6,7 @@ use std::iter::repeat_n;
 use std::ops;
 use std::str::FromStr;
 
-use ahash::RandomState;
-use indexmap::IndexMap;
+use crate::collections::{new_index_map, IndexMap};
 
 #[derive(Clone, Deserialize)]
 #[serde(try_from = "String")]
@@ -400,12 +399,12 @@ enum OneSelector {
 impl Selector {
     fn indices(&self, first_record: &[&[u8]], use_names: bool) -> Result<Vec<usize>, String> {
         struct Map<'s> {
-            inner: IndexMap<&'s [u8], Vec<usize>, RandomState>,
+            inner: IndexMap<&'s [u8], Vec<usize>>,
         }
 
         impl<'s> Map<'s> {
             fn new(first_record: &'s [&[u8]]) -> Self {
-                let mut map = IndexMap::with_hasher(RandomState::new());
+                let mut map = new_index_map();
 
                 for (i, name) in first_record.iter().enumerate() {
                     let list: &mut Vec<usize> = map.entry(*name).or_default();
