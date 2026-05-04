@@ -3243,6 +3243,7 @@ dependencies = [
  "calamine",
  "colored",
  "colorgrad",
+ "compare",
  "comrak",
  "console",
  "csv",

@@ -1,15 +1,150 @@
 use std::cmp::Ordering;
-use std::io::Write;
 
 use binary_heap_plus::BinaryHeap;
 use colored::Colorize;
-use simd_csv::{ByteRecord, Writer};
+use compare::Compare;
+use simd_csv::ByteRecord;
 
 use crate::cmd::sort::{iter_cmp, iter_cmp_num};
 use crate::config::{Config, Delimiter};
-use crate::select::SelectedColumns;
+use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::CliResult;
+
+type MergeHeapEntry = (ByteRecord, usize);
+
+#[derive(Clone)]
+struct MergeHeapComparator {
+    sel: Selection,
+    numeric: bool,
+    reverse: bool,
+}
+
+impl MergeHeapComparator {
+    fn new(sel: &Selection, numeric: bool, reverse: bool) -> Self {
+        Self {
+            sel: sel.clone(),
+            numeric,
+            reverse,
+        }
+    }
+
+    fn cmp_record(&self, a: &ByteRecord, b: &ByteRecord) -> Ordering {
+        let a_sel = self.sel.select(a);
+        let b_sel = self.sel.select(b);
+
+        let ordering = if self.numeric {
+            iter_cmp_num(a_sel, b_sel)
+        } else {
+            iter_cmp(a_sel, b_sel)
+        };
+
+        // NOTE: remember the heap is a max heap
+        if self.reverse {
+            ordering
+        } else {
+            ordering.reverse()
+        }
+    }
+
+    #[inline]
+    fn cmp(&self, a: &MergeHeapEntry, b: &MergeHeapEntry) -> Ordering {
+        let ordering = self.cmp_record(&a.0, &b.0);
+
+        if ordering.is_eq() {
+            b.1.cmp(&a.1)
+        } else {
+            ordering
+        }
+    }
+}
+
+impl Compare<MergeHeapEntry> for MergeHeapComparator {
+    #[inline(always)]
+    fn compare(&self, l: &MergeHeapEntry, r: &MergeHeapEntry) -> Ordering {
+        self.cmp(l, r)
+    }
+}
+
+struct MergeHeap {
+    comparator: MergeHeapComparator,
+    inner: BinaryHeap<MergeHeapEntry, MergeHeapComparator>,
+}
+
+impl MergeHeap {
+    fn new(sel: &Selection, numeric: bool, reverse: bool) -> Self {
+        let comparator = MergeHeapComparator::new(sel, numeric, reverse);
+        let inner = BinaryHeap::from_vec_cmp(Vec::with_capacity(sel.len()), comparator.clone());
+
+        Self { comparator, inner }
+    }
+
+    #[inline(always)]
+    fn cmp_record(&self, a: &ByteRecord, b: &ByteRecord) -> Ordering {
+        self.comparator.cmp_record(a, b)
+    }
+
+    #[inline(always)]
+    fn push(&mut self, entry: MergeHeapEntry) {
+        self.inner.push(entry);
+    }
+
+    #[inline(always)]
+    fn pop(&mut self) -> Option<MergeHeapEntry> {
+        self.inner.pop()
+    }
+
+    fn try_for_each<F>(
+        &mut self,
+        uniq: bool,
+        iterators: &mut [impl Iterator<Item = simd_csv::Result<ByteRecord>>],
+        mut callback: F,
+    ) -> simd_csv::Result<()>
+    where
+        F: FnMut(usize, &ByteRecord) -> simd_csv::Result<()>,
+    {
+        for (i, iter) in iterators.iter_mut().enumerate() {
+            match iter.next() {
+                None => continue,
+                Some(record) => {
+                    self.push((record?, i));
+                }
+            }
+        }
+
+        let mut last_record: Option<(ByteRecord, usize)> = None;
+
+        while let Some(entry) = self.pop() {
+            let (record, i) = entry;
+
+            if uniq {
+                match last_record {
+                    None => {
+                        callback(i, &record)?;
+                        last_record = Some((record, i));
+                    }
+                    Some(ref r) => match self.cmp_record(&r.0, &record) {
+                        Ordering::Equal => (),
+                        _ => {
+                            callback(i, &record)?;
+                            last_record = Some((record, i));
+                        }
+                    },
+                }
+            } else {
+                callback(i, &record)?;
+            }
+
+            match iterators[i].next() {
+                None => continue,
+                Some(record) => {
+                    self.push((record?, i));
+                }
+            }
+        }
+        Ok(())
+    }
+}
 
 static USAGE: &str = "
 Merge multiple CSV files already sorted the same way. Those files MUST:
@@ -145,107 +280,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .map(|rdr| rdr.into_byte_records())
         .collect::<Vec<_>>();
 
-    fn write_record<W: Write>(
-        writer: &mut Writer<W>,
-        record: &ByteRecord,
-        path_opt: Option<&[u8]>,
-    ) -> simd_csv::Result<()> {
-        if let Some(path) = path_opt {
-            writer.write_record([path].into_iter().chain(record))
+    let mut heap = MergeHeap::new(&sel, args.flag_numeric, args.flag_reverse);
+
+    heap.try_for_each(args.flag_uniq, &mut record_iterators, |i, record| {
+        if args.flag_source_column.is_some() {
+            wtr.write_record([paths[i].as_bytes()].into_iter().chain(record))
         } else {
-            writer.write_byte_record(record)
+            wtr.write_byte_record(record)
         }
-    }
-
-    let cmp_record = |a: &ByteRecord, b: &ByteRecord| -> Ordering {
-        let a_sel = sel.select(a);
-        let b_sel = sel.select(b);
-
-        let ordering = if args.flag_numeric {
-            iter_cmp_num(a_sel, b_sel)
-        } else {
-            iter_cmp(a_sel, b_sel)
-        };
-
-        // NOTE: remember the heap is a max heap
-        if args.flag_reverse {
-            ordering
-        } else {
-            ordering.reverse()
-        }
-    };
-
-    let cmp = |a: &(ByteRecord, usize), b: &(ByteRecord, usize)| -> Ordering {
-        let ordering = cmp_record(&a.0, &b.0);
-
-        if ordering.is_eq() {
-            b.1.cmp(&a.1)
-        } else {
-            ordering
-        }
-    };
-
-    let mut heap = BinaryHeap::with_capacity_by(record_iterators.len(), cmp);
-
-    for (i, iter) in record_iterators.iter_mut().enumerate() {
-        match iter.next() {
-            None => continue,
-            Some(record) => {
-                heap.push((record?, i));
-            }
-        }
-    }
-
-    let mut last_record: Option<(ByteRecord, usize)> = None;
-
-    // TODO: factorize into a MergHeap
-
-    while let Some(entry) = heap.pop() {
-        let (record, i) = entry;
-
-        if args.flag_uniq {
-            match last_record {
-                None => {
-                    write_record(
-                        &mut wtr,
-                        &record,
-                        args.flag_source_column
-                            .as_ref()
-                            .map(|_| paths[i].as_bytes()),
-                    )?;
-                    last_record = Some((record, i));
-                }
-                Some(ref r) => match cmp_record(&r.0, &record) {
-                    Ordering::Equal => (),
-                    _ => {
-                        write_record(
-                            &mut wtr,
-                            &record,
-                            args.flag_source_column
-                                .as_ref()
-                                .map(|_| paths[i].as_bytes()),
-                        )?;
-                        last_record = Some((record, i));
-                    }
-                },
-            }
-        } else {
-            write_record(
-                &mut wtr,
-                &record,
-                args.flag_source_column
-                    .as_ref()
-                    .map(|_| paths[i].as_bytes()),
-            )?;
-        }
-
-        match record_iterators[i].next() {
-            None => continue,
-            Some(record) => {
-                heap.push((record?, i));
-            }
-        }
-    }
+    })?;
 
     Ok(wtr.flush()?)
 }
