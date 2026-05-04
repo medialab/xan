@@ -208,23 +208,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         while rdr.read_byte_record(&mut record)? {
             let group_key = gsel.select(&record).collect();
 
-            groups.insert_with_or_else(
-                group_key,
-                || {
-                    let mut fields = (0..sel.len()).map(|_| args.new_stats()).collect::<Vec<_>>();
+            let fields = groups.insert_with(group_key, || {
+                (0..sel.len()).map(|_| args.new_stats()).collect::<Vec<_>>()
+            });
 
-                    for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
-                        stats.process(cell);
-                    }
-
-                    fields
-                },
-                |fields| {
-                    for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
-                        stats.process(cell);
-                    }
-                },
-            );
+            for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
+                stats.process(cell);
+            }
         }
 
         for (group, fields) in groups.into_iter() {

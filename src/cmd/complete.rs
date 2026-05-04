@@ -313,11 +313,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
 
                 let key = group_sel.select(&record).collect::<ByteRecord>();
-                records_per_group.insert_with_or_else(
-                    key,
-                    || vec![record.clone()],
-                    |v| v.push(record.clone()),
-                );
+                let v = records_per_group.insert_with(key, Vec::new);
+                v.push(record.clone());
             }
         // Collecting all records together (artificial single group)
         } else {

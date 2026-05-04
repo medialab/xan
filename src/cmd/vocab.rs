@@ -285,27 +285,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 while rdr.read_byte_record(&mut record)? {
                     let doc = sel.select(&record).collect();
 
-                    doc_tokens.insert_with_or_else(
-                        doc,
-                        || match &args.flag_sep {
-                            Some(sep) => record[token_pos].split_str(sep).map(Rc::from).collect(),
-                            None => {
-                                vec![Rc::from(&record[token_pos])]
+                    let tokens = doc_tokens.insert_with(doc, Vec::new);
+
+                    match &args.flag_sep {
+                        Some(sep) => {
+                            for token in record[token_pos].split_str(sep) {
+                                tokens.push(Rc::from(token));
                             }
-                        },
-                        |tokens| {
-                            match &args.flag_sep {
-                                Some(sep) => {
-                                    for token in record[token_pos].split_str(sep) {
-                                        tokens.push(Rc::from(token));
-                                    }
-                                }
-                                None => {
-                                    tokens.push(Rc::from(&record[token_pos]));
-                                }
-                            };
-                        },
-                    );
+                        }
+                        None => {
+                            tokens.push(Rc::from(&record[token_pos]));
+                        }
+                    };
                 }
 
                 for bag_of_words in doc_tokens.into_values() {
@@ -735,19 +726,10 @@ impl Vocabulary {
         let token_stats = &mut self.tokens[token_id];
         token_stats.gf += 1;
 
-        let mut token_was_added = false;
-
-        let doc_was_inserted = self.documents.insert_with_or_else(
-            document,
-            || {
-                let mut doc_stats = DocumentStats::new();
-                doc_stats.add(token_id);
-                doc_stats
-            },
-            |doc_stats| {
-                token_was_added = doc_stats.add(token_id);
-            },
-        );
+        let (doc_was_inserted, doc_stats) = self
+            .documents
+            .checked_insert_with(document, DocumentStats::new);
+        let token_was_added = doc_stats.add(token_id);
 
         if token_was_added || doc_was_inserted {
             token_stats.df += 1;
@@ -1186,9 +1168,8 @@ impl Cooccurrences {
 
         let source_entry = &mut self.token_entries[source];
 
-        source_entry
-            .cooc
-            .insert_with_or_else(target, || 1, |count| *count += 1);
+        let count = source_entry.cooc.insert_with(target, || 0);
+        *count += 1;
 
         source_entry.gcf += 1;
 
@@ -1200,9 +1181,8 @@ impl Cooccurrences {
         let target_entry = &mut self.token_entries[target];
 
         if mode.is_full() {
-            target_entry
-                .cooc
-                .insert_with_or_else(source, || 1, |count| *count += 1);
+            let count = target_entry.cooc.insert_with(source, || 0);
+            *count += 1;
         }
 
         target_entry.gcf += 1;
