@@ -18,6 +18,7 @@ mod config;
 mod graph;
 mod json;
 mod moonblade;
+mod processing;
 mod ratatui;
 mod read;
 mod scales;

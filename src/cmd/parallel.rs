@@ -22,6 +22,7 @@ use crate::cmd::progress::get_progress_style;
 use crate::collections::Counter;
 use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
+use crate::processing::parse_pipeline;
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
@@ -968,28 +969,6 @@ impl Args {
 
             let exe = env::current_exe()?;
 
-            let raw_preprocessing = shlex::split(preprocessing).ok_or_else(|| {
-                format!("could not parse shell expression: {}", preprocessing.cyan())
-            })?;
-
-            let mut preprocessing = Vec::with_capacity(raw_preprocessing.len());
-
-            // NOTE: renormalizing tokens around pipes (e.g. when given a pipe
-            // that is not separated by a space `progress |search -es Category`).
-            for token in raw_preprocessing.into_iter() {
-                if token == "|" {
-                    preprocessing.push(token);
-                } else if let Some(rest) = token.strip_prefix("|") {
-                    preprocessing.push("|".to_string());
-                    preprocessing.push(rest.trim().to_string());
-                } else if let Some(rest) = token.strip_suffix("|") {
-                    preprocessing.push(rest.trim().to_string());
-                    preprocessing.push("|".to_string());
-                } else {
-                    preprocessing.push(token);
-                }
-            }
-
             let mut children: Vec<Child> = Vec::new();
 
             if let Input::FileChunk(file_chunk) = input {
@@ -1009,15 +988,9 @@ impl Args {
                 );
             }
 
-            for mut step in preprocessing.split(|token| token == "|") {
+            for step in parse_pipeline(preprocessing)? {
                 let mut command = Command::new(exe.clone());
                 command.stdout(Stdio::piped()).stderr(Stdio::piped());
-
-                if let Some(first) = step.first() {
-                    if first == "xan" {
-                        step = &step[1..];
-                    }
-                }
 
                 for arg in step {
                     command.arg(arg);
