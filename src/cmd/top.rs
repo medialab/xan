@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 
-use crate::collections::{ClusteredInsertHashmap, Forward, TopKHeapMap, TopKHeapMapWithTies};
+use crate::collections::{ClusteredInsertHashmap, Forward, TopKHeapMapWithTies};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -158,10 +158,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     macro_rules! run {
-        ($heap:ident, $type:ident) => {{
+        ($type:ident) => {{
             let mut record = ByteRecord::new();
-            let mut heap =
-                $heap::<$type<Value>, ByteRecord>::with_capacity(usize::from(args.flag_limit));
+            let mut heap = TopKHeapMapWithTies::<$type<Value>, ByteRecord>::with_capacity(
+                usize::from(args.flag_limit),
+                args.flag_ties,
+            );
 
             while rdr.read_byte_record(&mut record)? {
                 if let Some(score) = args.new_value(&record[score_col]) {
@@ -180,17 +182,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     macro_rules! run_groupby {
-        ($heap:ident, $type:ident, $sel:ident) => {{
+        ($type:ident, $sel:ident) => {{
             let mut record = ByteRecord::new();
-            let mut groups: ClusteredInsertHashmap<ByteRecord, $heap<$type<Value>, ByteRecord>> =
-                ClusteredInsertHashmap::new();
+            let mut groups: ClusteredInsertHashmap<
+                ByteRecord,
+                TopKHeapMapWithTies<$type<Value>, ByteRecord>,
+            > = ClusteredInsertHashmap::new();
 
             while rdr.read_byte_record(&mut record)? {
                 if let Some(score) = args.new_value(&record[score_col]) {
                     let group = $sel.select(&record).collect();
 
-                    let heap = groups
-                        .insert_with(group, || $heap::with_capacity(usize::from(args.flag_limit)));
+                    let heap = groups.insert_with(group, || {
+                        TopKHeapMapWithTies::with_capacity(
+                            usize::from(args.flag_limit),
+                            args.flag_ties,
+                        )
+                    });
 
                     heap.push_with($type(score), || record.clone());
                 }
@@ -210,15 +218,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }};
     }
 
-    match (args.flag_reverse, args.flag_ties, groupby_sel_opt) {
-        (true, false, None) => run!(TopKHeapMap, Reverse),
-        (false, false, None) => run!(TopKHeapMap, Forward),
-        (true, false, Some(sel)) => run_groupby!(TopKHeapMap, Reverse, sel),
-        (false, false, Some(sel)) => run_groupby!(TopKHeapMap, Forward, sel),
-        (true, true, None) => run!(TopKHeapMapWithTies, Reverse),
-        (false, true, None) => run!(TopKHeapMapWithTies, Forward),
-        (true, true, Some(sel)) => run_groupby!(TopKHeapMapWithTies, Reverse, sel),
-        (false, true, Some(sel)) => run_groupby!(TopKHeapMapWithTies, Forward, sel),
+    match (args.flag_reverse, groupby_sel_opt) {
+        (true, None) => run!(Reverse),
+        (false, None) => run!(Forward),
+        (true, Some(sel)) => run_groupby!(Reverse, sel),
+        (false, Some(sel)) => run_groupby!(Forward, sel),
     };
 
     Ok(wtr.flush()?)

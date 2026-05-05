@@ -184,20 +184,20 @@ impl<T: Ord + Clone, V: Clone> TopKHeapMap<T, V> {
 pub struct TopKHeapMapWithTies<T, V> {
     capacity: usize,
     heap: BinaryHeap<(Reverse<T>, Arbitrary<V>)>,
-    ties: Vec<(T, V)>,
+    ties: Option<Vec<(T, V)>>,
 }
 
 impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize, ties: bool) -> Self {
         Self {
             capacity,
             heap: BinaryHeap::with_capacity(capacity),
-            ties: Vec::new(),
+            ties: ties.then(Vec::new),
         }
     }
 
     pub fn len(&self) -> usize {
-        self.heap.len() + self.ties.len()
+        self.heap.len() + self.ties.as_ref().map(|ties| ties.len()).unwrap_or(0)
     }
 
     pub fn push_with<F>(&mut self, item: T, callback: F) -> bool
@@ -219,18 +219,24 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
 
                     heap.push((Reverse(item), Arbitrary(callback())));
 
-                    self.ties.clear();
+                    if let Some(ties) = &mut self.ties {
+                        ties.clear();
+                    }
 
                     if worst_item_popped.0 .0 == heap.peek().unwrap().0 .0 {
                         std::mem::swap(&mut heap.peek_mut().unwrap().1, &mut worst_item_popped.1);
-                        self.ties
-                            .push((worst_item_popped.0 .0, worst_item_popped.1 .0));
+
+                        if let Some(ties) = &mut self.ties {
+                            ties.push((worst_item_popped.0 .0, worst_item_popped.1 .0));
+                        }
                     }
 
                     return true;
                 }
                 Ordering::Equal => {
-                    self.ties.push((item, callback()));
+                    if let Some(ties) = &mut self.ties {
+                        ties.push((item, callback()));
+                    }
                     return true;
                 }
                 _ => (),
@@ -256,9 +262,11 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
 
         i = hl;
 
-        for pair in self.ties {
-            uninit[i].write(pair);
-            i += 1;
+        if let Some(ties) = self.ties {
+            for pair in ties {
+                uninit[i].write(pair);
+                i += 1;
+            }
         }
 
         unsafe {
@@ -310,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_map_with_ties() {
-        let mut heap = TopKHeapMapWithTies::with_capacity(2);
+        let mut heap = TopKHeapMapWithTies::with_capacity(2, true);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(3, || "three");
@@ -321,7 +329,7 @@ mod tests {
         );
 
         // Final ties
-        let mut heap = TopKHeapMapWithTies::with_capacity(2);
+        let mut heap = TopKHeapMapWithTies::with_capacity(2, true);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(3, || "three");
@@ -336,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_map_with_ties_special_order() {
-        let mut heap = TopKHeapMapWithTies::with_capacity(2);
+        let mut heap = TopKHeapMapWithTies::with_capacity(2, true);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(2, || "three");
