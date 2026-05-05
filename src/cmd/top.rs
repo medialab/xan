@@ -11,20 +11,20 @@ use crate::util;
 use crate::CliResult;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
-enum Value {
+pub enum Value {
     Float(NotNan<f64>),
     String(Vec<u8>),
 }
 
 impl Value {
-    fn new_float(cell: &[u8]) -> Option<Self> {
+    pub fn new_float(cell: &[u8]) -> Option<Self> {
         fast_float::parse::<f64, &[u8]>(cell)
             .ok()
             .and_then(|f| NotNan::new(f).ok())
             .map(Self::Float)
     }
 
-    fn new_string(cell: &[u8]) -> Option<Self> {
+    pub fn new_string(cell: &[u8]) -> Option<Self> {
         Some(Self::String(cell.to_vec()))
     }
 }
@@ -138,7 +138,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let mut rdr = rconf.simd_reader()?;
     let headers = rdr.byte_headers()?;
-    let score_col = rconf.single_selection(headers)?;
+    let score_column = rconf.single_selection(headers)?;
 
     let groupby_sel_opt = args
         .flag_groupby
@@ -164,7 +164,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         > = ClusteredInsertHashmap::new();
 
         while rdr.read_byte_record(&mut record)? {
-            if let Some(score) = args.new_value(&record[score_col]) {
+            if let Some(score) = args.new_value(&record[score_column]) {
                 let group = sel.select(&record).collect();
 
                 let heap = groups.insert_with(group, || {
@@ -192,7 +192,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         );
 
         while rdr.read_byte_record(&mut record)? {
-            if let Some(score) = args.new_value(&record[score_col]) {
+            if let Some(score) = args.new_value(&record[score_column]) {
                 heap.push_with(DynamicOrd::new(score, args.flag_reverse), || record.clone());
             }
         }

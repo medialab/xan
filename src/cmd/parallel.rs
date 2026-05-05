@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{self, stderr, stdout, IsTerminal, Read, Write};
+use std::iter::once;
 use std::num::NonZeroUsize;
 use std::ops;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,8 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 use simd_csv::ByteRecord;
 
 use crate::cmd::progress::get_progress_style;
-use crate::collections::Counter;
+use crate::cmd::top::Value as TopValue;
+use crate::collections::{Counter, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
 use crate::processing::parse_pipeline;
@@ -556,9 +558,7 @@ impl InputReader {
 
     fn headers(&self, fallback: &ByteRecord) -> ByteRecord {
         if let Some(h) = &self.headers {
-            let mut new_h = ByteRecord::new();
-            new_h.extend(h);
-            new_h
+            h.clone()
         } else {
             fallback.clone()
         }
@@ -610,6 +610,8 @@ parallel reduce operation:
     - `agg`: parallelize a custom aggregation. See \"xan agg -h\" for more details.
     - `groupby`: parallelize a custom grouped aggregation. See \"xan groupby -h\"
         for more details.
+    - `top`: return top 10 rows (or any count using the -l/--limit flag) maximizing
+        given <column>.
     - `map`: writes the result of given preprocessing in a new
         file besides the original one. This subcommand takes a filename template
         where `{}` will be replaced by the name of each target file without any
@@ -638,7 +640,8 @@ Usage:
     xan parallel stats [options] [<inputs>...]
     xan parallel agg [options] <expr> [<inputs>...]
     xan parallel groupby [options] <group> <expr> [<inputs>...]
-    xan parallel map <template> [options] [<inputs>...]
+    xan parallel top [options] <column> [<inputs>...]
+    xan parallel map [options] <template> [<inputs>...]
     xan parallel --help
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
@@ -646,7 +649,8 @@ Usage:
     xan p stats [options] [<inputs>...]
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
-    xan p map <template> [options] [<inputs>...]
+    xan p top [options] <column> [<inputs>...]
+    xan p map [options] <template> [<inputs>...]
     xan p --help
 
 parallel options:
@@ -685,7 +689,7 @@ parallel freq options:
     --sep <char>         Split the cell into multiple values to count using the
                          provided separator.
     -A, --all            Remove the limit.
-    -l, --limit <arg>    Limit the frequency table to the N most common
+    -l, --limit <n>      Limit the frequency table to the N most common
                          items. Use -A, -all or set to 0 to disable the limit.
                          [default: 10]
     -a, --approx         If set, return the items most likely having the top counts,
@@ -704,6 +708,16 @@ parallel stats options:
     -a, --approx           Show approximated statistics.
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
+
+parallel top options:
+    -l, --limit <n>       Number of top items to return. Cannot be < 1.
+                          [default: 10]
+    -R, --reverse         Reverse order.
+    -L, --lexicographic   Rank values lexicographically instead of considering
+                          them as numbers.
+    -r, --rank <col>      Name of a rank column to prepend.
+    -T, --ties            Keep all rows tied for last. Will therefore
+                          consume O(k + t) memory, t being the number of ties.
 
 parallel map options:
     -z, --compress <kind>  Compress created files using either \"gz|gzip\" or \"zst|zstd\"
@@ -727,10 +741,12 @@ pub struct Args {
     pub cmd_stats: bool,
     pub cmd_agg: bool,
     pub cmd_groupby: bool,
+    pub cmd_top: bool,
     cmd_map: bool,
     pub arg_inputs: Vec<String>,
     pub arg_expr: Option<String>,
     pub arg_group: Option<SelectedColumns>,
+    pub arg_column: Option<SelectedColumns>,
     arg_template: Option<FilenameTemplate>,
     pub flag_preprocess: Option<String>,
     pub flag_shell_preprocess: Option<String>,
@@ -753,6 +769,10 @@ pub struct Args {
     pub flag_output: Option<String>,
     pub flag_no_headers: bool,
     pub flag_delimiter: Option<Delimiter>,
+    pub flag_reverse: bool,
+    pub flag_lexicographic: bool,
+    pub flag_rank: Option<String>,
+    pub flag_ties: bool,
 }
 
 type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
@@ -1251,10 +1271,7 @@ impl Args {
         }
 
         // NOTE: the option tracks whether headers were already written
-        let writer_mutex = Arc::new(Mutex::new((
-            None,
-            Config::new(&self.flag_output).simd_writer()?,
-        )));
+        let writer_mutex = Mutex::new((None, Config::new(&self.flag_output).simd_writer()?));
 
         let buffer_size_opt = if self.flag_buffer_size <= 0 {
             None
@@ -1327,12 +1344,7 @@ impl Args {
 
         process_manager.succeed();
 
-        Arc::into_inner(writer_mutex)
-            .unwrap()
-            .into_inner()
-            .unwrap()
-            .1
-            .flush()?;
+        writer_mutex.into_inner().unwrap().1.flush()?;
 
         Ok(())
     }
@@ -1350,7 +1362,7 @@ impl Args {
 
         let process_manager = self.process_manager(inputs.len());
 
-        let total_freq_tables_mutex = Arc::new(Mutex::new(FrequencyTables::new()));
+        let total_freq_tables_mutex = Mutex::new(FrequencyTables::new());
 
         inputs.par_iter().try_for_each(|input| -> CliResult<()> {
             let mut input_reader = self.io_reader(input)?;
@@ -1393,10 +1405,7 @@ impl Args {
 
         writer.write_byte_record(&output_record)?;
 
-        let total_freq_tables = Arc::into_inner(total_freq_tables_mutex)
-            .unwrap()
-            .into_inner()
-            .unwrap();
+        let total_freq_tables = total_freq_tables_mutex.into_inner().unwrap();
 
         for (field, (total, items)) in
             total_freq_tables.into_total_and_items(if self.flag_limit == 0 {
@@ -1667,6 +1676,88 @@ impl Args {
         Ok(())
     }
 
+    fn top(self, inputs: Vec<Input>) -> CliResult<()> {
+        let process_manager = self.process_manager(inputs.len());
+
+        let total_heap_mutex: Mutex<(Option<ByteRecord>, _)> = Mutex::new((
+            None,
+            TopKHeapMapWithTies::<DynamicOrd<TopValue>, ByteRecord>::with_capacity(
+                self.flag_limit,
+                self.flag_ties,
+            ),
+        ));
+
+        let new_value = |cell: &[u8]| -> Option<TopValue> {
+            if self.flag_lexicographic {
+                TopValue::new_string(cell)
+            } else {
+                TopValue::new_float(cell)
+            }
+        };
+
+        inputs.par_iter().try_for_each(|input| -> CliResult<()> {
+            let mut input_reader = self.io_reader(input)?;
+            let progress_bar = process_manager.start(&input.name(), input_reader.take_children());
+            let mut csv_reader = input_reader.take_simd_csv_reader();
+
+            let headers = input_reader.headers(csv_reader.byte_headers()?);
+            let score_column = self
+                .arg_column
+                .as_ref()
+                .unwrap()
+                .single_selection(&headers, true)?;
+
+            let mut local_heap =
+                TopKHeapMapWithTies::<DynamicOrd<TopValue>, ByteRecord>::with_capacity(
+                    self.flag_limit,
+                    self.flag_ties,
+                );
+
+            let mut record = ByteRecord::new();
+
+            while csv_reader.read_byte_record(&mut record)? {
+                if let Some(score) = new_value(&record[score_column]) {
+                    local_heap
+                        .push_with(DynamicOrd::new(score, self.flag_reverse), || record.clone());
+                }
+
+                progress_bar.tick();
+            }
+
+            let mut total_heap = total_heap_mutex.lock().unwrap();
+
+            total_heap.1.merge(local_heap);
+
+            if total_heap.0.is_none() && !self.flag_no_headers {
+                total_heap.0 = Some(headers);
+            }
+
+            process_manager.stop(&input.name());
+
+            Ok(())
+        })?;
+
+        let (headers_opt, total_heap) = total_heap_mutex.into_inner().unwrap();
+
+        let mut writer = Config::new(&self.flag_output).simd_writer()?;
+
+        if let Some(headers) = headers_opt {
+            writer.write_byte_record(&headers)?;
+        }
+
+        for (i, (_, record)) in total_heap.into_sorted_vec().into_iter().enumerate() {
+            if self.flag_rank.is_some() {
+                writer.write_record(once((i + 1).to_string().as_bytes()).chain(record.iter()))?;
+            } else {
+                writer.write_byte_record(&record)?;
+            }
+        }
+
+        process_manager.succeed();
+
+        Ok(())
+    }
+
     pub fn run(mut self) -> CliResult<()> {
         let (inputs, actual_threads) = self.inputs()?;
 
@@ -1686,24 +1777,24 @@ impl Args {
         self.flag_threads = Some(NonZeroUsize::new(actual_threads).unwrap());
 
         if self.cmd_count {
-            self.count(inputs)?;
+            self.count(inputs)
         } else if self.cmd_cat {
-            self.cat(inputs)?;
+            self.cat(inputs)
         } else if self.cmd_freq {
-            self.freq(inputs)?;
+            self.freq(inputs)
         } else if self.cmd_stats {
-            self.stats(inputs)?;
+            self.stats(inputs)
         } else if self.cmd_agg {
-            self.agg(inputs)?;
+            self.agg(inputs)
         } else if self.cmd_groupby {
-            self.groupby(inputs)?;
+            self.groupby(inputs)
+        } else if self.cmd_top {
+            self.top(inputs)
         } else if self.cmd_map {
-            self.map(inputs)?;
+            self.map(inputs)
         } else {
             unreachable!()
         }
-
-        Ok(())
     }
 }
 

@@ -270,8 +270,10 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
                 Ordering::Equal => {
                     if let Some(ties) = &mut self.ties {
                         ties.push((item, callback()));
+                        return true;
                     }
-                    return true;
+
+                    return false;
                 }
                 _ => (),
             };
@@ -308,6 +310,16 @@ impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
         }
 
         items
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        debug_assert!(
+            self.capacity == other.capacity && self.ties.is_some() == other.ties.is_some()
+        );
+
+        for (Reverse(k), Arbitrary(v)) in other.heap.into_iter() {
+            self.push_with(k, || v);
+        }
     }
 }
 
