@@ -261,3 +261,75 @@ fn parallel_groupby() {
     ];
     assert_eq!(got, expected);
 }
+
+#[test]
+fn parallel_top() {
+    let wrk = Workdir::new("parallel_top");
+    wrk.create("data1.csv", vec![svec!["n"], svec!["4"], svec!["7"]]);
+    wrk.create("data2.csv", vec![svec!["n"], svec!["8"]]);
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("top")
+        .arg("n")
+        .args(["-l", "1"])
+        .arg("data1.csv")
+        .arg("data2.csv");
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+
+    let expected = vec![svec!["n"], svec!["8"]];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn parallel_top_single_file() {
+    let wrk = Workdir::new("parallel_top_single_file");
+
+    let mut cmd = wrk.command("parallel");
+    cmd.arg("top")
+        .args(["-l", "3"])
+        .arg("Units")
+        .arg(wrk.resource("series.csv"));
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        [
+            "Category",
+            "Format",
+            "Year",
+            "year-date",
+            "Units",
+            "Revenues in millions",
+            "Revenues in millions (Adjusted for inflation)",
+        ],
+        [
+            "Download",
+            "Download Single",
+            "2012",
+            "2012-01-01",
+            "1402.739373",
+            "1644.570645",
+            "1831.258646",
+        ],
+        [
+            "Download",
+            "Download Single",
+            "2013",
+            "2013-01-01",
+            "1332.795366",
+            "1573.420534",
+            "1726.739156",
+        ],
+        [
+            "Download",
+            "Download Single",
+            "2011",
+            "2011-01-01",
+            "1332.3",
+            "1522.4",
+            "1730.301179",
+        ],
+    ];
+
+    assert_eq!(got, expected);
+}

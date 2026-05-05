@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 
+use crate::cmd::parallel::Args as ParallelArgs;
 use crate::collections::{ClusteredInsertHashmap, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
@@ -83,16 +84,22 @@ Usage:
     xan top --help
 
 top options:
-    -l, --limit <n>       Number of top items to return. Cannot be < 1.
-                          [default: 10]
-    -R, --reverse         Reverse order.
-    -L, --lexicographic   Rank values lexicographically instead of considering
-                          them as numbers.
-    -g, --groupby <cols>  Return top n values per group, represented
-                          by the values in given columns.
-    -r, --rank <col>      Name of a rank column to prepend.
-    -T, --ties            Keep all rows tied for last. Will therefore
-                          consume O(k + t) memory, t being the number of ties.
+    -l, --limit <n>          Number of top items to return. Cannot be < 1.
+                             [default: 10]
+    -R, --reverse            Reverse order.
+    -L, --lexicographic      Rank values lexicographically instead of considering
+                             them as numbers.
+    -g, --groupby <cols>     Return top n values per group, represented
+                             by the values in given columns.
+    -r, --rank <col>         Name of a rank column to prepend.
+    -T, --ties               Keep all rows tied for last. Will therefore
+                             consume O(k + t) memory, t being the number of ties.
+    -p, --parallel           Whether to use parallelization to speed up computation.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message
@@ -116,6 +123,8 @@ struct Args {
     flag_rank: Option<String>,
     flag_ties: bool,
     flag_lexicographic: bool,
+    flag_parallel: bool,
+    flag_threads: Option<NonZeroUsize>,
 }
 
 impl Args {
@@ -130,6 +139,28 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
+
+    if args.flag_parallel || args.flag_threads.is_some() {
+        if args.flag_groupby.is_some() {
+            Err("-p/--parallel or -t/--threads cannot be used with -g/--groupby!")?;
+        }
+
+        let mut parallel_args = ParallelArgs::single_file(&args.arg_input, args.flag_threads)?;
+
+        parallel_args.cmd_top = true;
+        parallel_args.arg_column = Some(args.arg_column);
+        parallel_args.flag_limit = args.flag_limit.get();
+        parallel_args.flag_rank = args.flag_rank;
+        parallel_args.flag_ties = args.flag_ties;
+        parallel_args.flag_reverse = args.flag_reverse;
+        parallel_args.flag_lexicographic = args.flag_lexicographic;
+
+        parallel_args.flag_no_headers = args.flag_no_headers;
+        parallel_args.flag_output = args.flag_output;
+        parallel_args.flag_delimiter = args.flag_delimiter;
+
+        return parallel_args.run();
+    }
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)

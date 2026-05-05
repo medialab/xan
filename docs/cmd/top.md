@@ -55,16 +55,22 @@ Usage:
     xan top --help
 
 top options:
-    -l, --limit <n>       Number of top items to return. Cannot be < 1.
-                          [default: 10]
-    -R, --reverse         Reverse order.
-    -L, --lexicographic   Rank values lexicographically instead of considering
-                          them as numbers.
-    -g, --groupby <cols>  Return top n values per group, represented
-                          by the values in given columns.
-    -r, --rank <col>      Name of a rank column to prepend.
-    -T, --ties            Keep all rows tied for last. Will therefore
-                          consume O(k + t) memory, t being the number of ties.
+    -l, --limit <n>          Number of top items to return. Cannot be < 1.
+                             [default: 10]
+    -R, --reverse            Reverse order.
+    -L, --lexicographic      Rank values lexicographically instead of considering
+                             them as numbers.
+    -g, --groupby <cols>     Return top n values per group, represented
+                             by the values in given columns.
+    -r, --rank <col>         Name of a rank column to prepend.
+    -T, --ties               Keep all rows tied for last. Will therefore
+                             consume O(k + t) memory, t being the number of ties.
+    -p, --parallel           Whether to use parallelization to speed up computation.
+                             Will automatically select a suitable number of threads to use
+                             based on your number of cores. Use -t, --threads if you want to
+                             indicate the number of threads yourself.
+    -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
+                             if you want the number of threads to be automatically chosen instead.
 
 Common options:
     -h, --help               Display this message

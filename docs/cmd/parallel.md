@@ -46,6 +46,8 @@ parallel reduce operation:
     - `agg`: parallelize a custom aggregation. See "xan agg -h" for more details.
     - `groupby`: parallelize a custom grouped aggregation. See "xan groupby -h"
         for more details.
+    - `top`: return top 10 rows (or any count using the -l/--limit flag) maximizing
+        given <column>.
     - `map`: writes the result of given preprocessing in a new
         file besides the original one. This subcommand takes a filename template
         where `{}` will be replaced by the name of each target file without any
@@ -74,7 +76,8 @@ Usage:
     xan parallel stats [options] [<inputs>...]
     xan parallel agg [options] <expr> [<inputs>...]
     xan parallel groupby [options] <group> <expr> [<inputs>...]
-    xan parallel map <template> [options] [<inputs>...]
+    xan parallel top [options] <column> [<inputs>...]
+    xan parallel map [options] <template> [<inputs>...]
     xan parallel --help
     xan p count [options] [<inputs>...]
     xan p cat [options] [<inputs>...]
@@ -82,7 +85,8 @@ Usage:
     xan p stats [options] [<inputs>...]
     xan p agg [options] <expr> [<inputs>...]
     xan p groupby [options] <group> <expr> [<inputs>...]
-    xan p map <template> [options] [<inputs>...]
+    xan p top [options] <column> [<inputs>...]
+    xan p map [options] <template> [<inputs>...]
     xan p --help
 
 parallel options:
@@ -121,7 +125,7 @@ parallel freq options:
     --sep <char>         Split the cell into multiple values to count using the
                          provided separator.
     -A, --all            Remove the limit.
-    -l, --limit <arg>    Limit the frequency table to the N most common
+    -l, --limit <n>      Limit the frequency table to the N most common
                          items. Use -A, -all or set to 0 to disable the limit.
                          [default: 10]
     -a, --approx         If set, return the items most likely having the top counts,
@@ -140,6 +144,16 @@ parallel stats options:
     -a, --approx           Show approximated statistics.
     --nulls                Include empty values in the population size for computing
                            mean and standard deviation.
+
+parallel top options:
+    -l, --limit <n>       Number of top items to return. Cannot be < 1.
+                          [default: 10]
+    -R, --reverse         Reverse order.
+    -L, --lexicographic   Rank values lexicographically instead of considering
+                          them as numbers.
+    -r, --rank <col>      Name of a rank column to prepend.
+    -T, --ties            Keep all rows tied for last. Will therefore
+                          consume O(k + t) memory, t being the number of ties.
 
 parallel map options:
     -z, --compress <kind>  Compress created files using either "gz|gzip" or "zst|zstd"

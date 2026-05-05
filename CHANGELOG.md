@@ -34,6 +34,7 @@
 * Adding `xan dedup --u32`.
 * Adding `xan explode -e/--evaluate, -f/--evaluate-file, --pad & -k/--keep`.
 * `xan to npy` is now able to stream.
+* Adding `xan parallel top` & `xan top -p/--parallel, -t/--threads`.
 
 *Fixes*
 
