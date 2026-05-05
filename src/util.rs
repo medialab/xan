@@ -9,9 +9,7 @@ use std::process::Command;
 use std::str;
 
 use colored::{Color, ColoredString, Colorize, Styles};
-use deepsize::DeepSizeOf;
 use docopt::Docopt;
-use ext_sort::ExternalChunk;
 use lazy_static::lazy_static;
 use numfmt::{Formatter, Numeric, Precision};
 use rand::RngCore;
@@ -787,81 +785,6 @@ pub trait ChunksIteratorExt: Sized {
 impl<T: Iterator> ChunksIteratorExt for T {
     fn chunks(self, size: NonZeroUsize) -> Chunks<Self> {
         Chunks { size, inner: self }
-    }
-}
-
-// A custom implementation de/serializing ext-sort chunks as CSV
-pub struct DeepSizedByteRecord(pub simd_csv::ByteRecord);
-
-impl DeepSizedByteRecord {
-    pub fn as_ref(&self) -> &simd_csv::ByteRecord {
-        &self.0
-    }
-
-    pub fn into_inner(self) -> simd_csv::ByteRecord {
-        self.0
-    }
-}
-
-impl DeepSizeOf for DeepSizedByteRecord {
-    fn deep_size_of(&self) -> usize {
-        std::mem::size_of::<simd_csv::ByteRecord>() + self.0.as_slice().len()
-    }
-
-    fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
-        self.deep_size_of()
-    }
-}
-
-pub struct CsvExternalChunk {
-    reader: simd_csv::Reader<io::Take<io::BufReader<fs::File>>>,
-}
-
-impl ExternalChunk<DeepSizedByteRecord> for CsvExternalChunk {
-    type SerializationError = simd_csv::Error;
-    type DeserializationError = simd_csv::Error;
-
-    fn new(reader: io::Take<io::BufReader<fs::File>>) -> Self {
-        CsvExternalChunk {
-            reader: simd_csv::ReaderBuilder::new()
-                .has_headers(false)
-                .from_reader(reader),
-        }
-    }
-
-    fn dump(
-        chunk_writer: &mut io::BufWriter<fs::File>,
-        items: impl IntoIterator<Item = DeepSizedByteRecord>,
-    ) -> Result<(), Self::SerializationError> {
-        let mut csv_writer = simd_csv::Writer::from_writer(chunk_writer);
-
-        for item in items.into_iter() {
-            csv_writer.write_record(item.as_ref())?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Iterator for CsvExternalChunk {
-    type Item = Result<
-        DeepSizedByteRecord,
-        <Self as ExternalChunk<DeepSizedByteRecord>>::DeserializationError,
-    >;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut record = simd_csv::ByteRecord::new();
-
-        match self.reader.read_byte_record(&mut record) {
-            Ok(read) => {
-                if read {
-                    Some(Ok(DeepSizedByteRecord(record)))
-                } else {
-                    None
-                }
-            }
-            Err(err) => Some(Err(err)),
-        }
     }
 }
 

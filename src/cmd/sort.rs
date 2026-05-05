@@ -1,19 +1,19 @@
 use std::cmp;
-use std::io::{stdout, Write};
+use std::fs::File;
+use std::io::{stdout, Seek, Write};
 use std::iter::once;
-use std::path::Path;
 use std::str;
 
 use bytesize::MB;
 use colored::Colorize;
-use ext_sort::{buffer::mem::MemoryLimitedBufferBuilder, ExternalSorter, ExternalSorterBuilder};
 use rayon::slice::ParallelSliceMut;
-use simd_csv::{ByteRecord, Error};
+use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
+use crate::cmd::merge::{MergeHeap, MergeHeapComparator};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
-use crate::util::{self, DeepSizedByteRecord};
+use crate::util;
 use crate::CliResult;
 
 use self::Number::{Float, Int};
@@ -351,53 +351,87 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         return Ok(wtr.flush()?);
     }
 
+    let mut chunks: Vec<File> = vec![];
+
     // Sorting rows
     let all: Box<dyn Iterator<Item = ByteRecord>> = if args.flag_external {
-        let tmp_dir = args.flag_tmp_dir.unwrap_or(match args.arg_input {
-            None => "./".to_string(),
-            Some(p) => Path::new(&p)
-                .parent()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string(),
-        });
+        let tmp_dir = match args.flag_tmp_dir {
+            Some(dir) => tempfile::TempDir::new_in(dir)?,
+            None => tempfile::TempDir::new()?,
+        };
 
-        let mut sorter_builder = ExternalSorterBuilder::new()
-            .with_tmp_dir(Path::new(&tmp_dir))
-            .with_buffer(MemoryLimitedBufferBuilder::new(args.flag_memory_limit * MB));
+        let mut buffer: Vec<ByteRecord> = vec![];
 
-        if args.flag_parallel {
-            sorter_builder = sorter_builder.with_threads_number(crate::util::default_num_cpus());
+        let max_bytes = args.flag_memory_limit * MB;
+        let mut current_buffer_size: u64 = 0;
+
+        let flush_buffer =
+            |buffer: &mut Vec<ByteRecord>, chunks: &mut Vec<File>| -> CliResult<()> {
+                // Sorting
+                if args.flag_unstable {
+                    if args.flag_parallel {
+                        sort_by!(buffer, par_sort_unstable_by, sel, numeric, reverse);
+                    } else {
+                        sort_by!(buffer, sort_unstable_by, sel, numeric, reverse);
+                    }
+                } else if args.flag_parallel {
+                    sort_by!(buffer, par_sort_by, sel, numeric, reverse);
+                } else {
+                    sort_by!(buffer, sort_by, sel, numeric, reverse);
+                }
+
+                // Writing chunk
+                let mut file = tempfile::tempfile_in(&tmp_dir)?;
+                let mut writer = simd_csv::Writer::from_writer(&mut file);
+
+                for record in buffer.iter() {
+                    writer.write_byte_record(record)?;
+                }
+
+                std::mem::drop(writer);
+
+                file.rewind()?;
+                chunks.push(file);
+
+                // Reset
+                buffer.clear();
+                Ok(())
+            };
+
+        for result in rdr.byte_records() {
+            let record = result?;
+            // NOTE: this is a good-enough approximation
+            let size = record.as_slice().len() as u64;
+            current_buffer_size += size;
+
+            buffer.push(record);
+
+            if current_buffer_size >= max_bytes {
+                // Flushing buffer
+                flush_buffer(&mut buffer, &mut chunks)?;
+                current_buffer_size = 0;
+            }
         }
 
-        let sorter: ExternalSorter<
-            DeepSizedByteRecord,
-            Error,
-            MemoryLimitedBufferBuilder,
-            util::CsvExternalChunk,
-        > = sorter_builder.build().unwrap();
+        // Flushing remaining part of buffer
+        if !buffer.is_empty() {
+            flush_buffer(&mut buffer, &mut chunks)?;
+        }
 
-        let sorted = sorter
-            .sort_by(
-                rdr.byte_records()
-                    .map(|result| result.map(DeepSizedByteRecord)),
-                |r1, r2| {
-                    let a = sel.select(r1.as_ref());
-                    let b = sel.select(r2.as_ref());
+        let comparator = MergeHeapComparator::new(&sel, args.flag_numeric, args.flag_reverse);
+        let heap = MergeHeap::with_comparator(comparator);
 
-                    match (numeric, reverse) {
-                        (false, false) => iter_cmp(a, b),
-                        (true, false) => iter_cmp_num(a, b),
-                        (false, true) => iter_cmp(b, a),
-                        (true, true) => iter_cmp_num(b, a),
-                    }
-                },
-            )
-            .unwrap()
-            .map(|result| result.unwrap().into_inner());
+        let chunk_iterators = chunks
+            .iter()
+            .map(|file| {
+                simd_csv::ReaderBuilder::new()
+                    .has_headers(false)
+                    .from_reader(file)
+                    .into_byte_records()
+            })
+            .collect::<Vec<_>>();
 
-        Box::new(sorted)
+        Box::new(heap.into_iter(chunk_iterators)?.map(|r| r.unwrap().1))
     } else {
         let mut all = rdr.byte_records().collect::<Result<Vec<_>, _>>()?;
 

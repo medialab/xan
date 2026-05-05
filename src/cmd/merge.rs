@@ -14,14 +14,14 @@ use crate::CliResult;
 type MergeHeapEntry = (ByteRecord, usize);
 
 #[derive(Clone)]
-struct MergeHeapComparator<'s> {
+pub struct MergeHeapComparator<'s> {
     sel: &'s Selection,
     numeric: bool,
     reverse: bool,
 }
 
 impl<'s> MergeHeapComparator<'s> {
-    fn new(sel: &'s Selection, numeric: bool, reverse: bool) -> Self {
+    pub fn new(sel: &'s Selection, numeric: bool, reverse: bool) -> Self {
         Self {
             sel,
             numeric,
@@ -66,12 +66,12 @@ impl Compare<MergeHeapEntry> for MergeHeapComparator<'_> {
     }
 }
 
-struct MergeHeap<'s> {
+pub struct MergeHeap<'s> {
     inner: BinaryHeap<MergeHeapEntry, MergeHeapComparator<'s>>,
 }
 
 impl<'s> MergeHeap<'s> {
-    fn with_comparator(comparator: MergeHeapComparator<'s>) -> Self {
+    pub fn with_comparator(comparator: MergeHeapComparator<'s>) -> Self {
         let inner = BinaryHeap::from_vec_cmp(Vec::with_capacity(comparator.sel.len()), comparator);
 
         Self { inner }
@@ -87,7 +87,7 @@ impl<'s> MergeHeap<'s> {
         self.inner.pop()
     }
 
-    fn into_iter<I>(self, iterators: Vec<I>) -> simd_csv::Result<MergeHeapIntoIter<'s, I>>
+    pub fn into_iter<I>(self, iterators: Vec<I>) -> simd_csv::Result<MergeHeapIntoIter<'s, I>>
     where
         I: Iterator<Item = simd_csv::Result<ByteRecord>>,
     {
@@ -95,7 +95,7 @@ impl<'s> MergeHeap<'s> {
     }
 }
 
-struct MergeHeapIntoIter<'s, I> {
+pub struct MergeHeapIntoIter<'s, I> {
     heap: MergeHeap<'s>,
     iterators: Vec<I>,
 }
