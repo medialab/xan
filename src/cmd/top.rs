@@ -1,11 +1,10 @@
-use std::cmp::Reverse;
 use std::iter::once;
 use std::num::NonZeroUsize;
 
 use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 
-use crate::collections::{ClusteredInsertHashmap, Forward, TopKHeapMapWithTies};
+use crate::collections::{ClusteredInsertHashmap, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -157,20 +156,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
     }
 
-    macro_rules! run {
-        ($type:ident) => {{
-            let mut record = ByteRecord::new();
-            let mut heap = TopKHeapMapWithTies::<$type<Value>, ByteRecord>::with_capacity(
-                usize::from(args.flag_limit),
-                args.flag_ties,
-            );
+    if let Some(sel) = &groupby_sel_opt {
+        let mut record = ByteRecord::new();
+        let mut groups: ClusteredInsertHashmap<
+            ByteRecord,
+            TopKHeapMapWithTies<DynamicOrd<Value>, ByteRecord>,
+        > = ClusteredInsertHashmap::new();
 
-            while rdr.read_byte_record(&mut record)? {
-                if let Some(score) = args.new_value(&record[score_col]) {
-                    heap.push_with($type(score), || record.clone());
-                }
+        while rdr.read_byte_record(&mut record)? {
+            if let Some(score) = args.new_value(&record[score_col]) {
+                let group = sel.select(&record).collect();
+
+                let heap = groups.insert_with(group, || {
+                    TopKHeapMapWithTies::with_capacity(usize::from(args.flag_limit), args.flag_ties)
+                });
+
+                heap.push_with(DynamicOrd::new(score, args.flag_reverse), || record.clone());
             }
+        }
 
+        for heap in groups.into_values() {
             for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
                 if args.flag_rank.is_some() {
                     wtr.write_record(once((i + 1).to_string().as_bytes()).chain(record.iter()))?;
@@ -178,52 +183,28 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     wtr.write_byte_record(&record)?;
                 }
             }
-        }};
-    }
+        }
+    } else {
+        let mut record = ByteRecord::new();
+        let mut heap = TopKHeapMapWithTies::<DynamicOrd<Value>, ByteRecord>::with_capacity(
+            usize::from(args.flag_limit),
+            args.flag_ties,
+        );
 
-    macro_rules! run_groupby {
-        ($type:ident, $sel:ident) => {{
-            let mut record = ByteRecord::new();
-            let mut groups: ClusteredInsertHashmap<
-                ByteRecord,
-                TopKHeapMapWithTies<$type<Value>, ByteRecord>,
-            > = ClusteredInsertHashmap::new();
-
-            while rdr.read_byte_record(&mut record)? {
-                if let Some(score) = args.new_value(&record[score_col]) {
-                    let group = $sel.select(&record).collect();
-
-                    let heap = groups.insert_with(group, || {
-                        TopKHeapMapWithTies::with_capacity(
-                            usize::from(args.flag_limit),
-                            args.flag_ties,
-                        )
-                    });
-
-                    heap.push_with($type(score), || record.clone());
-                }
+        while rdr.read_byte_record(&mut record)? {
+            if let Some(score) = args.new_value(&record[score_col]) {
+                heap.push_with(DynamicOrd::new(score, args.flag_reverse), || record.clone());
             }
+        }
 
-            for heap in groups.into_values() {
-                for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
-                    if args.flag_rank.is_some() {
-                        wtr.write_record(
-                            once((i + 1).to_string().as_bytes()).chain(record.iter()),
-                        )?;
-                    } else {
-                        wtr.write_byte_record(&record)?;
-                    }
-                }
+        for (i, (_, record)) in heap.into_sorted_vec().into_iter().enumerate() {
+            if args.flag_rank.is_some() {
+                wtr.write_record(once((i + 1).to_string().as_bytes()).chain(record.iter()))?;
+            } else {
+                wtr.write_byte_record(&record)?;
             }
-        }};
+        }
     }
-
-    match (args.flag_reverse, groupby_sel_opt) {
-        (true, None) => run!(Reverse),
-        (false, None) => run!(Forward),
-        (true, Some(sel)) => run_groupby!(Reverse, sel),
-        (false, Some(sel)) => run_groupby!(Forward, sel),
-    };
 
     Ok(wtr.flush()?)
 }

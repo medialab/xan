@@ -28,6 +28,40 @@ impl<T> Ord for Arbitrary<T> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynamicOrd<T: Ord> {
+    inner: T,
+    reverse: bool,
+}
+
+impl<T: Ord> DynamicOrd<T> {
+    pub fn new(inner: T, reverse: bool) -> Self {
+        Self { inner, reverse }
+    }
+}
+
+impl<T: Ord> PartialOrd for DynamicOrd<T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: Ord> Ord for DynamicOrd<T> {
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> Ordering {
+        debug_assert!(self.reverse == other.reverse);
+
+        let ordering = self.inner.cmp(&other.inner);
+
+        if self.reverse {
+            ordering.reverse()
+        } else {
+            ordering
+        }
+    }
+}
+
 #[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
 pub struct Forward<T>(pub T);
 
