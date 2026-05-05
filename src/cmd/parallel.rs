@@ -5,7 +5,6 @@ use std::fs::File;
 use std::io::{self, stderr, stdout, IsTerminal, Read, Write};
 use std::iter::once;
 use std::num::NonZeroUsize;
-use std::ops;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,7 +23,7 @@ use crate::cmd::top::Value as TopValue;
 use crate::collections::{Counter, DynamicOrd, TopKHeapMapWithTies};
 use crate::config::{Compression, Config, Delimiter};
 use crate::moonblade::{AggregationProgram, GroupAggregationProgram, Stats};
-use crate::processing::parse_pipeline;
+use crate::processing::{parse_pipeline, Children};
 use crate::select::SelectedColumns;
 use crate::util::{self, FilenameTemplate};
 use crate::CliResult;
@@ -317,57 +316,6 @@ fn check_running_processes(
 impl Drop for ProcessManager {
     fn drop(&mut self) {
         check_running_processes(&mut self.children_map.lock().unwrap(), &self.bars);
-    }
-}
-
-#[derive(Debug)]
-struct Children(Vec<Child>);
-
-impl Children {
-    fn wait(&mut self) -> io::Result<()> {
-        for child in self.iter_mut() {
-            child.wait()?;
-        }
-
-        Ok(())
-    }
-
-    fn kill(&mut self) -> io::Result<()> {
-        for child in self.iter_mut() {
-            child.kill()?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Drop for Children {
-    fn drop(&mut self) {
-        if thread::panicking() {
-            let _ = self.kill();
-        } else {
-            let _ = self.wait();
-        }
-    }
-}
-
-impl ops::Deref for Children {
-    type Target = [Child];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl ops::DerefMut for Children {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl From<Vec<Child>> for Children {
-    fn from(children: Vec<Child>) -> Self {
-        Self(children)
     }
 }
 

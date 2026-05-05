@@ -1,3 +1,8 @@
+use std::io;
+use std::ops;
+use std::process::Child;
+use std::thread;
+
 fn tokenize_pipeline(input: &str) -> Result<Vec<String>, String> {
     let raw = shlex::split(input).ok_or_else(|| format!("could not parse pipeline: {}", input))?;
 
@@ -35,4 +40,57 @@ pub fn parse_pipeline(input: &str) -> Result<Vec<Vec<String>>, String> {
             }
         })
         .collect())
+}
+
+// A struct representing a bunch of child processes that must be watched and
+// dropped together.
+#[derive(Debug)]
+pub struct Children(Vec<Child>);
+
+impl Children {
+    pub fn wait(&mut self) -> io::Result<()> {
+        for child in self.iter_mut() {
+            child.wait()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn kill(&mut self) -> io::Result<()> {
+        for child in self.iter_mut() {
+            child.kill()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for Children {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            let _ = self.kill();
+        } else {
+            let _ = self.wait();
+        }
+    }
+}
+
+impl ops::Deref for Children {
+    type Target = [Child];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ops::DerefMut for Children {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<Vec<Child>> for Children {
+    fn from(children: Vec<Child>) -> Self {
+        Self(children)
+    }
 }
