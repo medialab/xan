@@ -17,6 +17,7 @@
 * `xan tokenize --keep` short flag becomes `-k` instead of `-K` to harmonize with other commands.
 * Retiring the `xan flatmap` command in favor of `xan explode -e`.
 * Retiring the `xan fuzzy-join` command in favor of a consolidated `xan join` command.
+* Changing `xan from -f txt -c <name>` default to `line` instead of `value`.
 
 *Features*
 

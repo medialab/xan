@@ -127,7 +127,7 @@ JSON options:
 
 Text lines options:
     -c, --column <name>    Name of the column to create.
-                           [default: value]
+                           [default: line]
 
 Markdown options:
     -n, --nth-table <n>    Select nth table in document, starting at 0.
