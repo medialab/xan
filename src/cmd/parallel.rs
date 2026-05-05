@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
-use std::io::{self, stderr, stdout, IsTerminal, Read, Write};
+use std::io::{self, stderr, stdout, IsTerminal, Write};
 use std::iter::once;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -242,55 +242,27 @@ impl ProcessManager {
 }
 
 fn check_running_process(name: &str, children: &mut Children, bars_handle: &Option<Bars>) -> bool {
-    let mut must_abort = false;
-
-    for child in children.iter_mut() {
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                if !status.success() {
-                    must_abort = true;
-
-                    // Reading some stderr
-                    let mut stderr_contents = String::new();
-                    let stderr = child.stderr.as_mut().unwrap();
-
-                    stderr
-                        .take(1024 * 64)
-                        .read_to_string(&mut stderr_contents)
-                        .unwrap();
-
-                    if let Some(bars) = bars_handle {
-                        bars.stop(name, true);
-                        bars.abort();
-                    }
-
-                    let stderr_msg = stderr_contents.trim();
-
-                    if stderr_msg.is_empty() {
-                        eprintln!(
-                            "Processing failed for {} without captured stderr (stderr was already closed).",
-                            name.cyan()
-                        );
-                    } else {
-                        eprintln!(
-                            "Processing failed for {} with captured stderr:\n{}",
-                            name.cyan(),
-                            stderr_msg.red()
-                        );
-                    }
-
-                    break;
-                }
-            }
-            Err(_) => {
-                must_abort = true;
-                break;
-            }
-            _ => (),
+    children.check(|stderr_contents| {
+        if let Some(bars) = bars_handle {
+            bars.stop(name, true);
+            bars.abort();
         }
-    }
 
-    must_abort
+        let stderr_msg = stderr_contents.trim();
+
+        if stderr_msg.is_empty() {
+            eprintln!(
+                "Processing failed for {} without captured stderr (stderr was already closed).",
+                name.cyan()
+            );
+        } else {
+            eprintln!(
+                "Processing failed for {} with captured stderr:\n{}",
+                name.cyan(),
+                stderr_msg.red()
+            );
+        }
+    })
 }
 
 fn check_running_processes(

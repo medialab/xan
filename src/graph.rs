@@ -615,7 +615,7 @@ impl GraphBuilder {
             }
 
             record.clear();
-            record.push_field(&key.as_bytes());
+            record.push_field(key.as_bytes());
 
             if !attributes.is_empty() {
                 for (_, attr_value) in attributes.iter() {

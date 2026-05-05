@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Read};
 use std::ops;
 use std::process::Child;
 use std::thread;
@@ -62,6 +62,43 @@ impl Children {
         }
 
         Ok(())
+    }
+
+    pub fn check<F>(&mut self, on_error: F) -> bool
+    where
+        F: Fn(String),
+    {
+        let mut must_abort = false;
+
+        for child in self.iter_mut() {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    if !status.success() {
+                        must_abort = true;
+
+                        // Reading some stderr
+                        let mut stderr_contents = String::new();
+                        let stderr = child.stderr.as_mut().unwrap();
+
+                        stderr
+                            .take(1024 * 64)
+                            .read_to_string(&mut stderr_contents)
+                            .unwrap();
+
+                        on_error(stderr_contents);
+
+                        break;
+                    }
+                }
+                Err(_) => {
+                    must_abort = true;
+                    break;
+                }
+                _ => (),
+            }
+        }
+
+        must_abort
     }
 }
 
