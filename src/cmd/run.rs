@@ -1,4 +1,5 @@
 use std::env;
+use std::fs;
 use std::io::{self, IsTerminal};
 use std::process::{Command, Stdio};
 
@@ -10,7 +11,7 @@ use crate::CliResult;
 // TODO: inherit for all stderr stream? no. proper error handling using a checker thread
 
 static USAGE: &str = "
-TODO...
+Run the given xan pipeline or execute a xan script.
 
 Examples:
 
@@ -18,11 +19,24 @@ Running a simple pipeline:
 
     $ xan run 'search -s category tape | count' data.csv
 
+Running a script file:
+
+*script.xan*
+
+```
+# This can include comments
+search -s Category -e Tape |
+count
+```
+
+    $ xan run -f script.xan data.csv
+
 Usage:
     xan run [options] <pipeline> [<input>]
+    xan run --help
 
 run options:
-    -f, --file
+    -f, --file  Run <pipeline> from a script file instead.
 
 Common options:
     -h, --help             Display this message
@@ -32,10 +46,22 @@ Common options:
 struct Args {
     arg_pipeline: String,
     arg_input: Option<String>,
+    flag_file: bool,
+}
+
+impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        if self.flag_file {
+            self.arg_pipeline = fs::read_to_string(&self.arg_pipeline)?;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
-    let args: Args = util::get_args(USAGE, argv)?;
+    let mut args: Args = util::get_args(USAGE, argv)?;
+    args.resolve()?;
 
     let exe = env::current_exe()?;
 

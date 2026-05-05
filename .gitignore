@@ -7,6 +7,7 @@ target
 *.gz
 *.zst
 *.cdx
+*.xan
 *.idx
 builds
 .vscode
