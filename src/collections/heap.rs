@@ -2,9 +2,11 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
 #[derive(Clone, Debug)]
+#[repr(transparent)]
 pub struct Arbitrary<T>(pub T);
 
 impl<T> PartialEq for Arbitrary<T> {
+    #[inline(always)]
     fn eq(&self, _other: &Self) -> bool {
         true
     }
@@ -13,28 +15,33 @@ impl<T> PartialEq for Arbitrary<T> {
 impl<T> Eq for Arbitrary<T> {}
 
 impl<T> PartialOrd for Arbitrary<T> {
+    #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<T> Ord for Arbitrary<T> {
+    #[inline(always)]
     fn cmp(&self, _other: &Self) -> Ordering {
         Ordering::Equal
     }
 }
+
+#[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
+pub struct Forward<T>(pub T);
 
 // A specialized heap handy to compute top-k in O(log n) time
 // but only O(k) memory.
 // It is a max-heap by default to fit rust's standard library
 // choices.
 #[derive(Debug, Clone)]
-pub struct FixedReverseHeap<T> {
+pub struct TopKHeap<T> {
     capacity: usize,
     heap: BinaryHeap<Reverse<T>>,
 }
 
-impl<T: Ord> FixedReverseHeap<T> {
+impl<T: Ord> TopKHeap<T> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             capacity,
@@ -83,7 +90,7 @@ impl<T: Ord> FixedReverseHeap<T> {
     }
 }
 
-impl<T: Ord> Extend<T> for FixedReverseHeap<T> {
+impl<T: Ord> Extend<T> for TopKHeap<T> {
     // Required method
     fn extend<I>(&mut self, iter: I)
     where
@@ -96,12 +103,12 @@ impl<T: Ord> Extend<T> for FixedReverseHeap<T> {
 }
 
 #[derive(Clone, Debug)]
-pub struct FixedReverseHeapMap<T, V> {
+pub struct TopKHeapMap<T, V> {
     capacity: usize,
     heap: BinaryHeap<(Reverse<T>, Arbitrary<V>)>,
 }
 
-impl<T: Ord, V> FixedReverseHeapMap<T, V> {
+impl<T: Ord, V> TopKHeapMap<T, V> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             capacity,
@@ -167,20 +174,20 @@ impl<T: Ord, V> FixedReverseHeapMap<T, V> {
     }
 }
 
-impl<T: Ord + Clone, V: Clone> FixedReverseHeapMap<T, V> {
+impl<T: Ord + Clone, V: Clone> TopKHeapMap<T, V> {
     pub fn to_sorted_vec(&self) -> Vec<(T, V)> {
         self.clone().into_sorted_vec()
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct FixedReverseHeapMapWithTies<T, V> {
+pub struct TopKHeapMapWithTies<T, V> {
     capacity: usize,
     heap: BinaryHeap<(Reverse<T>, Arbitrary<V>)>,
     ties: Vec<(T, V)>,
 }
 
-impl<T: Ord, V> FixedReverseHeapMapWithTies<T, V> {
+impl<T: Ord, V> TopKHeapMapWithTies<T, V> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             capacity,
@@ -268,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_numbers() {
-        let mut heap = FixedReverseHeap::with_capacity(3);
+        let mut heap = TopKHeap::with_capacity(3);
         heap.extend([1, 2, 3, 4, 5, 6]);
 
         assert_eq!(heap.into_sorted_vec(), vec![6, 5, 4]);
@@ -276,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_reverse_numbers() {
-        let mut heap = FixedReverseHeap::with_capacity(3);
+        let mut heap = TopKHeap::with_capacity(3);
         heap.extend([1, 2, 3, 4, 5, 6].into_iter().map(Reverse));
 
         assert_eq!(
@@ -290,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_map() {
-        let mut heap = FixedReverseHeapMap::with_capacity(2);
+        let mut heap = TopKHeapMap::with_capacity(2);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(3, || "three");
@@ -303,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_map_with_ties() {
-        let mut heap = FixedReverseHeapMapWithTies::with_capacity(2);
+        let mut heap = TopKHeapMapWithTies::with_capacity(2);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(3, || "three");
@@ -314,7 +321,7 @@ mod tests {
         );
 
         // Final ties
-        let mut heap = FixedReverseHeapMapWithTies::with_capacity(2);
+        let mut heap = TopKHeapMapWithTies::with_capacity(2);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(3, || "three");
@@ -329,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_map_with_ties_special_order() {
-        let mut heap = FixedReverseHeapMapWithTies::with_capacity(2);
+        let mut heap = TopKHeapMapWithTies::with_capacity(2);
         heap.push_with(1, || "one");
         heap.push_with(2, || "two");
         heap.push_with(2, || "three");

@@ -5,9 +5,7 @@ use std::num::NonZeroUsize;
 use ordered_float::NotNan;
 use simd_csv::ByteRecord;
 
-use crate::collections::{
-    ClusteredInsertHashmap, FixedReverseHeapMap, FixedReverseHeapMapWithTies,
-};
+use crate::collections::{ClusteredInsertHashmap, Forward, TopKHeapMap, TopKHeapMapWithTies};
 use crate::config::{Config, Delimiter};
 use crate::select::SelectedColumns;
 use crate::util;
@@ -105,9 +103,6 @@ Common options:
     -d, --delimiter <arg>    The field delimiter for reading CSV data.
                              Must be a single character.
 ";
-
-#[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
-struct Forward<T>(T);
 
 #[derive(Deserialize)]
 struct Args {
@@ -216,14 +211,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     match (args.flag_reverse, args.flag_ties, groupby_sel_opt) {
-        (true, false, None) => run!(FixedReverseHeapMap, Reverse),
-        (false, false, None) => run!(FixedReverseHeapMap, Forward),
-        (true, false, Some(sel)) => run_groupby!(FixedReverseHeapMap, Reverse, sel),
-        (false, false, Some(sel)) => run_groupby!(FixedReverseHeapMap, Forward, sel),
-        (true, true, None) => run!(FixedReverseHeapMapWithTies, Reverse),
-        (false, true, None) => run!(FixedReverseHeapMapWithTies, Forward),
-        (true, true, Some(sel)) => run_groupby!(FixedReverseHeapMapWithTies, Reverse, sel),
-        (false, true, Some(sel)) => run_groupby!(FixedReverseHeapMapWithTies, Forward, sel),
+        (true, false, None) => run!(TopKHeapMap, Reverse),
+        (false, false, None) => run!(TopKHeapMap, Forward),
+        (true, false, Some(sel)) => run_groupby!(TopKHeapMap, Reverse, sel),
+        (false, false, Some(sel)) => run_groupby!(TopKHeapMap, Forward, sel),
+        (true, true, None) => run!(TopKHeapMapWithTies, Reverse),
+        (false, true, None) => run!(TopKHeapMapWithTies, Forward),
+        (true, true, Some(sel)) => run_groupby!(TopKHeapMapWithTies, Reverse, sel),
+        (false, true, Some(sel)) => run_groupby!(TopKHeapMapWithTies, Forward, sel),
     };
 
     Ok(wtr.flush()?)

@@ -2,7 +2,7 @@ use std::cmp::{Ordering, Reverse};
 
 use simd_csv::ByteRecord;
 
-use crate::collections::FixedReverseHeapMap;
+use crate::collections::TopKHeapMap;
 use crate::moonblade::types::DynamicNumber;
 
 #[derive(Debug, Clone)]
@@ -145,13 +145,13 @@ impl ArgExtent {
 
 #[derive(Debug, Clone)]
 pub struct ArgTop {
-    heap: FixedReverseHeapMap<(DynamicNumber, Reverse<usize>), (ByteRecord, Option<usize>)>,
+    heap: TopKHeapMap<(DynamicNumber, Reverse<usize>), (ByteRecord, Option<usize>)>,
 }
 
 impl ArgTop {
     pub fn new(k: usize) -> Self {
         Self {
-            heap: FixedReverseHeapMap::with_capacity(k),
+            heap: TopKHeapMap::with_capacity(k),
         }
     }
 

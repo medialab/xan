@@ -1,6 +1,6 @@
 use std::cmp::{Ordering, Reverse};
 
-use crate::collections::{FixedReverseHeap, HashMap};
+use crate::collections::{HashMap, TopKHeap};
 
 #[derive(Debug, Clone)]
 pub struct Frequencies {
@@ -72,7 +72,7 @@ impl Frequencies {
     }
 
     pub fn most_common(&self, k: usize) -> Vec<String> {
-        let mut heap = FixedReverseHeap::<(u64, Reverse<&String>)>::with_capacity(k);
+        let mut heap = TopKHeap::<(u64, Reverse<&String>)>::with_capacity(k);
 
         for (key, count) in self.counter.iter() {
             heap.push((*count, Reverse(key)));
@@ -85,7 +85,7 @@ impl Frequencies {
     }
 
     pub fn most_common_counts(&self, k: usize) -> Vec<u64> {
-        let mut heap = FixedReverseHeap::<(u64, Reverse<&String>)>::with_capacity(k);
+        let mut heap = TopKHeap::<(u64, Reverse<&String>)>::with_capacity(k);
 
         for (key, count) in self.counter.iter() {
             heap.push((*count, Reverse(key)));

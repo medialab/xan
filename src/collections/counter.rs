@@ -6,7 +6,7 @@ use topk::FilteredSpaceSaving;
 
 use crate::collections::HashMap;
 
-use super::fixed_reverse_heap::FixedReverseHeap;
+use super::heap::TopKHeap;
 
 pub struct ExactCounter<K: Eq + Hash + Send + Ord> {
     map: HashMap<K, u64>,
@@ -59,7 +59,7 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
             return (total, items);
         }
 
-        let mut heap: FixedReverseHeap<(u64, Reverse<K>)> = FixedReverseHeap::with_capacity(k);
+        let mut heap: TopKHeap<(u64, Reverse<K>)> = TopKHeap::with_capacity(k);
         let mut total: u64 = 0;
 
         for (value, count) in self.map {
