@@ -48,6 +48,14 @@ pub fn parse_pipeline(input: &str) -> Result<Vec<Vec<String>>, String> {
 pub struct Children(Vec<Child>);
 
 impl Children {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    pub fn push(&mut self, child: Child) {
+        self.0.push(child);
+    }
+
     pub fn wait(&mut self) -> io::Result<()> {
         for child in self.iter_mut() {
             child.wait()?;

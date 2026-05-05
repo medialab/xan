@@ -42,6 +42,7 @@ pub mod progress;
 pub mod range;
 pub mod rename;
 pub mod reverse;
+pub mod run;
 pub mod sample;
 pub mod scrape;
 pub mod search;
