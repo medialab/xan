@@ -117,6 +117,10 @@ edgelist options:
                            (use \"-\" to feed the file from stdin).
     --node-column <name>   Name of the column containing node keys.
                            [default: node]
+    --range <max>          Indicate that node ids are u32 ranging from 0 to
+                           given <max>. This can be used to increase performance.
+                           Currently incompatible with --nodes.
+
 
 bipartite options:
     --disjoint-keys  Pass this if you know both partitions of the graph
@@ -158,6 +162,7 @@ struct Args {
     flag_nodes: Option<String>,
     flag_node_column: SelectedColumns,
     flag_disjoint_keys: bool,
+    flag_range: Option<u32>,
     flag_sample_size: isize,
     flag_degrees: bool,
     flag_union_find: bool,
@@ -208,6 +213,7 @@ impl Args {
         let options = GraphBuilderOptions {
             undirected: self.flag_undirected,
             linear_edge_store,
+            range_edge_store: self.flag_range,
         };
 
         GraphBuilder::new(options)
@@ -223,6 +229,10 @@ impl Args {
         let mut record = StringRecord::new();
 
         if let Some(nodes_path) = &self.flag_nodes {
+            if self.flag_range.is_some() {
+                Err("--nodes is not yet compatible with --range!")?;
+            }
+
             let nodes_rconf = Config::new(&Some(nodes_path.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
@@ -253,7 +263,7 @@ impl Args {
             );
 
             let mut process_node_record = |record: &StringRecord| {
-                let key = record[node_column_index].to_string();
+                let key = &record[node_column_index];
 
                 let mut attributes = Attributes::with_capacity(node_attr_sel.len());
 
@@ -314,12 +324,21 @@ impl Args {
         let edge_attributes_irrelevant = self.edge_attributes_irrelevant();
         let edges_irrelevant = self.edges_irrelevant();
 
-        let mut process_edge_record = |record: &StringRecord| {
-            let source = record[source_column_index].to_string();
-            let target = record[target_column_index].to_string();
+        let mut process_edge_record = |record: &StringRecord| -> CliResult<()> {
+            let source = &record[source_column_index];
+            let target = &record[target_column_index];
 
-            let source_id = graph_builder.get_source_node_id(source);
-            let target_id = graph_builder.get_target_node_id(target);
+            let (source_id, target_id) = if self.flag_range.is_some() {
+                (
+                    source.parse::<u32>()? as usize,
+                    target.parse::<u32>()? as usize,
+                )
+            } else {
+                (
+                    graph_builder.get_source_node_id(source),
+                    graph_builder.get_target_node_id(target),
+                )
+            };
 
             let attributes = if edge_attributes_irrelevant {
                 Attributes::default()
@@ -336,14 +355,16 @@ impl Args {
             if !edges_irrelevant {
                 graph_builder.add_edge_with_attributes(source_id, target_id, attributes);
             }
+
+            Ok(())
         };
 
         for buffered_record in edge_attr_inferrence.records() {
-            process_edge_record(buffered_record);
+            process_edge_record(buffered_record)?;
         }
 
         while edge_reader.read_record(&mut record)? {
-            process_edge_record(&record);
+            process_edge_record(&record)?;
         }
 
         Ok(graph_builder)
@@ -377,17 +398,21 @@ impl Args {
             (!self.flag_disjoint_keys).then(IncrementalId::<(usize, String)>::new);
 
         while reader.read_record(&mut record)? {
-            let mut first_part_node = record[first_part_index].to_string();
-            let mut second_part_node = record[second_part_index].to_string();
+            let first_part_node = &record[first_part_index];
+            let second_part_node = &record[second_part_index];
 
-            if let Some(id) = incremental_id.as_mut() {
-                first_part_node = id.get((0, first_part_node)).to_string();
-                second_part_node = id.get((1, second_part_node)).to_string();
-            }
-
-            let first_part_node_id = graph_builder.get_source_node_id(first_part_node);
-
-            let second_part_node_id = graph_builder.get_target_node_id(second_part_node);
+            let (first_part_node_id, second_part_node_id) =
+                if let Some(id) = incremental_id.as_mut() {
+                    (
+                        id.get((0, first_part_node.to_string())),
+                        id.get((1, second_part_node.to_string())),
+                    )
+                } else {
+                    (
+                        graph_builder.get_source_node_id(first_part_node),
+                        graph_builder.get_target_node_id(second_part_node),
+                    )
+                };
 
             graph_builder.add_edge(first_part_node_id, second_part_node_id);
         }

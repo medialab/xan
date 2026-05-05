@@ -144,6 +144,45 @@ impl DegreeMap {
     }
 }
 
+enum NodeStore {
+    Hash(IndexMap<String, Attributes>),
+    Range(Vec<(String, Attributes)>),
+}
+
+impl NodeStore {
+    #[inline]
+    fn len(&self) -> usize {
+        match self {
+            Self::Hash(map) => map.len(),
+            Self::Range(list) => list.len(),
+        }
+    }
+
+    #[inline]
+    fn unwrap_as_hash_mut(&mut self) -> &mut IndexMap<String, Attributes> {
+        match self {
+            Self::Hash(map) => map,
+            _ => panic!("cannot unwrap this NodeStore as hash!"),
+        }
+    }
+
+    #[inline]
+    fn get_index(&self, index: usize) -> Option<(&String, &Attributes)> {
+        match self {
+            Self::Hash(map) => map.get_index(index),
+            Self::Range(list) => list.get(index).map(|(k, v)| (k, v)),
+        }
+    }
+
+    #[inline]
+    fn iter(&self) -> Box<dyn Iterator<Item = (&String, &Attributes)> + '_> {
+        match self {
+            Self::Hash(map) => Box::new(map.iter()),
+            Self::Range(list) => Box::new(list.iter().map(|(k, v)| (k, v))),
+        }
+    }
+}
+
 enum EdgeStore {
     Hash(
         HashMap<(usize, usize), usize>,
@@ -213,6 +252,7 @@ enum NodeExtremityType {
 
 #[derive(Default)]
 pub struct GraphBuilderOptions {
+    pub range_edge_store: Option<u32>,
     pub linear_edge_store: bool,
     pub undirected: bool,
 }
@@ -223,7 +263,7 @@ pub struct GraphBuilder {
     last_target_index: Option<usize>,
     node_model: Vec<ModelAttribute>,
     edge_model: Vec<ModelAttribute>,
-    nodes: IndexMap<String, Attributes>,
+    nodes: NodeStore,
     edges: EdgeStore,
 }
 
@@ -241,7 +281,15 @@ impl GraphBuilder {
             last_target_index: None,
             node_model: Vec::new(),
             edge_model: Vec::new(),
-            nodes: new_index_map(),
+            nodes: if let Some(max) = options.range_edge_store {
+                NodeStore::Range(
+                    (0..(max + 1) as usize)
+                        .map(|i| (i.to_string(), Attributes::default()))
+                        .collect(),
+                )
+            } else {
+                NodeStore::Hash(new_index_map())
+            },
             edges: if options.linear_edge_store {
                 EdgeStore::Linear(Vec::new())
             } else {
@@ -290,10 +338,12 @@ impl GraphBuilder {
     fn add_node_impl(
         &mut self,
         extremity_type: NodeExtremityType,
-        key: String,
+        key: &str,
         attributes_opt: Option<Attributes>,
     ) -> usize {
         use IndexMapEntry::*;
+
+        let nodes = self.nodes.unwrap_as_hash_mut();
 
         let cache = match extremity_type {
             NodeExtremityType::None => None,
@@ -302,9 +352,9 @@ impl GraphBuilder {
         };
 
         if let Some(cached_index) = cache {
-            let (node, current_attributes) = self.nodes.get_index_mut(cached_index).unwrap();
+            let (node, current_attributes) = nodes.get_index_mut(cached_index).unwrap();
 
-            if key == **node {
+            if key == *node {
                 if let Some(attributes) = attributes_opt {
                     *current_attributes = attributes;
                 }
@@ -313,9 +363,9 @@ impl GraphBuilder {
             }
         }
 
-        let next_id = self.nodes.len();
+        let next_id = nodes.len();
 
-        let node_id = match self.nodes.entry(key) {
+        let node_id = match nodes.entry(key.to_string()) {
             Occupied(mut entry) => {
                 if let Some(attributes) = attributes_opt {
                     entry.insert(attributes);
@@ -344,17 +394,17 @@ impl GraphBuilder {
     }
 
     #[inline(always)]
-    pub fn add_node(&mut self, key: String, attributes: Attributes) -> usize {
+    pub fn add_node(&mut self, key: &str, attributes: Attributes) -> usize {
         self.add_node_impl(NodeExtremityType::None, key, Some(attributes))
     }
 
     #[inline(always)]
-    pub fn get_source_node_id(&mut self, key: String) -> usize {
+    pub fn get_source_node_id(&mut self, key: &str) -> usize {
         self.add_node_impl(NodeExtremityType::Source, key, None)
     }
 
     #[inline(always)]
-    pub fn get_target_node_id(&mut self, key: String) -> usize {
+    pub fn get_target_node_id(&mut self, key: &str) -> usize {
         self.add_node_impl(NodeExtremityType::Target, key, None)
     }
 
@@ -565,7 +615,7 @@ impl GraphBuilder {
             }
 
             record.clear();
-            record.push_field(key.as_bytes());
+            record.push_field(&key.as_bytes());
 
             if !attributes.is_empty() {
                 for (_, attr_value) in attributes.iter() {
