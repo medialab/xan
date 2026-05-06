@@ -18,4 +18,4 @@ pub use self::error::{ConcretizationError, EvaluationError, SpecifiedEvaluationE
 pub use self::interpreter::{GlobalVariables, Program};
 pub use self::scrape::ScrapingProgram;
 pub use self::select::SelectionProgram;
-pub use self::types::DynamicValue;
+pub use self::types::{DynamicNumber, DynamicValue};

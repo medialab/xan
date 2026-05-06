@@ -10,10 +10,47 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
 use crate::json::{JSONEmptyMode, JSONTypeInferrenceBuffer, OmittableAttributes};
+use crate::moonblade::DynamicNumber;
 use crate::select::{SelectedColumns, Selection};
 use crate::util;
 use crate::xml::XMLWriter;
 use crate::CliResult;
+
+fn is_numeric_column(records: &[Vec<String>], column_index: usize) -> bool {
+    records.iter().all(|record| {
+        let cell = &record[column_index].trim();
+
+        cell.is_empty() || cell.parse::<DynamicNumber>().is_ok()
+    })
+}
+
+fn column_aligments(columns: usize, records: &[Vec<String>]) -> Vec<Alignment> {
+    let mut result = Vec::with_capacity(columns);
+
+    for i in 0..columns {
+        result.push(if is_numeric_column(records, i) {
+            Alignment::Right
+        } else {
+            Alignment::Center
+        });
+    }
+
+    result
+}
+
+enum Alignment {
+    Center,
+    Right,
+}
+
+impl Alignment {
+    fn as_latex(&self) -> &str {
+        match self {
+            Self::Center => "c",
+            Self::Right => "r",
+        }
+    }
+}
 
 static USAGE: &str = "
 Convert a CSV file to a variety of data formats.
@@ -312,12 +349,6 @@ impl Args {
             result
         }
 
-        fn is_numeric_column(records: &[Vec<String>], col_index: usize) -> bool {
-            records
-                .iter()
-                .all(|r| r[col_index].trim().parse::<f64>().is_ok())
-        }
-
         let headers = rdr.headers()?.clone();
         let records = rdr
             .into_records()
@@ -341,14 +372,9 @@ impl Args {
             })
             .collect::<Vec<_>>();
 
-        let col_spec = (0..headers.len())
-            .map(|i| {
-                if is_numeric_column(&records, i) {
-                    "r"
-                } else {
-                    "c"
-                }
-            })
+        let col_spec = column_aligments(headers.len(), &records)
+            .iter()
+            .map(Alignment::as_latex)
             .collect::<Vec<_>>()
             .join("|");
 
