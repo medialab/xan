@@ -52,7 +52,8 @@ run options:
     -f, --file  Run <pipeline> from a script file instead.
     -T, --tee   Interleave a call to `xan view -T` between each step of given
                 pipeline, hence printing a short view of each transitive
-                step. Will not work with non-CSV inputs.
+                step. Will not work with non-CSV inputs nor with hardcoded
+                paths in first command of the pipeline.
 
 Common options:
     -h, --help             Display this message

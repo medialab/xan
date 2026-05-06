@@ -38,6 +38,7 @@
 * Adding `xan parallel top` & `xan top -p/--parallel, -t/--threads`.
 * Adding `xan network edgelist --range`.
 * Adding the `xan run` command.
+* Adding `xan view --name`.
 
 *Fixes*
 

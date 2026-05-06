@@ -242,6 +242,8 @@ view options:
     -t, --theme <name>          Theme for the table display, one of: \"table\", \"borderless\",
                                 \"compact\", \"rounded\", \"slim\" or \"striped\".
                                 [default: table]
+    --name <name>               Name for the viewed table. Will default to the path of the file
+                                if any or \"<stdin>\" when viewing standard input.
     -p, --pager                 Automatically use the \"less\" command to page the results.
                                 This flag does not work on windows!
     -A, --all                   Remove the row limit and display everything.
@@ -315,6 +317,7 @@ struct Args {
     flag_repeat_headers: ComplexToggle,
     flag_reveal_whitespace: ComplexToggle,
     flag_tee: bool,
+    flag_name: Option<String>,
 }
 
 impl Args {
@@ -699,9 +702,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             } else {
                 format!("{} first rows", pretty_records_len.cyan())
             },
-            match &args.arg_input {
-                Some(filename) => filename,
-                None => "<stdin>",
+            match (&args.flag_name, &args.arg_input) {
+                (Some(name), _) => name,
+                (None, Some(filename)) => filename,
+                (None, None) => "<stdin>",
             }
             .dimmed()
         )?;

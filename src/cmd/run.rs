@@ -61,7 +61,8 @@ run options:
     -f, --file  Run <pipeline> from a script file instead.
     -T, --tee   Interleave a call to `xan view -T` between each step of given
                 pipeline, hence printing a short view of each transitive
-                step. Will not work with non-CSV inputs.
+                step. Will not work with non-CSV inputs nor with hardcoded
+                paths in first command of the pipeline.
 
 Common options:
     -h, --help             Display this message
@@ -97,10 +98,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     if args.flag_tee {
         let mut interleaved_pipeline = Vec::with_capacity(pipeline.len() * 2);
 
-        // TODO: would need xan view --name
-        for step in pipeline.into_iter() {
-            interleaved_pipeline.push(vec!["view".to_string(), "-T".to_string()]);
-            interleaved_pipeline.push(step);
+        for (i, step) in pipeline.iter().enumerate() {
+            let mut view_step = vec!["view".to_string(), "-T".to_string()];
+
+            if i > 0 {
+                view_step.push("--name".to_string());
+                view_step
+                    .push(shlex::try_join(pipeline[i - 1].iter().map(|s| s.as_str())).unwrap());
+            }
+
+            interleaved_pipeline.push(view_step);
+            interleaved_pipeline.push(step.clone());
         }
 
         pipeline = interleaved_pipeline;

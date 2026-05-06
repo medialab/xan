@@ -40,6 +40,8 @@ view options:
     -t, --theme <name>          Theme for the table display, one of: "table", "borderless",
                                 "compact", "rounded", "slim" or "striped".
                                 [default: table]
+    --name <name>               Name for the viewed table. Will default to the path of the file
+                                if any or "<stdin>" when viewing standard input.
     -p, --pager                 Automatically use the "less" command to page the results.
                                 This flag does not work on windows!
     -A, --all                   Remove the row limit and display everything.
