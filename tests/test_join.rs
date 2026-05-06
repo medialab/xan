@@ -946,4 +946,47 @@ fn merge_join() {
         ["", "", "5", "Engineering"],
     ];
     assert_eq!(got, expected);
+
+    // semi
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--semi")
+        .args(["id", "people.csv", "id", "dept.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["id", "name"], ["1", "Alice"], ["2", "Bob"], ["4", "Eve"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--semi")
+        .args(["id", "dept.csv", "id", "people.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "dept"],
+        ["1", "Engineering"],
+        ["2", "Marketing"],
+        ["4", "Finance"],
+    ];
+    assert_eq!(got, expected);
+
+    // anti
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--anti")
+        .args(["id", "people.csv", "id", "dept.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["id", "name"], ["3", "Carol"]];
+    assert_eq!(got, expected);
+
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--anti")
+        .args(["id", "dept.csv", "id", "people.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![["id", "dept"], ["5", "Engineering"]];
+    assert_eq!(got, expected);
 }

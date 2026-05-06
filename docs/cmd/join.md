@@ -85,7 +85,7 @@ This said, if you only need to filter rows of the first file and don't actually
 need the columns from the patterns file (i.e. performing a fuzzy --semi or --anti
 join), you should probably use `xan search --patterns` instead.
 
-# Memory considerations
+# Memory considerations (without -S/--sorted)
 
     - `inner join`: the command does not try to be clever and
                     always indexes the left file, while the right

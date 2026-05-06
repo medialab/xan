@@ -352,7 +352,7 @@ This said, if you only need to filter rows of the first file and don't actually
 need the columns from the patterns file (i.e. performing a fuzzy --semi or --anti
 join), you should probably use `xan search --patterns` instead.
 
-# Memory considerations
+# Memory considerations (without -S/--sorted)
 
     - `inner join`: the command does not try to be clever and
                     always indexes the left file, while the right
@@ -897,8 +897,12 @@ impl Args {
             (mut right_reader, right_headers, right_sel),
         ) = self.readers()?;
 
-        let (inverted_left_sel, inverted_right_sel) =
+        let (inverted_left_sel, mut inverted_right_sel) =
             self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
+        if self.flag_anti || self.flag_semi {
+            inverted_right_sel = Selection::empty();
+        }
 
         let mut writer = self.wconf().simd_writer()?;
 
@@ -970,23 +974,31 @@ impl Args {
 
                     while matches!(&right_record_opt, Some(next_right_record) if cmp(&right_buffer[0], next_right_record).is_eq())
                     {
-                        right_buffer.push(right_record_opt.take().unwrap());
+                        if !self.flag_semi && !self.flag_anti {
+                            right_buffer.push(right_record_opt.take().unwrap());
+                        }
                         right_record_opt = right_records.next().transpose()?;
                     }
 
-                    // Cross-product
-                    for l in left_buffer.iter() {
-                        for r in right_buffer.iter() {
-                            writer.write_record(
-                                inverted_left_sel
-                                    .select(l)
-                                    .chain(inverted_right_sel.select(r)),
-                            )?;
+                    if self.flag_semi {
+                        for l in left_buffer.iter() {
+                            writer.write_byte_record(l)?;
+                        }
+                    } else if !self.flag_anti {
+                        // Cross-product
+                        for l in left_buffer.iter() {
+                            for r in right_buffer.iter() {
+                                writer.write_record(
+                                    inverted_left_sel
+                                        .select(l)
+                                        .chain(inverted_right_sel.select(r)),
+                                )?;
+                            }
                         }
                     }
                 }
                 Ordering::Less => {
-                    if self.flag_left || self.flag_full {
+                    if self.flag_left || self.flag_full || self.flag_anti {
                         write_only_left(&mut writer, left_record)?;
                     }
 
@@ -1004,7 +1016,7 @@ impl Args {
 
         let mut remaining_record = ByteRecord::new();
 
-        if self.flag_left || self.flag_full {
+        if self.flag_left || self.flag_full || self.flag_anti {
             if let Some(left_record) = &left_record_opt {
                 write_only_left(&mut writer, left_record)?;
             }
@@ -1194,8 +1206,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-S/--sorted does not work with fuzzy joins (-c, -r, -u)!")?;
     }
 
-    if args.flag_sorted && (args.flag_anti || args.flag_semi || args.flag_cross) {
-        Err("-S/--sorted does not work with --cross, --anti nor --semi!")?;
+    if args.flag_sorted && args.flag_cross {
+        Err("-S/--sorted does not make sense with --cross!")?;
     }
 
     if fuzzy_operations == 1 {
