@@ -16,6 +16,7 @@ macro_rules! svec[
 mod workdir;
 
 mod test_agg;
+mod test_baseline;
 mod test_behead;
 mod test_bisect;
 mod test_cat;

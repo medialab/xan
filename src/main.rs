@@ -86,6 +86,7 @@ macro_rules! command_list {
     complete    Add missing rows in a column of contiguous values
     blank       Blank down contiguous identical cell values
     separate    Split a single column into multiple ones
+    baseline    Annotate numeric columns with comparison to a baseline row
 
 ## Format, convert & recombobulate
     behead        Drop header from CSV file
@@ -269,6 +270,7 @@ Please choose one of the following commands/flags:\n{}",
 #[serde(rename_all = "lowercase")]
 enum Command {
     Agg,
+    Baseline,
     Behead,
     Bins,
     Bisect,
@@ -355,6 +357,7 @@ impl Command {
 
         match self {
             Command::Agg => cmd::agg::run(argv),
+            Command::Baseline => cmd::baseline::run(argv),
             Command::Behead | Command::Guillotine => cmd::behead::run(argv),
             Command::Bins => cmd::bins::run(argv),
             Command::Bisect => cmd::bisect::run(argv),
