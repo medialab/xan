@@ -17,11 +17,17 @@ use crate::xml::XMLWriter;
 use crate::CliResult;
 
 fn is_numeric_column(records: &[Vec<String>], column_index: usize) -> bool {
+    let mut all_empty = true;
+
     records.iter().all(|record| {
         let cell = &record[column_index].trim();
 
+        if !cell.is_empty() {
+            all_empty = false;
+        }
+
         cell.is_empty() || cell.parse::<DynamicNumber>().is_ok()
-    })
+    }) && !all_empty
 }
 
 fn column_aligments(columns: usize, records: &[Vec<String>]) -> Vec<Alignment> {

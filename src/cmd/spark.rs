@@ -1,5 +1,5 @@
 use std::io::{stdout, Write};
-// use std::num::NonZeroUsize;
+use std::num::NonZeroUsize;
 
 use simd_csv::ByteRecord;
 
@@ -17,7 +17,11 @@ use crate::CliResult;
 // TODO: -w, -h
 // TODO: share y scale across series
 // TODO: joy div plot
+// TODO: streaming version when possible (pivoted)
+// TODO: unpivot flag, working with groupby
 // TODO: --rainbow, horizontal and vertical (also for stripes)
+
+// NOTE: last char is only used when stacking through -H/--height
 static SPARKLINE_CHARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
 #[derive(Debug)]
@@ -84,10 +88,10 @@ Usage:
     xan spark --help
 
 spark options:
-    -w, --width <n>   Number of characters a sparkline bar is allowed to take as
+    -W, --width <n>   Number of characters a sparkline bar is allowed to take as
                       its width.
                       [default: 1]
-    -h, --height <n>  Number of characters a sparkline bar is allowed to take as
+    -H, --height <n>  Number of characters a sparkline bar is allowed to take as
                       its height.
                       [default: 1]
     --cols <num>      Number of terminal columns, i.e. characters, that we can
@@ -112,8 +116,8 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
-    // flag_width: NonZeroUsize,
-    // flag_height: NonZeroUsize,
+    flag_width: NonZeroUsize,
+    flag_height: NonZeroUsize,
     flag_cols: Option<String>,
     flag_color: ColorMode,
     flag_no_headers: bool,
@@ -162,19 +166,34 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         pool.push(series_builder);
     }
 
+    let cols_for_sparkline = cols;
+    let sparkline_width = args.flag_width.get();
+    let sparkline_height = args.flag_height.get();
+
     // Rendering
     for mut series_builder in pool.into_iter() {
-        series_builder.discretize(cols);
+        series_builder.discretize(cols_for_sparkline / sparkline_width);
         let scale = series_builder.to_scale(ScaleType::Linear).unwrap();
 
-        for x in series_builder.numbers {
-            let mut bar_index = (scale.percent(x) * SPARKLINE_CHARS.len() as f64).floor() as usize;
-            bar_index = bar_index.min(SPARKLINE_CHARS.len() - 1);
+        for _h in 0..sparkline_height {
+            let max_index = SPARKLINE_CHARS.len() - 1;
 
-            write!(&mut out, "{}", SPARKLINE_CHARS[bar_index])?;
+            for x in series_builder.numbers.iter().copied() {
+                let sparkline_char = if x == 0.0 {
+                    ' '
+                } else {
+                    let mut bar_index = (scale.percent(x) * max_index as f64).floor() as usize;
+                    bar_index = bar_index.min(max_index - 1);
+                    SPARKLINE_CHARS[bar_index]
+                };
+
+                for _ in 0..sparkline_width {
+                    write!(&mut out, "{}", sparkline_char)?;
+                }
+            }
+
+            writeln!(&mut out)?
         }
-
-        writeln!(&mut out)?;
     }
 
     Ok(())
