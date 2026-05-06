@@ -31,11 +31,13 @@ count
 
     $ xan run -f script.xan data.csv
 
-Note that in script files you can omit `xan` before the commands (or you can
-also keep it, it does not matter). You can also have comments starting with `#`.
-
 The syntax of those scripts can be thought of as POSIX shell and it will be parsed
 first by normalizing CRLF newlines to LF then using `shlex`.
+
+You can have comments starting with `#`. You don't need `\\` to continue writing
+a pipeline on a new line.
+
+You can omit `xan` before the commands (or you can also keep it, it does not matter).
 
 Note that to make sure your script is compatible across different OSes you should
 favor using `/` (forward slashes) in paths, since most modern Windows shells

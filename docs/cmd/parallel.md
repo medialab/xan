@@ -93,6 +93,8 @@ parallel options:
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag.
+    --run <path>                 Run xan script at given <path> as preprocessing.
+                                 See `xan run -h` for more information.
     --progress                   Display a progress bar for the parallel tasks. The
                                  per file/chunk bars will tick once per CSV row only
                                  AFTER pre-processing!

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, stderr, stdout, IsTerminal, Write};
 use std::iter::once;
 use std::num::NonZeroUsize;
@@ -577,6 +577,8 @@ parallel options:
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag.
+    --run <path>                 Run xan script at given <path> as preprocessing.
+                                 See `xan run -h` for more information.
     --progress                   Display a progress bar for the parallel tasks. The
                                  per file/chunk bars will tick once per CSV row only
                                  AFTER pre-processing!
@@ -670,6 +672,7 @@ pub struct Args {
     arg_template: Option<FilenameTemplate>,
     pub flag_preprocess: Option<String>,
     pub flag_shell_preprocess: Option<String>,
+    pub flag_run: Option<String>,
     flag_progress: bool,
     pub flag_threads: Option<NonZeroUsize>,
     flag_path_column: Option<SelectedColumns>,
@@ -699,6 +702,26 @@ type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
 type BoxedSplitter = simd_csv::Splitter<Box<dyn io::Read + Send>>;
 
 impl Args {
+    fn resolve(&mut self) -> CliResult<()> {
+        let preprocessing_flags_count = self.flag_preprocess.is_some() as u8
+            + self.flag_shell_preprocess.is_some() as u8
+            + self.flag_run.is_some() as u8;
+
+        if preprocessing_flags_count > 1 {
+            Err("only one of -P/--preprocess, -H/--shell-preprocess or --run can be given!")?;
+        }
+
+        if let Some(path) = &self.flag_run {
+            self.flag_preprocess = Some(fs::read_to_string(path)?);
+        }
+
+        Ok(())
+    }
+
+    fn has_preprocessing(&self) -> bool {
+        self.flag_preprocess.is_some() || self.flag_shell_preprocess.is_some()
+    }
+
     pub fn single_file(path: &Option<String>, threads: Option<NonZeroUsize>) -> CliResult<Self> {
         match path {
             Some(p) => Ok(Self {
@@ -1026,7 +1049,7 @@ impl Args {
             ProcessManager::new()
         };
 
-        if self.flag_preprocess.is_some() || self.flag_shell_preprocess.is_some() {
+        if self.has_preprocessing() {
             manager.spawn_checker_thread();
         }
 
@@ -1109,7 +1132,7 @@ impl Args {
     }
 
     fn cat(self, inputs: Vec<Input>) -> CliResult<()> {
-        if self.flag_preprocess.is_none() && self.flag_shell_preprocess.is_none() {
+        if !self.has_preprocessing() {
             Err("`xan parallel cat` without -P/--preprocess or -H/--shell-preprocess is counterproductive!\n`xan cat rows` will be faster.")?
         }
 
@@ -1529,7 +1552,7 @@ impl Args {
     }
 
     fn map(self, inputs: Vec<Input>) -> CliResult<()> {
-        if self.flag_preprocess.is_none() && self.flag_shell_preprocess.is_none() {
+        if !self.has_preprocessing() {
             Err("`xan parallel map` without -P/--preprocess or -H/--shell-preprocess is pointless ;).")?;
         }
 
@@ -1679,6 +1702,8 @@ impl Args {
     }
 
     pub fn run(mut self) -> CliResult<()> {
+        self.resolve()?;
+
         let (inputs, actual_threads) = self.inputs()?;
 
         if inputs.len() == 1 {
@@ -1720,6 +1745,5 @@ impl Args {
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
-
     args.run()
 }

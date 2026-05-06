@@ -63,6 +63,8 @@ cat rows options:
                                  indicating the path to source file.
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
                                  See `xan parallel -h` for more information about preprocessing.
+    --run <path>                 Run xan script at given <path> as preprocessing.
+                                 See `xan run -h` for more information.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag.
                                  See `xan parallel -h` for more information about preprocessing.
@@ -97,6 +99,7 @@ struct Args {
     flag_raw: bool,
     flag_preprocess: Option<String>,
     flag_shell_preprocess: Option<String>,
+    flag_run: Option<String>,
 }
 
 pub fn run(argv: &[&str]) -> CliResult<()> {
@@ -106,12 +109,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("--paths cannot be used with other positional arguments!")?;
     }
 
-    if args.flag_preprocess.is_some() || args.flag_shell_preprocess.is_some() {
+    if args.flag_preprocess.is_some()
+        || args.flag_shell_preprocess.is_some()
+        || args.flag_run.is_some()
+    {
         let mut parallel_args = ParallelArgs::default();
         parallel_args.cmd_cat = true;
         parallel_args.arg_inputs = args.paths()?.collect::<Result<Vec<_>, _>>()?;
         parallel_args.flag_source_column = args.flag_source_column;
         parallel_args.flag_preprocess = args.flag_preprocess;
+        parallel_args.flag_run = args.flag_run;
         parallel_args.flag_shell_preprocess = args.flag_shell_preprocess;
         parallel_args.flag_no_headers = args.flag_no_headers;
         parallel_args.flag_delimiter = args.flag_delimiter;

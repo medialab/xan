@@ -55,6 +55,8 @@ cat rows options:
                                  indicating the path to source file.
     -P, --preprocess <op>        Preprocessing using only `xan` subcommands.
                                  See `xan parallel -h` for more information about preprocessing.
+    --run <path>                 Run xan script at given <path> as preprocessing.
+                                 See `xan run -h` for more information.
     -H, --shell-preprocess <op>  Preprocessing commands that will run directly in your
                                  own shell using the -c flag.
                                  See `xan parallel -h` for more information about preprocessing.
