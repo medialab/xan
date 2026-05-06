@@ -202,7 +202,7 @@ impl<T: Copy + PartialOrd> Extent<T> {
 
 impl<T: Copy + PartialOrd + Sub<Output = T>> Extent<T> {
     #[inline]
-    fn width(&self) -> T {
+    pub fn width(&self) -> T {
         self.max() - self.min()
     }
 }
@@ -237,6 +237,10 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.extent = None;
+    }
+
     pub fn clamp_min(&mut self, min: T) {
         self.min_clamp = Some(min);
     }
@@ -268,7 +272,7 @@ impl<T: Copy + PartialOrd> ExtentBuilder<T> {
         true
     }
 
-    pub fn build(self) -> Option<Extent<T>> {
+    pub fn build(&self) -> Option<Extent<T>> {
         if let (Some(min), Some(max)) = (self.min_clamp, self.max_clamp) {
             return Some(Extent::from((min, max)));
         }

@@ -51,6 +51,7 @@ pub mod separate;
 pub mod shuffle;
 pub mod slice;
 pub mod sort;
+pub mod spark;
 pub mod split;
 pub mod stats;
 pub mod tail;
