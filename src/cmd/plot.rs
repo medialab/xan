@@ -1,7 +1,6 @@
 // Issue tracking:
 //  - https://github.com/ratatui/ratatui/issues/334
 //  - https://github.com/ratatui/ratatui/issues/1391
-//  - https://github.com/medialab/xan/issues/942
 use std::convert::TryFrom;
 use std::io::{stderr, stdout, Write};
 use std::num::NonZeroUsize;
@@ -177,9 +176,6 @@ Usage:
 
 plot options:
     -L, --line                 Whether to draw a line plot instead of the default scatter plot.
-    -B, --bars                 Whether to draw bars instead of the default scatter plot.
-                               WARNING: currently does not work if y range does not include 0.
-                               https://github.com/ratatui/ratatui/issues/1391
     -T, --time                 Use to indicate that the x axis is temporal. The axis will be
                                discretized according to some inferred temporal granularity and
                                y values will be summed wrt the newly discretized x axis.
@@ -260,7 +256,6 @@ struct Args {
     flag_no_headers: bool,
     flag_delimiter: Option<Delimiter>,
     flag_line: bool,
-    flag_bars: bool,
     flag_time: bool,
     flag_count: bool,
     flag_aggregate: Option<Aggregation>,
@@ -485,8 +480,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     }
 
     if args.flag_regression_line {
-        if args.flag_bars || args.flag_line {
-            Err("-R/--regression-line does not work with -B/--bars nor -L/--line!")?;
+        if args.flag_line {
+            Err("-R/--regression-line does not work with -L/--line!")?;
         }
 
         if args.flag_category.is_some() || has_added_series {
@@ -739,8 +734,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             .marker(args.flag_marker.into_inner())
                             .graph_type(if args.flag_line {
                                 GraphType::Line
-                            } else if args.flag_bars {
-                                GraphType::Bar
                             } else {
                                 GraphType::Scatter
                             })
@@ -874,8 +867,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             .marker(args.flag_marker.into_inner())
                             .graph_type(if args.flag_line {
                                 GraphType::Line
-                            } else if args.flag_bars {
-                                GraphType::Bar
                             } else {
                                 GraphType::Scatter
                             })

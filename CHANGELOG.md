@@ -19,6 +19,7 @@
 * Retiring the `xan fuzzy-join` command in favor of a consolidated `xan join` command.
 * Changing `xan from -f txt -c <name>` default to `line` instead of `value`.
 * Renaming `xan join -L/--prefix-left & -R/--prefix-right` short flags to `-l` & `-r` respectively to avoid colliding with the added `-R/--reverse` flag that can be used for merge joins.
+* Dropping `xan plot -B/--bars`. It never worked very well and its use-case will be redirected to `xan spark`.
 
 *Features*
 
