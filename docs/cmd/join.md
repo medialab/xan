@@ -29,7 +29,7 @@ the file name must be "-" to indicate which file will be read from stdin).
 Inner join of two files on a column named differently:
 
     $ xan join user_id tweets.csv id accounts.csv > joined.csv
-
+join
 The same, but with columns named the same:
 
     $ xan join user_id tweets.csv accounts.csv > joined.csv
@@ -49,6 +49,15 @@ One file from stdin:
 Prefixing right column names:
 
     $ xan join -R user_ user_id tweets.csv id accounts.csv > joined.csv
+
+# Sorted inputs
+
+This command performs what is usually called a "hash join". That is to say one
+of the files is indexed into an in-memory hashmap for the join operation to work.
+
+Now if you know your input files are sorted in a similar fashion, you can use
+the -S/--sorted flag to perform a "merge join" instead and perform the operation
+while using only constant memory (unless you have many duplicates).
 
 # Fuzzy join
 
@@ -72,9 +81,9 @@ A typical use-case for this command is to fuzzy search family
 names, using regex patterns, in some text column of a CSV file, all while
 keeping any match-related column from the pattern file.
 
-This said, if you only need to filter rows of the second file and don't
-actually need to join columns from the patterns file, you should
-probably use `xan search --patterns` instead.
+This said, if you only need to filter rows of the first file and don't actually
+need the columns from the patterns file (i.e. performing a fuzzy --semi or --anti
+join), you should probably use `xan search --patterns` instead.
 
 # Memory considerations
 
@@ -150,15 +159,23 @@ join options:
                                  column selection yield only empty cells.
     -D, --drop-key <mode>        Indicate whether to drop columns representing the join key
                                  in `left` or `right` file, or `none`, or `both`.
-                                 Defaults to `none` unless joined columns are named the same
-                                 and -i, --ignore-case is not set.
-    -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
+                                 Defaults to `none` or some relevant automatic choice when
+                                 obviously convenient (e.g. not when using --full nor -i/--ignore-case
+                                 nor fuzzy matching).
+    -l, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  first dataset.
-    -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
+    -r, --prefix-right <prefix>  Add a prefix to the names of the columns in the
                                  second dataset.
 
+sorted input options:
+    -S, --sorted   Use this flag to indicate both inputs are sorted in a
+                   similar fashion to speed up computation.
+    -R, --reverse  Reverse sort order, i.e. descending order.
+    -N, --numeric  Compare keys according to their numerical values instead of
+                   the default lexicographic order.
+
 fuzzy join options:
-    -S, --simplified-urls    When using -u/--url-prefix, drop irrelevant parts of the urls,
+    --simplified-urls        When using -u/--url-prefix, drop irrelevant parts of the urls,
                              like the scheme, `www.` subdomains etc. to facilitate matches.
     -p, --parallel           Whether to use parallelization to speed up computations.
                              Will automatically select a suitable number of threads to use

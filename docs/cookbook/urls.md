@@ -172,7 +172,7 @@ would produce:
 
 ## Sidestepping issues related to http/https or www
 
-Differences between `http` & `https` and the presence of other url details irrelevant for prefix matching can sometimes cause issues. Fortunately, `xan join` has a `-S/--simplified` flag that will sidestep this issue by ignoring url scheme and usually irrelevant parts such as `www` subdomains, ports, user auth etc.
+Differences between `http` & `https` and the presence of other url details irrelevant for prefix matching can sometimes cause issues. Fortunately, `xan join` has a `--simplified-urls` flag that will sidestep this issue by ignoring url scheme and usually irrelevant parts such as `www` subdomains, ports, user auth etc.
 
 What's more, `xan` commands do not care whether url scheme is present. Which means given a slightly altered medias file like this one:
 
@@ -187,7 +187,7 @@ What's more, `xan` commands do not care whether url scheme is present. Which mea
 we could match our tweets with the following command:
 
 ```bash
-xan join -u url tweets.csv homepage medias.csv -S > joined.csv
+xan join -u url tweets.csv homepage medias.csv --simplified-urls > joined.csv
 ```
 
 ## What to do when you only want to filter the file

@@ -18,6 +18,7 @@
 * Retiring the `xan flatmap` command in favor of `xan explode -e`.
 * Retiring the `xan fuzzy-join` command in favor of a consolidated `xan join` command.
 * Changing `xan from -f txt -c <name>` default to `line` instead of `value`.
+* Renaming `xan join -L/--prefix-left & -R/--prefix-right` short flags to `-l` & `-r` respectively to avoid colliding with the added `-R/--reverse` flag that can be used for merge joins.
 
 *Features*
 
@@ -39,6 +40,7 @@
 * Adding `xan network edgelist --range`.
 * Adding the `xan run` command.
 * Adding `xan view --name`.
+* Adding `xan join -S/--sorted, -R/--reverse & -N/--numeric`.
 
 *Fixes*
 
@@ -49,6 +51,7 @@
 * Fixing `xan network --format` not being validated early enough.
 * Fixing `xan explode -D/--drop-empty` when selecting multiple columns.
 * Fixing `xan merge -u` row precedence.
+* Fixing `xan join -D/--drop-key` automatic selection when using `--full`.
 
 *Performance*
 

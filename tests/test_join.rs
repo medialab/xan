@@ -752,8 +752,8 @@ fn fuzzy_join_url_prefix() {
     let mut cmd = wrk.command("join");
     cmd.arg("-u")
         .args(["link", "links.csv", "url", "medias.csv"])
-        .args(["-L", "left_"])
-        .args(["-R", "right_"]);
+        .args(["-l", "left_"])
+        .args(["-r", "right_"]);
 
     let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
     let expected = vec![
@@ -771,7 +771,7 @@ fn fuzzy_join_url_prefix() {
 
 #[test]
 fn fuzzy_join_drop_key() {
-    let wrk = Workdir::new("fuzzy_join_regex");
+    let wrk = Workdir::new("fuzzy_join_drop_key");
     wrk.create(
         "people.csv",
         vec![
@@ -857,6 +857,93 @@ fn fuzzy_join_drop_key() {
         svec!["john cannon", "blue", "John"],
         svec!["lisa eckart", "purple", "Lisa"],
         svec!["lil john", "red", "John"],
+    ];
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn merge_join() {
+    let wrk = Workdir::new("merge_join");
+    wrk.create(
+        "people.csv",
+        vec![
+            svec!["id", "name"],
+            svec!["1", "Alice"],
+            svec!["2", "Bob"],
+            svec!["3", "Carol"],
+            svec!["4", "Eve"],
+        ],
+    );
+    wrk.create(
+        "dept.csv",
+        vec![
+            svec!["id", "dept"],
+            svec!["1", "Engineering"],
+            svec!["2", "Marketing"],
+            svec!["4", "Finance"],
+            svec!["5", "Engineering"],
+        ],
+    );
+
+    // inner
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S").args(["id", "people.csv", "id", "dept.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "name", "dept"],
+        ["1", "Alice", "Engineering"],
+        ["2", "Bob", "Marketing"],
+        ["4", "Eve", "Finance"],
+    ];
+    assert_eq!(got, expected);
+
+    // left
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--left")
+        .args(["id", "people.csv", "id", "dept.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "name", "dept"],
+        ["1", "Alice", "Engineering"],
+        ["2", "Bob", "Marketing"],
+        ["3", "Carol", ""],
+        ["4", "Eve", "Finance"],
+    ];
+    assert_eq!(got, expected);
+
+    // right
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--right")
+        .args(["id", "people.csv", "id", "dept.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["name", "id", "dept"],
+        ["Alice", "1", "Engineering"],
+        ["Bob", "2", "Marketing"],
+        ["Eve", "4", "Finance"],
+        ["", "5", "Engineering"],
+    ];
+    assert_eq!(got, expected);
+
+    // full
+    let mut cmd = wrk.command("join");
+    cmd.arg("-S")
+        .arg("--full")
+        .args(["id", "people.csv", "id", "dept.csv"]);
+
+    let got: Vec<Vec<String>> = wrk.read_stdout(&mut cmd);
+    let expected = vec![
+        ["id", "name", "id", "dept"],
+        ["1", "Alice", "1", "Engineering"],
+        ["2", "Bob", "2", "Marketing"],
+        ["3", "Carol", "", ""],
+        ["4", "Eve", "4", "Finance"],
+        ["", "", "5", "Engineering"],
     ];
     assert_eq!(got, expected);
 }

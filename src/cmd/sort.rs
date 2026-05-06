@@ -76,8 +76,7 @@ sort options:
     -e, --external            Whether to use external sorting if you cannot fit the
                               whole file in memory.
     --tmp-dir <arg>           Directory where external sorting chunks will be written.
-                              Will default to the sorted file's directory or \"./\" if
-                              sorting an incoming stream.
+                              Will default to \"/tmp\" or equivalent.
     -m, --memory-limit <arg>  Maximum allowed memory when using external sorting, in
                               megabytes. [default: 512].
     --columns                 Sort selected columns alphabetically by their names. Runs in

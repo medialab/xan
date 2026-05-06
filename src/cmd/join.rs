@@ -1,6 +1,7 @@
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::io;
+use std::io::{self, Write};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -8,8 +9,9 @@ use aho_corasick::AhoCorasick;
 use bstr::ByteSlice;
 use pariter::IteratorExt;
 use regex::bytes::{RegexSet, RegexSetBuilder};
-use simd_csv::ByteRecord;
+use simd_csv::{ByteRecord, Writer};
 
+use crate::cmd::sort::{iter_cmp, iter_cmp_num};
 use crate::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::config::{Config, Delimiter};
 use crate::select::{SelectedColumns, Selection};
@@ -294,7 +296,7 @@ the file name must be \"-\" to indicate which file will be read from stdin).
 Inner join of two files on a column named differently:
 
     $ xan join user_id tweets.csv id accounts.csv > joined.csv
-
+join
 The same, but with columns named the same:
 
     $ xan join user_id tweets.csv accounts.csv > joined.csv
@@ -314,6 +316,15 @@ One file from stdin:
 Prefixing right column names:
 
     $ xan join -R user_ user_id tweets.csv id accounts.csv > joined.csv
+
+# Sorted inputs
+
+This command performs what is usually called a \"hash join\". That is to say one
+of the files is indexed into an in-memory hashmap for the join operation to work.
+
+Now if you know your input files are sorted in a similar fashion, you can use
+the -S/--sorted flag to perform a \"merge join\" instead and perform the operation
+while using only constant memory (unless you have many duplicates).
 
 # Fuzzy join
 
@@ -337,9 +348,9 @@ A typical use-case for this command is to fuzzy search family
 names, using regex patterns, in some text column of a CSV file, all while
 keeping any match-related column from the pattern file.
 
-This said, if you only need to filter rows of the second file and don't
-actually need to join columns from the patterns file, you should
-probably use `xan search --patterns` instead.
+This said, if you only need to filter rows of the first file and don't actually
+need the columns from the patterns file (i.e. performing a fuzzy --semi or --anti
+join), you should probably use `xan search --patterns` instead.
 
 # Memory considerations
 
@@ -415,15 +426,23 @@ join options:
                                  column selection yield only empty cells.
     -D, --drop-key <mode>        Indicate whether to drop columns representing the join key
                                  in `left` or `right` file, or `none`, or `both`.
-                                 Defaults to `none` unless joined columns are named the same
-                                 and -i, --ignore-case is not set.
-    -L, --prefix-left <prefix>   Add a prefix to the names of the columns in the
+                                 Defaults to `none` or some relevant automatic choice when
+                                 obviously convenient (e.g. not when using --full nor -i/--ignore-case
+                                 nor fuzzy matching).
+    -l, --prefix-left <prefix>   Add a prefix to the names of the columns in the
                                  first dataset.
-    -R, --prefix-right <prefix>  Add a prefix to the names of the columns in the
+    -r, --prefix-right <prefix>  Add a prefix to the names of the columns in the
                                  second dataset.
 
+sorted input options:
+    -S, --sorted   Use this flag to indicate both inputs are sorted in a
+                   similar fashion to speed up computation.
+    -R, --reverse  Reverse sort order, i.e. descending order.
+    -N, --numeric  Compare keys according to their numerical values instead of
+                   the default lexicographic order.
+
 fuzzy join options:
-    -S, --simplified-urls    When using -u/--url-prefix, drop irrelevant parts of the urls,
+    --simplified-urls        When using -u/--url-prefix, drop irrelevant parts of the urls,
                              like the scheme, `www.` subdomains etc. to facilitate matches.
     -p, --parallel           Whether to use parallelization to speed up computations.
                              Will automatically select a suitable number of threads to use
@@ -470,6 +489,9 @@ struct Args {
     flag_simplified_urls: bool,
     flag_parallel: bool,
     flag_threads: Option<usize>,
+    flag_sorted: bool,
+    flag_reverse: bool,
+    flag_numeric: bool,
 }
 
 type BoxedReader = simd_csv::Reader<Box<dyn io::Read + Send>>;
@@ -594,6 +616,7 @@ impl Args {
             None => {
                 if !self.flag_no_headers
                     && !self.flag_ignore_case
+                    && !self.flag_full
                     && left_sel.select(left_headers).collect::<ByteRecord>()
                         == right_sel.select(right_headers).collect::<ByteRecord>()
                 {
@@ -868,6 +891,142 @@ impl Args {
         Ok(writer.flush()?)
     }
 
+    fn merge_join(mut self) -> CliResult<()> {
+        let (
+            (mut left_reader, left_headers, left_sel),
+            (mut right_reader, right_headers, right_sel),
+        ) = self.readers()?;
+
+        let (inverted_left_sel, inverted_right_sel) =
+            self.inverted_selections(&left_headers, &left_sel, &right_headers, &right_sel);
+
+        let mut writer = self.wconf().simd_writer()?;
+
+        self.write_headers(
+            &mut writer,
+            &inverted_left_sel.select(&left_headers).collect(),
+            &inverted_right_sel.select(&right_headers).collect(),
+        )?;
+
+        let cmp = |a: &ByteRecord, b: &ByteRecord| -> Ordering {
+            let a_sel = left_sel.select(a);
+            let b_sel = right_sel.select(b);
+
+            let ordering = if self.flag_numeric {
+                iter_cmp_num(a_sel, b_sel)
+            } else {
+                iter_cmp(a_sel, b_sel)
+            };
+
+            if self.flag_reverse {
+                ordering.reverse()
+            } else {
+                ordering
+            }
+        };
+
+        let left_padding = get_padding(inverted_left_sel.len());
+        let right_padding = get_padding(inverted_right_sel.len());
+
+        let write_only_left = |writer: &mut Writer<Box<dyn Write + Send>>,
+                               record: &ByteRecord|
+         -> simd_csv::Result<()> {
+            writer.write_record(inverted_left_sel.select(record).chain(&right_padding))
+        };
+
+        let write_only_right = |writer: &mut Writer<Box<dyn Write + Send>>,
+                                record: &ByteRecord|
+         -> simd_csv::Result<()> {
+            writer.write_record(left_padding.iter().chain(inverted_right_sel.select(record)))
+        };
+
+        let mut left_buffer: Vec<ByteRecord> = Vec::new();
+        let mut right_buffer: Vec<ByteRecord> = Vec::new();
+
+        let mut left_records = left_reader.byte_records();
+        let mut right_records = right_reader.byte_records();
+
+        let mut left_record_opt = left_records.next().transpose()?;
+        let mut right_record_opt = right_records.next().transpose()?;
+
+        while let (Some(left_record), Some(right_record)) = (&left_record_opt, &right_record_opt) {
+            match cmp(left_record, right_record) {
+                Ordering::Equal => {
+                    // Collecting left records
+                    left_buffer.clear();
+                    left_buffer.push(left_record_opt.take().unwrap());
+                    left_record_opt = left_records.next().transpose()?;
+
+                    while matches!(&left_record_opt, Some(next_left_record) if cmp(&left_buffer[0], next_left_record).is_eq())
+                    {
+                        left_buffer.push(left_record_opt.take().unwrap());
+                        left_record_opt = left_records.next().transpose()?;
+                    }
+
+                    // Collecting right records
+                    right_buffer.clear();
+                    right_buffer.push(right_record_opt.take().unwrap());
+                    right_record_opt = right_records.next().transpose()?;
+
+                    while matches!(&right_record_opt, Some(next_right_record) if cmp(&right_buffer[0], next_right_record).is_eq())
+                    {
+                        right_buffer.push(right_record_opt.take().unwrap());
+                        right_record_opt = right_records.next().transpose()?;
+                    }
+
+                    // Cross-product
+                    for l in left_buffer.iter() {
+                        for r in right_buffer.iter() {
+                            writer.write_record(
+                                inverted_left_sel
+                                    .select(l)
+                                    .chain(inverted_right_sel.select(r)),
+                            )?;
+                        }
+                    }
+                }
+                Ordering::Less => {
+                    if self.flag_left || self.flag_full {
+                        write_only_left(&mut writer, left_record)?;
+                    }
+
+                    left_record_opt = left_records.next().transpose()?;
+                }
+                Ordering::Greater => {
+                    if self.flag_right || self.flag_full {
+                        write_only_right(&mut writer, right_record)?;
+                    }
+
+                    right_record_opt = right_records.next().transpose()?;
+                }
+            }
+        }
+
+        let mut remaining_record = ByteRecord::new();
+
+        if self.flag_left || self.flag_full {
+            if let Some(left_record) = &left_record_opt {
+                write_only_left(&mut writer, left_record)?;
+            }
+
+            while left_reader.read_byte_record(&mut remaining_record)? {
+                write_only_left(&mut writer, &remaining_record)?;
+            }
+        }
+
+        if self.flag_right || self.flag_full {
+            if let Some(right_record) = &right_record_opt {
+                write_only_right(&mut writer, right_record)?;
+            }
+
+            while right_reader.read_byte_record(&mut remaining_record)? {
+                write_only_right(&mut writer, &remaining_record)?;
+            }
+        }
+
+        Ok(writer.flush()?)
+    }
+
     fn cross_join(mut self) -> CliResult<()> {
         let ((mut left_reader, left_headers, _), (right_reader, right_headers, _)) =
             self.readers()?;
@@ -1031,8 +1190,18 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-p/--parallel or -t/--threads only work with fuzzy joins (-c, -r, -u)!")?;
     }
 
+    if fuzzy_operations == 1 && args.flag_sorted {
+        Err("-S/--sorted does not work with fuzzy joins (-c, -r, -u)!")?;
+    }
+
+    if args.flag_sorted && (args.flag_anti || args.flag_semi || args.flag_cross) {
+        Err("-S/--sorted does not work with --cross, --anti nor --semi!")?;
+    }
+
     if fuzzy_operations == 1 {
         args.fuzzy_join()
+    } else if args.flag_sorted {
+        args.merge_join()
     } else if args.flag_left {
         args.left_join()
     } else if args.flag_right {
