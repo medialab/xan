@@ -123,7 +123,8 @@ macro_rules! command_list {
     matrix      Convert CSV data to matrix data
     network     Convert CSV data to network data
 
-## Debug
+## Scripting
+    run   Run a `xan` pipeline or script
     eval  Evaluate/debug a single expression
 "
     };

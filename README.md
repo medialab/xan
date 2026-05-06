@@ -678,8 +678,9 @@ For a sense of what can be achieved with `xan`, see this page summarizing a vari
 - [**matrix**](./docs/cmd/matrix.md): Convert CSV data to matrix data
 - [**network**](./docs/cmd/network.md): Convert CSV data to network data
 
-*Debug*
+*Scripting*
 
+- [**run**](./docs/cmd/run.md): Run a `xan` pipeline or script
 - [**eval**](./docs/cmd/eval.md): Evaluate/debug a single expression
 
 ## General flags and IO model

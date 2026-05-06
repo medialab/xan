@@ -4,7 +4,10 @@ use std::process::Child;
 use std::thread;
 
 fn tokenize_pipeline(input: &str) -> Result<Vec<String>, String> {
-    let raw = shlex::split(input).ok_or_else(|| format!("could not parse pipeline: {}", input))?;
+    let normalized_input = input.replace("\r\n", "\n");
+
+    let raw = shlex::split(&normalized_input)
+        .ok_or_else(|| format!("could not parse pipeline: {}", input))?;
 
     let mut tokens = Vec::with_capacity(raw.len());
 
