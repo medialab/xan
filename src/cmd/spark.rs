@@ -20,9 +20,10 @@ use crate::CliResult;
 // TODO: streaming version when possible (pivoted)
 // TODO: unpivot flag, working with groupby
 // TODO: --rainbow, horizontal and vertical (also for stripes)
+// TODO: factorize rendering so it can be used in xan stats -D
 
-// NOTE: last char is only used when stacking through -H/--height
-static SPARKLINE_CHARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
+const FULL_BAR: char = '█';
 
 #[derive(Debug)]
 struct SeriesBuilder {
@@ -175,16 +176,33 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         series_builder.discretize(cols_for_sparkline / sparkline_width);
         let scale = series_builder.to_scale(ScaleType::Linear).unwrap();
 
-        for _h in 0..sparkline_height {
-            let max_index = SPARKLINE_CHARS.len() - 1;
+        for h in (0..sparkline_height).rev() {
+            let len = SPARKLINE_CHARS.len();
 
-            for x in series_builder.numbers.iter().copied() {
-                let sparkline_char = if x == 0.0 {
+            for y in series_builder.numbers.iter().copied() {
+                let sparkline_char = if y == 0.0 {
                     ' '
                 } else {
-                    let mut bar_index = (scale.percent(x) * max_index as f64).floor() as usize;
-                    bar_index = bar_index.min(max_index - 1);
-                    SPARKLINE_CHARS[bar_index]
+                    let pct = scale.percent(y);
+                    let scaled = pct * sparkline_height as f64;
+
+                    let full = scaled.floor() as usize;
+                    let frac = scaled - full as f64;
+
+                    if full > h {
+                        if h == sparkline_height - 1 {
+                            SPARKLINE_CHARS[len - 1]
+                        } else {
+                            FULL_BAR
+                        }
+                    } else if full == h && frac > 1e-9 {
+                        let mut bar_index = (frac * len as f64).ceil() as usize;
+                        bar_index = bar_index.saturating_sub(1).min(len - 1);
+
+                        SPARKLINE_CHARS[bar_index]
+                    } else {
+                        ' '
+                    }
                 };
 
                 for _ in 0..sparkline_width {
@@ -192,7 +210,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            writeln!(&mut out)?
+            writeln!(&mut out)?;
         }
     }
 
