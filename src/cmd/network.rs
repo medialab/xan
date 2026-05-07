@@ -328,11 +328,25 @@ impl Args {
             let source = &record[source_column_index];
             let target = &record[target_column_index];
 
-            let (source_id, target_id) = if self.flag_range.is_some() {
-                (
-                    source.parse::<u32>()? as usize,
-                    target.parse::<u32>()? as usize,
-                )
+            let (source_id, target_id) = if let Some(max) = self.flag_range {
+                let source_id = source.parse::<u32>()?;
+                let target_id = target.parse::<u32>()?;
+
+                if source_id > max {
+                    Err(format!(
+                        "found a source id {} that is greater than max {} given to --range!",
+                        source_id, max
+                    ))?;
+                }
+
+                if target_id > max {
+                    Err(format!(
+                        "found a target id {} that is greater than max {} given to --range!",
+                        target_id, max
+                    ))?;
+                }
+
+                (source_id as usize, target_id as usize)
             } else {
                 (
                     graph_builder.get_source_node_id(source),
