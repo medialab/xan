@@ -144,9 +144,32 @@ impl DegreeMap {
     }
 }
 
+enum NodeKey<'a> {
+    String(&'a str),
+    Id(usize),
+}
+
+impl NodeKey<'_> {
+    #[inline]
+    fn as_bytes(&self) -> Cow<[u8]> {
+        match self {
+            Self::String(string) => Cow::Borrowed(string.as_bytes()),
+            Self::Id(id) => Cow::Owned(id.to_string().into_bytes()),
+        }
+    }
+
+    #[inline]
+    fn as_str(&self) -> Cow<str> {
+        match self {
+            Self::String(string) => Cow::Borrowed(string),
+            Self::Id(id) => Cow::Owned(id.to_string()),
+        }
+    }
+}
+
 enum NodeStore {
     Hash(IndexMap<String, Attributes>),
-    Range(Vec<(String, Attributes)>),
+    Range(Vec<(Option<String>, Attributes)>),
 }
 
 impl NodeStore {
@@ -167,18 +190,50 @@ impl NodeStore {
     }
 
     #[inline]
-    fn get_index(&self, index: usize) -> Option<(&String, &Attributes)> {
+    fn get_index(&self, index: usize) -> Option<(NodeKey, &Attributes)> {
         match self {
-            Self::Hash(map) => map.get_index(index),
-            Self::Range(list) => list.get(index).map(|(k, v)| (k, v)),
+            Self::Hash(map) => map.get_index(index).map(|(k, v)| (NodeKey::String(k), v)),
+            Self::Range(list) => list.get(index).map(|(k, v)| {
+                (
+                    match k {
+                        Some(s) => NodeKey::String(s),
+                        None => NodeKey::Id(index),
+                    },
+                    v,
+                )
+            }),
         }
     }
 
     #[inline]
-    fn iter(&self) -> Box<dyn Iterator<Item = (&String, &Attributes)> + '_> {
+    fn get_index_with_ensured_key(&self, index: usize) -> Option<(&String, &Attributes)> {
+        match self {
+            Self::Hash(map) => map.get_index(index),
+            Self::Range(list) => list.get(index).map(|(k, v)| (k.as_ref().unwrap(), v)),
+        }
+    }
+
+    #[inline]
+    fn iter(&self) -> Box<dyn Iterator<Item = (NodeKey, &Attributes)> + '_> {
+        match self {
+            Self::Hash(map) => Box::new(map.iter().map(|(k, v)| (NodeKey::String(k), v))),
+            Self::Range(list) => Box::new(list.iter().enumerate().map(|(index, (k, v))| {
+                (
+                    match k {
+                        Some(s) => NodeKey::String(s),
+                        None => NodeKey::Id(index),
+                    },
+                    v,
+                )
+            })),
+        }
+    }
+
+    #[inline]
+    fn iter_with_ensured_keys(&self) -> Box<dyn Iterator<Item = (&String, &Attributes)> + '_> {
         match self {
             Self::Hash(map) => Box::new(map.iter()),
-            Self::Range(list) => Box::new(list.iter().map(|(k, v)| (k, v))),
+            Self::Range(list) => Box::new(list.iter().map(|(k, v)| (k.as_ref().unwrap(), v))),
         }
     }
 }
@@ -284,7 +339,7 @@ impl GraphBuilder {
             nodes: if let Some(max) = options.range_edge_store {
                 NodeStore::Range(
                     (0..(max + 1) as usize)
-                        .map(|i| (i.to_string(), Attributes::default()))
+                        .map(|_| (None, Attributes::default()))
                         .collect(),
                 )
             } else {
@@ -295,6 +350,16 @@ impl GraphBuilder {
             } else {
                 EdgeStore::Hash(HashMap::new(), Vec::new())
             },
+        }
+    }
+
+    fn ensure_node_keys(&mut self) {
+        if let NodeStore::Range(list) = &mut self.nodes {
+            for (i, (k, _)) in list.iter_mut().enumerate() {
+                if k.is_none() {
+                    *k = Some(i.to_string());
+                }
+            }
         }
     }
 
@@ -562,7 +627,7 @@ impl GraphBuilder {
         for leader in sets.leaders() {
             writer.write_record([
                 leader.size.to_string().as_bytes(),
-                self.nodes.get_index(leader.parent).unwrap().0.as_bytes(),
+                &self.nodes.get_index(leader.parent).unwrap().0.as_bytes(),
             ])?;
         }
 
@@ -570,7 +635,7 @@ impl GraphBuilder {
     }
 
     pub fn write_csv_nodelist(
-        &self,
+        &mut self,
         writer_config: &Config,
         only_largest_component: bool,
         compute_degrees: bool,
@@ -615,7 +680,7 @@ impl GraphBuilder {
             }
 
             record.clear();
-            record.push_field(key.as_bytes());
+            record.push_field(&key.as_bytes());
 
             if !attributes.is_empty() {
                 for (_, attr_value) in attributes.iter() {
@@ -653,7 +718,7 @@ impl GraphBuilder {
     }
 
     pub fn write_gexf(
-        &self,
+        &mut self,
         writer_config: &Config,
         version: &str,
         minify: bool,
@@ -762,17 +827,17 @@ impl GraphBuilder {
 
             let node_label = if let Some(id) = node_label_attr {
                 match attributes.get(id) {
-                    None => Cow::Borrowed(key.as_str()),
+                    None => key.as_str(),
                     Some(v) => Cow::Owned(serialize_value(v)),
                 }
             } else {
-                Cow::Borrowed(key.as_str())
+                key.as_str()
             };
 
             if attributes.is_empty() {
-                xml_writer.open_empty("node", [("id", key.as_str()), ("label", &node_label)])?;
+                xml_writer.open_empty("node", [("id", key.as_str()), ("label", node_label)])?;
             } else {
-                xml_writer.open("node", [("id", key.as_str()), ("label", &node_label)])?;
+                xml_writer.open("node", [("id", key.as_str()), ("label", node_label)])?;
 
                 xml_writer.open_no_attributes("attvalues")?;
                 for (i, (interner_id, value)) in attributes.iter().enumerate() {
@@ -907,13 +972,10 @@ impl GraphBuilder {
                 "nodes",
                 &IteratorSerializer::new(
                     self.nodes
-                        .iter()
+                        .iter_with_ensured_keys()
                         .enumerate()
                         .filter(|(i, _)| sets.find(*i) == *largest)
-                        .map(|(_, (key, attributes))| GraphologyNode {
-                            key: key.as_ref(),
-                            attributes,
-                        }),
+                        .map(|(_, (key, attributes))| GraphologyNode { key, attributes }),
                     None,
                 ),
             )?;
@@ -925,12 +987,14 @@ impl GraphBuilder {
                         .iter()
                         .filter(|((source, _), _)| sets.find(*source) == *largest)
                         .map(|((source, target), attributes)| {
-                            let source_key = self.nodes.get_index(source).unwrap().0;
-                            let target_key = self.nodes.get_index(target).unwrap().0;
+                            let source_key =
+                                self.nodes.get_index_with_ensured_key(source).unwrap().0;
+                            let target_key =
+                                self.nodes.get_index_with_ensured_key(target).unwrap().0;
 
                             GraphologyEdge {
-                                source: source_key.as_ref(),
-                                target: target_key.as_ref(),
+                                source: source_key,
+                                target: target_key,
                                 undirected: self.is_undirected(),
                                 attributes,
                             }
@@ -942,10 +1006,9 @@ impl GraphBuilder {
             root_map.serialize_entry(
                 "nodes",
                 &IteratorSerializer::new(
-                    self.nodes.iter().map(|(key, attributes)| GraphologyNode {
-                        key: key.as_ref(),
-                        attributes,
-                    }),
+                    self.nodes
+                        .iter_with_ensured_keys()
+                        .map(|(key, attributes)| GraphologyNode { key, attributes }),
                     Some(self.nodes.len()),
                 ),
             )?;
@@ -954,12 +1017,12 @@ impl GraphBuilder {
                 "edges",
                 &IteratorSerializer::new(
                     self.edges.iter().map(|((source, target), attributes)| {
-                        let source_key = self.nodes.get_index(source).unwrap().0;
-                        let target_key = self.nodes.get_index(target).unwrap().0;
+                        let source_key = self.nodes.get_index_with_ensured_key(source).unwrap().0;
+                        let target_key = self.nodes.get_index_with_ensured_key(target).unwrap().0;
 
                         GraphologyEdge {
-                            source: source_key.as_ref(),
-                            target: target_key.as_ref(),
+                            source: source_key,
+                            target: target_key,
                             undirected: self.is_undirected(),
                             attributes,
                         }
@@ -975,11 +1038,13 @@ impl GraphBuilder {
     }
 
     pub fn write_json(
-        &self,
+        &mut self,
         writer_config: &Config,
         minify: bool,
         only_largest_component: bool,
     ) -> CliResult<()> {
+        self.ensure_node_keys();
+
         let mut writer = writer_config.buf_io_writer()?;
 
         if minify {

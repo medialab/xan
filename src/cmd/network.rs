@@ -465,7 +465,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         ))?;
     }
 
-    let builder = (if args.cmd_edgelist {
+    let mut builder = (if args.cmd_edgelist {
         args.edgelist()
     } else if args.cmd_bipartite {
         args.bipartite()
