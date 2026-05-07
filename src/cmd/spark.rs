@@ -172,12 +172,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sparkline_width = args.flag_width.get();
     let sparkline_height = args.flag_height.get();
 
+    let mut line_buffer = String::with_capacity(cols);
+
     // Rendering
     for mut series_builder in pool.into_iter() {
         series_builder.discretize(cols_for_sparkline / sparkline_width);
         let scale = series_builder.to_scale(ScaleType::Linear).unwrap();
 
         for h in (0..sparkline_height).rev() {
+            line_buffer.clear();
+
             let len = SPARKLINE_CHARS.len();
 
             for y in series_builder.numbers.iter().copied() {
@@ -207,11 +211,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 };
 
                 for _ in 0..sparkline_width {
-                    write!(&mut out, "{}", sparkline_char)?;
+                    line_buffer.push(sparkline_char);
                 }
             }
 
-            writeln!(&mut out)?;
+            writeln!(&mut out, "{}", line_buffer)?;
         }
     }
 
