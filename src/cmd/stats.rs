@@ -1,14 +1,130 @@
+use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
+use bstr::BString;
+use colored::Colorize;
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
-use crate::collections::ClusteredInsertHashmap;
+use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
-use crate::moonblade::Stats;
+use crate::moonblade::{DynamicNumber, Stats, Welford};
+use crate::scales::ExtentBuilder;
 use crate::select::SelectedColumns;
-use crate::util;
+use crate::util::{self, format_number};
 use crate::CliResult;
+
+enum ColumnType {
+    Numerical {
+        min: f64,
+        max: f64,
+        mean: f64,
+        stddev: f64,
+    },
+    Categorical {
+        cardinality: u64,
+    },
+    Labels,
+}
+
+impl ColumnType {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Numerical { .. } => "numerical",
+            Self::Categorical { .. } => "categorical",
+            Self::Labels => "labels",
+        }
+    }
+}
+
+// TODO: untrimmed values counting
+// TODO: example values, viz etc.
+// TODO: label
+// TODO: --color
+
+#[derive(Debug)]
+struct ColumnEstimator {
+    name: BString,
+    strings: Counter<Vec<u8>>,
+    numbers: Vec<f64>,
+    welford: Welford,
+    extent_builder: ExtentBuilder<f64>,
+    int_count: u64,
+    string_count: u64,
+    empty_count: u64,
+    count: u64,
+}
+
+impl ColumnEstimator {
+    fn new(name: &[u8]) -> Self {
+        Self {
+            name: BString::from(name),
+            strings: Counter::new(None),
+            numbers: Vec::new(),
+            welford: Welford::new(),
+            extent_builder: ExtentBuilder::new(),
+            int_count: 0,
+            string_count: 0,
+            empty_count: 0,
+            count: 0,
+        }
+    }
+
+    fn process(&mut self, cell: &[u8]) {
+        self.count += 1;
+
+        if cell.is_empty() {
+            self.empty_count += 1;
+            return;
+        }
+
+        if let Ok(n) = DynamicNumber::try_from(cell) {
+            if !n.is_float() {
+                self.int_count += 1;
+            }
+
+            let f = n.as_float();
+
+            self.welford.add(f);
+            self.extent_builder.process(f);
+            self.numbers.push(f);
+        } else {
+            self.string_count += 1;
+            self.strings.add(cell.to_vec());
+        }
+    }
+
+    fn string_cardinality(&self) -> u64 {
+        self.strings.cardinality()
+    }
+
+    fn string_cardinality_ratio(&self) -> f64 {
+        self.string_cardinality() as f64 / (self.count - self.empty_count) as f64
+    }
+
+    fn is_numerical(&self) -> bool {
+        self.count - self.empty_count == self.welford.count() as u64
+    }
+
+    fn infer_type(&self) -> ColumnType {
+        if self.is_numerical() {
+            let extent = self.extent_builder.build().unwrap();
+
+            ColumnType::Numerical {
+                min: extent.min(),
+                max: extent.max(),
+                mean: self.welford.mean().unwrap(),
+                stddev: self.welford.stdev().unwrap(),
+            }
+        } else if self.string_cardinality_ratio() < 0.7 {
+            ColumnType::Categorical {
+                cardinality: self.string_cardinality(),
+            }
+        } else {
+            ColumnType::Labels
+        }
+    }
+}
 
 static USAGE: &str = "
 Computes descriptive statistics on CSV data.
@@ -63,6 +179,7 @@ stats options:
                              See 'xan select --help' for the format details.
                              This is provided here because piping 'xan select'
                              into 'xan stats' will disable the use of indexing.
+    -D, --describe
     -g, --groupby <cols>     If given, will compute stats per group as defined by
                              the given column selection.
     -A, --all                Shorthand for -cq.
@@ -95,6 +212,7 @@ struct Args {
     arg_input: Option<String>,
     flag_select: SelectedColumns,
     flag_groupby: Option<SelectedColumns>,
+    flag_describe: bool,
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,
@@ -190,10 +308,78 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         sel.select(&headers).map(|h| h.to_vec()).collect()
     };
 
+    let mut record = ByteRecord::new();
+
+    // Describe
+    if args.flag_describe {
+        if args.flag_groupby.is_some() {
+            Err("-D/--describe does not work with -g/--groupby!")?;
+        }
+
+        let mut out = stdout();
+        let cols = util::acquire_term_cols(&None);
+
+        let mut estimators: Vec<_> = sel.select(&headers).map(ColumnEstimator::new).collect();
+
+        while rdr.read_byte_record(&mut record)? {
+            for (estimator, cell) in estimators.iter_mut().zip(sel.select(&record)) {
+                estimator.process(cell);
+            }
+        }
+
+        for estimator in estimators {
+            let column_type = estimator.infer_type();
+
+            writeln!(
+                &mut out,
+                "{}: {}",
+                String::from_utf8_lossy(&estimator.name).cyan(),
+                column_type.as_str()
+            )?;
+            writeln!(&mut out, "{}", "─".repeat(cols).dimmed())?;
+
+            match column_type {
+                ColumnType::Categorical { cardinality } => {
+                    writeln!(
+                        &mut out,
+                        "cardinality: {}",
+                        format_number(cardinality).red()
+                    )?;
+                }
+                ColumnType::Numerical {
+                    min,
+                    max,
+                    mean,
+                    stddev,
+                } => {
+                    writeln!(
+                        &mut out,
+                        "({} … {}): {} … {}",
+                        "min".blue(),
+                        "max".red(),
+                        format_number(min).blue(),
+                        format_number(max).red()
+                    )?;
+                    writeln!(
+                        &mut out,
+                        "({} ± {}): {} ± {}",
+                        "mean".green(),
+                        "σ".magenta(),
+                        format_number(mean).green(),
+                        format_number(stddev).magenta()
+                    )?;
+                }
+                _ => (),
+            };
+
+            writeln!(&mut out)?;
+        }
+
+        return Ok(());
+    }
+
     // Grouping
     if let Some(gsel) = groupby_sel_opt {
-        let mut record = ByteRecord::new();
-
         for h in gsel.select(&headers) {
             record.push_field(h);
         }
@@ -238,8 +424,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut fields = (0..sel.len()).map(|_| args.new_stats()).collect::<Vec<_>>();
 
     wtr.write_byte_record(&fields[0].headers())?;
-
-    let mut record = ByteRecord::new();
 
     while rdr.read_byte_record(&mut record)? {
         for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {

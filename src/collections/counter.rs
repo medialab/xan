@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use std::fmt;
 use std::hash::Hash;
 
 use rayon::prelude::*;
@@ -8,6 +9,7 @@ use crate::collections::HashMap;
 
 use super::heap::TopKHeap;
 
+#[derive(Debug)]
 pub struct ExactCounter<K: Eq + Hash + Send + Ord> {
     map: HashMap<K, u64>,
 }
@@ -98,10 +100,20 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
             self.inc(v, c);
         }
     }
+
+    fn cardinality(&self) -> u64 {
+        self.map.len() as u64
+    }
 }
 
 pub struct ApproxCounter<K: Eq + Hash + Send + Ord> {
     map: FilteredSpaceSaving<K>,
+}
+
+impl<K: Eq + Hash + Send + Ord> fmt::Debug for ApproxCounter<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ApproxCounter").finish()
+    }
 }
 
 impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
@@ -126,11 +138,16 @@ impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
         (total, items)
     }
 
+    fn cardinality(&self) -> u64 {
+        self.map.count()
+    }
+
     pub fn merge(&mut self, other: Self) {
         self.map.merge(&other.map).unwrap()
     }
 }
 
+#[derive(Debug)]
 pub enum Counter<K: Eq + Hash + Send + Ord> {
     Exact(ExactCounter<K>),
     Approximate(Box<ApproxCounter<K>>),
@@ -141,6 +158,13 @@ impl<K: Eq + Hash + Send + Ord + Clone> Counter<K> {
         match approx_capacity {
             Some(k) => Self::Approximate(Box::new(ApproxCounter::new(k))),
             None => Self::Exact(ExactCounter::new()),
+        }
+    }
+
+    pub fn cardinality(&self) -> u64 {
+        match self {
+            Self::Exact(inner) => inner.cardinality(),
+            Self::Approximate(inner) => inner.cardinality(),
         }
     }
 

@@ -49,6 +49,10 @@ impl Welford {
         self.m2 = m2;
     }
 
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
     pub fn mean(&self) -> Option<f64> {
         if self.count == 0 {
             return None;
