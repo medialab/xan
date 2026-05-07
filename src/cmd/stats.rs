@@ -6,6 +6,7 @@ use colored::Colorize;
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
+use crate::cmd::spark::{FULL_BAR, SPARKLINE_CHARS};
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
@@ -20,6 +21,7 @@ enum ColumnType {
         max: f64,
         mean: f64,
         stddev: f64,
+        histogram: Vec<f64>,
     },
     Categorical {
         cardinality: u64,
@@ -37,9 +39,65 @@ impl ColumnType {
     }
 }
 
+// TODO: factorize with `xan spark`
+fn print_sparkline(buffer: &mut String, height: usize, bins: &[f64]) {
+    buffer.clear();
+
+    let mut max = bins[0];
+
+    for count in &bins[1..] {
+        if *count > max {
+            max = *count;
+        }
+    }
+
+    for h in (0..height).rev() {
+        let len = SPARKLINE_CHARS.len();
+
+        for (i, y) in bins.iter().copied().enumerate() {
+            let sparkline_char = if y == 0.0 {
+                ' '
+            } else {
+                let pct = y / max;
+                let scaled = pct * height as f64;
+
+                let full = scaled.floor() as usize;
+                let frac = scaled - full as f64;
+
+                if full > h {
+                    if h == height - 1 {
+                        SPARKLINE_CHARS[len - 1]
+                    } else {
+                        FULL_BAR
+                    }
+                } else if full == h && frac > 1e-9 {
+                    let mut bar_index = (frac * len as f64).ceil() as usize;
+                    bar_index = bar_index.saturating_sub(1).min(len - 1);
+
+                    SPARKLINE_CHARS[bar_index]
+                } else {
+                    ' '
+                }
+            };
+
+            if i % 2 == 0 {
+                buffer.push_str(&sparkline_char.to_string().dimmed().to_string());
+            } else {
+                buffer.push(sparkline_char);
+            }
+        }
+
+        buffer.push('\n');
+    }
+
+    buffer.pop();
+}
+
 // TODO: untrimmed values counting
 // TODO: example values, viz etc.
 // TODO: label
+// TODO: auto log scale
+// TODO: timestamp
 // TODO: --color
 
 #[derive(Debug)]
@@ -110,11 +168,21 @@ impl ColumnEstimator {
         if self.is_numerical() {
             let extent = self.extent_builder.build().unwrap();
 
+            let bins = 35;
+            let mut histogram = vec![0f64; bins];
+            let cell_width = extent.width() / bins as f64;
+
+            for x in self.numbers.iter().copied() {
+                let index = (((x - extent.min()) / cell_width).floor() as usize).min(bins - 1);
+                histogram[index] += 1.0;
+            }
+
             ColumnType::Numerical {
                 min: extent.min(),
                 max: extent.max(),
                 mean: self.welford.mean().unwrap(),
                 stddev: self.welford.stdev().unwrap(),
+                histogram,
             }
         } else if self.string_cardinality_ratio() < 0.7 {
             ColumnType::Categorical {
@@ -327,6 +395,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
+        let mut sparkline_buffer = String::new();
+        let sep = "─".repeat(cols).dimmed();
+
         for estimator in estimators {
             let column_type = estimator.infer_type();
 
@@ -336,13 +407,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 String::from_utf8_lossy(&estimator.name).cyan(),
                 column_type.as_str()
             )?;
-            writeln!(&mut out, "{}", "─".repeat(cols).dimmed())?;
+            writeln!(&mut out, "{}", sep)?;
 
             match column_type {
                 ColumnType::Categorical { cardinality } => {
                     writeln!(
                         &mut out,
-                        "cardinality: {}",
+                        "distinct values: {}",
                         format_number(cardinality).red()
                     )?;
                 }
@@ -351,6 +422,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     max,
                     mean,
                     stddev,
+                    histogram,
                 } => {
                     writeln!(
                         &mut out,
@@ -368,11 +440,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(mean).green(),
                         format_number(stddev).magenta()
                     )?;
+
+                    print_sparkline(&mut sparkline_buffer, 5, &histogram);
+
+                    writeln!(&mut out, "\n{}", sparkline_buffer)?;
                 }
                 _ => (),
             };
 
-            writeln!(&mut out)?;
+            writeln!(&mut out, "\n")?;
         }
 
         return Ok(());

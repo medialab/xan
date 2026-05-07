@@ -24,8 +24,8 @@ use crate::CliResult;
 // TODO: factorize rendering so it can be used in xan stats -D
 // TODO: gradients to emphasize
 
-static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
-const FULL_BAR: char = '█';
+pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
+pub const FULL_BAR: char = '█';
 
 #[derive(Debug)]
 struct Series {
