@@ -1445,11 +1445,8 @@ impl Args {
             let headers = input_reader.headers(csv_reader.byte_headers()?);
 
             let mut record = ByteRecord::new();
-            let mut program = AggregationProgram::parse(
-                self.arg_expr.as_ref().unwrap(),
-                &headers,
-                !csv_reader.has_headers(),
-            )?;
+            let mut program =
+                AggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers, false)?;
 
             let mut index: usize = 0;
 
@@ -1498,11 +1495,8 @@ impl Args {
             let sel = self.arg_group.clone().unwrap().selection(&headers, true)?;
 
             let mut record = ByteRecord::new();
-            let mut program = GroupAggregationProgram::parse(
-                self.arg_expr.as_ref().unwrap(),
-                &headers,
-                !csv_reader.has_headers(),
-            )?;
+            let mut program =
+                GroupAggregationProgram::parse(self.arg_expr.as_ref().unwrap(), &headers, false)?;
 
             let mut index: usize = 0;
 
