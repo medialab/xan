@@ -5,6 +5,7 @@ use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::scales::{ExtentBuilder, Scale, ScaleType};
+use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
@@ -27,24 +28,29 @@ static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '
 const FULL_BAR: char = '█';
 
 #[derive(Debug)]
-struct SeriesBuilder {
-    extent: ExtentBuilder<f64>,
+struct Series {
+    extent_builder: ExtentBuilder<f64>,
     numbers: Vec<f64>,
 }
 
-impl SeriesBuilder {
+impl Series {
     #[inline]
     fn with_capacity(capacity: usize) -> Self {
         Self {
-            extent: ExtentBuilder::new(),
+            extent_builder: ExtentBuilder::new(),
             numbers: Vec::with_capacity(capacity),
         }
     }
 
     #[inline]
+    fn len(&self) -> usize {
+        self.numbers.len()
+    }
+
+    #[inline]
     fn push(&mut self, x: f64) {
         self.numbers.push(x);
-        self.extent.process(x);
+        self.extent_builder.process(x);
     }
 
     #[inline]
@@ -56,7 +62,7 @@ impl SeriesBuilder {
 
     fn discretize(&mut self, count: usize) {
         if count < self.numbers.len() {
-            self.extent.clear();
+            self.extent_builder.clear();
 
             let mut bins = vec![0.0; count];
             let chunk_size = (self.numbers.len() as f64 / count as f64).ceil() as usize;
@@ -66,7 +72,7 @@ impl SeriesBuilder {
                     bins[i] += x;
                 }
 
-                self.extent.process(bins[i]);
+                self.extent_builder.process(bins[i]);
             }
 
             self.numbers = bins;
@@ -76,7 +82,7 @@ impl SeriesBuilder {
     }
 
     fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
-        self.extent
+        self.extent_builder
             .build()
             .map(|extent| Scale::new(scale_type, (extent.min(), extent.max()), (0.0, 1.0)))
     }
@@ -86,7 +92,7 @@ static USAGE: &str = "
 TODO...
 
 Usage:
-    xan spark [options] [<input>]
+    xan spark [options] <columns> [<input>]
     xan spark --help
 
 spark options:
@@ -118,6 +124,7 @@ Common options:
 #[derive(Deserialize, Debug)]
 struct Args {
     arg_input: Option<String>,
+    arg_columns: SelectedColumns,
     flag_width: NonZeroUsize,
     flag_height: NonZeroUsize,
     flag_cols: Option<String>,
@@ -148,43 +155,49 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
+        .select(args.arg_columns)
         .no_headers(args.flag_no_headers);
 
     let mut reader = rconf.simd_reader()?;
     let headers = reader.byte_headers()?.clone();
+    let sel = rconf.selection(&headers)?;
 
     let mut record = ByteRecord::new();
 
-    let mut pool: Vec<SeriesBuilder> = Vec::new();
+    let mut pool: Vec<Series> = Vec::new();
 
     // Aggregating data
     while reader.read_byte_record(&mut record)? {
-        let mut series_builder = SeriesBuilder::with_capacity(headers.len());
+        let mut series = Series::with_capacity(sel.len());
 
-        for cell in record.iter() {
-            series_builder.try_push(cell)?;
+        for cell in sel.select(&record) {
+            series.try_push(cell)?;
         }
 
-        pool.push(series_builder);
+        pool.push(series);
     }
 
     let cols_for_sparkline = cols;
     let sparkline_width = args.flag_width.get();
     let sparkline_height = args.flag_height.get();
+    let max_bins = cols_for_sparkline / sparkline_width;
 
     let mut line_buffer = String::with_capacity(cols);
 
     // Rendering
-    for mut series_builder in pool.into_iter() {
-        series_builder.discretize(cols_for_sparkline / sparkline_width);
-        let scale = series_builder.to_scale(ScaleType::Linear).unwrap();
+    for mut series in pool.into_iter() {
+        if series.len() > max_bins {
+            series.discretize(max_bins);
+        }
+
+        let scale = series.to_scale(ScaleType::Linear).unwrap();
 
         for h in (0..sparkline_height).rev() {
             line_buffer.clear();
 
             let len = SPARKLINE_CHARS.len();
 
-            for y in series_builder.numbers.iter().copied() {
+            for y in series.numbers.iter().copied() {
                 let sparkline_char = if y == 0.0 {
                     ' '
                 } else {
