@@ -130,7 +130,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
     if matches!(args.arg_input.as_deref(), Some("debate")) {
-        println!(
+        eprintln!(
             "✨💖✨ I love CSV! ✨💖✨\nhttps://github.com/medialab/xan/blob/master/docs/LOVE_LETTER.md"
         );
         return Ok(());
