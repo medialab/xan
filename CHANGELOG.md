@@ -44,6 +44,7 @@
 * Adding `xan view --name`.
 * Adding `xan join -S/--sorted, -R/--reverse & -N/--numeric`.
 * Adding `xan parallel --run` & `xan cat rows --run`.
+* Adding `xan to md -l/--limit`.
 
 *Fixes*
 

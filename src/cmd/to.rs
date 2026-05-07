@@ -6,6 +6,7 @@ use std::path::Path;
 use npyz::WriterBuilder;
 use pad::PadStr;
 use rust_xlsxwriter::Workbook;
+use simd_csv::{ByteRecord, StringRecord, ZeroCopyReader};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
@@ -100,6 +101,11 @@ TXT options:
                         to convert to text has multiple columns or if
                         selection yields more than a single column.
 
+Markdown options:
+    -l, --limit <n>  Maximum number of rows to emit. If the end of the table is not
+                     reached within limit, a dummy row containing ellipsis characters
+                     will be written in the end.
+
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
 
@@ -126,6 +132,7 @@ struct Args {
     flag_strings: Option<SelectedColumns>,
     flag_dtype: String,
     flag_caption: Option<String>,
+    flag_limit: Option<usize>,
 }
 
 impl Args {
@@ -138,6 +145,13 @@ impl Args {
             None
         } else {
             Some(self.flag_sample_size as usize)
+        }
+    }
+
+    fn limit(&self) -> Option<usize> {
+        match self.flag_limit {
+            Some(l) if l > 0 => Some(l),
+            _ => None,
         }
     }
 
@@ -194,7 +208,7 @@ impl Args {
             json_array.push(json_object.clone());
         }
 
-        let mut record = simd_csv::StringRecord::new();
+        let mut record = StringRecord::new();
 
         while rdr.read_record(&mut record)? {
             inferrence_buffer.mutate_attributes(&mut json_object, &record);
@@ -238,7 +252,7 @@ impl Args {
             writeln!(writer, "{}", serde_json::to_string(&json_object)?)?;
         }
 
-        let mut record = simd_csv::StringRecord::new();
+        let mut record = StringRecord::new();
 
         while rdr.read_record(&mut record)? {
             inferrence_buffer.mutate_attributes(&mut json_object, &record);
@@ -282,11 +296,11 @@ impl Args {
 
     fn convert_to_html(&self) -> CliResult<()> {
         let rconf = self.rconf();
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
         let writer = self.wconf().buf_io_writer()?;
 
         let mut xml_writer = XMLWriter::new(writer);
-        let mut record = csv::StringRecord::new();
+        let mut record = StringRecord::new();
 
         xml_writer.open_no_attributes("table")?;
 
@@ -294,7 +308,7 @@ impl Args {
             xml_writer.open_no_attributes("thead")?;
             xml_writer.open_no_attributes("tr")?;
 
-            for header in rdr.headers()?.iter() {
+            for header in rdr.byte_headers()?.clone().into_string_record()?.iter() {
                 xml_writer.open_no_attributes("th")?;
                 xml_writer.write_text(header)?;
                 xml_writer.close("th")?;
@@ -328,7 +342,7 @@ impl Args {
 
     fn convert_to_latex(&self) -> CliResult<()> {
         let rconf = self.rconf();
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
         fn escape_latex_table_cell(cell: &str) -> String {
@@ -355,7 +369,7 @@ impl Args {
             result
         }
 
-        let headers = rdr.headers()?.clone();
+        let headers = rdr.byte_headers()?.clone().into_string_record()?;
         let records = rdr
             .into_records()
             .map(|result| {
@@ -426,7 +440,7 @@ impl Args {
 
     fn convert_to_md(&self) -> CliResult<()> {
         let rconf = self.rconf();
-        let mut rdr = rconf.reader()?;
+        let mut rdr = rconf.simd_reader()?;
         let mut writer = self.wconf().buf_io_writer()?;
 
         fn escape_md_table_cell(cell: &str) -> String {
@@ -435,9 +449,16 @@ impl Args {
                 .replace(">", "\\>")
         }
 
-        let headers = rdr.headers()?.clone();
-        let records = rdr
-            .into_records()
+        let headers = rdr.byte_headers()?.clone().into_string_record()?;
+
+        let mut records_iter: Box<dyn Iterator<Item = simd_csv::Result<StringRecord>>> =
+            Box::new(rdr.records());
+
+        if let Some(limit) = self.limit() {
+            records_iter = Box::new(records_iter.take(limit));
+        }
+
+        let mut records = records_iter
             .map(|result| {
                 result.map(|record| {
                     record
@@ -447,6 +468,12 @@ impl Args {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        let everything_was_read = !rdr.read_byte_record(&mut ByteRecord::new())?;
+
+        if !everything_was_read {
+            records.push((0..headers.len()).map(|_| "...".to_string()).collect());
+        }
 
         let widths = headers
             .iter()
@@ -504,7 +531,7 @@ impl Args {
 
         fn write_floats<T: npyz::AutoSerialize + fast_float::FastFloat>(
             output_path: impl AsRef<Path>,
-            mut rdr: simd_csv::ZeroCopyReader<Box<dyn Read + Send>>,
+            mut rdr: ZeroCopyReader<Box<dyn Read + Send>>,
             sel: &Selection,
         ) -> CliResult<()> {
             let output_file = File::create(output_path)?;

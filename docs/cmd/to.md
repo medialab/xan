@@ -43,6 +43,11 @@ TXT options:
                         to convert to text has multiple columns or if
                         selection yields more than a single column.
 
+Markdown options:
+    -l, --limit <n>  Maximum number of rows to emit. If the end of the table is not
+                     reached within limit, a dummy row containing ellipsis characters
+                     will be written in the end.
+
 LateX options:
     --caption <caption>  Optional name of the caption set in the latex, will be empty if not specified.
 

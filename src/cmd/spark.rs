@@ -21,6 +21,7 @@ use crate::CliResult;
 // TODO: unpivot flag, working with groupby
 // TODO: --rainbow, horizontal and vertical (also for stripes)
 // TODO: factorize rendering so it can be used in xan stats -D
+// TODO: gradients to emphasize
 
 static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 const FULL_BAR: char = '█';
