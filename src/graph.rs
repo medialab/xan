@@ -190,6 +190,14 @@ impl NodeStore {
     }
 
     #[inline]
+    fn unwrap_as_range_mut(&mut self) -> &mut Vec<(Option<String>, Attributes)> {
+        match self {
+            Self::Range(list) => list,
+            _ => panic!("cannot unwrap this NodeStore as range!"),
+        }
+    }
+
+    #[inline]
     fn get_index(&self, index: usize) -> Option<(NodeKey, &Attributes)> {
         match self {
             Self::Hash(map) => map.get_index(index).map(|(k, v)| (NodeKey::String(k), v)),
@@ -307,7 +315,8 @@ enum NodeExtremityType {
 
 #[derive(Default)]
 pub struct GraphBuilderOptions {
-    pub range_edge_store: Option<u32>,
+    pub range_node_store: Option<u32>,
+    pub fill_range_node_store: bool,
     pub linear_edge_store: bool,
     pub undirected: bool,
 }
@@ -336,12 +345,16 @@ impl GraphBuilder {
             last_target_index: None,
             node_model: Vec::new(),
             edge_model: Vec::new(),
-            nodes: if let Some(max) = options.range_edge_store {
-                NodeStore::Range(
-                    (0..(max + 1) as usize)
-                        .map(|_| (None, Attributes::default()))
-                        .collect(),
-                )
+            nodes: if let Some(max) = options.range_node_store {
+                if options.fill_range_node_store {
+                    NodeStore::Range(
+                        (0..(max + 1) as usize)
+                            .map(|_| (None, Attributes::default()))
+                            .collect(),
+                    )
+                } else {
+                    NodeStore::Range(Vec::with_capacity(max as usize + 1))
+                }
             } else {
                 NodeStore::Hash(new_index_map())
             },
@@ -351,6 +364,10 @@ impl GraphBuilder {
                 EdgeStore::Hash(HashMap::new(), Vec::new())
             },
         }
+    }
+
+    pub fn order(&self) -> usize {
+        self.nodes.len()
     }
 
     fn ensure_node_keys(&mut self) {
@@ -471,6 +488,13 @@ impl GraphBuilder {
     #[inline(always)]
     pub fn get_target_node_id(&mut self, key: &str) -> usize {
         self.add_node_impl(NodeExtremityType::Target, key, None)
+    }
+
+    #[inline(always)]
+    pub fn push_node(&mut self, key: &str, attributes: Attributes) {
+        self.nodes
+            .unwrap_as_range_mut()
+            .push((Some(key.to_string()), attributes));
     }
 
     pub fn add_edge_impl(

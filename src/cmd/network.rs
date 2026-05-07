@@ -213,7 +213,8 @@ impl Args {
         let options = GraphBuilderOptions {
             undirected: self.flag_undirected,
             linear_edge_store,
-            range_edge_store: self.flag_range,
+            range_node_store: self.flag_range,
+            fill_range_node_store: self.flag_nodes.is_none(),
         };
 
         GraphBuilder::new(options)
@@ -229,10 +230,6 @@ impl Args {
         let mut record = StringRecord::new();
 
         if let Some(nodes_path) = &self.flag_nodes {
-            if self.flag_range.is_some() {
-                Err("--nodes is not yet compatible with --range!")?;
-            }
-
             let nodes_rconf = Config::new(&Some(nodes_path.clone()))
                 .delimiter(self.flag_delimiter)
                 .no_headers(self.flag_no_headers);
@@ -271,7 +268,12 @@ impl Args {
                     attributes.insert(k, v);
                 }
 
-                graph_builder.add_node(key, attributes);
+                // TODO: we could coalesce `push_node` & `add_node`
+                if self.flag_range.is_some() {
+                    graph_builder.push_node(key, attributes);
+                } else {
+                    graph_builder.add_node(key, attributes);
+                }
             };
 
             for buffered_record in node_attr_inferrence.records() {
@@ -280,6 +282,12 @@ impl Args {
 
             while node_reader.read_record(&mut record)? {
                 process_node_record(&record);
+            }
+
+            if let Some(max) = self.flag_range {
+                if graph_builder.order() as u32 != max + 1 {
+                    Err(format!("--nodes file did not give a correct number of nodes (max id {}) wrt what max was given to --range ({})!", graph_builder.order().saturating_sub(1), max))?;
+                }
             }
         }
 
