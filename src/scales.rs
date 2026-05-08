@@ -877,6 +877,10 @@ impl Scale {
         }
     }
 
+    pub fn from_extent(scale_type: ScaleType, input_range: Extent<f64>) -> Self {
+        Self::new(scale_type, input_range.into_inner(), (0.0, 1.0))
+    }
+
     pub fn nice(
         scale_type: ScaleType,
         input_domain: (f64, f64),

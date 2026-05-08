@@ -1,6 +1,8 @@
+use std::fmt::{Display, Write as FmtWrite};
 use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
+use colored::Colorize;
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
@@ -26,6 +28,122 @@ use crate::CliResult;
 
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 pub const FULL_BAR: char = '█';
+
+#[derive(Debug, Default, Clone, Copy)]
+enum SparklineColorMode {
+    #[default]
+    None,
+    Striped,
+}
+
+pub struct SparklineRendererOptions {
+    pub height: usize,
+    pub width: usize,
+    color_mode: SparklineColorMode,
+}
+
+impl Default for SparklineRendererOptions {
+    fn default() -> Self {
+        Self {
+            height: 1,
+            width: 1,
+            color_mode: SparklineColorMode::default(),
+        }
+    }
+}
+
+impl SparklineRendererOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_striped(&mut self) {
+        self.color_mode = SparklineColorMode::Striped;
+    }
+
+    pub fn build(self) -> SparklineRenderer {
+        SparklineRenderer {
+            draw_buffer: String::new(),
+            options: self,
+        }
+    }
+}
+
+pub struct SparklineRenderer {
+    draw_buffer: String,
+    options: SparklineRendererOptions,
+}
+
+impl SparklineRenderer {
+    pub fn render(&mut self, scale: &Scale, bins: &[f64]) {
+        let height = self.options.height;
+        let width = self.options.width;
+
+        self.draw_buffer.clear();
+
+        for h in (0..height).rev() {
+            let len = SPARKLINE_CHARS.len();
+
+            for (i, y) in bins.iter().copied().enumerate() {
+                let sparkline_char = if y == 0.0 {
+                    ' '
+                } else {
+                    let ratio = scale.percent(y);
+                    let scaled = ratio * height as f64;
+
+                    let full = scaled.floor() as usize;
+                    let frac = scaled - full as f64;
+
+                    if full > h {
+                        if h == height - 1 {
+                            SPARKLINE_CHARS[len - 1]
+                        } else {
+                            FULL_BAR
+                        }
+                    } else if full == h && frac > 1e-9 {
+                        let mut bar_index = (frac * len as f64).ceil() as usize;
+                        bar_index = bar_index.saturating_sub(1).min(len - 1);
+
+                        SPARKLINE_CHARS[bar_index]
+                    } else {
+                        ' '
+                    }
+                };
+
+                for _ in 0..width {
+                    match self.options.color_mode {
+                        SparklineColorMode::None => {
+                            self.draw_buffer.push(sparkline_char);
+                        }
+                        SparklineColorMode::Striped => {
+                            if i % 2 == 0 {
+                                write!(
+                                    &mut self.draw_buffer,
+                                    "{}",
+                                    sparkline_char.to_string().dimmed()
+                                )
+                                .unwrap();
+                            } else {
+                                self.draw_buffer.push(sparkline_char);
+                            }
+                        }
+                    }
+                }
+            }
+
+            self.draw_buffer.push('\n');
+        }
+
+        // NOTE: removing last newline
+        self.draw_buffer.pop();
+    }
+}
+
+impl Display for SparklineRenderer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.draw_buffer)
+    }
+}
 
 #[derive(Debug)]
 struct Series {
@@ -84,7 +202,7 @@ impl Series {
     fn to_scale(&self, scale_type: ScaleType) -> Option<Scale> {
         self.extent_builder
             .build()
-            .map(|extent| Scale::new(scale_type, (extent.min(), extent.max()), (0.0, 1.0)))
+            .map(|extent| Scale::from_extent(scale_type, extent))
     }
 }
 
@@ -182,7 +300,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let sparkline_height = args.flag_height.get();
     let max_bins = cols_for_sparkline / sparkline_width;
 
-    let mut line_buffer = String::with_capacity(cols);
+    let mut sparkline_renderer_options = SparklineRendererOptions::new();
+    sparkline_renderer_options.width = sparkline_width;
+    sparkline_renderer_options.height = sparkline_height;
+
+    let mut sparkline_renderer = sparkline_renderer_options.build();
 
     // Rendering
     for mut series in pool.into_iter() {
@@ -191,45 +313,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         }
 
         let scale = series.to_scale(ScaleType::Linear).unwrap();
+        sparkline_renderer.render(&scale, &series.numbers);
 
-        for h in (0..sparkline_height).rev() {
-            line_buffer.clear();
-
-            let len = SPARKLINE_CHARS.len();
-
-            for y in series.numbers.iter().copied() {
-                let sparkline_char = if y == 0.0 {
-                    ' '
-                } else {
-                    let pct = scale.percent(y);
-                    let scaled = pct * sparkline_height as f64;
-
-                    let full = scaled.floor() as usize;
-                    let frac = scaled - full as f64;
-
-                    if full > h {
-                        if h == sparkline_height - 1 {
-                            SPARKLINE_CHARS[len - 1]
-                        } else {
-                            FULL_BAR
-                        }
-                    } else if full == h && frac > 1e-9 {
-                        let mut bar_index = (frac * len as f64).ceil() as usize;
-                        bar_index = bar_index.saturating_sub(1).min(len - 1);
-
-                        SPARKLINE_CHARS[bar_index]
-                    } else {
-                        ' '
-                    }
-                };
-
-                for _ in 0..sparkline_width {
-                    line_buffer.push(sparkline_char);
-                }
-            }
-
-            writeln!(&mut out, "{}", line_buffer)?;
-        }
+        writeln!(&mut out, "{}", sparkline_renderer)?;
     }
 
     Ok(())

@@ -6,11 +6,11 @@ use colored::Colorize;
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
-use crate::cmd::spark::{FULL_BAR, SPARKLINE_CHARS};
+use crate::cmd::spark::SparklineRendererOptions;
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
-use crate::scales::ExtentBuilder;
+use crate::scales::{ExtentBuilder, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, format_number};
 use crate::CliResult;
@@ -37,60 +37,6 @@ impl ColumnType {
             Self::Labels => "labels",
         }
     }
-}
-
-// TODO: factorize with `xan spark`
-fn print_sparkline(buffer: &mut String, height: usize, bins: &[f64]) {
-    buffer.clear();
-
-    let mut max = bins[0];
-
-    for count in &bins[1..] {
-        if *count > max {
-            max = *count;
-        }
-    }
-
-    for h in (0..height).rev() {
-        let len = SPARKLINE_CHARS.len();
-
-        for (i, y) in bins.iter().copied().enumerate() {
-            let sparkline_char = if y == 0.0 {
-                ' '
-            } else {
-                let pct = y / max;
-                let scaled = pct * height as f64;
-
-                let full = scaled.floor() as usize;
-                let frac = scaled - full as f64;
-
-                if full > h {
-                    if h == height - 1 {
-                        SPARKLINE_CHARS[len - 1]
-                    } else {
-                        FULL_BAR
-                    }
-                } else if full == h && frac > 1e-9 {
-                    let mut bar_index = (frac * len as f64).ceil() as usize;
-                    bar_index = bar_index.saturating_sub(1).min(len - 1);
-
-                    SPARKLINE_CHARS[bar_index]
-                } else {
-                    ' '
-                }
-            };
-
-            if i % 2 == 0 {
-                buffer.push_str(&sparkline_char.to_string().dimmed().to_string());
-            } else {
-                buffer.push(sparkline_char);
-            }
-        }
-
-        buffer.push('\n');
-    }
-
-    buffer.pop();
 }
 
 // TODO: untrimmed values counting
@@ -395,7 +341,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
         }
 
-        let mut sparkline_buffer = String::new();
         let sep = "─".repeat(cols).dimmed();
 
         for estimator in estimators {
@@ -441,9 +386,22 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(stddev).magenta()
                     )?;
 
-                    print_sparkline(&mut sparkline_buffer, 5, &histogram);
+                    let max_bin_count = histogram
+                        .iter()
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap();
 
-                    writeln!(&mut out, "\n{}", sparkline_buffer)?;
+                    let sparkline_scale =
+                        Scale::new(ScaleType::Linear, (0.0, *max_bin_count), (0.0, 1.0));
+
+                    let mut sparkline_renderer_options = SparklineRendererOptions::new();
+                    sparkline_renderer_options.height = 5;
+                    sparkline_renderer_options.set_striped();
+
+                    let mut sparkline_renderer = sparkline_renderer_options.build();
+                    sparkline_renderer.render(&sparkline_scale, &histogram);
+
+                    writeln!(&mut out, "{}", sparkline_renderer)?;
                 }
                 _ => (),
             };
