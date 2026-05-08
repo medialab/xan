@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
@@ -15,11 +16,33 @@ use crate::select::SelectedColumns;
 use crate::util::{self, format_number};
 use crate::CliResult;
 
+const HISTOGRAM_BINS: usize = 35;
+
+fn float_cmp(a: &f64, b: &f64) -> Ordering {
+    a.partial_cmp(b).unwrap()
+}
+
+fn linear_time_median(values: &mut [f64]) -> f64 {
+    let n = values.len();
+    let mid = n / 2;
+
+    values.select_nth_unstable_by(mid, float_cmp);
+
+    if n % 2 == 1 {
+        values[mid]
+    } else {
+        let lower = *values[..mid].iter().max_by(|a, b| float_cmp(a, b)).unwrap();
+        (lower + values[mid]) / 2.0
+    }
+}
+
 enum ColumnType {
     Numerical {
+        int: bool,
         min: f64,
         max: f64,
         mean: f64,
+        median: f64,
         stddev: f64,
         histogram: Vec<f64>,
     },
@@ -32,7 +55,13 @@ enum ColumnType {
 impl ColumnType {
     fn as_str(&self) -> &str {
         match self {
-            Self::Numerical { .. } => "numerical",
+            Self::Numerical { int, .. } => {
+                if *int {
+                    "numerical (integers)"
+                } else {
+                    "numerical (floats)"
+                }
+            }
             Self::Categorical { .. } => "categorical",
             Self::Labels => "labels",
         }
@@ -45,6 +74,7 @@ impl ColumnType {
 // TODO: auto log scale
 // TODO: timestamp
 // TODO: --color
+// TODO: print total count, empty count (with empty)
 
 #[derive(Debug)]
 struct ColumnEstimator {
@@ -98,23 +128,31 @@ impl ColumnEstimator {
         }
     }
 
+    fn non_empty_count(&self) -> u64 {
+        self.count - self.empty_count
+    }
+
     fn string_cardinality(&self) -> u64 {
         self.strings.cardinality()
     }
 
     fn string_cardinality_ratio(&self) -> f64 {
-        self.string_cardinality() as f64 / (self.count - self.empty_count) as f64
+        self.string_cardinality() as f64 / self.non_empty_count() as f64
     }
 
     fn is_numerical(&self) -> bool {
-        self.count - self.empty_count == self.welford.count() as u64
+        self.non_empty_count() == self.welford.count() as u64
     }
 
-    fn infer_type(&self) -> ColumnType {
+    fn is_int(&self) -> bool {
+        self.non_empty_count() == self.int_count
+    }
+
+    fn infer_type(&mut self) -> ColumnType {
         if self.is_numerical() {
             let extent = self.extent_builder.build().unwrap();
 
-            let bins = 35;
+            let bins = HISTOGRAM_BINS;
             let mut histogram = vec![0f64; bins];
             let cell_width = extent.width() / bins as f64;
 
@@ -124,9 +162,11 @@ impl ColumnEstimator {
             }
 
             ColumnType::Numerical {
+                int: self.is_int(),
                 min: extent.min(),
                 max: extent.max(),
                 mean: self.welford.mean().unwrap(),
+                median: linear_time_median(&mut self.numbers),
                 stddev: self.welford.stdev().unwrap(),
                 histogram,
             }
@@ -343,9 +383,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         let sep = "─".repeat(cols).dimmed();
 
-        for estimator in estimators {
+        for mut estimator in estimators {
             let column_type = estimator.infer_type();
 
+            writeln!(&mut out, "{}", sep)?;
             writeln!(
                 &mut out,
                 "{}: {}",
@@ -366,8 +407,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     min,
                     max,
                     mean,
+                    median,
                     stddev,
-                    histogram,
+                    mut histogram,
+                    ..
                 } => {
                     writeln!(
                         &mut out,
@@ -379,20 +422,38 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     )?;
                     writeln!(
                         &mut out,
-                        "({} ± {}): {} ± {}",
+                        "({} ± {}, {}): {} ± {}, {}",
                         "mean".green(),
                         "σ".magenta(),
+                        "median".yellow(),
                         format_number(mean).green(),
-                        format_number(stddev).magenta()
+                        format_number(stddev).magenta(),
+                        format_number(median).yellow(),
                     )?;
 
-                    let max_bin_count = histogram
-                        .iter()
-                        .max_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap();
+                    // TODO: factorize into Histogram struct since we are going
+                    // to use this later on...
+                    let histogram_max = *histogram.iter().max_by(|a, b| float_cmp(a, b)).unwrap();
 
-                    let sparkline_scale =
-                        Scale::new(ScaleType::Linear, (0.0, *max_bin_count), (0.0, 1.0));
+                    let mut histogram_max_for_scale = histogram_max;
+
+                    let scale_denomination = if max / min > 1_000.0 {
+                        for bin in histogram.iter_mut() {
+                            *bin = bin.ln_1p();
+                        }
+
+                        histogram_max_for_scale = histogram_max.ln_1p();
+
+                        "log"
+                    } else {
+                        "linear"
+                    };
+
+                    let sparkline_scale = Scale::new(
+                        ScaleType::Linear,
+                        (0.0, histogram_max_for_scale),
+                        (0.0, 1.0),
+                    );
 
                     let mut sparkline_renderer_options = SparklineRendererOptions::new();
                     sparkline_renderer_options.height = 5;
@@ -401,12 +462,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     let mut sparkline_renderer = sparkline_renderer_options.build();
                     sparkline_renderer.render(&sparkline_scale, &histogram);
 
-                    writeln!(&mut out, "{}", sparkline_renderer)?;
+                    writeln!(
+                        &mut out,
+                        "distribution ({} scale, {}/total): {}/{}\n{}",
+                        scale_denomination.cyan(),
+                        "highest".red(),
+                        format_number(histogram_max).red(),
+                        format_number(estimator.count),
+                        sparkline_renderer
+                    )?;
                 }
                 _ => (),
             };
 
-            writeln!(&mut out, "\n")?;
+            writeln!(&mut out, "{}\n", sep)?;
         }
 
         return Ok(());
