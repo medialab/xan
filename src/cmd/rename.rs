@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io;
 
 use lazy_static::lazy_static;
 use regex::bytes::Regex as BytesRegex;
@@ -116,9 +116,9 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(args.flag_no_headers);
     let wconfig = Config::new(&args.flag_output);
 
-    let mut rdr = rconfig.simd_zero_copy_reader()?;
+    let mut peeker = rconfig.simd_peeker()?;
     let mut wtr_builder = wconfig.simd_csv_writer_builder();
-    wtr_builder.crlf_newlines(rdr.has_crlf_newlines()?);
+    wtr_builder.crlf_newlines(peeker.has_crlf_newlines()?);
     let mut wtr = wtr_builder.from_writer(wconfig.io_writer()?);
 
     if args.flag_no_headers {
@@ -130,11 +130,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             Err("Cannot use -R/--replace with -n/--no-headers!")?;
         }
 
-        let (expected_len, bytes) = if let Some(record) = rdr.read_byte_record()? {
-            (record.len(), record.as_slice().to_vec())
-        } else {
-            (0, Vec::new())
-        };
+        let first_row = peeker.peek_byte_record()?;
+
+        if first_row.is_empty() {
+            return Ok(());
+        }
+
+        let expected_len = first_row.len();
 
         let rename_as = if let Some(prefix) = &args.flag_prefix {
             (0..expected_len)
@@ -159,27 +161,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         if expected_len > 0 {
             wtr.write_record(&rename_as)?;
 
-            let mut bufwriter = wtr.into_bufwriter();
-            bufwriter.flush()?;
-            bufwriter.write_all(&bytes)?;
-
-            if rdr.has_crlf_newlines()? {
-                bufwriter.write_all(b"\r\n")?;
-            } else {
-                bufwriter.write_all(b"\n")?;
-            }
-
-            let (rest, mut bufreader) = rdr.into_bufreader();
-
-            assert!(rest.is_none());
-
-            io::copy(&mut bufreader, &mut bufwriter)?;
+            io::copy(
+                &mut peeker.into_reader(),
+                &mut wtr.into_inner().map_err(|err| err.into_error())?,
+            )?;
         }
 
         return Ok(());
     }
 
-    let headers = rdr.byte_headers()?;
+    let headers = peeker.peek_byte_record()?;
     let mut ignored_in_rename_as: Option<Vec<usize>> = None;
     let mut nothing_to_do = false;
 
@@ -284,13 +275,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     wtr.write_byte_record(&renamed_headers)?;
 
-    let (rest, mut bufreader) = rdr.into_bufreader();
-
-    assert!(rest.is_none());
-
-    let mut bufwriter = wtr.into_bufwriter();
-
-    io::copy(&mut bufreader, &mut bufwriter)?;
+    io::copy(
+        &mut peeker.into_reader(),
+        &mut wtr.into_inner().map_err(|err| err.into_error())?,
+    )?;
 
     Ok(())
 }

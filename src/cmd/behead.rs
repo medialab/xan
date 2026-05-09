@@ -59,7 +59,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         .no_headers(!actually_behead);
 
     let mut peeker = rconf.simd_peeker()?;
-    peeker.peek_byte_headers()?;
+    peeker.peek()?;
 
     let mut wtr = wconf.buf_io_writer_with_options(
         OpenOptions::new()
