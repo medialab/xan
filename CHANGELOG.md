@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.58.0 (provisional, need to bump simd-csv first)
+## 0.58.0 (provisional)
 
 *Breaking*
 
