@@ -174,26 +174,21 @@ impl Args {
             let mut headers_written = false;
 
             for conf in configs {
-                let mut reader = conf.simd_zero_copy_reader()?;
+                let mut peeker = conf.simd_peeker()?;
 
                 if !headers_written {
                     let mut writer_builder = wconf.simd_csv_writer_builder();
-                    writer_builder.crlf_newlines(reader.has_crlf_newlines()?);
+                    writer_builder.crlf_newlines(peeker.has_crlf_newlines()?);
 
                     let mut csv_writer = wconf.simd_csv_writer_from_writer(&mut writer);
 
-                    csv_writer.write_byte_record(reader.byte_headers()?)?;
+                    csv_writer.write_splitted_record(peeker.peek()?)?;
                     csv_writer.flush()?;
 
                     headers_written = true;
                 }
 
-                reader.byte_headers()?;
-
-                let (rest, mut bufreader) = reader.into_bufreader();
-                assert!(rest.is_none());
-
-                io::copy(&mut bufreader, &mut writer)?;
+                io::copy(&mut peeker.into_reader(), &mut writer)?;
             }
         }
 
