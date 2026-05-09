@@ -568,7 +568,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             }
 
-            output_record.write_field(|bytes| {
+            output_record.write_field(|mut bytes| {
                 let last = tokens.len().saturating_sub(1);
 
                 for (i, token) in tokens.iter().enumerate() {

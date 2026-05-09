@@ -42,14 +42,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         Err("-A/--append needs to know where the output will be written!\nPlease provide -o/--output.")?;
     }
 
+    let wconf = Config::new(&args.flag_output);
+
+    let mut actually_behead = true;
+
+    if args.flag_append {
+        let output_path = wconf.path.as_ref().unwrap();
+
+        if !output_path.is_file() || output_path.metadata()?.len() == 0 {
+            actually_behead = false;
+        }
+    }
+
     let rconf = Config::new(&args.arg_input)
         .delimiter(args.flag_delimiter)
-        .no_headers(true);
+        .no_headers(!actually_behead);
 
-    let mut splitter = rconf.simd_splitter()?;
-    let header_opt = splitter.split_record()?;
-
-    let wconf = Config::new(&args.flag_output);
+    let mut peeker = rconf.simd_peeker()?;
+    peeker.peek_byte_headers()?;
 
     let mut wtr = wconf.buf_io_writer_with_options(
         OpenOptions::new()
@@ -58,14 +68,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             .append(args.flag_append),
     )?;
 
-    if args.flag_append && wconf.path.unwrap().metadata()?.len() == 0 {
-        if let Some(header) = header_opt {
-            wtr.write_all(header)?;
-            wtr.write_all(b"\n")?;
-        }
-    }
-
-    io::copy(&mut splitter.into_bufreader().1, &mut wtr)?;
+    io::copy(&mut peeker.into_reader(), &mut wtr)?;
 
     Ok(wtr.flush()?)
 }
