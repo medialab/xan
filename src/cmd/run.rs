@@ -1,6 +1,5 @@
 use std::env;
 use std::fs;
-use std::io::{self, IsTerminal};
 use std::process::{Command, Stdio};
 
 use crate::processing::{parse_pipeline, Children};
@@ -144,10 +143,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 command.stdin(Stdio::null());
                 command.arg(path);
             } else {
-                if io::stdin().is_terminal() {
-                    Err("failed to read CSV data from stdin. Did you forget to give a path to your file?")?;
-                }
-
                 command.stdin(Stdio::inherit());
             }
         }
