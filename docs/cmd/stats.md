@@ -2,15 +2,24 @@
 # xan stats
 
 ```txt
-Computes descriptive statistics on CSV data.
+Computes descriptive statistics of CSV data.
 
-By default, statistics are reported for *every* column in the CSV data. The default
-set of statistics corresponds to statistics that can be computed efficiently on a
-stream of data in constant memory, but more can be selected using flags documented
+If you want to print human-readable output, use the -D/--describe flag.
+
+Else this command can be used to generate a CSV output that can be easily piped
+into other `xan` commands.
+
+By default, statistics are reported for *every* column in the CSV data, but you
+can restrict the set of analyzed columns using the -s/--select flag.
+
+The default set of statistics corresponds to things that can be computed efficiently
+on a stream in constant memory, but more can be selected using flags documented
 hereafter.
 
+Stats can also be computed per group using the -g/--groupby flag.
+
 If you have more specific needs or want to perform custom aggregations, please be
-sure to check the `xan agg` command instead.
+sure to check the `xan agg` or `xan groupby` commands instead.
 
 Here is what the CSV output will look like:
 
@@ -54,7 +63,10 @@ stats options:
                              See 'xan select --help' for the format details.
                              This is provided here because piping 'xan select'
                              into 'xan stats' will disable the use of indexing.
-    -D, --describe
+    -D, --describe           Produce a human-readable output suitable to understand
+                             what your columns contain, along with the relevant
+                             dataviz (bar charts, top lists etc.)
+                             Does not work with -g/--groupby.
     -g, --groupby <cols>     If given, will compute stats per group as defined by
                              the given column selection.
     -A, --all                Shorthand for -cq.
