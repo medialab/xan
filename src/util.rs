@@ -420,6 +420,10 @@ impl ColorOrStyles {
     }
 }
 
+// static TRUE_VALUES: [&str; 4] = ["true", "TRUE", "True", "yes"];
+// static FALSE_VALUES: [&str; 4] = ["false", "FALSE", "False", "no"];
+// static NULL_VALUES: [&str; 7] = ["NULL", "null", "na", "NA", "None", "n/a", "N/A"];
+
 pub fn colorizer_by_type(string: &str) -> ColorOrStyles {
     match string {
         "true" | "TRUE" | "True" | "false" | "FALSE" | "False" | "yes" | "no" => {
