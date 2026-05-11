@@ -3,7 +3,7 @@ use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
 use bstr::BString;
-use colored::{Color, Colorize};
+use colored::Colorize;
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
@@ -173,7 +173,7 @@ impl ColumnEstimator {
             let extent = self.extent_builder.build().unwrap();
 
             let histogram =
-                Histogram::from_extent_and_series(HISTOGRAM_BINS, &extent, &self.numbers);
+                Histogram::from_extent_and_series(HISTOGRAM_BINS, extent, &self.numbers);
 
             ColumnType::Numerical {
                 int: self.is_int(),
@@ -487,17 +487,6 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         "linear"
                     };
 
-                    let mut color_overrides: Vec<Option<Color>> = vec![None; histogram.bins()];
-
-                    color_overrides[extent.discrete_index(histogram.bins(), mean - stddev)] =
-                        Some(Color::Magenta);
-                    color_overrides[extent.discrete_index(histogram.bins(), mean + stddev)] =
-                        Some(Color::Magenta);
-                    color_overrides[extent.discrete_index(histogram.bins(), mean)] =
-                        Some(Color::Green);
-                    color_overrides[extent.discrete_index(histogram.bins(), median)] =
-                        Some(Color::Yellow);
-
                     let sparkline_scale =
                         Scale::new(ScaleType::Linear, (0.0, histogram.max_value()), (0.0, 1.0));
 
@@ -506,10 +495,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     sparkline_renderer_options.set_striped();
 
                     let mut sparkline_renderer = sparkline_renderer_options.build();
-                    sparkline_renderer.render_with_color_overrides(
-                        &sparkline_scale,
-                        &histogram,
-                        Some(&color_overrides),
+                    sparkline_renderer.render(&sparkline_scale, &histogram);
+                    sparkline_renderer.render_central_tendendy(
+                        histogram.bins(),
+                        histogram.discrete_index(mean),
+                        histogram.discrete_index(median),
+                        histogram.discrete_index(mean - stddev),
+                        histogram.discrete_index(mean + stddev),
                     );
 
                     writeln!(

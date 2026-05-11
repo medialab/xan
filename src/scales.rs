@@ -208,12 +208,12 @@ impl<T: Copy + PartialOrd + Sub<Output = T>> Extent<T> {
 }
 
 impl Extent<f64> {
-    pub fn discrete_index(&self, bins: usize, target: f64) -> usize {
-        let bin_width = self.width() / bins as f64;
-        let index = ((target - self.min()) / bin_width).floor() as usize;
+    // pub fn discrete_index(&self, bins: usize, target: f64) -> usize {
+    //     let bin_width = self.width() / bins as f64;
+    //     let index = ((target - self.min()) / bin_width).floor() as usize;
 
-        index.min(bins.saturating_sub(1))
-    }
+    //     index.min(bins.saturating_sub(1))
+    // }
 
     #[inline]
     fn lerp(&self, t: f64) -> f64 {
@@ -315,13 +315,14 @@ impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {
 
 pub struct Histogram {
     bins: Vec<f64>,
-    domain_min: f64,
-    cell_width: f64,
+    domain_extent: Extent<f64>,
+    bin_width: f64,
     max_count: f64,
     max_value: Option<f64>,
 }
 
 impl Histogram {
+    #[inline(always)]
     pub fn bins(&self) -> usize {
         self.bins.len()
     }
@@ -342,9 +343,12 @@ impl Histogram {
         self.max_value = Some(self.max_count.ln_1p());
     }
 
+    pub fn discrete_index(&self, x: f64) -> usize {
+        (((x - self.domain_extent.min()) / self.bin_width).floor() as usize).min(self.bins() - 1)
+    }
+
     fn process(&mut self, x: f64) {
-        let index =
-            (((x - self.domain_min) / self.cell_width).floor() as usize).min(self.bins() - 1);
+        let index = self.discrete_index(x);
 
         let count = self.bins[index] + 1.0;
 
@@ -355,11 +359,11 @@ impl Histogram {
         self.bins[index] = count;
     }
 
-    pub fn from_extent_and_series(bins: usize, extent: &Extent<f64>, series: &[f64]) -> Self {
+    pub fn from_extent_and_series(bins: usize, extent: Extent<f64>, series: &[f64]) -> Self {
         let mut histogram = Self {
             bins: vec![0.0; bins],
-            domain_min: extent.min(),
-            cell_width: extent.width() / bins as f64,
+            domain_extent: extent,
+            bin_width: extent.width() / bins as f64,
             max_count: 0.0,
             max_value: None,
         };

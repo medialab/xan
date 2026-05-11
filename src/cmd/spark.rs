@@ -161,6 +161,31 @@ impl SparklineRenderer {
         // NOTE: removing last newline
         self.draw_buffer.pop();
     }
+
+    pub fn render_central_tendendy(
+        &mut self,
+        bins: usize,
+        mean_index: usize,
+        median_index: usize,
+        sigma_left_index: usize,
+        sigma_right_index: usize,
+    ) {
+        self.draw_buffer.push('\n');
+
+        for i in 0..bins {
+            if i == mean_index {
+                write!(&mut self.draw_buffer, "{}", "■".green()).unwrap();
+            } else if i == median_index {
+                write!(&mut self.draw_buffer, "{}", "■".yellow()).unwrap();
+            } else if i == sigma_left_index {
+                write!(&mut self.draw_buffer, "{}", "<".magenta()).unwrap();
+            } else if i == sigma_right_index {
+                write!(&mut self.draw_buffer, "{}", ">".magenta()).unwrap();
+            } else {
+                self.draw_buffer.push(' ');
+            }
+        }
+    }
 }
 
 impl Display for SparklineRenderer {
