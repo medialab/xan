@@ -2,13 +2,13 @@ use std::fmt::{Display, Write as FmtWrite};
 use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
-use colored::{Color, Colorize};
+use colored::Colorize;
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
 use crate::scales::{ExtentBuilder, Scale, ScaleType};
 use crate::select::SelectedColumns;
-use crate::util::{self, ColorMode};
+use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
@@ -69,7 +69,7 @@ impl SparklineRenderer {
         &mut self,
         scale: &Scale,
         bins: &[f64],
-        color_overrides_opt: Option<&[Option<Color>]>,
+        color_overrides_opt: Option<&[Option<ColorOrStyles>]>,
     ) {
         let height = self.options.height;
         let width = self.options.width;
@@ -115,7 +115,7 @@ impl SparklineRenderer {
                             write!(
                                 &mut self.draw_buffer,
                                 "{}",
-                                sparkline_char.to_string().color(color)
+                                color.colorize(&sparkline_char.to_string())
                             )
                             .unwrap();
                         }

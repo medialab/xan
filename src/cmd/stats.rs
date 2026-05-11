@@ -15,7 +15,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
 use crate::scales::{Extent, ExtentBuilder, Histogram, Scale, ScaleType};
 use crate::select::SelectedColumns;
-use crate::util::{self, format_number, ColorMode};
+use crate::util::{self, format_number, ColorMode, ColorOrStyles};
 use crate::CliResult;
 
 const LABELS_TO_SHOW: usize = 5;
@@ -504,12 +504,19 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .unwrap()
                         .max(format_number(remaining).len());
 
-                    let max_value_cols = cols.saturating_sub(max_count_width).saturating_sub(14);
+                    let max_value_cols = cols.saturating_sub(max_count_width).saturating_sub(16);
+                    let mut histogram = vec![0.0; top.len() + (remaining > 0) as usize];
+                    let mut color_overrides = vec![None; histogram.len()];
 
                     for (i, (value, count)) in top.iter().enumerate() {
+                        let color = util::colorizer_by_rainbow_with_fallback(i, value);
+                        histogram[i] = *count as f64;
+                        color_overrides[i] = Some(color);
+
                         writeln!(
                             &mut out,
-                            "  {:>2} {:>width$} {} {}",
+                            " {}  {:>2} {:>width$} {} {}",
+                            color.colorize("■"),
                             (i + 1).to_string().dimmed(),
                             format_number(*count).cyan(),
                             format!("{:>6.2}%", (*count as f64 / total as f64) * 100.0).magenta(),
@@ -525,9 +532,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     }
 
                     if remaining > 0 {
+                        *histogram.last_mut().unwrap() = remaining as f64;
+                        *color_overrides.last_mut().unwrap() = Some(ColorOrStyles::dimmed());
+
                         writeln!(
                             &mut out,
-                            "     {:>width$} {} {}",
+                            " {}     {:>width$} {} {}",
+                            "■".dimmed(),
                             format_number(remaining).cyan(),
                             format!("{:>6.2}%", (remaining as f64 / total as f64) * 100.0)
                                 .magenta(),
@@ -535,6 +546,32 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                             width = max_count_width
                         )?;
                     }
+
+                    let sparkline_scale =
+                        Scale::new(ScaleType::Linear, (0.0, top[0].1 as f64), (0.0, 1.0));
+
+                    let mut sparkline_renderer_options = SparklineRendererOptions::new();
+                    sparkline_renderer_options.height = 5;
+                    sparkline_renderer_options.width = 3;
+
+                    let mut sparkline_renderer = sparkline_renderer_options.build();
+                    sparkline_renderer.render_with_color_overrides(
+                        &sparkline_scale,
+                        &histogram,
+                        Some(&color_overrides),
+                    );
+
+                    writeln!(&mut out, "\n{}", sparkline_renderer)?;
+
+                    for i in 0..top.len() {
+                        write!(&mut out, "{:^3}", (i + 1).to_string().dimmed())?;
+                    }
+
+                    if remaining > 0 {
+                        write!(&mut out, "{:^3}", "r".dimmed())?;
+                    }
+
+                    writeln!(&mut out)?;
                 }
                 ColumnType::Numerical {
                     extent,

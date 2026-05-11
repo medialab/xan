@@ -949,16 +949,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 if !args.flag_hide_index && i == 0 {
                     util::unicode_aware_rpad_with_ellipsis(cell, col.allowed_width, " ").dimmed()
                 } else {
-                    util::colorize(
-                        &colorizer,
-                        &util::unicode_aware_highlighted_pad_with_ellipsis(
-                            alignments[col.index],
-                            cell,
-                            col.allowed_width,
-                            " ",
-                            reveal_whitespace,
-                        ),
-                    )
+                    colorizer.colorize(&util::unicode_aware_highlighted_pad_with_ellipsis(
+                        alignments[col.index],
+                        cell,
+                        col.allowed_width,
+                        " ",
+                        reveal_whitespace,
+                    ))
                 }
             })
             .collect();

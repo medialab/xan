@@ -399,13 +399,17 @@ pub fn could_be_url(string: &str) -> bool {
     false
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum ColorOrStyles {
     Color(Color),
     Styles(Styles),
 }
 
 impl ColorOrStyles {
+    pub fn dimmed() -> Self {
+        Self::Styles(Styles::Dimmed)
+    }
+
     pub fn highlightable_color(&self) -> Option<Cow<'static, str>> {
         match self {
             Self::Color(color) => {
@@ -416,6 +420,16 @@ impl ColorOrStyles {
                 }
             }
             _ => None,
+        }
+    }
+
+    pub fn colorize(&self, string: &str) -> ColoredString {
+        match self {
+            Self::Color(color) => string.color(*color),
+            Self::Styles(styles) => match styles {
+                Styles::Dimmed => string.dimmed(),
+                _ => unimplemented!(),
+            },
         }
     }
 }
@@ -467,13 +481,20 @@ pub fn colorizer_by_rainbow(index: usize, string: &str) -> ColorOrStyles {
     }
 }
 
-pub fn colorize(color_or_style: &ColorOrStyles, string: &str) -> ColoredString {
-    match color_or_style {
-        ColorOrStyles::Color(color) => string.color(*color),
-        ColorOrStyles::Styles(styles) => match styles {
-            Styles::Dimmed => string.dimmed(),
-            _ => unimplemented!(),
-        },
+pub fn colorizer_by_rainbow_with_fallback(index: usize, string: &str) -> ColorOrStyles {
+    if string == "<empty>" {
+        return ColorOrStyles::Styles(Styles::Dimmed);
+    }
+
+    match index {
+        0 => ColorOrStyles::Color(Color::Red),
+        1 => ColorOrStyles::Color(Color::Green),
+        2 => ColorOrStyles::Color(Color::Yellow),
+        3 => ColorOrStyles::Color(Color::Blue),
+        4 => ColorOrStyles::Color(Color::Magenta),
+        5 => ColorOrStyles::Color(Color::Cyan),
+        6 => ColorOrStyles::Color(Color::BrightBlack),
+        _ => ColorOrStyles::Styles(Styles::Dimmed),
     }
 }
 

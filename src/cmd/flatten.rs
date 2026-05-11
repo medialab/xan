@@ -264,7 +264,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             cell = util::highlight_problematic_string_features(&cell);
         }
 
-        util::colorize(&cell_colorizer, &cell).to_string()
+        cell_colorizer.colorize(&cell).to_string()
     };
 
     let display_headers = headers

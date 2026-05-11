@@ -333,18 +333,15 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             // Categorical colors
             if category_column_index.is_some() {
                 if let Some(color_index) = bar.category {
-                    bar_as_chars = util::colorize(
-                        &util::colorizer_by_rainbow(color_index, &bar_as_chars),
-                        &bar_as_chars,
-                    );
+                    bar_as_chars = util::colorizer_by_rainbow(color_index, &bar_as_chars)
+                        .colorize(&bar_as_chars);
                 } else {
                     bar_as_chars = bar_as_chars.dimmed();
                 }
             }
             // Rainbow
             else if args.flag_rainbow {
-                bar_as_chars =
-                    util::colorize(&util::colorizer_by_rainbow(i, &bar_as_chars), &bar_as_chars);
+                bar_as_chars = util::colorizer_by_rainbow(i, &bar_as_chars).colorize(&bar_as_chars);
             }
             // Stripes
             else {
@@ -400,11 +397,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 writeln!(
                     &mut out,
                     " {}  {}",
-                    util::colorize(&util::colorizer_by_rainbow(*color_index, "■"), "■"),
-                    util::colorize(
-                        &util::colorizer_by_rainbow(*color_index, category),
-                        category
-                    ),
+                    util::colorizer_by_rainbow(*color_index, "■").colorize("■"),
+                    &util::colorizer_by_rainbow(*color_index, category).colorize(category),
                 )?;
             }
 
