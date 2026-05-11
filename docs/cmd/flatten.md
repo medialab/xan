@@ -36,7 +36,8 @@ flatten options:
     --cols <num>           Width of the graph in terminal columns, i.e. characters.
                            Defaults to using all your terminal's width or 80 if
                            terminal's size cannot be found (i.e. when piping to file).
-                           Can also be given as a ratio of the terminal's width e.g. "0.5".
+                           Can also be given as a ratio or percentage of the terminal's width
+                           e.g. "45%" or "0.5".
     -R, --rainbow          Alternating colors for cells, rather than color by value type.
     --color <when>         When to color the output using ANSI escape codes.
                            Use `auto` for automatic detection, `never` to

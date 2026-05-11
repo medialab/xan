@@ -331,36 +331,39 @@ pub fn acquire_term_rows(rows_override: &Option<usize>) -> usize {
     }
 }
 
+fn parse_size_ratio(baseline: usize, spec: &str) -> Option<usize> {
+    if spec.ends_with('%') {
+        spec[..spec.len() - 1]
+            .parse::<f64>()
+            .ok()
+            .map(|ratio| (baseline as f64 * (ratio / 100.0)).trunc().abs() as usize)
+    } else if spec.contains('.') {
+        spec.parse::<f64>()
+            .ok()
+            .map(|ratio| (baseline as f64 * ratio).trunc().abs() as usize)
+    } else {
+        spec.parse::<usize>().ok()
+    }
+}
+
 pub fn acquire_term_cols_ratio(cols_override: &Option<String>) -> Result<usize, &str> {
-    let mut cols = acquire_term_cols(&None);
+    let cols = acquire_term_cols(&None);
 
     if let Some(spec) = cols_override {
-        if spec.contains('.') {
-            let ratio = spec.parse::<f64>().map_err(|_| "--cols is invalid!")?;
-
-            cols = (cols as f64 * ratio).trunc().abs() as usize;
-        } else {
-            cols = spec.parse::<usize>().map_err(|_| "--cols is invalid!")?;
-        }
+        parse_size_ratio(cols, spec).ok_or("--cols is invalid!")
+    } else {
+        Ok(cols)
     }
-
-    Ok(cols)
 }
 
 pub fn acquire_term_rows_ratio(rows_override: &Option<String>) -> Result<usize, &str> {
-    let mut rows = acquire_term_rows(&None);
+    let rows = acquire_term_rows(&None);
 
     if let Some(spec) = rows_override {
-        if spec.contains('.') {
-            let ratio = spec.parse::<f64>().map_err(|_| "--rows is invalid!")?;
-
-            rows = (rows as f64 * ratio).trunc().abs() as usize;
-        } else {
-            rows = spec.parse::<usize>().map_err(|_| "--rows is invalid!")?;
-        }
+        parse_size_ratio(rows, spec).ok_or("--rows is invalid!")
+    } else {
+        Ok(rows)
     }
-
-    Ok(rows)
 }
 
 thread_local! {

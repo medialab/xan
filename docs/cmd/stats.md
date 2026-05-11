@@ -54,6 +54,7 @@ stats options:
                              See 'xan select --help' for the format details.
                              This is provided here because piping 'xan select'
                              into 'xan stats' will disable the use of indexing.
+    -D, --describe
     -g, --groupby <cols>     If given, will compute stats per group as defined by
                              the given column selection.
     -A, --all                Shorthand for -cq.

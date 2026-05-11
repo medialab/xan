@@ -196,11 +196,13 @@ plot options:
     --cols <num>               Width of the graph in terminal columns, i.e. characters.
                                Defaults to using all your terminal's width or 80 if
                                terminal size cannot be found (i.e. when piping to file).
-                               Can also be given as a ratio of the terminal's width e.g. \"0.5\".
+                               Can also be given as a ratio or percentage of the terminal's width
+                               e.g. \"45%\" or \"0.5\".
     --rows <num>               Height of the graph in terminal rows, i.e. characters.
                                Defaults to using all your terminal's height minus 2 or 30 if
                                terminal size cannot be found (i.e. when piping to file).
-                               Can also be given as a ratio of the terminal's height e.g. \"0.5\".
+                               Can also be given as a ratio or percentage of the terminal's width
+                               e.g. \"45%\" or \"0.5\".
     -S, --small-multiples <n>  Display small multiples (also called facet grids) of datasets
                                given by -c, --category or when multiple series are provided to <y>,
                                using the provided number of grid columns. The plot will all share the same
