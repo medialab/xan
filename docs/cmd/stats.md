@@ -85,6 +85,7 @@ stats options:
                              if you want the number of threads to be automatically chosen instead.
 
 stats -D/--describe options:
+    --sep <str>     Indicate that cells must be split using given separator.
     --cols <num>    Width of the graph in terminal columns, i.e. characters.
                     Defaults to using all your terminal's width or 80 if
                     terminal's size cannot be found (i.e. when piping to file).

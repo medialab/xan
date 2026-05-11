@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
-use bstr::BString;
+use bstr::ByteSlice;
 use colored::Colorize;
 use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
@@ -79,7 +79,7 @@ impl ColumnType {
 
 #[derive(Debug)]
 struct ColumnEstimator {
-    name: BString,
+    name: String,
     strings: Counter<Vec<u8>>,
     numbers: Vec<f64>,
     welford: Welford,
@@ -94,7 +94,7 @@ struct ColumnEstimator {
 impl ColumnEstimator {
     fn new(name: &[u8]) -> Self {
         Self {
-            name: BString::from(name),
+            name: String::from_utf8_lossy(name).into_owned(),
             strings: Counter::new(None),
             numbers: Vec::new(),
             welford: Welford::new(),
@@ -287,6 +287,7 @@ stats options:
                              if you want the number of threads to be automatically chosen instead.
 
 stats -D/--describe options:
+    --sep <str>     Indicate that cells must be split using given separator.
     --cols <num>    Width of the graph in terminal columns, i.e. characters.
                     Defaults to using all your terminal's width or 80 if
                     terminal's size cannot be found (i.e. when piping to file).
@@ -316,6 +317,7 @@ struct Args {
     flag_describe: bool,
     flag_color: ColorMode,
     flag_cols: Option<String>,
+    flag_sep: Option<String>,
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,
@@ -438,7 +440,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
         while rdr.read_byte_record(&mut record)? {
             for (estimator, cell) in estimators.iter_mut().zip(sel.select(&record)) {
-                estimator.process(cell);
+                if let Some(sep) = &args.flag_sep {
+                    for sub_cell in cell.split_str(sep) {
+                        estimator.process(sub_cell);
+                    }
+                } else {
+                    estimator.process(cell);
+                }
             }
         }
 
@@ -450,7 +458,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             writeln!(
                 &mut out,
                 "{}",
-                String::from_utf8_lossy(&estimator.name)
+                estimator
+                    .name
                     .pad_to_width_with_alignment(cols, Alignment::Left)
                     .on_cyan()
                     .bold()
@@ -461,7 +470,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             writeln!(&mut out, "{}", column_type.as_str())?;
-            writeln!(&mut out, "rows: {}", estimator.count.to_string().red())?;
+            writeln!(&mut out, "cells: {}", estimator.count.to_string().red())?;
 
             if estimator.empty_count != 0 {
                 let ratio = estimator.empty_count as f64 / estimator.count as f64;
@@ -652,9 +661,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         writeln!(
                             &mut out,
                             "  - {}",
-                            util::unicode_aware_ellipsis(
-                                &util::wrap(&value, cols.saturating_sub(4), 4),
-                                500
+                            util::wrap(
+                                &util::unicode_aware_ellipsis(&value, 500),
+                                cols.saturating_sub(4),
+                                4
                             )
                             .green()
                         )?;
