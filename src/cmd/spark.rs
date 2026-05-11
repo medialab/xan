@@ -244,6 +244,7 @@ static USAGE: &str = "
 TODO...
 
 Usage:
+    xan spark debate
     xan spark [options] <columns> [<input>]
     xan spark --help
 
@@ -276,6 +277,7 @@ Common options:
 
 #[derive(Deserialize, Debug)]
 struct Args {
+    cmd_debate: bool,
     arg_input: Option<String>,
     arg_columns: SelectedColumns,
     flag_width: NonZeroUsize,
@@ -289,7 +291,7 @@ struct Args {
 pub fn run(argv: &[&str]) -> CliResult<()> {
     let args: Args = util::get_args(USAGE, argv)?;
 
-    if matches!(args.arg_input.as_deref(), Some("debate")) {
+    if args.cmd_debate {
         eprintln!(
             "✨💖✨ I love CSV! ✨💖✨\nhttps://github.com/medialab/xan/blob/master/docs/LOVE_LETTER.md"
         );
