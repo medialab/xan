@@ -257,6 +257,11 @@ But this cannot work on streams or gzipped files, unless a `.gzi` index (as crea
 by `bgzip -i`) can be found beside it. Parallelization is not compatible
 with the -g/--groupby option.
 
+Note that the output of the -D/--describe can easily be piped into a pager
+thusly (don't forget to force colors):
+
+    $ xan stats -D data.csv --color always | less -SR
+
 Usage:
     xan stats [options] [<input>]
 
