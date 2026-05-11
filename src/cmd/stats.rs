@@ -76,14 +76,6 @@ impl ColumnType {
     }
 }
 
-// TODO: untrimmed values counting
-// TODO: example values, viz etc.
-// TODO: label
-// TODO: auto log scale
-// TODO: timestamp
-// TODO: --color
-// TODO: print total count, empty count (with empty)
-
 #[derive(Debug)]
 struct ColumnEstimator {
     name: BString,

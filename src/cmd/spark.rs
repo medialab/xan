@@ -11,21 +11,6 @@ use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode};
 use crate::CliResult;
 
-// TODO: use space to symbolize zero when we can
-// TODO: diverging scales
-// TODO: stripes and colors
-// TODO: flag to allow full height
-// TODO: dist highlight mean, median
-// TODO: dist, freqdist, loc scale, unpivote, temporal
-// TODO: -w, -h
-// TODO: share y scale across series
-// TODO: joy div plot
-// TODO: streaming version when possible (pivoted)
-// TODO: unpivot flag, working with groupby
-// TODO: --rainbow, horizontal and vertical (also for stripes)
-// TODO: factorize rendering so it can be used in xan stats -D
-// TODO: gradients to emphasize
-
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 pub const FULL_BAR: char = '█';
 
