@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::mem;
-use std::ops::Sub;
+use std::ops::{Deref, Sub};
 
 use colored::Colorize;
 use colorgrad::Gradient;
@@ -303,6 +303,73 @@ impl<T: Copy + PartialOrd> From<(Option<T>, Option<T>)> for ExtentBuilder<T> {
         }
 
         extent_builder
+    }
+}
+
+pub struct Histogram {
+    bins: Vec<f64>,
+    domain_min: f64,
+    cell_width: f64,
+    max_count: f64,
+    max_value: Option<f64>,
+}
+
+impl Histogram {
+    fn bins(&self) -> usize {
+        self.bins.len()
+    }
+
+    pub fn max_count(&self) -> u64 {
+        self.max_count as u64
+    }
+
+    pub fn max_value(&self) -> f64 {
+        self.max_value.unwrap_or(self.max_count)
+    }
+
+    pub fn ln_1p(&mut self) {
+        for x in self.bins.iter_mut() {
+            *x = x.ln_1p();
+        }
+
+        self.max_value = Some(self.max_count.ln_1p());
+    }
+
+    fn process(&mut self, x: f64) {
+        let index =
+            (((x - self.domain_min) / self.cell_width).floor() as usize).min(self.bins() - 1);
+
+        let count = self.bins[index] + 1.0;
+
+        if count > self.max_count {
+            self.max_count = count;
+        }
+
+        self.bins[index] = count;
+    }
+
+    pub fn from_extent_and_series(bins: usize, extent: &Extent<f64>, series: &[f64]) -> Self {
+        let mut histogram = Self {
+            bins: vec![0.0; bins],
+            domain_min: extent.min(),
+            cell_width: extent.width() / bins as f64,
+            max_count: 0.0,
+            max_value: None,
+        };
+
+        for x in series.iter().copied() {
+            histogram.process(x);
+        }
+
+        histogram
+    }
+}
+
+impl Deref for Histogram {
+    type Target = [f64];
+
+    fn deref(&self) -> &Self::Target {
+        &self.bins
     }
 }
 

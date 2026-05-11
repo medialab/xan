@@ -11,7 +11,7 @@ use crate::cmd::spark::SparklineRendererOptions;
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
-use crate::scales::{ExtentBuilder, Scale, ScaleType};
+use crate::scales::{ExtentBuilder, Histogram, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, format_number, ColorMode};
 use crate::CliResult;
@@ -46,7 +46,7 @@ enum ColumnType {
         mean: f64,
         median: f64,
         stddev: f64,
-        histogram: Vec<f64>,
+        histogram: Histogram,
     },
     Categorical {
         cardinality: u64,
@@ -173,14 +173,8 @@ impl ColumnEstimator {
         if self.is_numerical() {
             let extent = self.extent_builder.build().unwrap();
 
-            let bins = HISTOGRAM_BINS;
-            let mut histogram = vec![0f64; bins];
-            let cell_width = extent.width() / bins as f64;
-
-            for x in self.numbers.iter().copied() {
-                let index = (((x - extent.min()) / cell_width).floor() as usize).min(bins - 1);
-                histogram[index] += 1.0;
-            }
+            let histogram =
+                Histogram::from_extent_and_series(HISTOGRAM_BINS, &extent, &self.numbers);
 
             ColumnType::Numerical {
                 int: self.is_int(),
@@ -488,29 +482,16 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(median).yellow(),
                     )?;
 
-                    // TODO: factorize into Histogram struct since we are going
-                    // to use this later on...
-                    let histogram_max = *histogram.iter().max_by(|a, b| float_cmp(a, b)).unwrap();
-
-                    let mut histogram_max_for_scale = histogram_max;
-
                     let scale_denomination = if max / min > 1_000.0 {
-                        for bin in histogram.iter_mut() {
-                            *bin = bin.ln_1p();
-                        }
-
-                        histogram_max_for_scale = histogram_max.ln_1p();
+                        histogram.ln_1p();
 
                         "log"
                     } else {
                         "linear"
                     };
 
-                    let sparkline_scale = Scale::new(
-                        ScaleType::Linear,
-                        (0.0, histogram_max_for_scale),
-                        (0.0, 1.0),
-                    );
+                    let sparkline_scale =
+                        Scale::new(ScaleType::Linear, (0.0, histogram.max_value()), (0.0, 1.0));
 
                     let mut sparkline_renderer_options = SparklineRendererOptions::new();
                     sparkline_renderer_options.height = 5;
@@ -524,7 +505,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         "distribution ({} scale, {}/total): {}/{}\n{}",
                         scale_denomination.cyan(),
                         "highest".red(),
-                        format_number(histogram_max).red(),
+                        format_number(histogram.max_count()).red(),
                         format_number(estimator.count),
                         sparkline_renderer
                     )?;

@@ -332,8 +332,8 @@ pub fn acquire_term_rows(rows_override: &Option<usize>) -> usize {
 }
 
 fn parse_size_ratio(baseline: usize, spec: &str) -> Option<usize> {
-    if spec.ends_with('%') {
-        spec[..spec.len() - 1]
+    if let Some(prefix) = spec.strip_suffix('%') {
+        prefix
             .parse::<f64>()
             .ok()
             .map(|ratio| (baseline as f64 * (ratio / 100.0)).trunc().abs() as usize)
