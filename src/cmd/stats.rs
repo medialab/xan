@@ -502,11 +502,12 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     writeln!(
                         &mut out,
-                        "distribution ({} scale, {}/total): {}/{}\n{}",
+                        "distribution ({} scale, {}/total): {}/{} ({:.2}%)\n{}",
                         scale_denomination.cyan(),
                         "highest".red(),
                         format_number(histogram.max_count()).red(),
                         format_number(estimator.count),
+                        (histogram.max_count() as f64 / estimator.count as f64) * 100.0,
                         sparkline_renderer
                     )?;
                 }
