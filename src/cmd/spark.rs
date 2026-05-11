@@ -174,9 +174,9 @@ impl SparklineRenderer {
 
         for i in 0..bins {
             if i == mean_index {
-                write!(&mut self.draw_buffer, "{}", "■".green()).unwrap();
+                write!(&mut self.draw_buffer, "{}", "━".green()).unwrap();
             } else if i == median_index {
-                write!(&mut self.draw_buffer, "{}", "■".yellow()).unwrap();
+                write!(&mut self.draw_buffer, "{}", "━".yellow()).unwrap();
             } else if i == sigma_left_index {
                 write!(&mut self.draw_buffer, "{}", "<".magenta()).unwrap();
             } else if i == sigma_right_index {

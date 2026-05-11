@@ -17,7 +17,7 @@ use crate::util::{self, format_number, ColorMode};
 use crate::CliResult;
 
 const LABELS_TO_SHOW: usize = 5;
-// const CATEGORIES_TO_SHOW: usize = 7;
+const CATEGORIES_TO_SHOW: usize = 10;
 const HISTOGRAM_BINS: usize = 35;
 
 fn float_cmp(a: &f64, b: &f64) -> Ordering {
@@ -49,6 +49,8 @@ enum ColumnType {
     },
     Categorical {
         cardinality: u64,
+        top: Vec<(String, u64)>,
+        total: u64,
     },
     Labels {
         sample: Vec<String>,
@@ -184,8 +186,18 @@ impl ColumnEstimator {
                 histogram,
             }
         } else if self.string_cardinality_ratio() < 0.7 {
+            let (total, top) = self
+                .strings
+                .clone()
+                .into_total_and_items(Some(CATEGORIES_TO_SHOW), false);
+
             ColumnType::Categorical {
                 cardinality: self.string_cardinality(),
+                top: top
+                    .iter()
+                    .map(|(cell, count)| (String::from_utf8_lossy(cell).into_owned(), *count))
+                    .collect(),
+                total,
             }
         } else if self.is_void() {
             ColumnType::Void
@@ -445,12 +457,46 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 ColumnType::Void => {
                     writeln!(&mut out, "\nThere is nothing is this column but the endless depths of the void!\nZilch, nada, rien, keud!")?;
                 }
-                ColumnType::Categorical { cardinality } => {
+                ColumnType::Categorical {
+                    cardinality,
+                    top,
+                    total,
+                } => {
                     writeln!(
                         &mut out,
                         "distinct values: {}",
                         format_number(cardinality).red()
                     )?;
+
+                    // let mut remaining = total;
+
+                    // for (_, count) in top.iter() {
+                    //     remaining -= *count;
+                    // }
+
+                    writeln!(&mut out, "top {} values:", top.len().to_string().red())?;
+
+                    let max_count_width = top
+                        .iter()
+                        .map(|(_, count)| format_number(*count).len())
+                        .max()
+                        .unwrap();
+
+                    let max_value_cols = cols.saturating_sub(max_count_width).saturating_sub(14);
+
+                    for (i, (value, count)) in top.iter().enumerate() {
+                        writeln!(
+                            &mut out,
+                            "  {:>2} {:>width$} {} {}",
+                            (i + 1).to_string().dimmed(),
+                            format_number(*count).cyan(),
+                            format!("{:>6.2}%", (*count as f64 / total as f64) * 100.0).magenta(),
+                            util::unicode_aware_ellipsis(value, max_value_cols).green(),
+                            width = max_count_width
+                        )?;
+                    }
+
+                    // TODO: remaining
                 }
                 ColumnType::Numerical {
                     extent,

@@ -9,7 +9,7 @@ use crate::collections::HashMap;
 
 use super::heap::TopKHeap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExactCounter<K: Eq + Hash + Send + Ord> {
     map: HashMap<K, u64>,
 }
@@ -106,6 +106,7 @@ impl<K: Eq + Hash + Send + Ord> ExactCounter<K> {
     }
 }
 
+#[derive(Clone)]
 pub struct ApproxCounter<K: Eq + Hash + Send + Ord> {
     map: FilteredSpaceSaving<K>,
 }
@@ -147,7 +148,7 @@ impl<K: Eq + Hash + Send + Ord + Clone> ApproxCounter<K> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Counter<K: Eq + Hash + Send + Ord> {
     Exact(ExactCounter<K>),
     Approximate(Box<ApproxCounter<K>>),
