@@ -419,7 +419,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         let mut out = stdout();
         let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
-        let mut estimators: Vec<_> = sel.select(&headers).map(ColumnEstimator::new).collect();
+        let mut estimators: Vec<_> = sel
+            .select(&headers)
+            .enumerate()
+            .map(|(i, name)| {
+                if rconf.no_headers {
+                    ColumnEstimator::new(format!("Column n°{}", i).as_bytes())
+                } else {
+                    ColumnEstimator::new(name)
+                }
+            })
+            .collect();
 
         while rdr.read_byte_record(&mut record)? {
             for (estimator, cell) in estimators.iter_mut().zip(sel.select(&record)) {
