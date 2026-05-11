@@ -84,6 +84,11 @@ impl ColumnType {
     }
 }
 
+// TODO: when we have seen 1024 values, we assess whether we have labels
+// TODO: for numbers we keep first seen and a counter until we spill over
+// that many times
+// TODO: this means we must have a "decide" method called at then end of read loop
+
 #[derive(Debug)]
 struct ColumnEstimator {
     name: String,
@@ -92,7 +97,6 @@ struct ColumnEstimator {
     welford: Welford,
     extent_builder: ExtentBuilder<f64>,
     int_count: u64,
-    string_count: u64,
     empty_count: u64,
     count: u64,
     first_seen: Vec<Vec<u8>>,
@@ -107,7 +111,6 @@ impl ColumnEstimator {
             welford: Welford::new(),
             extent_builder: ExtentBuilder::new(),
             int_count: 0,
-            string_count: 0,
             empty_count: 0,
             count: 0,
             first_seen: Vec::with_capacity(LABELS_TO_SHOW),
@@ -135,7 +138,6 @@ impl ColumnEstimator {
             self.extent_builder.process(f);
             self.numbers.push(f);
         } else {
-            self.string_count += 1;
             self.strings.add(cell.to_vec());
         }
     }
