@@ -15,7 +15,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
 use crate::scales::{Extent, ExtentBuilder, Histogram, Scale, ScaleType};
 use crate::select::SelectedColumns;
-use crate::util::{self, format_number, ColorMode, ColorOrStyles};
+use crate::util::{self, format_number, ColorMode, ColorOrStyles, FALSE_VALUES, TRUE_VALUES};
 use crate::CliResult;
 
 const LABELS_TO_SHOW: usize = 5;
@@ -50,6 +50,7 @@ enum ColumnType {
         histogram: Histogram,
     },
     Categorical {
+        is_bool: bool,
         cardinality: u64,
         top: Vec<(String, u64)>,
         total: u64,
@@ -70,7 +71,13 @@ impl ColumnType {
                     "numerical (floats)"
                 }
             }
-            Self::Categorical { .. } => "categorical",
+            Self::Categorical { is_bool, .. } => {
+                if *is_bool {
+                    "boolean"
+                } else {
+                    "categorical"
+                }
+            }
             Self::Labels { .. } => "labels",
             Self::Void => "void",
         }
@@ -185,7 +192,20 @@ impl ColumnEstimator {
                 .clone()
                 .into_total_and_items(Some(CATEGORIES_TO_SHOW), false);
 
+            let mut is_bool = false;
+
+            if top.len() == 2 {
+                if (TRUE_VALUES.contains(&top[0].0.as_ref())
+                    && FALSE_VALUES.contains(&top[1].0.as_ref()))
+                    || (TRUE_VALUES.contains(&top[1].0.as_ref())
+                        && FALSE_VALUES.contains(&top[0].0.as_ref()))
+                {
+                    is_bool = true;
+                }
+            }
+
             ColumnType::Categorical {
+                is_bool,
                 cardinality: self.string_cardinality(),
                 top: top
                     .iter()
@@ -493,23 +513,25 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     writeln!(&mut out, "\nThere is nothing is this column but the endless depths of the void!\nZilch, nada, rien, keud!")?;
                 }
                 ColumnType::Categorical {
+                    is_bool,
                     cardinality,
                     top,
                     total,
                 } => {
-                    writeln!(
-                        &mut out,
-                        "distinct values: {}",
-                        format_number(cardinality).red()
-                    )?;
-
                     let mut remaining = total;
 
                     for (_, count) in top.iter() {
                         remaining -= *count;
                     }
 
-                    writeln!(&mut out, "top {} values:", top.len().to_string().red())?;
+                    if !is_bool {
+                        writeln!(
+                            &mut out,
+                            "distinct values: {}",
+                            format_number(cardinality).red()
+                        )?;
+                        writeln!(&mut out, "top {} values:", top.len().to_string().red())?;
+                    }
 
                     let max_count_width = top
                         .iter()
