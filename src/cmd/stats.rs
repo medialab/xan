@@ -16,6 +16,8 @@ use crate::select::SelectedColumns;
 use crate::util::{self, format_number};
 use crate::CliResult;
 
+const LABELS_TO_SHOW: usize = 5;
+// const CATEGORIES_TO_SHOW: usize = 7;
 const HISTOGRAM_BINS: usize = 35;
 
 fn float_cmp(a: &f64, b: &f64) -> Ordering {
@@ -49,7 +51,10 @@ enum ColumnType {
     Categorical {
         cardinality: u64,
     },
-    Labels,
+    Labels {
+        sample: Vec<String>,
+    },
+    Void,
 }
 
 impl ColumnType {
@@ -63,7 +68,8 @@ impl ColumnType {
                 }
             }
             Self::Categorical { .. } => "categorical",
-            Self::Labels => "labels",
+            Self::Labels { .. } => "labels",
+            Self::Void => "void",
         }
     }
 }
@@ -87,6 +93,7 @@ struct ColumnEstimator {
     string_count: u64,
     empty_count: u64,
     count: u64,
+    first_seen: Vec<Vec<u8>>,
 }
 
 impl ColumnEstimator {
@@ -101,6 +108,7 @@ impl ColumnEstimator {
             string_count: 0,
             empty_count: 0,
             count: 0,
+            first_seen: Vec::with_capacity(LABELS_TO_SHOW),
         }
     }
 
@@ -110,6 +118,8 @@ impl ColumnEstimator {
         if cell.is_empty() {
             self.empty_count += 1;
             return;
+        } else if self.first_seen.len() < LABELS_TO_SHOW {
+            self.first_seen.push(cell.to_vec());
         }
 
         if let Ok(n) = DynamicNumber::try_from(cell) {
@@ -140,12 +150,23 @@ impl ColumnEstimator {
         self.string_cardinality() as f64 / self.non_empty_count() as f64
     }
 
+    fn is_void(&self) -> bool {
+        self.empty_count == self.count
+    }
+
     fn is_numerical(&self) -> bool {
-        self.non_empty_count() == self.welford.count() as u64
+        !self.is_void() && self.non_empty_count() == self.welford.count() as u64
     }
 
     fn is_int(&self) -> bool {
         self.non_empty_count() == self.int_count
+    }
+
+    fn to_sample(&self) -> Vec<String> {
+        self.first_seen
+            .iter()
+            .map(|cell| String::from_utf8_lossy(cell).into_owned())
+            .collect()
     }
 
     fn infer_type(&mut self) -> ColumnType {
@@ -174,8 +195,12 @@ impl ColumnEstimator {
             ColumnType::Categorical {
                 cardinality: self.string_cardinality(),
             }
+        } else if self.is_void() {
+            ColumnType::Void
         } else {
-            ColumnType::Labels
+            ColumnType::Labels {
+                sample: self.to_sample(),
+            }
         }
     }
 }
@@ -395,7 +420,23 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             )?;
             writeln!(&mut out, "{}", sep)?;
 
+            writeln!(&mut out, "rows: {}", estimator.count.to_string().red())?;
+
+            if estimator.empty_count != 0 {
+                let ratio = estimator.empty_count as f64 / estimator.count as f64;
+
+                writeln!(
+                    &mut out,
+                    "empty cells: {} ({:.2}%)",
+                    estimator.empty_count.to_string().dimmed(),
+                    ratio * 100.0
+                )?;
+            }
+
             match column_type {
+                ColumnType::Void => {
+                    writeln!(&mut out, "\nThere is nothing is this column but the endless depths of the void!\nZilch, nada, rien, keud!")?;
+                }
                 ColumnType::Categorical { cardinality } => {
                     writeln!(
                         &mut out,
@@ -472,7 +513,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         sparkline_renderer
                     )?;
                 }
-                _ => (),
+                ColumnType::Labels { sample } => {
+                    writeln!(&mut out, "First {} non empty values:", sample.len())?;
+
+                    for value in sample {
+                        writeln!(
+                            &mut out,
+                            "  - {}",
+                            util::wrap(&value, cols.saturating_sub(4), 4).green()
+                        )?;
+                    }
+                }
             };
 
             writeln!(&mut out, "{}\n", sep)?;
