@@ -655,7 +655,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
                     let mut sparkline_renderer = sparkline_renderer_options.build();
                     sparkline_renderer.render(&sparkline_scale, &histogram);
-                    sparkline_renderer.render_central_tendendy(
+                    sparkline_renderer.render_central_tendency(
                         histogram.bins(),
                         histogram.discrete_index(mean),
                         histogram.discrete_index(median),

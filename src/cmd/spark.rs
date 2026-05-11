@@ -147,7 +147,7 @@ impl SparklineRenderer {
         self.draw_buffer.pop();
     }
 
-    pub fn render_central_tendendy(
+    pub fn render_central_tendency(
         &mut self,
         bins: usize,
         mean_index: usize,
