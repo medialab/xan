@@ -72,6 +72,18 @@ stats options:
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
+stats -D/--describe options:
+    --cols <num>    Width of the graph in terminal columns, i.e. characters.
+                    Defaults to using all your terminal's width or 80 if
+                    terminal's size cannot be found (i.e. when piping to file).
+                    Can also be given as a ratio or percentage of the terminal's width
+                    e.g. "45%" or "0.5".
+    --color <when>  When to color the output using ANSI escape codes.
+                    Use `auto` for automatic detection, `never` to
+                    disable colors completely and `always` to force
+                    colors, even when the output could not handle them.
+                    [default: auto]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.

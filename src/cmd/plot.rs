@@ -206,8 +206,8 @@ plot options:
     -S, --small-multiples <n>  Display small multiples (also called facet grids) of datasets
                                given by -c, --category or when multiple series are provided to <y>,
                                using the provided number of grid columns. The plot will all share the same
-                               x scale but use a different y scale by default. See --share-y-scale
-                               and --separate-x-scale to tweak this behavior.
+                               x scale but use a different y scale by default. See the --share-y-scale
+                               flag to tweak this behavior.
     --share-x-scale <yes|no>   Give \"yes\" to share x scale for all plot when drawing small multiples with -S,
                                or \"no\" to keep them separate.
                                [default: yes]
