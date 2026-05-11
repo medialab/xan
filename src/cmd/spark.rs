@@ -3,11 +3,12 @@ use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
 use colored::Colorize;
+use colorgrad::Gradient;
 use simd_csv::ByteRecord;
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::{Config, Delimiter};
-use crate::scales::{ExtentBuilder, Scale, ScaleType};
+use crate::scales::{ExtentBuilder, GradientName, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, ColorMode, ColorOrStyles};
 use crate::CliResult;
@@ -15,11 +16,19 @@ use crate::CliResult;
 pub static SPARKLINE_CHARS: [char; 7] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇'];
 pub const FULL_BAR: char = '█';
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Default, Clone)]
 enum SparklineColorMode {
     #[default]
     None,
     Striped,
+    Gradient(Box<dyn Gradient>),
+    BackgroundGradient(Box<dyn Gradient>),
+}
+
+impl SparklineColorMode {
+    fn is_background_gradient(&self) -> bool {
+        matches!(self, Self::BackgroundGradient(_))
+    }
 }
 
 pub struct SparklineRendererOptions {
@@ -106,10 +115,12 @@ impl SparklineRenderer {
             let len = SPARKLINE_CHARS.len();
 
             for (i, y) in bins.iter().copied().enumerate() {
-                let sparkline_char = if y == 0.0 {
+                let ratio = if y == 0.0 { 0.0 } else { scale.percent(y) };
+
+                let sparkline_char = if self.options.color_mode.is_background_gradient() || y == 0.0
+                {
                     ' '
                 } else {
-                    let ratio = scale.percent(y);
                     let scaled = ratio * height as f64;
 
                     let full = scaled.floor() as usize;
@@ -145,7 +156,7 @@ impl SparklineRenderer {
                             )
                             .unwrap();
                         }
-                        _ => match self.options.color_mode {
+                        _ => match &self.options.color_mode {
                             SparklineColorMode::None => {
                                 self.draw_buffer.push(sparkline_char);
                             }
@@ -160,6 +171,26 @@ impl SparklineRenderer {
                                 } else {
                                     self.draw_buffer.push(sparkline_char);
                                 }
+                            }
+                            SparklineColorMode::Gradient(gradient) => {
+                                let c = gradient.at(ratio as f32).to_rgba8();
+
+                                write!(
+                                    &mut self.draw_buffer,
+                                    "{}",
+                                    sparkline_char.to_string().truecolor(c[0], c[1], c[2])
+                                )
+                                .unwrap();
+                            }
+                            SparklineColorMode::BackgroundGradient(gradient) => {
+                                let c = gradient.at(ratio as f32).to_rgba8();
+
+                                write!(
+                                    &mut self.draw_buffer,
+                                    "{}",
+                                    sparkline_char.to_string().on_truecolor(c[0], c[1], c[2])
+                                )
+                                .unwrap();
                             }
                         },
                     };
@@ -250,15 +281,13 @@ impl Series {
         if count < self.numbers.len() {
             self.extent_builder.clear();
 
-            let mut bins = vec![0.0; count];
+            let mut bins = Vec::with_capacity(count);
             let chunk_size = (self.numbers.len() as f64 / count as f64).ceil() as usize;
 
-            for (i, chunk) in self.numbers.chunks(chunk_size).enumerate() {
-                for x in chunk.iter().copied() {
-                    bins[i] += x;
-                }
-
-                self.extent_builder.process(bins[i]);
+            for chunk in self.numbers.chunks(chunk_size) {
+                let sum = chunk.iter().copied().sum();
+                bins.push(sum);
+                self.extent_builder.process(sum);
             }
 
             self.numbers = bins;
@@ -279,7 +308,7 @@ TODO...
 
 Usage:
     xan spark debate
-    xan spark [options] <columns> [<input>]
+    xan spark [options] [--] <columns> [<input>]
     xan spark --help
 
 spark options:
@@ -290,6 +319,8 @@ spark options:
     -H, --height <n>  Number of characters a sparkline bar is allowed to take as
                       its height.
                       [default: 1]
+    -G, --gradient <name>
+    -B, --background-gradient <name>
     --cols <num>      Number of terminal columns, i.e. characters, that we can
                       use for drawing labels, legends and sparklines.
                       Defaults to using all your terminal's width or 80 if
@@ -316,6 +347,8 @@ struct Args {
     arg_input: Option<String>,
     arg_columns: SelectedColumns,
     flag_along_rows: bool,
+    flag_gradient: Option<GradientName>,
+    flag_background_gradient: Option<GradientName>,
     flag_width: NonZeroUsize,
     flag_height: NonZeroUsize,
     flag_cols: Option<String>,
@@ -338,6 +371,10 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             "✨💖✨ I love CSV! ✨💖✨\nhttps://github.com/medialab/xan/blob/master/docs/LOVE_LETTER.md"
         );
         return Ok(());
+    }
+
+    if args.flag_gradient.is_some() && args.flag_background_gradient.is_some() {
+        Err("only one of -G/--gradient or -B/--background-gradient can be use at once!")?;
     }
 
     args.flag_color.apply();
@@ -414,6 +451,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
     let mut sparkline_renderer_options = SparklineRendererOptions::new();
     sparkline_renderer_options.width = sparkline_width;
     sparkline_renderer_options.height = sparkline_height;
+
+    if let Some(gradient) = args.flag_gradient {
+        sparkline_renderer_options.color_mode = SparklineColorMode::Gradient(gradient.build());
+    } else if let Some(gradient) = args.flag_background_gradient {
+        sparkline_renderer_options.color_mode =
+            SparklineColorMode::BackgroundGradient(gradient.build());
+    }
 
     let mut sparkline_renderer = sparkline_renderer_options.build();
 

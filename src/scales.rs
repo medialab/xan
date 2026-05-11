@@ -387,7 +387,7 @@ impl Deref for Histogram {
 macro_rules! build_gradient_name {
     ($(($enum_name: ident, $name: ident, $string: literal),)*) => {
 
-        #[derive(Clone, Copy, Deserialize)]
+        #[derive(Clone, Copy, Deserialize, Debug)]
         #[serde(try_from = "String")]
         pub enum GradientName {
             $(
