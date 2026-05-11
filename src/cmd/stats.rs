@@ -42,7 +42,7 @@ fn linear_time_median(values: &mut [f64]) -> f64 {
 
 enum ColumnType {
     Numerical {
-        int: bool,
+        is_int: bool,
         extent: Extent<f64>,
         mean: f64,
         median: f64,
@@ -63,8 +63,8 @@ enum ColumnType {
 impl ColumnType {
     fn as_str(&self) -> &str {
         match self {
-            Self::Numerical { int, .. } => {
-                if *int {
+            Self::Numerical { is_int, .. } => {
+                if *is_int {
                     "numerical (integers)"
                 } else {
                     "numerical (floats)"
@@ -172,7 +172,7 @@ impl ColumnEstimator {
                 Histogram::from_extent_and_series(HISTOGRAM_BINS, extent, &self.numbers);
 
             ColumnType::Numerical {
-                int: self.is_int(),
+                is_int: self.is_int(),
                 extent,
                 mean: self.welford.mean().unwrap(),
                 median: linear_time_median(&mut self.numbers),
