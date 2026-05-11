@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 
 use bstr::BString;
 use colored::Colorize;
+use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
@@ -431,15 +432,20 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
         for mut estimator in estimators {
             let column_type = estimator.infer_type();
 
-            writeln!(&mut out, "{}", sep)?;
             writeln!(
                 &mut out,
-                "{}: {}",
-                String::from_utf8_lossy(&estimator.name).cyan(),
-                column_type.as_str()
+                "{}",
+                String::from_utf8_lossy(&estimator.name)
+                    .pad_to_width_with_alignment(cols, Alignment::Left)
+                    .on_cyan()
+                    .bold()
             )?;
-            writeln!(&mut out, "{}", sep)?;
 
+            if args.flag_color.is_never() {
+                writeln!(&mut out, "{}", sep)?;
+            }
+
+            writeln!(&mut out, "{}", column_type.as_str())?;
             writeln!(&mut out, "rows: {}", estimator.count.to_string().red())?;
 
             if estimator.empty_count != 0 {
@@ -468,11 +474,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(cardinality).red()
                     )?;
 
-                    // let mut remaining = total;
+                    let mut remaining = total;
 
-                    // for (_, count) in top.iter() {
-                    //     remaining -= *count;
-                    // }
+                    for (_, count) in top.iter() {
+                        remaining -= *count;
+                    }
 
                     writeln!(&mut out, "top {} values:", top.len().to_string().red())?;
 
@@ -480,7 +486,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         .iter()
                         .map(|(_, count)| format_number(*count).len())
                         .max()
-                        .unwrap();
+                        .unwrap()
+                        .max(format_number(remaining).len());
 
                     let max_value_cols = cols.saturating_sub(max_count_width).saturating_sub(14);
 
@@ -496,7 +503,17 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         )?;
                     }
 
-                    // TODO: remaining
+                    if remaining > 0 {
+                        writeln!(
+                            &mut out,
+                            "     {:>width$} {} {}",
+                            format_number(remaining).cyan(),
+                            format!("{:>6.2}%", (remaining as f64 / total as f64) * 100.0)
+                                .magenta(),
+                            util::unicode_aware_ellipsis("<rest>", max_value_cols).dimmed(),
+                            width = max_count_width
+                        )?;
+                    }
                 }
                 ColumnType::Numerical {
                     extent,
@@ -574,7 +591,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 }
             };
 
-            writeln!(&mut out, "{}\n", sep)?;
+            writeln!(&mut out, "\n")?;
         }
 
         return Ok(());
