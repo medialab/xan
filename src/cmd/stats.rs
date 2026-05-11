@@ -3,7 +3,7 @@ use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
 use bstr::BString;
-use colored::Colorize;
+use colored::{Color, Colorize};
 use simd_csv::ByteRecord;
 
 use crate::cmd::parallel::Args as ParallelArgs;
@@ -11,7 +11,7 @@ use crate::cmd::spark::SparklineRendererOptions;
 use crate::collections::{ClusteredInsertHashmap, Counter};
 use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
-use crate::scales::{ExtentBuilder, Histogram, Scale, ScaleType};
+use crate::scales::{Extent, ExtentBuilder, Histogram, Scale, ScaleType};
 use crate::select::SelectedColumns;
 use crate::util::{self, format_number, ColorMode};
 use crate::CliResult;
@@ -41,8 +41,7 @@ fn linear_time_median(values: &mut [f64]) -> f64 {
 enum ColumnType {
     Numerical {
         int: bool,
-        min: f64,
-        max: f64,
+        extent: Extent<f64>,
         mean: f64,
         median: f64,
         stddev: f64,
@@ -178,8 +177,7 @@ impl ColumnEstimator {
 
             ColumnType::Numerical {
                 int: self.is_int(),
-                min: extent.min(),
-                max: extent.max(),
+                extent,
                 mean: self.welford.mean().unwrap(),
                 median: linear_time_median(&mut self.numbers),
                 stddev: self.welford.stdev().unwrap(),
@@ -455,8 +453,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     )?;
                 }
                 ColumnType::Numerical {
-                    min,
-                    max,
+                    extent,
                     mean,
                     median,
                     stddev,
@@ -468,8 +465,8 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         "({} … {}): {} … {}",
                         "min".blue(),
                         "max".red(),
-                        format_number(min).blue(),
-                        format_number(max).red()
+                        format_number(extent.min()).blue(),
+                        format_number(extent.max()).red()
                     )?;
                     writeln!(
                         &mut out,
@@ -482,13 +479,24 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                         format_number(median).yellow(),
                     )?;
 
-                    let scale_denomination = if max / min > 1_000.0 {
+                    let scale_denomination = if extent.max() / extent.min() > 1_000.0 {
                         histogram.ln_1p();
 
                         "log"
                     } else {
                         "linear"
                     };
+
+                    let mut color_overrides: Vec<Option<Color>> = vec![None; histogram.bins()];
+
+                    color_overrides[extent.discrete_index(histogram.bins(), mean - stddev)] =
+                        Some(Color::Magenta);
+                    color_overrides[extent.discrete_index(histogram.bins(), mean + stddev)] =
+                        Some(Color::Magenta);
+                    color_overrides[extent.discrete_index(histogram.bins(), mean)] =
+                        Some(Color::Green);
+                    color_overrides[extent.discrete_index(histogram.bins(), median)] =
+                        Some(Color::Yellow);
 
                     let sparkline_scale =
                         Scale::new(ScaleType::Linear, (0.0, histogram.max_value()), (0.0, 1.0));
@@ -498,7 +506,11 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     sparkline_renderer_options.set_striped();
 
                     let mut sparkline_renderer = sparkline_renderer_options.build();
-                    sparkline_renderer.render(&sparkline_scale, &histogram);
+                    sparkline_renderer.render_with_color_overrides(
+                        &sparkline_scale,
+                        &histogram,
+                        Some(&color_overrides),
+                    );
 
                     writeln!(
                         &mut out,

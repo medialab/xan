@@ -208,6 +208,13 @@ impl<T: Copy + PartialOrd + Sub<Output = T>> Extent<T> {
 }
 
 impl Extent<f64> {
+    pub fn discrete_index(&self, bins: usize, target: f64) -> usize {
+        let bin_width = self.width() / bins as f64;
+        let index = ((target - self.min()) / bin_width).floor() as usize;
+
+        index.min(bins.saturating_sub(1))
+    }
+
     #[inline]
     fn lerp(&self, t: f64) -> f64 {
         lerp(self.min(), self.max(), t)
@@ -315,7 +322,7 @@ pub struct Histogram {
 }
 
 impl Histogram {
-    fn bins(&self) -> usize {
+    pub fn bins(&self) -> usize {
         self.bins.len()
     }
 

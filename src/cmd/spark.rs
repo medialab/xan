@@ -2,7 +2,7 @@ use std::fmt::{Display, Write as FmtWrite};
 use std::io::{stdout, Write};
 use std::num::NonZeroUsize;
 
-use colored::Colorize;
+use colored::{Color, Colorize};
 use simd_csv::ByteRecord;
 
 use crate::config::{Config, Delimiter};
@@ -75,7 +75,17 @@ pub struct SparklineRenderer {
 }
 
 impl SparklineRenderer {
+    #[inline(always)]
     pub fn render(&mut self, scale: &Scale, bins: &[f64]) {
+        self.render_with_color_overrides(scale, bins, None);
+    }
+
+    pub fn render_with_color_overrides(
+        &mut self,
+        scale: &Scale,
+        bins: &[f64],
+        color_overrides_opt: Option<&[Option<Color>]>,
+    ) {
         let height = self.options.height;
         let width = self.options.width;
 
@@ -111,23 +121,37 @@ impl SparklineRenderer {
                 };
 
                 for _ in 0..width {
-                    match self.options.color_mode {
-                        SparklineColorMode::None => {
-                            self.draw_buffer.push(sparkline_char);
+                    match color_overrides_opt {
+                        Some(color_overrides)
+                            if matches!(color_overrides.get(i), Some(Some(_))) =>
+                        {
+                            let color = color_overrides[i].unwrap();
+
+                            write!(
+                                &mut self.draw_buffer,
+                                "{}",
+                                sparkline_char.to_string().color(color)
+                            )
+                            .unwrap();
                         }
-                        SparklineColorMode::Striped => {
-                            if i % 2 == 0 {
-                                write!(
-                                    &mut self.draw_buffer,
-                                    "{}",
-                                    sparkline_char.to_string().dimmed()
-                                )
-                                .unwrap();
-                            } else {
+                        _ => match self.options.color_mode {
+                            SparklineColorMode::None => {
                                 self.draw_buffer.push(sparkline_char);
                             }
-                        }
-                    }
+                            SparklineColorMode::Striped => {
+                                if i % 2 == 0 {
+                                    write!(
+                                        &mut self.draw_buffer,
+                                        "{}",
+                                        sparkline_char.to_string().dimmed()
+                                    )
+                                    .unwrap();
+                                } else {
+                                    self.draw_buffer.push(sparkline_char);
+                                }
+                            }
+                        },
+                    };
                 }
             }
 
