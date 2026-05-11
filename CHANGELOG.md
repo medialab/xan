@@ -45,6 +45,8 @@
 * Adding `xan join -S/--sorted, -R/--reverse & -N/--numeric`.
 * Adding `xan parallel --run` & `xan cat rows --run`.
 * Adding `xan to md -l/--limit`.
+* Adding the `xan spark` command.
+* Adding `xan stats -D/--describe, --color, --cols, --sep`.
 
 *Fixes*
 
