@@ -6,6 +6,7 @@ use bstr::BString;
 use colored::Colorize;
 use pad::{Alignment, PadStr};
 use simd_csv::ByteRecord;
+use unicode_width::UnicodeWidthStr;
 
 use crate::cmd::parallel::Args as ParallelArgs;
 use crate::cmd::spark::SparklineRendererOptions;
@@ -599,13 +600,26 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                     )?;
                 }
                 ColumnType::Labels { sample } => {
-                    writeln!(&mut out, "First {} non empty values:", sample.len())?;
+                    writeln!(
+                        &mut out,
+                        "First {} non empty values{}:",
+                        sample.len(),
+                        if sample.iter().any(|value| value.width() >= 500) {
+                            " (truncated)"
+                        } else {
+                            ""
+                        }
+                    )?;
 
                     for value in sample {
                         writeln!(
                             &mut out,
                             "  - {}",
-                            util::wrap(&value, cols.saturating_sub(4), 4).green()
+                            util::unicode_aware_ellipsis(
+                                &util::wrap(&value, cols.saturating_sub(4), 4),
+                                500
+                            )
+                            .green()
                         )?;
                     }
                 }
