@@ -13,7 +13,7 @@ use crate::config::{Config, Delimiter};
 use crate::moonblade::{DynamicNumber, Stats, Welford};
 use crate::scales::{ExtentBuilder, Scale, ScaleType};
 use crate::select::SelectedColumns;
-use crate::util::{self, format_number};
+use crate::util::{self, format_number, ColorMode};
 use crate::CliResult;
 
 const LABELS_TO_SHOW: usize = 5;
@@ -276,6 +276,18 @@ stats options:
     -t, --threads <threads>  Parellize computations using this many threads. Use -p, --parallel
                              if you want the number of threads to be automatically chosen instead.
 
+stats -D/--describe options:
+    --cols <num>    Width of the graph in terminal columns, i.e. characters.
+                    Defaults to using all your terminal's width or 80 if
+                    terminal's size cannot be found (i.e. when piping to file).
+                    Can also be given as a ratio or percentage of the terminal's width
+                    e.g. \"45%\" or \"0.5\".
+    --color <when>  When to color the output using ANSI escape codes.
+                    Use `auto` for automatic detection, `never` to
+                    disable colors completely and `always` to force
+                    colors, even when the output could not handle them.
+                    [default: auto]
+
 Common options:
     -h, --help             Display this message
     -o, --output <file>    Write output to <file> instead of stdout.
@@ -292,6 +304,8 @@ struct Args {
     flag_select: SelectedColumns,
     flag_groupby: Option<SelectedColumns>,
     flag_describe: bool,
+    flag_color: ColorMode,
+    flag_cols: Option<String>,
     flag_all: bool,
     flag_cardinality: bool,
     flag_quartiles: bool,
@@ -391,12 +405,14 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     // Describe
     if args.flag_describe {
+        args.flag_color.apply();
+
         if args.flag_groupby.is_some() {
             Err("-D/--describe does not work with -g/--groupby!")?;
         }
 
         let mut out = stdout();
-        let cols = util::acquire_term_cols(&None);
+        let cols = util::acquire_term_cols_ratio(&args.flag_cols)?;
 
         let mut estimators: Vec<_> = sel.select(&headers).map(ColumnEstimator::new).collect();
 
