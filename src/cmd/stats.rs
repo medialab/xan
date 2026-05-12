@@ -316,6 +316,7 @@ stats options:
                              what your columns contain, along with the relevant
                              dataviz (bar charts, top lists etc.)
                              Does not work with -g/--groupby.
+    --sep <str>              Indicate that cells must be split using given separator.
     -g, --groupby <cols>     If given, will compute stats per group as defined by
                              the given column selection.
     -A, --all                Shorthand for -cq.
@@ -334,7 +335,6 @@ stats options:
                              if you want the number of threads to be automatically chosen instead.
 
 stats -D/--describe options:
-    --sep <str>     Indicate that cells must be split using given separator.
     --cols <num>    Width of the graph in terminal columns, i.e. characters.
                     Defaults to using all your terminal's width or 80 if
                     terminal's size cannot be found (i.e. when piping to file).
@@ -517,7 +517,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             }
 
             writeln!(&mut out, "{}", column_type.as_str())?;
-            writeln!(&mut out, "cells: {}", estimator.count.to_string().red())?;
+            writeln!(&mut out, "cells: {}", format_number(estimator.count).red())?;
 
             if estimator.empty_count != 0 {
                 let ratio = estimator.empty_count as f64 / estimator.count as f64;
@@ -525,7 +525,7 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
                 writeln!(
                     &mut out,
                     "empty cells: {} ({:.2}%)",
-                    estimator.empty_count.to_string().dimmed(),
+                    format_number(estimator.empty_count).dimmed(),
                     ratio * 100.0
                 )?;
             }
@@ -792,7 +792,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
             });
 
             for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
-                stats.process(cell);
+                if let Some(sep) = &args.flag_sep {
+                    for sub_cell in cell.split_str(sep) {
+                        stats.process(sub_cell);
+                    }
+                } else {
+                    stats.process(cell);
+                }
             }
         }
 
@@ -820,7 +826,13 @@ pub fn run(argv: &[&str]) -> CliResult<()> {
 
     while rdr.read_byte_record(&mut record)? {
         for (cell, stats) in sel.select(&record).zip(fields.iter_mut()) {
-            stats.process(cell);
+            if let Some(sep) = &args.flag_sep {
+                for sub_cell in cell.split_str(sep) {
+                    stats.process(sub_cell);
+                }
+            } else {
+                stats.process(cell);
+            }
         }
     }
 
